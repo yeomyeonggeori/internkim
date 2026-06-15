@@ -30,6 +30,9 @@ type calendarNotification struct {
 	Status       string
 }
 
+const calendarNotificationQuietStartHour = 21
+const calendarNotificationQuietEndHour = 8
+
 func (service *Service) syncCalendarMattermostLog(ctx context.Context, event calendarEvent) calendarEvent {
 	return service.applyCalendarMattermostProjection(ctx, event)
 }
@@ -126,6 +129,9 @@ func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, even
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
 	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
+	if mentionText := calendarMattermostMentionText(event); mentionText != "" {
+		lines = append(lines, "멘션: "+mentionText)
+	}
 	if strings.TrimSpace(event.Location) != "" {
 		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
 	}
@@ -136,6 +142,68 @@ func (service *Service) calendarMattermostLogMessage(event calendarEvent) string
 		lines = append(lines, "메모: "+note)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func calendarMattermostMentionText(event calendarEvent) string {
+	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
+	if !hasPeopleLine || calendarPeopleIncludesAll(people) {
+		return "@all"
+	}
+	return strings.Join(calendarMattermostMentionsForPeople(people), " ")
+}
+
+func calendarPeopleIncludesAll(people []string) bool {
+	for _, person := range people {
+		normalizedPerson := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(person, "@")))
+		if normalizedPerson == "all" || normalizedPerson == "전체" {
+			return true
+		}
+	}
+	return false
+}
+
+func calendarMattermostMentionsForPeople(people []string) []string {
+	mentions := []string{}
+	seenMentions := map[string]bool{}
+	for _, person := range people {
+		mention := calendarMattermostMentionForPerson(person)
+		if mention == "" || seenMentions[strings.ToLower(mention)] {
+			continue
+		}
+		seenMentions[strings.ToLower(mention)] = true
+		mentions = append(mentions, mention)
+	}
+	return mentions
+}
+
+func calendarMattermostMentionForPerson(person string) string {
+	mentionName := strings.TrimSpace(strings.TrimPrefix(person, "@"))
+	if !isCalendarMattermostMentionName(mentionName) {
+		return ""
+	}
+	return "@" + mentionName
+}
+
+func isCalendarMattermostMentionName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' {
+			continue
+		}
+		if character >= 'A' && character <= 'Z' {
+			continue
+		}
+		if character >= '0' && character <= '9' {
+			continue
+		}
+		if character == '-' || character == '_' || character == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func calendarMattermostLogProps(event calendarEvent) map[string]any {
@@ -301,10 +369,32 @@ func calendarNotificationTime(event calendarEvent, now time.Time) (time.Time, bo
 		return time.Time{}, false
 	}
 	notifyAt := startTime.Add(-time.Duration(normalizeCalendarReminderLeadHours(event.ReminderLeadHours)) * time.Hour)
+	notifyAt = calendarNotificationDeliveryTime(notifyAt, event.TimeZone)
 	if notifyAt.Before(now) {
 		return now, true
 	}
 	return notifyAt, true
+}
+
+func calendarNotificationDeliveryTime(notifyAt time.Time, timeZone string) time.Time {
+	location := calendarNotificationLocation(timeZone)
+	localNotifyAt := notifyAt.In(location)
+	if localNotifyAt.Hour() >= calendarNotificationQuietStartHour {
+		return time.Date(localNotifyAt.Year(), localNotifyAt.Month(), localNotifyAt.Day(), calendarNotificationQuietStartHour, 0, 0, 0, location).UTC()
+	}
+	if localNotifyAt.Hour() < calendarNotificationQuietEndHour {
+		previousDay := localNotifyAt.AddDate(0, 0, -1)
+		return time.Date(previousDay.Year(), previousDay.Month(), previousDay.Day(), calendarNotificationQuietStartHour, 0, 0, 0, location).UTC()
+	}
+	return notifyAt
+}
+
+func calendarNotificationLocation(timeZone string) *time.Location {
+	location, errorValue := time.LoadLocation(firstNonEmpty(strings.TrimSpace(timeZone), "UTC"))
+	if errorValue != nil {
+		return time.UTC
+	}
+	return location
 }
 
 func (service *Service) calendarNotificationTargets(ctx context.Context, event calendarEvent) ([]calendarNotificationTarget, error) {
