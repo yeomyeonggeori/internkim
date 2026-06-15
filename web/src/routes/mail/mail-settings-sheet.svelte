@@ -8,6 +8,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import {
 		currentMailPresetFromDraft,
+		mailAppPasswordInputValue,
 		mailAddressSettingsUpdate,
 		mailProviderSettingsUpdate,
 		mailSettingsEmailStateFromEmail,
@@ -82,8 +83,17 @@
 	}
 
 	function syncCommonAppPassword(event: Event) {
-		const appPassword = (event.currentTarget as HTMLInputElement).value;
+		const input = event.currentTarget as HTMLInputElement;
+		const appPassword = mailAppPasswordInputValue(input.value, emailProviderID);
+		input.value = appPassword;
 		accountDraft.imapPassword = appPassword;
+		accountDraft.smtpPassword = appPassword;
+	}
+
+	function syncSMTPAppPassword(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const appPassword = mailAppPasswordInputValue(input.value, emailProviderID);
+		input.value = appPassword;
 		accountDraft.smtpPassword = appPassword;
 	}
 
@@ -137,7 +147,19 @@
 				</div>
 				<div class="grid w-full gap-3 sm:col-span-2">
 					<div class="w-full space-y-2">
-						<Label for="mail-app-password">{text.fields.appPassword}</Label>
+						<div class="flex items-center justify-between gap-3">
+							<Label for="mail-app-password">{text.fields.appPassword}</Label>
+							{#if emailProviderID === 'gmail'}
+								<a
+									class="text-xs font-medium text-primary underline-offset-4 hover:underline"
+									href="https://myaccount.google.com/apppasswords"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									{text.settingsSheet.googleAppPasswordLink}
+								</a>
+							{/if}
+						</div>
 						<Input
 							id="mail-app-password"
 							type="password"
@@ -233,7 +255,13 @@
 							</div>
 							<div class="space-y-2">
 								<Label for="mail-smtp-password">SMTP {text.fields.appPassword}</Label>
-								<Input id="mail-smtp-password" type="password" bind:value={accountDraft.smtpPassword} placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
+								<Input
+									id="mail-smtp-password"
+									type="password"
+									value={accountDraft.smtpPassword}
+									placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
+									oninput={syncSMTPAppPassword}
+								/>
 							</div>
 							<div class="space-y-2">
 								<Label for="mail-sent-mailbox">{text.fields.sentMailbox}</Label>
