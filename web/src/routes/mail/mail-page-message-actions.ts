@@ -5,7 +5,12 @@ import type { MailMessage } from './mail-types';
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
 
 export async function loadPageMailboxes(controller: MailPageControllerState, text: MailPageText) {
-	controller.mailboxes = await fetchMailboxes(controller.mailActorEmail(), controller.mailErrors(text.errors.loadMailboxes));
+	controller.isLoadingMailboxes = true;
+	try {
+		controller.mailboxes = await fetchMailboxes(controller.mailActorEmail(), controller.mailErrors(text.errors.loadMailboxes));
+	} finally {
+		controller.isLoadingMailboxes = false;
+	}
 }
 
 export async function loadMessagesPage(controller: MailPageControllerState, text: MailPageText, isAppending: boolean) {
@@ -15,7 +20,9 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 	const mailbox = controller.selectedMailbox;
 	if (!isAppending) {
 		controller.activeSearchText = controller.searchText.trim();
-		controller.resetMessageList();
+		controller.nextCursor = '';
+		controller.hasMoreMessages = false;
+		controller.isLoadingMessages = true;
 	}
 	const searchText = controller.activeSearchText;
 	const cursor = controller.nextCursor;
@@ -27,9 +34,11 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 	try {
 		const result = await fetchMailMessages(controller.mailActorEmail(), query, controller.mailErrors(text.errors.loadMessages));
 		if (!isCurrentMessageListRequest(controller, requestID, mailbox, searchText, isAppending ? cursor : '')) return;
+		if (!isAppending) controller.messageDetailCache.clear();
 		controller.messages = isAppending ? mergeMailMessages(controller.messages, result.messages ?? []) : (result.messages ?? []);
 		controller.nextCursor = result.nextCursor ?? '';
 		controller.hasMoreMessages = controller.nextCursor !== '';
+		if (!isAppending) controller.isLoadingMessages = false;
 		if (!isAppending) {
 			controller.selectedMessage = controller.visibleMessages()[0] ?? null;
 			if (controller.selectedMessage) await loadMessageDetail(controller, text, controller.selectedMessage);
@@ -38,7 +47,7 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 		if (!isCurrentMessageListRequest(controller, requestID, mailbox, searchText, isAppending ? cursor : '')) return;
 		controller.nextCursor = '';
 		controller.hasMoreMessages = false;
-		if (!isAppending) controller.resetMessageList();
+		if (!isAppending) controller.isLoadingMessages = false;
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMessages;
 	} finally {
 		if (isAppending) controller.isLoadingMore = false;
@@ -46,6 +55,7 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 }
 
 export function selectMailPageMailbox(controller: MailPageControllerState, mailboxName: string) {
+	if (controller.selectedMailbox === mailboxName) return;
 	controller.selectedMailbox = mailboxName;
 	controller.loadMessages();
 }
@@ -58,12 +68,20 @@ export function selectMailPageMessage(controller: MailPageControllerState, text:
 export async function loadMessageDetail(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {
 	const requestID = nextMessageDetailRequestID(controller);
 	const messageKey = mailPageMessageKey(message);
+	const cachedMessage = controller.messageDetailCache.get(messageKey);
+	if (cachedMessage) {
+		controller.selectedMessage = cachedMessage;
+		controller.isLoadingMessage = false;
+		controller.errorMessage = '';
+		return;
+	}
 	controller.isLoadingMessage = true;
 	controller.errorMessage = '';
 	try {
 		const detail = await fetchMailMessage(controller.mailActorEmail(), message, controller.mailErrors(text.errors.loadMessage));
 		if (!isCurrentMessageDetailRequest(controller, requestID, messageKey)) return;
 		controller.selectedMessage = { ...message, ...detail };
+		controller.messageDetailCache.set(messageKey, controller.selectedMessage);
 	} catch (error) {
 		if (!isCurrentMessageDetailRequest(controller, requestID, messageKey)) return;
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMessage;
@@ -74,18 +92,31 @@ export async function loadMessageDetail(controller: MailPageControllerState, tex
 
 export async function moveSelectedMailMessage(controller: MailPageControllerState, text: MailPageText, targetHint: string) {
 	if (!controller.selectedMessage) return;
+	const movedMessage = controller.selectedMessage;
+	const movedMessageKey = mailPageMessageKey(movedMessage);
 	const targetMailbox = mailboxNameByHint(controller.pageMailboxes(), targetHint);
 	if (!targetMailbox) {
 		controller.errorMessage = `${targetHint} ${text.errors.mailboxNotFound}`;
 		return;
 	}
 	try {
-		await moveMailMessage(controller.mailActorEmail(), controller.selectedMessage, targetMailbox, controller.mailErrors(text.errors.moveMessage));
+		await moveMailMessage(controller.mailActorEmail(), movedMessage, targetMailbox, controller.mailErrors(text.errors.moveMessage));
 	} catch (error) {
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.moveMessage;
 		return;
 	}
-	await controller.loadMessages();
+	controller.errorMessage = '';
+	controller.messages = controller.messages.filter((message) => mailPageMessageKey(message) !== movedMessageKey);
+	controller.messageDetailCache.delete(movedMessageKey);
+	if (mailPageMessageKey(controller.selectedMessage) === movedMessageKey) {
+		controller.selectedMessage = controller.visibleMessages()[0] ?? null;
+		if (controller.selectedMessage) await loadMessageDetail(controller, text, controller.selectedMessage);
+	}
+	try {
+		await loadPageMailboxes(controller, text);
+	} catch (error) {
+		controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMailboxes;
+	}
 }
 
 export async function toggleSelectedMailMessageRead(controller: MailPageControllerState, text: MailPageText) {
@@ -98,6 +129,8 @@ export async function toggleSelectedMailMessageRead(controller: MailPageControll
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.updateMessage;
 		return;
 	}
+	const cachedMessage = controller.messageDetailCache.get(messageKey);
+	if (cachedMessage) controller.messageDetailCache.set(messageKey, { ...cachedMessage, isRead: seen });
 	if (mailPageMessageKey(controller.selectedMessage) === messageKey) {
 		controller.selectedMessage = { ...controller.selectedMessage, isRead: seen };
 	}
