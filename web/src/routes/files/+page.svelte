@@ -78,7 +78,10 @@
 
 	{#if files.errorMessage}
 		<Card.Root class="border-destructive/40 bg-destructive/5">
-			<Card.Content class="py-3 text-sm text-destructive">{files.errorMessage}</Card.Content>
+			<Card.Content class="flex items-center justify-between gap-3 py-3">
+				<span class="text-sm text-destructive">{files.errorMessage}</span>
+				<Button variant="outline" size="sm" onclick={() => files.reload()}>{text.retry}</Button>
+			</Card.Content>
 		</Card.Root>
 	{/if}
 
