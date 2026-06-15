@@ -80,23 +80,48 @@ export type TimelineSummary = {
 	llmCallCount: number;
 	llmLatencyMS: number;
 	llmTotalTokens: number;
+	llmCachedPromptTokens: number;
+	llmCostUSD: number;
 	toolCallCount: number;
 };
 
 export function summarizeTimeline(taskEvents: TaskEvent[]): TimelineSummary {
-	const summary: TimelineSummary = { llmCallCount: 0, llmLatencyMS: 0, llmTotalTokens: 0, toolCallCount: 0 };
+	const summary: TimelineSummary = {
+		llmCallCount: 0,
+		llmLatencyMS: 0,
+		llmTotalTokens: 0,
+		llmCachedPromptTokens: 0,
+		llmCostUSD: 0,
+		toolCallCount: 0
+	};
 	for (const taskEvent of taskEvents) {
 		if (taskEvent.name === 'llm.call') {
 			summary.llmCallCount += 1;
 			const body = readRecord(parseEventBody(taskEvent.body));
 			if (body && typeof body.latencyMs === 'number') summary.llmLatencyMS += body.latencyMs;
 			if (body && typeof body.totalTokens === 'number') summary.llmTotalTokens += body.totalTokens;
+			if (body && typeof body.cachedPromptTokens === 'number') summary.llmCachedPromptTokens += body.cachedPromptTokens;
+			summary.llmCostUSD += effectiveCallCostUSD(body);
 		}
 		if (taskEvent.name.startsWith('tool.') && taskEvent.name.endsWith('.result')) {
 			summary.toolCallCount += 1;
 		}
 	}
 	return summary;
+}
+
+function effectiveCallCostUSD(body: Record<string, unknown> | undefined): number {
+	if (!body) return 0;
+	const cost = typeof body.costUSD === 'number' ? body.costUSD : 0;
+	if (cost > 0) return cost;
+	const upstreamCost = typeof body.upstreamInferenceCostUSD === 'number' ? body.upstreamInferenceCostUSD : 0;
+	return upstreamCost > 0 ? upstreamCost : 0;
+}
+
+export function formatCostUSD(costUSD: number): string {
+	if (costUSD <= 0) return '$0';
+	if (costUSD < 1) return `$${costUSD.toFixed(4)}`;
+	return `$${costUSD.toFixed(2)}`;
 }
 
 export function parseEventBody(body: string): unknown {

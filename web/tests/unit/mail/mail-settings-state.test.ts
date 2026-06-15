@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { createMailAccountDraft, emptyMailAccount } from '../../../src/routes/mail/mail-account-draft';
 import {
+	mailAppPasswordInputValue,
 	mailAddressSettingsUpdate,
 	mailProviderSettingsUpdate,
 	mailSettingsEmailStateFromEmail,
@@ -72,5 +73,13 @@ describe('mail settings state', () => {
 	test('resolves the domain shown in the split email control', () => {
 		expect(selectedMailSettingsDomain('gmail', '')).toBe('gmail.com');
 		expect(selectedMailSettingsDomain('custom', 'example.com')).toBe('example.com');
+	});
+
+	test('normalizes copied Gmail app password input spaces', () => {
+		expect(mailAppPasswordInputValue('abcd efgh ijkl mnop', 'gmail')).toBe('abcdefghijklmnop');
+	});
+
+	test('preserves custom provider password input spaces', () => {
+		expect(mailAppPasswordInputValue('custom password with spaces', 'custom')).toBe('custom password with spaces');
 	});
 });

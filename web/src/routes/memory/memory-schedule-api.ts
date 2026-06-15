@@ -32,6 +32,7 @@ export type MemoryScheduleListResponse = {
 export type MemoryScheduleListRequest = {
 	page?: number;
 	pageSize?: number;
+	includeExpired?: boolean;
 };
 
 export type ScheduleUpdateFields = {
@@ -57,6 +58,10 @@ export async function fetchMemorySchedules(request: MemoryScheduleListRequest = 
 
 export async function cancelSchedule(taskScheduleID: string): Promise<void> {
 	await postMemoryScheduleRequest('/memory/api/schedules/cancel', { taskScheduleID });
+}
+
+export async function deleteSchedule(taskScheduleID: string): Promise<void> {
+	await postMemoryScheduleRequest('/memory/api/schedules/delete', { taskScheduleID });
 }
 
 export async function updateSchedule(taskScheduleID: string, fields: ScheduleUpdateFields): Promise<void> {
@@ -105,6 +110,7 @@ function memorySchedulesURL(request: MemoryScheduleListRequest): string {
 	const query = new URLSearchParams();
 	setPositiveIntegerQuery(query, 'page', request.page);
 	setPositiveIntegerQuery(query, 'pageSize', request.pageSize);
+	setBooleanQuery(query, 'includeExpired', request.includeExpired);
 	const queryString = query.toString();
 	return queryString ? `/memory/api/schedules?${queryString}` : '/memory/api/schedules';
 }
@@ -112,6 +118,11 @@ function memorySchedulesURL(request: MemoryScheduleListRequest): string {
 function setPositiveIntegerQuery(query: URLSearchParams, name: string, value: number | undefined): void {
 	if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return;
 	query.set(name, String(Math.floor(value)));
+}
+
+function setBooleanQuery(query: URLSearchParams, name: string, value: boolean | undefined): void {
+	if (typeof value !== 'boolean') return;
+	query.set(name, value ? 'true' : 'false');
 }
 
 function normalizeMemorySchedule(document: unknown): MemorySchedule | undefined {

@@ -3,20 +3,21 @@
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Pagination from '$lib/components/ui/pagination';
 	import * as Select from '$lib/components/ui/select';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Switch } from '$lib/components/ui/switch';
 	import * as Table from '$lib/components/ui/table';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
 	import {
-		cancelSchedule,
+		deleteSchedule as deleteMemorySchedule,
 		fetchMemorySchedules,
 		updateSchedule,
 		type MemorySchedule,
@@ -70,6 +71,7 @@
 	let isLoading = $state(false);
 	let isSavingSchedule = $state(false);
 	let isEditDialogOpen = $state(false);
+	let includeExpiredSchedules = $state(true);
 	let scheduleDraft = $state<ScheduleEditDraft>({ ...emptyDraft });
 
 	onMount(() => {
@@ -80,7 +82,7 @@
 		isLoading = true;
 		hasLoadError = false;
 		try {
-			const response = await fetchMemorySchedules({ page, pageSize });
+			const response = await fetchMemorySchedules({ page, pageSize, includeExpired: includeExpiredSchedules });
 			const loadedSchedules = response.schedules ?? [];
 			const loadedPageSize = response.pageSize && response.pageSize > 0 ? response.pageSize : pageSize;
 			const loadedTotalCount = response.totalCount ?? response.count ?? loadedSchedules.length;
@@ -105,6 +107,14 @@
 		void loadSchedules(currentPage);
 	}
 
+	function toggleIncludeExpiredSchedules(value: boolean): void {
+		if (includeExpiredSchedules === value) return;
+		actionErrorMessage = '';
+		includeExpiredSchedules = value;
+		currentPage = 1;
+		void loadSchedules(1);
+	}
+
 	function changeSchedulePage(page: number): void {
 		if (page === currentPage || isLoading) return;
 		void loadSchedules(page);
@@ -116,7 +126,7 @@
 		isEditDialogOpen = true;
 	}
 
-	function confirmCancelSchedule(schedule: MemorySchedule): void {
+	function confirmDeleteSchedule(schedule: MemorySchedule): void {
 		confirmDelete({
 			title: text.scheduleDeleteTitle,
 			description: text.scheduleDeleteDescription.replace('{value}', scheduleTitle(schedule)),
@@ -131,7 +141,7 @@
 	async function deleteSchedule(taskScheduleID: string): Promise<void> {
 		actionErrorMessage = '';
 		try {
-			await cancelSchedule(taskScheduleID);
+			await deleteMemorySchedule(taskScheduleID);
 			await loadSchedules(currentPage);
 		} catch {
 			actionErrorMessage = text.scheduleDeleteFailed;
@@ -212,6 +222,28 @@
 		return scheduleKindLabel(normalizedScheduleKind(schedule.kind));
 	}
 
+	function scheduleStatusLabel(schedule: MemorySchedule): string {
+		if (isExpiredSchedule(schedule)) return text.scheduleStatusExpired;
+		if (isCompletedSchedule(schedule)) return text.scheduleStatusCompleted;
+		return text.scheduleStatusActive;
+	}
+
+	function scheduleStatusVariant(schedule: MemorySchedule): 'default' | 'secondary' | 'destructive' | 'outline' {
+		if (isExpiredSchedule(schedule)) return 'destructive';
+		if (isCompletedSchedule(schedule)) return 'outline';
+		return 'secondary';
+	}
+
+	function isCompletedSchedule(schedule: MemorySchedule): boolean {
+		return !schedule.nextRunAt;
+	}
+
+	function isExpiredSchedule(schedule: MemorySchedule): boolean {
+		if (!schedule.expiresAt) return false;
+		const expiresAt = Date.parse(schedule.expiresAt);
+		return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+	}
+
 	function scheduleKindLabel(kind: ScheduleKind): string {
 		if (kind === 'cron') return text.scheduleKindCron;
 		if (kind === 'interval') return text.scheduleKindInterval;
@@ -235,6 +267,10 @@
 
 	function dateTimeText(value: string | undefined, timeZone: string | undefined): string {
 		return formatScheduleDateTime(value, timeZone, dateTimeLocale()) ?? text.scheduleTimeUnavailable;
+	}
+
+	function expirationText(schedule: MemorySchedule): string {
+		return formatScheduleDateTime(schedule.expiresAt, schedule.timeZone, dateTimeLocale()) ?? text.scheduleNoExpiration;
 	}
 
 	function runCountText(schedule: MemorySchedule): string {
@@ -289,20 +325,32 @@
 	}
 </script>
 
-<section class="grid min-w-0 gap-3">
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<div class="min-w-0">
-			<h2 class="text-base font-semibold">{text.scheduleTab}</h2>
+<section class="grid min-w-0 gap-4">
+	<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+		<div class="grid gap-1">
+			<h2 class="text-lg font-semibold tracking-tight">{text.scheduleTab}</h2>
 			<p class="text-sm text-muted-foreground">{text.scheduleDescription}</p>
 		</div>
-		<Button type="button" variant="outline" disabled={isLoading} onclick={refreshSchedules} class="gap-2">
-			{#if isLoading}
-				<LoaderIcon class="size-4 animate-spin" />
-			{:else}
-				<RefreshCwIcon class="size-4" />
-			{/if}
-			{text.refresh}
-		</Button>
+		<div class="flex flex-wrap items-center gap-2">
+			<div class="flex h-9 items-center gap-2 rounded-md border bg-background px-3 shadow-xs">
+				<Switch
+					id="memory-include-expired"
+					size="sm"
+					checked={includeExpiredSchedules}
+					onCheckedChange={toggleIncludeExpiredSchedules}
+				/>
+				<Label for="memory-include-expired" class="whitespace-nowrap text-sm font-medium">
+					{text.scheduleIncludeExpired}
+				</Label>
+			</div>
+			<Button type="button" variant="outline" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
+				{#if isLoading}
+					<LoaderIcon class="size-4 animate-spin" />
+				{:else}
+					<RefreshCwIcon class="size-4" />
+				{/if}
+			</Button>
+		</div>
 	</div>
 
 	{#if hasLoadError}
@@ -312,102 +360,117 @@
 		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
 	{/if}
 
-	{#if isLoading && schedules.length === 0}
-		<div class="rounded-lg border">
-			<div class="grid gap-3 p-4">
-				<Skeleton class="h-5 w-1/3" />
-				<Skeleton class="h-10 w-full" />
-				<Skeleton class="h-10 w-full" />
-				<Skeleton class="h-10 w-full" />
+	<div class="overflow-hidden rounded-md border bg-background">
+		{#if isLoading && schedules.length === 0}
+			<div class="grid gap-2 p-4">
+				<Skeleton class="h-9 w-full" />
+				<Skeleton class="h-9 w-full" />
+				<Skeleton class="h-9 w-full" />
 			</div>
-		</div>
-	{:else if schedules.length === 0 && !hasLoadError}
-		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.scheduleEmpty}</p>
-	{:else if schedules.length > 0}
-		<div class="overflow-hidden rounded-lg border">
-			<Table.Root>
-				<Table.Header>
-					<Table.Row>
-						<Table.Head class="min-w-72">{text.schedulePrompt}</Table.Head>
-						<Table.Head>{text.scheduleKind}</Table.Head>
-						<Table.Head class="min-w-44">{text.scheduleTiming}</Table.Head>
-						<Table.Head>{text.scheduleNextRun}</Table.Head>
-						<Table.Head>{text.scheduleRunCount}</Table.Head>
-						<Table.Head>{text.scheduleFailures}</Table.Head>
-						<Table.Head class="w-12">{text.scheduleActions}</Table.Head>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each schedules as schedule}
-						<Table.Row>
-							<Table.Cell class="max-w-96">
-								<p class="truncate font-medium">{scheduleTitle(schedule)}</p>
-								<p class="truncate text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
-							</Table.Cell>
-							<Table.Cell>
-								<Badge variant="secondary">{scheduleKind(schedule)}</Badge>
-							</Table.Cell>
-							<Table.Cell class="max-w-72 break-words text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
-							<Table.Cell class="whitespace-nowrap tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
-							<Table.Cell class="whitespace-nowrap tabular-nums">{runCountText(schedule)}</Table.Cell>
-							<Table.Cell>
-								<Badge variant={(schedule.failureCount ?? 0) > 0 ? 'destructive' : 'outline'}>{failureCountText(schedule)}</Badge>
-							</Table.Cell>
-							<Table.Cell>
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger class="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
-										<MoreHorizontalIcon class="size-4" />
-										<span class="sr-only">{text.scheduleActions}</span>
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="end">
-										<DropdownMenu.Item onclick={() => openEditDialog(schedule)}>{text.scheduleEdit}</DropdownMenu.Item>
-										<DropdownMenu.Item onclick={() => confirmCancelSchedule(schedule)}>{text.scheduleDelete}</DropdownMenu.Item>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							</Table.Cell>
+		{:else if schedules.length === 0 && !hasLoadError}
+			<div class="grid place-items-center px-4 py-16">
+				<p class="text-sm text-muted-foreground">{text.scheduleEmpty}</p>
+			</div>
+		{:else if schedules.length > 0}
+			<div class="overflow-x-auto">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row class="hover:bg-transparent">
+							<Table.Head class="min-w-80 px-4 text-xs text-muted-foreground">{text.schedulePrompt}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleStatus}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleKind}</Table.Head>
+							<Table.Head class="min-w-44 px-3 text-xs text-muted-foreground">{text.scheduleTiming}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleNextRun}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleExpiresAt}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleRunCount}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleFailures}</Table.Head>
+							<Table.Head class="w-20 px-4 text-right text-xs text-muted-foreground">{text.scheduleActions}</Table.Head>
 						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
-		</div>
-	{/if}
-
-	{#if !hasLoadError && !(isLoading && schedules.length === 0)}
-		<div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
-			<p class="text-sm text-muted-foreground">{pageSummary()}</p>
-			<Pagination.Root
-				count={totalCount}
-				perPage={pageSize}
-				page={currentPage}
-				onPageChange={changeSchedulePage}
-				aria-label={text.schedulePagination}
-			>
-				{#snippet children({ pages, currentPage })}
-					<Pagination.Content>
-						<Pagination.Item>
-							<Pagination.PrevButton aria-label={text.schedulePreviousPage}>{text.schedulePreviousPage}</Pagination.PrevButton>
-						</Pagination.Item>
-						{#each pages as page (page.key)}
-							{#if page.type === 'ellipsis'}
-								<Pagination.Item>
-									<Pagination.Ellipsis />
-								</Pagination.Item>
-							{:else}
-								<Pagination.Item>
-									<Pagination.Link {page} isActive={currentPage === page.value}>
-										{page.value}
-									</Pagination.Link>
-								</Pagination.Item>
-							{/if}
+					</Table.Header>
+					<Table.Body>
+						{#each schedules as schedule}
+							<Table.Row>
+								<Table.Cell class="max-w-96 px-4 py-3">
+									<p class="truncate text-sm font-medium">{scheduleTitle(schedule)}</p>
+									<p class="mt-0.5 truncate font-mono text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
+								</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant={scheduleStatusVariant(schedule)}>{scheduleStatusLabel(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant="secondary">{scheduleKind(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="max-w-72 px-3 py-3 text-sm text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{expirationText(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{runCountText(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant={(schedule.failureCount ?? 0) > 0 ? 'destructive' : 'outline'}>{failureCountText(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="px-4 py-3">
+									<div class="flex justify-end gap-1">
+										<Button type="button" variant="ghost" size="icon-sm" onclick={() => openEditDialog(schedule)} aria-label={text.scheduleEdit} title={text.scheduleEdit}>
+											<PencilIcon class="size-4" />
+											<span class="sr-only">{text.scheduleEdit}</span>
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											onclick={() => confirmDeleteSchedule(schedule)}
+											aria-label={text.scheduleDelete}
+											title={text.scheduleDelete}
+											class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+										>
+											<Trash2Icon class="size-4" />
+											<span class="sr-only">{text.scheduleDelete}</span>
+										</Button>
+									</div>
+								</Table.Cell>
+							</Table.Row>
 						{/each}
-						<Pagination.Item>
-							<Pagination.NextButton aria-label={text.scheduleNextPage}>{text.scheduleNextPage}</Pagination.NextButton>
-						</Pagination.Item>
-					</Pagination.Content>
-				{/snippet}
-			</Pagination.Root>
-		</div>
-	{/if}
+					</Table.Body>
+				</Table.Root>
+			</div>
+		{/if}
+
+		{#if !hasLoadError && !(isLoading && schedules.length === 0)}
+			<div class="flex flex-col items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 sm:flex-row">
+				<p class="text-xs text-muted-foreground">{pageSummary()}</p>
+				<Pagination.Root
+					count={totalCount}
+					perPage={pageSize}
+					page={currentPage}
+					onPageChange={changeSchedulePage}
+					aria-label={text.schedulePagination}
+				>
+					{#snippet children({ pages, currentPage })}
+						<Pagination.Content>
+							<Pagination.Item>
+								<Pagination.PrevButton aria-label={text.schedulePreviousPage}>{text.schedulePreviousPage}</Pagination.PrevButton>
+							</Pagination.Item>
+							{#each pages as page (page.key)}
+								{#if page.type === 'ellipsis'}
+									<Pagination.Item>
+										<Pagination.Ellipsis />
+									</Pagination.Item>
+								{:else}
+									<Pagination.Item>
+										<Pagination.Link {page} isActive={currentPage === page.value}>
+											{page.value}
+										</Pagination.Link>
+									</Pagination.Item>
+								{/if}
+							{/each}
+							<Pagination.Item>
+								<Pagination.NextButton aria-label={text.scheduleNextPage}>{text.scheduleNextPage}</Pagination.NextButton>
+							</Pagination.Item>
+						</Pagination.Content>
+					{/snippet}
+				</Pagination.Root>
+			</div>
+		{/if}
+	</div>
 </section>
 
 <Dialog.Root bind:open={isEditDialogOpen}>

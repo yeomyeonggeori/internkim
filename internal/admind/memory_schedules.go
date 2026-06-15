@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type memoryScheduleCancelRequest struct {
@@ -13,6 +14,15 @@ type memoryScheduleCancelRequest struct {
 }
 
 type memoryScheduleCancelBlueclawRequest struct {
+	TaskScheduleID  string `json:"taskScheduleID"`
+	CreatorPersonID string `json:"creatorPersonID"`
+}
+
+type memoryScheduleDeleteRequest struct {
+	TaskScheduleID string `json:"taskScheduleID"`
+}
+
+type memoryScheduleDeleteBlueclawRequest struct {
 	TaskScheduleID  string `json:"taskScheduleID"`
 	CreatorPersonID string `json:"creatorPersonID"`
 }
@@ -100,6 +110,29 @@ func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWri
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }
 
+func (service *Service) deleteUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
+	var deleteRequest memoryScheduleDeleteRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&deleteRequest); errorValue != nil {
+		log.Printf("memory schedule delete request decode failed: %v", errorValue)
+		http.Error(responseWriter, "invalid memory schedule request", http.StatusBadRequest)
+		return
+	}
+	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)
+	if !ok {
+		return
+	}
+	blueclawRequest := memoryScheduleDeleteBlueclawRequest{
+		TaskScheduleID:  deleteRequest.TaskScheduleID,
+		CreatorPersonID: personID,
+	}
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task-schedules/delete", blueclawRequest, nil); errorValue != nil {
+		log.Printf("memory schedule delete upstream failed: %v", errorValue)
+		http.Error(responseWriter, "memory schedule delete unavailable", http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]bool{"ok": true})
+}
+
 func (service *Service) updateUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
 	var updateRequest memoryScheduleUpdateRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&updateRequest); errorValue != nil {
@@ -154,10 +187,17 @@ func (service *Service) writeMemorySchedulePersonID(responseWriter http.Response
 func memorySchedulesQuery(values url.Values, personID string) string {
 	query := url.Values{}
 	query.Set("creatorPersonID", personID)
-	query.Set("includeExpired", "true")
+	query.Set("includeExpired", memorySchedulesIncludeExpired(values.Get("includeExpired")))
 	query.Set("page", strconv.Itoa(memorySchedulesPage(values.Get("page"))))
 	query.Set("pageSize", strconv.Itoa(memorySchedulesPageSize(values.Get("pageSize"))))
 	return query.Encode()
+}
+
+func memorySchedulesIncludeExpired(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "false") {
+		return "false"
+	}
+	return "true"
 }
 
 func memorySchedulesPage(value string) int {

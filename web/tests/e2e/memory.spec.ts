@@ -48,16 +48,31 @@ const memoryScheduleFixture = {
 			executionMode: 'agent',
 			kind: 'cron',
 			cronExpression: '0 9 * * *',
-			nextRunAt: '2026-06-09T00:00:00Z',
-			expiresAt: '2026-06-10T09:00:00Z',
+			nextRunAt: '2099-06-09T00:00:00Z',
+			expiresAt: '2099-06-10T09:00:00Z',
 			createdAt: '2026-06-08T00:00:00Z',
 			updatedAt: '2026-06-08T00:00:00Z',
 			deliveryChannelID: 'channel-1',
 			promptPreview: '팀 일정을 매일 오전에 알려주기',
 			timeZone: 'Asia/Seoul'
+		},
+		{
+			taskScheduleID: 'schedule-expired',
+			creatorPersonID: 'user:person-1',
+			executionMode: 'agent',
+			kind: 'interval',
+			intervalSecond: 3600,
+			expiresAt: '2026-06-07T09:00:00Z',
+			completedRunCount: 3,
+			createdAt: '2026-06-01T00:00:00Z',
+			updatedAt: '2026-06-07T09:00:00Z',
+			deliveryChannelID: 'channel-1',
+			promptPreview: '이미 만료된 예약',
+			timeZone: 'Asia/Seoul'
 		}
 	],
-	count: 1,
+	count: 2,
+	totalCount: 2,
 	checkedAt: '2026-06-08T00:00:00Z'
 };
 
@@ -128,10 +143,16 @@ test.describe('memory graph', () => {
 		await expect(schedulesPanel.getByText('유형', { exact: true })).toBeVisible();
 		await expect(schedulesPanel.getByText('일정', { exact: true })).toBeVisible();
 		await expect(schedulesPanel.getByText('종료일', { exact: true })).toBeVisible();
+		await expect(schedulesPanel.getByText('상태', { exact: true })).toBeVisible();
 		await expect(page.getByText('정기 반복')).toBeVisible();
+		await expect(page.getByText('간격 반복')).toBeVisible();
 		await expect(page.getByText('매일 오전 9:00')).toBeVisible();
-		await expect(page.getByText('2026. 6. 9.')).toBeVisible();
-		await expect(page.getByText('2026. 6. 10.')).toBeVisible();
+		await expect(page.getByText('2099. 6. 9.')).toBeVisible();
+		await expect(page.getByText('2099. 6. 10.')).toBeVisible();
+		await expect(page.getByText('이미 만료된 예약')).toBeVisible();
+		await expect(page.getByText('만료됨')).toBeVisible();
+		await expect(page.getByRole('button', { name: /수정/ }).first()).toBeVisible();
+		await expect(page.getByRole('button', { name: /삭제/ }).first()).toBeVisible();
 	});
 
 	test('pages through visible schedules', async ({ page }) => {
@@ -147,7 +168,7 @@ test.describe('memory graph', () => {
 							executionMode: 'agent',
 							kind: 'cron',
 							cronExpression: '0 9 * * *',
-							nextRunAt: '2026-06-09T00:00:00Z',
+							nextRunAt: '2099-06-09T00:00:00Z',
 							createdAt: '2026-06-08T00:00:00Z',
 							updatedAt: '2026-06-08T00:00:00Z',
 							deliveryChannelID: 'channel-1',
@@ -219,7 +240,7 @@ test.describe('memory graph', () => {
 
 		await page.getByRole('tab', { name: 'Schedules' }).click();
 
-		await expect(page.getByText('Jun')).toBeVisible();
+		await expect(page.getByText('Jun').first()).toBeVisible();
 		await expect(page.getByText('2026. 6. 9.')).toHaveCount(0);
 	});
 });
