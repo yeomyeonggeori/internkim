@@ -271,7 +271,7 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 }
 
 func (service *Service) restartReleaseBlueclawServices(ctx context.Context) error {
-	for _, serviceName := range releaseBlueclawServiceNames(blueclawUpdateTenantBasePath) {
+	for _, serviceName := range service.enabledReleaseServiceNames(ctx, releaseBlueclawServiceNames(blueclawUpdateTenantBasePath)) {
 		if output, errorValue := service.runCommand(ctx, "systemctl", "restart", serviceName); errorValue != nil {
 			return fmt.Errorf("restart blueclaw %s: %s: %w", serviceName, strings.TrimSpace(string(output)), errorValue)
 		}
@@ -279,12 +279,40 @@ func (service *Service) restartReleaseBlueclawServices(ctx context.Context) erro
 	return nil
 }
 
+func (service *Service) enabledReleaseServiceNames(ctx context.Context, serviceNames []string) []string {
+	enabledServiceNames := make([]string, 0, len(serviceNames))
+	for _, serviceName := range serviceNames {
+		if service.tenantServiceIsDisabled(ctx, serviceName) {
+			continue
+		}
+		enabledServiceNames = append(enabledServiceNames, serviceName)
+	}
+	return enabledServiceNames
+}
+
+func (service *Service) tenantServiceIsDisabled(ctx context.Context, serviceName string) bool {
+	if !strings.HasPrefix(serviceName, "internkim-tenant-") {
+		return false
+	}
+	output, _ := service.runCommand(ctx, "systemctl", "is-enabled", serviceName)
+	return releaseServiceStateIsDisabled(string(output))
+}
+
+func releaseServiceStateIsDisabled(isEnabledOutput string) bool {
+	switch strings.TrimSpace(isEnabledOutput) {
+	case "disabled", "masked", "masked-runtime":
+		return true
+	default:
+		return false
+	}
+}
+
 func releaseBlueclawServiceNames(tenantBasePath string) []string {
 	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-blueclaw-", blueclawruntime.BlueclawServiceName)
 }
 
 func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) error {
-	for _, serviceName := range releaseCapabilitydServiceNames(blueclawUpdateTenantBasePath) {
+	for _, serviceName := range service.enabledReleaseServiceNames(ctx, releaseCapabilitydServiceNames(blueclawUpdateTenantBasePath)) {
 		if output, errorValue := service.runCommand(ctx, "systemctl", "restart", serviceName); errorValue != nil {
 			return fmt.Errorf("restart capabilityd %s: %s: %w", serviceName, strings.TrimSpace(string(output)), errorValue)
 		}
@@ -475,7 +503,7 @@ func (service *Service) restartAdmindAfterReleaseUpdate(ctx context.Context, man
 	}
 	go func() {
 		time.Sleep(800 * time.Millisecond)
-		for _, serviceName := range releaseAdmindServiceNames(blueclawUpdateTenantBasePath) {
+		for _, serviceName := range service.enabledReleaseServiceNames(ctx, releaseAdmindServiceNames(blueclawUpdateTenantBasePath)) {
 			_, _ = service.runCommand(ctx, "systemctl", "restart", serviceName)
 		}
 	}()
