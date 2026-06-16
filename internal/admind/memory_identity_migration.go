@@ -142,6 +142,7 @@ func (service *Service) writeMemoryIdentityMigrationMap(responseWriter http.Resp
 
 	policyPersonIDs := service.collectPolicyPersonIDs(request.Context())
 	senderMessageIDs := collectMattermostSenderMessageIDs(graph)
+	senderConversationIDs := collectMattermostSenderConversationIDs(graph)
 
 	migrationMap := map[string]memoryPersonMigrationEntry{}
 	var unresolved []string
@@ -153,6 +154,9 @@ func (service *Service) writeMemoryIdentityMigrationMap(responseWriter http.Resp
 			continue
 		}
 		entry, resolved := service.resolveMigrationEntry(request.Context(), botToken, messageIDs)
+		if !resolved {
+			entry, resolved = service.resolveMigrationEntryFromConversations(request.Context(), botToken, senderConversationIDs[senderPersonID])
+		}
 		if !resolved {
 			unresolved = append(unresolved, senderPersonID)
 			continue
@@ -190,6 +194,87 @@ func collectMattermostSenderMessageIDs(graph map[string]any) map[string][]string
 	return senderMessageIDs
 }
 
+func collectMattermostSenderConversationIDs(graph map[string]any) map[string][]string {
+	rawEpisodes, _ := graph["episodes"].([]any)
+	senderConversationIDs := map[string][]string{}
+	seen := map[string]bool{}
+	for _, rawEpisode := range rawEpisodes {
+		episode, ok := rawEpisode.(map[string]any)
+		if !ok {
+			continue
+		}
+		if platform, _ := episode["platform"].(string); platform != "mattermost" {
+			continue
+		}
+		senderPersonID, _ := episode["senderPersonID"].(string)
+		conversationID, _ := episode["conversationID"].(string)
+		if senderPersonID == "" || !strings.HasPrefix(conversationID, "dm:") {
+			continue
+		}
+		dedupeKey := senderPersonID + "|" + conversationID
+		if seen[dedupeKey] {
+			continue
+		}
+		seen[dedupeKey] = true
+		senderConversationIDs[senderPersonID] = append(senderConversationIDs[senderPersonID], conversationID)
+	}
+	return senderConversationIDs
+}
+
+type mattermostChannelLookup struct {
+	Name string `json:"name"`
+}
+
+func (service *Service) resolveMigrationEntryFromConversations(ctx context.Context, botToken string, conversationIDs []string) (memoryPersonMigrationEntry, bool) {
+	for _, conversationID := range conversationIDs {
+		entry, resolved := service.resolveMigrationEntryFromDMChannel(ctx, botToken, strings.TrimPrefix(conversationID, "dm:"))
+		if resolved {
+			return entry, true
+		}
+	}
+	return memoryPersonMigrationEntry{}, false
+}
+
+func (service *Service) resolveMigrationEntryFromDMChannel(ctx context.Context, botToken string, channelID string) (memoryPersonMigrationEntry, bool) {
+	if strings.TrimSpace(channelID) == "" {
+		return memoryPersonMigrationEntry{}, false
+	}
+	var channel mattermostChannelLookup
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+channelID, botToken, nil, &channel); errorValue != nil {
+		return memoryPersonMigrationEntry{}, false
+	}
+	for _, memberUserID := range strings.Split(channel.Name, "__") {
+		entry, resolved := service.resolveMigrationEntryFromUser(ctx, botToken, memberUserID)
+		if resolved {
+			return entry, true
+		}
+	}
+	return memoryPersonMigrationEntry{}, false
+}
+
+func (service *Service) resolveMigrationEntryFromUser(ctx context.Context, botToken string, userID string) (memoryPersonMigrationEntry, bool) {
+	if strings.TrimSpace(userID) == "" {
+		return memoryPersonMigrationEntry{}, false
+	}
+	var user mattermostUserLookup
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+userID, botToken, nil, &user); errorValue != nil {
+		return memoryPersonMigrationEntry{}, false
+	}
+	if user.Email == "" {
+		return memoryPersonMigrationEntry{}, false
+	}
+	actor, found, errorValue := service.resolveUserActorByEmail(ctx, user.Email)
+	if errorValue != nil || !found {
+		return memoryPersonMigrationEntry{}, false
+	}
+	return memoryPersonMigrationEntry{
+		CurrentPersonID:  actor.UserID,
+		Email:            user.Email,
+		MattermostUserID: userID,
+		Username:         user.Username,
+	}, true
+}
+
 func (service *Service) collectPolicyPersonIDs(ctx context.Context) map[string]bool {
 	var policyDocument memoryPolicyDocument
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
@@ -221,27 +306,5 @@ func (service *Service) resolveMigrationEntryFromMessage(ctx context.Context, bo
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
 		return memoryPersonMigrationEntry{}, false
 	}
-	if post.UserID == "" {
-		return memoryPersonMigrationEntry{}, false
-	}
-
-	var user mattermostUserLookup
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+post.UserID, botToken, nil, &user); errorValue != nil {
-		return memoryPersonMigrationEntry{}, false
-	}
-	if user.Email == "" {
-		return memoryPersonMigrationEntry{}, false
-	}
-
-	actor, found, errorValue := service.resolveUserActorByEmail(ctx, user.Email)
-	if errorValue != nil || !found {
-		return memoryPersonMigrationEntry{}, false
-	}
-
-	return memoryPersonMigrationEntry{
-		CurrentPersonID:  actor.UserID,
-		Email:            user.Email,
-		MattermostUserID: post.UserID,
-		Username:         user.Username,
-	}, true
+	return service.resolveMigrationEntryFromUser(ctx, botToken, post.UserID)
 }
