@@ -112,9 +112,9 @@ install -d -o root -g root -m 700 /root/.internkim/models
 chown root:root /root/.internkim/models %s
 chmod 700 /root/.internkim/models
 chmod 600 %s`,
-		fetchModelIfMissingScript()+fetchEmbeddingModelIfMissingScript(),
-		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
-		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
+		fetchModelIfMissingScript()+fetchDraftModelIfMissingScript()+fetchEmbeddingModelIfMissingScript(),
+		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppDraftModelPath)+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
+		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppDraftModelPath)+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
 	))
 	if !localLLMIsSatisfied(context) {
 		return errors.New("llama.cpp setup did not produce a runnable llama-server with local model")
@@ -130,6 +130,16 @@ func fetchModelIfMissingScript() string {
   mv %s.tmp %s
 fi`,
 		modelPath, modelPath, shellQuote(locallm.ModelURL()), modelPath, modelPath)
+}
+
+func fetchDraftModelIfMissingScript() string {
+	modelPath := shellQuote(locallm.LlamaCppDraftModelPath)
+	return fmt.Sprintf(`
+if [ ! -s %s ]; then
+  curl -L --fail --retry 3 --output %s.tmp %s
+  mv %s.tmp %s
+fi`,
+		modelPath, modelPath, shellQuote(locallm.LlamaCppDraftModelURL), modelPath, modelPath)
 }
 
 func fetchEmbeddingModelIfMissingScript() string {
