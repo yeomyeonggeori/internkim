@@ -1,4 +1,3 @@
-<!-- Flow 업무 보드 카드 표시를 담당합니다. -->
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
@@ -9,29 +8,60 @@
 	type Props = {
 		task: FlowTask;
 		openTask: (task: FlowTask) => void;
+		isPending?: boolean;
+		onTaskDragStart?: (event: DragEvent, task: FlowTask) => void;
+		onTaskDragEnd?: (event: DragEvent, task: FlowTask) => void;
+		onTaskDragOver?: (event: DragEvent, task: FlowTask) => void;
+		onTaskDrop?: (event: DragEvent, task: FlowTask) => void;
 	};
 
-	let { task, openTask }: Props = $props();
+	let {
+		task,
+		openTask,
+		isPending = false,
+		onTaskDragStart,
+		onTaskDragEnd,
+		onTaskDragOver,
+		onTaskDrop
+	}: Props = $props();
 
-	const cardClass = [
-		'cursor-pointer gap-1.5 rounded-md border bg-card p-2.5 shadow-xs transition',
-		'hover:border-primary/40 hover:shadow-sm'
-	].join(' ');
+	let canDrag = $derived(!isPending);
+	let cardClass = $derived([
+		'gap-1.5 rounded-md border bg-card p-2.5 shadow-xs transition',
+		isPending
+			? 'cursor-progress opacity-60 ring-1 ring-primary/20'
+			: canDrag
+				? 'cursor-grab hover:border-primary/40 hover:shadow-sm active:cursor-grabbing'
+				: 'cursor-pointer hover:border-primary/40 hover:shadow-sm'
+	].join(' '));
 
 	let display = $derived(buildFlowTaskBoardCardDisplay(task));
+
+	function openCurrentTask(): void {
+		if (isPending) return;
+		openTask(task);
+	}
 </script>
 
 <Card.Root
-	class={cardClass}
-	role="button"
-	tabindex={0}
-	onclick={() => openTask(task)}
+		class={cardClass}
+		role="button"
+		tabindex={isPending ? -1 : 0}
+		draggable={canDrag}
+		aria-disabled={isPending}
+		data-flow-board-card={task.id}
+		data-flow-board-pending={isPending ? 'true' : 'false'}
+	onclick={openCurrentTask}
 	onkeydown={(event) => {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
-			openTask(task);
+			openCurrentTask();
 		}
 	}}
+	ondragstart={(event) => onTaskDragStart?.(event, task)}
+	ondragend={(event) => onTaskDragEnd?.(event, task)}
+	ondragover={(event) => onTaskDragOver?.(event, task)}
+	ondrop={(event) => onTaskDrop?.(event, task)}
 >
 	<div class="flex min-w-0 flex-wrap items-center gap-1">
 		<div class="mr-1 truncate text-xs text-muted-foreground">{display.ownerName}</div>

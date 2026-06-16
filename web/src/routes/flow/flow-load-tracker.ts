@@ -1,3 +1,10 @@
+export type FlowLoadOptions = {
+	reloadState?: boolean;
+	preserveActiveTabOnError?: boolean;
+};
+
+export type LoadFlow = (week: string, options?: FlowLoadOptions) => Promise<boolean>;
+
 export type FlowLoadTracker = {
 	start: () => number;
 	isCurrent: (loadID: number) => boolean;

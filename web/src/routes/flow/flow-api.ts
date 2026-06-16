@@ -1,4 +1,5 @@
 import type { FlowDefinitions, FlowState, FlowSummary, FlowTask, FlowWeeklySummary } from './flow-types';
+import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 
 export type FlowQuickTaskRequest = {
 	prompt: string;
@@ -68,6 +69,16 @@ export async function saveFlowTask(task: FlowTask, fallbackMessage: string): Pro
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(flowTaskSavePayload(task))
+	});
+	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+}
+
+export async function moveFlowTaskOnBoard(request: FlowTaskBoardMoveRequest, fallbackMessage: string): Promise<void> {
+	const response = await fetch('/flow/api/tasks/move', {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(request)
 	});
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 }
