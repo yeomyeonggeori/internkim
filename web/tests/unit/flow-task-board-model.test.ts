@@ -1,4 +1,3 @@
-// Flow 업무 보드 컬럼 구성과 정렬을 검증합니다.
 import { describe, expect, test } from 'bun:test';
 import { BOARD_STATUS_VALUES, buildFlowTaskBoard } from '../../src/routes/flow/flow-task-board-model';
 import type { FlowTask } from '../../src/routes/flow/flow-types';
