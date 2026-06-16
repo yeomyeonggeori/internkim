@@ -21,7 +21,65 @@ type memoryIdentityMigrationResponse struct {
 }
 
 type mattermostPostLookup struct {
-	UserID string `json:"user_id"`
+	UserID  string `json:"user_id"`
+	Message string `json:"message"`
+}
+
+type memoryPersonMessage struct {
+	MessageID  string `json:"messageID"`
+	OccurredAt string `json:"occurredAt"`
+	Text       string `json:"text"`
+}
+
+func (service *Service) writeMemoryPersonMessages(responseWriter http.ResponseWriter, request *http.Request) {
+	if !isLocalRequest(request) && !service.isAuthorized(request) {
+		http.Error(responseWriter, "admin required", http.StatusForbidden)
+		return
+	}
+	personID := strings.TrimSpace(request.URL.Query().Get("personID"))
+	if personID == "" {
+		http.Error(responseWriter, "personID is required", http.StatusBadRequest)
+		return
+	}
+	var graph map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/memory/graph", nil, &graph); errorValue != nil {
+		http.Error(responseWriter, "memory graph unavailable", http.StatusBadGateway)
+		return
+	}
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		http.Error(responseWriter, "mattermost token unavailable", http.StatusBadGateway)
+		return
+	}
+	messages := []memoryPersonMessage{}
+	for _, rawEpisode := range graphEpisodesForSender(graph, personID) {
+		messageID, _ := rawEpisode["messageID"].(string)
+		occurredAt, _ := rawEpisode["occurredAt"].(string)
+		if strings.TrimSpace(messageID) == "" || len(messages) >= 40 {
+			continue
+		}
+		var post mattermostPostLookup
+		if errorValue := service.mattermostRequest(request.Context(), http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
+			continue
+		}
+		messages = append(messages, memoryPersonMessage{MessageID: messageID, OccurredAt: occurredAt, Text: post.Message})
+	}
+	service.writeJSON(responseWriter, map[string]any{"personID": personID, "messages": messages})
+}
+
+func graphEpisodesForSender(graph map[string]any, senderPersonID string) []map[string]any {
+	rawEpisodes, _ := graph["episodes"].([]any)
+	episodes := []map[string]any{}
+	for _, rawEpisode := range rawEpisodes {
+		episode, ok := rawEpisode.(map[string]any)
+		if !ok {
+			continue
+		}
+		if sender, _ := episode["senderPersonID"].(string); sender == senderPersonID {
+			episodes = append(episodes, episode)
+		}
+	}
+	return episodes
 }
 
 type mattermostUserLookup struct {
