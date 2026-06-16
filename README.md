@@ -40,7 +40,7 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
                         ├─ state/
                         └─ models/
 
-Planned external channels
+Optional external channels
     ├─ Slack workspace ── Socket Mode ──▶ internkim-capabilityd ──▶ Blueclaw
     └─ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Blueclaw
 
@@ -195,17 +195,17 @@ sudo systemctl restart internkim-pilot-tunnel.service
 
 | 구성 | 설명 |
 |------|------|
-| **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
+| **Go CLI** (`cmd/internkim/main.go`) | 운영 CLI: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `tenant`/`host`, `llm`, `users`/`task`/`invite`. `sim`은 Local Fleet의 하위호환 alias |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
-| **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack/Signal은 같은 경계로 확장 예정 |
+| **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack Socket Mode와 Signal JSON-RPC sidecar도 같은 경계에서 선택적으로 기동 |
 | **local model** | 생성·임베딩 모두 상주 `llama-server`(llama.cpp): 생성 gemma-4-E2B QAT + MTP(`--chat-template gemma`), 임베딩 embeddinggemma-300M(CPU `-ngl 0`). `internkim-local-llm-runner`(LiteRT)는 레거시 fallback |
 | **Blueclaw** | Firecracker guest 안의 agent runtime. host는 `blueclaw-supervisor`로 guest를 띄우고, guest는 `/workspace/.blueclaw/config/*.json`와 `/workspace/.blueclaw/runtime/current/bin/blueclaw` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
 | **Mattermost** | 온보드 채팅 서버. 셀프호스팅 가능한 사내 메신저로 기기 협업 채널, 모바일 알림, AI 업무 진입점에 사용 |
-| **Slack/Signal connector** | 예정 채널. 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달하는 구조로 확장 |
-| **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, Access policy 동기화, OTA |
+| **Slack/Signal connector** | 선택적 외부 채널. Slack Socket Mode와 Signal JSON-RPC sidecar는 구현되어 있으며, 해당 credential/config 파일이 있으면 capabilityd가 기동해 이벤트를 정규화하고 Blueclaw 작업으로 전달. Mattermost가 여전히 기본 surface |
+| **SvelteKit 웹앱** (`web/`) | Cloudflare Pages 기기 등록 API / Access policy 동기화 / OTA와, 기기에서 same-origin으로 서빙되는 운영 surface(`/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`) |
 | **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 host `/root/.blueclaw/workspace`에 배치되고 guest `/workspace`로 mount되는 AGENTS.md, skills, helpers, GAS source |
 | **기기 바이너리** (`build/board-bin/`) | ARM64 기기용 바이너리 [gitignored] |
 | **맥 유틸** (`bin/`) | get-ssid + sshpass, macOS universal binary |
@@ -358,7 +358,7 @@ R2 stable channel 상태와 적용은 CLI에서도 같은 release set API를 사
 7. 기기 등록 + Cloudflare 터널 시작
 8. Google Workspace credential은 사용자가 직접 만들거나 Companion으로 전달한 것만 설치
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
-10. Users sync 구성. Slack/Signal은 예정 채널로 별도 확장
+10. Users sync 구성. Slack/Signal은 선택적 채널로, credential이 있을 때 sidecar로 기동 (`INTERNKIM_SLACK_BOT_TOKEN`, `INTERNKIM_SIGNAL_JSONRPC_URL`, `INTERNKIM_SIGNAL_ACCOUNT` 등)
 11. `blueclaw.service` 시작 + 최종 health check
 
 Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
@@ -529,9 +529,9 @@ Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에�
 ./internkim reset blueclaw-history --keep-mattermost-posts --confirm <deviceID>
 ```
 
-기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 하며, Slack/Signal 예정 채널을 검증할 때도 같은 정리 원칙을 적용합니다.
+기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 하며, Slack/Signal 선택 채널을 검증할 때도 같은 정리 원칙을 적용합니다.
 
-Slack과 Signal 예정 채널은 외부 플랫폼이므로, 해당 검증을 추가하더라도 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
+Slack과 Signal 선택 채널은 외부 플랫폼이므로, 해당 검증을 추가하더라도 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
 
 ### 웹앱 (Cloudflare Pages)
 
@@ -572,6 +572,8 @@ internkim/
 │   ├── internkim-capabilityd/
 │   │                         LLM, platform, browser capability daemon
 │   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
+│   ├── internkim-llm-gateway/
+│   │                         OpenRouter 호환 tenant LLM gateway (Cloudflare Worker용)
 │   ├── internkim-local-llm-runner/
 │   │                         LiteRT runner (legacy; 생성·임베딩은 llama.cpp llama-server)
 │   └── download/            기기 헬퍼 바이너리
@@ -585,7 +587,10 @@ internkim/
 │   ├── companion/           companion pairing, jobs, local executor
 │   ├── google/browser/      Google 브라우저 자동화
 │   ├── lab/                 apple/container 기반 실험실 구성과 시나리오
+│   ├── llmgateway/          tenant LLM gateway 라우팅·토큰·쿼터·provider 로직
+│   ├── localfleet/          Local Fleet 시나리오·recipe·regression 게이트
 │   ├── provisioning/steps/  단계별 셋업 플로우
+│   ├── releaseset/          release manifest/component 검증
 │   └── runtime/blueclaw/    Blueclaw 런타임 계약과 설정 생성
 ├── assets/blueclaw-workspace/
 │   ├── AGENTS.md            Blueclaw workspace instruction source
