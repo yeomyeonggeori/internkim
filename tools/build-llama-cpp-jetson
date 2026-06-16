@@ -10,6 +10,7 @@ buildUser="${LLAMA_CPP_BUILD_USER:-internkim}"
 buildPassword="${LLAMA_CPP_BUILD_PASSWORD:-}"
 remoteWorkRoot="${LLAMA_CPP_REMOTE_WORK_ROOT:-/var/cache/internkim/llama-cpp-build}"
 cudaArchitecture="${LLAMA_CPP_CUDA_ARCH:-87}"
+maxParallelJobs="${LLAMA_CPP_BUILD_JOBS:-4}"
 
 usage() {
   cat <<USAGE
@@ -114,8 +115,8 @@ fi
 
 cpuCount="\$(nproc 2>/dev/null || echo 2)"
 parallelJobs="\$cpuCount"
-if [ "\$parallelJobs" -gt 4 ]; then
-  parallelJobs=4
+if [ "\$parallelJobs" -gt $maxParallelJobs ]; then
+  parallelJobs=$maxParallelJobs
 fi
 
 echo "configuring + building (CUDA arch $cudaArchitecture, jobs=\$parallelJobs)"
