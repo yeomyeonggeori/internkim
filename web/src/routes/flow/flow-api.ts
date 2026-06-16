@@ -83,6 +83,14 @@ export async function moveFlowTaskOnBoard(request: FlowTaskBoardMoveRequest, fal
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 }
 
+export async function deleteFlowTask(taskID: string, fallbackMessage: string): Promise<void> {
+	const response = await fetch(`/flow/api/tasks/${encodeURIComponent(taskID)}`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+}
+
 export async function saveFlowDefinitions(definitions: FlowDefinitions, fallbackMessage: string): Promise<void> {
 	const response = await fetch('/flow/api/definitions', {
 		method: 'PUT',
