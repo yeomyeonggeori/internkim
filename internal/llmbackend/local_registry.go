@@ -8,7 +8,7 @@ import (
 )
 
 var DefaultCompanionLocalProviderOrder = []string{"llamacpp", "ollama", "mlx"}
-var DefaultDeviceLocalProviderOrder = []string{"litert"}
+var DefaultDeviceLocalProviderOrder = []string{"llamacpp"}
 
 const DefaultOllamaBaseURL = "http://127.0.0.1:11434"
 const DefaultLlamaCppBaseURL = "http://127.0.0.1:18081"
