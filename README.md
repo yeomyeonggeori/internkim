@@ -198,7 +198,7 @@ sudo systemctl restart internkim-pilot-tunnel.service
 | **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
 | **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack/Signal은 같은 경계로 확장 예정 |
-| **internkim-local-llm-runner** | LiteRT local model runner. llama.cpp는 상주 `llama-server` provider로 처리 |
+| **local model** | 생성·임베딩 모두 상주 `llama-server`(llama.cpp): 생성 gemma-4-E2B QAT + MTP(`--chat-template gemma`), 임베딩 embeddinggemma-300M(CPU `-ngl 0`). `internkim-local-llm-runner`(LiteRT)는 레거시 fallback |
 | **Blueclaw** | Firecracker guest 안의 agent runtime. host는 `blueclaw-supervisor`로 guest를 띄우고, guest는 `/workspace/.blueclaw/config/*.json`와 `/workspace/.blueclaw/runtime/current/bin/blueclaw` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
@@ -426,7 +426,7 @@ Ops 콘솔에서도 같은 Local Fleet engine을 실행할 수 있습니다:
 ./internkim verify api
 ```
 
-`verify api`는 실기기에서 LiteRT local model까지 포함합니다. LiteRT runner 또는 모델 런타임이 실패하면 Mattermost/Blueclaw 서비스가 정상이어도 `verify api`는 실패합니다. 이 경우 `journalctl`과 `internkim-local-llm-runner` 오류를 별도로 확인하고, 필요하면 local model runtime만 좁게 복구합니다.
+`verify api`는 실기기에서 local model(llama.cpp `llama-server`)까지 포함합니다. 모델 런타임이 실패하면 Mattermost/Blueclaw 서비스가 정상이어도 `verify api`는 실패합니다. 이 경우 `journalctl`과 `internkim-llamacpp`(생성)·`internkim-llamacpp-embedding`(임베딩) 서비스 오류를 별도로 확인하고, 필요하면 local model runtime만 좁게 복구합니다.
 
 기존 저수준 lab 명령도 유지됩니다:
 
@@ -573,7 +573,7 @@ internkim/
 │   │                         LLM, platform, browser capability daemon
 │   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
 │   ├── internkim-local-llm-runner/
-│   │                         LiteRT local LLM process runner
+│   │                         LiteRT runner (legacy; 생성·임베딩은 llama.cpp llama-server)
 │   └── download/            기기 헬퍼 바이너리
 ├── internal/
 │   ├── admind/              admin UI proxy, backup/restore, companion broker

@@ -77,8 +77,15 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Prefer `./internkim deploy --components <components>` for normal device
   deployment. It uses the OTA release apply engine over Admin HTTPS.
 - Use the smallest deploy component set that matches the change.
-- Stop if the plan unexpectedly includes `binaries`, `local-llm`, `llama.cpp`,
-  `llama-server`, CUDA, or Jetson model runtime work.
+- The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
+  generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
+  (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
+  without it). Embedding: embeddinggemma-300M QAT on CPU (`-ngl 0`, frees GPU for
+  generation). gemma-4-E4B does not fit the 8GB Jetson alongside firecracker; use E2B.
+  Build the `llama-server`/`litert_lm_main` binary in a local `linux/arm64` container and
+  deploy only the artifact — Bazel/CUDA builds OOM the 8GB Jetson.
+- Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
+  CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
 - For Admin/Flow web UI-only changes, use
   `./internkim deploy --components web`.
 - For a small `internkim-admind` change, use `make build` and
