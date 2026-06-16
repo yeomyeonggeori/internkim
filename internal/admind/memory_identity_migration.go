@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -85,6 +86,38 @@ func graphEpisodesForSender(graph map[string]any, senderPersonID string) []map[s
 type mattermostUserLookup struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
+}
+
+type memoryIdentityMigrationMapping struct {
+	OldPersonID string `json:"oldPersonID"`
+	NewPersonID string `json:"newPersonID"`
+}
+
+type memoryIdentityMigrationApplyRequest struct {
+	Mappings []memoryIdentityMigrationMapping `json:"mappings"`
+}
+
+func (service *Service) applyMemoryIdentityMigration(responseWriter http.ResponseWriter, request *http.Request) {
+	if !isLocalRequest(request) && !service.isAuthorized(request) {
+		http.Error(responseWriter, "admin required", http.StatusForbidden)
+		return
+	}
+	var applyRequest memoryIdentityMigrationApplyRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&applyRequest); errorValue != nil {
+		http.Error(responseWriter, "invalid migration request", http.StatusBadRequest)
+		return
+	}
+	if len(applyRequest.Mappings) == 0 {
+		http.Error(responseWriter, "mappings are required", http.StatusBadRequest)
+		return
+	}
+	var migrationResult map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/memory/migrate-identity", applyRequest, &migrationResult); errorValue != nil {
+		log.Printf("memory identity migration apply failed: %v", errorValue)
+		http.Error(responseWriter, "memory migration failed", http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, migrationResult)
 }
 
 func (service *Service) writeMemoryIdentityMigrationMap(responseWriter http.ResponseWriter, request *http.Request) {
