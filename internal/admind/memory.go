@@ -65,6 +65,10 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.updateUserMemorySchedule(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/identity-migration" {
+		service.writeMemoryIdentityMigrationMap(responseWriter, request)
+		return
+	}
 	http.NotFound(responseWriter, request)
 }
 
