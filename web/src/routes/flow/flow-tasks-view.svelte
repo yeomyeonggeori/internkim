@@ -6,6 +6,7 @@
 	import FlowTaskBoard from './flow-task-board.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { createFlowTasksController } from './flow-tasks-controller.svelte';
+	import type { LoadFlow } from './flow-load-tracker';
 	import type { FlowSummary } from './flow-types';
 	import { flowText } from './text';
 
@@ -16,7 +17,7 @@
 		activeMemberID: string;
 		focusedTaskID: string;
 		text: FlowPageText;
-		loadFlow: (week: string) => Promise<void>;
+		loadFlow: LoadFlow;
 		setPageErrorMessage: (message: string) => void;
 	};
 
@@ -83,6 +84,8 @@
 				statusLabel={page.statusLabel}
 				openTask={page.openTask}
 				createTask={page.createTask}
+				moveTask={page.moveTaskOnBoard}
+				pendingTaskIDs={page.pendingBoardTaskIDs}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list">
