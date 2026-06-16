@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,6 +67,139 @@ func TestFlowAPIPersistsExplicitZeroStatusRankForSameStatusUpdate(t *testing.T) 
 
 	if updatedTask.StatusRank != 0 {
 		t.Fatalf("status rank = %d, want 0", updatedTask.StatusRank)
+	}
+}
+
+func TestFlowAPIMovesBoardTaskWithNormalizedRanksInOneRequest(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	firstTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "첫 번째 진행 업무", "진행", 0, []string{staffID}))
+	secondTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "두 번째 진행 업무", "진행", 0, []string{staffID}))
+	movedTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "이동할 요청 업무", "요청", 0, []string{staffID}))
+	firstTask = updateFlowTaskForTest(t, handler, "staff@example.com", firstTask.ID, newFlowTaskPayload("staff@example.com", firstTask.Content, "진행", 1, []string{staffID}))
+	secondTask = updateFlowTaskForTest(t, handler, "staff@example.com", secondTask.ID, newFlowTaskPayload("staff@example.com", secondTask.Content, "진행", 2, []string{staffID}))
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "진행", &secondTask.ID)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	reloadedFirstTask := readFlowTaskByIDForTest(t, service, firstTask.ID)
+	reloadedMovedTask := readFlowTaskByIDForTest(t, service, movedTask.ID)
+	reloadedSecondTask := readFlowTaskByIDForTest(t, service, secondTask.ID)
+	if reloadedMovedTask.Status != "진행" {
+		t.Fatalf("moved status = %q, want 진행", reloadedMovedTask.Status)
+	}
+	if reloadedFirstTask.StatusRank != 1024 || reloadedMovedTask.StatusRank != 2048 || reloadedSecondTask.StatusRank != 3072 {
+		t.Fatalf("status ranks = [%d %d %d], want [1024 2048 3072]", reloadedFirstTask.StatusRank, reloadedMovedTask.StatusRank, reloadedSecondTask.StatusRank)
+	}
+}
+
+func TestFlowAPIMovesBoardTaskWithoutQueueingNeighborRankProjections(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	firstTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "첫 번째 진행 업무", "진행", 0, []string{staffID}))
+	secondTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "두 번째 진행 업무", "진행", 0, []string{staffID}))
+	movedTask := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "이동할 요청 업무", "요청", 0, []string{staffID}))
+	firstTask = updateFlowTaskForTest(t, handler, "staff@example.com", firstTask.ID, newFlowTaskPayload("staff@example.com", firstTask.Content, "진행", 1, []string{staffID}))
+	secondTask = updateFlowTaskForTest(t, handler, "staff@example.com", secondTask.ID, newFlowTaskPayload("staff@example.com", secondTask.Content, "진행", 2, []string{staffID}))
+	clearFlowChannelOutboxForTest(t, service)
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "진행", &secondTask.ID)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	taskIDs, errorValue := service.pendingFlowMattermostProjectionTaskIDs(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(taskIDs) != 0 {
+		t.Fatalf("flow projection outbox task ids = %#v, want empty", taskIDs)
+	}
+}
+
+func TestFlowAPIRejectsBoardTaskMoveFromUnrelatedUser(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	ownerID := stableFlowID("other@example.com")
+	task := createFlowTaskForTest(t, handler, "other@example.com", newFlowTaskPayload("other@example.com", "타인 보드 업무", "요청", 0, []string{ownerID}))
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "진행", nil)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	if reloadedTask.Status != "요청" {
+		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
+	}
+}
+
+func TestFlowAPIRejectsBoardTaskMoveWhenTransactionAuthorizationFails(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	otherID := stableFlowID("other@example.com")
+	task := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "권한 재확인 업무", "요청", 0, []string{staffID}))
+	task.OwnerID = otherID
+	task.OwnerName = "other@example.com"
+	task.ParticipantIDs = []string{otherID}
+	task.ParticipantNames = []string{"other@example.com"}
+	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	_, errorValue := service.writeFlowTaskBoardMove(context.Background(), flowTaskBoardMoveRequest{
+		TaskID:       task.ID,
+		TargetStatus: "진행",
+	}, func(transactionTask flowTask) bool {
+		return containsString(transactionTask.ParticipantIDs, staffID)
+	})
+
+	if !errors.Is(errorValue, errFlowTaskBoardMoveForbidden) {
+		t.Fatalf("move error = %v, want %v", errorValue, errFlowTaskBoardMoveForbidden)
+	}
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	if reloadedTask.Status != "요청" {
+		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
+	}
+}
+
+func TestFlowAPIRejectsBoardTaskMoveToNonBoardStatus(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	task := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "기각 이동 제한 업무", "요청", 0, []string{staffID}))
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "기각", nil)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	if reloadedTask.Status != "요청" {
+		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
+	}
+}
+
+func TestFlowAPIRejectsBoardTaskMoveBeforeMissingTask(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	task := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "누락 before 이동 제한 업무", "요청", 0, []string{staffID}))
+	missingTaskID := "missing-before-task"
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "진행", &missingTaskID)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	if reloadedTask.Status != "요청" {
+		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
 	}
 }
 
@@ -274,6 +408,48 @@ func updateFlowTaskResponseForTest(t *testing.T, handler http.Handler, callerEma
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response
+}
+
+func moveFlowTaskOnBoardResponseForTest(t *testing.T, handler http.Handler, callerEmail string, taskID string, targetStatus string, beforeTaskID *string) *httptest.ResponseRecorder {
+	t.Helper()
+	document, errorValue := json.Marshal(map[string]any{
+		"taskID":       taskID,
+		"targetStatus": targetStatus,
+		"beforeTaskID": beforeTaskID,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks/move", bytes.NewReader(document))
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", callerEmail)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
+}
+
+func readFlowTaskByIDForTest(t *testing.T, service *Service, taskID string) flowTask {
+	t.Helper()
+	task, found, errorValue := service.readFlowTaskByID(context.Background(), taskID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !found {
+		t.Fatalf("expected task %q to exist", taskID)
+	}
+	return task
+}
+
+func clearFlowChannelOutboxForTest(t *testing.T, service *Service) {
+	t.Helper()
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	if _, errorValue := database.ExecContext(context.Background(), "DELETE FROM flow_channel_outbox"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }
 
 func sameStringSet(left []string, right []string) bool {

@@ -1,4 +1,3 @@
-// Flow 업무 보드 카드의 표시 데이터를 구성합니다.
 import type { FlowTask } from './flow-types';
 
 export type FlowTaskBoardCardDisplay = {
