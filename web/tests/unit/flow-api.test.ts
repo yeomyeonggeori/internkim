@@ -1,10 +1,10 @@
-// Flow API 오류 문구 로컬라이제이션 경계를 검증합니다.
 import { describe, expect, test } from 'bun:test';
 import {
 	createQuickFlowTask,
 	fetchFlowState,
 	fetchFlowWeeklySummary,
 	mergeFlowSummary,
+	moveFlowTaskOnBoard,
 	saveFlowTask
 } from '../../src/routes/flow/flow-api';
 
@@ -145,6 +145,41 @@ describe('flow API', () => {
 
 			expect('id' in requestBody).toBe(false);
 			expect(requestBody.statusRank).toBe(2048);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('posts board move requests to the atomic move endpoint', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestMethod = '';
+		let requestBody: Record<string, unknown> = {};
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestedURL = String(input);
+					requestMethod = init?.method ?? '';
+					requestBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await moveFlowTaskOnBoard({
+				taskID: 'task-1',
+				targetStatus: '진행',
+				beforeTaskID: 'task-2'
+			}, 'Could not save the task.');
+
+			expect(requestedURL).toBe('/flow/api/tasks/move');
+			expect(requestMethod).toBe('POST');
+			expect(requestBody).toEqual({
+				taskID: 'task-1',
+				targetStatus: '진행',
+				beforeTaskID: 'task-2'
+			});
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
