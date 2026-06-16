@@ -1,4 +1,3 @@
-// Flow 업무 보드의 컬럼 구성과 정렬을 담당합니다.
 import type { FlowTask } from './flow-types';
 
 export const BOARD_STATUS_VALUES = ['요청', '예정', '진행', '완료', '일시정지'] as const;
