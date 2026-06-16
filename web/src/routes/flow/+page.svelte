@@ -15,7 +15,7 @@
 	import FlowTasksView from './flow-tasks-view.svelte';
 	import FlowWeekSelector from './flow-week-selector.svelte';
 	import { fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from './flow-api';
-	import { createFlowLoadTracker } from './flow-load-tracker';
+	import { createFlowLoadTracker, type FlowLoadOptions } from './flow-load-tracker';
 	import type { FlowMetrics, FlowState, FlowSummary } from './flow-types';
 	import { buildFlowReportSections } from './report/flow-report-data';
 	import { flowText } from './text';
@@ -119,17 +119,18 @@
 		const params = new URLSearchParams(location.search);
 		const week = params.get('week') ?? '';
 		pendingTaskID = params.get('task') ?? '';
-		loadFlow(week, true);
+		loadFlow(week, { reloadState: true });
 	});
 
-	async function loadFlow(week: string, reloadState = true) {
+	async function loadFlow(week: string, options: FlowLoadOptions = {}): Promise<boolean> {
 		const loadID = flowLoadTracker.start();
+		const reloadState = options.reloadState ?? true;
 		isLoading = true;
 		errorMessage = '';
 		try {
 			const nextState = reloadState || !flowState ? await fetchFlowState(text.loadError) : flowState;
 			const weeklySummary = await fetchFlowWeeklySummary(week, text.loadError);
-			if (!flowLoadTracker.isCurrent(loadID)) return;
+			if (!flowLoadTracker.isCurrent(loadID)) return false;
 			flowState = nextState;
 			summary = mergeFlowSummary(nextState, weeklySummary);
 			openPendingTask();
@@ -138,11 +139,13 @@
 				if (!members().some((member) => member.id === memberID)) activeTab = 'tasks';
 			}
 			if (summary.week.code) replaceWeekQuery(summary.week.code);
+			return true;
 		} catch (error) {
-			if (!flowLoadTracker.isCurrent(loadID)) return;
+			if (!flowLoadTracker.isCurrent(loadID)) return false;
 			errorMessage = error instanceof Error ? error.message : text.loadError;
 			if (!flowState) summary = null;
-			activeTab = 'report';
+			if (!options.preserveActiveTabOnError) activeTab = 'report';
+			return false;
 		} finally {
 			if (flowLoadTracker.isCurrent(loadID)) isLoading = false;
 		}
@@ -164,11 +167,11 @@
 	}
 
 	function selectCurrentWeek() {
-		loadFlow('', false);
+		loadFlow('', { reloadState: false });
 	}
 
 	function selectWeek(week: string) {
-		loadFlow(week, false);
+		loadFlow(week, { reloadState: false });
 	}
 
 </script>
@@ -202,7 +205,7 @@
 					{text.nextWeek}
 					<ChevronRightIcon />
 				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek(), true)} disabled={isLoading}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek(), { reloadState: true })} disabled={isLoading}>
 					<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 				</Button>
 			</div>

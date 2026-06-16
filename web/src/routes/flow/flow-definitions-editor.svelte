@@ -2,6 +2,7 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { saveFlowDefinitions } from './flow-api';
 	import FlowDefinitionsView from './flow-definitions-view.svelte';
+	import type { LoadFlow } from './flow-load-tracker';
 	import type { FlowDefinitions, FlowSizeDefinition, FlowSummary } from './flow-types';
 	import { flowText } from './text';
 
@@ -11,7 +12,7 @@
 		summary: FlowSummary | null;
 		loadError: string;
 		text: FlowDefinitionsText;
-		loadFlow: (week: string) => Promise<void>;
+		loadFlow: LoadFlow;
 	};
 
 	let { summary, loadError, text, loadFlow }: Props = $props();
