@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import MemoryNetwork from '$lib/components/memory-network.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -134,7 +135,9 @@
 							<span class="truncate text-xs text-muted-foreground">{fact.namespaceID}</span>
 							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
 						</div>
-						<p class="text-sm leading-5">{fact.content}</p>
+						<div class="memory-markdown text-sm leading-5">
+						<SvelteMarkdown source={fact.content} />
+					</div>
 					</article>
 				{/each}
 			</div>
@@ -155,3 +158,69 @@
 		{/each}
 	</section>
 {/if}
+
+<style>
+	.memory-markdown :global(h1) {
+		font-size: 0.875rem;
+		font-weight: 600;
+		margin: 0.25rem 0;
+	}
+	.memory-markdown :global(h2),
+	.memory-markdown :global(h3) {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		margin: 0.5rem 0 0.25rem;
+		color: var(--color-muted-foreground);
+	}
+	.memory-markdown :global(p) {
+		margin: 0.25rem 0;
+	}
+	.memory-markdown :global(ul),
+	.memory-markdown :global(ol) {
+		margin: 0.25rem 0;
+		padding-left: 1.1rem;
+	}
+	.memory-markdown :global(ul) {
+		list-style: disc;
+	}
+	.memory-markdown :global(ol) {
+		list-style: decimal;
+	}
+	.memory-markdown :global(li) {
+		margin: 0.125rem 0;
+	}
+	.memory-markdown :global(strong) {
+		font-weight: 600;
+	}
+	.memory-markdown :global(em) {
+		font-style: italic;
+	}
+	.memory-markdown :global(a) {
+		color: var(--color-primary);
+		text-decoration: underline;
+	}
+	.memory-markdown :global(code) {
+		font-family: var(--font-mono, monospace);
+		font-size: 0.8125rem;
+		background: var(--color-muted);
+		padding: 0.05rem 0.25rem;
+		border-radius: 0.25rem;
+	}
+	.memory-markdown :global(pre) {
+		margin: 0.375rem 0;
+		padding: 0.5rem;
+		background: var(--color-muted);
+		border-radius: 0.375rem;
+		overflow-x: auto;
+	}
+	.memory-markdown :global(pre code) {
+		background: none;
+		padding: 0;
+	}
+	.memory-markdown :global(blockquote) {
+		border-left: 2px solid var(--color-border);
+		padding-left: 0.5rem;
+		color: var(--color-muted-foreground);
+		margin: 0.25rem 0;
+	}
+</style>
