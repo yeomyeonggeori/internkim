@@ -1,4 +1,3 @@
-// Flow 업무 보드 카드 표시 데이터 구성을 검증합니다.
 import { describe, expect, test } from 'bun:test';
 import { buildFlowTaskBoardCardDisplay } from '../../src/routes/flow/flow-task-board-card-model';
 import type { FlowTask } from '../../src/routes/flow/flow-types';

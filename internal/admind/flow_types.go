@@ -149,6 +149,12 @@ type flowTaskWriteRequest struct {
 	DecisionReason string   `json:"decisionReason"`
 }
 
+type flowTaskBoardMoveRequest struct {
+	TaskID       string  `json:"taskID"`
+	TargetStatus string  `json:"targetStatus"`
+	BeforeTaskID *string `json:"beforeTaskID"`
+}
+
 type flowQuickTaskRequest struct {
 	Prompt         string   `json:"prompt"`
 	OwnerID        string   `json:"ownerID"`
