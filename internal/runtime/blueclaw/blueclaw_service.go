@@ -101,14 +101,14 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --host %s --port %s -ngl 99 --log-disable
+ExecStart=%s -m %s --model-draft %s --spec-type draft-mtp --spec-draft-n-max 4 --host %s --port %s -ngl 99 --spec-draft-ngl 99 -fa on --chat-template gemma --log-disable
 Restart=on-failure
 RestartSec=2
-TimeoutStartSec=120
+TimeoutStartSec=180
 
 [Install]
 WantedBy=multi-user.target
-`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppModelPath, locallm.LlamaCppHost, locallm.LlamaCppPort)
+`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppModelPath, locallm.LlamaCppDraftModelPath, locallm.LlamaCppHost, locallm.LlamaCppPort)
 }
 
 func LlamaCppEmbeddingServiceUnit() string {
@@ -120,7 +120,7 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --host %s --port %s -ngl 99 --embeddings --pooling mean --batch-size %s --ubatch-size %s --log-disable
+ExecStart=%s -m %s --host %s --port %s -ngl 0 --embeddings --pooling mean --batch-size %s --ubatch-size %s --log-disable
 Restart=on-failure
 RestartSec=2
 TimeoutStartSec=120
