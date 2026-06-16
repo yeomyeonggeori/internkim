@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { adminApiFetch } from '$lib/admin-api';
 	import AccountAPITokenSheet from '$lib/components/account-api-token-sheet.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -57,7 +58,7 @@
 
 	async function loadUser() {
 		try {
-			const response = await fetch('/admin/api/session', { credentials: 'include' });
+			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
 				await loadWebUser();
 				return;

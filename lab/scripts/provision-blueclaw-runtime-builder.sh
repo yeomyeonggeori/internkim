@@ -31,6 +31,10 @@ printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-
   unzip \
   xz-utils
 
+if ! command -v bun >/dev/null 2>&1; then
+  printf '%s\n' "$sudo_password" | sudo -S env BUN_INSTALL=/usr/local bash -c 'curl -fsSL https://bun.sh/install | bash'
+fi
+
 if [ -n "$mount_directory_path" ]; then
   printf '%s\n' "$sudo_password" | sudo -S mkdir -p "$mount_directory_path"
   if ! mount | grep -q "com.apple.virtio-fs.automount on $mount_directory_path "; then

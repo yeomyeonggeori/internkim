@@ -438,7 +438,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
 		return mattermostCalendarLogLifecycleResponse(t, request, &requests)
 	})
-	event := calendarTestEvent("logged", "Design review", "샘플\nBring agenda")
+	event := calendarTestEvent("logged", "Design review", "김표본\nBring agenda")
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -449,7 +449,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if reloadedEvent.MattermostPostID != "calendar-post-1" {
 		t.Fatalf("post id = %q", reloadedEvent.MattermostPostID)
 	}
-	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") || !strings.Contains(requests.createdMessages[0], "대상: 샘플") || strings.Contains(requests.createdMessages[0], "일정 열기") {
+	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") || !strings.Contains(requests.createdMessages[0], "\n@iam\n") || strings.Contains(requests.createdMessages[0], "대상:") || strings.Contains(requests.createdMessages[0], "일정 열기") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 	if len(requests.createTokens) != 1 || requests.createTokens[0] != "Bearer bot-token" {
@@ -476,7 +476,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 func TestCalendarMattermostLogMentionsAllWhenPeopleAreEmpty(t *testing.T) {
 	service := newCalendarTestService(t)
 	message := service.calendarMattermostLogMessage(calendarTestEvent("all-hands", "Company offsite", "Travel prep"))
-	if !strings.Contains(message, "멘션: @all") {
+	if !strings.Contains(message, "\n@all\n") {
 		t.Fatalf("message = %q", message)
 	}
 }
@@ -484,10 +484,22 @@ func TestCalendarMattermostLogMentionsAllWhenPeopleAreEmpty(t *testing.T) {
 func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 	service := newCalendarTestService(t)
 	message := service.calendarMattermostLogMessage(calendarTestEvent("staff-sync", "Staff sync", "staff, product-team\nBring agenda"))
-	if !strings.Contains(message, "멘션: @staff @product-team") {
+	if !strings.Contains(message, "\n@staff @product-team\n") {
 		t.Fatalf("message = %q", message)
 	}
-	if !strings.Contains(message, "대상: staff, product-team") {
+	if strings.Contains(message, "대상:") {
+		t.Fatalf("message = %q", message)
+	}
+}
+
+func TestCalendarMattermostLogMentionsKoreanPeople(t *testing.T) {
+	service := newCalendarTestService(t)
+	mattermostUsers := []mattermostUserRecord{{ID: "user-iam", Username: "iam", Nickname: "김표본", Email: "iam@example.com"}}
+	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김표본\nBring agenda"), mattermostUsers)
+	if !strings.Contains(message, "\n@iam\n") {
+		t.Fatalf("message = %q", message)
+	}
+	if strings.Contains(message, "대상:") {
 		t.Fatalf("message = %q", message)
 	}
 }
@@ -1347,7 +1359,7 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/users/login":
 		return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
-		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"gamyeong","nickname":"샘플","email":"gamyeong@example.com"}]`, nil), nil
+		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"iam","nickname":"김표본","email":"iam@example.com"}]`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/me":
 		return jsonResponse(http.StatusOK, `{"id":"bot-1"}`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
