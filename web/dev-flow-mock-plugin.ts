@@ -1,5 +1,7 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './src/routes/flow/flow-task-board-drag';
+import { isFlowTaskBoardStatus } from './src/routes/flow/flow-task-board-model';
 import { createDevFlowState, createDevFlowWeeklySummary } from './src/routes/flow/dev-flow-fixture';
 import type { FlowState, FlowTask } from './src/routes/flow/flow-types';
 
@@ -65,6 +67,8 @@ export function devFlowMockPlugin(options: DevFlowMockPluginOptions): Plugin {
 function shouldHandleDevFlowMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/flow/api/summary') return true;
 	if (method === 'GET' && pathname === '/flow/api/state') return true;
+	if (method === 'POST' && pathname === '/flow/api/test/reset') return true;
+	if (method === 'POST' && pathname === '/flow/api/tasks/move') return true;
 	if (method === 'POST' && pathname === '/flow/api/tasks') return true;
 	if (method === 'PUT' && pathname.startsWith('/flow/api/tasks/')) return true;
 	if (method === 'GET' && pathname === '/auth/session') return true;
@@ -92,6 +96,10 @@ export async function createDevFlowMockResponse(
 	if (request.method === 'GET' && request.pathname === '/flow/api/state') {
 		return { status: 200, body: state.flowState };
 	}
+	if (request.method === 'POST' && request.pathname === '/flow/api/test/reset') {
+		resetDevFlowMockState(state);
+		return { status: 200, body: { ok: true } };
+	}
 	if (request.method === 'POST' && request.pathname === '/flow/api/tasks') {
 		const parsed = parseJSONRecord(request.body);
 		const task = flowTaskFromRecord(parsed, createFlowTaskFallback(state));
@@ -100,6 +108,9 @@ export async function createDevFlowMockResponse(
 			: nextBottomStatusRank(state.flowState.tasks, task.status);
 		state.flowState.tasks = [...state.flowState.tasks, { ...task, statusRank }];
 		return { status: 200, body: { ok: true } };
+	}
+	if (request.method === 'POST' && request.pathname === '/flow/api/tasks/move') {
+		return createFlowTaskBoardMoveMockResponse(state, parseJSONRecord(request.body));
 	}
 	if (request.method === 'PUT' && request.pathname.startsWith('/flow/api/tasks/')) {
 		const taskID = decodeURIComponent(request.pathname.slice('/flow/api/tasks/'.length));
@@ -134,6 +145,11 @@ export async function createDevFlowMockResponse(
 		return { status: 200, body: { locale: state.locale } };
 	}
 	return undefined;
+}
+
+function resetDevFlowMockState(state: DevFlowMockState): void {
+	state.flowState = createDevFlowState(state.userEmail);
+	state.nextTaskID = 1;
 }
 
 function createFlowTaskFallback(state: DevFlowMockState): FlowTask {
@@ -181,6 +197,55 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 	};
 }
 
+function createFlowTaskBoardMoveMockResponse(
+	state: DevFlowMockState,
+	parsed: Record<string, unknown>
+): DevFlowMockResponse {
+	const moveRequest = flowTaskBoardMoveRequestFromRecord(parsed);
+	const validationResponse = validateFlowTaskBoardMoveMockRequest(state, moveRequest);
+	if (validationResponse) return validationResponse;
+
+	const move = createFlowTaskBoardMove(state.flowState.tasks, moveRequest);
+	if (!move) return { status: 200, body: { ok: true } };
+	state.flowState.tasks = move.tasks;
+	return { status: 200, body: { ok: true } };
+}
+
+function flowTaskBoardMoveRequestFromRecord(parsed: Record<string, unknown>): FlowTaskBoardMoveRequest {
+	return {
+		taskID: trimmedStringFromValue(parsed.taskID),
+		targetStatus: trimmedStringFromValue(parsed.targetStatus),
+		beforeTaskID: nullableStringFromValue(parsed.beforeTaskID)
+	};
+}
+
+function validateFlowTaskBoardMoveMockRequest(
+	state: DevFlowMockState,
+	moveRequest: FlowTaskBoardMoveRequest
+): DevFlowMockResponse | null {
+	if (moveRequest.taskID === '') {
+		return { status: 400, body: { error: 'task id is required' } };
+	}
+	if (!isFlowTaskBoardStatus(moveRequest.targetStatus)) {
+		return { status: 400, body: { error: 'target status is not movable on the board' } };
+	}
+	if (moveRequest.beforeTaskID === moveRequest.taskID) {
+		return { status: 400, body: { error: 'before task cannot be the moved task' } };
+	}
+	if (!state.flowState.tasks.some((task) => task.id === moveRequest.taskID)) {
+		return { status: 404, body: { error: 'task not found' } };
+	}
+	if (
+		moveRequest.beforeTaskID
+		&& !state.flowState.tasks.some((task) =>
+			task.id === moveRequest.beforeTaskID && task.status === moveRequest.targetStatus
+		)
+	) {
+		return { status: 400, body: { error: 'before task is not in target status' } };
+	}
+	return null;
+}
+
 function nextBottomStatusRank(tasks: FlowTask[], status: string): number {
 	const ranks = tasks.filter((task) => task.status === status).map((task) => task.statusRank);
 	return ranks.length === 0 ? statusRankStep : Math.max(...ranks) + statusRankStep;
@@ -210,6 +275,10 @@ function stringFromValue(value: unknown, fallback: string): string {
 	return typeof value === 'string' ? value : fallback;
 }
 
+function trimmedStringFromValue(value: unknown): string {
+	return typeof value === 'string' ? value.trim() : '';
+}
+
 function nonEmptyStringFromValue(value: unknown, fallback: string): string {
 	if (typeof value !== 'string') return fallback;
 	const trimmed = value.trim();
@@ -218,6 +287,12 @@ function nonEmptyStringFromValue(value: unknown, fallback: string): string {
 
 function optionalStringFromValue(value: unknown, fallback: string | undefined): string | undefined {
 	return typeof value === 'string' ? value : fallback;
+}
+
+function nullableStringFromValue(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const trimmedValue = value.trim();
+	return trimmedValue ? trimmedValue : null;
 }
 
 function stringArrayFromValue(value: unknown, fallback: string[]): string[] {
