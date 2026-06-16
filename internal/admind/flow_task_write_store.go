@@ -114,6 +114,11 @@ ON CONFLICT(id) DO UPDATE SET
 	return nil
 }
 
+func writeFlowTaskStatusRankInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
+	_, errorValue := transaction.ExecContext(ctx, "UPDATE flow_tasks SET status_rank = ? WHERE id = ?", task.StatusRank, task.ID)
+	return errorValue
+}
+
 func nextFlowTaskStatusRankInTransaction(ctx context.Context, transaction *sql.Tx, status string) (int, error) {
 	var rank int
 	errorValue := transaction.QueryRowContext(ctx, "SELECT COALESCE(MAX(status_rank), 0) + 1024 FROM flow_tasks WHERE status = ?", cleanFlowStatus(status)).Scan(&rank)
