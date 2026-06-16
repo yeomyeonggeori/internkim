@@ -17,6 +17,7 @@
 	} from '@tanstack/table-core';
 	import { compareOptionalDate, sizeBadgeClass, statusBadgeClass } from './flow-style';
 	import FlowTaskTable from './flow-task-table.svelte';
+	import { flowBusinessLabel } from './flow-task-workspace-model';
 	import type { FlowTask } from './flow-types';
 	import { flowText } from './text';
 
@@ -35,10 +36,11 @@
 		statusLabel: (status: string) => string;
 		updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
 		openTask: (task: FlowTask) => void;
+		canUpdateTask: (task: FlowTask) => boolean;
 		focusedTaskID: string;
 	};
 
-	let { tasks, text, statusOptions, pendingStatusTaskID, statusLabel, updateTaskStatus, openTask, focusedTaskID }: Props = $props();
+	let { tasks, text, statusOptions, pendingStatusTaskID, statusLabel, updateTaskStatus, openTask, canUpdateTask, focusedTaskID }: Props = $props();
 
 	let taskSorting = $state<SortingState>([]);
 	let taskPagination = $state<PaginationState>({ pageIndex: 0, pageSize: 20 });
@@ -52,7 +54,7 @@
 		{
 			accessorKey: 'business',
 			header: () => renderSnippet(taskHeader, { label: text.table.business, id: 'business' }),
-			cell: (info) => renderSnippet(taskTextCell, { value: info.row.original.business || '-', muted: true })
+			cell: (info) => renderSnippet(taskTextCell, { value: flowBusinessLabel(info.row.original.business, text.report.fallbackBusiness), muted: true })
 		},
 		{
 			accessorKey: 'type',
@@ -191,8 +193,11 @@
 
 {#snippet taskParticipantsCell({ task }: { task: FlowTask })}
 	<div class="flex max-w-56 flex-wrap gap-1">
-		{#each task.participantNames as name}
-			<Badge variant="outline">{name}</Badge>
+		{#each task.participantNames as name, index}
+			<Badge variant="outline" class="gap-1.5 pl-1">
+				<PersonAvatar name={name} seed={task.participantIDs[index] ?? name} class="size-4" />
+				{name}
+			</Badge>
 		{/each}
 	</div>
 {/snippet}
@@ -206,7 +211,7 @@
 		<Select.Root
 			type="single"
 			value={task.status}
-			disabled={pendingStatusTaskID === task.id}
+			disabled={pendingStatusTaskID === task.id || !canUpdateTask(task)}
 			onValueChange={(next) => updateTaskStatus(task, next)}
 		>
 			<Select.Trigger
