@@ -1,5 +1,8 @@
 import { createQuickFlowTask, saveFlowTask } from './flow-api';
+import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './flow-task-board-drag';
+import { saveFlowTaskBoardMove } from './flow-task-board-save';
 import { cloneFlowTask, createFlowTaskDraft, defaultFlowTaskOwner, participantSelectionFromNames } from './flow-task-draft';
+import type { LoadFlow } from './flow-load-tracker';
 import { flowText } from './text';
 import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
 
@@ -9,7 +12,7 @@ type FlowTasksControllerInput = {
 	summary: FlowSummary | null;
 	activeMemberID: string;
 	text: FlowPageText;
-	loadFlow: (week: string) => Promise<void>;
+	loadFlow: LoadFlow;
 	setPageErrorMessage: (message: string) => void;
 };
 
@@ -40,12 +43,13 @@ class FlowTasksController {
 	isCreatingQuickTask = $state(false);
 	isSavingTask = $state(false);
 	pendingStatusTaskID = $state('');
+	pendingBoardTaskIDs = $state<string[]>([]);
 
-	private loadFlow: (week: string) => Promise<void>;
+	private loadFlow: LoadFlow;
 	private setPageErrorMessage: (message: string) => void;
 
 	constructor() {
-		this.loadFlow = async () => {};
+		this.loadFlow = async () => false;
 		this.setPageErrorMessage = () => {};
 	}
 
@@ -106,6 +110,7 @@ class FlowTasksController {
 	};
 
 	openTask = (task: FlowTask): void => {
+		if (this.isBoardTaskPending(task.id)) return;
 		this.taskDraft = cloneFlowTask(task);
 		this.taskErrorMessage = '';
 	};
@@ -172,6 +177,7 @@ class FlowTasksController {
 
 	updateTaskStatus = async (task: FlowTask, nextStatus: string): Promise<void> => {
 		if (!task.id || nextStatus === task.status) return;
+		if (this.isBoardTaskPending(task.id)) return;
 		this.pendingStatusTaskID = task.id;
 		this.setPageErrorMessage('');
 		try {
@@ -183,6 +189,37 @@ class FlowTasksController {
 			this.pendingStatusTaskID = '';
 		}
 	};
+
+	moveTaskOnBoard = async (request: FlowTaskBoardMoveRequest): Promise<void> => {
+		if (!this.summary || this.pendingBoardTaskIDs.length > 0) return;
+		const move = createFlowTaskBoardMove(this.summary.tasks, request);
+		if (!move) return;
+
+		const previousSummary = this.summary;
+		const week = this.currentWeek();
+		this.pendingBoardTaskIDs = move.updates.map((task) => task.id);
+		this.setPageErrorMessage('');
+		this.summary = { ...this.summary, tasks: move.tasks };
+
+		try {
+			const saveResult = await saveFlowTaskBoardMove({
+				request,
+				week,
+				currentWeek: this.currentWeek,
+				loadFlow: this.loadFlow,
+				setPageErrorMessage: this.setPageErrorMessage,
+				saveErrorMessage: this.text.task.saveError,
+				loadErrorMessage: this.text.loadError
+			});
+			if (saveResult === 'failed' && this.currentWeek() === week) {
+				this.summary = previousSummary;
+			}
+		} finally {
+			this.pendingBoardTaskIDs = [];
+		}
+	};
+
+	isBoardTaskPending = (taskID: string): boolean => this.pendingBoardTaskIDs.includes(taskID);
 
 	resetFilters = (): void => {
 		this.searchText = '';
