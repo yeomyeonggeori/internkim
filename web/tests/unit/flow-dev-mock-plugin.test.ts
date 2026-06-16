@@ -57,6 +57,30 @@ describe('dev flow mock plugin', () => {
 		});
 	});
 
+	test('deletes a development task through the mock task endpoint', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const currentState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const task = currentState.tasks[0] as FlowTask;
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'DELETE',
+			pathname: `/flow/api/tasks/${task.id}`,
+			searchParams: new URLSearchParams()
+		});
+		const updatedState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+		expect(updatedState.tasks.some((value) => value.id === task.id)).toBe(false);
+	});
+
 	test('moves a development task through the mock board move endpoint', async () => {
 		const state = createDevFlowMockState('admin@example.com');
 		const currentState = (await createDevFlowMockResponse(state, {
