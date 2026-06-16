@@ -1,4 +1,3 @@
-// Flow 개발 mock 플러그인의 쓰기 요청 처리를 검증합니다.
 import { describe, expect, test } from 'bun:test';
 import { createDevFlowMockResponse, createDevFlowMockState } from '../../dev-flow-mock-plugin';
 import type { FlowState, FlowTask } from '../../src/routes/flow/flow-types';
@@ -56,5 +55,146 @@ describe('dev flow mock plugin', () => {
 			status: '예정',
 			statusRank: 4096
 		});
+	});
+
+	test('moves a development task through the mock board move endpoint', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const currentState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const movedTask = currentState.tasks.find((value) => value.status === '요청') as FlowTask;
+		const beforeTask = currentState.tasks.find((value) => value.status === '진행') as FlowTask;
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'POST',
+			pathname: '/flow/api/tasks/move',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				taskID: movedTask.id,
+				targetStatus: '진행',
+				beforeTaskID: beforeTask.id
+			})
+		});
+		const updatedState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const updatedTask = updatedState.tasks.find((value) => value.id === movedTask.id);
+		const updatedBeforeTask = updatedState.tasks.find((value) => value.id === beforeTask.id);
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+		expect(updatedTask).toMatchObject({
+			status: '진행'
+		});
+		expect((updatedTask?.statusRank ?? 0) < (updatedBeforeTask?.statusRank ?? 0)).toBe(true);
+	});
+
+	test('resets mutated development flow state through the mock reset endpoint', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const currentState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const movedTask = currentState.tasks.find((value) => value.status === '요청') as FlowTask;
+
+		await createDevFlowMockResponse(state, {
+			method: 'POST',
+			pathname: '/flow/api/tasks/move',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				taskID: movedTask.id,
+				targetStatus: '진행',
+				beforeTaskID: null
+			})
+		});
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'POST',
+			pathname: '/flow/api/test/reset',
+			searchParams: new URLSearchParams()
+		});
+		const resetState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+		expect(resetState.tasks.find((value) => value.id === movedTask.id)).toMatchObject({
+			status: '요청',
+			statusRank: movedTask.statusRank
+		});
+	});
+
+	test('accepts a no-op board move through the mock board move endpoint', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const currentState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const plannedTasks = currentState.tasks.filter((value) => value.status === '예정');
+		const lastTask = plannedTasks.at(-1) as FlowTask;
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'POST',
+			pathname: '/flow/api/tasks/move',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				taskID: lastTask.id,
+				targetStatus: lastTask.status,
+				beforeTaskID: null
+			})
+		});
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+	});
+
+	test('rejects invalid board move requests through the mock board move endpoint', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const currentState = (await createDevFlowMockResponse(state, {
+			method: 'GET',
+			pathname: '/flow/api/state',
+			searchParams: new URLSearchParams()
+		}))?.body as FlowState;
+		const requestedTask = currentState.tasks.find((value) => value.status === '요청') as FlowTask;
+		const plannedTask = currentState.tasks.find((value) => value.status === '예정') as FlowTask;
+		const invalidMoveRequests = [
+			{
+				body: { taskID: ' ', targetStatus: '진행', beforeTaskID: null },
+				status: 400
+			},
+			{
+				body: { taskID: 'missing-task', targetStatus: '진행', beforeTaskID: null },
+				status: 404
+			},
+			{
+				body: { taskID: requestedTask.id, targetStatus: '기각', beforeTaskID: null },
+				status: 400
+			},
+			{
+				body: { taskID: requestedTask.id, targetStatus: '요청', beforeTaskID: requestedTask.id },
+				status: 400
+			},
+			{
+				body: { taskID: requestedTask.id, targetStatus: '진행', beforeTaskID: plannedTask.id },
+				status: 400
+			}
+		];
+
+		for (const invalidMoveRequest of invalidMoveRequests) {
+			const response = await createDevFlowMockResponse(state, {
+				method: 'POST',
+				pathname: '/flow/api/tasks/move',
+				searchParams: new URLSearchParams(),
+				body: JSON.stringify(invalidMoveRequest.body)
+			});
+
+			expect(response?.status).toBe(invalidMoveRequest.status);
+		}
 	});
 });
