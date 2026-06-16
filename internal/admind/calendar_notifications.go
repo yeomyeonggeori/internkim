@@ -64,8 +64,12 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return event, errorValue
 	}
+	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
+	if errorValue != nil {
+		return event, errorValue
+	}
 	if strings.TrimSpace(event.MattermostPostID) == "" {
-		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event, mattermostUsers)
 	}
 	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, event.MattermostPostID)
 	if errorValue != nil && !isMattermostNotFound(errorValue) {
@@ -79,10 +83,10 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 		if errorValue := service.updateCalendarEventMattermostPostID(ctx, event.ID, ""); errorValue != nil {
 			return event, errorValue
 		}
-		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event, mattermostUsers)
 	}
 	body := map[string]any{
-		"message": service.calendarMattermostLogMessage(event),
+		"message": service.calendarMattermostLogMessageWithUsers(event, mattermostUsers),
 		"props":   calendarMattermostLogProps(event),
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", botToken, body, nil); errorValue != nil {
@@ -91,10 +95,10 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	return event, nil
 }
 
-func (service *Service) createCalendarMattermostLog(ctx context.Context, token string, channelID string, event calendarEvent) (calendarEvent, error) {
+func (service *Service) createCalendarMattermostLog(ctx context.Context, token string, channelID string, event calendarEvent, mattermostUsers []mattermostUserRecord) (calendarEvent, error) {
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    service.calendarMattermostLogMessage(event),
+		"message":    service.calendarMattermostLogMessageWithUsers(event, mattermostUsers),
 		"props":      calendarMattermostLogProps(event),
 	}
 	var response struct {
@@ -128,15 +132,16 @@ func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, even
 }
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
+	return service.calendarMattermostLogMessageWithUsers(event, nil)
+}
+
+func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
 	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
-	if mentionText := calendarMattermostMentionText(event); mentionText != "" {
-		lines = append(lines, "멘션: "+mentionText)
+	if mentionText := calendarMattermostMentionText(event, mattermostUsers); mentionText != "" {
+		lines = append(lines, mentionText)
 	}
 	if strings.TrimSpace(event.Location) != "" {
 		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
-	}
-	if peopleText := calendarMattermostPeopleText(event); peopleText != "" {
-		lines = append(lines, "대상: "+peopleText)
 	}
 	if note := calendarMattermostNoteText(event.Description); note != "" {
 		lines = append(lines, "메모: "+note)
@@ -144,12 +149,12 @@ func (service *Service) calendarMattermostLogMessage(event calendarEvent) string
 	return strings.Join(lines, "\n")
 }
 
-func calendarMattermostMentionText(event calendarEvent) string {
+func calendarMattermostMentionText(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
 	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
 	if !hasPeopleLine || calendarPeopleIncludesAll(people) {
 		return "@all"
 	}
-	return strings.Join(calendarMattermostMentionsForPeople(people), " ")
+	return strings.Join(calendarMattermostMentionsForPeople(people, mattermostUsers), " ")
 }
 
 func calendarPeopleIncludesAll(people []string) bool {
@@ -162,11 +167,11 @@ func calendarPeopleIncludesAll(people []string) bool {
 	return false
 }
 
-func calendarMattermostMentionsForPeople(people []string) []string {
+func calendarMattermostMentionsForPeople(people []string, mattermostUsers []mattermostUserRecord) []string {
 	mentions := []string{}
 	seenMentions := map[string]bool{}
 	for _, person := range people {
-		mention := calendarMattermostMentionForPerson(person)
+		mention := calendarMattermostMentionForPerson(person, mattermostUsers)
 		if mention == "" || seenMentions[strings.ToLower(mention)] {
 			continue
 		}
@@ -176,34 +181,15 @@ func calendarMattermostMentionsForPeople(people []string) []string {
 	return mentions
 }
 
-func calendarMattermostMentionForPerson(person string) string {
+func calendarMattermostMentionForPerson(person string, mattermostUsers []mattermostUserRecord) string {
+	if user, found := calendarMattermostUserForPerson(person, mattermostUsers); found && strings.TrimSpace(user.Username) != "" {
+		return "@" + strings.TrimSpace(user.Username)
+	}
 	mentionName := strings.TrimSpace(strings.TrimPrefix(person, "@"))
-	if !isCalendarMattermostMentionName(mentionName) {
+	if mentionName == "" || strings.ContainsAny(mentionName, " \t\r\n") {
 		return ""
 	}
 	return "@" + mentionName
-}
-
-func isCalendarMattermostMentionName(value string) bool {
-	if value == "" {
-		return false
-	}
-	for _, character := range value {
-		if character >= 'a' && character <= 'z' {
-			continue
-		}
-		if character >= 'A' && character <= 'Z' {
-			continue
-		}
-		if character >= '0' && character <= '9' {
-			continue
-		}
-		if character == '-' || character == '_' || character == '.' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func calendarMattermostLogProps(event calendarEvent) map[string]any {
@@ -229,14 +215,6 @@ func calendarMattermostEventDateText(event calendarEvent) string {
 		return startTime.Format("2006-01-02")
 	}
 	return startTime.Format("2006-01-02 15:04") + " - " + endTime.Format("15:04")
-}
-
-func calendarMattermostPeopleText(event calendarEvent) string {
-	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
-	if hasPeopleLine && len(people) > 0 {
-		return strings.Join(people, ", ")
-	}
-	return "전체"
 }
 
 func calendarMattermostNoteText(description string) string {
