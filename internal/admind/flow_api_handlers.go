@@ -3,6 +3,7 @@ package admind
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +41,12 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 			return
 		}
 		service.createQuickFlowTask(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/tasks/move":
+		if !service.authorizeFlowRequest(request, flowActionUpdate, flowResourceTask) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
+		service.moveFlowTaskOnBoard(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/tasks":
 		if !service.authorizeFlowRequest(request, flowActionCreate, flowResourceTask) {
 			http.Error(responseWriter, "flow access required", http.StatusForbidden)
@@ -253,6 +260,41 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
+}
+
+func (service *Service) moveFlowTaskOnBoard(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload flowTaskBoardMoveRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		writeFlowRequestError(responseWriter, errorValue)
+		return
+	}
+	payload = cleanFlowTaskBoardMoveRequest(payload)
+	if errorValue := validateFlowTaskBoardMoveRequest(payload); errorValue != nil {
+		writeFlowTaskBoardMoveError(responseWriter, errorValue)
+		return
+	}
+	task, errorValue := service.writeFlowTaskBoardMove(request.Context(), payload, func(task flowTask) bool {
+		return service.canUpdateFlowTask(request, task)
+	})
+	if errorValue != nil {
+		writeFlowTaskBoardMoveError(responseWriter, errorValue)
+		return
+	}
+	task = service.applyFlowMattermostProjection(request.Context(), task)
+	service.writeJSON(responseWriter, task)
+}
+
+func writeFlowTaskBoardMoveError(responseWriter http.ResponseWriter, errorValue error) {
+	switch {
+	case errors.Is(errorValue, errFlowTaskBoardMoveInvalidRequest):
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+	case errors.Is(errorValue, errFlowTaskBoardMoveTaskNotFound):
+		http.Error(responseWriter, "task not found", http.StatusNotFound)
+	case errors.Is(errorValue, errFlowTaskBoardMoveForbidden):
+		http.Error(responseWriter, "task owner, participant, or admin access required", http.StatusForbidden)
+	default:
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, request *http.Request, taskID string) {
