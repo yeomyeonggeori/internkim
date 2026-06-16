@@ -274,7 +274,7 @@ func (service *Service) deleteMattermostAskEphemeralPostInBackground(payload mat
 func (service *Service) deleteMattermostAskEphemeralPost(ctx context.Context, payload mattermostInteractivePayload) error {
 	secret := service.mattermostEphemeralPluginSecret()
 	if secret == "" {
-		return nil
+		return fmt.Errorf("mattermost ephemeral plugin secret is not configured; deploy the mattermostPlugins component or run sync-mattermost-plugins")
 	}
 	deleteRequest := mattermostEphemeralPluginDeleteRequest{
 		UserID: strings.TrimSpace(payload.UserID),
