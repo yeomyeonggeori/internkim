@@ -3,6 +3,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { computePersonalStats } from '../shared/attendance-aggregation';
+	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-day-events';
 	import { attendanceText } from '../text';
 
 	const attendance = getAttendanceState();
@@ -21,19 +22,21 @@
 	function buildLocationBreakdown(eventList: AttendanceEvent[]) {
 		const count = new Map<string, number>();
 		let total = 0;
-		for (const event of eventList) {
-			if (event.kind !== 'clock_in' || event.canceledAt) continue;
-			const label = event.locationName ?? '-';
-			count.set(label, (count.get(label) ?? 0) + 1);
-			total += 1;
+		for (const [date, events] of groupEventsByDay(eventList)) {
+			const day = computeDayEvents(date, events);
+			for (const segment of day.segments) {
+				const label = segment.locationName ?? '-';
+				count.set(label, (count.get(label) ?? 0) + 1);
+				total += 1;
+			}
 		}
 		return [...count.entries()]
 			.sort((a, b) => b[1] - a[1])
 			.map(([label, n]) => ({ label, count: n, percent: total ? Math.round((n / total) * 100) : 0 }));
 	}
 
-	function formatDayCount(count: number): string {
-		return text.subscriptionDayTemplate.replace('{count}', String(count));
+	function formatSegmentCount(count: number): string {
+		return text.locationSegmentCountTemplate.replace('{count}', String(count));
 	}
 </script>
 
@@ -61,7 +64,7 @@
 			{#each locationBreakdown as item (item.label)}
 				<div class="flex items-center justify-between">
 					<span>{item.label}</span>
-					<span class="text-muted-foreground">{formatDayCount(item.count)} ({item.percent}%)</span>
+					<span class="text-muted-foreground">{formatSegmentCount(item.count)} ({item.percent}%)</span>
 				</div>
 			{/each}
 			{#if locationBreakdown.length === 0}

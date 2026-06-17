@@ -3,7 +3,8 @@ import {
 	createDevAttendanceMockResponse,
 	createDevAttendanceMockState
 } from '../../../dev-attendance-mock-plugin';
-import type { AttendanceAbsence } from '../../../src/routes/attendance/attendance-context.svelte';
+import { todayDateInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
+import type { AttendanceAbsence, AttendanceSummary } from '../../../src/routes/attendance/attendance-context.svelte';
 
 describe('dev attendance mock plugin', () => {
 	test('returns an authenticated development session', async () => {
@@ -37,6 +38,34 @@ describe('dev attendance mock plugin', () => {
 		const body = response?.body;
 		expect(hasKey(body, 'events')).toBe(true);
 		expect(hasKey(body, 'absences')).toBe(true);
+	});
+
+	test('includes a multiple-location current-day scenario for the development user', async () => {
+		const today = todayDateInTimeZone('Asia/Seoul', new Date());
+		const state = createDevAttendanceMockState('kim@example.com');
+		const response = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/attendance/api/summary',
+			searchParams: new URLSearchParams(`month=${today.slice(0, 7)}`)
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as AttendanceSummary | undefined;
+		const events = body?.events
+			.filter((event) => event.email === 'kim@example.com' && event.localDate === today)
+			.map((event) => ({
+				kind: event.kind,
+				localTime: event.localTime,
+				locationID: event.locationID
+			}));
+
+		expect(events).toEqual([
+			{ kind: 'clock_in', localTime: '08:30', locationID: 'remote' },
+			{ kind: 'clock_out', localTime: '10:20', locationID: 'remote' },
+			{ kind: 'clock_in', localTime: '10:45', locationID: 'office' },
+			{ kind: 'clock_out', localTime: '12:20', locationID: 'office' },
+			{ kind: 'clock_in', localTime: '12:45', locationID: 'outside' }
+		]);
 	});
 
 	test('registers a development absence for the current mock user', async () => {
