@@ -513,7 +513,7 @@ func (service Service) resolveMattermostPostSearchHandle(ctx context.Context, to
 	case "directMessage":
 		return service.resolveMattermostDirectMessageSearchHandle(ctx, toolContext, input)
 	case "channel":
-		return service.resolveMattermostChannelSearchHandle(ctx, input)
+		return service.resolveMattermostChannelSearchHandle(ctx, toolContext, input)
 	default:
 		failure := mattermostToolStaticFailure("invalid_scope", "input_decode", "Mattermost search scope is not supported")
 		return platformHandle{}, nil, failure, true
@@ -631,6 +631,11 @@ func (service Service) resolveMattermostDirectMessageSearchHandle(ctx context.Co
 	if hasFailure {
 		return platformHandle{}, nil, failureFromPlatformDMFailure(failure), true
 	}
+	if !service.requesterMayReadDirectMessagesWith(ctx, toolContext, recipient) {
+		recipientLabel := firstNonEmpty(recipient.DisplayName, recipient.MattermostUsername, recipient.PersonID)
+		message := "current account is not authorized to read direct messages with " + recipientLabel + "; only that person or an admin can read them"
+		return platformHandle{}, nil, mattermostToolStaticFailure("dm_read_not_authorized", "authorization", message), true
+	}
 	channel, toolFailure, hasToolFailure := service.mattermostDirectChannelForRecipient(ctx, recipient)
 	if hasToolFailure {
 		return platformHandle{}, nil, toolFailure, true
@@ -640,14 +645,43 @@ func (service Service) resolveMattermostDirectMessageSearchHandle(ctx context.Co
 	return handle, channelResult, mattermostToolFailure{}, false
 }
 
-func (service Service) resolveMattermostChannelSearchHandle(ctx context.Context, input mattermostPostSearchInput) (platformHandle, map[string]string, mattermostToolFailure, bool) {
+func (service Service) resolveMattermostChannelSearchHandle(ctx context.Context, toolContext capabilities.ToolInvokeContext, input mattermostPostSearchInput) (platformHandle, map[string]string, mattermostToolFailure, bool) {
 	channel, failure, hasFailure := service.resolveMattermostToolChannel(ctx, input.ChannelID, input.ChannelName)
 	if hasFailure {
 		return platformHandle{}, nil, failure, true
 	}
+	if !service.requesterMayAccessChannel(ctx, toolContext, channel.ID) {
+		return platformHandle{}, nil, channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+	}
 	handle := platformHandle{Platform: "mattermost", ConversationID: namespacedConversationID(channel.Type, channel.ID), ChannelID: channel.ID, ChannelType: channel.Type}
 	channelResult := map[string]string{"id": channel.ID, "name": channel.Name, "displayName": channel.DisplayName, "type": channel.Type}
 	return handle, channelResult, mattermostToolFailure{}, false
+}
+
+func (service Service) requesterMayReadDirectMessagesWith(ctx context.Context, toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
+	if isPlatformDMSelfRecipient(toolContext, recipient) {
+		return true
+	}
+	return service.mattermostRequesterHasCircle(ctx, toolContext, mattermostToolAdminCircle)
+}
+
+func (service Service) requesterMayAccessChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channelID string) bool {
+	requesterUserID := strings.TrimSpace(toolContext.RequesterPlatformUserID)
+	if requesterUserID != "" {
+		var membership struct {
+			ChannelID string `json:"channel_id"`
+		}
+		path := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members/" + url.PathEscape(requesterUserID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &membership); errorValue == nil && strings.TrimSpace(membership.ChannelID) != "" {
+			return true
+		}
+	}
+	return service.mattermostRequesterHasCircle(ctx, toolContext, mattermostToolAdminCircle)
+}
+
+func channelAccessDeniedFailure(channelLabel string) mattermostToolFailure {
+	message := "current account is not authorized to access channel " + channelLabel + "; only a channel member or an admin can read or post there"
+	return mattermostToolStaticFailure("channel_access_not_authorized", "authorization", message)
 }
 
 func (service Service) mattermostDirectChannelForRecipient(ctx context.Context, recipient platformDMRecipient) (mattermostToolChannel, mattermostToolFailure, bool) {
