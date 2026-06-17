@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (service *Service) authorizeFlowRequest(request *http.Request, action string, resource string) bool {
@@ -98,8 +101,23 @@ func (service *Service) mattermostSessionUser(request *http.Request, cookieHeade
 	if strings.TrimSpace(service.Configuration.MattermostBaseURL) == "" {
 		return mattermostUserRecord{}, false
 	}
+	cacheKey := mattermostSessionCacheKey(cookieHeader)
+	now := time.Now()
+	if userRecord, found := service.mattermostSessions.lookup(cacheKey, now, mattermostSessionFreshTTL); found {
+		return userRecord, true
+	}
+	if userRecord, found := service.fetchMattermostSessionUser(request.Context(), cookieHeader); found {
+		service.mattermostSessions.store(cacheKey, userRecord, now)
+		return userRecord, true
+	}
+	return service.mattermostSessions.lookup(cacheKey, now, mattermostSessionStaleTTL)
+}
+
+func (service *Service) fetchMattermostSessionUser(ctx context.Context, cookieHeader string) (mattermostUserRecord, bool) {
+	lookupContext, cancel := context.WithTimeout(ctx, mattermostSessionLookupTimeout)
+	defer cancel()
 	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/me"
-	mattermostRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodGet, requestURL, nil)
+	mattermostRequest, errorValue := http.NewRequestWithContext(lookupContext, http.MethodGet, requestURL, nil)
 	if errorValue != nil {
 		return mattermostUserRecord{}, false
 	}
@@ -137,10 +155,34 @@ func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string)
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
-		return false
+		return service.isEmailInUsersSyncCache(actorEmail)
 	}
 	for _, record := range records {
 		if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(actorEmail))
+	if normalizedEmail == "" {
+		return false
+	}
+	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	if errorValue != nil {
+		return false
+	}
+	var cache struct {
+		Users []string `json:"users"`
+	}
+	if json.Unmarshal(content, &cache) != nil {
+		return false
+	}
+	for _, email := range cache.Users {
+		if strings.EqualFold(strings.TrimSpace(email), normalizedEmail) {
 			return true
 		}
 	}
