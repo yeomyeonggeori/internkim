@@ -428,6 +428,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
+	multiplexer.HandleFunc("/tasks/api/", service.handleTasks)
 	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)

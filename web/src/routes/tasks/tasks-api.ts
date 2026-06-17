@@ -42,7 +42,7 @@ export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
 	if (request.includeTotal) query.set('includeTotal', 'true');
 	if (request.status) query.set('status', request.status);
 	const queryString = query.toString();
-	return queryString ? `/admin/api/diagnostics/tasks?${queryString}` : '/admin/api/diagnostics/tasks';
+	return queryString ? `/tasks/api/runs?${queryString}` : '/tasks/api/runs';
 }
 
 export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<TaskRunsResponse> {
@@ -80,7 +80,7 @@ function setPositiveIntegerQuery(query: URLSearchParams, key: string, value: num
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
 	const query = new URLSearchParams({ taskRunID });
-	const response = await adminApiFetch(`/admin/api/diagnostics/task-detail?${query.toString()}`);
+	const response = await adminApiFetch(`/tasks/api/run-detail?${query.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Task detail request returned ${response.status}`);
 	}
