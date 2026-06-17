@@ -55,9 +55,10 @@
 		return '/api/companion/releases';
 	}
 
+	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
+
 	function adminSections(): { value: AdminSection; label: string }[] {
-		return [
-			{ value: 'device', label: text.sections.device },
+		const sections: { value: AdminSection; label: string }[] = [
 			{ value: 'users', label: text.sections.users },
 			{ value: 'credentials', label: text.sections.credentials },
 			{ value: 'companion', label: text.sections.companion },
@@ -65,7 +66,17 @@
 			{ value: 'bot', label: text.sections.bot },
 			{ value: 'settings', label: text.sections.settings }
 		];
+		if (showDeviceSection) {
+			sections.unshift({ value: 'device', label: text.sections.device });
+		}
+		return sections;
 	}
+
+	$effect(() => {
+		if (!showDeviceSection && activeAdminSection === 'device') {
+			activeAdminSection = 'users';
+		}
+	});
 
 	onMount(() => {
 		const queryFleetID = new URLSearchParams(location.search).get('fleet_id')?.trim().toLowerCase() ?? '';
