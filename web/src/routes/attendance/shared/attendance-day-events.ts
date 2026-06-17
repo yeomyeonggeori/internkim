@@ -1,8 +1,11 @@
 import type { AttendanceEvent } from '../attendance-context.svelte';
+import { buildAttendanceWorkSegments, type AttendanceWorkSegment } from './attendance-work-segments';
 
 export type DayEvents = {
 	date: string;
 	events: AttendanceEvent[];
+	segments: AttendanceWorkSegment[];
+	activeSegment?: AttendanceWorkSegment;
 	clockIn?: AttendanceEvent;
 	clockOut?: AttendanceEvent;
 	workedMinutes: number;
@@ -24,12 +27,18 @@ export function groupEventsByDay(events: AttendanceEvent[]): Map<string, Attenda
 }
 
 export function computeDayEvents(date: string, events: AttendanceEvent[]): DayEvents {
-	const sorted = [...events].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-	const clockIn = sorted.find((event) => event.kind === 'clock_in');
-	const clockOut = [...sorted].reverse().find((event) => event.kind === 'clock_out');
-	const workedMinutes = clockIn && clockOut ? minutesBetween(clockIn.occurredAt, clockOut.occurredAt) : 0;
-	const inProgress = !!clockIn && !clockOut;
-	return { date, events: sorted, clockIn, clockOut, workedMinutes, inProgress };
+	const sorted = events
+		.filter((event) => !event.canceledAt)
+		.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+	const segments = buildAttendanceWorkSegments(date, sorted);
+	const activeSegment = [...segments].reverse().find((segment) => segment.isOpen);
+	const clockIn = segments[0]?.clockIn ?? sorted.find((event) => event.kind === 'clock_in');
+	const clockOut =
+		[...segments].reverse().find((segment) => segment.clockOut)?.clockOut ??
+		[...sorted].reverse().find((event) => event.kind === 'clock_out');
+	const workedMinutes = segments.reduce((total, segment) => total + segment.workedMinutes, 0);
+	const inProgress = !!activeSegment;
+	return { date, events: sorted, segments, activeSegment, clockIn, clockOut, workedMinutes, inProgress };
 }
 
 export function minutesBetween(start: string, end: string): number {

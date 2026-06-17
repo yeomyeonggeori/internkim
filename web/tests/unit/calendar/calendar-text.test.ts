@@ -18,4 +18,11 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleCalendarReconnectAction).toBe('Google Calendar 다시 연결');
 		expect(calendarText.ko.googleCalendarReconnectHint).toBe('외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.');
 	});
+
+	test('localizes event audit labels', () => {
+		expect(calendarText.en.eventAuditCreated).toBe('Created');
+		expect(calendarText.en.eventAuditUpdated).toBe('Updated');
+		expect(calendarText.ko.eventAuditCreated).toBe('등록');
+		expect(calendarText.ko.eventAuditUpdated).toBe('수정');
+	});
 });

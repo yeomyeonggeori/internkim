@@ -14,6 +14,8 @@ type CalendarEventLoaderContext = {
 	setIsLoading: (isLoading: boolean) => void;
 	setErrorMessage: (message: string) => void;
 	refreshSelectedMonthDateCell: () => void;
+	preservedLocalEvents?: () => DayFlowEvent[];
+	shouldPreserveLocalEvent?: (event: DayFlowEvent) => boolean;
 	afterRenderEvents?: (events: DayFlowEvent[]) => void;
 };
 
@@ -41,7 +43,7 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 		try {
 			const calendarEvents = await fetchCalendarEvents(startDate, endDate, context.errorFallback());
 			if (requestID !== loadEventsRequestID) return;
-			const events = calendarEvents.map(dayFlowEventFromCalendarEvent);
+			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
 			context.setVisibleEvents(events);
 			context.setEventCount(events.length);
 			replaceCalendarEvents(context.isWorkCalendarVisible() ? events : [], startDate);
@@ -73,6 +75,22 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 		});
 		context.triggerCalendarRender();
 		context.refreshSelectedMonthDateCell();
+	}
+
+	function mergePreservedLocalEvents(events: DayFlowEvent[]): DayFlowEvent[] {
+		const preservedEvents = [
+			...(context.preservedLocalEvents?.() ?? []),
+			...context.getCalendarEvents().filter((event) => context.shouldPreserveLocalEvent?.(event) ?? false)
+		];
+		if (preservedEvents.length === 0) return events;
+		const remoteEventIDs = new Set(events.map((event) => event.id));
+		const uniquePreservedEvents = preservedEvents.filter((event) => !remoteEventIDs.has(event.id));
+		return [...events, ...uniqueEventsByID(uniquePreservedEvents)];
+	}
+
+	function uniqueEventsByID(events: DayFlowEvent[]): DayFlowEvent[] {
+		const eventsByID = new Map(events.map((event) => [event.id, event]));
+		return Array.from(eventsByID.values());
 	}
 
 	return {
