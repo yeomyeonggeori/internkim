@@ -1,4 +1,3 @@
-/* 캘린더 day/week timeline과 all-day grid style을 정의합니다. */
 
 	.calendar-stage.calendar-stage-day .df-time-column > .df-time-slot::before,
 	.calendar-stage.calendar-stage-week .df-week-time-grid-time-column > .df-time-slot::before {
@@ -162,8 +161,45 @@
 		min-height: 16px !important;
 		border-color: transparent !important;
 		border-radius: 4px !important;
+		background: #eff6ff !important;
+		color: #1e3a8a !important;
 		line-height: 16px !important;
 		box-shadow: none !important;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-event.df-event-timed,
+	.calendar-stage.calendar-stage-week .df-week-event.df-event-timed {
+		border-color: transparent !important;
+		border-radius: 4px !important;
+		background: #eff6ff !important;
+		padding: 0 !important;
+		color: #1e3a8a !important;
+		box-shadow: none !important;
+		overflow: hidden !important;
+	}
+
+	.calendar-stage .calendar-multi-day-regular-hidden {
+		display: none !important;
+		pointer-events: none !important;
+	}
+
+	.calendar-stage .calendar-multi-day-all-day-proxy {
+		right: auto !important;
+		border: 0 !important;
+		border-radius: 4px !important;
+		background: #eff6ff !important;
+		padding: 0 4px 0 8px !important;
+		text-align: left;
+		cursor: pointer;
+		box-shadow: none !important;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-event.df-event-timed.draft-empty-title-event,
+	.calendar-stage.calendar-stage-week .df-week-event.df-event-timed.draft-empty-title-event,
+	.calendar-stage .df-event.draft-empty-title-event {
+		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
+		color: #ffffff !important;
+		box-shadow: 0 8px 18px rgb(100 115 201 / 0.2) !important;
 	}
 
 	.calendar-stage.calendar-stage-week .df-week-all-day-shell::after {
