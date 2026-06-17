@@ -64,8 +64,13 @@
 				return;
 			}
 			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string };
-			userEmail = session.email || session.claimedAdminEmail || '';
-			userName = userEmail ? userEmail.split('@')[0] : '';
+			const adminEmail = session.email || session.claimedAdminEmail || '';
+			if (!adminEmail) {
+				await loadWebUser();
+				return;
+			}
+			userEmail = adminEmail;
+			userName = userEmail.split('@')[0];
 		} catch {
 			await loadWebUser();
 		}
