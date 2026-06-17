@@ -1,3 +1,12 @@
+import type { Component } from 'svelte';
+import BanIcon from '@lucide/svelte/icons/ban';
+import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
+import CirclePauseIcon from '@lucide/svelte/icons/circle-pause';
+import CircleXIcon from '@lucide/svelte/icons/circle-x';
+import ClockIcon from '@lucide/svelte/icons/clock';
+import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+import CircleIcon from '@lucide/svelte/icons/circle';
 import type { BadgeVariant } from '$lib/components/ui/badge';
 import type { TasksText } from './text';
 import type { EventLane } from './tasks-api';
@@ -17,6 +26,29 @@ export function taskStatusBadgeVariant(status: string): BadgeVariant {
 			return 'secondary';
 		default:
 			return 'outline';
+	}
+}
+
+export function taskStatusIcon(status: string): Component {
+	switch (status) {
+		case 'completed':
+			return CircleCheckIcon;
+		case 'failed':
+		case 'cancelled':
+			return CircleXIcon;
+		case 'running':
+			return LoaderCircleIcon;
+		case 'planned':
+			return ClockIcon;
+		case 'waiting_user_input':
+		case 'waiting_approval':
+			return CircleHelpIcon;
+		case 'blocked':
+			return BanIcon;
+		case 'interrupted':
+			return CirclePauseIcon;
+		default:
+			return CircleIcon;
 	}
 }
 

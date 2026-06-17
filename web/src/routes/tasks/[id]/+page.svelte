@@ -18,6 +18,7 @@
 		formatLatency,
 		formatTaskTimestamp,
 		taskStatusBadgeVariant,
+		taskStatusIcon,
 		taskStatusLabel
 	} from '../tasks-view';
 	import { tasksText } from '../text';
@@ -76,10 +77,12 @@
 	{#if loadError}
 		<p class="text-sm text-red-600">{loadError}</p>
 	{:else if detail}
+		{@const StatusIcon = taskStatusIcon(detail.taskRun.status)}
 		<section class="grid min-w-0 gap-2">
 			<div class="flex min-w-0 flex-wrap items-center gap-2">
 				<code class="text-sm">{detail.taskRun.taskRunID}</code>
 				<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
+					<StatusIcon />
 					{taskStatusLabel(detail.taskRun.status, text)}
 				</Badge>
 				<span class="ml-auto text-xs text-muted-foreground">

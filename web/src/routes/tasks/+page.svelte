@@ -9,7 +9,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import { fetchTaskRuns, type TaskRunSummary } from './tasks-api';
-	import { taskStatusBadgeVariant, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
+	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
@@ -157,7 +157,9 @@
 								{/if}
 							</Table.Cell>
 							<Table.Cell>
+								{@const StatusIcon = taskStatusIcon(taskRun.status)}
 								<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
+									<StatusIcon />
 									{taskStatusLabel(taskRun.status, text)}
 								</Badge>
 							</Table.Cell>
