@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import { page } from '$app/state';
+	import { Badge } from '$lib/components/ui/badge';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import {
@@ -16,7 +17,8 @@
 		eventLaneClass,
 		formatLatency,
 		formatTaskTimestamp,
-		taskStatusBadgeClass
+		taskStatusBadgeVariant,
+		taskStatusLabel
 	} from '../tasks-view';
 	import { tasksText } from '../text';
 
@@ -77,9 +79,9 @@
 		<section class="grid min-w-0 gap-2">
 			<div class="flex min-w-0 flex-wrap items-center gap-2">
 				<code class="text-sm">{detail.taskRun.taskRunID}</code>
-				<span class="rounded-full px-2 py-0.5 text-[11px] font-medium {taskStatusBadgeClass(detail.taskRun.status)}">
-					{detail.taskRun.status}
-				</span>
+				<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
+					{taskStatusLabel(detail.taskRun.status, text)}
+				</Badge>
 				<span class="ml-auto text-xs text-muted-foreground">
 					{text.createdAt} {formatTaskTimestamp(detail.taskRun.createdAt)} · {text.updatedAt}
 					{formatTaskTimestamp(detail.taskRun.updatedAt)}
