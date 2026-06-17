@@ -1,12 +1,14 @@
 import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
 
 const legacyKoreanNewEventTitle = '새 일정';
+const localSortMetadataKey = 'localSortAt';
 
 export type DraftEventParams = Omit<Parameters<typeof createEvent>[0], 'title'> & { title?: string };
 
 export class CalendarDraftEventState {
 	readonly pendingCreateEvents = new Map<string, Promise<void>>();
 	private readonly draftEventIDs = new Set<string>();
+	private readonly draftEventsByID = new Map<string, DayFlowEvent>();
 	private readonly draftEventOriginalTitles = new Map<string, string>();
 	private readonly eventsDeletedDuringCreate = new Set<string>();
 
@@ -17,6 +19,7 @@ export class CalendarDraftEventState {
 
 	addCreatedEvent(event: DayFlowEvent): void {
 		this.draftEventIDs.add(event.id);
+		this.draftEventsByID.set(event.id, event);
 		this.draftEventOriginalTitles.set(event.id, (event.title ?? '').trim());
 	}
 
@@ -26,7 +29,12 @@ export class CalendarDraftEventState {
 
 	removeDraftEvent(eventID: string): void {
 		this.draftEventIDs.delete(eventID);
+		this.draftEventsByID.delete(eventID);
 		this.draftEventOriginalTitles.delete(eventID);
+	}
+
+	createdEvents(): DayFlowEvent[] {
+		return Array.from(this.draftEventsByID.values());
 	}
 
 	hasPendingCreate(eventID: string): boolean {
@@ -72,7 +80,11 @@ export class CalendarDraftEventState {
 	createDraftEvent(params: DraftEventParams): DayFlowEvent {
 		return createEvent({
 			...params,
-			title: ''
+			title: '',
+			meta: {
+				...(params.meta ?? {}),
+				[localSortMetadataKey]: new Date().toISOString()
+			}
 		});
 	}
 

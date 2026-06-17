@@ -257,6 +257,7 @@ func platformMessageDeliveryTargetSchema() jsonschema.Schema {
 	return jsonschema.Object(
 		jsonschema.Required("type", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel")),
 		jsonschema.Field("personHint", jsonschema.String()),
+		jsonschema.Field("personHints", jsonschema.Array(jsonschema.String()).WithDescription("Send the same directMessage to several people at once. When set, this takes precedence over personHint; the tool fans out with one approval and returns a per-recipient delivery rollup.")),
 		jsonschema.Field("channelID", jsonschema.String()),
 		jsonschema.Field("channelName", jsonschema.String()),
 	)

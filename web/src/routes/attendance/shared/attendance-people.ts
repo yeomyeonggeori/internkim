@@ -2,6 +2,7 @@ import type { AttendanceAbsence, AttendanceEvent, AttendancePresence } from '../
 import { absencesForDate } from './attendance-absence';
 import { isWeekend, todayDateInTimeZone } from './attendance-date';
 import { computeDayEvents } from './attendance-day-events';
+import type { AttendanceWorkSegment } from './attendance-work-segments';
 
 export type PersonStatus = 'working' | 'finished' | 'absence' | 'absent' | 'weekend' | 'upcoming';
 
@@ -12,6 +13,8 @@ export type PersonToday = {
 	status: PersonStatus;
 	clockIn?: AttendanceEvent;
 	clockOut?: AttendanceEvent;
+	segments: AttendanceWorkSegment[];
+	activeSegment?: AttendanceWorkSegment;
 	absence?: AttendanceAbsence;
 	workedMinutes: number;
 	locationName?: string;
@@ -80,10 +83,12 @@ export function computePeopleToday(
 			status,
 			clockIn: day.clockIn,
 			clockOut: day.clockOut,
+			segments: day.segments,
+			activeSegment: day.activeSegment,
 			absence,
 			workedMinutes: day.workedMinutes,
-			locationID: day.clockIn?.locationID,
-			locationName: day.clockIn?.locationName,
+			locationID: day.activeSegment?.locationID ?? day.segments[0]?.locationID,
+			locationName: day.activeSegment?.locationName ?? day.segments[0]?.locationName,
 			presence: presences?.[person.email],
 		};
 	});

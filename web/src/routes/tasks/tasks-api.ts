@@ -22,19 +22,59 @@ export type TaskDetail = {
 	taskEvents: TaskEvent[];
 };
 
-export async function fetchTaskRuns(status?: string): Promise<TaskRunSummary[]> {
-	const query = new URLSearchParams({ limit: '100' });
-	if (status) query.set('status', status);
-	const response = await adminApiFetch(`/admin/api/diagnostics/tasks?${query.toString()}`);
+export type TaskRunsRequest = {
+	status?: string;
+	limit?: number;
+	offset?: number;
+	includeTotal?: boolean;
+};
+
+export type TaskRunsResponse = {
+	taskRuns: TaskRunSummary[];
+	totalCount?: number;
+};
+
+export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
+	const query = new URLSearchParams();
+	setPositiveIntegerQuery(query, 'limit', request.limit);
+	setPositiveIntegerQuery(query, 'offset', request.offset);
+	if (request.includeTotal) query.set('includeTotal', 'true');
+	if (request.status) query.set('status', request.status);
+	const queryString = query.toString();
+	return queryString ? `/admin/api/diagnostics/tasks?${queryString}` : '/admin/api/diagnostics/tasks';
+}
+
+export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<TaskRunsResponse> {
+	const response = await adminApiFetch(taskRunsAPIPath(request));
 	if (!response.ok) {
 		throw new Error(`Task list request returned ${response.status}`);
 	}
 	const document: unknown = await response.json();
-	if (!Array.isArray(document)) return [];
-	return document.flatMap((entry) => {
+	return readTaskRunsResponse(document);
+}
+
+function readTaskRunsResponse(document: unknown): TaskRunsResponse {
+	if (Array.isArray(document)) {
+		return { taskRuns: readTaskRunSummaries(document) };
+	}
+	const record = readRecord(document);
+	if (!record || !Array.isArray(record.taskRuns)) return { taskRuns: [] };
+	return {
+		taskRuns: readTaskRunSummaries(record.taskRuns),
+		totalCount: typeof record.totalCount === 'number' && record.totalCount >= 0 ? Math.floor(record.totalCount) : undefined
+	};
+}
+
+function readTaskRunSummaries(entries: unknown[]): TaskRunSummary[] {
+	return entries.flatMap((entry) => {
 		const taskRun = readTaskRunSummary(entry);
 		return taskRun ? [taskRun] : [];
 	});
+}
+
+function setPositiveIntegerQuery(query: URLSearchParams, key: string, value: number | undefined): void {
+	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return;
+	query.set(key, String(Math.floor(value)));
 }
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {

@@ -1,4 +1,4 @@
-type CalendarLocaleText = {
+export type CalendarLocaleText = {
 	pageTitle: string;
 	title: string;
 	subtitle: string;
@@ -53,6 +53,8 @@ type CalendarLocaleText = {
 	day: string;
 	week: string;
 	month: string;
+	monthMoreButton: string;
+	monthMoreAriaLabel: string;
 	new: string;
 	newEvent: string;
 	draftPopover: {
@@ -64,8 +66,11 @@ type CalendarLocaleText = {
 		endDate: string;
 		startTime: string;
 		endTime: string;
+		auditEmpty: string;
 	};
 	eventAudit: string;
+	eventAuditCreated: string;
+	eventAuditUpdated: string;
 	conflictBannerTitle: string;
 	conflictBannerDescription: string;
 	conflictDismiss: string;
@@ -131,6 +136,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		day: '일',
 		week: '주',
 		month: '월',
+		monthMoreButton: '+{count} 더보기',
+		monthMoreAriaLabel: '{date}의 숨겨진 일정 {count}개 보기',
 		new: '새로 만들기',
 		newEvent: '새 일정',
 		draftPopover: {
@@ -141,9 +148,12 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			startDate: '시작 날짜',
 			endDate: '종료 날짜',
 			startTime: '시작 시간',
-			endTime: '종료 시간'
+			endTime: '종료 시간',
+			auditEmpty: '등록·수정 정보 없음'
 		},
 		eventAudit: '일정 변경 이력',
+		eventAuditCreated: '등록',
+		eventAuditUpdated: '수정',
 		conflictBannerTitle: '외부에서 변경된 일정이 있습니다',
 		conflictBannerDescription:
 			'다른 위치(Google 캘린더 등)에서 같은 일정이 동시에 수정되었습니다. 내 변경은 보존되었지만 외부 변경 사항을 확인해주세요.',
@@ -218,6 +228,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		day: 'Day',
 		week: 'Week',
 		month: 'Month',
+		monthMoreButton: '+{count} more',
+		monthMoreAriaLabel: 'Show {count} more events on {date}',
 		new: 'New',
 		newEvent: 'New Event',
 		draftPopover: {
@@ -228,9 +240,12 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			startDate: 'Start date',
 			endDate: 'End date',
 			startTime: 'Start time',
-			endTime: 'End time'
+			endTime: 'End time',
+			auditEmpty: 'No creation or edit details'
 		},
 		eventAudit: 'Event audit',
+		eventAuditCreated: 'Created',
+		eventAuditUpdated: 'Updated',
 		conflictBannerTitle: 'External changes detected',
 		conflictBannerDescription:
 			'The same events were modified elsewhere (e.g. Google Calendar) at the same time. Your changes are preserved, but please review the external edits.',

@@ -13,6 +13,53 @@ export function refreshSelectedMonthDateCell(stageElement: HTMLElement | null, s
 	weekHeaderByDateKey(stageElement, selectedDateKey)?.classList.add('calendar-selected-week-date');
 }
 
+export function scheduleSelectedMonthDateCellRefresh(
+	isBrowser: boolean,
+	stageElement: HTMLElement | null,
+	selectedDateKey: string | null
+): void {
+	if (!isBrowser) return;
+	requestAnimationFrame(() => {
+		refreshSelectedMonthDateCell(stageElement, selectedDateKey);
+		requestAnimationFrame(() => refreshSelectedMonthDateCell(stageElement, selectedDateKey));
+	});
+	window.setTimeout(() => refreshSelectedMonthDateCell(stageElement, selectedDateKey), 0);
+}
+
+type CalendarSelectedMonthDateContext = {
+	getSelectedDateKey: () => string | null;
+	getStageElement: () => HTMLElement | null;
+	isBrowser: () => boolean;
+	setSelectedDateKey: (dateKey: string) => void;
+};
+
+export type CalendarSelectedMonthDateActions = {
+	refreshSelectedMonthDateCellAfterRender: () => void;
+	selectMonthDate: (dateKey: string) => void;
+};
+
+export function createCalendarSelectedMonthDateActions(
+	context: CalendarSelectedMonthDateContext
+): CalendarSelectedMonthDateActions {
+	function refreshSelectedMonthDateCellAfterRender(): void {
+		scheduleSelectedMonthDateCellRefresh(
+			context.isBrowser(),
+			context.getStageElement(),
+			context.getSelectedDateKey()
+		);
+	}
+
+	function selectMonthDate(dateKey: string): void {
+		context.setSelectedDateKey(dateKey);
+		refreshSelectedMonthDateCellAfterRender();
+	}
+
+	return {
+		refreshSelectedMonthDateCellAfterRender,
+		selectMonthDate
+	};
+}
+
 export function dateFromDateKey(dateKey: string): Date {
 	const [year = '0', month = '1', day = '1'] = dateKey.split('-');
 	return new Date(Number(year), Number(month) - 1, Number(day));
