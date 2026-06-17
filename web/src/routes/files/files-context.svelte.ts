@@ -65,6 +65,7 @@ export class FilesState {
 		this.loadingPaths[path] = true;
 		try {
 			this.childrenCache[path] = await listWorkspaceDirectory(path);
+			this.errorMessage = '';
 		} catch (error) {
 			this.errorMessage = errorText(error, this.loadFailedMessage);
 		} finally {
