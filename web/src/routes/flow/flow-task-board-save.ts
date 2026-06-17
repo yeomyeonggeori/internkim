@@ -2,7 +2,7 @@ import { moveFlowTaskOnBoard } from './flow-api';
 import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import type { LoadFlow } from './flow-load-tracker';
 
-export type FlowTaskBoardSaveResult = 'saved' | 'failed';
+export type FlowTaskBoardSaveResult = 'saved' | 'saved_with_reload_error' | 'failed';
 
 export type FlowTaskBoardSaveInput = {
 	request: FlowTaskBoardMoveRequest;
@@ -30,10 +30,12 @@ export async function saveFlowTaskBoardMove(input: FlowTaskBoardSaveInput): Prom
 		const didLoad = await input.loadFlow(input.week, { preserveActiveTabOnError: true });
 		if (!didLoad && input.currentWeek() === input.week) {
 			input.setPageErrorMessage(input.loadErrorMessage);
+			return 'saved_with_reload_error';
 		}
 	} catch (error) {
 		if (input.currentWeek() === input.week) {
 			input.setPageErrorMessage(errorMessage(error, input.loadErrorMessage));
+			return 'saved_with_reload_error';
 		}
 	}
 

@@ -27,6 +27,7 @@ type flowTaskListInput struct {
 	WeekCode         string `json:"weekCode"`
 	Status           string `json:"status"`
 	Limit            int    `json:"limit"`
+	AllPeople        bool   `json:"allPeople"`
 }
 
 type flowTaskUpdateInput struct {
@@ -180,15 +181,25 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	ownerID, failure := resolveFlowTaskFilterOwner(input.Query, input.TargetPersonHint, request.Context.RequesterEmail, summary.Members)
+	if len(summary.Members) == 0 {
+		if members, membersError := service.fetchFlowMembers(ctx, request.Context.RequesterEmail); membersError == nil {
+			summary.Members = members
+		}
+	}
+	ownerID, failure := resolveFlowTaskListOwner(input, request.Context.RequesterEmail, summary.Members)
 	if failure != nil {
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
-	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: input.Status, Limit: input.Limit})
+	statusFilter := normalizeFlowStatusFilter(input.Status)
+	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, Limit: input.Limit})
 	result, _ := json.Marshal(map[string]any{
-		"weekCode": summary.Week.Code,
-		"tasks":    tasks,
-		"count":    len(tasks),
+		"scope":        flowTaskListPeopleScope(input, ownerID),
+		"weekCode":     summary.Week.Code,
+		"statusFilter": statusFilter,
+		"crossPerson":  input.AllPeople,
+		"ownerID":      ownerID,
+		"tasks":        tasks,
+		"count":        len(tasks),
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
@@ -372,26 +383,12 @@ func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail stri
 }
 
 func (service Service) fetchFlowSummary(ctx context.Context, requesterEmail string, weekCode string) (flowSummaryForTool, error) {
-	requestURL := strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + "/flow/api/summary"
-	if strings.TrimSpace(weekCode) != "" {
-		requestURL += "?week=" + url.QueryEscape(strings.TrimSpace(weekCode))
+	if strings.TrimSpace(weekCode) == "" {
+		return service.fetchFlowAllTasks(ctx, requesterEmail)
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	body, errorValue := service.getFlow(ctx, "/flow/api/summary?week="+url.QueryEscape(strings.TrimSpace(weekCode)), requesterEmail)
 	if errorValue != nil {
 		return flowSummaryForTool{}, errorValue
-	}
-	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
-	if errorValue != nil {
-		return flowSummaryForTool{}, errorValue
-	}
-	defer httpResponse.Body.Close()
-	body, readError := io.ReadAll(httpResponse.Body)
-	if readError != nil {
-		return flowSummaryForTool{}, readError
-	}
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return flowSummaryForTool{}, fmt.Errorf("flow summary failed: %s", strings.TrimSpace(string(body)))
 	}
 	var summary flowSummaryForTool
 	if errorValue := json.Unmarshal(body, &summary); errorValue != nil {
@@ -401,6 +398,44 @@ func (service Service) fetchFlowSummary(ctx context.Context, requesterEmail stri
 		summary.Tasks = summary.WeeklyTasks
 	}
 	return summary, nil
+}
+
+func (service Service) fetchFlowAllTasks(ctx context.Context, requesterEmail string) (flowSummaryForTool, error) {
+	body, errorValue := service.getFlow(ctx, "/flow/api/state", requesterEmail)
+	if errorValue != nil {
+		return flowSummaryForTool{}, errorValue
+	}
+	var state struct {
+		CurrentWeek flowWeekForTool     `json:"currentWeek"`
+		Members     []flowMemberForTool `json:"members"`
+		Tasks       []flowTaskForTool   `json:"tasks"`
+	}
+	if errorValue := json.Unmarshal(body, &state); errorValue != nil {
+		return flowSummaryForTool{}, errorValue
+	}
+	return flowSummaryForTool{Week: state.CurrentWeek, Members: state.Members, Tasks: state.Tasks}, nil
+}
+
+func (service Service) getFlow(ctx context.Context, path string, requesterEmail string) ([]byte, error) {
+	requestURL := strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + path
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
+	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer httpResponse.Body.Close()
+	body, readError := io.ReadAll(httpResponse.Body)
+	if readError != nil {
+		return nil, readError
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("flow read failed: %s", strings.TrimSpace(string(body)))
+	}
+	return body, nil
 }
 
 func flowTaskAddErrorResponse(toolName string, failure flowTaskAddFailure) capabilities.ToolInvokeResponse {
@@ -541,15 +576,52 @@ type flowTaskFilter struct {
 	Limit   int
 }
 
-func resolveFlowTaskFilterOwner(query string, targetPersonHint string, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
-	if strings.TrimSpace(targetPersonHint) == "" {
+func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
+	if input.AllPeople {
 		return "", nil
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: query, TargetPersonHint: targetPersonHint}, requesterEmail, members)
+	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: input.Query, TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
 	if resolution.Failure != nil {
 		return "", resolution.Failure
 	}
 	return resolution.OwnerID, nil
+}
+
+func flowTaskListPeopleScope(input flowTaskListInput, ownerID string) string {
+	if input.AllPeople {
+		return "allPeople"
+	}
+	if strings.TrimSpace(input.TargetPersonHint) != "" {
+		return "person"
+	}
+	if ownerID != "" {
+		return "self"
+	}
+	return "unscoped"
+}
+
+func normalizeFlowStatusFilter(status string) string {
+	trimmedStatus := strings.TrimSpace(status)
+	switch strings.ToLower(trimmedStatus) {
+	case "":
+		return ""
+	case "예정", "예약", "planned", "scheduled", "upcoming", "todo", "to do":
+		return "예정"
+	case "요청", "requested", "request":
+		return "요청"
+	case "진행", "in_progress", "in progress", "doing", "progress", "wip":
+		return "진행"
+	case "완료", "done", "complete", "completed", "finished":
+		return "완료"
+	case "일시정지", "paused", "hold", "on hold":
+		return "일시정지"
+	case "기각", "rejected", "reject":
+		return "기각"
+	case "중단", "stopped", "stop", "cancelled", "canceled":
+		return "중단"
+	default:
+		return trimmedStatus
+	}
 }
 
 func filterFlowTasks(tasks []flowTaskForTool, filter flowTaskFilter) []flowTaskForTool {

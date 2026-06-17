@@ -1,17 +1,23 @@
 <script lang="ts">
+	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import { fetchTaskRuns, type TaskRunSummary } from './tasks-api';
 	import { taskStatusBadgeClass, formatTaskTimestamp, shortTaskRunID } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
+	const taskPageSize = 15;
 	let taskRuns = $state<TaskRunSummary[]>([]);
+	let taskPageIndex = $state(0);
+	let totalTaskRunCount = $state(0);
 	let statusFilter = $state('');
 	let loadError = $state('');
 	let isLoading = $state(false);
+	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
+	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
 
 	const statusFilters = $derived([
 		{ value: '', label: text.statusAll },
@@ -20,11 +26,26 @@
 		{ value: 'completed', label: text.statusCompleted }
 	]);
 
-	async function load() {
+	async function loadTaskRuns(pageIndex: number = taskPageIndex) {
 		isLoading = true;
 		loadError = '';
 		try {
-			taskRuns = await fetchTaskRuns(statusFilter || undefined);
+			const response = await fetchTaskRuns({
+				status: statusFilter || undefined,
+				limit: taskPageSize,
+				offset: pageIndex * taskPageSize,
+				includeTotal: true
+			});
+			const minimumTotalCount = pageIndex * taskPageSize + response.taskRuns.length;
+			const loadedTotalCount = Math.max(response.totalCount ?? minimumTotalCount, minimumTotalCount);
+			const lastPageIndex = Math.max(0, Math.ceil(loadedTotalCount / taskPageSize) - 1);
+			if (pageIndex > lastPageIndex && response.taskRuns.length === 0 && loadedTotalCount > 0) {
+				await loadTaskRuns(lastPageIndex);
+				return;
+			}
+			taskRuns = response.taskRuns;
+			totalTaskRunCount = loadedTotalCount;
+			taskPageIndex = pageIndex;
 		} catch {
 			loadError = text.loadError;
 		} finally {
@@ -34,10 +55,23 @@
 
 	function selectStatus(value: string) {
 		statusFilter = value;
-		void load();
+		taskPageIndex = 0;
+		void loadTaskRuns(0);
 	}
 
-	onMount(load);
+	function goToPreviousTaskPage() {
+		if (taskPageIndex === 0 || isLoading) return;
+		void loadTaskRuns(taskPageIndex - 1);
+	}
+
+	function goToNextTaskPage() {
+		if (!hasNextTaskPage || isLoading) return;
+		void loadTaskRuns(taskPageIndex + 1);
+	}
+
+	onMount(() => {
+		void loadTaskRuns(0);
+	});
 </script>
 
 <svelte:head>
@@ -56,7 +90,7 @@
 		<button
 			type="button"
 			class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
-			onclick={() => void load()}
+			onclick={() => void loadTaskRuns(taskPageIndex)}
 		>
 			<RefreshCwIcon class="size-3.5 {isLoading ? 'animate-spin' : ''}" />
 			{text.refresh}
@@ -104,5 +138,19 @@
 				</a>
 			{/each}
 		</section>
+		<ListPaginationFooter
+			totalItems={totalTaskRunCount}
+			pageIndex={taskPageIndex}
+			pageSize={taskPageSize}
+			pageCount={taskPageCount}
+			canPreviousPage={taskPageIndex > 0 && !isLoading}
+			canNextPage={hasNextTaskPage && !isLoading}
+			previousPage={goToPreviousTaskPage}
+			nextPage={goToNextTaskPage}
+			summary={text.paginationSummary}
+			previousLabel={text.paginationPrevious}
+			nextLabel={text.paginationNext}
+			ariaLabel={text.paginationLabel}
+		/>
 	{/if}
 </main>
