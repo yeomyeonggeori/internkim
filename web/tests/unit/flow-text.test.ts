@@ -27,6 +27,15 @@ describe('flowText', () => {
 		expect(collectTextShape(flowText.ko).some((path) => path.includes('category'))).toBe(false);
 		expect(collectTextShape(flowText.en).some((path) => path.includes('category'))).toBe(false);
 	});
+
+	test('localizes task accessibility labels', () => {
+		expect(flowText.ko.task.quickAddClose).toBe('AI 업무 추가 닫기');
+		expect(flowText.en.task.quickAddClose).toBe('Close add with AI');
+		expect(flowText.ko.task.quickAddBackdropClose).toBe('AI 업무 추가 팝업 배경 닫기');
+		expect(flowText.en.task.quickAddBackdropClose).toBe('Close add with AI backdrop');
+		expect(flowText.ko.task.removeParticipantAction.replace('{name}', '김철수')).toBe('김철수 제거');
+		expect(flowText.en.task.removeParticipantAction.replace('{name}', 'Alice')).toBe('Remove Alice');
+	});
 });
 
 function collectTextShape(node: TextNode, path: string[] = []): string[] {

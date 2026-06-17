@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
@@ -7,8 +8,10 @@
 
 	type Props = {
 		task: FlowTask;
+		businessFallback: string;
 		openTask: (task: FlowTask) => void;
 		isPending?: boolean;
+		isReadOnly?: boolean;
 		onTaskDragStart?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragEnd?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragOver?: (event: DragEvent, task: FlowTask) => void;
@@ -17,25 +20,28 @@
 
 	let {
 		task,
+		businessFallback,
 		openTask,
 		isPending = false,
+		isReadOnly = false,
 		onTaskDragStart,
 		onTaskDragEnd,
 		onTaskDragOver,
 		onTaskDrop
 	}: Props = $props();
 
-	let canDrag = $derived(!isPending);
+	let canDrag = $derived(!isPending && !isReadOnly);
 	let cardClass = $derived([
 		'gap-1.5 rounded-md border bg-card p-2.5 shadow-xs transition',
 		isPending
 			? 'cursor-progress opacity-60 ring-1 ring-primary/20'
 			: canDrag
 				? 'cursor-grab hover:border-primary/40 hover:shadow-sm active:cursor-grabbing'
-				: 'cursor-pointer hover:border-primary/40 hover:shadow-sm'
+				: 'cursor-pointer hover:border-primary/40 hover:shadow-sm',
+		isReadOnly ? 'bg-muted/20' : ''
 	].join(' '));
 
-	let display = $derived(buildFlowTaskBoardCardDisplay(task));
+	let display = $derived(buildFlowTaskBoardCardDisplay(task, businessFallback));
 
 	function openCurrentTask(): void {
 		if (isPending) return;
@@ -64,9 +70,15 @@
 	ondrop={(event) => onTaskDrop?.(event, task)}
 >
 	<div class="flex min-w-0 flex-wrap items-center gap-1">
-		<div class="mr-1 truncate text-xs text-muted-foreground">{display.ownerName}</div>
-		{#each display.participantNames as name}
-			<Badge variant="outline" class="max-w-20 truncate px-1.5 py-0 text-xs">{name}</Badge>
+		<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs font-medium">
+			<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} class="size-4" />
+			{display.ownerName}
+		</Badge>
+		{#each display.participantNames as name, index}
+			<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs">
+				<PersonAvatar name={name} seed={display.participantIDs[index] ?? name} class="size-3.5" />
+				{name}
+			</Badge>
 		{/each}
 	</div>
 
