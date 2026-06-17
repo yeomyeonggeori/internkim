@@ -25,7 +25,7 @@
 	<TreeView.Folder
 		name={entry.name}
 		bind:open
-		class={isActiveDirectory ? 'text-primary font-medium' : ''}
+		class={isActiveDirectory ? 'font-bold' : ''}
 		onclick={() => files.setActiveDirectory(entry.agentPath)}
 	>
 		{#if isLoading && !children}
@@ -39,7 +39,7 @@
 {:else}
 	<TreeView.File
 		name={entry.name}
-		class={isSelectedFile ? 'bg-accent rounded-sm font-medium' : ''}
+		class={isSelectedFile ? 'font-bold' : ''}
 		onclick={() => files.selectFile(entry)}
 	/>
 {/if}
