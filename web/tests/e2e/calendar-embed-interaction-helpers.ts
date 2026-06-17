@@ -1,4 +1,3 @@
-// 캘린더 embed interaction e2e의 사용자 gesture와 navigation helper를 제공합니다.
 import { expect, type Page } from '@playwright/test';
 
 export async function dismissDraftPopoverFromTimeline(page: Page): Promise<void> {
@@ -26,6 +25,8 @@ export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '�
 		function visibleTimelineTarget(targetSelector: string, viewLabel: '일' | '주'): { target: Element | null; clientX: number; clientY: number } {
 			const scroller = document.querySelector(viewLabel === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller');
 			if (!(scroller instanceof HTMLElement)) throw new Error('Missing visible timeline scroller');
+			scroller.scrollTop = 0;
+			scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
 			const rectangle = scroller.getBoundingClientRect();
 			const timeAxisWidth = 124;
 			const gridWidth = Math.max(1, rectangle.width - timeAxisWidth);
@@ -88,6 +89,8 @@ export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주
 		): { target: Element | null; clientX: number; clientY: number } {
 			const scroller = document.querySelector(viewLabel === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller');
 			if (!(scroller instanceof HTMLElement)) throw new Error('Missing visible timeline scroller');
+			scroller.scrollTop = 0;
+			scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
 			const rectangle = scroller.getBoundingClientRect();
 			const timeAxisWidth = 124;
 			const gridWidth = Math.max(1, rectangle.width - timeAxisWidth);
