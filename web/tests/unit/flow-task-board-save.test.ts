@@ -36,7 +36,7 @@ describe('flow task board save', () => {
 				loadErrorMessage: '업무 데이터를 불러오지 못했습니다.'
 			});
 
-			expect(result).toBe('saved');
+			expect(result).toBe('saved_with_reload_error');
 			expect(loadOptions).toEqual([
 				{
 					preserveActiveTabOnError: true
