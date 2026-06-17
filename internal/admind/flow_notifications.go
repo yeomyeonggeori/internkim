@@ -179,7 +179,7 @@ func (service *Service) mattermostFlowURL(weekCode string) string {
 	if weekCode != "" {
 		path += "?week=" + url.QueryEscape(weekCode)
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}
@@ -198,11 +198,18 @@ func (service *Service) mattermostFlowTaskURL(task flowTask) string {
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		path += "?" + encodedQuery
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}
 	return baseURL + path
+}
+
+func (service *Service) flowLinkBaseURL() string {
+	if flowPublicURL := strings.TrimSpace(service.Configuration.FlowPublicURL); flowPublicURL != "" {
+		return flowPublicURL
+	}
+	return service.mattermostFlowBaseURL()
 }
 
 func (service *Service) mattermostFlowBaseURL() string {

@@ -27,6 +27,8 @@ func runTenant() {
 		runTenantProvision(os.Args[3:])
 	case "create-fleet":
 		runTenantCreateFleet(os.Args[3:])
+	case "container":
+		runTenantContainer(os.Args[3:])
 	case "status":
 		runTenantStatus(os.Args[3:])
 	case "backup":
@@ -63,6 +65,7 @@ func printTenantUsage() {
 	fmt.Println("  create   Create a tenant manifest and runtime directories")
 	fmt.Println("  provision  Create, install runtime, configure Mattermost members, and sync tunnel for one tenant")
 	fmt.Println("  create-fleet  Create many cloud-shared tenants and print Mattermost URLs")
+	fmt.Println("  container  Manage the local Docker container tenant runtime")
 	fmt.Println("  status   Read tenant manifest and runtime directory status")
 	fmt.Println("  backup   Create an encrypted tenant backup")
 	fmt.Println("  restore  Restore an encrypted tenant backup")

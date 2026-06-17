@@ -183,7 +183,10 @@ func (service *Service) buildMattermostOAuthConfig(redirectURI string) (*oauth2.
 	if internalBaseURL == "" {
 		return nil, errors.New("mattermost internal base url is not configured")
 	}
-	publicBaseURL := homepage
+	publicBaseURL := strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostPublicURL), "/")
+	if publicBaseURL == "" {
+		publicBaseURL = homepage
+	}
 	if publicBaseURL == "" {
 		return nil, errors.New("mattermost public base url is not configured")
 	}

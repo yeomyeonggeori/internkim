@@ -242,7 +242,7 @@ func (service *Service) mattermostCalendarURL(startISO string) string {
 	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(startISO)); errorValue == nil {
 		path += "?date=" + url.QueryEscape(startTime.Format("2006-01-02"))
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}
@@ -261,7 +261,7 @@ func (service *Service) mattermostCalendarEventURL(event calendarEvent) string {
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		path += "?" + encodedQuery
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}

@@ -3,10 +3,11 @@ package tenantruntime
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -17,19 +18,22 @@ func TestHTTPOpenRouterKeyProvisionerCreatesKey(t *testing.T) {
 	}
 	var authorization string
 	var payload map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+	httpClient := &http.Client{Transport: openRouterKeyTestTransport(func(request *http.Request) (*http.Response, error) {
 		authorization = request.Header.Get("Authorization")
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(`{"key":"sk-or-v1-created","data":{"hash":"hash-created","label":"label-created"}}`))
-	}))
-	defer server.Close()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"key":"sk-or-v1-created","data":{"hash":"hash-created","label":"label-created"}}`)),
+		}, nil
+	})}
 
 	provisioner := HTTPOpenRouterKeyProvisioner{
 		ManagementKeyPath: managementKeyPath,
-		APIKeysURL:        server.URL,
+		APIKeysURL:        "https://openrouter.test/api/v1/keys",
+		HTTPClient:        httpClient,
 	}
 	key, errorValue := provisioner.CreateAPIKey(context.Background(), OpenRouterAPIKeyCreateRequest{
 		Name:       "internkim-pilot-01",
@@ -50,4 +54,10 @@ func TestHTTPOpenRouterKeyProvisionerCreatesKey(t *testing.T) {
 	if key.APIKey != "sk-or-v1-created" || key.Hash != "hash-created" || key.Label != "label-created" {
 		t.Fatalf("unexpected provisioned OpenRouter key: %+v", key)
 	}
+}
+
+type openRouterKeyTestTransport func(request *http.Request) (*http.Response, error)
+
+func (transport openRouterKeyTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
 }

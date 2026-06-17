@@ -85,7 +85,7 @@ func (service *Service) mattermostAttendanceClockInButton(actionID string, name 
 
 func (service *Service) mattermostAttendanceLink() string {
 	label := mattermostdefaults.PublicChannelLinkLabel(attendanceChannelName, service.workspaceLanguage())
-	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if baseURL == "" {
 		return "[" + label + "](/attendance/)"
 	}

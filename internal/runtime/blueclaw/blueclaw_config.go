@@ -24,6 +24,11 @@ type RuntimeConfigOptions struct {
 	ModelName                string
 	AdminTaskLinkBaseURL     string
 	BaseURL                  string
+	DirectExecution          bool
+	WorkspaceRootPath        string
+	POSIXHelperPath          string
+	DatabaseConnectionString string
+	MigrationDirectoryPath   string
 	CapabilitySocketPath     string
 	CapabilityVSockPort      int
 	GraphitiEndpoint         string
@@ -101,8 +106,17 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 }
 
 func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
+	languageModelExecutionMode := "auto"
+	terminalMode := "firecrackerGuest"
+	capabilityTransport := "vsock"
+	if options.DirectExecution {
+		languageModelExecutionMode = "remote"
+		terminalMode = "native"
+		capabilityTransport = ""
+	}
+
 	capabilityLanguageModel := map[string]any{
-		"executionMode":         "auto",
+		"executionMode":         languageModelExecutionMode,
 		"model":                 BlueclawDefaultModelName,
 		"contextWindowTokens":   BlueclawDefaultModelContextTokens,
 		"requireParameters":     true,
@@ -114,7 +128,21 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
 	capabilitySocketPath := firstNonEmptyString(options.CapabilitySocketPath, CapabilitySocketPath)
+	capabilityUnixSocketPath := ""
+	if options.DirectExecution {
+		capabilityUnixSocketPath = capabilitySocketPath
+	}
+	terminalWorkspaceRootPath := firstNonEmptyString(options.WorkspaceRootPath, BlueclawGuestWorkspacePath)
+	terminalPOSIXHelperPath := firstNonEmptyString(options.POSIXHelperPath, BlueclawPOSIXHelperPath)
+	if options.DirectExecution {
+		terminalPOSIXHelperPath = strings.TrimSpace(options.POSIXHelperPath)
+	}
+	databaseConnectionString := firstNonEmptyString(options.DatabaseConnectionString, BlueclawGuestDatabaseConnectionString)
+	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, BlueclawGuestMigrationPath)
 	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
+	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
+		graphitiEndpoint = ""
+	}
 	mattermostBaseURL := firstNonEmptyString(options.MattermostBaseURL, "http://localhost:8065")
 	hostWorkspacePath := firstNonEmptyString(options.HostWorkspacePath, BlueclawWorkspacePath)
 	rootFilesystemImagePath := firstNonEmptyString(options.RootFilesystemImagePath, BlueclawRootFilesystemImagePath)
@@ -135,8 +163,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	document := map[string]any{
 		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
 		"capabilities": map[string]any{
-			"transport":       "vsock",
-			"unixSocketPath":  "",
+			"transport":       capabilityTransport,
+			"unixSocketPath":  capabilityUnixSocketPath,
 			"endpoint":        "http://internkim-capability",
 			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
 			"vsockCID":        CapabilityVSockHostCID,
@@ -192,8 +220,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"database": map[string]any{
 			"driver":                 "postgres",
-			"connectionString":       BlueclawGuestDatabaseConnectionString,
-			"migrationDirectoryPath": BlueclawGuestMigrationPath,
+			"connectionString":       databaseConnectionString,
+			"migrationDirectoryPath": migrationDirectoryPath,
 		},
 		"memory": map[string]any{
 			"workspaceID":                                 "default",
@@ -239,10 +267,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"mcpServers": []map[string]any{},
 		"terminal": map[string]any{
-			"mode":                   "firecrackerGuest",
+			"mode":                   terminalMode,
 			"sandboxProvider":        "",
-			"workspaceRootPath":      BlueclawGuestWorkspacePath,
-			"posixHelperPath":        BlueclawPOSIXHelperPath,
+			"workspaceRootPath":      terminalWorkspaceRootPath,
+			"posixHelperPath":        terminalPOSIXHelperPath,
 			"allowedExecutableNames": BlueclawAllowedExecutables,
 			"deniedExecutableNames":  BlueclawDeniedExecutables,
 			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,

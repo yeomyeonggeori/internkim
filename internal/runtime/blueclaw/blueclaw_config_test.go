@@ -11,6 +11,55 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
+func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+		DirectExecution:          true,
+		CapabilitySocketPath:     "/run/internkim/capability.sock",
+		DatabaseConnectionString: "postgres://internkim@postgres/tenant_01?sslmode=disable",
+		WorkspaceRootPath:        "/workspace",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
+	if capabilityConfiguration["transport"] != "" {
+		t.Fatalf("expected empty transport for direct execution, got %q", capabilityConfiguration["transport"])
+	}
+	if capabilityConfiguration["unixSocketPath"] != "/run/internkim/capability.sock" {
+		t.Fatalf("expected unix socket transport, got %q", capabilityConfiguration["unixSocketPath"])
+	}
+
+	terminalConfiguration := runtimeConfiguration["terminal"].(map[string]any)
+	if terminalConfiguration["mode"] != "native" {
+		t.Fatalf("expected native terminal mode, got %q", terminalConfiguration["mode"])
+	}
+	if terminalConfiguration["posixHelperPath"] != "" {
+		t.Fatalf("expected POSIX synchronization skipped, got %q", terminalConfiguration["posixHelperPath"])
+	}
+
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	capabilityLanguageModel := languageModel["capability"].(map[string]any)
+	if capabilityLanguageModel["executionMode"] != "remote" {
+		t.Fatalf("expected remote inference for direct execution, got %q", capabilityLanguageModel["executionMode"])
+	}
+
+	memoryConfiguration := runtimeConfiguration["memory"].(map[string]any)
+	if memoryConfiguration["graphitiEndpoint"] != "" {
+		t.Fatalf("expected graphiti disabled for direct execution, got %q", memoryConfiguration["graphitiEndpoint"])
+	}
+
+	databaseConfiguration := runtimeConfiguration["database"].(map[string]any)
+	if databaseConfiguration["connectionString"] != "postgres://internkim@postgres/tenant_01?sslmode=disable" {
+		t.Fatalf("expected tenant database connection string, got %q", databaseConfiguration["connectionString"])
+	}
+}
+
 func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	document, errorValue := BlueclawRuntimeConfigDocument("")
 	if errorValue != nil {

@@ -38,6 +38,8 @@
 	}
 
 	function mattermostURL() {
+		const providedURL = adminSession?.mattermostURL?.trim();
+		if (providedURL) return providedURL;
 		const currentFleetID = fleetID();
 		return currentFleetID ? `https://${currentFleetID}.example.test` : '';
 	}
