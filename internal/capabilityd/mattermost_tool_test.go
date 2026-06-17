@@ -189,6 +189,8 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 		case "http://mattermost.test/api/v4/posts/post-1/pin":
 			pinnedPost = true
 			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
+			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "staff-1"}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -203,8 +205,9 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 			"pin":            true,
 		}),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:         "staff@example.com",
-			IsApprovalContinuation: true,
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "staff-1",
+			IsApprovalContinuation:  true,
 		},
 	})
 	if errorValue != nil {
@@ -233,6 +236,8 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
 			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
+			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "staff-1"}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -247,7 +252,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 			"authoredBy":     "assistant",
 			"limit":          3,
 		}),
-		Context: capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context: capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com", RequesterPlatformUserID: "staff-1"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -939,8 +944,10 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 			"authoredBy":     "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
-			Platform:       "mattermost",
-			RequesterEmail: "staff@example.com",
+			Platform:                "mattermost",
+			RequesterEmail:          "alice@example.com",
+			RequesterPersonID:       "person-alice",
+			RequesterPlatformUserID: "alice-1",
 		},
 	})
 	if errorValue != nil {
@@ -957,6 +964,50 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 	}
 	if response.Status != "ok" || result.Channel.ID != "dm-1" || result.CandidateCount != 1 {
 		t.Fatalf("expected direct message candidate, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://blueclaw.test/admin/api/identity/resolve-recipient":
+			return testJSONResponse(http.StatusOK, map[string]any{
+				"status": "resolved",
+				"recipient": map[string]any{
+					"personID":       "person-alice",
+					"displayName":    "Alice",
+					"emails":         []string{"alice@example.com"},
+					"externalUserID": "alice-1",
+					"username":       "alice",
+				},
+			}), nil
+		default:
+			t.Fatalf("unexpected request before authorization gate: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.search",
+		Input: mustJSON(t, map[string]any{
+			"scope":          "directMessage",
+			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
+			"authoredBy":     "assistant",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			RequesterEmail:          "staff@example.com",
+			RequesterPersonID:       "person-staff",
+			RequesterPlatformUserID: "staff-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "dm_read_not_authorized" {
+		t.Fatalf("expected non-participant DM read to be denied, got %+v", response)
 	}
 }
 

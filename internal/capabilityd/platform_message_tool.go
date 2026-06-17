@@ -505,6 +505,9 @@ func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, too
 		if hasFailure {
 			return "", "", failure, true
 		}
+		if !service.requesterMayAccessChannel(ctx, toolContext, channel.ID) {
+			return "", "", channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+		}
 		return channel.ID, "", mattermostToolFailure{}, false
 	default:
 		failure := mattermostToolStaticFailure("invalid_target", "input_decode", "delivery target cannot be used for channel posting")
