@@ -141,6 +141,7 @@ export const flowText = {
 			endDate: '종료일',
 			flag: '플래그',
 			pagination: {
+				label: '업무 목록 페이지',
 				previous: '이전',
 				next: '다음',
 				summary: '{total}개 중 {from}–{to}'
@@ -324,6 +325,7 @@ export const flowText = {
 			endDate: 'End date',
 			flag: 'Flag',
 			pagination: {
+				label: 'Task list pages',
 				previous: 'Previous',
 				next: 'Next',
 				summary: '{from}–{to} of {total}'
