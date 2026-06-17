@@ -1,8 +1,12 @@
-// 캘린더 embed 화면의 mount 시점 동기화와 DOM action 설치를 담당합니다.
-import { ViewType } from '@dayflow/svelte';
+import type { ViewType } from '@dayflow/svelte';
 import { clearCalendarAllDayLayout } from './calendar-all-day-layout';
 import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dismiss';
 import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
+import { installCalendarEventDoubleClick } from './calendar-event-double-click';
+import type { CalendarEventDoubleClickOptions } from './calendar-event-double-click';
+import { installCalendarEventAnchorCapture } from './calendar-event-anchor-capture';
+import { installCalendarEventSelection } from './calendar-event-selection';
+import type { CalendarEventSelectionOptions } from './calendar-event-selection';
 import { installCalendarKeyboardDelete } from './calendar-keyboard-delete';
 import type { CalendarKeyboardDeleteContext } from './calendar-keyboard-delete';
 import { installCalendarMonthRangeAction } from './calendar-month-range-action';
@@ -19,7 +23,7 @@ import { startOfMonthWindow, endOfMonthWindow } from './calendar-visible-range';
 import { calendarChannelName } from '../refresh-signal.svelte';
 import { loadSavedWorkCalendarVisibility } from './calendar-work-visibility';
 
-type CalendarEmbedLifecycleOptions = {
+export type CalendarEmbedLifecycleOptions = {
 	stageElement: HTMLElement | null;
 	setWorkCalendarVisible: (isVisible: boolean) => void;
 	handleCalendarChannelMessage: (event: MessageEvent<unknown>) => void;
@@ -41,6 +45,8 @@ type CalendarEmbedLifecycleOptions = {
 	timelineRangeAction: Omit<TimelineRangeActionOptions, 'stageElement'>;
 	wheelNavigation: Omit<CalendarWheelNavigationOptions, 'stageElement'>;
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
+	eventDoubleClick: Omit<CalendarEventDoubleClickOptions, 'stageElement'>;
+	eventSelection: Omit<CalendarEventSelectionOptions, 'stageElement'>;
 	keyboardDelete: CalendarKeyboardDeleteContext;
 	miniCalendarMonthPicker: DayFlowMiniCalendarPickerContext;
 	navigateToDateKey: (dateKey: string) => void;
@@ -121,11 +127,17 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 	const stopWheelNavigation = installCalendarWheelNavigation({ stageElement, ...options.wheelNavigation });
 	const stopTimelineScrollState = installCalendarTimelineScrollState(stageElement);
 	const stopDraftPopoverDismiss = installCalendarDraftPopoverDismiss({ stageElement, ...options.draftPopoverDismiss });
+	const stopEventDoubleClick = installCalendarEventDoubleClick({ stageElement, ...options.eventDoubleClick });
+	const stopEventSelection = installCalendarEventSelection({ stageElement, ...options.eventSelection });
+	const stopEventAnchorCapture = installCalendarEventAnchorCapture(stageElement);
 	return () => {
 		stopMonthRangeCreate();
 		stopTimelineRangeCreate();
 		stopWheelNavigation();
 		stopTimelineScrollState();
 		stopDraftPopoverDismiss();
+		stopEventDoubleClick();
+		stopEventSelection();
+		stopEventAnchorCapture();
 	};
 }
