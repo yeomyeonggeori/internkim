@@ -2311,9 +2311,10 @@ func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
 	}
 }
 
-func TestMattermostImportAttachmentsUsesRawTextPreviewForHTML(t *testing.T) {
+func TestMattermostImportAttachmentsConvertsHTMLThroughMarkItDown(t *testing.T) {
 	workspacePath := t.TempDir()
-	htmlDocument := "<!doctype html><html><body><h1>Raw HTML Title</h1></body></html>"
+	htmlDocument := "<!doctype html><html><head><style>@font-face{src:url(data:font/woff2;base64,AAAA)}</style></head><body><h1>Raw HTML Title</h1></body></html>"
+	markItDownCalled := false
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/files/file-1/info":
@@ -2338,8 +2339,8 @@ func TestMattermostImportAttachmentsUsesRawTextPreviewForHTML(t *testing.T) {
 		},
 		HTTPClient: httpClient,
 		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-			t.Fatal("HTML attachment preview should not call MarkItDown helper")
-			return nil, nil
+			markItDownCalled = true
+			return json.Marshal(map[string]any{"content": "# Raw HTML Title", "truncated": false})
 		},
 	}
 
@@ -2351,12 +2352,32 @@ func TestMattermostImportAttachmentsUsesRawTextPreviewForHTML(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected import to succeed: %v", errorValue)
 	}
-	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+	if !markItDownCalled {
+		t.Fatal("HTML attachment preview must go through MarkItDown conversion, not raw text")
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].File == nil {
 		t.Fatalf("expected file input part, got %+v", response.InputParts)
 	}
 	filePart := response.InputParts[0].File
-	if filePart.ConversionStatus != "converted" || !strings.Contains(filePart.MarkdownPreview, "<h1>Raw HTML Title</h1>") {
-		t.Fatalf("expected raw HTML preview, got %+v", filePart)
+	if !strings.Contains(filePart.MarkdownPreview, "Raw HTML Title") || strings.Contains(filePart.MarkdownPreview, "@font-face") {
+		t.Fatalf("expected converted text without font/style noise, got %+v", filePart)
+	}
+}
+
+func TestCollapseInlineBase64ReplacesLongRunsWithMarker(t *testing.T) {
+	blob := strings.Repeat("A", 5000)
+	collapsed := collapseInlineBase64("intro " + blob + " outro")
+	if strings.Contains(collapsed, blob) {
+		t.Fatal("expected long base64 run to be collapsed")
+	}
+	if !strings.Contains(collapsed, "intro ") || !strings.Contains(collapsed, " outro") {
+		t.Fatalf("expected surrounding text preserved, got %q", collapsed)
+	}
+	if !strings.Contains(collapsed, "base64 data omitted") {
+		t.Fatalf("expected omission marker, got %q", collapsed)
+	}
+	if changed := collapseInlineBase64("short token abc123 normal prose"); changed != "short token abc123 normal prose" {
+		t.Fatalf("expected short tokens untouched, got %q", changed)
 	}
 }
 
