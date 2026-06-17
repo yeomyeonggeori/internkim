@@ -416,31 +416,91 @@ func TestNormalizeFlowStatusFilter(t *testing.T) {
 	}
 }
 
-func TestFlowTaskListSpansAllWeeksNormalizesStatusAndReportsScope(t *testing.T) {
-	service := Service{
+func flowTaskListTwoOwnerStateService(t *testing.T) Service {
+	return Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			if request.URL.String() != "http://admind.local/flow/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
-			return flowToolJSONResponse(`{"currentWeek":{"code":"26W25"},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"future-1","ownerID":"lee","ownerName":"이동하","content":"다음주 예정 업무","status":"예정","weekCode":"26W30"},{"id":"done-1","ownerID":"lee","ownerName":"이동하","content":"완료된 업무","status":"완료","weekCode":"26W25"}]}`), nil
+			return flowToolJSONResponse(`{"currentWeek":{"code":"26W25"},"members":[{"id":"rain","name":"신우경","email":"rain@example.com"},{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"rain-future","ownerID":"rain","ownerName":"신우경","content":"신우경 예정 업무","status":"예정","weekCode":"26W30"},{"id":"rain-done","ownerID":"rain","ownerName":"신우경","content":"신우경 완료 업무","status":"완료","weekCode":"26W25"},{"id":"lee-task","ownerID":"lee","ownerName":"이동하","content":"이동하 업무","status":"예정","weekCode":"26W25"}]}`), nil
 		})},
 	}
+}
 
+func TestFlowTaskListDefaultsToRequesterOwnTasks(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{"query":"이동하","status":"예약"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+		Input:    []byte(`{}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	result := string(response.Result)
-	if !strings.Contains(result, "future-1") || strings.Contains(result, "done-1") {
-		t.Fatalf("expected only the planned future task, got %s", result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected only the requester's own tasks, got %s", result)
 	}
-	if !strings.Contains(result, `"scope":"all"`) || !strings.Contains(result, `"statusFilter":"예정"`) || !strings.Contains(result, `"crossPerson":true`) {
-		t.Fatalf("expected truthful scope metadata, got %s", result)
+	if !strings.Contains(result, `"scope":"self"`) || !strings.Contains(result, `"crossPerson":false`) || !strings.Contains(result, `"ownerID":"rain"`) {
+		t.Fatalf("expected self scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListSpansAllWeeksAndNormalizesStatusForOwnTasks(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"status":"예약"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected only own planned task across weeks, got %s", result)
+	}
+	if !strings.Contains(result, `"statusFilter":"예정"`) {
+		t.Fatalf("expected status normalized to 예정, got %s", result)
+	}
+}
+
+func TestFlowTaskListAllPeopleReturnsEveryone(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"allPeople":true}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") {
+		t.Fatalf("expected all owners' tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"allPeople"`) || !strings.Contains(result, `"crossPerson":true`) {
+		t.Fatalf("expected allPeople scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"이동하"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "lee-task") || strings.Contains(result, "rain-future") {
+		t.Fatalf("expected only the named person's tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"person"`) {
+		t.Fatalf("expected person scope metadata, got %s", result)
 	}
 }
 
