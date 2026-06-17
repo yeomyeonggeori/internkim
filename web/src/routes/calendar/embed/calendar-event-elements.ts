@@ -1,3 +1,5 @@
+import { dayFlowEventSelectorForID } from './calendar-dayflow-dom-adapter';
+
 export function openCalendarEventDetailPanel(stageElement: HTMLElement | null, eventID: string): void {
 	const eventElement = calendarEventElementByID(stageElement, eventID);
 	if (!eventElement) return;
@@ -5,21 +7,25 @@ export function openCalendarEventDetailPanel(stageElement: HTMLElement | null, e
 }
 
 export function focusCalendarEventElement(stageElement: HTMLElement | null, eventID: string): void {
-	const eventElement = calendarEventElementByID(stageElement, eventID);
+	const eventElements = calendarEventElementsByID(stageElement, eventID).filter(isVisibleCalendarEventElement);
+	const eventElement = eventElements[0] ?? calendarEventElementByID(stageElement, eventID);
 	if (!eventElement) return;
 	clearFocusedCalendarEventElements(stageElement);
-	eventElement.classList.add('internkim-calendar-event-focused');
-	eventElement.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+	for (const element of eventElements.length > 0 ? eventElements : [eventElement]) {
+		element.classList.add('internkim-calendar-event-focused');
+	}
+}
+
+export function clearFocusedCalendarEventElements(stageElement: HTMLElement | null): void {
+	if (!stageElement) return;
+	for (const element of stageElement.querySelectorAll('.internkim-calendar-event-focused')) {
+		element.classList.remove('internkim-calendar-event-focused');
+	}
 }
 
 export function calendarEventElementsByID(stageElement: HTMLElement | null, eventID: string): HTMLElement[] {
 	if (!stageElement) return [];
-	const escapedEventID = window.CSS?.escape(eventID) ?? eventID.replaceAll('"', '\\"');
-	return Array.from(
-		stageElement.querySelectorAll<HTMLElement>(
-			`[data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`
-		)
-	);
+	return Array.from(stageElement.querySelectorAll<HTMLElement>(dayFlowEventSelectorForID(eventID)));
 }
 
 export function isVisibleCalendarEventElement(element: HTMLElement): boolean {
@@ -37,13 +43,6 @@ export function isVisibleCalendarEventElement(element: HTMLElement): boolean {
 function calendarEventElementByID(stageElement: HTMLElement | null, eventID: string): HTMLElement | null {
 	const eventElements = calendarEventElementsByID(stageElement, eventID);
 	return eventElements.find(isVisibleCalendarEventElement) ?? eventElements[0] ?? null;
-}
-
-function clearFocusedCalendarEventElements(stageElement: HTMLElement | null): void {
-	if (!stageElement) return;
-	for (const element of stageElement.querySelectorAll('.internkim-calendar-event-focused')) {
-		element.classList.remove('internkim-calendar-event-focused');
-	}
 }
 
 function detailOpenEventForElement(element: HTMLElement): MouseEvent {

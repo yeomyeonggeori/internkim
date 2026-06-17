@@ -1,4 +1,10 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import {
+	clickOutsideDraftPopover,
+	dragBetweenCells,
+	routeCalendarAPI,
+	waitForClientHydration
+} from './calendar-draft-popover-test-utils';
 
 test.describe('calendar draft popover', () => {
 	test.beforeEach(async ({ page }) => {
@@ -30,6 +36,7 @@ test.describe('calendar draft popover', () => {
 		await expect(popover).toBeVisible();
 		await expect(popover.getByLabel('제목')).toBeVisible();
 		await expect(popover.getByLabel('종일')).toBeVisible();
+		await expect(popover.locator('.event-audit-card')).toHaveCount(0);
 		expect(eventCreateCount).toBe(0);
 	});
 
@@ -210,134 +217,57 @@ test.describe('calendar draft popover', () => {
 		await page.getByLabel('제목').fill('워크숍');
 		await page.getByRole('button', { name: '완료' }).click();
 
-			await expect.poll(() => postedPayloads.length).toBe(1);
-			expect(postedPayloads[0]).toMatchObject({
-				title: '워크숍',
-				isAllDay: true,
-				startISO: '2026-06-10T00:00:00.000Z',
-				endISO: '2026-06-13T00:00:00.000Z'
-			});
+		await expect.poll(() => postedPayloads.length).toBe(1);
+		expect(postedPayloads[0]).toMatchObject({
+			title: '워크숍',
+			isAllDay: true,
+			startISO: '2026-06-10T00:00:00.000Z',
+			endISO: '2026-06-13T00:00:00.000Z'
 		});
+	});
 
-	test('opens existing events in edit mode and deletes them from the popover', async ({ page }) => {
-		let deleteCount = 0;
-		await page.unroute('**/calendar/api/events?**');
-		await page.route('**/calendar/api/events?**', async (route) => {
-			await route.fulfill({
-				json: {
-					events: [
-						{
-							id: 'existing-event',
-							title: '기존 일정',
-							description: '기존 설명',
-							location: '회의실 B',
-							startISO: '2026-06-10T09:00:00.000Z',
-							endISO: '2026-06-10T10:00:00.000Z',
-							isAllDay: false
-						}
-					]
-				}
-			});
-		});
-		await page.route('**/calendar/api/events/existing-event', async (route) => {
-			if (route.request().method() === 'DELETE') deleteCount += 1;
-			await route.fulfill({ json: {} });
-		});
+	test('places month creation popovers beside the rendered draft event block', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.getByText('기존 일정').click();
+		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').dblclick();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.getByLabel('제목')).toHaveValue('기존 일정');
+		await expect(page.locator('.calendar-month-direct-event.draft-empty-title-event')).toBeVisible();
 
-		await page.getByRole('button', { name: '삭제' }).click();
+		await expect
+			.poll(async () =>
+				page.evaluate(() => {
+					const draftEvent = document.querySelector<HTMLElement>('.calendar-month-direct-event.draft-empty-title-event');
+					const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+					if (!draftEvent || !popover) return false;
+					const draftRectangle = draftEvent.getBoundingClientRect();
+					const popoverRectangle = popover.getBoundingClientRect();
+					return popover.classList.contains('popover-arrow-right') && popoverRectangle.right <= draftRectangle.left - 8;
+				})
+			)
+			.toBe(true);
+	});
 
-		await expect.poll(() => deleteCount).toBe(1);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(page.getByText('기존 일정')).toHaveCount(0);
-	});
-});
+	test('does not visibly flash month creation popovers before the draft event block is ready', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
 
-async function routeCalendarAPI(page: Page): Promise<void> {
-	await page.route('**/admin/api/locale', async (route) => {
-		await route.fulfill({ json: { locale: 'ko' } });
-	});
-	await page.route('**/calendar/api/events?**', async (route) => {
-		await route.fulfill({ json: { events: [] } });
-	});
-	await page.route('**/calendar/api/sync', async (route) => {
-		await route.fulfill({
-			json: {
-				caldavURL: '',
-				caldavUsername: '',
-				caldavPassword: '',
-				icsURL: ''
-			}
+		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').dblclick();
+
+		const showedPopoverBeforeDraftEvent = await page.evaluate(() => {
+			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+			const draftEvent = document.querySelector<HTMLElement>('.calendar-month-direct-event.draft-empty-title-event');
+			if (!popover || draftEvent) return false;
+			const rectangle = popover.getBoundingClientRect();
+			const style = window.getComputedStyle(popover);
+			return rectangle.width > 0 && rectangle.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
 		});
-	});
-	await page.route('**/calendar/api/account-status', async (route) => {
-		await route.fulfill({ json: { connected: false, needsReauth: false } });
-	});
-	await page.route('**/calendar/api/remote-sync', async (route) => {
-		await route.fulfill({ json: { synced: false } });
-	});
-	await page.route('**/calendar/api/conflicts', async (route) => {
-		await route.fulfill({ json: { conflicts: [] } });
-	});
-	await page.route('**/calendar/api/conflicts/*', async (route) => {
-		await fulfillEmptyResponse(route);
-	});
-}
 
-async function fulfillEmptyResponse(route: Route): Promise<void> {
-	await route.fulfill({ json: {} });
-}
-
-async function waitForClientHydration(page: Page): Promise<void> {
-	await page.waitForTimeout(1_000);
-	await page.evaluate(
-		() =>
-			new Promise<void>((resolve) => {
-				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-			})
-	);
-}
-
-async function clickOutsideDraftPopover(page: Page): Promise<void> {
-	const clickPoint = await page.evaluate(() => {
-		const popover = document.querySelector('.calendar-draft-popover');
-		const stage = document.querySelector('.calendar-stage');
-		if (!(popover instanceof HTMLElement) || !(stage instanceof HTMLElement)) {
-			throw new Error('Missing draft popover or calendar stage');
-		}
-		const stageRectangle = stage.getBoundingClientRect();
-		const popoverRectangle = popover.getBoundingClientRect();
-		const candidates = [
-			{ x: stageRectangle.left + 24, y: stageRectangle.top + 72 },
-			{ x: stageRectangle.right - 24, y: stageRectangle.top + 72 },
-			{ x: stageRectangle.left + 24, y: stageRectangle.bottom - 24 },
-			{ x: stageRectangle.left + stageRectangle.width / 2, y: stageRectangle.top + stageRectangle.height / 2 }
-		];
-		const point = candidates.find(
-			(candidate) =>
-				candidate.x < popoverRectangle.left ||
-				candidate.x > popoverRectangle.right ||
-				candidate.y < popoverRectangle.top ||
-				candidate.y > popoverRectangle.bottom
-		);
-		if (!point) throw new Error('Could not find a point outside the draft popover');
-		return point;
+		expect(showedPopoverBeforeDraftEvent).toBe(false);
+		await expect(page.locator('.calendar-month-direct-event.draft-empty-title-event')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 	});
-	await page.mouse.click(clickPoint.x, clickPoint.y);
-}
 
-async function dragBetweenCells(page: Page, startDateKey: string, endDateKey: string): Promise<void> {
-	const startBox = await page.locator(`.df-month-day-cell[data-date="${startDateKey}"]`).boundingBox();
-	const endBox = await page.locator(`.df-month-day-cell[data-date="${endDateKey}"]`).boundingBox();
-	if (!startBox || !endBox) throw new Error('month cells must be visible before dragging');
-	await page.mouse.move(startBox.x + startBox.width / 2, startBox.y + startBox.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2, { steps: 8 });
-	await page.mouse.up();
-}
+});

@@ -1,0 +1,112 @@
+
+	.calendar-stage .draft-empty-title-event {
+		border-color: transparent !important;
+		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
+		color: #ffffff !important;
+		box-shadow: 0 8px 18px rgb(100 115 201 / 0.2) !important;
+	}
+
+	.calendar-stage .draft-empty-title-event * {
+		color: inherit !important;
+	}
+
+	.calendar-stage .df-event {
+		box-sizing: border-box;
+	}
+
+	.calendar-stage .df-event.internkim-calendar-event-focused,
+	.calendar-stage .calendar-multi-day-all-day-proxy.internkim-calendar-event-focused {
+		border-color: #3b82f6 !important;
+		background: #3b82f6 !important;
+		color: #ffffff !important;
+		box-shadow:
+			0 0 0 1px #3b82f6,
+			0 8px 16px rgb(59 130 246 / 0.18) !important;
+	}
+
+	.calendar-stage .df-event::before,
+	.calendar-stage .calendar-multi-day-all-day-proxy::before {
+		position: absolute;
+		top: 3px;
+		bottom: 3px;
+		left: 2px;
+		width: 3px;
+		border-radius: 999px;
+		background: #3b82f6;
+		content: '';
+	}
+
+	.calendar-stage .df-event.internkim-calendar-event-focused::before,
+	.calendar-stage .calendar-multi-day-all-day-proxy.internkim-calendar-event-focused::before {
+		background: #ffffff;
+	}
+
+	.calendar-stage .df-content-slot .calendar-event-content,
+	.calendar-stage .calendar-multi-day-all-day-proxy {
+		position: absolute;
+		top: 0;
+		right: 4px;
+		bottom: auto;
+		left: 8px;
+		display: flex;
+		min-width: 0;
+		height: 16px;
+		align-items: center;
+		gap: 6px;
+		box-sizing: border-box;
+		overflow: hidden;
+		color: #1e3a8a;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 16px;
+	}
+
+	.calendar-stage .internkim-calendar-event-focused .calendar-event-content,
+	.calendar-stage .internkim-calendar-event-focused .calendar-event-title,
+	.calendar-stage .internkim-calendar-event-focused .calendar-event-time,
+	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-content,
+	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-title,
+	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-time,
+	.calendar-stage .internkim-calendar-event-focused .calendar-multi-day-all-day-proxy-start,
+	.calendar-stage .internkim-calendar-event-focused .calendar-multi-day-all-day-proxy-end {
+		color: inherit !important;
+	}
+
+	.calendar-stage .internkim-calendar-event-focused .calendar-event-content,
+	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-content {
+		background: transparent !important;
+		box-shadow: none !important;
+	}
+
+	.calendar-stage .calendar-event-title,
+	.calendar-stage .calendar-multi-day-all-day-proxy-start {
+		display: block;
+		min-width: 0;
+		height: 16px;
+		overflow: hidden;
+		line-height: 16px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.calendar-stage .calendar-event-time,
+	.calendar-stage .calendar-multi-day-all-day-proxy-end {
+		display: block;
+		flex: none;
+		height: 16px;
+		margin-left: auto;
+		font-variant-numeric: tabular-nums;
+		line-height: 16px;
+		white-space: nowrap;
+	}
+
+	.calendar-stage .df-drag-indicator-month-pill,
+	.calendar-stage .df-drag-indicator-regular-pill,
+	.calendar-stage .df-drag-indicator-all-day-pill,
+	.calendar-stage .df-drag-indicator-manual-pill,
+	.calendar-stage .calendar-drag-hidden-indicator,
+	.calendar-stage .df-event-detail-panel,
+	.calendar-stage .df-mobile-event-drawer {
+		display: none !important;
+		pointer-events: none !important;
+	}
