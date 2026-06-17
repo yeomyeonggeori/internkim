@@ -1,0 +1,26 @@
+name: internkim-poc-tenant01-flow
+
+networks:
+  internkim-poc:
+    external: true
+
+services:
+  tenant_01_flow:
+    image: internkim-poc-tenant:flow
+    networks:
+      internkim-poc:
+        aliases: [tenant_01]
+    environment:
+      POSTGRES_HOST: postgres
+      MATTERMOST_HOST: mattermost
+      ENABLE_ADMIND: "1"
+    volumes:
+      - ./config/tenant_01/runtime.json:/etc/blueclaw/runtime.json:ro
+      - ./config/tenant_01/policy.json:/etc/blueclaw/policy.json:ro
+      - ./secrets/openrouter-key:/secrets/openrouter-key:ro
+      - ./secrets/tenant_01/mattermost-bot-token:/secrets/mattermost-bot-token:ro
+      - ./secrets/tenant_01/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro
+      - ./secrets/tenant_01/mm-admin-pass:/root/.internkim/secrets/mm-admin-pass:ro
+      - ./secrets/tenant_01/admin-email:/root/.internkim/secrets/admin-email:ro
+      - ./secrets/tenant_01/device-url:/root/.internkim/env/device-url:ro
+    restart: on-failure

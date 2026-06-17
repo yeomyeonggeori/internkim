@@ -1,6 +1,10 @@
 package admind
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"testing"
+)
 
 func TestAddMattermostNameFieldsSplitsKoreanName(t *testing.T) {
 	body := map[string]string{}
@@ -54,6 +58,81 @@ func TestAddMattermostNameFieldsEmptyNameWritesNothing(t *testing.T) {
 	if len(body) != 0 {
 		t.Errorf("empty name should write no fields; got %#v", body)
 	}
+}
+
+func TestAllowedMattermostUsersFallsBackToActiveUsersWhenDeviceAuthIsAbsent(t *testing.T) {
+	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local", FleetIDPath: t.TempDir() + "/missing-fleet-id", FleetSecretPath: t.TempDir() + "/missing-fleet-secret"})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "http://mattermost.local/api/v4/users?per_page=200" {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		return jsonResponse(http.StatusOK, `[
+			{"id":"admin","username":"admin","delete_at":0},
+			{"id":"agent-1","username":"internkim01","delete_at":0},
+			{"id":"admin-1","username":"admin01","delete_at":0},
+			{"id":"deleted-1","username":"deleted01","delete_at":10}
+		]`, nil), nil
+	})}
+
+	users, errorValue := service.allowedMattermostUsers(context.Background(), "admin-token")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(users) != 2 || users[0].ID != "agent-1" || users[1].ID != "admin-1" {
+		t.Fatalf("expected active tenant users without device auth, got %+v", users)
+	}
+}
+
+func TestDefaultChannelMembershipsRunWithoutDeviceAuth(t *testing.T) {
+	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local", FleetIDPath: t.TempDir() + "/missing-fleet-id", FleetSecretPath: t.TempDir() + "/missing-fleet-secret"})
+	joinedChannelsByUserID := map[string]map[string]bool{}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
+			return jsonResponse(http.StatusOK, `[
+				{"id":"agent-1","username":"internkim01","delete_at":0},
+				{"id":"admin-1","username":"admin01","delete_at":0}
+			]`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case isMattermostDefaultChannelMemberRequest(request):
+			userID := mattermostChannelMemberUserID(t, request)
+			channelID := request.URL.Path[len("/api/v4/channels/") : len(request.URL.Path)-len("/members")]
+			if joinedChannelsByUserID[userID] == nil {
+				joinedChannelsByUserID[userID] = map[string]bool{}
+			}
+			joinedChannelsByUserID[userID][channelID] = true
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	channelIDs := []string{"flow-channel", "calendar-channel", "attendance-channel", "town-square-channel", "off-topic-channel"}
+	if errorValue := service.ensureMattermostDefaultChannelMemberships(context.Background(), "admin-token", "team-1", channelIDs); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, userID := range []string{"agent-1", "admin-1"} {
+		for _, channelID := range channelIDs {
+			if !joinedChannelsByUserID[userID][channelID] {
+				t.Fatalf("user %s was not joined to %s: %#v", userID, channelID, joinedChannelsByUserID)
+			}
+		}
+	}
+}
+
+func isMattermostDefaultChannelMemberRequest(request *http.Request) bool {
+	return request.Method == http.MethodPost &&
+		len(request.URL.Path) > len("/api/v4/channels//members") &&
+		request.URL.Path[:len("/api/v4/channels/")] == "/api/v4/channels/" &&
+		request.URL.Path[len(request.URL.Path)-len("/members"):] == "/members"
 }
 
 func TestMattermostSyncedPersonCirclesUsesStaffAndChannelMembership(t *testing.T) {

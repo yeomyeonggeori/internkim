@@ -136,7 +136,6 @@ func writeMattermostBootstrapTestCredentials(t *testing.T, path string) {
 }
 
 type mattermostBootstrapTestServer struct {
-	*httptest.Server
 	adminEmail           string
 	adminPassword        string
 	blueclawInvitedEmail string
@@ -149,6 +148,7 @@ type mattermostBootstrapTestServer struct {
 	schemeRoles          map[string]bool
 	deletedWelcomePost   bool
 	usersByEmail         map[string]mattermostBootstrapTestUser
+	URL                  string
 }
 
 type mattermostBootstrapTestUser struct {
@@ -172,10 +172,24 @@ func newMattermostBootstrapTestServer(t *testing.T) *mattermostBootstrapTestServ
 		schemeRoles:     map[string]bool{},
 		blueclawInvites: map[string]string{},
 		usersByEmail:    map[string]mattermostBootstrapTestUser{},
+		URL:             "https://mattermost-bootstrap.test",
 	}
-	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
-	t.Cleanup(server.Close)
+	originalTransport := http.DefaultClient.Transport
+	http.DefaultClient.Transport = mattermostBootstrapTestTransport(func(request *http.Request) (*http.Response, error) {
+		response := httptest.NewRecorder()
+		server.handle(response, request)
+		return response.Result(), nil
+	})
+	t.Cleanup(func() {
+		http.DefaultClient.Transport = originalTransport
+	})
 	return server
+}
+
+type mattermostBootstrapTestTransport func(request *http.Request) (*http.Response, error)
+
+func (transport mattermostBootstrapTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
 }
 
 func (server *mattermostBootstrapTestServer) handle(responseWriter http.ResponseWriter, request *http.Request) {

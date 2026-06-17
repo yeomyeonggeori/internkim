@@ -1,0 +1,4 @@
+tenant/bin/
+tenant/board-ui/
+tenant/migrations/
+config/

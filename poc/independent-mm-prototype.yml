@@ -1,0 +1,44 @@
+name: internkim-poc-company-b
+
+networks:
+  internkim-poc:
+    external: true
+
+volumes:
+  mattermost-b-data:
+
+services:
+  mattermost-b:
+    image: mattermost/mattermost-team-edition:10.5
+    networks: [internkim-poc]
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: "postgres://internkim:internkim@postgres:5432/mm_b?sslmode=disable&connect_timeout=10"
+      MM_SERVICESETTINGS_SITEURL: "http://mattermost-b:8065"
+      MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: "true"
+      MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: "true"
+      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
+      MM_TEAMSETTINGS_MAXUSERSPERTEAM: "200"
+      MM_LOGSETTINGS_CONSOLELEVEL: "ERROR"
+    volumes:
+      - mattermost-b-data:/mattermost/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8065/api/v4/system/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    ports:
+      - "8066:8065"
+
+  agent-b:
+    image: internkim-poc-tenant:latest
+    networks: [internkim-poc]
+    environment:
+      POSTGRES_HOST: postgres
+      MATTERMOST_HOST: mattermost-b
+    volumes:
+      - ./config/company_b/runtime.json:/etc/blueclaw/runtime.json:ro
+      - ./config/company_b/policy.json:/etc/blueclaw/policy.json:ro
+      - ./secrets/openrouter-key:/secrets/openrouter-key:ro
+      - ./secrets/company_b/mattermost-bot-token:/secrets/mattermost-bot-token:ro
+    restart: on-failure
