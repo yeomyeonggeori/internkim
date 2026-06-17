@@ -13,12 +13,14 @@
 
 	const text = createPageText(filesText);
 	const imagePattern = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
-	const maxPreviewBytes = 512 * 1024;
+	const maxPreviewBytes = 2 * 1024 * 1024;
 
 	const isImage = $derived(imagePattern.test(file.name));
 	const downloadURL = $derived(workspaceDownloadURL(file.agentPath));
 	const previewLanguage = $derived(codeLanguageForFile(file.name));
-	const canPreviewText = $derived(!isImage && previewLanguage !== null && file.size <= maxPreviewBytes);
+	const isTextFile = $derived(!isImage && previewLanguage !== null);
+	const canPreviewText = $derived(isTextFile && file.size <= maxPreviewBytes);
+	const isTextFileTooLarge = $derived(isTextFile && file.size > maxPreviewBytes);
 
 	let previewContent = $state('');
 	let isPreviewLoading = $state(false);
@@ -73,7 +75,7 @@
 	{:else}
 		<p class="text-muted-foreground flex items-center gap-2 text-sm">
 			<FileIcon class="size-4" />
-			{text.previewUnavailable}
+			{isTextFileTooLarge ? text.previewTooLarge : text.previewUnavailable}
 		</p>
 	{/if}
 	<Button href={downloadURL} download={file.name} class="w-full">
