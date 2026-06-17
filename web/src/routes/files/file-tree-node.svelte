@@ -3,41 +3,33 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import FileTreeNode from './file-tree-node.svelte';
 	import { getFilesState } from './files-context.svelte';
-	import { listWorkspaceDirectory, type WorkspaceEntry } from './files-api';
+	import { type WorkspaceEntry } from './files-api';
 
 	let { entry }: { entry: WorkspaceEntry } = $props();
 
 	const files = getFilesState();
 
 	let open = $state(false);
-	let children = $state<WorkspaceEntry[] | null>(null);
-	let isLoading = $state(false);
-	let errorMessage = $state('');
 
-	async function loadChildren() {
-		if (children !== null || isLoading) return;
-		isLoading = true;
-		errorMessage = '';
-		try {
-			children = await listWorkspaceDirectory(entry.agentPath);
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message.trim() : '';
-		} finally {
-			isLoading = false;
-		}
-	}
+	const children = $derived(files.childrenCache[entry.agentPath]);
+	const isLoading = $derived(files.isLoadingPath(entry.agentPath));
+	const isActiveDirectory = $derived(files.currentPath === entry.agentPath);
+	const isSelectedFile = $derived(files.selectedFile?.agentPath === entry.agentPath);
 
 	$effect(() => {
-		if (open) loadChildren();
+		if (open) files.loadChildren(entry.agentPath);
 	});
 </script>
 
 {#if entry.isDirectory}
-	<TreeView.Folder name={entry.name} bind:open>
-		{#if isLoading}
+	<TreeView.Folder
+		name={entry.name}
+		bind:open
+		class={isActiveDirectory ? 'text-primary font-medium' : ''}
+		onclick={() => files.setActiveDirectory(entry.agentPath)}
+	>
+		{#if isLoading && !children}
 			<Spinner class="text-muted-foreground my-1 ml-1 size-4" />
-		{:else if errorMessage}
-			<span class="text-destructive py-1 pl-1 text-xs">{errorMessage}</span>
 		{:else if children}
 			{#each children as child (child.agentPath)}
 				<FileTreeNode entry={child} />
@@ -47,7 +39,7 @@
 {:else}
 	<TreeView.File
 		name={entry.name}
-		class={files.selectedFile?.agentPath === entry.agentPath ? 'bg-accent rounded-sm' : ''}
+		class={isSelectedFile ? 'bg-accent rounded-sm font-medium' : ''}
 		onclick={() => files.selectFile(entry)}
 	/>
 {/if}

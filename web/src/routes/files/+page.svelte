@@ -1,5 +1,7 @@
 <script lang="ts">
+	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import * as Card from '$lib/components/ui/card';
+	import * as FileDropZone from '$lib/components/ui/file-drop-zone';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import { Button } from '$lib/components/ui/button';
@@ -13,84 +15,74 @@
 
 	const text = createPageText(filesText);
 	const files = getFilesState();
-
-	let isDragging = $state(false);
-	let fileInput = $state<HTMLInputElement | null>(null);
-
-	function onDragOver(event: DragEvent) {
-		event.preventDefault();
-		isDragging = true;
-	}
-
-	function onDragLeave(event: DragEvent) {
-		event.preventDefault();
-		isDragging = false;
-	}
-
-	function onDrop(event: DragEvent) {
-		event.preventDefault();
-		isDragging = false;
-		const dropped = event.dataTransfer?.files;
-		if (dropped && dropped.length > 0) files.upload(Array.from(dropped));
-	}
-
-	function onFilePick(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		if (input.files && input.files.length > 0) files.upload(Array.from(input.files));
-		input.value = '';
-	}
 </script>
 
 <div class="flex flex-col gap-4">
-	<div class="flex flex-wrap items-center justify-end gap-3">
-		<Button variant="outline" size="sm" disabled={files.isUploading} onclick={() => fileInput?.click()}>
-			{#if files.isUploading}
-				<Spinner />
-			{:else}
-				<UploadIcon />
-			{/if}
-			{files.isUploading ? text.uploading : text.upload}
-		</Button>
-		<input bind:this={fileInput} type="file" multiple class="hidden" onchange={onFilePick} />
-	</div>
+	{#if files.currentRoot}
+		<Breadcrumb.Root>
+			<Breadcrumb.List>
+				{#each files.breadcrumbs as crumb, index (crumb.path)}
+					{#if index > 0}
+						<Breadcrumb.Separator />
+					{/if}
+					<Breadcrumb.Item>
+						{#if index === files.breadcrumbs.length - 1}
+							<Breadcrumb.Page>{crumb.label}</Breadcrumb.Page>
+						{:else}
+							<Breadcrumb.Link
+								class="cursor-pointer"
+								onclick={() => files.setActiveDirectory(crumb.path)}
+							>
+								{crumb.label}
+							</Breadcrumb.Link>
+						{/if}
+					</Breadcrumb.Item>
+				{/each}
+			</Breadcrumb.List>
+		</Breadcrumb.Root>
+	{/if}
 
 	{#if files.errorMessage}
 		<Card.Root class="border-destructive/40 bg-destructive/5">
 			<Card.Content class="flex items-center justify-between gap-3 py-3">
-				<span class="text-sm text-destructive">{files.errorMessage}</span>
+				<span class="text-destructive text-sm">{files.errorMessage}</span>
 				<Button variant="outline" size="sm" onclick={() => files.reload()}>{text.retry}</Button>
 			</Card.Content>
 		</Card.Root>
 	{/if}
 
-	<div
-		role="region"
-		aria-label={text.title}
-		ondragover={onDragOver}
-		ondragleave={onDragLeave}
-		ondrop={onDrop}
-	>
-		<Card.Root class={isDragging ? 'border-primary ring-primary/30 ring-2' : ''}>
-			<Card.Content class="p-3">
-				{#if files.isLoading}
-					<div class="flex items-center justify-center py-12">
-						<Spinner class="text-muted-foreground" />
-					</div>
-				{:else if files.entries.length === 0}
-					<p class="text-muted-foreground py-12 text-center text-sm">{text.empty}</p>
+	<Card.Root>
+		<Card.Content class="p-3">
+			{#if files.isLoading}
+				<div class="flex items-center justify-center py-12">
+					<Spinner class="text-muted-foreground" />
+				</div>
+			{:else if files.rootEntries.length === 0}
+				<p class="text-muted-foreground py-12 text-center text-sm">{text.empty}</p>
+			{:else}
+				<TreeView.Root>
+					{#each files.rootEntries as entry (entry.agentPath)}
+						<FileTreeNode {entry} />
+					{/each}
+				</TreeView.Root>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+
+	<FileDropZone.Root onUpload={(uploaded) => files.upload(uploaded)} disabled={files.isUploading}>
+		<FileDropZone.Trigger>
+			<div
+				class="hover:bg-accent/25 flex flex-col place-items-center justify-center gap-2 rounded-lg border border-dashed p-6 transition-all hover:cursor-pointer"
+			>
+				{#if files.isUploading}
+					<Spinner class="text-muted-foreground" />
 				{:else}
-					<TreeView.Root>
-						{#each files.entries as entry (entry.agentPath)}
-							<FileTreeNode {entry} />
-						{/each}
-					</TreeView.Root>
+					<UploadIcon class="text-muted-foreground size-6" />
 				{/if}
-			</Card.Content>
-			<Card.Footer class="border-t py-2">
-				<p class="text-muted-foreground w-full text-center text-xs">{text.dropHint}</p>
-			</Card.Footer>
-		</Card.Root>
-	</div>
+				<span class="text-muted-foreground text-sm">{text.dropHint}</span>
+			</div>
+		</FileDropZone.Trigger>
+	</FileDropZone.Root>
 </div>
 
 <Sheet.Root

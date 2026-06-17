@@ -10,12 +10,13 @@
 		open = $bindable(true),
 		class: className,
 		icon,
-		children
+		children,
+		onclick
 	}: TreeViewFolderProps = $props();
 </script>
 
 <Collapsible.Root bind:open>
-	<Collapsible.Trigger class={cn('flex place-items-center gap-1', className)}>
+	<Collapsible.Trigger class={cn('flex place-items-center gap-1', className)} {onclick}>
 		{#if icon}
 			{@render icon({ name, open })}
 		{:else if open}
