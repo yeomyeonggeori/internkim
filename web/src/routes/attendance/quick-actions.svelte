@@ -33,9 +33,9 @@
 	const status = $derived(statusForDay(today, myEvents, myAbsences));
 
 	const elapsedMinutes = $derived.by(() => {
-		if (todayDay.inProgress && todayDay.clockIn) {
-			const elapsed = (Date.now() - new Date(todayDay.clockIn.occurredAt).getTime()) / 60000;
-			return Math.max(0, Math.round(elapsed));
+		if (todayDay.activeSegment) {
+			const elapsed = (Date.now() - new Date(todayDay.activeSegment.clockIn.occurredAt).getTime()) / 60000;
+			return todayDay.workedMinutes + Math.max(0, Math.round(elapsed));
 		}
 		return todayDay.workedMinutes;
 	});

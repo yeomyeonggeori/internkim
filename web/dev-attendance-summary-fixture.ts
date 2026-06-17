@@ -141,6 +141,52 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 		return locations[0];
 	}
 
+	function appendTodayMultipleLocationScenario() {
+		if (month !== todayMonth) return;
+		const person = people[0];
+		for (let index = events.length - 1; index >= 0; index--) {
+			const event = events[index];
+			if (event.email === person.email && event.localDate === todayDate) events.splice(index, 1);
+		}
+		const remoteLocation = locations.find((location) => location.id === 'remote') ?? locations[0];
+		const officeLocation = locations.find((location) => location.id === 'office') ?? locations[0];
+		const outsideLocation = locations.find((location) => location.id === 'outside') ?? locations[0];
+		appendFixtureEvent(person, todayDate, 'clock_in', '08:30', remoteLocation, '오늘 재택할게요');
+		appendFixtureEvent(person, todayDate, 'clock_out', '10:20', remoteLocation, '재택 마치고 이동합니다');
+		appendFixtureEvent(person, todayDate, 'clock_in', '10:45', officeLocation, '사무실 도착했어요');
+		appendFixtureEvent(person, todayDate, 'clock_out', '12:20', officeLocation, '외부 일정으로 이동합니다');
+		appendFixtureEvent(person, todayDate, 'clock_in', '12:45', outsideLocation, '외부 일정 시작');
+	}
+
+	function appendFixtureEvent(
+		person: (typeof people)[number],
+		date: string,
+		kind: AttendanceKind,
+		localTime: string,
+		location: (typeof locations)[number],
+		sourceMessage: string
+	) {
+		events.push({
+			id: `multi-${++idSeed}`,
+			mattermostUserID: person.mm,
+			mattermostUsername: person.mm,
+			email: person.email,
+			displayName: person.name,
+			kind,
+			occurredAt: `${date}T${localTime}:00+09:00`,
+			localDate: date,
+			localTime,
+			timeZoneAtEvent: 'Asia/Seoul',
+			source: 'mattermost_button',
+			resultPostID: `post-${idSeed}`,
+			locationID: location.id,
+			locationName: location.name,
+			sourceMessage,
+			confidence: 0.96,
+			parsedAs: { kind, locationID: location.id },
+		});
+	}
+
 	function pad(value: number) {
 		return value.toString().padStart(2, '0');
 	}
@@ -286,6 +332,8 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 			});
 		});
 	}
+
+	appendTodayMultipleLocationScenario();
 
 	return {
 		month,
