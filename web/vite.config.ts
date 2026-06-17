@@ -36,6 +36,17 @@ export default defineConfig(({ mode }) => {
 				'/mail/api': admindTarget,
 				'/memory/api': admindTarget
 			}
+		},
+		build: {
+			rollupOptions: {
+				output: {
+					manualChunks(id) {
+						if (id.includes('/node_modules/@dayflow/core/')) return 'calendar-dayflow-core';
+						if (id.includes('/node_modules/@dayflow/svelte/')) return 'calendar-dayflow-svelte';
+						if (id.includes('/node_modules/@dayflow/plugin-drag/')) return 'calendar-dayflow-drag';
+					}
+				}
+			}
 		}
 	};
 });

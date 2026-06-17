@@ -1,6 +1,6 @@
-// 캘린더 day/week all-day 영역의 높이와 이벤트 stack 위치를 보정합니다.
 import { ViewType } from '@dayflow/svelte';
 import type { CalendarViewType } from '@dayflow/core';
+import { dayFlowSelector, visibleDayFlowElements } from './calendar-dayflow-dom-adapter';
 
 const emptyDayAllDayRowHeight = 48;
 const compactAllDayRowHeight = 36;
@@ -32,9 +32,9 @@ export function clearCalendarAllDayLayout(stageElement: HTMLElement | null): voi
 }
 
 function syncDayAllDayLayout(stageElement: HTMLElement): void {
-	const rowElement = stageElement.querySelector<HTMLElement>('.df-day-content-all-day-row');
+	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.dayAllDayRow);
 	if (!rowElement) return;
-	const eventElements = visibleAllDayElements(rowElement, '.df-day-content-all-day-lane .df-event:not(.calendar-multi-day-all-day-proxy)');
+	const eventElements = visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event, ${dayFlowSelector.multiDayProxy}`);
 	const rowCount = eventElements.length;
 	const rowHeight = dayAllDayRowHeight(rowCount);
 	rowElement.style.setProperty('--calendar-day-all-day-row-height', `${rowHeight}px`);
@@ -45,9 +45,9 @@ function syncDayAllDayLayout(stageElement: HTMLElement): void {
 }
 
 function syncWeekAllDayLayout(stageElement: HTMLElement): void {
-	const rowElement = stageElement.querySelector<HTMLElement>('.df-week-all-day-row-content, .df-all-day-row');
+	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.weekAllDayRow);
 	if (!rowElement) return;
-	const eventElements = visibleAllDayElements(stageElement, '.df-week-all-day-event-layer .df-event:not(.calendar-multi-day-all-day-proxy)');
+	const eventElements = visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event, ${dayFlowSelector.multiDayProxy}`);
 	const compactEventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements);
 	const rowCount = allDayEventRowCount(compactEventRowIndexes);
 	const rowHeight = allDayRowHeight(rowCount);
@@ -60,33 +60,23 @@ function syncWeekAllDayLayout(stageElement: HTMLElement): void {
 }
 
 function clearDayAllDayLayout(stageElement: HTMLElement): void {
-	const rowElement = stageElement.querySelector<HTMLElement>('.df-day-content-all-day-row');
+	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.dayAllDayRow);
 	if (!rowElement) return;
 	rowElement.style.removeProperty('--calendar-day-all-day-row-height');
 	delete rowElement.dataset.eventRows;
-	for (const eventElement of visibleAllDayElements(rowElement, '.df-day-content-all-day-lane .df-event')) {
+	for (const eventElement of visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event, ${dayFlowSelector.multiDayProxy}`)) {
 		clearAllDayEventGeometry(eventElement);
 	}
 }
 
 function clearWeekAllDayLayout(stageElement: HTMLElement): void {
 	stageElement.style.removeProperty('--calendar-week-all-day-row-content-height');
-	for (const rowElement of stageElement.querySelectorAll<HTMLElement>('.df-week-all-day-row-content, .df-all-day-row')) {
+	for (const rowElement of stageElement.querySelectorAll<HTMLElement>(dayFlowSelector.weekAllDayRow)) {
 		delete rowElement.dataset.eventRows;
 	}
-	for (const eventElement of visibleAllDayElements(stageElement, '.df-week-all-day-event-layer .df-event')) {
+	for (const eventElement of visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event, ${dayFlowSelector.multiDayProxy}`)) {
 		clearAllDayEventGeometry(eventElement);
 	}
-}
-
-function visibleAllDayElements(rootElement: HTMLElement, selector: string): HTMLElement[] {
-	return Array.from(rootElement.querySelectorAll<HTMLElement>(selector)).filter(isVisibleElement);
-}
-
-function isVisibleElement(element: HTMLElement): boolean {
-	const rectangle = element.getBoundingClientRect();
-	const style = window.getComputedStyle(element);
-	return rectangle.width > 0 && rectangle.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 }
 
 function allDayEventRowIndex(rowElement: HTMLElement, eventElement: HTMLElement): number {
@@ -97,23 +87,47 @@ function allDayEventRowIndex(rowElement: HTMLElement, eventElement: HTMLElement)
 }
 
 function compactAllDayEventRowIndexes(rowElement: HTMLElement, eventElements: HTMLElement[]): Map<HTMLElement, number> {
-	const eventRowIndexes = eventElements.map((eventElement) => ({
+	const eventPlacements = eventElements.map((eventElement) => ({
 		eventElement,
-		rowIndex: allDayEventRowIndex(rowElement, eventElement)
-	}));
-	const compactRowIndexByOriginalRowIndex = new Map(
-		Array.from(new Set(eventRowIndexes.map(({ rowIndex }) => rowIndex)))
-			.sort((leftRowIndex, rightRowIndex) => leftRowIndex - rightRowIndex)
-			.map((rowIndex, compactRowIndex) => [rowIndex, compactRowIndex])
-	);
-	return new Map(
-		eventRowIndexes.map(({ eventElement, rowIndex }) => [eventElement, compactRowIndexByOriginalRowIndex.get(rowIndex) ?? 0])
-	);
+		rowIndex: allDayEventRowIndex(rowElement, eventElement),
+		...allDayEventHorizontalSpan(eventElement)
+	})).sort(compareAllDayEventPlacements);
+	const rowRightEdges: number[] = [];
+	const rowIndexByEventElement = new Map<HTMLElement, number>();
+	for (const placement of eventPlacements) {
+		const rowIndex = firstAvailableAllDayRowIndex(rowRightEdges, placement.left);
+		rowRightEdges[rowIndex] = placement.right;
+		rowIndexByEventElement.set(placement.eventElement, rowIndex);
+	}
+	return rowIndexByEventElement;
 }
 
 function allDayEventRowCount(eventRowIndexes: Map<HTMLElement, number>): number {
 	if (eventRowIndexes.size === 0) return 0;
 	return Math.max(...eventRowIndexes.values()) + 1;
+}
+
+function allDayEventHorizontalSpan(eventElement: HTMLElement): { left: number; right: number } {
+	const rectangle = eventElement.getBoundingClientRect();
+	return {
+		left: rectangle.left,
+		right: rectangle.right
+	};
+}
+
+function compareAllDayEventPlacements(
+	firstPlacement: { rowIndex: number; left: number; right: number },
+	secondPlacement: { rowIndex: number; left: number; right: number }
+): number {
+	if (firstPlacement.rowIndex !== secondPlacement.rowIndex) return firstPlacement.rowIndex - secondPlacement.rowIndex;
+	if (firstPlacement.left !== secondPlacement.left) return firstPlacement.left - secondPlacement.left;
+	return secondPlacement.right - firstPlacement.right;
+}
+
+function firstAvailableAllDayRowIndex(rowRightEdges: number[], eventLeft: number): number {
+	const overlapTolerance = 1;
+	const rowIndex = rowRightEdges.findIndex((rowRightEdge) => rowRightEdge <= eventLeft + overlapTolerance);
+	return rowIndex >= 0 ? rowIndex : rowRightEdges.length;
 }
 
 function allDayRowHeight(rowCount: number): number {
