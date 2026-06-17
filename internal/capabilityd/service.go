@@ -81,12 +81,13 @@ type Configuration struct {
 }
 
 type Service struct {
-	Configuration   Configuration
-	HTTPClient      *http.Client
-	RunCommand      func(context.Context, string, []string, []byte) ([]byte, error)
-	EventLocker     *platformEventLocker
-	ProgressManager *platformProgressManager
-	HealthState     *platformHealthState
+	Configuration     Configuration
+	HTTPClient        *http.Client
+	RunCommand        func(context.Context, string, []string, []byte) ([]byte, error)
+	EventLocker       *platformEventLocker
+	ProgressManager   *platformProgressManager
+	HealthState       *platformHealthState
+	MattermostLimiter *mattermostRateLimiter
 }
 
 type userLookupRequest struct {
@@ -1204,7 +1205,17 @@ func (service Service) mattermostRequest(ctx context.Context, method string, pat
 	if token == "" {
 		return errors.New("mattermost bot token is not configured")
 	}
+	if errorValue := service.mattermostLimiter().wait(ctx); errorValue != nil {
+		return errorValue
+	}
 	return service.authenticatedJSONRequest(ctx, method, strings.TrimRight(service.Configuration.MattermostBaseURL, "/")+path, token, body, responseValue)
+}
+
+func (service Service) mattermostLimiter() *mattermostRateLimiter {
+	if service.MattermostLimiter != nil {
+		return service.MattermostLimiter
+	}
+	return defaultMattermostRateLimiter
 }
 
 func (service Service) slackRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
