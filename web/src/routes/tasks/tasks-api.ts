@@ -3,6 +3,7 @@ import { adminApiFetch } from '$lib/admin-api';
 export type TaskRunSummary = {
 	taskRunID: string;
 	requesterPersonID?: string;
+	requesterDisplayName?: string;
 	status: string;
 	prompt?: string;
 	result?: string;
@@ -41,7 +42,7 @@ export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
 	if (request.includeTotal) query.set('includeTotal', 'true');
 	if (request.status) query.set('status', request.status);
 	const queryString = query.toString();
-	return queryString ? `/admin/api/diagnostics/tasks?${queryString}` : '/admin/api/diagnostics/tasks';
+	return queryString ? `/tasks/api/runs?${queryString}` : '/tasks/api/runs';
 }
 
 export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<TaskRunsResponse> {
@@ -79,7 +80,7 @@ function setPositiveIntegerQuery(query: URLSearchParams, key: string, value: num
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
 	const query = new URLSearchParams({ taskRunID });
-	const response = await adminApiFetch(`/admin/api/diagnostics/task-detail?${query.toString()}`);
+	const response = await adminApiFetch(`/tasks/api/run-detail?${query.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Task detail request returned ${response.status}`);
 	}
@@ -205,6 +206,7 @@ function readTaskRunSummary(entry: unknown): TaskRunSummary | undefined {
 	return {
 		taskRunID: record.taskRunID,
 		requesterPersonID: typeof record.requesterPersonID === 'string' ? record.requesterPersonID : undefined,
+		requesterDisplayName: typeof record.requesterDisplayName === 'string' ? record.requesterDisplayName : undefined,
 		status: record.status,
 		prompt: typeof record.prompt === 'string' ? record.prompt : undefined,
 		result: typeof record.result === 'string' ? record.result : undefined,
