@@ -1,0 +1,154 @@
+<script lang="ts">
+	import type { Event as DayFlowEvent } from '@dayflow/core';
+	import type { useCalendarApp, ViewType } from '@dayflow/svelte';
+	import type { CalendarLocaleText } from '../text';
+	import type { CalendarConflict } from './calendar-conflicts';
+	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
+	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
+	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
+	import type { VisibleMonthScrollLabel } from './calendar-month-scroll-overlay-state';
+	import CalendarPageDraftPopover from './calendar-page-draft-popover.svelte';
+	import type { CalendarSearchResult } from './calendar-search';
+	import CalendarStage from './calendar-stage.svelte';
+	import CalendarToolbar from './calendar-toolbar.svelte';
+	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
+
+	type CalendarOption = {
+		id: string;
+		name: string;
+	};
+
+	type CalendarPageContentProps = {
+		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
+		calendar: ReturnType<typeof useCalendarApp>;
+		calendarOptions: CalendarOption[];
+		conflicts: CalendarConflict[];
+		createQuickEvent: (event: MouseEvent) => void;
+		currentMonthTitle: string;
+		deletePopover: () => void;
+		dismissConflict: (conflictID: number) => void | Promise<void>;
+		goToNext: () => void;
+		goToPrevious: () => void;
+		goToToday: () => void;
+		isSaving: boolean;
+		localeCode: string;
+		monthRangePreviewSegments: MonthRangePreviewSegment[];
+		monthRangePreviewTitle: string;
+		monthScrollOverlayLabels: VisibleMonthScrollLabel[];
+		navigateToSearchResult: (result: CalendarSearchResult) => void;
+		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
+		popover: DraftPopoverState | null;
+		refreshConflicts: () => void;
+		repositionPopover: (size: { width: number; height: number }) => void;
+		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
+		savePopover: () => void;
+		cancelPopover: () => void;
+		searchResults: CalendarSearchResult[];
+		selectEvent: (eventID: string) => void;
+		selectedEventID: string | null;
+		stageEvents: DayFlowEvent[];
+		text: CalendarLocaleText;
+		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
+		timelineRangePreviewTitle: string;
+		toolbarView: ViewType;
+		updatePopover: (changes: Partial<DraftPopoverState>) => void;
+		changeCalendarView: (view: ViewType) => void;
+		clearSelectedEvent: () => void;
+		searchText?: string;
+		stageElement?: HTMLElement | null;
+	};
+
+	let {
+		auditEvent,
+		calendar,
+		calendarOptions,
+		cancelPopover,
+		changeCalendarView,
+		clearSelectedEvent,
+		conflicts,
+		createQuickEvent,
+		currentMonthTitle,
+		deletePopover,
+		dismissConflict,
+		goToNext,
+		goToPrevious,
+		goToToday,
+		isSaving,
+		localeCode,
+		monthRangePreviewSegments,
+		monthRangePreviewTitle,
+		monthScrollOverlayLabels,
+		navigateToSearchResult,
+		openEvent,
+		popover,
+		refreshConflicts,
+		repositionPopover,
+		saveMovedEvent,
+		savePopover,
+		searchResults,
+		selectEvent,
+		selectedEventID,
+		stageEvents,
+		text,
+		timelineRangePreviewSegments,
+		timelineRangePreviewTitle,
+		toolbarView,
+		updatePopover,
+		searchText = $bindable(''),
+		stageElement = $bindable<HTMLElement | null>(null)
+	}: CalendarPageContentProps = $props();
+</script>
+
+<main class="calendar-page flex min-h-screen flex-col">
+	<CalendarConflictBanner
+		conflicts={conflicts}
+		{dismissConflict}
+		refreshConflicts={refreshConflicts}
+	/>
+	<CalendarToolbar
+		{currentMonthTitle}
+		bind:searchText
+		{searchResults}
+		{toolbarView}
+		{changeCalendarView}
+		{goToToday}
+		{goToPrevious}
+		{goToNext}
+		{navigateToSearchResult}
+		createQuickEvent={createQuickEvent}
+	/>
+	<CalendarStage
+		{calendar}
+		{clearSelectedEvent}
+		events={stageEvents}
+		{localeCode}
+		monthMoreText={{
+			ariaLabel: text.monthMoreAriaLabel,
+			button: text.monthMoreButton
+		}}
+		{toolbarView}
+		selectedEventID={selectedEventID}
+		{openEvent}
+		{selectEvent}
+		{saveMovedEvent}
+		bind:stageElement
+		{monthRangePreviewSegments}
+		{monthRangePreviewTitle}
+		{timelineRangePreviewSegments}
+		{timelineRangePreviewTitle}
+		{monthScrollOverlayLabels}
+	/>
+	<CalendarPageDraftPopover
+		{popover}
+		{auditEvent}
+		{calendarOptions}
+		{isSaving}
+		{localeCode}
+		{text}
+		{updatePopover}
+		{repositionPopover}
+		{savePopover}
+		{cancelPopover}
+		{deletePopover}
+	/>
+</main>

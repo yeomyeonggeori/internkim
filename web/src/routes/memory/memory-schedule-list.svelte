@@ -1,66 +1,32 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
+	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
-	import * as Dialog from '$lib/components/ui/dialog';
-	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import * as Pagination from '$lib/components/ui/pagination';
-	import * as Select from '$lib/components/ui/select';
-	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Switch } from '$lib/components/ui/switch';
-	import * as Table from '$lib/components/ui/table';
-	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
 	import {
 		deleteSchedule as deleteMemorySchedule,
 		fetchMemorySchedules,
 		updateSchedule,
-		type MemorySchedule,
-		type ScheduleUpdateFields
+		type MemorySchedule
 	} from './memory-schedule-api';
 	import {
-		formatScheduleCronExpression,
-		formatScheduleDateTime,
-		formatScheduleInterval
-	} from './memory-schedule-format';
+		canSaveScheduleDraft,
+		createScheduleEditDraft,
+		createScheduleUpdateFields,
+		emptyScheduleEditDraft,
+		type ScheduleEditDraft
+	} from './memory-schedule-draft';
+	import MemoryScheduleEditDialog from './memory-schedule-edit-dialog.svelte';
+	import MemoryScheduleTable from './memory-schedule-table.svelte';
 	import type { MemoryText } from './text';
-
-	type ScheduleKind = 'once' | 'interval' | 'cron';
-	type RepeatPolicy = 'finite' | 'unbounded';
-
-	type ScheduleEditDraft = {
-		taskScheduleID: string;
-		name: string;
-		kind: ScheduleKind;
-		runAt: string;
-		intervalMinute: string;
-		cronExpression: string;
-		timeZone: string;
-		expiresAt: string;
-		maxRunCount: string;
-		repeatPolicy: RepeatPolicy;
-	};
 
 	let { text }: { text: MemoryText } = $props();
 
-	const defaultPageSize = 25;
-	const emptyDraft: ScheduleEditDraft = {
-		taskScheduleID: '',
-		name: '',
-		kind: 'once',
-		runAt: '',
-		intervalMinute: '60',
-		cronExpression: '',
-		timeZone: 'Asia/Seoul',
-		expiresAt: '',
-		maxRunCount: '',
-		repeatPolicy: 'unbounded'
-	};
+	const defaultPageSize = 15;
 
 	let schedules = $state<MemorySchedule[]>([]);
 	let currentPage = $state(1);
@@ -72,7 +38,8 @@
 	let isSavingSchedule = $state(false);
 	let isEditDialogOpen = $state(false);
 	let includeExpiredSchedules = $state(true);
-	let scheduleDraft = $state<ScheduleEditDraft>({ ...emptyDraft });
+	let scheduleDraft = $state<ScheduleEditDraft>({ ...emptyScheduleEditDraft });
+	let canSaveSchedule = $derived(canSaveScheduleDraft(scheduleDraft, isSavingSchedule));
 
 	onMount(() => {
 		void loadSchedules(currentPage);
@@ -122,7 +89,7 @@
 
 	function openEditDialog(schedule: MemorySchedule): void {
 		actionErrorMessage = '';
-		scheduleDraft = scheduleEditDraft(schedule);
+		scheduleDraft = createScheduleEditDraft(schedule);
 		isEditDialogOpen = true;
 	}
 
@@ -149,7 +116,7 @@
 	}
 
 	async function saveSchedule(): Promise<void> {
-		const fields = scheduleUpdateFields(scheduleDraft);
+		const fields = createScheduleUpdateFields(scheduleDraft);
 		if (!fields) return;
 		isSavingSchedule = true;
 		actionErrorMessage = '';
@@ -164,164 +131,8 @@
 		}
 	}
 
-	function scheduleEditDraft(schedule: MemorySchedule): ScheduleEditDraft {
-		return {
-			taskScheduleID: schedule.taskScheduleID,
-			name: schedule.name ?? '',
-			kind: normalizedScheduleKind(schedule.kind),
-			runAt: dateTimeInputValue(schedule.nextRunAt),
-			intervalMinute: schedule.intervalSecond ? String(Math.max(1, Math.round(schedule.intervalSecond / 60))) : '60',
-			cronExpression: schedule.cronExpression ?? '',
-			timeZone: schedule.timeZone ?? 'Asia/Seoul',
-			expiresAt: dateTimeInputValue(schedule.expiresAt),
-			maxRunCount: schedule.maxRunCount && schedule.maxRunCount > 0 ? String(schedule.maxRunCount) : '',
-			repeatPolicy: schedule.maxRunCount || schedule.expiresAt ? 'finite' : 'unbounded'
-		};
-	}
-
-	function scheduleUpdateFields(draft: ScheduleEditDraft): ScheduleUpdateFields | undefined {
-		const fields: ScheduleUpdateFields = {
-			kind: draft.kind
-		};
-		const name = draft.name.trim();
-		if (name) fields.name = name;
-		if (draft.kind === 'once') {
-			const runAt = dateTimeInputToISOString(draft.runAt);
-			if (!runAt) return undefined;
-			fields.runAt = runAt;
-			return fields;
-		}
-		if (draft.kind === 'interval') {
-			const intervalMinute = positiveInteger(draft.intervalMinute);
-			if (!intervalMinute) return undefined;
-			fields.intervalSecond = intervalMinute * 60;
-		}
-		if (draft.kind === 'cron') {
-			const cronExpression = draft.cronExpression.trim();
-			if (!cronExpression) return undefined;
-			fields.cronExpression = cronExpression;
-			fields.timeZone = draft.timeZone.trim() || 'Asia/Seoul';
-		}
-		fields.repeatPolicy = draft.repeatPolicy;
-		const expiresAt = dateTimeInputToISOString(draft.expiresAt);
-		if (expiresAt) fields.expiresAt = expiresAt;
-		const maxRunCount = positiveInteger(draft.maxRunCount);
-		if (maxRunCount) fields.maxRunCount = maxRunCount;
-		return fields;
-	}
-
-	function canSaveSchedule(): boolean {
-		return Boolean(scheduleUpdateFields(scheduleDraft)) && !isSavingSchedule;
-	}
-
 	function scheduleTitle(schedule: MemorySchedule): string {
 		return schedule.promptPreview?.trim() || schedule.name?.trim() || schedule.taskScheduleID;
-	}
-
-	function scheduleKind(schedule: MemorySchedule): string {
-		return scheduleKindLabel(normalizedScheduleKind(schedule.kind));
-	}
-
-	function scheduleStatusLabel(schedule: MemorySchedule): string {
-		if (isExpiredSchedule(schedule)) return text.scheduleStatusExpired;
-		if (isCompletedSchedule(schedule)) return text.scheduleStatusCompleted;
-		return text.scheduleStatusActive;
-	}
-
-	function scheduleStatusVariant(schedule: MemorySchedule): 'default' | 'secondary' | 'destructive' | 'outline' {
-		if (isExpiredSchedule(schedule)) return 'destructive';
-		if (isCompletedSchedule(schedule)) return 'outline';
-		return 'secondary';
-	}
-
-	function isCompletedSchedule(schedule: MemorySchedule): boolean {
-		return !schedule.nextRunAt;
-	}
-
-	function isExpiredSchedule(schedule: MemorySchedule): boolean {
-		if (!schedule.expiresAt) return false;
-		const expiresAt = Date.parse(schedule.expiresAt);
-		return Number.isFinite(expiresAt) && expiresAt <= Date.now();
-	}
-
-	function scheduleKindLabel(kind: ScheduleKind): string {
-		if (kind === 'cron') return text.scheduleKindCron;
-		if (kind === 'interval') return text.scheduleKindInterval;
-		return text.scheduleKindOnce;
-	}
-
-	function normalizedScheduleKind(kind: string): ScheduleKind {
-		if (kind === 'cron') return 'cron';
-		if (kind === 'interval') return 'interval';
-		return 'once';
-	}
-
-	function scheduleTiming(schedule: MemorySchedule): string {
-		if (schedule.kind === 'cron' && schedule.cronExpression) {
-			return formatScheduleCronExpression(schedule.cronExpression, currentLocale.value, text);
-		}
-		if (schedule.kind === 'interval' && schedule.intervalSecond) return formatScheduleInterval(schedule.intervalSecond, text);
-		if (schedule.kind === 'once') return text.scheduleOnce;
-		return text.scheduleTimingUnavailable;
-	}
-
-	function dateTimeText(value: string | undefined, timeZone: string | undefined): string {
-		return formatScheduleDateTime(value, timeZone, dateTimeLocale()) ?? text.scheduleTimeUnavailable;
-	}
-
-	function expirationText(schedule: MemorySchedule): string {
-		return formatScheduleDateTime(schedule.expiresAt, schedule.timeZone, dateTimeLocale()) ?? text.scheduleNoExpiration;
-	}
-
-	function runCountText(schedule: MemorySchedule): string {
-		const completedRunCount = schedule.completedRunCount ?? 0;
-		if (!schedule.maxRunCount) return text.scheduleRunCountUnlimitedTemplate.replace('{count}', String(completedRunCount));
-		return text.scheduleRunCountLimitedTemplate
-			.replace('{count}', String(completedRunCount))
-			.replace('{limit}', String(schedule.maxRunCount));
-	}
-
-	function failureCountText(schedule: MemorySchedule): string {
-		return text.scheduleFailureCountTemplate.replace('{count}', String(schedule.failureCount ?? 0));
-	}
-
-	function dateTimeLocale(): string {
-		return currentLocale.value === 'ko' ? 'ko-KR' : 'en-US';
-	}
-
-	function pageSummary(): string {
-		const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-		const end = Math.min(currentPage * pageSize, totalCount);
-		return text.schedulePageSummaryTemplate.replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalCount));
-	}
-
-	function positiveInteger(value: string): number | undefined {
-		const number = Number(value);
-		if (!Number.isFinite(number) || number <= 0) return undefined;
-		return Math.floor(number);
-	}
-
-	function dateTimeInputValue(value: string | undefined): string {
-		if (!value) return '';
-		const date = new Date(value);
-		if (!Number.isFinite(date.getTime())) return '';
-		const year = date.getFullYear();
-		const month = paddedDatePart(date.getMonth() + 1);
-		const day = paddedDatePart(date.getDate());
-		const hour = paddedDatePart(date.getHours());
-		const minute = paddedDatePart(date.getMinutes());
-		return `${year}-${month}-${day}T${hour}:${minute}`;
-	}
-
-	function dateTimeInputToISOString(value: string): string | undefined {
-		if (!value.trim()) return undefined;
-		const date = new Date(value);
-		if (!Number.isFinite(date.getTime())) return undefined;
-		return date.toISOString();
-	}
-
-	function paddedDatePart(value: number): string {
-		return String(value).padStart(2, '0');
 	}
 </script>
 
@@ -361,204 +172,41 @@
 	{/if}
 
 	<div class="overflow-hidden rounded-md border bg-background">
-		{#if isLoading && schedules.length === 0}
-			<div class="grid gap-2 p-4">
-				<Skeleton class="h-9 w-full" />
-				<Skeleton class="h-9 w-full" />
-				<Skeleton class="h-9 w-full" />
-			</div>
-		{:else if schedules.length === 0 && !hasLoadError}
-			<div class="grid place-items-center px-4 py-16">
-				<p class="text-sm text-muted-foreground">{text.scheduleEmpty}</p>
-			</div>
-		{:else if schedules.length > 0}
-			<div class="overflow-x-auto">
-				<Table.Root>
-					<Table.Header>
-						<Table.Row class="hover:bg-transparent">
-							<Table.Head class="min-w-80 px-4 text-xs text-muted-foreground">{text.schedulePrompt}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleStatus}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleKind}</Table.Head>
-							<Table.Head class="min-w-44 px-3 text-xs text-muted-foreground">{text.scheduleTiming}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleNextRun}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleExpiresAt}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleRunCount}</Table.Head>
-							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleFailures}</Table.Head>
-							<Table.Head class="w-20 px-4 text-right text-xs text-muted-foreground">{text.scheduleActions}</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each schedules as schedule}
-							<Table.Row>
-								<Table.Cell class="max-w-96 px-4 py-3">
-									<p class="truncate text-sm font-medium">{scheduleTitle(schedule)}</p>
-									<p class="mt-0.5 truncate font-mono text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
-								</Table.Cell>
-								<Table.Cell class="px-3 py-3">
-									<Badge variant={scheduleStatusVariant(schedule)}>{scheduleStatusLabel(schedule)}</Badge>
-								</Table.Cell>
-								<Table.Cell class="px-3 py-3">
-									<Badge variant="secondary">{scheduleKind(schedule)}</Badge>
-								</Table.Cell>
-								<Table.Cell class="max-w-72 px-3 py-3 text-sm text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
-								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
-								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{expirationText(schedule)}</Table.Cell>
-								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{runCountText(schedule)}</Table.Cell>
-								<Table.Cell class="px-3 py-3">
-									<Badge variant={(schedule.failureCount ?? 0) > 0 ? 'destructive' : 'outline'}>{failureCountText(schedule)}</Badge>
-								</Table.Cell>
-								<Table.Cell class="px-4 py-3">
-									<div class="flex justify-end gap-1">
-										<Button type="button" variant="ghost" size="icon-sm" onclick={() => openEditDialog(schedule)} aria-label={text.scheduleEdit} title={text.scheduleEdit}>
-											<PencilIcon class="size-4" />
-											<span class="sr-only">{text.scheduleEdit}</span>
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											onclick={() => confirmDeleteSchedule(schedule)}
-											aria-label={text.scheduleDelete}
-											title={text.scheduleDelete}
-											class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-										>
-											<Trash2Icon class="size-4" />
-											<span class="sr-only">{text.scheduleDelete}</span>
-										</Button>
-									</div>
-								</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-			</div>
-		{/if}
+		<MemoryScheduleTable
+			{text}
+			{schedules}
+			{isLoading}
+			{hasLoadError}
+			{openEditDialog}
+			{confirmDeleteSchedule}
+		/>
 
-		{#if !hasLoadError && !(isLoading && schedules.length === 0)}
-			<div class="flex flex-col items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 sm:flex-row">
-				<p class="text-xs text-muted-foreground">{pageSummary()}</p>
-				<Pagination.Root
-					count={totalCount}
-					perPage={pageSize}
-					page={currentPage}
-					onPageChange={changeSchedulePage}
-					aria-label={text.schedulePagination}
-				>
-					{#snippet children({ pages, currentPage })}
-						<Pagination.Content>
-							<Pagination.Item>
-								<Pagination.PrevButton aria-label={text.schedulePreviousPage}>{text.schedulePreviousPage}</Pagination.PrevButton>
-							</Pagination.Item>
-							{#each pages as page (page.key)}
-								{#if page.type === 'ellipsis'}
-									<Pagination.Item>
-										<Pagination.Ellipsis />
-									</Pagination.Item>
-								{:else}
-									<Pagination.Item>
-										<Pagination.Link {page} isActive={currentPage === page.value}>
-											{page.value}
-										</Pagination.Link>
-									</Pagination.Item>
-								{/if}
-							{/each}
-							<Pagination.Item>
-								<Pagination.NextButton aria-label={text.scheduleNextPage}>{text.scheduleNextPage}</Pagination.NextButton>
-							</Pagination.Item>
-						</Pagination.Content>
-					{/snippet}
-				</Pagination.Root>
+		{#if totalCount > 0 && !hasLoadError && !(isLoading && schedules.length === 0)}
+			<div class="border-t bg-muted/20 px-4 py-3">
+				<ListPaginationFooter
+					totalItems={totalCount}
+					pageIndex={currentPage - 1}
+					{pageSize}
+					pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+					canPreviousPage={currentPage > 1 && !isLoading}
+					canNextPage={currentPage * pageSize < totalCount && !isLoading}
+					previousPage={() => changeSchedulePage(currentPage - 1)}
+					nextPage={() => changeSchedulePage(currentPage + 1)}
+					summary={text.schedulePageSummaryTemplate}
+					previousLabel={text.schedulePreviousPage}
+					nextLabel={text.scheduleNextPage}
+					ariaLabel={text.schedulePagination}
+				/>
 			</div>
 		{/if}
 	</div>
 </section>
 
-<Dialog.Root bind:open={isEditDialogOpen}>
-	<Dialog.Content class="max-w-xl">
-		<form
-			class="grid gap-5"
-			onsubmit={(event) => {
-				event.preventDefault();
-				void saveSchedule();
-			}}
-		>
-			<Dialog.Header>
-				<Dialog.Title>{text.scheduleEditTitle}</Dialog.Title>
-				<Dialog.Description>{text.scheduleEditDescription}</Dialog.Description>
-			</Dialog.Header>
-
-			<div class="grid gap-4">
-				<div class="grid gap-2">
-					<Label for="schedule-name">{text.scheduleNameLabel}</Label>
-					<Input id="schedule-name" bind:value={scheduleDraft.name} />
-				</div>
-
-				<div class="grid gap-2">
-					<Label>{text.scheduleKind}</Label>
-					<Select.Root type="single" bind:value={scheduleDraft.kind}>
-						<Select.Trigger class="w-full">{scheduleKindLabel(scheduleDraft.kind)}</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="once" label={text.scheduleKindOnce}>{text.scheduleKindOnce}</Select.Item>
-							<Select.Item value="interval" label={text.scheduleKindInterval}>{text.scheduleKindInterval}</Select.Item>
-							<Select.Item value="cron" label={text.scheduleKindCron}>{text.scheduleKindCron}</Select.Item>
-						</Select.Content>
-					</Select.Root>
-				</div>
-
-				{#if scheduleDraft.kind === 'once'}
-					<div class="grid gap-2">
-						<Label for="schedule-run-at">{text.scheduleRunAtLabel}</Label>
-						<Input id="schedule-run-at" type="datetime-local" bind:value={scheduleDraft.runAt} />
-					</div>
-				{:else if scheduleDraft.kind === 'interval'}
-					<div class="grid gap-2">
-						<Label for="schedule-interval-minute">{text.scheduleIntervalMinuteLabel}</Label>
-						<Input id="schedule-interval-minute" type="number" min="1" step="1" bind:value={scheduleDraft.intervalMinute} />
-					</div>
-				{:else}
-					<div class="grid gap-2">
-						<Label for="schedule-cron-expression">{text.scheduleCronExpressionLabel}</Label>
-						<Input id="schedule-cron-expression" bind:value={scheduleDraft.cronExpression} placeholder="0 9 * * *" />
-					</div>
-					<div class="grid gap-2">
-						<Label for="schedule-time-zone">{text.scheduleTimeZoneLabel}</Label>
-						<Input id="schedule-time-zone" bind:value={scheduleDraft.timeZone} placeholder="Asia/Seoul" />
-					</div>
-				{/if}
-
-				{#if scheduleDraft.kind !== 'once'}
-					<div class="grid gap-2">
-						<Label>{text.scheduleRepeatPolicyLabel}</Label>
-						<Select.Root type="single" bind:value={scheduleDraft.repeatPolicy}>
-							<Select.Trigger class="w-full">{scheduleDraft.repeatPolicy === 'unbounded' ? text.scheduleRepeatUnbounded : text.scheduleRepeatFinite}</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="unbounded" label={text.scheduleRepeatUnbounded}>{text.scheduleRepeatUnbounded}</Select.Item>
-								<Select.Item value="finite" label={text.scheduleRepeatFinite}>{text.scheduleRepeatFinite}</Select.Item>
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div class="grid gap-2 sm:grid-cols-2">
-						<div class="grid gap-2">
-							<Label for="schedule-expires-at">{text.scheduleExpiresAt}</Label>
-							<Input id="schedule-expires-at" type="datetime-local" bind:value={scheduleDraft.expiresAt} />
-						</div>
-						<div class="grid gap-2">
-							<Label for="schedule-max-run-count">{text.scheduleMaxRunCountLabel}</Label>
-							<Input id="schedule-max-run-count" type="number" min="1" step="1" bind:value={scheduleDraft.maxRunCount} />
-						</div>
-					</div>
-				{/if}
-			</div>
-
-			<Dialog.Footer>
-				<Button type="button" variant="outline" onclick={() => (isEditDialogOpen = false)}>{text.cancel}</Button>
-				<Button type="submit" disabled={!canSaveSchedule()} class="gap-2">
-					{#if isSavingSchedule}
-						<LoaderIcon class="size-4 animate-spin" />
-					{/if}
-					{text.save}
-				</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+<MemoryScheduleEditDialog
+	{text}
+	bind:isOpen={isEditDialogOpen}
+	bind:scheduleDraft
+	{isSavingSchedule}
+	{canSaveSchedule}
+	saveSchedule={() => void saveSchedule()}
+/>

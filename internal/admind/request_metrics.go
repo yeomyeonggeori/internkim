@@ -104,12 +104,12 @@ func (service *Service) proxyBlueclawTaskList(responseWriter http.ResponseWriter
 	if strings.TrimSpace(request.URL.RawQuery) != "" {
 		path += "?" + request.URL.RawQuery
 	}
-	var taskRuns []map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &taskRuns); errorValue != nil {
+	var taskRunResponse any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &taskRunResponse); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, taskRuns)
+	service.writeJSON(responseWriter, taskRunResponse)
 }
 
 func (service *Service) proxyBlueclawTaskDetail(responseWriter http.ResponseWriter, request *http.Request) {

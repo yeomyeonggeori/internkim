@@ -7,6 +7,7 @@
 	import { flowText } from './text';
 
 	type FlowDefinitionsText = typeof flowText.ko.definitions;
+	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 	type Props = {
 		summary: FlowSummary | null;
@@ -23,6 +24,7 @@
 	let newCategoryText = $state('');
 	let newTypeText = $state('');
 	let isSavingDefinitions = $state(false);
+	let definitionSaveState = $state<DefinitionSaveState>('idle');
 	let definitionErrorMessage = $state('');
 
 	const emptyDefinitions: FlowDefinitions = {
@@ -47,6 +49,7 @@
 		if (!value || categoryDrafts.includes(value)) return;
 		categoryDrafts = [...categoryDrafts, value];
 		newCategoryText = '';
+		void saveDefinitions();
 	}
 
 	function addType(): void {
@@ -54,6 +57,7 @@
 		if (!value || typeDrafts.includes(value)) return;
 		typeDrafts = [...typeDrafts, value];
 		newTypeText = '';
+		void saveDefinitions();
 	}
 
 	function updateCategory(index: number, value: string): void {
@@ -64,17 +68,20 @@
 		typeDrafts = typeDrafts.map((item, itemIndex) => (itemIndex === index ? value : item));
 	}
 
-	function removeCategory(index: number): void {
+	async function removeCategory(index: number): Promise<void> {
 		categoryDrafts = categoryDrafts.filter((_item, itemIndex) => itemIndex !== index);
+		await saveDefinitions();
 	}
 
-	function removeType(index: number): void {
+	async function removeType(index: number): Promise<void> {
 		typeDrafts = typeDrafts.filter((_item, itemIndex) => itemIndex !== index);
+		await saveDefinitions();
 	}
 
 	async function saveDefinitions(): Promise<void> {
 		if (!summary?.isAdmin || !canEditDefinitions()) return;
 		isSavingDefinitions = true;
+		definitionSaveState = 'saving';
 		definitionErrorMessage = '';
 		try {
 			const sizes = sizeDrafts.map((size) => ({
@@ -93,8 +100,10 @@
 				text.saveError
 			);
 			await loadFlow(currentWeek());
+			definitionSaveState = 'saved';
 		} catch (error) {
 			definitionErrorMessage = error instanceof Error ? error.message : text.saveError;
+			definitionSaveState = 'error';
 		} finally {
 			isSavingDefinitions = false;
 		}
@@ -108,7 +117,7 @@
 			confirm: { text: text.removeAction },
 			cancel: { text: text.cancel },
 			onConfirm: async () => {
-				removeCategory(index);
+				await removeCategory(index);
 			}
 		});
 	}
@@ -121,7 +130,7 @@
 			confirm: { text: text.removeAction },
 			cancel: { text: text.cancel },
 			onConfirm: async () => {
-				removeType(index);
+				await removeType(index);
 			}
 		});
 	}
@@ -136,6 +145,7 @@
 	isAdmin={summary?.isAdmin ?? false}
 	canEditDefinitions={canEditDefinitions()}
 	{isSavingDefinitions}
+	{definitionSaveState}
 	{definitionErrorMessage}
 	{loadError}
 	{text}
