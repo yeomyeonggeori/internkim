@@ -4,6 +4,8 @@ export {
 	minutesBetween,
 } from './attendance-day-events';
 export type { DayEvents } from './attendance-day-events';
+export { buildAttendanceWorkSegments } from './attendance-work-segments';
+export type { AttendanceWorkSegment } from './attendance-work-segments';
 export { computeHeatmap } from './attendance-heatmap';
 export type { DayHeatCell } from './attendance-heatmap';
 export {
