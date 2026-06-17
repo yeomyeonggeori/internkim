@@ -219,6 +219,7 @@ const firstAdminBootstrapRejected = "rejected"
 const firstAdminBootstrapFailed = "failed"
 const firstAdminMattermostPasswordVersion = "api-v4-users-password-sidebar-v2"
 const firstAdminPolicyVersion = "blueclaw-admin-claim-v1"
+const firstAdminClaimTimeout = 90 * time.Second
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
@@ -1969,18 +1970,21 @@ func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail s
 		return firstAdminBootstrapResult{Status: firstAdminBootstrapIdentityMissing}
 	}
 
+	claimContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), firstAdminClaimTimeout)
+	defer cancel()
+
 	claimedEmail := service.claimedAdminEmail()
 	if claimedEmail != "" {
 		if strings.EqualFold(claimedEmail, normalizedEmail) {
-			return service.ensureClaimedFirstAdminAccount(ctx, normalizedEmail)
+			return service.ensureClaimedFirstAdminAccount(claimContext, normalizedEmail)
 		}
 		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
 	}
-	if hasAdmin, errorValue := service.hasCurrentAdminUsers(ctx); errorValue == nil && hasAdmin {
+	if hasAdmin, errorValue := service.hasCurrentAdminUsers(claimContext); errorValue == nil && hasAdmin {
 		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
 	}
 
-	result, errorValue := service.claimFirstAdmin(ctx, normalizedEmail)
+	result, errorValue := service.claimFirstAdmin(claimContext, normalizedEmail)
 	if errorValue != nil {
 		log.Printf("first admin bootstrap failed for %s: %v", normalizedEmail, errorValue)
 		return service.writeFirstAdminBootstrapResult(firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapFailed, Error: errorValue.Error()})
