@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import * as Sheet from '$lib/components/ui/sheet';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import { Button } from '$lib/components/ui/button';
 	import { Spinner } from '$lib/components/ui/spinner';
@@ -62,39 +63,45 @@
 		</Card.Root>
 	{/if}
 
-	<div class="flex items-start gap-4">
-		<div
-			role="region"
-			aria-label={text.title}
-			class="min-w-0 flex-1"
-			ondragover={onDragOver}
-			ondragleave={onDragLeave}
-			ondrop={onDrop}
-		>
-			<Card.Root class={isDragging ? 'border-primary ring-primary/30 ring-2' : ''}>
-				<Card.Content class="p-3">
-					{#if files.isLoading}
-						<div class="flex items-center justify-center py-12">
-							<Spinner class="text-muted-foreground" />
-						</div>
-					{:else if files.entries.length === 0}
-						<p class="text-muted-foreground py-12 text-center text-sm">{text.empty}</p>
-					{:else}
-						<TreeView.Root>
-							{#each files.entries as entry (entry.agentPath)}
-								<FileTreeNode {entry} />
-							{/each}
-						</TreeView.Root>
-					{/if}
-				</Card.Content>
-				<Card.Footer class="border-t py-2">
-					<p class="text-muted-foreground w-full text-center text-xs">{text.dropHint}</p>
-				</Card.Footer>
-			</Card.Root>
-		</div>
-
-		{#if files.selectedFile}
-			<FileDetail file={files.selectedFile} onClose={() => files.clearSelection()} />
-		{/if}
+	<div
+		role="region"
+		aria-label={text.title}
+		ondragover={onDragOver}
+		ondragleave={onDragLeave}
+		ondrop={onDrop}
+	>
+		<Card.Root class={isDragging ? 'border-primary ring-primary/30 ring-2' : ''}>
+			<Card.Content class="p-3">
+				{#if files.isLoading}
+					<div class="flex items-center justify-center py-12">
+						<Spinner class="text-muted-foreground" />
+					</div>
+				{:else if files.entries.length === 0}
+					<p class="text-muted-foreground py-12 text-center text-sm">{text.empty}</p>
+				{:else}
+					<TreeView.Root>
+						{#each files.entries as entry (entry.agentPath)}
+							<FileTreeNode {entry} />
+						{/each}
+					</TreeView.Root>
+				{/if}
+			</Card.Content>
+			<Card.Footer class="border-t py-2">
+				<p class="text-muted-foreground w-full text-center text-xs">{text.dropHint}</p>
+			</Card.Footer>
+		</Card.Root>
 	</div>
 </div>
+
+<Sheet.Root
+	open={files.selectedFile !== null}
+	onOpenChange={(open) => {
+		if (!open) files.clearSelection();
+	}}
+>
+	<Sheet.Content side="right" class="gap-4">
+		{#if files.selectedFile}
+			<FileDetail file={files.selectedFile} />
+		{/if}
+	</Sheet.Content>
+</Sheet.Root>
