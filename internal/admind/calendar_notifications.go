@@ -136,7 +136,8 @@ func (service *Service) calendarMattermostLogMessage(event calendarEvent) string
 }
 
 func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
-	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event, workspaceLocation), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
 	if mentionText := calendarMattermostMentionText(event, mattermostUsers); mentionText != "" {
 		lines = append(lines, mentionText)
 	}
@@ -199,16 +200,26 @@ func calendarMattermostLogProps(event calendarEvent) map[string]any {
 	}
 }
 
-func calendarMattermostEventDateText(event calendarEvent) string {
+func calendarDisplayLocation(eventTimeZone string, fallbackLocation *time.Location) *time.Location {
+	trimmedTimeZone := strings.TrimSpace(eventTimeZone)
+	if trimmedTimeZone != "" && !strings.EqualFold(trimmedTimeZone, "UTC") {
+		if location, errorValue := time.LoadLocation(trimmedTimeZone); errorValue == nil {
+			return location
+		}
+	}
+	if fallbackLocation != nil {
+		return fallbackLocation
+	}
+	return time.UTC
+}
+
+func calendarMattermostEventDateText(event calendarEvent, fallbackLocation *time.Location) string {
 	startTime, startError := time.Parse(time.RFC3339, strings.TrimSpace(event.StartISO))
 	endTime, endError := time.Parse(time.RFC3339, strings.TrimSpace(event.EndISO))
 	if startError != nil || endError != nil {
 		return strings.TrimSpace(event.StartISO + " - " + event.EndISO)
 	}
-	location := time.Local
-	if parsedLocation, errorValue := time.LoadLocation(firstNonEmpty(strings.TrimSpace(event.TimeZone), "UTC")); errorValue == nil {
-		location = parsedLocation
-	}
+	location := calendarDisplayLocation(event.TimeZone, fallbackLocation)
 	startTime = startTime.In(location)
 	endTime = endTime.In(location)
 	if event.IsAllDay {
@@ -625,10 +636,11 @@ func (service *Service) postCalendarMattermostNotification(ctx context.Context, 
 }
 
 func (service *Service) calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
+	workspaceLocation, _ := service.workspaceTimeLocation()
 	lines := []string{
 		"Calendar reminder",
 		"**" + mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)) + "**",
-		"Time: " + calendarNotificationTimeText(event),
+		"Time: " + calendarNotificationTimeText(event, workspaceLocation),
 	}
 	if strings.TrimSpace(event.Location) != "" {
 		lines = append(lines, "Location: "+strings.TrimSpace(event.Location))
@@ -639,16 +651,13 @@ func (service *Service) calendarMattermostNotificationMessage(event calendarEven
 	return strings.Join(lines, "\n")
 }
 
-func calendarNotificationTimeText(event calendarEvent) string {
+func calendarNotificationTimeText(event calendarEvent, fallbackLocation *time.Location) string {
 	startTime, startError := time.Parse(time.RFC3339, event.StartISO)
 	endTime, endError := time.Parse(time.RFC3339, event.EndISO)
 	if startError != nil || endError != nil {
 		return strings.TrimSpace(event.StartISO + " - " + event.EndISO)
 	}
-	location := time.UTC
-	if loadedLocation, errorValue := time.LoadLocation(strings.TrimSpace(event.TimeZone)); errorValue == nil {
-		location = loadedLocation
-	}
+	location := calendarDisplayLocation(event.TimeZone, fallbackLocation)
 	if event.IsAllDay {
 		return startTime.In(location).Format("2006-01-02") + " all day"
 	}
