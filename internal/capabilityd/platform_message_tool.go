@@ -12,11 +12,14 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
+const platformMessageBroadcastRecipientLimit = 50
+
 type platformMessageDeliveryTarget struct {
-	Type        string `json:"type"`
-	PersonHint  string `json:"personHint"`
-	ChannelID   string `json:"channelID"`
-	ChannelName string `json:"channelName"`
+	Type        string   `json:"type"`
+	PersonHint  string   `json:"personHint"`
+	PersonHints []string `json:"personHints"`
+	ChannelID   string   `json:"channelID"`
+	ChannelName string   `json:"channelName"`
 }
 
 type platformMessageSearchInput struct {
@@ -114,6 +117,9 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
 	if input.DeliveryTarget.Type == "directMessage" {
+		if len(input.DeliveryTarget.PersonHints) > 0 {
+			return service.invokePlatformMessageDirectBroadcast(ctx, request, input)
+		}
 		return service.invokePlatformMessageDirectSend(ctx, request, input)
 	}
 	if response, isDenied := service.authorizePlatformMessageTool(ctx, request, true); isDenied {
@@ -150,6 +156,79 @@ func (service Service) invokePlatformMessageDirectSend(ctx context.Context, requ
 		"mattermostUsername": recipient.MattermostUsername,
 	}
 	return mattermostToolSuccessResponse(request.ToolName, "sent", result), nil
+}
+
+type platformMessageBroadcastResult struct {
+	PersonHint         string `json:"personHint"`
+	PersonID           string `json:"personID,omitempty"`
+	DisplayName        string `json:"displayName,omitempty"`
+	MattermostUsername string `json:"mattermostUsername,omitempty"`
+	DispatchID         string `json:"dispatchID,omitempty"`
+	Status             string `json:"status"`
+	ErrorCode          string `json:"errorCode,omitempty"`
+	Message            string `json:"message,omitempty"`
+}
+
+func (service Service) invokePlatformMessageDirectBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
+	if errorMessage := validatePlatformDMBroadcastAuthorization(request.Context); errorMessage != "" {
+		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
+	}
+	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
+	sentCount := 0
+	for _, personHint := range input.DeliveryTarget.PersonHints {
+		result := service.broadcastDirectMessageToHint(ctx, request, personHint, input.Message)
+		if result.Status == "sent" {
+			sentCount++
+		}
+		results = append(results, result)
+	}
+	rollup := map[string]any{
+		"platform":    "mattermost",
+		"results":     results,
+		"sentCount":   sentCount,
+		"failedCount": len(results) - sentCount,
+	}
+	if sentCount == 0 {
+		response := platformDMErrorResponse(request.ToolName, platformDMStaticFailure("broadcast_all_failed", "message_send", "every recipient delivery failed; see results"))
+		response.Result, _ = json.Marshal(rollup)
+		return response, nil
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "sent", rollup), nil
+}
+
+func (service Service) broadcastDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string) platformMessageBroadcastResult {
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+	if hasFailure {
+		return platformMessageBroadcastResult{PersonHint: personHint, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
+	}
+	idempotencyKey := platformMessageBroadcastIdempotencyKey(request.IdempotencyKey, recipient.MattermostUserID)
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, message, idempotencyKey)
+	if hasFailure {
+		return platformMessageBroadcastResult{PersonHint: personHint, PersonID: recipient.PersonID, DisplayName: recipient.DisplayName, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
+	}
+	return platformMessageBroadcastResult{
+		PersonHint:         personHint,
+		PersonID:           recipient.PersonID,
+		DisplayName:        recipient.DisplayName,
+		MattermostUsername: recipient.MattermostUsername,
+		DispatchID:         dispatchID,
+		Status:             "sent",
+	}
+}
+
+func platformMessageBroadcastIdempotencyKey(baseKey string, recipientUserID string) string {
+	trimmedBaseKey := strings.TrimSpace(baseKey)
+	if trimmedBaseKey == "" {
+		return ""
+	}
+	return trimmedBaseKey + ":" + strings.TrimSpace(recipientUserID)
+}
+
+func validatePlatformDMBroadcastAuthorization(toolContext capabilities.ToolInvokeContext) string {
+	if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
+		return ""
+	}
+	return "platform.message.send to multiple recipients requires approval for immediate sends; scheduled runs may send without approval"
 }
 
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -314,16 +393,35 @@ func deletableMattermostCandidateIDs(candidates []mattermostPostSearchCandidate)
 func normalizePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget) platformMessageDeliveryTarget {
 	target.Type = strings.TrimSpace(target.Type)
 	target.PersonHint = strings.TrimSpace(target.PersonHint)
+	target.PersonHints = uniqueTrimmedPlatformMessageHints(target.PersonHints)
 	target.ChannelID = strings.TrimSpace(target.ChannelID)
 	target.ChannelName = strings.TrimSpace(target.ChannelName)
 	return target
 }
 
+func uniqueTrimmedPlatformMessageHints(hints []string) []string {
+	uniqueHints := []string{}
+	seenHint := map[string]bool{}
+	for _, hint := range hints {
+		trimmedHint := strings.TrimSpace(hint)
+		key := strings.ToLower(trimmedHint)
+		if trimmedHint == "" || seenHint[key] {
+			continue
+		}
+		seenHint[key] = true
+		uniqueHints = append(uniqueHints, trimmedHint)
+	}
+	return uniqueHints
+}
+
 func validatePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget) error {
 	switch target.Type {
 	case "directMessage":
-		if target.PersonHint == "" {
-			return fmt.Errorf("deliveryTarget.personHint is required for directMessage")
+		if target.PersonHint == "" && len(target.PersonHints) == 0 {
+			return fmt.Errorf("deliveryTarget.personHint or personHints is required for directMessage")
+		}
+		if len(target.PersonHints) > platformMessageBroadcastRecipientLimit {
+			return fmt.Errorf("deliveryTarget.personHints accepts at most %d recipients per call; narrow the list", platformMessageBroadcastRecipientLimit)
 		}
 	case "channel":
 		return validateMattermostChannelReference(target.ChannelID, target.ChannelName)
