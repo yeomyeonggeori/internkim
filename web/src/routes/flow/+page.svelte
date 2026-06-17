@@ -8,7 +8,6 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import FlowDefinitionsEditor from './flow-definitions-editor.svelte';
-	import FlowMetricCard from './flow-metric-card.svelte';
 	import FlowMembersView from './flow-members-view.svelte';
 	import FlowReportView from './flow-report-view.svelte';
 	import FlowTabRow from './flow-tab-row.svelte';
@@ -35,7 +34,7 @@
 
 	let summary = $state<FlowSummary | null>(null);
 	let flowState = $state<FlowState | null>(null);
-	let activeTab = $state('report');
+	let activeTab = $state('tasks');
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
 	let isLoading = $state(false);
@@ -46,23 +45,12 @@
 	const tasks = () => summary?.tasks ?? [];
 	const weeklyTasks = () => summary?.weeklyTasks ?? tasks();
 	const metrics = () => summary?.metrics ?? emptyMetrics;
-	const metricMemberDistances = () => {
-		const metricValues = metrics();
-		return metricValues.memberDistances ?? metricValues.memberScores ?? {};
-	};
-	const memberDistanceTotal = () => Object.values(metricMemberDistances()).reduce((total, distance) => total + distance, 0);
-	const blockedTaskTotal = () => {
-		const metricValues = metrics();
-		return metricValues.pausedTasks + metricValues.stoppedTasks;
-	};
 	const definitions = () =>
 		summary?.definitions ?? {
 			categories: [],
 			types: [],
 			sizes: []
 		};
-	const isMemberTab = () => activeTab.startsWith('member:');
-	const activeMemberID = () => (isMemberTab() ? activeTab.replace('member:', '') : '');
 	const text = createPageText(flowText);
 	const reportSections = () =>
 		buildFlowReportSections(metrics(), {
@@ -111,8 +99,6 @@
 			definitions: definitions(),
 			weekStartISO: summary?.week.startISO
 		});
-	const hasFlowData = () => summary !== null;
-	const canEditDefinitions = () => hasFlowData() && definitions().sizes.length > 0;
 	const flowLoadTracker = createFlowLoadTracker();
 
 	onMount(() => {
@@ -134,17 +120,13 @@
 			flowState = nextState;
 			summary = mergeFlowSummary(nextState, weeklySummary);
 			openPendingTask();
-			if (isMemberTab()) {
-				const memberID = activeTab.replace('member:', '');
-				if (!members().some((member) => member.id === memberID)) activeTab = 'tasks';
-			}
 			if (summary.week.code) replaceWeekQuery(summary.week.code);
 			return true;
 		} catch (error) {
 			if (!flowLoadTracker.isCurrent(loadID)) return false;
 			errorMessage = error instanceof Error ? error.message : text.loadError;
 			if (!flowState) summary = null;
-			if (!options.preserveActiveTabOnError) activeTab = 'report';
+			if (!options.preserveActiveTabOnError) activeTab = 'tasks';
 			return false;
 		} finally {
 			if (flowLoadTracker.isCurrent(loadID)) isLoading = false;
@@ -157,7 +139,7 @@
 		pendingTaskID = '';
 		if (!task) return;
 		focusedTaskID = task.id;
-		activeTab = task.participantIDs.includes(task.ownerID) ? `member:${task.ownerID}` : 'tasks';
+		activeTab = 'tasks';
 	}
 
 	function replaceWeekQuery(week: string) {
@@ -217,14 +199,7 @@
 			</div>
 		{/if}
 
-		<section class="grid min-w-0 gap-3 md:grid-cols-4">
-			<FlowMetricCard label={text.metrics.total} value={metrics().totalTasks} subvalue={`${summary?.week.startISO ?? ''} – ${summary?.week.endISO ?? ''}`} />
-			<FlowMetricCard label={text.metrics.completed} value={metrics().completedTasks} subvalue={`${text.metrics.completedDistance} ${memberDistanceTotal()}${text.metrics.distanceUnit}`} />
-			<FlowMetricCard label={text.metrics.requested} value={metrics().requestedTasks} subvalue={text.metrics.requestedDescription} />
-			<FlowMetricCard label={text.metrics.blocked} value={blockedTaskTotal()} subvalue={text.metrics.blockedDescription} />
-		</section>
-
-		<FlowTabRow activeTab={activeTab} labels={text.tabs} members={members()} canEditDefinitions={canEditDefinitions()} onSelectTab={(value) => (activeTab = value)} />
+		<FlowTabRow activeTab={activeTab} labels={text.tabs} onSelectTab={(value) => (activeTab = value)} />
 
 		{#if activeTab === 'report'}
 			<FlowReportView sections={reportSections()} />
@@ -240,7 +215,6 @@
 		{:else}
 			<FlowTasksView
 				{summary}
-				activeMemberID={activeMemberID()}
 				{focusedTaskID}
 				{text}
 				{loadFlow}

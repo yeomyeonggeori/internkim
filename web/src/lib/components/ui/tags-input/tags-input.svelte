@@ -35,6 +35,7 @@
 		suggestions,
 		filterSuggestions = defaultFilter,
 		restrictToSuggestions = false,
+		showSelectedTags = true,
 		...rest
 	}: TagsInputProps = $props();
 
@@ -185,7 +186,7 @@
 			if (isComposing) return;
 
 			// delete focused tag
-			if (tagIndex !== undefined) {
+			if (showSelectedTags && tagIndex !== undefined) {
 				deleteIndex(tagIndex);
 
 				// focus previous tag or reset
@@ -203,7 +204,7 @@
 		let shouldResetIndex = true;
 
 		if (e.key === 'Backspace') {
-			if (isAtBeginning) {
+			if (showSelectedTags && isAtBeginning) {
 				e.preventDefault();
 
 				if (tagIndex !== undefined) {
@@ -226,7 +227,7 @@
 		}
 
 		if (e.key === 'Delete') {
-			if (isAtBeginning) {
+			if (showSelectedTags && isAtBeginning) {
 				if (inputValue.length === 0) {
 					if (tagIndex !== undefined) {
 						e.preventDefault();
@@ -243,7 +244,7 @@
 		}
 
 		// controls for tag selection
-		if (isAtBeginning) {
+		if (showSelectedTags && isAtBeginning) {
 			// left
 			if (e.key === 'ArrowLeft') {
 				if (tagIndex !== undefined) {
@@ -319,9 +320,11 @@
 	)}
 	aria-disabled={disabled}
 >
-	{#each value as tag, i (tag)}
-		<TagsInputTag value={tag} {disabled} onDelete={deleteValue} active={i === tagIndex} />
-	{/each}
+	{#if showSelectedTags}
+		{#each value as tag, i (tag)}
+			<TagsInputTag value={tag} {disabled} onDelete={deleteValue} active={i === tagIndex} />
+		{/each}
+	{/if}
 	<input
 		{...rest}
 		bind:value={inputValue}
