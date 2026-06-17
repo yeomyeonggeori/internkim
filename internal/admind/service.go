@@ -724,16 +724,32 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	case request.Method == http.MethodPut && path == "/locale":
 		service.updateAdminLocale(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/users":
+		if !service.hasDeviceAuth() {
+			service.localListUsers(responseWriter, request)
+			return
+		}
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
+		if !service.hasDeviceAuth() {
+			service.localUpsertUser(responseWriter, request)
+			return
+		}
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/circles":
 		service.saveBlueclawCircle(responseWriter, request)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/circles/"):
 		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/password-reset"):
+		if !service.hasDeviceAuth() {
+			service.localResetUserPassword(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password-reset"))
+			return
+		}
 		service.resetUserPassword(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password-reset"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
+		if !service.hasDeviceAuth() {
+			service.localRemoveUser(responseWriter, request, strings.TrimPrefix(path, "/users/"))
+			return
+		}
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
 		service.createCompanionPairingCode(responseWriter, request)

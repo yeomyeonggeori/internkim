@@ -536,8 +536,7 @@ func RenderContainerTenantCompose(tenants []ContainerTenant, imageName string, o
 		buffer.WriteString("      MATTERMOST_TEAM: " + tenant.TeamName + "\n")
 		buffer.WriteString("      ENABLE_ADMIND: \"1\"\n")
 		buffer.WriteString("    volumes:\n")
-		buffer.WriteString("      - ./config/" + tenant.RuntimeID + "/runtime.json:/etc/blueclaw/runtime.json:ro\n")
-		buffer.WriteString("      - ./config/" + tenant.RuntimeID + "/policy.json:/etc/blueclaw/policy.json:ro\n")
+		buffer.WriteString("      - ./config/" + tenant.RuntimeID + ":/etc/blueclaw:rw\n")
 		buffer.WriteString("      - " + mountOpenRouterKeyPath + ":/secrets/openrouter-key:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/secrets/mattermost-bot-token:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro\n")
@@ -830,8 +829,11 @@ func writeContainerTenantFiles(options ContainerTenantAddOptions, tenant Contain
 	if errorValue := os.WriteFile(filepath.Join(containerTenantConfigPath(options.WorkDirectoryPath, tenant), "runtime.json"), []byte(runtimeDocument), 0o644); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.WriteFile(filepath.Join(containerTenantConfigPath(options.WorkDirectoryPath, tenant), "policy.json"), []byte(policyDocument), 0o644); errorValue != nil {
-		return errorValue
+	policyPath := filepath.Join(containerTenantConfigPath(options.WorkDirectoryPath, tenant), "policy.json")
+	if !fileExists(policyPath) {
+		if errorValue := os.WriteFile(policyPath, []byte(policyDocument), 0o644); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := os.WriteFile(filepath.Join(containerTenantSecretPath(options.WorkDirectoryPath, tenant), "mattermost-bot-token"), []byte(strings.TrimSpace(mattermostToken)), 0o600); errorValue != nil {
 		return errorValue
@@ -1972,6 +1974,7 @@ func containerInfraComposeDocument(superuserPassword string, mattermostPublicURL
 		`      MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: "true"`,
 		`      MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: "true"`,
 		`      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"`,
+		`      MM_RATELIMITSETTINGS_ENABLE: "false"`,
 		`      MM_TEAMSETTINGS_MAXUSERSPERTEAM: "200"`,
 		`      MM_TEAMSETTINGS_ENABLEOPENSERVER: "false"`,
 		`      MM_TEAMSETTINGS_RESTRICTDIRECTMESSAGE: "team"`,

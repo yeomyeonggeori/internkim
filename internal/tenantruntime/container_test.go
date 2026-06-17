@@ -98,7 +98,7 @@ func TestRenderContainerTenantComposeUsesPocServiceShape(t *testing.T) {
 		"    image: custom-tenant:latest",
 		"        aliases: [tenant_01]",
 		"      ENABLE_ADMIND: \"1\"",
-		"      - ./config/tenant_01/runtime.json:/etc/blueclaw/runtime.json:ro",
+		"      - ./config/tenant_01:/etc/blueclaw:rw",
 		"      - ./secrets/openrouter-key:/secrets/openrouter-key:ro",
 		"      - ./secrets/tenant_10/mattermost-bot-token:/secrets/mattermost-bot-token:ro",
 		"      - ./secrets/tenant_10/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro",
