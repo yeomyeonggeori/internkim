@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
+	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { FlexRender } from '$lib/components/ui/data-table';
 	import * as Table from '$lib/components/ui/table';
 	import { cn } from '$lib/utils';
@@ -7,6 +7,7 @@
 	import type { FlowTask } from './flow-types';
 
 	type PaginationText = {
+		label: string;
 		summary: string;
 		previous: string;
 		next: string;
@@ -69,23 +70,18 @@
 			</Table.Body>
 		</Table.Root>
 	</div>
-	{#if totalRows > 0}
-		<div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-			<div>
-				{pagination.summary
-					.replace('{from}', String(totalRows === 0 ? 0 : pageIndex * pageSize + 1))
-					.replace('{to}', String(Math.min(totalRows, (pageIndex + 1) * pageSize)))
-					.replace('{total}', String(totalRows))}
-			</div>
-			<div class="flex items-center gap-1">
-				<Button variant="outline" size="sm" onclick={() => taskTable.previousPage()} disabled={!taskTable.getCanPreviousPage()}>
-					{pagination.previous}
-				</Button>
-				<span class="px-2 tabular-nums">{pageIndex + 1} / {Math.max(1, pageCount)}</span>
-				<Button variant="outline" size="sm" onclick={() => taskTable.nextPage()} disabled={!taskTable.getCanNextPage()}>
-					{pagination.next}
-				</Button>
-			</div>
-		</div>
-	{/if}
+	<ListPaginationFooter
+		totalItems={totalRows}
+		{pageIndex}
+		{pageSize}
+		{pageCount}
+		canPreviousPage={taskTable.getCanPreviousPage()}
+		canNextPage={taskTable.getCanNextPage()}
+		previousPage={() => taskTable.previousPage()}
+		nextPage={() => taskTable.nextPage()}
+		summary={pagination.summary}
+		previousLabel={pagination.previous}
+		nextLabel={pagination.next}
+		ariaLabel={pagination.label}
+	/>
 </div>
