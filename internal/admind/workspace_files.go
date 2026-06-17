@@ -79,7 +79,7 @@ func (service *Service) serveFilesIndex(responseWriter http.ResponseWriter, requ
 func (service *Service) handleFiles(responseWriter http.ResponseWriter, request *http.Request) {
 	access, found, errorValue := service.resolveWorkspaceAccess(request)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	if !found {

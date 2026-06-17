@@ -1,11 +1,15 @@
 <script lang="ts">
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as Table from '$lib/components/ui/table';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { goto } from '$app/navigation';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import { fetchTaskRuns, type TaskRunSummary } from './tasks-api';
-	import { taskStatusBadgeClass, formatTaskTimestamp, shortTaskRunID } from './tasks-view';
+	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
@@ -16,6 +20,7 @@
 	let statusFilter = $state('');
 	let loadError = $state('');
 	let isLoading = $state(false);
+	let isAdmin = $state(false);
 	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
 	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
 
@@ -69,7 +74,19 @@
 		void loadTaskRuns(taskPageIndex + 1);
 	}
 
+	async function loadViewerRole() {
+		try {
+			const response = await fetch('/auth/session', { credentials: 'include' });
+			if (!response.ok) return;
+			const session = (await response.json()) as { isAdmin?: boolean };
+			isAdmin = session.isAdmin === true;
+		} catch {
+			isAdmin = false;
+		}
+	}
+
 	onMount(() => {
+		void loadViewerRole();
 		void loadTaskRuns(0);
 	});
 </script>
@@ -97,46 +114,62 @@
 		</button>
 	</section>
 
-	<section class="flex flex-wrap gap-1.5">
-		{#each statusFilters as filter (filter.value)}
-			<button
-				type="button"
-				class="rounded-full border px-3 py-1 text-xs {statusFilter === filter.value
-					? 'border-teal-700 bg-teal-700 text-white'
-					: 'text-muted-foreground hover:bg-muted'}"
-				onclick={() => selectStatus(filter.value)}
-			>
-				{filter.label}
-			</button>
-		{/each}
-	</section>
+	<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
+		<UnderlineTabs.List>
+			{#each statusFilters as filter (filter.value)}
+				<UnderlineTabs.Trigger value={filter.value}>{filter.label}</UnderlineTabs.Trigger>
+			{/each}
+		</UnderlineTabs.List>
+	</UnderlineTabs.Root>
 
 	{#if loadError}
 		<p class="text-sm text-red-600">{loadError}</p>
 	{:else if taskRuns.length === 0 && !isLoading}
 		<p class="text-sm text-muted-foreground">{text.empty}</p>
 	{:else}
-		<section class="grid gap-2">
-			{#each taskRuns as taskRun (taskRun.taskRunID)}
-				<a
-					href={`/tasks/${taskRun.taskRunID}`}
-					class="grid min-w-0 gap-1 rounded-lg border px-4 py-3 hover:bg-muted/50"
-				>
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<code class="text-xs text-muted-foreground">{shortTaskRunID(taskRun.taskRunID)}</code>
-						<span class="rounded-full px-2 py-0.5 text-[11px] font-medium {taskStatusBadgeClass(taskRun.status)}">
-							{taskRun.status}
-						</span>
-						<span class="ml-auto text-xs text-muted-foreground">
-							{formatTaskTimestamp(taskRun.updatedAt)}
-						</span>
-					</div>
-					<p class="truncate text-sm">{taskRun.prompt || '—'}</p>
-					{#if taskRun.failureReason}
-						<p class="truncate text-xs text-red-600">{taskRun.failureReason}</p>
-					{/if}
-				</a>
-			{/each}
+		<section class="min-w-0 overflow-x-auto rounded-lg border">
+			<Table.Root>
+				<Table.Header>
+					<Table.Row>
+						{#if isAdmin}
+							<Table.Head class="w-40">{text.columnRequester}</Table.Head>
+						{/if}
+						<Table.Head>{text.columnRequest}</Table.Head>
+						<Table.Head class="w-28">{text.columnStatus}</Table.Head>
+						<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
+					</Table.Row>
+				</Table.Header>
+				<Table.Body>
+					{#each taskRuns as taskRun (taskRun.taskRunID)}
+						<Table.Row
+							class="cursor-pointer"
+							onclick={() => void goto(`/tasks/${taskRun.taskRunID}`)}
+						>
+							{#if isAdmin}
+								<Table.Cell class="text-sm whitespace-nowrap">
+									{taskRun.requesterDisplayName || taskRun.requesterPersonID || '—'}
+								</Table.Cell>
+							{/if}
+							<Table.Cell class="max-w-0">
+								<p class="truncate text-sm">{taskRun.prompt || '—'}</p>
+								{#if taskRun.failureReason}
+									<p class="truncate text-xs text-destructive">{taskRun.failureReason}</p>
+								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								{@const StatusIcon = taskStatusIcon(taskRun.status)}
+								<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
+									<StatusIcon />
+									{taskStatusLabel(taskRun.status, text)}
+								</Badge>
+							</Table.Cell>
+							<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
+								{formatTaskTimestamp(taskRun.updatedAt)}
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
 		</section>
 		<ListPaginationFooter
 			totalItems={totalTaskRunCount}

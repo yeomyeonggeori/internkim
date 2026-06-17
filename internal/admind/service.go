@@ -109,6 +109,7 @@ type Service struct {
 	recentCalendarPushUIDs  map[string]time.Time
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
+	mattermostSessions      *mattermostSessionCache
 	startedAt               time.Time
 }
 
@@ -218,6 +219,7 @@ const firstAdminBootstrapRejected = "rejected"
 const firstAdminBootstrapFailed = "failed"
 const firstAdminMattermostPasswordVersion = "api-v4-users-password-sidebar-v2"
 const firstAdminPolicyVersion = "blueclaw-admin-claim-v1"
+const firstAdminClaimTimeout = 90 * time.Second
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
@@ -282,6 +284,7 @@ func NewService(configuration Configuration) *Service {
 		calendarSyncWakeUp:    make(chan struct{}, 1),
 		requestMetrics:        newAdminRequestMetrics(),
 		databaseSchemas:       newAdminDatabaseSchemas(),
+		mattermostSessions:    newMattermostSessionCache(),
 		startedAt:             time.Now().UTC(),
 	}
 	service.loadCompanions()
@@ -425,6 +428,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
+	multiplexer.HandleFunc("/tasks/api/", service.handleTasks)
 	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
@@ -1967,18 +1971,21 @@ func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail s
 		return firstAdminBootstrapResult{Status: firstAdminBootstrapIdentityMissing}
 	}
 
+	claimContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), firstAdminClaimTimeout)
+	defer cancel()
+
 	claimedEmail := service.claimedAdminEmail()
 	if claimedEmail != "" {
 		if strings.EqualFold(claimedEmail, normalizedEmail) {
-			return service.ensureClaimedFirstAdminAccount(ctx, normalizedEmail)
+			return service.ensureClaimedFirstAdminAccount(claimContext, normalizedEmail)
 		}
 		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
 	}
-	if hasAdmin, errorValue := service.hasCurrentAdminUsers(ctx); errorValue == nil && hasAdmin {
+	if hasAdmin, errorValue := service.hasCurrentAdminUsers(claimContext); errorValue == nil && hasAdmin {
 		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
 	}
 
-	result, errorValue := service.claimFirstAdmin(ctx, normalizedEmail)
+	result, errorValue := service.claimFirstAdmin(claimContext, normalizedEmail)
 	if errorValue != nil {
 		log.Printf("first admin bootstrap failed for %s: %v", normalizedEmail, errorValue)
 		return service.writeFirstAdminBootstrapResult(firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapFailed, Error: errorValue.Error()})
