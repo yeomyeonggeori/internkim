@@ -14,7 +14,8 @@ export const filesText = {
 		name: '이름',
 		size: '크기',
 		modified: '수정',
-		roots: '위치'
+		roots: '위치',
+		close: '닫기'
 	},
 	en: {
 		title: 'Files',
@@ -31,6 +32,7 @@ export const filesText = {
 		name: 'Name',
 		size: 'Size',
 		modified: 'Modified',
-		roots: 'Locations'
+		roots: 'Locations',
+		close: 'Close'
 	}
 } as const;
