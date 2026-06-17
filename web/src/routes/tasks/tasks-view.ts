@@ -5,7 +5,6 @@ import ClockIcon from '@lucide/svelte/icons/clock';
 import HourglassIcon from '@lucide/svelte/icons/hourglass';
 import LoaderIcon from '@lucide/svelte/icons/loader';
 import MinusIcon from '@lucide/svelte/icons/minus';
-import PauseIcon from '@lucide/svelte/icons/pause';
 import XIcon from '@lucide/svelte/icons/x';
 import type { BadgeVariant } from '$lib/components/ui/badge';
 import type { TasksText } from './text';
@@ -44,9 +43,8 @@ export function taskStatusIcon(status: string): Component {
 		case 'waiting_approval':
 			return HourglassIcon;
 		case 'blocked':
-			return BanIcon;
 		case 'interrupted':
-			return PauseIcon;
+			return BanIcon;
 		default:
 			return MinusIcon;
 	}
