@@ -43,6 +43,7 @@ export type AdminSession = {
 	temporaryPassword?: string;
 	temporaryPasswordEmail?: string;
 	mattermostURL?: string;
+	deviceManaged?: boolean;
 };
 
 export type BackupManifest = {
