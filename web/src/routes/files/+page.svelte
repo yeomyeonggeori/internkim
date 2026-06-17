@@ -27,10 +27,10 @@
 					{/if}
 					<Breadcrumb.Item>
 						{#if index === files.breadcrumbs.length - 1}
-							<Breadcrumb.Page>{crumb.label}</Breadcrumb.Page>
+							<Breadcrumb.Page class="max-w-[12rem] truncate">{crumb.label}</Breadcrumb.Page>
 						{:else}
 							<Breadcrumb.Link
-								class="cursor-pointer"
+								class="max-w-[12rem] cursor-pointer truncate"
 								onclick={() => files.setActiveDirectory(crumb.path)}
 							>
 								{crumb.label}
