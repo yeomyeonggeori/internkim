@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -301,7 +303,8 @@ func mattermostRawTextPreview(hostPath string, contentType string, sizeBytes int
 	if !utf8.Valid(document) || bytes.IndexByte(document, 0) >= 0 {
 		return "", "", "", false
 	}
-	content, isTruncated := truncateTextByBytes(strings.TrimSpace(string(document)), maximumInputMarkdownPreviewBytes)
+	readableText := collapseInlineBase64(strings.TrimSpace(string(document)))
+	content, isTruncated := truncateTextByBytes(readableText, maximumInputMarkdownPreviewBytes)
 	if content == "" {
 		return "", "empty", "file contains no text", true
 	}
@@ -311,13 +314,36 @@ func mattermostRawTextPreview(hostPath string, contentType string, sizeBytes int
 	return content, "converted", "", true
 }
 
+var inlineBase64RunPattern = regexp.MustCompile(`[A-Za-z0-9+/]{256,}={0,2}`)
+
+func collapseInlineBase64(content string) string {
+	return inlineBase64RunPattern.ReplaceAllStringFunc(content, func(run string) string {
+		return "[base64 data omitted: " + strconv.Itoa(len(run)) + " chars]"
+	})
+}
+
 func mattermostAttachmentLooksLikeRawText(hostPath string, contentType string) bool {
 	normalizedContentType := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	if normalizedContentType == "text/html" || normalizedContentType == "application/xhtml+xml" {
+		return false
+	}
+	if isHTMLAttachmentExtension(hostPath) {
+		return false
+	}
 	if strings.HasPrefix(normalizedContentType, "text/") {
 		return true
 	}
 	switch strings.ToLower(filepath.Ext(strings.TrimSpace(hostPath))) {
-	case ".html", ".htm", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".csv", ".xml", ".svg":
+	case ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".csv", ".xml", ".svg":
+		return true
+	default:
+		return false
+	}
+}
+
+func isHTMLAttachmentExtension(hostPath string) bool {
+	switch strings.ToLower(filepath.Ext(strings.TrimSpace(hostPath))) {
+	case ".html", ".htm", ".xhtml":
 		return true
 	default:
 		return false
