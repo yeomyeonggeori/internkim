@@ -367,7 +367,13 @@ func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID
 	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil); errorValue != nil {
 		return errorValue
 	}
-	return service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord)
+	if errorValue := service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord); errorValue != nil {
+		if service.hasDeviceAuth() {
+			return errorValue
+		}
+		log.Printf("Mattermost system post cleanup skipped without local database access: %v", errorValue)
+	}
+	return nil
 }
 
 func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, email string) error {
@@ -389,7 +395,13 @@ func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, ema
 	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil); errorValue != nil {
 		return errorValue
 	}
-	return service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord)
+	if errorValue := service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord); errorValue != nil {
+		if service.hasDeviceAuth() {
+			return errorValue
+		}
+		log.Printf("Mattermost system post cleanup skipped without local database access: %v", errorValue)
+	}
+	return nil
 }
 
 func (service *Service) deleteMattermostVisibleUserSystemPosts(ctx context.Context, userRecord mattermostUserRecord) error {
