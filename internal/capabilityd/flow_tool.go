@@ -27,6 +27,7 @@ type flowTaskListInput struct {
 	WeekCode         string `json:"weekCode"`
 	Status           string `json:"status"`
 	Limit            int    `json:"limit"`
+	AllPeople        bool   `json:"allPeople"`
 }
 
 type flowTaskUpdateInput struct {
@@ -180,17 +181,23 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	ownerID, failure := resolveFlowTaskFilterOwner(input.Query, input.TargetPersonHint, request.Context.RequesterEmail, summary.Members)
+	if len(summary.Members) == 0 {
+		if members, membersError := service.fetchFlowMembers(ctx, request.Context.RequesterEmail); membersError == nil {
+			summary.Members = members
+		}
+	}
+	ownerID, failure := resolveFlowTaskListOwner(input, request.Context.RequesterEmail, summary.Members)
 	if failure != nil {
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
 	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, Limit: input.Limit})
 	result, _ := json.Marshal(map[string]any{
-		"scope":        flowTaskListScope(input.WeekCode, summary.Week.Code),
+		"scope":        flowTaskListPeopleScope(input, ownerID),
 		"weekCode":     summary.Week.Code,
 		"statusFilter": statusFilter,
-		"crossPerson":  true,
+		"crossPerson":  input.AllPeople,
+		"ownerID":      ownerID,
 		"tasks":        tasks,
 		"count":        len(tasks),
 	})
@@ -569,22 +576,28 @@ type flowTaskFilter struct {
 	Limit   int
 }
 
-func resolveFlowTaskFilterOwner(query string, targetPersonHint string, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
-	if strings.TrimSpace(targetPersonHint) == "" {
+func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
+	if input.AllPeople {
 		return "", nil
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: query, TargetPersonHint: targetPersonHint}, requesterEmail, members)
+	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: input.Query, TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
 	if resolution.Failure != nil {
 		return "", resolution.Failure
 	}
 	return resolution.OwnerID, nil
 }
 
-func flowTaskListScope(requestedWeekCode string, resolvedWeekCode string) string {
-	if strings.TrimSpace(requestedWeekCode) == "" {
-		return "all"
+func flowTaskListPeopleScope(input flowTaskListInput, ownerID string) string {
+	if input.AllPeople {
+		return "allPeople"
 	}
-	return resolvedWeekCode
+	if strings.TrimSpace(input.TargetPersonHint) != "" {
+		return "person"
+	}
+	if ownerID != "" {
+		return "self"
+	}
+	return "unscoped"
 }
 
 func normalizeFlowStatusFilter(status string) string {
