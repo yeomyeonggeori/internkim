@@ -1,5 +1,6 @@
-// 캘린더 embed e2e의 공통 route mock과 DOM 측정 helper를 제공합니다.
 import type { Page } from '@playwright/test';
+
+export type CalendarTestLocale = 'ko' | 'en';
 
 export type CalendarTestEvent = {
 	id: string;
@@ -7,7 +8,52 @@ export type CalendarTestEvent = {
 	startISO: string;
 	endISO: string;
 	isAllDay: boolean;
+	updatedAt?: string;
 };
+
+export type CalendarEventUpdatePayload = {
+	eventID: string;
+	title: string;
+	description: string;
+	location: string;
+	startISO: string;
+	endISO: string;
+	timeZone: string;
+	isAllDay: boolean;
+	color: string;
+};
+
+export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLocale = 'ko'): Promise<void> {
+	await page.route('**/calendar/api/events?**', async (route) => {
+		await route.fulfill({
+			json: {
+				events: [
+					{
+						id: 'existing-overlap-event',
+						title: '겹치는 일정',
+						startISO: '2026-06-08T01:00:00+09:00',
+						endISO: '2026-06-08T02:00:00+09:00',
+						isAllDay: false
+					}
+				]
+			}
+		});
+	});
+	await page.route('**/calendar/api/remote-sync', async (route) => {
+		await route.fulfill({ json: { synced: false } });
+	});
+	await page.route('**/calendar/api/conflicts', async (route) => {
+		await route.fulfill({ json: { conflicts: [] } });
+	});
+	await routeCalendarLocale(page, locale);
+}
+
+export async function routeCalendarLocale(page: Page, locale: CalendarTestLocale): Promise<void> {
+	await page.unroute('**/admin/api/locale');
+	await page.route('**/admin/api/locale', async (route) => {
+		await route.fulfill({ json: { locale } });
+	});
+}
 
 export async function routeCalendarEvents(page: Page, events: CalendarTestEvent[]): Promise<void> {
 	await page.unroute('**/calendar/api/events?**');
@@ -27,11 +73,41 @@ export async function routeCalendarEvents(page: Page, events: CalendarTestEvent[
 					color: '#1677ff',
 					createdByEmail: 'test@example.com',
 					createdByName: 'Test User',
-					updatedAt: '2026-06-08T00:00:00Z'
+					updatedAt: event.updatedAt ?? '2026-06-08T00:00:00Z'
 				}))
 			}
 		});
 	});
+}
+
+export async function routeCalendarEventUpdates(page: Page): Promise<CalendarEventUpdatePayload[]> {
+	const updatedEvents: CalendarEventUpdatePayload[] = [];
+	await page.route('**/calendar/api/events/*', async (route) => {
+		if (route.request().method() !== 'PUT') {
+			await route.fallback();
+			return;
+		}
+		const payload = calendarEventUpdatePayloadFromRequestData(route.request().postData());
+		updatedEvents.push(payload);
+		await route.fulfill({
+			json: {
+				id: payload.eventID,
+				uid: payload.eventID,
+				title: payload.title,
+				description: payload.description,
+				location: payload.location,
+				startISO: payload.startISO,
+				endISO: payload.endISO,
+				timeZone: payload.timeZone,
+				isAllDay: payload.isAllDay,
+				color: payload.color,
+				createdByEmail: 'test@example.com',
+				createdByName: 'Test User',
+				updatedAt: '2026-06-08T00:00:00Z'
+			}
+		});
+	});
+	return updatedEvents;
 }
 
 export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
@@ -53,6 +129,22 @@ export async function browserDateKey(page: Page): Promise<string> {
 		const date = new Date();
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	});
+}
+
+export function dateTimeKeyInSeoul(isoDate: string): string {
+	const date = new Date(isoDate);
+	if (Number.isNaN(date.getTime())) throw new Error(`Invalid ISO date: ${isoDate}`);
+	const parts = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Seoul',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23'
+	}).formatToParts(date);
+	const values = new Map(parts.map((part) => [part.type, part.value]));
+	return `${values.get('year')}-${values.get('month')}-${values.get('day')} ${values.get('hour')}:${values.get('minute')}`;
 }
 
 export async function elementBox(page: Page, selector: string): Promise<{ top: number; bottom: number; height: number }> {
@@ -78,6 +170,32 @@ export async function computedStyle(page: Page, selector: string, properties: st
 		},
 		{ selector, properties }
 	);
+}
+
+function calendarEventUpdatePayloadFromRequestData(requestData: string | null): CalendarEventUpdatePayload {
+	if (!requestData) throw new Error('Missing calendar event update request body');
+	const payload: unknown = JSON.parse(requestData);
+	if (!isCalendarEventUpdatePayload(payload)) throw new Error('Invalid calendar event update request body');
+	return payload;
+}
+
+function isCalendarEventUpdatePayload(payload: unknown): payload is CalendarEventUpdatePayload {
+	if (!isStringRecord(payload)) return false;
+	return (
+		typeof payload.eventID === 'string' &&
+		typeof payload.title === 'string' &&
+		typeof payload.description === 'string' &&
+		typeof payload.location === 'string' &&
+		typeof payload.startISO === 'string' &&
+		typeof payload.endISO === 'string' &&
+		typeof payload.timeZone === 'string' &&
+		typeof payload.isAllDay === 'boolean' &&
+		typeof payload.color === 'string'
+	);
+}
+
+function isStringRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
 
 export async function computedPseudoStyle(

@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './src/routes/flow/flow-task-board-drag';
 import { isFlowTaskBoardStatus } from './src/routes/flow/flow-task-board-model';
 import { createDevFlowState, createDevFlowWeeklySummary } from './src/routes/flow/dev-flow-fixture';
-import type { FlowState, FlowTask } from './src/routes/flow/flow-types';
+import type { FlowDefinitions, FlowSizeDefinition, FlowState, FlowTask } from './src/routes/flow/flow-types';
 
 type DevFlowMockPluginOptions = {
 	isEnabled: boolean;
@@ -71,6 +71,8 @@ function shouldHandleDevFlowMockRequest(method: string, pathname: string): boole
 	if (method === 'POST' && pathname === '/flow/api/tasks/move') return true;
 	if (method === 'POST' && pathname === '/flow/api/tasks') return true;
 	if (method === 'PUT' && pathname.startsWith('/flow/api/tasks/')) return true;
+	if (method === 'DELETE' && pathname.startsWith('/flow/api/tasks/')) return true;
+	if (method === 'PUT' && pathname === '/flow/api/definitions') return true;
 	if (method === 'GET' && pathname === '/auth/session') return true;
 	if (method === 'GET' && pathname === '/admin/api/session') return true;
 	if (method === 'GET' && pathname === '/admin/api/locale') return true;
@@ -121,6 +123,17 @@ export async function createDevFlowMockResponse(
 			task.id === taskID ? { ...updatedTask, id: taskID } : task
 		);
 		return { status: 200, body: { ok: true } };
+	}
+	if (request.method === 'DELETE' && request.pathname.startsWith('/flow/api/tasks/')) {
+		const taskID = decodeURIComponent(request.pathname.slice('/flow/api/tasks/'.length));
+		const hasTask = state.flowState.tasks.some((task) => task.id === taskID);
+		if (!hasTask) return { status: 404, body: { error: 'task not found' } };
+		state.flowState.tasks = state.flowState.tasks.filter((task) => task.id !== taskID);
+		return { status: 200, body: { ok: true } };
+	}
+	if (request.method === 'PUT' && request.pathname === '/flow/api/definitions') {
+		state.flowState.definitions = flowDefinitionsFromRecord(parseJSONRecord(request.body), state.flowState.definitions);
+		return { status: 200, body: state.flowState.definitions };
 	}
 	if (request.method === 'GET' && request.pathname === '/auth/session') {
 		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: true } };
@@ -194,6 +207,42 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 		flag: numberFromValue(parsed.flag, fallback.flag),
 		requestReason: optionalStringFromValue(parsed.requestReason, fallback.requestReason),
 		decisionReason: optionalStringFromValue(parsed.decisionReason, fallback.decisionReason)
+	};
+}
+
+function flowDefinitionsFromRecord(parsed: Record<string, unknown>, fallback: FlowDefinitions): FlowDefinitions {
+	return {
+		categories: stringArrayFromValue(parsed.categories, fallback.categories),
+		types: stringArrayFromValue(parsed.types, fallback.types),
+		sizes: flowSizeDefinitionsFromValue(parsed.sizes, fallback.sizes)
+	};
+}
+
+function flowSizeDefinitionsFromValue(value: unknown, fallback: FlowSizeDefinition[]): FlowSizeDefinition[] {
+	if (!Array.isArray(value)) return fallback;
+	const sizes = value.map((item, index) =>
+		flowSizeDefinitionFromRecord(isUnknownRecord(item) ? item : {}, fallback[index])
+	).filter((size): size is FlowSizeDefinition => size !== null);
+	return sizes.length > 0 ? sizes : fallback;
+}
+
+function flowSizeDefinitionFromRecord(
+	parsed: Record<string, unknown>,
+	fallback: FlowSizeDefinition | undefined
+): FlowSizeDefinition | null {
+	const name = nonEmptyStringFromValue(parsed.name, fallback?.name ?? '');
+	if (!name) return null;
+	const distanceKm = Math.max(1, numberFromValue(parsed.distanceKm, fallback?.distanceKm ?? 1));
+	const maxHours = Math.max(1, numberFromValue(parsed.maxHours, fallback?.maxHours ?? 1));
+	return {
+		name,
+		distanceKm,
+		maxHours,
+		score: Math.max(1, numberFromValue(parsed.score, distanceKm)),
+		label: stringFromValue(parsed.label, `${distanceKm}km · ${maxHours}h`),
+		developmentExample: stringFromValue(parsed.developmentExample, fallback?.developmentExample ?? ''),
+		otherExample: stringFromValue(parsed.otherExample, fallback?.otherExample ?? ''),
+		note: stringFromValue(parsed.note, fallback?.note ?? '')
 	};
 }
 

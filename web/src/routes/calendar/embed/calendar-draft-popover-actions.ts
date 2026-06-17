@@ -1,16 +1,28 @@
-// 캘린더 초안 팝오버의 열기, 저장, 취소, 삭제 동작을 연결합니다.
-import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
+import type { Event as DayFlowEvent } from '@dayflow/core';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
-	draftPopoverChanges,
 	draftPopoverPositionFromAnchor,
 	draftPopoverStateFromEvent,
-	isDraftPopoverValid,
 	type DraftPopoverAnchor,
 	type DraftPopoverMode,
+	type DraftPopoverSize,
 	type DraftPopoverState
 } from './calendar-draft-popover-state';
-import { calendarEventElementsByID } from './calendar-event-elements';
+import {
+	recentCalendarEventAnchorForID
+} from './calendar-event-anchor-capture';
+import {
+	anchorFromElement,
+	areSamePopoverAnchors,
+	areSamePopoverPositions,
+	calendarEventAnchorForEventID,
+	clearDraftPopoverElementMotion,
+	genericEventAnchorForEventID,
+	isAnchorInsideVisibleStage,
+	monthDateAnchor,
+	shouldShowInitialPopover
+} from './calendar-draft-popover-anchor';
+import { createCalendarDraftPopoverPersistence } from './calendar-draft-popover-persistence';
 import type { MonthRangeSelection } from './calendar-month-range-action';
 
 export type CalendarDraftPopoverActions = {
@@ -19,7 +31,9 @@ export type CalendarDraftPopoverActions = {
 	openMonthRangeDraftPopover: (selection: MonthRangeSelection, anchor?: DraftPopoverAnchor | null) => void;
 	openTimelineSingleDraftPopover: (startDate: Date, anchor: DraftPopoverAnchor) => void;
 	openTimelineRangeDraftPopover: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
-	openEventDraftPopover: (event: DayFlowEvent, mode: DraftPopoverMode) => void;
+	openEventDraftPopover: (event: DayFlowEvent, mode: DraftPopoverMode, anchor?: DraftPopoverAnchor | null) => void;
+	refreshDraftPopoverAnchor: (size?: DraftPopoverSize) => boolean;
+	repositionDraftPopover: (size: DraftPopoverSize) => void;
 	updateDraftPopover: (changes: Partial<DraftPopoverState>) => void;
 	saveDraftPopover: () => Promise<void>;
 	cancelDraftPopover: () => Promise<void>;
@@ -36,39 +50,69 @@ type CalendarDraftPopoverActionsContext = {
 	replaceLocalEvent: (event: DayFlowEvent) => void;
 };
 
+const renderedEventAnchorRetryDelay = 50;
+const renderedEventAnchorRetryLimit = 30;
+
 export function createCalendarDraftPopoverActions(
 	context: CalendarDraftPopoverActionsContext
 ): CalendarDraftPopoverActions {
+	const persistence = createCalendarDraftPopoverPersistence(context);
+
 	function createQuickDraftPopover(event: MouseEvent): void {
 		const draftEvent = context.eventActions.createQuickEvent();
-		openDraftPopoverForEvent(draftEvent, 'create', anchorFromElement(event.currentTarget));
+		openDraftPopoverForEvent(draftEvent, 'create', anchorFromElement(event.currentTarget), false);
 	}
 
 	function openMonthSingleDayDraftPopover(dateKey: string, anchor: DraftPopoverAnchor | null = null): void {
 		const draftEvent = context.eventActions.createMonthSingleDayEvent(dateKey);
 		if (!draftEvent) return;
-		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(dateKey));
+		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(context.getStageElement(), dateKey), true);
 	}
 
 	function openMonthRangeDraftPopover(selection: MonthRangeSelection, anchor: DraftPopoverAnchor | null = null): void {
 		const draftEvent = context.eventActions.createMonthRangeEvent(selection);
-		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(selection.endDateKey));
+		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(context.getStageElement(), selection.endDateKey), true);
 	}
 
 	function openTimelineSingleDraftPopover(startDate: Date, anchor: DraftPopoverAnchor): void {
 		const draftEvent = context.eventActions.createTimelineSingleEvent(startDate);
 		if (!draftEvent) return;
-		openDraftPopoverForEvent(draftEvent, 'create', anchor);
+		openDraftPopoverForEvent(draftEvent, 'create', anchor, true);
 	}
 
 	function openTimelineRangeDraftPopover(firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor): void {
 		const draftEvent = context.eventActions.createTimelineRangeEvent(firstDate, secondDate);
 		if (!draftEvent) return;
-		openDraftPopoverForEvent(draftEvent, 'create', anchor);
+		openDraftPopoverForEvent(draftEvent, 'create', anchor, true);
 	}
 
-	function openEventDraftPopover(event: DayFlowEvent, mode: DraftPopoverMode): void {
-		openDraftPopoverForEvent(event, mode, eventAnchorForEventID(event.id));
+	function openEventDraftPopover(event: DayFlowEvent, mode: DraftPopoverMode, anchor: DraftPopoverAnchor | null = null): void {
+		const canonicalAnchor = calendarEventAnchorForEventID(context.getStageElement(), event.id);
+		openDraftPopoverForEvent(event, mode, canonicalAnchor ?? anchor ?? recentCalendarEventAnchorForID(event.id), false);
+	}
+
+	function repositionDraftPopover(size: DraftPopoverSize): void {
+		const popover = context.getDraftPopover();
+		if (!popover?.anchor || !popover.position.isReady) return;
+		const position = draftPopoverPositionFromAnchor(popover.anchor, context.getStageElement(), size);
+		if (areSamePopoverPositions(popover.position, position)) return;
+		clearDraftPopoverElementMotion();
+		context.setDraftPopover({ ...popover, position });
+	}
+
+	function refreshDraftPopoverAnchor(size: DraftPopoverSize = {}): boolean {
+		const popover = context.getDraftPopover();
+		if (!popover) return false;
+		const anchor = calendarEventAnchorForEventID(context.getStageElement(), popover.eventID);
+		if (!anchor || !isAnchorInsideVisibleStage(context.getStageElement(), anchor)) {
+			void persistence.cancelDraftPopover();
+			return false;
+		}
+		const position = draftPopoverPositionFromAnchor(anchor, context.getStageElement(), size);
+		if (areSamePopoverAnchors(popover.anchor, anchor) && areSamePopoverPositions(popover.position, position)) return true;
+		clearDraftPopoverElementMotion();
+		context.setDraftPopover({ ...popover, anchor, position });
+		return true;
 	}
 
 	function updateDraftPopover(changes: Partial<DraftPopoverState>): void {
@@ -77,83 +121,59 @@ export function createCalendarDraftPopoverActions(
 		context.setDraftPopover({ ...popover, ...changes });
 	}
 
-	async function saveDraftPopover(): Promise<void> {
-		const popover = context.getDraftPopover();
-		if (!popover || !isDraftPopoverValid(popover)) return;
-		const event = context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === popover.eventID);
-		if (!event) return;
-		const changes = draftPopoverChanges(popover);
-		const updatedEvent = createEvent({
-			id: event.id,
-			title: changes.title,
-			description: changes.description,
-			start: changes.start,
-			end: changes.end,
-			allDay: changes.allDay,
-			calendarId: changes.calendarId,
-			meta: { ...(event.meta ?? {}), ...changes.meta }
-		});
-		context.replaceLocalEvent(updatedEvent);
-		context.setDraftPopover(null);
-		await context.eventActions.saveUpdatedEvent(updatedEvent);
-	}
-
-	async function cancelDraftPopover(): Promise<void> {
-		const popover = context.getDraftPopover();
-		if (!popover) return;
-		context.setDraftPopover(null);
-		if (popover.mode === 'create') await context.eventActions.deleteEvent(popover.eventID);
-	}
-
-	async function deleteDraftPopover(): Promise<void> {
-		const popover = context.getDraftPopover();
-		if (!popover || popover.mode !== 'edit') return;
-		context.setDraftPopover(null);
-		await context.eventActions.deleteEvent(popover.eventID);
-	}
-
 	function openDraftPopoverForEvent(
 		event: DayFlowEvent,
 		mode: DraftPopoverMode,
-		anchor: DraftPopoverAnchor | null
+		anchor: DraftPopoverAnchor | null,
+		shouldWaitForRenderedAnchor: boolean
 	): void {
 		context.selectEvent(event.id);
-		context.setDraftPopover(draftPopoverStateFromEvent(event, mode, anchor, context.getStageElement()));
-		window.requestAnimationFrame(() => {
-			const popover = context.getDraftPopover();
-			if (!popover || popover.eventID !== event.id) return;
-			const renderedEventAnchor = eventAnchorForEventID(event.id);
-			if (!renderedEventAnchor) return;
-			context.setDraftPopover({
-				...popover,
-				position: draftPopoverPositionFromAnchor(renderedEventAnchor, context.getStageElement())
-			});
+		const popover = draftPopoverStateFromEvent(event, mode, anchor, context.getStageElement());
+		context.setDraftPopover({
+			...popover,
+			position: {
+				...popover.position,
+				isReady: !shouldWaitForRenderedAnchor || shouldShowInitialPopover(mode, anchor)
+			}
 		});
+		scheduleRenderedEventPopoverPosition(event.id, mode, anchor, 0);
 	}
 
-	function eventAnchorForEventID(eventID: string): DraftPopoverAnchor | null {
-		const eventElement = calendarEventElementsByID(context.getStageElement(), eventID)[0];
-		return anchorFromElement(eventElement);
+	function scheduleRenderedEventPopoverPosition(
+		eventID: string,
+		mode: DraftPopoverMode,
+		anchor: DraftPopoverAnchor | null,
+		attempt: number
+	): void {
+		window.setTimeout(() => {
+			updateRenderedEventPopoverPosition(eventID, mode, anchor, attempt);
+		}, renderedEventAnchorRetryDelay);
 	}
 
-	function monthDateAnchor(dateKey: string): DraftPopoverAnchor | null {
-		const stageElement = context.getStageElement();
-		if (!stageElement) return null;
-		const escapedDateKey = window.CSS?.escape(dateKey) ?? dateKey.replaceAll('"', '\\"');
-		return anchorFromElement(stageElement.querySelector(`[data-date="${escapedDateKey}"]`));
-	}
-
-	function anchorFromElement(element: EventTarget | Element | null): DraftPopoverAnchor | null {
-		if (!(element instanceof Element)) return null;
-		const rectangle = element.getBoundingClientRect();
-		const titleHeight = Math.min(56, rectangle.height);
-		return {
-			clientX: rectangle.right - Math.min(18, rectangle.width / 2),
-			clientY: rectangle.top + Math.min(40, rectangle.height / 2),
-			leftClientX: rectangle.left,
-			topClientY: rectangle.top,
-			bottomClientY: rectangle.top + titleHeight
-		};
+	function updateRenderedEventPopoverPosition(
+		eventID: string,
+		mode: DraftPopoverMode,
+		anchor: DraftPopoverAnchor | null,
+		attempt: number
+	): void {
+		const popover = context.getDraftPopover();
+		if (!popover || popover.eventID !== eventID) return;
+		const renderedEventAnchor =
+			mode === 'edit'
+				? (calendarEventAnchorForEventID(context.getStageElement(), eventID) ?? anchor)
+				: (calendarEventAnchorForEventID(context.getStageElement(), eventID, anchor) ??
+					genericEventAnchorForEventID(context.getStageElement(), eventID));
+		if (!renderedEventAnchor) {
+			if (attempt < renderedEventAnchorRetryLimit) {
+				scheduleRenderedEventPopoverPosition(eventID, mode, anchor, attempt + 1);
+			}
+			return;
+		}
+		context.setDraftPopover({
+			...popover,
+			anchor: renderedEventAnchor,
+			position: draftPopoverPositionFromAnchor(renderedEventAnchor, context.getStageElement())
+		});
 	}
 
 	return {
@@ -163,9 +183,11 @@ export function createCalendarDraftPopoverActions(
 		openTimelineSingleDraftPopover,
 		openTimelineRangeDraftPopover,
 		openEventDraftPopover,
+		refreshDraftPopoverAnchor,
+		repositionDraftPopover,
 		updateDraftPopover,
-		saveDraftPopover,
-		cancelDraftPopover,
-		deleteDraftPopover
+		saveDraftPopover: persistence.saveDraftPopover,
+		cancelDraftPopover: persistence.cancelDraftPopover,
+		deleteDraftPopover: persistence.deleteDraftPopover
 	};
 }

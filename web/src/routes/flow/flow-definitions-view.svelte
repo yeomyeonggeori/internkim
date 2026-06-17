@@ -28,7 +28,10 @@
 		save: string;
 		removeAction: string;
 		add: string;
+		autoSave: string;
+		saved: string;
 	};
+	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 	type Props = {
 		definitions: FlowDefinitions;
@@ -39,6 +42,7 @@
 		isAdmin: boolean;
 		canEditDefinitions: boolean;
 		isSavingDefinitions: boolean;
+		definitionSaveState: DefinitionSaveState;
 		definitionErrorMessage: string;
 		loadError: string;
 		text: DefinitionsText;
@@ -62,6 +66,7 @@
 		isAdmin,
 		canEditDefinitions,
 		isSavingDefinitions,
+		definitionSaveState,
 		definitionErrorMessage,
 		loadError,
 		text,
@@ -75,6 +80,21 @@
 		setNewTypeText,
 		saveDefinitions
 	}: Props = $props();
+
+	let definitionStatusMessage = $derived(definitionErrorMessage || definitionSaveStateMessage(definitionSaveState));
+	let definitionStatusClass = $derived(definitionStatusContainerClass(definitionSaveState, Boolean(definitionErrorMessage)));
+
+	function definitionSaveStateMessage(saveState: DefinitionSaveState): string {
+		if (saveState === 'saving' || isSavingDefinitions) return text.saving;
+		if (saveState === 'saved') return text.saved;
+		return text.autoSave;
+	}
+
+	function definitionStatusContainerClass(saveState: DefinitionSaveState, hasError: boolean): string {
+		if (hasError || saveState === 'error') return 'rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive';
+		if (saveState === 'saved') return 'rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700';
+		return 'rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground';
+	}
 </script>
 
 {#if canEditDefinitions}
@@ -105,12 +125,9 @@
 			)}
 		</div>
 		{#if isAdmin}
-			<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-				<p class="text-sm text-muted-foreground">{definitionErrorMessage || text.adminOnly}</p>
-				<Button onclick={saveDefinitions} disabled={isSavingDefinitions || typeDrafts.filter((value) => value.trim()).length === 0}>
-					{isSavingDefinitions ? text.saving : text.save}
-				</Button>
-			</div>
+			<p class={definitionStatusClass}>
+				{definitionStatusMessage}
+			</p>
 		{:else}
 			<p class="text-sm text-muted-foreground">{text.adminOnly}</p>
 		{/if}
@@ -182,6 +199,7 @@
 						value={item}
 						disabled={!isAdmin}
 						oninput={(event) => update(index, event.currentTarget.value)}
+						onblur={saveDefinitions}
 					/>
 					<Button
 						variant="ghost"

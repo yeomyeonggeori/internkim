@@ -24,8 +24,10 @@ export function computePersonalStats(month: string, events: AttendanceEvent[]): 
 			workedDays += 1;
 			totalMinutes += day.workedMinutes;
 			clockInMinutes.push(clockInLocalMinutes(day.clockIn));
-			const label = day.clockIn.locationName ?? 'Unknown';
-			locationCount.set(label, (locationCount.get(label) ?? 0) + 1);
+			for (const segment of day.segments) {
+				const label = segment.locationName ?? 'Unknown';
+				locationCount.set(label, (locationCount.get(label) ?? 0) + 1);
+			}
 		}
 	}
 	const weekdayCount = eachDayOfMonth(month).filter(isWeekday).length;
@@ -40,7 +42,8 @@ export function computePersonalStats(month: string, events: AttendanceEvent[]): 
 			topLocationCount = count;
 		}
 	}
-	const topLocationPercent = workedDays ? Math.round((topLocationCount / workedDays) * 100) : 0;
+	const segmentCount = [...locationCount.values()].reduce((total, count) => total + count, 0);
+	const topLocationPercent = segmentCount ? Math.round((topLocationCount / segmentCount) * 100) : 0;
 	return { workedDays, weekdayCount, totalMinutes, averageClockInTime, topLocationLabel, topLocationPercent };
 }
 

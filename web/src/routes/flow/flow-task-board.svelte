@@ -14,21 +14,25 @@
 	type Props = {
 		tasks: FlowTask[];
 		boardText: BoardText;
+		businessFallback: string;
 		statusLabel: (status: string) => string;
 		openTask: (task: FlowTask) => void;
 		createTask: (status?: string) => void;
 		moveTask: (request: FlowTaskBoardMoveRequest) => void | Promise<void>;
 		pendingTaskIDs: string[];
+		canUpdateTask: (task: FlowTask) => boolean;
 	};
 
 	let {
 		tasks,
 		boardText,
+		businessFallback,
 		statusLabel,
 		openTask,
 		createTask,
 		moveTask,
-		pendingTaskIDs
+		pendingTaskIDs,
+		canUpdateTask
 	}: Props = $props();
 
 	const columnClass = [
@@ -39,7 +43,7 @@
 		'h-8 w-full justify-center border border-dashed border-muted-foreground/30',
 		'text-muted-foreground opacity-0 transition-opacity',
 		'hover:border-primary/40 hover:text-primary focus-visible:opacity-100',
-		'group-focus-within:opacity-100 group-hover:opacity-100'
+		'group-hover:opacity-100'
 	].join(' ');
 	const insertionLineWrapperClass = 'flex h-4 items-center px-1';
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
@@ -58,7 +62,7 @@
 	}
 
 	function handleTaskDragStart(event: DragEvent, task: FlowTask): void {
-		if (isTaskPending(task.id)) {
+		if (isTaskPending(task.id) || !canUpdateTask(task)) {
 			event.preventDefault();
 			return;
 		}
@@ -213,10 +217,12 @@
 							{/if}
 
 							<div role="listitem">
-								<FlowTaskBoardCard
-									{task}
-									{openTask}
+									<FlowTaskBoardCard
+										{task}
+										{businessFallback}
+										{openTask}
 									isPending={isTaskPending(task.id)}
+									isReadOnly={!canUpdateTask(task)}
 									onTaskDragStart={handleTaskDragStart}
 									onTaskDragEnd={handleTaskDragEnd}
 									onTaskDragOver={(event, value) => handleCardDragOver(event, column.status, column.tasks, value)}

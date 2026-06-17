@@ -158,19 +158,19 @@ func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Co
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, lastEvent, found, channelID, actionPostID)
-	if errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	if shouldIgnore {
-		return ignoredAttendanceActionResult(), nil
-	}
 	eventLocation := attendanceLocation{}
 	if command.Kind == attendanceKindClockIn {
 		eventLocation = service.defaultAttendanceLocation()
 		if strings.TrimSpace(command.LocationID) != "" {
 			eventLocation = service.attendanceLocationByID(command.LocationID)
 		}
+	}
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, eventLocation, lastEvent, found, channelID, actionPostID)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if shouldIgnore {
+		return ignoredAttendanceActionResult(), nil
 	}
 	if errorValue := service.deleteLatestAttendanceResultPostForUserAndKind(ctx, database, adminToken, userRecord.ID, command.Kind); errorValue != nil {
 		return attendanceActionResult{}, errorValue

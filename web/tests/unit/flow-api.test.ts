@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	createQuickFlowTask,
+	deleteFlowTask,
 	fetchFlowState,
 	fetchFlowWeeklySummary,
 	mergeFlowSummary,
@@ -180,6 +181,30 @@ describe('flow API', () => {
 				targetStatus: '진행',
 				beforeTaskID: 'task-2'
 			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('deletes a task through the task endpoint', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestMethod = '';
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestedURL = String(input);
+					requestMethod = init?.method ?? '';
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await deleteFlowTask('task-1', 'Could not delete the task.');
+
+			expect(requestedURL).toBe('/flow/api/tasks/task-1');
+			expect(requestMethod).toBe('DELETE');
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

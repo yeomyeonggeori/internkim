@@ -1,16 +1,19 @@
-// 캘린더 초안 팝오버 상태와 날짜 변환을 관리합니다.
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { temporalToDate } from '@dayflow/core';
+import {
+	draftPopoverPositionFromAnchor,
+	type DraftPopoverAnchor,
+	type DraftPopoverPosition
+} from './calendar-draft-popover-position';
+
+export {
+	draftPopoverPositionFromAnchor,
+	type DraftPopoverAnchor,
+	type DraftPopoverPosition,
+	type DraftPopoverSize
+} from './calendar-draft-popover-position';
 
 export type DraftPopoverMode = 'create' | 'edit';
-
-export type DraftPopoverAnchor = {
-	clientX: number;
-	clientY: number;
-	leftClientX?: number;
-	topClientY?: number;
-	bottomClientY?: number;
-};
 
 export type DraftPopoverState = {
 	mode: DraftPopoverMode;
@@ -24,15 +27,8 @@ export type DraftPopoverState = {
 	location: string;
 	description: string;
 	calendarID: string;
+	anchor: DraftPopoverAnchor | null;
 	position: DraftPopoverPosition;
-};
-
-export type DraftPopoverPosition = {
-	left: number;
-	top: number;
-	width: number;
-	arrowTop: number;
-	arrowSide: 'left' | 'right';
 };
 
 export type DraftPopoverEventChanges = {
@@ -44,6 +40,9 @@ export type DraftPopoverEventChanges = {
 	calendarId: string;
 	meta: Record<string, unknown>;
 };
+
+const defaultTimedStartTime = '09:00';
+const defaultTimedEndTime = '10:00';
 
 export function draftPopoverStateFromEvent(
 	event: DayFlowEvent,
@@ -65,15 +64,18 @@ export function draftPopoverStateFromEvent(
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
 		description: event.description ?? '',
 		calendarID: event.calendarId ?? 'internkim',
+		anchor,
 		position: draftPopoverPositionFromAnchor(anchor, stageElement)
 	};
 }
 
-export function draftPopoverPositionFromAnchor(
-	anchor: DraftPopoverAnchor | null,
-	stageElement: HTMLElement | null
-): DraftPopoverPosition {
-	return draftPopoverPosition(anchor, stageElement);
+export function draftPopoverAllDayChanges(popover: DraftPopoverState, allDay: boolean): Partial<DraftPopoverState> {
+	if (allDay || !shouldUseDefaultTimedValues(popover)) return { allDay };
+	return {
+		allDay,
+		startTime: defaultTimedStartTime,
+		endTime: defaultTimedEndTime
+	};
 }
 
 export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEventChanges {
@@ -112,38 +114,6 @@ export function dateKey(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function draftPopoverPosition(anchor: DraftPopoverAnchor | null, stageElement: HTMLElement | null): DraftPopoverPosition {
-	const stageRectangle = stageElement?.getBoundingClientRect();
-	if (!stageRectangle) return { left: 16, top: 16, width: 320, arrowTop: 42, arrowSide: 'left' };
-	const stageMargin = 12;
-	const arrowOutset = 10;
-	const popoverGap = 16;
-	const width = Math.min(540, Math.max(320, stageRectangle.width - (stageMargin + arrowOutset) * 2));
-	const height = Math.min(520, Math.max(240, stageRectangle.height - stageMargin * 2));
-	const fallbackAnchor: DraftPopoverAnchor = {
-		clientX: stageRectangle.left + stageRectangle.width / 2,
-		clientY: stageRectangle.top + Math.min(220, stageRectangle.height / 3)
-	};
-	const targetAnchor = anchor ?? fallbackAnchor;
-	const titleTop = (targetAnchor.topClientY ?? targetAnchor.clientY) - stageRectangle.top;
-	const titleBottom = (targetAnchor.bottomClientY ?? targetAnchor.clientY) - stageRectangle.top;
-	const titleCenterY = (titleTop + titleBottom) / 2;
-	const preferredRight = targetAnchor.clientX - stageRectangle.left + popoverGap;
-	const preferredLeft = (targetAnchor.leftClientX ?? targetAnchor.clientX) - stageRectangle.left - width - popoverGap;
-	const rightOverflow = preferredRight + width + stageMargin > stageRectangle.width;
-	const leftOverflow = preferredLeft < stageMargin;
-	const shouldPlaceRight = !rightOverflow || (leftOverflow && preferredRight <= preferredLeft);
-	const arrowSide = shouldPlaceRight ? 'left' : 'right';
-	const unclampedLeft = shouldPlaceRight ? preferredRight : preferredLeft;
-	const minLeft = stageRectangle.left + stageMargin + (arrowSide === 'left' ? arrowOutset : 0);
-	const maxLeft = stageRectangle.right - width - stageMargin - (arrowSide === 'right' ? arrowOutset : 0);
-	const left = Math.max(minLeft, Math.min(stageRectangle.left + unclampedLeft, Math.max(minLeft, maxLeft)));
-	const sideAlignedTop = titleCenterY - 48;
-	const top = Math.max(stageRectangle.top + stageMargin, Math.min(stageRectangle.top + sideAlignedTop, stageRectangle.bottom - height - stageMargin));
-	const arrowTop = Math.max(18, Math.min(stageRectangle.top + titleCenterY - top - 8, height - 28));
-	return { left, top, width, arrowTop, arrowSide };
-}
-
 function dateFromEventValue(value: DayFlowEvent['start']): Date {
 	return temporalToDate(value);
 }
@@ -156,4 +126,8 @@ function draftPopoverDateTime(selectedDateKey: string, time: string): Date {
 
 function timeValue(date: Date): string {
 	return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function shouldUseDefaultTimedValues(popover: DraftPopoverState): boolean {
+	return popover.allDay && popover.startTime === '00:00' && popover.endTime === '00:00';
 }
