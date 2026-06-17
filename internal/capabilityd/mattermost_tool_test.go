@@ -1011,6 +1011,50 @@ func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) 
 	}
 }
 
+func TestMattermostPostSearchDirectMessageDeniedForAdmin(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://blueclaw.test/admin/api/identity/resolve-recipient":
+			return testJSONResponse(http.StatusOK, map[string]any{
+				"status": "resolved",
+				"recipient": map[string]any{
+					"personID":       "person-alice",
+					"displayName":    "Alice",
+					"emails":         []string{"alice@example.com"},
+					"externalUserID": "alice-1",
+					"username":       "alice",
+				},
+			}), nil
+		default:
+			t.Fatalf("admin must not reach the DM channel lookup: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.search",
+		Input: mustJSON(t, map[string]any{
+			"scope":          "directMessage",
+			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
+			"authoredBy":     "assistant",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			RequesterEmail:          "admin@example.com",
+			RequesterPersonID:       "admin-1",
+			RequesterPlatformUserID: "admin-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "dm_read_not_authorized" {
+		t.Fatalf("admin must have the same access as everyone and be denied another person's DMs, got %+v", response)
+	}
+}
+
 func mattermostToolTestService(t *testing.T, roundTrip func(*http.Request) (*http.Response, error)) Service {
 	t.Helper()
 	return Service{
