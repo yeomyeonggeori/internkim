@@ -1,0 +1,47 @@
+import { calendarDateStorageKey } from '../calendar-storage-keys';
+import { isCalendarNavigationMessage } from '../calendar-navigation-message';
+import { dateKey } from './calendar-draft-popover-state';
+import { isCalendarVisibilityMessage } from './calendar-work-visibility';
+
+type CalendarPageMessageContext = {
+	getCurrentOrigin: () => string;
+	navigateToDateKey: (dateKey: string) => void;
+	setWorkCalendarVisibility: (isVisible: boolean) => void;
+};
+
+export type CalendarPageMessageActions = {
+	handleCalendarChannelMessage: (event: MessageEvent<unknown>) => void;
+	handleCalendarStorageMessage: (event: StorageEvent) => void;
+	handleCalendarWindowMessage: (event: MessageEvent<unknown>) => void;
+};
+
+export function createCalendarPageMessageActions(context: CalendarPageMessageContext): CalendarPageMessageActions {
+	function handleCalendarChannelMessage(event: MessageEvent<unknown>): void {
+		if (isCalendarVisibilityMessage(event.data)) {
+			context.setWorkCalendarVisibility(event.data.work);
+			return;
+		}
+		if (isCalendarNavigationMessage(event.data)) {
+			context.navigateToDateKey(event.data.dateKey);
+		}
+	}
+
+	function handleCalendarWindowMessage(event: MessageEvent<unknown>): void {
+		if (event.origin !== context.getCurrentOrigin()) return;
+		if (!isCalendarNavigationMessage(event.data)) return;
+		context.navigateToDateKey(event.data.dateKey);
+	}
+
+	function handleCalendarStorageMessage(event: StorageEvent): void {
+		if (event.key !== calendarDateStorageKey || !event.newValue) return;
+		const date = new Date(event.newValue);
+		if (Number.isNaN(date.getTime())) return;
+		context.navigateToDateKey(dateKey(date));
+	}
+
+	return {
+		handleCalendarChannelMessage,
+		handleCalendarStorageMessage,
+		handleCalendarWindowMessage
+	};
+}

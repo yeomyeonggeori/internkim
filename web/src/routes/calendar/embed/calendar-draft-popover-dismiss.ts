@@ -1,17 +1,19 @@
-// 캘린더 초안 팝오버의 외부 클릭 닫기와 재생성 방지를 처리합니다.
 import { isDraftPopoverValid } from './calendar-draft-popover-state';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 
 export type CalendarDraftPopoverDismissOptions = {
 	stageElement: HTMLElement;
 	getDraftPopover: () => DraftPopoverState | null;
+	refreshDraftPopoverAnchor: () => boolean;
 	saveDraftPopover: () => Promise<void>;
 	cancelDraftPopover: () => Promise<void>;
+	clearSelectedEvent: () => void;
 };
 
 export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopoverDismissOptions): () => void {
 	let shouldSuppressNextClick = false;
 	let isDismissing = false;
+	let refreshFrame: number | null = null;
 
 	const dismissPopover = (popover: DraftPopoverState): void => {
 		if (isDismissing) return;
@@ -29,6 +31,7 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 		const isInsideCalendarStage = options.stageElement.contains(event.target);
 		const isCalendarEvent = Boolean(event.target.closest('.df-event, .df-month-segment-event'));
 		dismissPopover(popover);
+		if (!isCalendarEvent) options.clearSelectedEvent();
 		if (!isInsideCalendarStage || isCalendarEvent) return;
 		shouldSuppressNextClick = true;
 		event.preventDefault();
@@ -45,11 +48,40 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 		event.stopImmediatePropagation();
 	};
 
+	const handleScroll = (event: Event): void => {
+		const popover = options.getDraftPopover();
+		if (!popover) return;
+		if (event.target instanceof Element && event.target.closest('.calendar-draft-popover')) return;
+		schedulePopoverAnchorRefresh();
+	};
+
+	const handleWheel = (event: WheelEvent): void => {
+		const popover = options.getDraftPopover();
+		if (!popover) return;
+		schedulePopoverAnchorRefresh();
+	};
+
+	const schedulePopoverAnchorRefresh = (): void => {
+		if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
+		refreshFrame = requestAnimationFrame(() => {
+			refreshFrame = requestAnimationFrame(() => {
+				refreshFrame = null;
+				const isAnchorVisible = options.refreshDraftPopoverAnchor();
+				if (!isAnchorVisible) options.clearSelectedEvent();
+			});
+		});
+	};
+
 	document.addEventListener('pointerdown', handlePointerDown, true);
 	document.addEventListener('click', handleClick, true);
+	document.addEventListener('scroll', handleScroll, true);
+	document.addEventListener('wheel', handleWheel, true);
 
 	return () => {
 		document.removeEventListener('pointerdown', handlePointerDown, true);
 		document.removeEventListener('click', handleClick, true);
+		document.removeEventListener('scroll', handleScroll, true);
+		document.removeEventListener('wheel', handleWheel, true);
+		if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
 	};
 }

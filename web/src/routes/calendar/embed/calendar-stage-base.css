@@ -1,4 +1,3 @@
-/* 캘린더 stage의 기본 변수와 DayFlow container override를 정의합니다. */
 	.calendar-stage {
 		--df-color-background: #ffffff;
 		--df-color-foreground: #2e2e2e;
@@ -62,47 +61,15 @@
 		border: 0;
 	}
 
-	.calendar-stage .draft-empty-title-event {
-		border-color: transparent !important;
-		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
-		color: #ffffff !important;
-		box-shadow: 0 8px 18px rgb(100 115 201 / 0.2) !important;
-	}
-
-	.calendar-stage .draft-empty-title-event * {
-		color: inherit !important;
-	}
-
-	.calendar-stage .df-header,
-	.calendar-stage .df-view-header,
+		.calendar-stage .df-header,
+		.calendar-stage .df-view-header,
 	.calendar-stage .df-view-header-container,
 	.calendar-stage .df-calendar-container .df-view-header,
 	.calendar-stage .df-calendar-container .df-view-header-container {
 		display: none !important;
 	}
 
-	.df-dialog-container,
-	.df-event-detail-panel,
-	.df-portal,
-	.df-range-picker {
-		--df-color-background: #ffffff;
-		--df-color-foreground: #2e2e2e;
-		--df-color-hover: #f5f5f5;
-		--df-color-border: #e5e5e5;
-		--df-color-card: #ffffff;
-		--df-color-card-foreground: #2e2e2e;
-		--df-color-muted: #f3f4f6;
-		--df-color-muted-foreground: #6b7280;
-		--df-color-primary: oklch(0.55 0.19 255);
-		--df-color-primary-foreground: #ffffff;
-		--df-color-secondary: #64748b;
-		--df-color-secondary-foreground: #ffffff;
-		--df-color-destructive: #d42422;
-		--df-color-destructive-foreground: #ffffff;
-		color-scheme: light;
-	}
-
-	.calendar-stage .df-month-day-cell-surface[data-other-month='true'] {
+		.calendar-stage .df-month-day-cell-surface[data-other-month='true'] {
 		background: transparent;
 	}
 
