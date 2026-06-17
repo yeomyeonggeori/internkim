@@ -6,7 +6,6 @@ import {
 	type WorkspaceEntry,
 	type WorkspaceRoot
 } from './files-api';
-import { workspaceBreadcrumbs, type WorkspaceBreadcrumb } from './files-path';
 
 const filesStateKey = Symbol('files');
 
@@ -23,11 +22,6 @@ export class FilesState {
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
-	}
-
-	get breadcrumbs(): WorkspaceBreadcrumb[] {
-		if (!this.currentRoot) return [];
-		return workspaceBreadcrumbs(this.currentRoot, this.currentPath);
 	}
 
 	async loadRoots() {
