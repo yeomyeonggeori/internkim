@@ -109,6 +109,7 @@ type Service struct {
 	recentCalendarPushUIDs  map[string]time.Time
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
+	mattermostSessions      *mattermostSessionCache
 	startedAt               time.Time
 }
 
@@ -282,6 +283,7 @@ func NewService(configuration Configuration) *Service {
 		calendarSyncWakeUp:    make(chan struct{}, 1),
 		requestMetrics:        newAdminRequestMetrics(),
 		databaseSchemas:       newAdminDatabaseSchemas(),
+		mattermostSessions:    newMattermostSessionCache(),
 		startedAt:             time.Now().UTC(),
 	}
 	service.loadCompanions()
