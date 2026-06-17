@@ -195,6 +195,7 @@ type adminSessionResponse struct {
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
 	MattermostURL          string `json:"mattermostURL,omitempty"`
+	DeviceManaged          bool   `json:"deviceManaged"`
 }
 
 type firstAdminPasswordDocument struct {
@@ -800,14 +801,16 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
 	claimedAdminEmail := service.claimedAdminEmail()
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
+	consoleEmail := service.adminConsoleActorEmail(request)
 	response := adminSessionResponse{
-		Email:             callerEmail,
+		Email:             consoleEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
-		IsAdmin:           service.isCurrentAdminEmail(request.Context(), callerEmail),
+		IsAdmin:           service.isFlowAdminEmail(request.Context(), consoleEmail),
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
 		MattermostURL:     strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostPublicURL), "/"),
+		DeviceManaged:     service.hasDeviceAuth(),
 	}
 	if isClaimedAdmin {
 		passwordDocument := service.consumeFirstAdminPassword(callerEmail)
@@ -1899,18 +1902,18 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 	if isLocalRequest(request) {
 		return true
 	}
-	callerEmail := authenticatedCallerEmail(request)
+	callerEmail := service.adminConsoleActorEmail(request)
 	if callerEmail == "" {
 		return false
 	}
+	return service.isFlowAdminEmail(request.Context(), callerEmail)
+}
+
+func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 	if service.hasDeviceAuth() {
-		return service.isCurrentAdminEmail(request.Context(), callerEmail) || service.isClaimedAdminEmail(callerEmail)
+		return authenticatedCallerEmail(request)
 	}
-	adminEmail := service.seedAdminEmail()
-	if adminEmail == "" {
-		return false
-	}
-	return callerEmail == adminEmail
+	return service.webActorEmail(request)
 }
 
 func authenticatedCallerEmail(request *http.Request) string {
