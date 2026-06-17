@@ -2,9 +2,12 @@
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import FileTreeNode from './file-tree-node.svelte';
-	import { listWorkspaceDirectory, workspaceDownloadURL, type WorkspaceEntry } from './files-api';
+	import { getFilesState } from './files-context.svelte';
+	import { listWorkspaceDirectory, type WorkspaceEntry } from './files-api';
 
 	let { entry }: { entry: WorkspaceEntry } = $props();
+
+	const files = getFilesState();
 
 	let open = $state(false);
 	let children = $state<WorkspaceEntry[] | null>(null);
@@ -22,13 +25,6 @@
 		} finally {
 			isLoading = false;
 		}
-	}
-
-	function downloadFile() {
-		const anchor = document.createElement('a');
-		anchor.href = workspaceDownloadURL(entry.agentPath);
-		anchor.download = entry.name;
-		anchor.click();
 	}
 
 	$effect(() => {
@@ -49,5 +45,9 @@
 		{/if}
 	</TreeView.Folder>
 {:else}
-	<TreeView.File name={entry.name} onclick={downloadFile} />
+	<TreeView.File
+		name={entry.name}
+		class={files.selectedFile?.agentPath === entry.agentPath ? 'bg-accent rounded-sm' : ''}
+		onclick={() => files.selectFile(entry)}
+	/>
 {/if}

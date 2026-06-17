@@ -14,6 +14,7 @@ export class FilesState {
 	currentRoot = $state<WorkspaceRoot | null>(null);
 	currentPath = $state<string>('');
 	entries = $state<WorkspaceEntry[]>([]);
+	selectedFile = $state<WorkspaceEntry | null>(null);
 	isLoading = $state<boolean>(false);
 	isUploading = $state<boolean>(false);
 	errorMessage = $state<string>('');
@@ -36,7 +37,16 @@ export class FilesState {
 
 	async openRoot(root: WorkspaceRoot) {
 		this.currentRoot = root;
+		this.selectedFile = null;
 		await this.navigateTo(root.agentPath);
+	}
+
+	selectFile(entry: WorkspaceEntry) {
+		this.selectedFile = entry;
+	}
+
+	clearSelection() {
+		this.selectedFile = null;
 	}
 
 	async navigateTo(path: string) {
