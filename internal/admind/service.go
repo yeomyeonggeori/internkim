@@ -38,6 +38,9 @@ var GitRevision = "unknown"
 type Configuration struct {
 	ListenAddress                  string
 	MattermostBaseURL              string
+	MattermostTeamName             string
+	MattermostPublicURL            string
+	FlowPublicURL                  string
 	APIBaseURL                     string
 	BlueclawBaseURL                string
 	CapabilitySocketPath           string
@@ -191,6 +194,7 @@ type adminSessionResponse struct {
 	BootstrapError         string `json:"bootstrapError,omitempty"`
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
+	MattermostURL          string `json:"mattermostURL,omitempty"`
 }
 
 type firstAdminPasswordDocument struct {
@@ -218,6 +222,7 @@ func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:                  "127.0.0.1:18080",
 		MattermostBaseURL:              "http://127.0.0.1:8065",
+		MattermostTeamName:             "internkim",
 		APIBaseURL:                     "https://api.example.test",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
@@ -252,7 +257,7 @@ func DefaultConfiguration() Configuration {
 		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:           "/etc/systemd/system",
 		BotProfilePath:                 "/root/.internkim/config/bot-profile.yaml",
-		BotProfileImagePath:            "/opt/internkim/assets/internkim.png",
+		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
 		BlueclawRuntimeConfigPath:      "/root/.blueclaw/config/runtime.json",
 	}
@@ -802,6 +807,7 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
+		MattermostURL:     strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostPublicURL), "/"),
 	}
 	if isClaimedAdmin {
 		passwordDocument := service.consumeFirstAdminPassword(callerEmail)
@@ -2276,6 +2282,9 @@ func policyStringList(value any) []string {
 }
 
 func (service *Service) syncMattermostCirclesBestEffort(ctx context.Context) error {
+	if !service.hasDeviceAuth() {
+		return nil
+	}
 	token, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return errorValue

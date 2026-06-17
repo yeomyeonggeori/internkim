@@ -309,11 +309,12 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	}
 	channelIDs, channelError := service.ensureMattermostDefaultChannelIDs(ctx, adminToken, teamRecord.ID)
 	adminMembershipError := service.ensureMattermostDefaultChannelMembership(ctx, adminToken, teamRecord.ID, adminUser.ID, channelIDs)
+	botMembershipError := service.ensureMattermostBotDefaultChannelMembership(ctx, adminToken, teamRecord.ID, channelIDs)
 	userMembershipError := service.ensureMattermostDefaultChannelMemberships(ctx, adminToken, teamRecord.ID, channelIDs)
 	connectCommandError := service.ensureMattermostConnectCommand(ctx, adminToken)
 	oauthAppError := service.ensureMattermostWebOAuthApp(ctx, adminToken)
 	botPermissionError := service.ensureMattermostBotEphemeralPermission(ctx, adminToken)
-	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError, oauthAppError, botPermissionError)
+	return errors.Join(channelError, adminMembershipError, botMembershipError, userMembershipError, connectCommandError, oauthAppError, botPermissionError)
 }
 
 func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
@@ -695,7 +696,7 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 }
 
 func (service *Service) ensureMattermostDefaultChannelMemberships(ctx context.Context, token string, teamID string, channelIDs []string) error {
-	users, errorValue := service.allowedMattermostUsers(ctx, token)
+	users, errorValue := service.channelMembershipUsers(ctx, token, teamID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -706,7 +707,32 @@ func (service *Service) ensureMattermostDefaultChannelMemberships(ctx context.Co
 	return errors.Join(membershipErrors...)
 }
 
+func (service *Service) channelMembershipUsers(ctx context.Context, token string, teamID string) ([]mattermostUserRecord, error) {
+	if !service.hasDeviceAuth() {
+		return service.teamMattermostUsers(ctx, token, teamID)
+	}
+	return service.allowedMattermostUsers(ctx, token)
+}
+
+func (service *Service) teamMattermostUsers(ctx context.Context, token string, teamID string) ([]mattermostUserRecord, error) {
+	var users []mattermostUserRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?in_team="+url.PathEscape(teamID)+"&per_page=200", token, nil, &users); errorValue != nil {
+		return nil, errorValue
+	}
+	teamUsers := make([]mattermostUserRecord, 0, len(users))
+	for _, user := range users {
+		if user.DeleteAt != 0 || isProtectedMattermostUser(user) {
+			continue
+		}
+		teamUsers = append(teamUsers, user)
+	}
+	return teamUsers, nil
+}
+
 func (service *Service) allowedMattermostUsers(ctx context.Context, token string) ([]mattermostUserRecord, error) {
+	if !service.hasDeviceAuth() {
+		return service.activeMattermostUsers(ctx, token)
+	}
 	records, errorValue := service.currentUserRecords(ctx)
 	if errorValue != nil {
 		return nil, errorValue
@@ -750,6 +776,18 @@ func (service *Service) ensureMattermostDefaultChannelMembership(ctx context.Con
 	}
 	_ = service.cleanupSavedMattermostManagedChannelSystemPosts(ctx, token)
 	return errors.Join(membershipErrors...)
+}
+
+func (service *Service) ensureMattermostBotDefaultChannelMembership(ctx context.Context, token string, teamID string, channelIDs []string) error {
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return nil
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.ensureMattermostDefaultChannelMembership(ctx, token, teamID, botUserID, channelIDs)
 }
 
 func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, token string, teamID string) ([]string, error) {
@@ -980,7 +1018,17 @@ func (service *Service) ensureMattermostManagedChannelModeration(ctx context.Con
 		mattermostChannelModerationPatch("manage_members", map[string]bool{"members": false}),
 		mattermostChannelModerationPatch("use_channel_mentions", map[string]bool{"members": false, "guests": false}),
 	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/moderations/patch", token, body, nil)
+	errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/moderations/patch", token, body, nil)
+	if errorValue != nil && isMattermostChannelModerationUnavailable(errorValue) {
+		log.Printf("channel moderation unavailable on this Mattermost edition, leaving channel %s unmoderated", channelID)
+		return nil
+	}
+	return errorValue
+}
+
+func isMattermostChannelModerationUnavailable(errorValue error) bool {
+	message := errorValue.Error()
+	return strings.Contains(message, "channel moderation") || strings.Contains(message, "patch_channel_moderations")
 }
 
 func mattermostChannelModerationPatch(name string, roles map[string]bool) map[string]any {
@@ -1331,8 +1379,12 @@ func (service *Service) mattermostChannelIDByName(ctx context.Context, token str
 }
 
 func (service *Service) ensureMattermostTeam(ctx context.Context, token string) (mattermostTeamRecord, error) {
+	teamName := strings.TrimSpace(service.Configuration.MattermostTeamName)
+	if teamName == "" {
+		teamName = "internkim"
+	}
 	var teamRecord mattermostTeamRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/name/internkim", token, nil, &teamRecord)
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/name/"+url.PathEscape(teamName), token, nil, &teamRecord)
 	if errorValue == nil && teamRecord.ID != "" {
 		return teamRecord, nil
 	}
@@ -1340,12 +1392,12 @@ func (service *Service) ensureMattermostTeam(ctx context.Context, token string) 
 		return mattermostTeamRecord{}, errorValue
 	}
 
-	body := map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"}
+	body := map[string]string{"name": teamName, "display_name": "Intern Kim", "type": "I"}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/teams", token, body, &teamRecord); errorValue != nil {
 		return mattermostTeamRecord{}, errorValue
 	}
 	if teamRecord.ID == "" {
-		return mattermostTeamRecord{}, fmt.Errorf("Mattermost team internkim was not created")
+		return mattermostTeamRecord{}, fmt.Errorf("Mattermost team %s was not created", teamName)
 	}
 	return teamRecord, nil
 }

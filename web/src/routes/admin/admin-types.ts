@@ -42,6 +42,7 @@ export type AdminSession = {
 	bootstrapError?: string;
 	temporaryPassword?: string;
 	temporaryPasswordEmail?: string;
+	mattermostURL?: string;
 };
 
 export type BackupManifest = {

@@ -3,8 +3,8 @@ package tenantruntime
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +17,8 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	var updateRequest cloudflareTunnelConfigurationResource
-	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+	originalTransport := http.DefaultClient.Transport
+	http.DefaultClient.Transport = cloudflareTunnelTestTransport(func(request *http.Request) (*http.Response, error) {
 		if request.Header.Get("Authorization") != "Bearer cloudflare-token" {
 			t.Fatalf("unexpected authorization header")
 		}
@@ -26,7 +27,7 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 		}
 		switch request.Method {
 		case http.MethodGet:
-			writeCloudflareTunnelTestJSON(t, responseWriter, cloudflareTunnelConfigurationResponse{
+			return newCloudflareTunnelTestResponse(t, cloudflareTunnelConfigurationResponse{
 				Success: true,
 				Result: cloudflareTunnelConfigurationResource{Configuration: cloudflareTunnelConfiguration{Ingress: []cloudflareTunnelIngress{
 					{Hostname: "pilot-01.example.test", Service: "http://127.0.0.1:18065"},
@@ -34,17 +35,20 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 					{Hostname: "pilot-01.mattermost.example.test", Path: "^/flow", Service: "http://127.0.0.1:18180"},
 					{Service: "http_status:404"},
 				}}},
-			})
+			}), nil
 		case http.MethodPut:
 			if errorValue := json.NewDecoder(request.Body).Decode(&updateRequest); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			writeCloudflareTunnelTestJSON(t, responseWriter, cloudflareTunnelConfigurationResponse{Success: true})
+			return newCloudflareTunnelTestResponse(t, cloudflareTunnelConfigurationResponse{Success: true}), nil
 		default:
 			t.Fatalf("unexpected method: %s", request.Method)
+			return nil, nil
 		}
-	}))
-	defer server.Close()
+	})
+	defer func() {
+		http.DefaultClient.Transport = originalTransport
+	}()
 	service := Service{BasePath: t.TempDir()}
 	manifest := newTestCloudSharedManifest(t)
 	manifest.TenantID = "pilot-01"
@@ -58,7 +62,7 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 		AccountID:              "account-1",
 		TunnelID:               "tunnel-1",
 		APITokenPath:           tokenPath,
-		APIBaseURL:             server.URL,
+		APIBaseURL:             "https://cloudflare.test",
 		PublicHostnameTemplate: "{tenant}.example.test",
 		TenantIDs:              []string{"pilot-01"},
 	})
@@ -119,10 +123,21 @@ func assertCloudflareIngress(t *testing.T, ingress cloudflareTunnelIngress, host
 	}
 }
 
-func writeCloudflareTunnelTestJSON(t *testing.T, responseWriter http.ResponseWriter, value any) {
+type cloudflareTunnelTestTransport func(request *http.Request) (*http.Response, error)
+
+func (transport cloudflareTunnelTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
+func newCloudflareTunnelTestResponse(t *testing.T, value any) *http.Response {
 	t.Helper()
-	responseWriter.Header().Set("Content-Type", "application/json")
-	if errorValue := json.NewEncoder(responseWriter).Encode(value); errorValue != nil {
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(string(document))),
 	}
 }
