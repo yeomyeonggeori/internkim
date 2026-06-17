@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -137,10 +139,34 @@ func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string)
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
-		return false
+		return service.isEmailInUsersSyncCache(actorEmail)
 	}
 	for _, record := range records {
 		if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(actorEmail))
+	if normalizedEmail == "" {
+		return false
+	}
+	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	if errorValue != nil {
+		return false
+	}
+	var cache struct {
+		Users []string `json:"users"`
+	}
+	if json.Unmarshal(content, &cache) != nil {
+		return false
+	}
+	for _, email := range cache.Users {
+		if strings.EqualFold(strings.TrimSpace(email), normalizedEmail) {
 			return true
 		}
 	}
