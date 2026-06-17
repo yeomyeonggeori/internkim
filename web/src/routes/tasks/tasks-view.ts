@@ -1,23 +1,47 @@
+import type { BadgeVariant } from '$lib/components/ui/badge';
+import type { TasksText } from './text';
 import type { EventLane } from './tasks-api';
 
 export function shortTaskRunID(taskRunID: string): string {
 	return taskRunID.length > 6 ? taskRunID.slice(0, 6) : taskRunID;
 }
 
-export function taskStatusBadgeClass(status: string): string {
+export function taskStatusBadgeVariant(status: string): BadgeVariant {
 	switch (status) {
 		case 'completed':
-			return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200';
+			return 'default';
 		case 'failed':
-			return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
-		case 'blocked':
-		case 'cancelled':
-			return 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200';
+			return 'destructive';
 		case 'running':
 		case 'planned':
-			return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200';
+			return 'secondary';
 		default:
-			return 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200';
+			return 'outline';
+	}
+}
+
+export function taskStatusLabel(status: string, text: TasksText): string {
+	switch (status) {
+		case 'completed':
+			return text.statusCompleted;
+		case 'failed':
+			return text.statusFailed;
+		case 'running':
+			return text.statusRunning;
+		case 'planned':
+			return text.statusPlanned;
+		case 'waiting_user_input':
+			return text.statusWaitingUserInput;
+		case 'waiting_approval':
+			return text.statusWaitingApproval;
+		case 'blocked':
+			return text.statusBlocked;
+		case 'interrupted':
+			return text.statusInterrupted;
+		case 'cancelled':
+			return text.statusCancelled;
+		default:
+			return status;
 	}
 }
 
