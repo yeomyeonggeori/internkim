@@ -14,11 +14,24 @@ type Target struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	AdminURL     string `json:"adminURL"`
+	Kind         string `json:"kind,omitempty"`
 	Profile      string `json:"profile,omitempty"`
 	NodeArgument string `json:"nodeArgument,omitempty"`
 	NodeID       string `json:"nodeID,omitempty"`
 	StatePath    string `json:"statePath,omitempty"`
 	SecretSource string `json:"secretSource,omitempty"`
+	SSHHost      string `json:"sshHost,omitempty"`
+	SSHUser      string `json:"sshUser,omitempty"`
+	Workdir      string `json:"workdir,omitempty"`
+	ImageTag     string `json:"imageTag,omitempty"`
+	ComposeFile  string `json:"composeFile,omitempty"`
+}
+
+func (target Target) ResolvedKind() string {
+	if target.Kind == "" {
+		return "jetson"
+	}
+	return target.Kind
 }
 
 type TargetRegistry struct {
