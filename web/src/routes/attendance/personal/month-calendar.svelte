@@ -20,9 +20,6 @@
 	const byDay = $derived(groupEventsByDay(personalEvents));
 	const days = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
 	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
-	const locationMap = $derived(
-		new Map((attendance.summary?.locations ?? []).map((l) => [l.id, l]))
-	);
 
 	function leadingBlanks(firstDate: string): number[] {
 		if (!firstDate) return [];
@@ -72,7 +69,6 @@
 			{/each}
 			{#each days as date (date)}
 				{@const day = computeDayEvents(date, byDay.get(date) ?? [])}
-				{@const location = day.clockIn?.locationID ? locationMap.get(day.clockIn.locationID) : null}
 				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
 				<button
 					type="button"
@@ -94,9 +90,6 @@
 									<span>{day.clockOut?.localTime ?? '-'}</span>
 								{/if}
 							</div>
-							{#if location}
-								<span class="truncate text-[10px] font-medium text-muted-foreground">{location.name}</span>
-							{/if}
 						</div>
 					{:else if dayAbsence}
 						<span class="text-[11px] font-semibold leading-tight text-info">
