@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -157,14 +158,43 @@ func (service Service) importMattermostAttachment(ctx context.Context, target ma
 }
 
 func (service Service) writeMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata, download mattermostAttachmentDownload) platformInputAttachment {
-	filename := mattermostImportFilename(attachment, metadata)
 	importedAttachment := withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID)
-	filename = uniqueMattermostImportFilename(target.HostDirectoryPath, usedFilenames, filename)
+	if existingFilename, isFound := existingAttachmentByContent(target.HostDirectoryPath, download.Content); isFound {
+		usedFilenames[existingFilename] = true
+		return withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), existingFilename)
+	}
+	filename := uniqueMattermostImportFilename(target.HostDirectoryPath, usedFilenames, mattermostImportFilename(attachment, metadata))
 	hostPath := filepath.Join(target.HostDirectoryPath, filename)
 	if errorValue := os.WriteFile(hostPath, download.Content, 0o644); errorValue != nil {
 		return unavailableMattermostAttachment(importedAttachment, fallbackMessageID, "write_failed", errorValue.Error())
 	}
 	return withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), filename)
+}
+
+func existingAttachmentByContent(hostDirectoryPath string, content []byte) (string, bool) {
+	contentHash := sha256.Sum256(content)
+	contentSize := int64(len(content))
+	entries, errorValue := os.ReadDir(hostDirectoryPath)
+	if errorValue != nil {
+		return "", false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		information, errorValue := entry.Info()
+		if errorValue != nil || information.Size() != contentSize {
+			continue
+		}
+		existingContent, errorValue := os.ReadFile(filepath.Join(hostDirectoryPath, entry.Name()))
+		if errorValue != nil {
+			continue
+		}
+		if sha256.Sum256(existingContent) == contentHash {
+			return entry.Name(), true
+		}
+	}
+	return "", false
 }
 
 func reusableMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata) (platformInputAttachment, bool) {
