@@ -440,6 +440,97 @@ func writePlatformDMTestFile(t *testing.T, value string) string {
 	return path
 }
 
+func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	postCount := 0
+	service := Service{
+		Configuration: Configuration{
+			BlueclawBaseURL:     "http://blueclaw.local",
+			MattermostBaseURL:   "http://mattermost.local",
+			MattermostTokenPath: tokenPath,
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch request.URL.String() {
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				var body struct {
+					Hint string `json:"hint"`
+				}
+				if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				switch body.Hint {
+				case "샘플":
+					return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
+				case "정국":
+					return platformDMTestJSONResponse(`{"status":"resolved","recipient":{"personID":"person-jungkook","displayName":"전정국","emails":["jk@example.com"],"externalUserID":"user-jungkook","username":"jk"}}`), nil
+				default:
+					return platformDMTestJSONResponse(`{"status":"not_found","approvedPeople":["이샘플"]}`), nil
+				}
+			case "http://mattermost.local/api/v4/users/me":
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+			case "http://mattermost.local/api/v4/channels/direct":
+				return platformDMTestJSONResponse(`{"id":"dm-channel"}`), nil
+			case "http://mattermost.local/api/v4/posts":
+				postCount++
+				return platformDMTestJSONResponse(`{"id":"post-1"}`), nil
+			default:
+				t.Fatalf("unexpected request %s", request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHints":["샘플","정국","없는사람"]},"message":"완료 확인 부탁"}`),
+		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "sent" || response.IsError {
+		t.Fatalf("expected partial success response, got %+v", response)
+	}
+	if postCount != 2 {
+		t.Fatalf("expected two posts for two resolved recipients, got %d", postCount)
+	}
+	var rollup struct {
+		SentCount   int `json:"sentCount"`
+		FailedCount int `json:"failedCount"`
+		Results     []struct {
+			PersonHint string `json:"personHint"`
+			Status     string `json:"status"`
+			ErrorCode  string `json:"errorCode"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &rollup); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if rollup.SentCount != 2 || rollup.FailedCount != 1 {
+		t.Fatalf("expected 2 sent / 1 failed, got %+v", rollup)
+	}
+	for _, result := range rollup.Results {
+		if result.PersonHint == "없는사람" && (result.Status != "failed" || result.ErrorCode != "recipient_not_found") {
+			t.Fatalf("expected not-found recipient to be reported failed, got %+v", result)
+		}
+	}
+}
+
+func TestPlatformMessageBroadcastImmediateRunRequiresApproval(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHints":["샘플","정국"]},"message":"확인"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-other"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertPlatformDMStructuredFailure(t, response, "denied", "approval_required", "authorization", false, false)
+}
+
 func platformDMTestJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
