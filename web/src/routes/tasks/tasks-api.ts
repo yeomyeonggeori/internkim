@@ -3,6 +3,7 @@ import { adminApiFetch } from '$lib/admin-api';
 export type TaskRunSummary = {
 	taskRunID: string;
 	requesterPersonID?: string;
+	requesterDisplayName?: string;
 	status: string;
 	prompt?: string;
 	result?: string;
@@ -205,6 +206,7 @@ function readTaskRunSummary(entry: unknown): TaskRunSummary | undefined {
 	return {
 		taskRunID: record.taskRunID,
 		requesterPersonID: typeof record.requesterPersonID === 'string' ? record.requesterPersonID : undefined,
+		requesterDisplayName: typeof record.requesterDisplayName === 'string' ? record.requesterDisplayName : undefined,
 		status: record.status,
 		prompt: typeof record.prompt === 'string' ? record.prompt : undefined,
 		result: typeof record.result === 'string' ? record.result : undefined,

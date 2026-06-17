@@ -9,7 +9,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import { fetchTaskRuns, type TaskRunSummary } from './tasks-api';
-	import { taskStatusBadgeClass, formatTaskTimestamp, shortTaskRunID } from './tasks-view';
+	import { taskStatusBadgeVariant, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
@@ -20,6 +20,7 @@
 	let statusFilter = $state('');
 	let loadError = $state('');
 	let isLoading = $state(false);
+	let isAdmin = $state(false);
 	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
 	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
 
@@ -73,7 +74,19 @@
 		void loadTaskRuns(taskPageIndex + 1);
 	}
 
+	async function loadViewerRole() {
+		try {
+			const response = await fetch('/auth/session', { credentials: 'include' });
+			if (!response.ok) return;
+			const session = (await response.json()) as { isAdmin?: boolean };
+			isAdmin = session.isAdmin === true;
+		} catch {
+			isAdmin = false;
+		}
+	}
+
 	onMount(() => {
+		void loadViewerRole();
 		void loadTaskRuns(0);
 	});
 </script>
@@ -118,10 +131,12 @@
 			<Table.Root>
 				<Table.Header>
 					<Table.Row>
-						<Table.Head class="w-24">{text.statusAll}</Table.Head>
-						<Table.Head class="w-20">ID</Table.Head>
-						<Table.Head>{text.promptLabel}</Table.Head>
-						<Table.Head class="w-44 text-right">{text.updatedAt}</Table.Head>
+						{#if isAdmin}
+							<Table.Head class="w-40">{text.columnRequester}</Table.Head>
+						{/if}
+						<Table.Head>{text.columnRequest}</Table.Head>
+						<Table.Head class="w-28">{text.columnStatus}</Table.Head>
+						<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
@@ -130,17 +145,21 @@
 							class="cursor-pointer"
 							onclick={() => void goto(`/tasks/${taskRun.taskRunID}`)}
 						>
-							<Table.Cell>
-								<Badge class={taskStatusBadgeClass(taskRun.status)}>{taskRun.status}</Badge>
-							</Table.Cell>
-							<Table.Cell>
-								<code class="text-xs text-muted-foreground">{shortTaskRunID(taskRun.taskRunID)}</code>
-							</Table.Cell>
+							{#if isAdmin}
+								<Table.Cell class="text-sm whitespace-nowrap">
+									{taskRun.requesterDisplayName || taskRun.requesterPersonID || '—'}
+								</Table.Cell>
+							{/if}
 							<Table.Cell class="max-w-0">
 								<p class="truncate text-sm">{taskRun.prompt || '—'}</p>
 								{#if taskRun.failureReason}
-									<p class="truncate text-xs text-red-600">{taskRun.failureReason}</p>
+									<p class="truncate text-xs text-destructive">{taskRun.failureReason}</p>
 								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
+									{taskStatusLabel(taskRun.status, text)}
+								</Badge>
 							</Table.Cell>
 							<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
 								{formatTaskTimestamp(taskRun.updatedAt)}
