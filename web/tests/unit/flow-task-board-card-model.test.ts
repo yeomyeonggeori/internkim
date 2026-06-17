@@ -31,6 +31,24 @@ describe('flow task board card model', () => {
 
 		expect(display.participantNames).toEqual(['김철수']);
 	});
+
+	test('labels empty business as 기타 in metadata', () => {
+		const display = buildFlowTaskBoardCardDisplay(flowTask({
+			business: '',
+			type: '운영'
+		}));
+
+		expect(display.metadataLabels).toEqual(['기타', '운영']);
+	});
+
+	test('uses the provided empty business fallback in metadata', () => {
+		const display = buildFlowTaskBoardCardDisplay(flowTask({
+			business: '',
+			type: 'Operations'
+		}), 'Other');
+
+		expect(display.metadataLabels).toEqual(['Other', 'Operations']);
+	});
 });
 
 function flowTask(overrides: Partial<FlowTask>): FlowTask {

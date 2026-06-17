@@ -86,7 +86,7 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				summaryRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
@@ -120,7 +120,7 @@ func TestFlowTaskAddPropagatesDuplicateConfirmation(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -155,7 +155,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"lee","name":"샘플","email":"lee@example.com","mattermostUsername":"lee"},{"id":"kim","name":"샘플","email":"kim@example.com","mattermostUsername":"kim"}]}`), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
 				postCalled = true
@@ -193,7 +193,7 @@ func TestFlowTaskAddReturnsSkippedDuplicateStatus(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
 				return flowToolJSONResponse(`{"status":"skipped_duplicate","duplicateTask":{"id":"task-1"}}`), nil
@@ -223,10 +223,10 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/summary" {
+			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return flowToolJSONResponse(`{"week":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`), nil
+			return flowToolJSONResponse(`{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`), nil
 		})},
 	}
 
@@ -253,7 +253,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
@@ -335,7 +335,7 @@ func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 준비","size":"XS","status":"진행","weekCode":"26W24"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut:
 				putCalled = true
@@ -401,6 +401,106 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 	}
 	if deletedRequesterEmail != "staff@example.com" {
 		t.Fatalf("requester email = %q", deletedRequesterEmail)
+	}
+}
+
+func TestNormalizeFlowStatusFilter(t *testing.T) {
+	for input, expected := range map[string]string{
+		"예약": "예정", "planned": "예정", "scheduled": "예정", "예정": "예정",
+		"done": "완료", "완료": "완료", "in progress": "진행",
+		"": "", "임의값": "임의값",
+	} {
+		if normalized := normalizeFlowStatusFilter(input); normalized != expected {
+			t.Fatalf("normalizeFlowStatusFilter(%q) = %q, want %q", input, normalized, expected)
+		}
+	}
+}
+
+func flowTaskListTwoOwnerStateService(t *testing.T) Service {
+	return Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "http://admind.local/flow/api/state" {
+				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
+			}
+			return flowToolJSONResponse(`{"currentWeek":{"code":"26W25"},"members":[{"id":"rain","name":"김테스트","email":"rain@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"rain-future","ownerID":"rain","ownerName":"김테스트","content":"김테스트 예정 업무","status":"예정","weekCode":"26W30"},{"id":"rain-done","ownerID":"rain","ownerName":"김테스트","content":"김테스트 완료 업무","status":"완료","weekCode":"26W25"},{"id":"lee-task","ownerID":"lee","ownerName":"이샘플","content":"이샘플 업무","status":"예정","weekCode":"26W25"}]}`), nil
+		})},
+	}
+}
+
+func TestFlowTaskListDefaultsToRequesterOwnTasks(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected only the requester's own tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"self"`) || !strings.Contains(result, `"crossPerson":false`) || !strings.Contains(result, `"ownerID":"rain"`) {
+		t.Fatalf("expected self scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListSpansAllWeeksAndNormalizesStatusForOwnTasks(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"status":"예약"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected only own planned task across weeks, got %s", result)
+	}
+	if !strings.Contains(result, `"statusFilter":"예정"`) {
+		t.Fatalf("expected status normalized to 예정, got %s", result)
+	}
+}
+
+func TestFlowTaskListAllPeopleReturnsEveryone(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"allPeople":true}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") {
+		t.Fatalf("expected all owners' tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"allPeople"`) || !strings.Contains(result, `"crossPerson":true`) {
+		t.Fatalf("expected allPeople scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"이샘플"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "lee-task") || strings.Contains(result, "rain-future") {
+		t.Fatalf("expected only the named person's tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"person"`) {
+		t.Fatalf("expected person scope metadata, got %s", result)
 	}
 }
 

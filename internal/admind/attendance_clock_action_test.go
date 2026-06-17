@@ -115,6 +115,46 @@ func TestAttendanceClockInMultipleLocationsPostsLocationName(t *testing.T) {
 	}
 }
 
+func TestAttendanceClockInDifferentLocationCreatesAnotherEvent(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload.Context.LocationID = "home"
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 2 || !(*posts)[0].Deleted || (*posts)[1].Message != "출근(재택)" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 2 ||
+		events[0].Kind != attendanceKindClockIn ||
+		events[0].LocationName != "재택" ||
+		events[1].Kind != attendanceKindClockIn ||
+		events[1].LocationName != "사무실" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestAttendanceClockInButtonCreatesEventAfterClockOut(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{

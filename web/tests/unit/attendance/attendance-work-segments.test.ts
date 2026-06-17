@@ -1,0 +1,99 @@
+import { describe, expect, test } from 'bun:test';
+import type { AttendanceEvent } from '../../../src/routes/attendance/attendance-context.svelte';
+import { computeDayEvents } from '../../../src/routes/attendance/shared/attendance-day-events';
+
+describe('attendance work segments', () => {
+	test('pairs multiple location visits without counting time between segments', () => {
+		const events = [
+			attendanceEvent('home-in', 'clock_in', '2026-06-17T01:30:00.000Z', '10:30:00', 'home', '재택'),
+			attendanceEvent('home-out', 'clock_out', '2026-06-17T03:00:00.000Z', '12:00:00'),
+			attendanceEvent('office-in', 'clock_in', '2026-06-17T08:00:00.000Z', '17:00:00', 'office', '사무실'),
+			attendanceEvent('office-out', 'clock_out', '2026-06-17T09:00:00.000Z', '18:00:00'),
+		];
+
+		const day = computeDayEvents('2026-06-17', events);
+
+		expect(day.segments.length).toBe(2);
+		expect(day.workedMinutes).toBe(150);
+		expect(day.segments.map((segment) => segment.locationName)).toEqual(['재택', '사무실']);
+		expect(day.segments.map((segment) => segment.workedMinutes)).toEqual([90, 60]);
+	});
+
+	test('marks the latest unclosed location as the active segment', () => {
+		const events = [
+			attendanceEvent('home-in', 'clock_in', '2026-06-17T01:30:00.000Z', '10:30:00', 'home', '재택'),
+			attendanceEvent('home-out', 'clock_out', '2026-06-17T03:00:00.000Z', '12:00:00'),
+			attendanceEvent('field-in', 'clock_in', '2026-06-17T09:00:00.000Z', '18:00:00', 'field', '외부'),
+		];
+
+		const day = computeDayEvents('2026-06-17', events);
+
+		expect(day.inProgress).toBe(true);
+		expect(day.activeSegment?.locationName).toBe('외부');
+		expect(day.activeSegment?.startTime).toBe('18:00:00');
+		expect(day.workedMinutes).toBe(90);
+	});
+
+	test('uses the next clock-in as the previous location end when location changes without clock-out', () => {
+		const events = [
+			attendanceEvent('office-in', 'clock_in', '2026-06-17T00:00:00.000Z', '09:00:00', 'office', '사무실'),
+			attendanceEvent('home-in', 'clock_in', '2026-06-17T02:00:00.000Z', '11:00:00', 'home', '재택'),
+		];
+
+		const day = computeDayEvents('2026-06-17', events);
+
+		expect(day.segments.length).toBe(2);
+		expect(day.segments[0]).toMatchObject({
+			locationName: '사무실',
+			endTime: '11:00:00',
+			workedMinutes: 120,
+			isOpen: false,
+			endReason: 'next_clock_in',
+		});
+		expect(day.activeSegment?.locationName).toBe('재택');
+		expect(day.workedMinutes).toBe(120);
+	});
+
+	test('ignores canceled events when building segments', () => {
+		const events = [
+			attendanceEvent('home-in', 'clock_in', '2026-06-17T01:30:00.000Z', '10:30:00', 'home', '재택', {
+				canceledAt: '2026-06-17T01:31:00.000Z',
+			}),
+			attendanceEvent('home-out', 'clock_out', '2026-06-17T03:00:00.000Z', '12:00:00'),
+			attendanceEvent('office-in', 'clock_in', '2026-06-17T04:00:00.000Z', '13:00:00', 'office', '사무실'),
+		];
+
+		const day = computeDayEvents('2026-06-17', events);
+
+		expect(day.segments.length).toBe(1);
+		expect(day.activeSegment?.locationName).toBe('사무실');
+	});
+});
+
+function attendanceEvent(
+	id: string,
+	kind: AttendanceEvent['kind'],
+	occurredAt: string,
+	localTime: string,
+	locationID = '',
+	locationName = '',
+	overrides: Partial<AttendanceEvent> = {}
+): AttendanceEvent {
+	return {
+		id,
+		mattermostUserID: 'user-1',
+		mattermostUsername: 'user',
+		email: 'user@example.com',
+		displayName: 'User',
+		kind,
+		occurredAt,
+		localDate: '2026-06-17',
+		localTime,
+		timeZoneAtEvent: 'Asia/Seoul',
+		source: 'test',
+		resultPostID: `${id}-post`,
+		locationID,
+		locationName,
+		...overrides,
+	};
+}
