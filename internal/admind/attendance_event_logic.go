@@ -66,19 +66,19 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, kind, lastEvent, found, channelID, actionPostID)
-	if errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	if shouldIgnore {
-		return ignoredAttendanceActionResult(), nil
-	}
 	eventLocation := attendanceLocation{}
 	if kind == attendanceKindClockIn {
 		eventLocation = service.defaultAttendanceLocation()
 		if strings.TrimSpace(locationID) != "" {
 			eventLocation = service.attendanceLocationByID(locationID)
 		}
+	}
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, kind, eventLocation, lastEvent, found, channelID, actionPostID)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if shouldIgnore {
+		return ignoredAttendanceActionResult(), nil
 	}
 	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
 }
@@ -107,8 +107,11 @@ func (service *Service) openClockInFromYesterday(ctx context.Context, database *
 	return yesterdayEvent, true, nil
 }
 
-func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool, channelID string, actionPostID string) (bool, error) {
+func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, location attendanceLocation, event attendanceEvent, hasEvent bool, channelID string, actionPostID string) (bool, error) {
 	if !shouldIgnoreAttendanceAction(kind, event, hasEvent) {
+		return false, nil
+	}
+	if kind == attendanceKindClockIn && hasEvent && !attendanceEventLocationMatches(event, location) {
 		return false, nil
 	}
 	if kind != attendanceKindClockIn || !hasEvent {
@@ -123,6 +126,15 @@ func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Conte
 		return false, errorValue
 	}
 	return postExists, nil
+}
+
+func attendanceEventLocationMatches(event attendanceEvent, location attendanceLocation) bool {
+	eventLocationID := strings.TrimSpace(event.LocationID)
+	locationID := strings.TrimSpace(location.ID)
+	if eventLocationID != "" || locationID != "" {
+		return eventLocationID == locationID
+	}
+	return strings.TrimSpace(event.LocationName) == strings.TrimSpace(location.Name)
 }
 
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) (attendanceActionResult, error) {
