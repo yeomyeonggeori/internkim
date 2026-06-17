@@ -696,7 +696,7 @@ func runDeploy() {
 		runDeployLegacySSH()
 		return
 	}
-	if errorValue := runDirectReleaseDeploy(arguments); errorValue != nil {
+	if errorValue := runRegistryReleaseDeploy(arguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/deployops"
+	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 )
 
@@ -66,6 +68,7 @@ Options:
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
+  --fleet <id>         Restrict registry deploy to fleet target ID(s). Repeatable or comma-separated.
   --node <id>          Target a specific node by ID.
   --legacy-ssh         Use legacy SSH deploy path instead of OTA.
   -h, --help           Print this usage and exit.`
@@ -78,6 +81,7 @@ func validateDeployArguments(arguments []string) error {
 		"--components": true,
 		"--release":    true,
 		"--channel":    true,
+		"--fleet":      true,
 		"--node":       true,
 		"--node-id":    true,
 		"--host":       true,
@@ -93,6 +97,7 @@ func validateDeployArguments(arguments []string) error {
 		"--components": true,
 		"--release":    true,
 		"--channel":    true,
+		"--fleet":      true,
 		"--node":       true,
 		"--node-id":    true,
 		"--host":       true,
@@ -122,13 +127,105 @@ func validateDeployArguments(arguments []string) error {
 	return nil
 }
 
-func runDirectReleaseDeploy(arguments []string) error {
+func runRegistryReleaseDeploy(arguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
-	target := resolveCommandTarget(commandControlArguments(arguments))
-	printCommandTargetEvidence(target)
+	registry, errorValue := deployops.LoadRegistry(repositoryRootPath, internkimHomeDir())
+	if errorValue != nil {
+		return errorValue
+	}
+	targets, shouldUseRegistry, errorValue := selectRegistryDeployTargets(registry, arguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !shouldUseRegistry {
+		return runDirectReleaseDeploy(arguments)
+	}
+	return deployReleaseToRegistryTargets(repositoryRootPath, targets, arguments)
+}
+
+func selectRegistryDeployTargets(registry deployops.TargetRegistry, arguments []string) ([]deployops.Target, bool, error) {
+	fleetIDs := deployFleetIDs(arguments)
+	if len(registry.Targets) == 0 {
+		return nil, false, nil
+	}
+	if len(fleetIDs) == 0 && hasExplicitSingleDeployTarget(arguments) {
+		return nil, false, nil
+	}
+	targets, errorValue := deployops.SelectTargets(registry, fleetIDs)
+	if errorValue != nil {
+		return nil, false, errorValue
+	}
+	return targets, true, nil
+}
+
+func hasExplicitSingleDeployTarget(arguments []string) bool {
+	for _, name := range []string{"--host", "--node", "--node-id", "--board", "--sim"} {
+		if hasCommandArgument(arguments, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func deployFleetIDs(arguments []string) []string {
+	fleetIDs := []string{}
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		switch {
+		case argument == "--fleet" && index+1 < len(arguments):
+			fleetIDs = appendFleetIDs(fleetIDs, arguments[index+1])
+			index++
+		case strings.HasPrefix(argument, "--fleet="):
+			fleetIDs = appendFleetIDs(fleetIDs, strings.TrimPrefix(argument, "--fleet="))
+		}
+	}
+	return fleetIDs
+}
+
+func appendFleetIDs(fleetIDs []string, value string) []string {
+	for _, fleetID := range strings.Split(value, ",") {
+		fleetID = strings.TrimSpace(fleetID)
+		if fleetID != "" {
+			fleetIDs = append(fleetIDs, fleetID)
+		}
+	}
+	return fleetIDs
+}
+
+func deployReleaseToRegistryTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
+	jetsonTargets, pocContainerTargets, errorValue := splitRegistryDeployTargets(targets)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := deployReleaseToJetsonTargets(repositoryRootPath, jetsonTargets, arguments); errorValue != nil {
+		return errorValue
+	}
+	return deployReleaseToPocContainerTargets(pocContainerTargets, arguments)
+}
+
+func splitRegistryDeployTargets(targets []deployops.Target) ([]deployops.Target, []deployops.Target, error) {
+	jetsonTargets := []deployops.Target{}
+	pocContainerTargets := []deployops.Target{}
+	for _, target := range targets {
+		switch target.ResolvedKind() {
+		case "jetson":
+			jetsonTargets = append(jetsonTargets, target)
+		case "poc-container":
+			pocContainerTargets = append(pocContainerTargets, target)
+		default:
+			return nil, nil, fmt.Errorf("unsupported target kind %q for %s", target.ResolvedKind(), target.ID)
+		}
+	}
+	return jetsonTargets, pocContainerTargets, nil
+}
+
+func deployReleaseToJetsonTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
+	if len(targets) == 0 {
+		return nil
+	}
 	temporaryDirectoryPath, errorValue := os.MkdirTemp("", "internkim-direct-release-*")
 	if errorValue != nil {
 		return errorValue
@@ -140,6 +237,66 @@ func runDirectReleaseDeploy(arguments []string) error {
 	}
 	fmt.Printf("Release: %s\n", bundle.manifest.ReleaseID)
 	fmt.Printf("Components: %s\n", strings.Join(releaseManifestComponentNames(bundle.manifest), ", "))
+	for _, target := range targets {
+		fmt.Printf("Target: %s (%s)\n", target.ID, target.ResolvedKind())
+		if errorValue := deployReleaseBundleToTarget(commandTargetFromDeployTarget(target), bundle); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func deployReleaseToPocContainerTargets(targets []deployops.Target, arguments []string) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	components, errorValue := selectedPocContainerComponents(arguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, target := range targets {
+		fmt.Printf("Target: %s (%s)\n", target.ID, target.ResolvedKind())
+		if errorValue := deployPocContainer(target, components); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func commandTargetFromDeployTarget(target deployops.Target) commandTarget {
+	return commandTarget{
+		mode:           commandTargetModePhysical,
+		profile:        target.Profile,
+		boardType:      setup.BoardJetsonOrinNano,
+		stateDir:       target.StatePath,
+		nodeID:         target.NodeID,
+		isNodeExplicit: target.NodeArgument != "" || target.NodeID != "",
+		deviceURL:      target.AdminURL,
+	}
+}
+
+func runDirectReleaseDeploy(arguments []string) error {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	target := resolveCommandTarget(commandControlArguments(arguments))
+	temporaryDirectoryPath, errorValue := os.MkdirTemp("", "internkim-direct-release-*")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer os.RemoveAll(temporaryDirectoryPath)
+	bundle, errorValue := createDirectReleaseBundle(repositoryRootPath, temporaryDirectoryPath, arguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("Release: %s\n", bundle.manifest.ReleaseID)
+	fmt.Printf("Components: %s\n", strings.Join(releaseManifestComponentNames(bundle.manifest), ", "))
+	return deployReleaseBundleToTarget(target, bundle)
+}
+
+func deployReleaseBundleToTarget(target commandTarget, bundle directReleaseBundle) error {
+	printCommandTargetEvidence(target)
 	fmt.Println("Creating upload session...")
 	upload, errorValue := createReleaseUpdateUpload(target, bundle)
 	if errorValue != nil {
