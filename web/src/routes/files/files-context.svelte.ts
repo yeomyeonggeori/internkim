@@ -6,6 +6,7 @@ import {
 	type WorkspaceEntry,
 	type WorkspaceRoot
 } from './files-api';
+import { workspaceBreadcrumbs, type WorkspaceBreadcrumb } from './files-path';
 
 const filesStateKey = Symbol('files');
 
@@ -13,8 +14,9 @@ export class FilesState {
 	roots = $state<WorkspaceRoot[]>([]);
 	currentRoot = $state<WorkspaceRoot | null>(null);
 	currentPath = $state<string>('');
-	entries = $state<WorkspaceEntry[]>([]);
 	selectedFile = $state<WorkspaceEntry | null>(null);
+	childrenCache = $state<Record<string, WorkspaceEntry[]>>({});
+	loadingPaths = $state<Record<string, boolean>>({});
 	isLoading = $state<boolean>(false);
 	isUploading = $state<boolean>(false);
 	errorMessage = $state<string>('');
@@ -23,6 +25,16 @@ export class FilesState {
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
+	}
+
+	get rootEntries(): WorkspaceEntry[] {
+		if (!this.currentRoot) return [];
+		return this.childrenCache[this.currentRoot.agentPath] ?? [];
+	}
+
+	get breadcrumbs(): WorkspaceBreadcrumb[] {
+		if (!this.currentRoot) return [];
+		return workspaceBreadcrumbs(this.currentRoot, this.currentPath);
 	}
 
 	async loadRoots() {
@@ -37,8 +49,35 @@ export class FilesState {
 
 	async openRoot(root: WorkspaceRoot) {
 		this.currentRoot = root;
+		this.currentPath = root.agentPath;
 		this.selectedFile = null;
-		await this.navigateTo(root.agentPath);
+		this.childrenCache = {};
+		this.isLoading = true;
+		try {
+			await this.loadChildren(root.agentPath);
+		} finally {
+			this.isLoading = false;
+		}
+	}
+
+	async loadChildren(path: string) {
+		if (path in this.childrenCache || this.loadingPaths[path]) return;
+		this.loadingPaths[path] = true;
+		try {
+			this.childrenCache[path] = await listWorkspaceDirectory(path);
+		} catch (error) {
+			this.errorMessage = errorText(error, this.loadFailedMessage);
+		} finally {
+			delete this.loadingPaths[path];
+		}
+	}
+
+	isLoadingPath(path: string): boolean {
+		return this.loadingPaths[path] === true;
+	}
+
+	setActiveDirectory(path: string) {
+		this.currentPath = path;
 	}
 
 	selectFile(entry: WorkspaceEntry) {
@@ -49,31 +88,12 @@ export class FilesState {
 		this.selectedFile = null;
 	}
 
-	async navigateTo(path: string) {
-		this.currentPath = path;
-		await this.refresh();
-	}
-
 	async reload() {
-		if (this.roots.length === 0) {
+		if (!this.currentRoot) {
 			await this.loadRoots();
 			return;
 		}
-		await this.refresh();
-	}
-
-	async refresh() {
-		if (!this.currentPath) return;
-		this.isLoading = true;
-		this.errorMessage = '';
-		try {
-			this.entries = await listWorkspaceDirectory(this.currentPath);
-		} catch (error) {
-			this.entries = [];
-			this.errorMessage = errorText(error, this.loadFailedMessage);
-		} finally {
-			this.isLoading = false;
-		}
+		await this.openRoot(this.currentRoot);
 	}
 
 	async upload(files: File[]) {
@@ -82,7 +102,8 @@ export class FilesState {
 		this.errorMessage = '';
 		try {
 			await uploadWorkspaceFiles(this.currentPath, files);
-			await this.refresh();
+			delete this.childrenCache[this.currentPath];
+			await this.loadChildren(this.currentPath);
 		} catch (error) {
 			this.errorMessage = errorText(error, this.loadFailedMessage);
 		} finally {
