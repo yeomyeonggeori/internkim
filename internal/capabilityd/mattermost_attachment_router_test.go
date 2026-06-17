@@ -184,3 +184,31 @@ func TestMattermostImportRecordExpiredFuture(t *testing.T) {
 		t.Fatal("expected future timestamp to not be expired")
 	}
 }
+
+func TestExistingAttachmentByContentMatchesIdenticalContent(t *testing.T) {
+	directory := t.TempDir()
+	content := []byte("<html><body>deck</body></html>")
+	if errorValue := os.WriteFile(filepath.Join(directory, "ir-deck-v3.html"), content, 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	filename, isFound := existingAttachmentByContent(directory, content)
+	if !isFound || filename != "ir-deck-v3.html" {
+		t.Fatalf("expected to reuse identical file, got %q found=%v", filename, isFound)
+	}
+
+	if _, isFound := existingAttachmentByContent(directory, []byte("different content")); isFound {
+		t.Fatal("expected no reuse for different content")
+	}
+}
+
+func TestExistingAttachmentByContentIgnoresSameSizeDifferentContent(t *testing.T) {
+	directory := t.TempDir()
+	if errorValue := os.WriteFile(filepath.Join(directory, "a.txt"), []byte("aaaa"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, isFound := existingAttachmentByContent(directory, []byte("bbbb")); isFound {
+		t.Fatal("expected no reuse when sizes match but content differs")
+	}
+}
