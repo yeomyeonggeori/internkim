@@ -631,9 +631,9 @@ func (service Service) resolveMattermostDirectMessageSearchHandle(ctx context.Co
 	if hasFailure {
 		return platformHandle{}, nil, failureFromPlatformDMFailure(failure), true
 	}
-	if !service.requesterMayReadDirectMessagesWith(ctx, toolContext, recipient) {
+	if !service.requesterMayReadDirectMessagesWith(toolContext, recipient) {
 		recipientLabel := firstNonEmpty(recipient.DisplayName, recipient.MattermostUsername, recipient.PersonID)
-		message := "current account is not authorized to read direct messages with " + recipientLabel + "; only that person or an admin can read them"
+		message := "current account can only read its own direct messages, not the ones between InternKim and " + recipientLabel
 		return platformHandle{}, nil, mattermostToolStaticFailure("dm_read_not_authorized", "authorization", message), true
 	}
 	channel, toolFailure, hasToolFailure := service.mattermostDirectChannelForRecipient(ctx, recipient)
@@ -658,29 +658,27 @@ func (service Service) resolveMattermostChannelSearchHandle(ctx context.Context,
 	return handle, channelResult, mattermostToolFailure{}, false
 }
 
-func (service Service) requesterMayReadDirectMessagesWith(ctx context.Context, toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
-	if isPlatformDMSelfRecipient(toolContext, recipient) {
-		return true
-	}
-	return service.mattermostRequesterHasCircle(ctx, toolContext, mattermostToolAdminCircle)
+func (service Service) requesterMayReadDirectMessagesWith(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
+	return isPlatformDMSelfRecipient(toolContext, recipient)
 }
 
 func (service Service) requesterMayAccessChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channelID string) bool {
 	requesterUserID := strings.TrimSpace(toolContext.RequesterPlatformUserID)
-	if requesterUserID != "" {
-		var membership struct {
-			ChannelID string `json:"channel_id"`
-		}
-		path := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members/" + url.PathEscape(requesterUserID)
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &membership); errorValue == nil && strings.TrimSpace(membership.ChannelID) != "" {
-			return true
-		}
+	if requesterUserID == "" {
+		return false
 	}
-	return service.mattermostRequesterHasCircle(ctx, toolContext, mattermostToolAdminCircle)
+	var membership struct {
+		ChannelID string `json:"channel_id"`
+	}
+	path := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members/" + url.PathEscape(requesterUserID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &membership); errorValue == nil && strings.TrimSpace(membership.ChannelID) != "" {
+		return true
+	}
+	return false
 }
 
 func channelAccessDeniedFailure(channelLabel string) mattermostToolFailure {
-	message := "current account is not authorized to access channel " + channelLabel + "; only a channel member or an admin can read or post there"
+	message := "current account is not a member of channel " + channelLabel + "; only its members can read or post there"
 	return mattermostToolStaticFailure("channel_access_not_authorized", "authorization", message)
 }
 
