@@ -150,25 +150,20 @@ export async function expectMonthEventsShareBlockStyle(page: Page, firstEventID:
 		});
 }
 
-export async function expectMonthTimedEventTitleAndTime(page: Page, eventID: string, title: string, time: string): Promise<void> {
+export async function expectMonthTimedEventTitleOnly(page: Page, eventID: string, title: string): Promise<void> {
 	await expect
 		.poll(async () =>
 			page.evaluate(
-				({ targetEventID, expectedTitle, expectedTime }) => {
+				({ targetEventID, expectedTitle }) => {
 					const eventElement = Array.from(document.querySelectorAll<HTMLElement>(`[data-event-id="${targetEventID}"].df-month-event`)).find(
 						(candidate) => {
 							const rectangle = candidate.getBoundingClientRect();
 							return rectangle.width > 0 && rectangle.height > 0;
 						}
 					);
-					const visibleDescendantWithText = (text: string): HTMLElement | null =>
-						Array.from(eventElement?.querySelectorAll<HTMLElement>('*') ?? []).find((element) => {
-							const rectangle = element.getBoundingClientRect();
-							return element.textContent?.trim() === text && rectangle.width > 0 && rectangle.height > 0;
-						}) ?? null;
-					const titleElement = eventElement?.querySelector<HTMLElement>('.calendar-month-event-title') ?? visibleDescendantWithText(expectedTitle);
-					const timeElement = eventElement?.querySelector<HTMLElement>('.calendar-month-event-time') ?? visibleDescendantWithText(expectedTime);
-					if (!eventElement || !titleElement || !timeElement) {
+					const titleElement = eventElement?.querySelector<HTMLElement>('.calendar-month-event-title') ?? null;
+					const timeElement = eventElement?.querySelector<HTMLElement>('.calendar-month-event-time') ?? null;
+					if (!eventElement || !titleElement) {
 						return {
 							status: 'missing',
 							isArranged: false
@@ -176,23 +171,20 @@ export async function expectMonthTimedEventTitleAndTime(page: Page, eventID: str
 					}
 					const eventRectangle = eventElement.getBoundingClientRect();
 					const titleRectangle = titleElement.getBoundingClientRect();
-					const timeRectangle = timeElement.getBoundingClientRect();
 					const tolerance = 1;
 					return {
 						status: 'measured',
 						titleText: titleElement.textContent?.trim(),
-						timeText: timeElement.textContent?.trim(),
+						hasTimeElement: timeElement !== null,
 						isArranged:
 							titleElement.textContent?.trim() === expectedTitle &&
-							timeElement.textContent?.trim() === expectedTime &&
+							timeElement === null &&
 							titleRectangle.left >= eventRectangle.left &&
-							titleRectangle.right <= timeRectangle.left &&
-							Math.abs(timeRectangle.right - eventRectangle.right) <= 5 &&
-							Math.abs(titleRectangle.top - eventRectangle.top) <= tolerance &&
-							Math.abs(timeRectangle.top - eventRectangle.top) <= tolerance
+							titleRectangle.right <= eventRectangle.right &&
+							Math.abs(titleRectangle.top - eventRectangle.top) <= tolerance
 					};
 				},
-				{ targetEventID: eventID, expectedTitle: title, expectedTime: time }
+				{ targetEventID: eventID, expectedTitle: title }
 			)
 		)
 		.toMatchObject({

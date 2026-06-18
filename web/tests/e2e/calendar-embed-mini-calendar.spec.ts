@@ -93,7 +93,7 @@ test.describe('embedded calendar mini calendar', () => {
 			'backdrop-filter'
 		]);
 		expect(popoverStyle.position).toBe('absolute');
-		expect(Number.parseFloat(popoverStyle.width)).toBeGreaterThanOrEqual(500);
+		expect(Number.parseFloat(popoverStyle.width)).toBe(400);
 		expect(popoverStyle['border-radius']).toBe('18px');
 		expect(popoverStyle['backdrop-filter']).toContain('blur');
 		await expect(page.locator('.calendar-draft-popover .draft-popover-title-row')).toBeVisible();

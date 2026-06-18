@@ -35,12 +35,13 @@ test.describe('calendar draft popover', () => {
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
 		await expect(popover.getByLabel('제목')).toBeVisible();
+		await expect(popover.getByLabel('제목')).toBeFocused();
 		await expect(popover.getByLabel('종일')).toBeVisible();
 		await expect(popover.locator('.event-audit-card')).toHaveCount(0);
 		expect(eventCreateCount).toBe(0);
 	});
 
-	test('uses localized accessible labels for date and time fields', async ({ page }) => {
+	test('uses compact date time summaries and an accessible picker', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
@@ -48,10 +49,21 @@ test.describe('calendar draft popover', () => {
 		await page.getByRole('button', { name: '새로 만들기' }).click();
 		const popover = page.locator('.calendar-draft-popover');
 
-		await expect(popover.getByLabel('시작 날짜')).toBeVisible();
-		await expect(popover.getByLabel('종료 날짜')).toBeVisible();
-		await expect(popover.getByLabel('시작 시간')).toBeVisible();
-		await expect(popover.getByLabel('종료 시간')).toBeVisible();
+		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.08 09:00/ })).toBeVisible();
+		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.08 10:00/ })).toBeVisible();
+		await expect(popover.locator('input[type="date"]')).toHaveCount(0);
+		await expect(popover.locator('input[type="time"]')).toHaveCount(0);
+
+		await popover.getByRole('button', { name: /시작 날짜 2026\.06\.08 09:00/ }).click();
+		const picker = page.locator('.draft-date-time-picker');
+		await expect(picker).toBeVisible();
+		await expect(picker).toHaveAttribute('aria-label', '시작 날짜 및 시간 수정');
+		await picker.getByRole('button', { name: '2026년 6월 17일' }).click();
+		await picker.getByLabel('시').selectOption('14');
+		await picker.getByLabel('분').selectOption('50');
+		await picker.getByRole('button', { name: '저장하기' }).click();
+
+		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.17 14:50/ })).toBeVisible();
 	});
 
 	test('posts the draft only after the popover is completed', async ({ page }) => {
@@ -152,7 +164,11 @@ test.describe('calendar draft popover', () => {
 		await page.getByLabel('제목').fill('시간 검증');
 		await expect(popover.getByRole('button', { name: '완료' })).toBeEnabled();
 
-		await popover.locator('input[type="time"]').nth(1).fill('09:00');
+		await popover.getByRole('button', { name: /종료 날짜 2026\.06\.08 10:00/ }).click();
+		const picker = page.locator('.draft-date-time-picker');
+		await picker.getByLabel('시').selectOption('09');
+		await picker.getByLabel('분').selectOption('00');
+		await picker.getByRole('button', { name: '저장하기' }).click();
 
 		await expect(popover.getByRole('button', { name: '완료' })).toBeDisabled();
 	});

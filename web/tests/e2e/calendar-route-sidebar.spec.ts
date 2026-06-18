@@ -29,6 +29,30 @@ test.describe('calendar route sidebar', () => {
 			.toBe(true);
 	});
 
+	test('hides unavailable calendar creation action', async ({ page }) => {
+		await page.goto('/calendar/');
+
+		await expect(page.getByText('내 일정')).toBeVisible();
+		await expect(page.getByRole('button', { name: '일정 추가' })).toHaveCount(0);
+	});
+
+	test('hides work calendar events when the work source is unchecked', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/');
+
+		const calendarFrame = page.frameLocator('iframe');
+		const workVisibilityButton = page.getByRole('button', { name: '팀 일정 표시 여부' });
+		const workEvent = calendarFrame.locator('[data-event-id="event-2026-06-15"].calendar-month-direct-event');
+		await expect(workEvent).toBeVisible();
+		await expect(workVisibilityButton).toHaveAttribute('aria-pressed', 'true');
+
+		await workVisibilityButton.click();
+
+		await expect(workVisibilityButton).toHaveAttribute('aria-pressed', 'false');
+		await expect(workEvent).toHaveCount(0);
+		await expect.poll(async () => page.evaluate(() => window.localStorage.getItem('internkim.calendar.workVisible'))).toBe('false');
+	});
+
 	test('renders reference mini month visual states', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/');
