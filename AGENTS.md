@@ -77,6 +77,20 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Prefer `./internkim deploy --components <components>` for normal device
   deployment. It uses the OTA release apply engine over Admin HTTPS.
 - Use the smallest deploy component set that matches the change.
+- `deploy` is fleet-aware: with a populated `.local/ops/targets.json` (gitignored)
+  it deploys to **every** target by default; `--fleet <id>` (comma-separated or
+  repeated) restricts to specific targets. With no registry it falls back to the
+  single `--host`/`--node` target, so existing single-device usage is unchanged.
+- Each registry target has a `kind`: `jetson` (the OTA path above) or
+  `poc-container` (the Mac-Studio container PoC). One command fans out by kind:
+  the OTA bundle is built once and uploaded to each jetson; each poc-container
+  target gets a build→scp→`docker build`→`compose up --force-recreate` cycle.
+- Deploy the container PoC with
+  `INTERNKIM_POC_SSH_PASSWORD=<pw> ./internkim deploy --components <admind,capabilityd,blueclaw,web> --fleet <poc-id>`.
+  Component names are shared across kinds; `blueclaw` on a poc-container builds
+  the `blueclaw`+`blueclaw-posix-helper` linux/arm64 binaries from
+  `.dependency/blueclaw` and syncs migrations (it does not use the Firecracker
+  payload). Do not hand-run the build/scp/docker steps; use this command.
 - The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
   generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
