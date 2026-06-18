@@ -14,6 +14,7 @@ import (
 
 const pocContainerLinuxGoCachePath = "/tmp/internkim-go-cache-linux-arm64"
 const pocContainerDarwinGoModuleCachePath = "/tmp/internkim-go-mod-cache-darwin-arm64"
+const pocContainerRemoteEnvironmentPrefix = "export PATH=\"/opt/homebrew/bin:$PATH\"; "
 
 func deployPocContainer(target deployops.Target, components []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
@@ -172,7 +173,7 @@ func scpToTarget(target deployops.Target, localPath string, remotePath string) e
 }
 
 func runRemote(target deployops.Target, remoteCommand string) error {
-	command := "cd " + quoteShellValue(target.Workdir) + " && " + remoteCommand
+	command := pocContainerRemoteEnvironmentPrefix + "cd " + quoteShellValue(target.Workdir) + " && " + remoteCommand
 	arguments := append(pocContainerSSHBaseArguments("ssh"), pocContainerSSHDestination(target), command)
 	return runPocCommand("", nil, filepath.Join(pocContainerRepositoryRootPath(), "bin", "sshpass"), arguments...)
 }
