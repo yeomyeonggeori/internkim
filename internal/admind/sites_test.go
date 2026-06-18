@@ -785,6 +785,10 @@ func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "frontend")
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:             site.SiteID,
 		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
@@ -814,6 +818,158 @@ func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	}
 	if response.Body.String() != "pocketbase" {
 		t.Fatalf("pocketbase proxy body = %q", response.Body.String())
+	}
+}
+
+func publishStaticTestSite(t *testing.T, service *Service, slug string) *SiteRecord {
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: slug})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "frontend")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return site
+}
+
+func publishPocketBaseTestSite(t *testing.T, service *Service, slug string) *SiteRecord {
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: slug})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "frontend")
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return site
+}
+
+func TestSitePublishDisablesPocketBaseForStaticSite(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site := publishStaticTestSite(t, service, "static-pub")
+	if !containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("static publish should disable pocketbase service: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("static publish should not enable pocketbase service: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl restart "+siteServiceName(site.SiteID)) {
+		t.Fatalf("static publish should not restart pocketbase service: %+v", *commandLog)
+	}
+}
+
+func TestSitePublishEnablesPocketBaseForBackendSite(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site := publishPocketBaseTestSite(t, service, "db-pub")
+	if !containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("db publish should enable pocketbase service: %+v", *commandLog)
+	}
+	if !containsCommand(*commandLog, "systemctl restart "+siteServiceName(site.SiteID)) {
+		t.Fatalf("db publish should restart pocketbase service: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("db publish should not disable pocketbase service: %+v", *commandLog)
+	}
+}
+
+func TestStaticSitePocketBasePathReturnsNotFound(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	publishStaticTestSite(t, service, "static-api")
+	response := serveSiteRequest(service, "static-api.device.example.test", "/api/collections/posts/records")
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("static site pocketbase path status = %d, want 404", response.Code)
+	}
+}
+
+func TestReconcileDisablesStaticPublishedSitesOnly(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	staticSite := publishStaticTestSite(t, service, "recon-static")
+	databaseSite := publishPocketBaseTestSite(t, service, "recon-db")
+	*commandLog = nil
+	service.reconcilePublishedSitePocketBaseRuntimes(context.Background())
+	if !containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(staticSite.SiteID)) {
+		t.Fatalf("reconcile should disable static published site: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(databaseSite.SiteID)) {
+		t.Fatalf("reconcile should not disable database-backed site: %+v", *commandLog)
+	}
+}
+
+func TestReconcileSkipsUnpublishedSites(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site := publishStaticTestSite(t, service, "recon-unpub")
+	if _, errorValue := service.unpublishSite(context.Background(), site.SiteID, siteLifecycleRequest{UserConfirmed: true}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	*commandLog = nil
+	service.reconcilePublishedSitePocketBaseRuntimes(context.Background())
+	if containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("reconcile should skip non-published site: %+v", *commandLog)
+	}
+}
+
+func TestReconcileSiteRuntimeTogglesByBackendMarker(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site := publishStaticTestSite(t, service, "toggle")
+	versionID := site.CurrentVersionID
+	versionPath := service.sitePublishedVersionPath(site, versionID)
+
+	*commandLog = nil
+	if errorValue := service.reconcileSitePocketBaseRuntime(context.Background(), site, versionID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("static version should disable pocketbase: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("static version should not enable pocketbase: %+v", *commandLog)
+	}
+
+	if errorValue := os.MkdirAll(filepath.Join(versionPath, "pb_migrations"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(versionPath, "pb_migrations", "001_init.js"), "migrate(() => {})")
+	*commandLog = nil
+	if errorValue := service.reconcileSitePocketBaseRuntime(context.Background(), site, versionID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("backend version should enable pocketbase: %+v", *commandLog)
+	}
+	if !containsCommand(*commandLog, "systemctl restart "+siteServiceName(site.SiteID)) {
+		t.Fatalf("backend version should restart pocketbase: %+v", *commandLog)
+	}
+	if containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("backend version should not disable pocketbase: %+v", *commandLog)
+	}
+}
+
+func TestReconcileSkipsPublishingSites(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site := publishStaticTestSite(t, service, "recon-publishing")
+	site.Status = SiteStatusPublishing
+	if errorValue := service.storeSite(site); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	*commandLog = nil
+	service.reconcilePublishedSitePocketBaseRuntimes(context.Background())
+	if containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
+		t.Fatalf("reconcile should skip publishing site: %+v", *commandLog)
 	}
 }
 

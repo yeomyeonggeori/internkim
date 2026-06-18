@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net"
 	"net/http"
@@ -265,6 +266,10 @@ func siteReadinessProbeFromRequest(request *http.Request) (siteReadinessProbe, b
 
 func (service *Service) servePublishedSite(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {
 	if isPocketBasePath(request.URL.Path) {
+		if !service.siteVersionHasPocketBaseBackend(site, site.CurrentVersionID) {
+			http.NotFound(responseWriter, request)
+			return
+		}
 		service.proxySitePocketBase(responseWriter, request, site)
 		return
 	}
@@ -1504,11 +1509,27 @@ func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecor
 	if _, errorValue := service.runCommand(ctx, "systemctl", "daemon-reload"); errorValue != nil {
 		return errorValue
 	}
+	return service.reconcileSitePocketBaseRuntime(ctx, site, versionID)
+}
+
+func (service *Service) reconcileSitePocketBaseRuntime(ctx context.Context, site *SiteRecord, versionID string) error {
+	if !service.siteVersionHasPocketBaseBackend(site, versionID) {
+		_ = service.stopSitePocketBaseRuntime(ctx, site)
+		return nil
+	}
 	if _, errorValue := service.runCommand(ctx, "systemctl", "enable", "--now", siteServiceName(site.SiteID)); errorValue != nil {
 		return errorValue
 	}
-	if _, errorValue := service.runCommand(ctx, "systemctl", "restart", siteServiceName(site.SiteID)); errorValue != nil && service.siteVersionHasPocketBaseBackend(site, versionID) {
+	if _, errorValue := service.runCommand(ctx, "systemctl", "restart", siteServiceName(site.SiteID)); errorValue != nil {
 		return fmt.Errorf("systemctl restart %s failed: %w", siteServiceName(site.SiteID), errorValue)
+	}
+	return nil
+}
+
+func (service *Service) stopSitePocketBaseRuntime(ctx context.Context, site *SiteRecord) error {
+	if _, errorValue := service.runCommand(ctx, "systemctl", "disable", "--now", siteServiceName(site.SiteID)); errorValue != nil {
+		log.Printf("disable static site %s pocketbase runtime failed: %v", site.SiteID, errorValue)
+		return errorValue
 	}
 	return nil
 }
@@ -1517,6 +1538,24 @@ func (service *Service) siteVersionHasPocketBaseBackend(site *SiteRecord, versio
 	versionPath := service.sitePublishedVersionPath(site, versionID)
 	return directoryHasOperationalFiles(filepath.Join(versionPath, "pb_migrations")) ||
 		directoryHasOperationalFiles(filepath.Join(versionPath, "pb_hooks"))
+}
+
+func (service *Service) reconcilePublishedSitePocketBaseRuntimes(ctx context.Context) {
+	disabledCount := 0
+	for _, site := range service.sites {
+		if site.Status != SiteStatusPublished || strings.TrimSpace(site.CurrentVersionID) == "" {
+			continue
+		}
+		if service.siteVersionHasPocketBaseBackend(site, site.CurrentVersionID) {
+			continue
+		}
+		if service.stopSitePocketBaseRuntime(ctx, site) == nil {
+			disabledCount++
+		}
+	}
+	if disabledCount > 0 {
+		log.Printf("reconciled static site runtimes: disabled pocketbase for %d site(s)", disabledCount)
+	}
 }
 
 func (service *Service) probeSiteReadiness(ctx context.Context, site *SiteRecord, versionID string) error {
