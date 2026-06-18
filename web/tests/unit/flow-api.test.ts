@@ -151,6 +151,27 @@ describe('flow API', () => {
 		}
 	});
 
+	test('omits read-only createdAt when saving an existing task', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestBody: Record<string, unknown> = {};
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await saveFlowTask({ ...flowTask('task-1'), createdAt: '2026-06-01T10:00:00Z' }, 'Could not save the task.');
+
+			expect('createdAt' in requestBody).toBe(false);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test('posts board move requests to the atomic move endpoint', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
