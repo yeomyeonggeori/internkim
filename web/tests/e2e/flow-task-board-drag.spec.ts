@@ -26,6 +26,24 @@ test.describe('flow task board drag interactions', () => {
 		await expect(page.locator('[data-flow-filter-panel]').getByText('김철수')).toBeVisible();
 	});
 
+	test('preserves task filters and view mode when returning from another Flow tab', async ({ page }) => {
+		await page.goto('/flow/');
+
+		await page.getByRole('button', { name: /필터/ }).click();
+		await page.locator('[data-flow-filter-panel]').getByRole('button', { name: '전체 참여자', exact: true }).click();
+		await page.keyboard.press('Escape');
+		await page.getByRole('tab', { name: '목록', exact: true }).click();
+		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
+
+		await page.getByRole('button', { name: '보고', exact: true }).click();
+		await expect(page.getByRole('heading', { name: '개인 상세 점수', exact: true })).toHaveCount(0);
+		await page.getByRole('button', { name: '업무', exact: true }).click();
+
+		await expect(page.getByRole('heading', { name: '개인 상세 점수', exact: true })).toBeVisible();
+		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByRole('button', { name: '필터', exact: true })).toBeVisible();
+	});
+
 	test('moves cards across columns and preserves reordered cards after reload', async ({ page }) => {
 		await openFlowBoard(page);
 
