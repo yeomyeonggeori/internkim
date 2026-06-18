@@ -16,6 +16,11 @@ export type FlowTaskBoardColumnTheme = {
 	headerClass: string;
 };
 
+export type FlowTaskBoardOptions = {
+	weekStartISO?: string;
+	weekEndISO?: string;
+};
+
 const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
 	요청: {
 		dotClass: 'bg-[#7c3aed]',
@@ -44,12 +49,12 @@ const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> =
 	}
 };
 
-export function buildFlowTaskBoard(tasks: FlowTask[]): FlowTaskBoardColumn[] {
+export function buildFlowTaskBoard(tasks: FlowTask[], options: FlowTaskBoardOptions = {}): FlowTaskBoardColumn[] {
 	return BOARD_STATUS_VALUES.map((status) => ({
 		status,
 		theme: boardColumnThemes[status],
 		tasks: tasks
-			.filter((task) => task.status === status)
+			.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
 			.toSorted(compareFlowTaskBoardOrder)
 	}));
 }
@@ -62,4 +67,11 @@ function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
 	const rankDifference = left.statusRank - right.statusRank;
 	if (rankDifference !== 0) return rankDifference;
 	return left.id.localeCompare(right.id);
+}
+
+function matchesBoardColumnWeek(task: FlowTask, status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
+	if (status !== '완료') return true;
+	if (!options.weekStartISO || !options.weekEndISO) return true;
+	const endDate = task.endDate?.trim() ?? '';
+	return endDate >= options.weekStartISO && endDate <= options.weekEndISO;
 }
