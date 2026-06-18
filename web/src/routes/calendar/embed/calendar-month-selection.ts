@@ -1,3 +1,5 @@
+import { ViewType } from '@dayflow/svelte';
+
 export function refreshSelectedMonthDateCell(stageElement: HTMLElement | null, selectedDateKey: string | null): void {
 	if (!stageElement) return;
 	if (selectedDateKey) stageElement.dataset.calendarSelectedDateKey = selectedDateKey;
@@ -34,8 +36,16 @@ type CalendarSelectedMonthDateContext = {
 };
 
 export type CalendarSelectedMonthDateActions = {
+	getSelectedMonthDateKey: () => string | null;
 	refreshSelectedMonthDateCellAfterRender: () => void;
 	selectMonthDate: (dateKey: string) => void;
+};
+
+export type CalendarMonthKeyboardNavigationOptions = {
+	currentView: () => ViewType;
+	getSelectedDateKey: () => string | null;
+	navigateToDateKey: (dateKey: string) => void;
+	clearSelectedEvent: () => void;
 };
 
 export function createCalendarSelectedMonthDateActions(
@@ -55,6 +65,7 @@ export function createCalendarSelectedMonthDateActions(
 	}
 
 	return {
+		getSelectedMonthDateKey: context.getSelectedDateKey,
 		refreshSelectedMonthDateCellAfterRender,
 		selectMonthDate
 	};
@@ -63,6 +74,26 @@ export function createCalendarSelectedMonthDateActions(
 export function dateFromDateKey(dateKey: string): Date {
 	const [year = '0', month = '1', day = '1'] = dateKey.split('-');
 	return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+export function installCalendarMonthKeyboardNavigation(options: CalendarMonthKeyboardNavigationOptions): () => void {
+	function handleKeydown(event: KeyboardEvent): void {
+		if (options.currentView() !== ViewType.MONTH) return;
+		if (isEditableKeyboardTarget(event.target)) return;
+		const dayDelta = monthKeyboardDayDelta(event.key);
+		if (dayDelta === 0) return;
+		const selectedDateKey = options.getSelectedDateKey();
+		if (!selectedDateKey) return;
+		event.preventDefault();
+		event.stopPropagation();
+		options.clearSelectedEvent();
+		options.navigateToDateKey(shiftedDateKey(selectedDateKey, dayDelta));
+	}
+
+	window.addEventListener('keydown', handleKeydown);
+	return () => {
+		window.removeEventListener('keydown', handleKeydown);
+	};
 }
 
 function monthDateCellByDateKey(stageElement: HTMLElement, dateKey: string): { element: HTMLElement; dateKey: string } | null {
@@ -78,4 +109,28 @@ function weekHeaderByDateKey(stageElement: HTMLElement, dateKey: string): HTMLEl
 	const headers = Array.from(stageElement.querySelectorAll<HTMLElement>('.df-week-header > .df-week-day-cell, .df-week-day-header'));
 	if (headers.length < 7) return null;
 	return headers[date.getDay()] ?? null;
+}
+
+function monthKeyboardDayDelta(key: string): number {
+	if (key === 'ArrowLeft') return -1;
+	if (key === 'ArrowRight') return 1;
+	if (key === 'ArrowUp') return -7;
+	if (key === 'ArrowDown') return 7;
+	return 0;
+}
+
+function shiftedDateKey(dateKeyValue: string, dayDelta: number): string {
+	const date = dateFromDateKey(dateKeyValue);
+	const shiftedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + dayDelta);
+	return dateKeyFromDate(shiftedDate);
+}
+
+function dateKeyFromDate(date: Date): string {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof Element)) return false;
+	if (target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return true;
+	return Boolean(target.closest('.calendar-draft-popover'));
 }

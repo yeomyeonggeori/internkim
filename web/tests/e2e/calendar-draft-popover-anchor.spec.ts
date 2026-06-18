@@ -1,9 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
 	dispatchMonthRangePointerDrag,
-	draftPopoverMotionStyle,
 	dragBetweenCells,
-	monthPopoverAnchorGeometry,
 	routeCalendarAPI,
 	scrollMonthViewBy,
 	startDragBetweenCells,
@@ -15,7 +13,7 @@ test.describe('calendar draft popover anchors', () => {
 		await routeCalendarAPI(page);
 	});
 
-	test('keeps edit popovers attached to their anchor without internal scrolling', async ({ page }) => {
+	test('keeps edit popovers attached to their anchor with bounded internal layout', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 760 });
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
@@ -54,7 +52,7 @@ test.describe('calendar draft popover anchors', () => {
 					);
 					const titleElement = eventElement?.querySelector<HTMLElement>('.calendar-month-event-title, .calendar-event-title');
 					const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
-					const scrollContainer = document.querySelector<HTMLElement>('.draft-popover-scroll');
+					const scrollContainer = document.querySelector<HTMLElement>('.draft-popover-body');
 					if (!titleElement || !popover || !scrollContainer) return false;
 					const titleRectangle = titleElement.getBoundingClientRect();
 					const popoverRectangle = popover.getBoundingClientRect();
@@ -62,14 +60,19 @@ test.describe('calendar draft popover anchors', () => {
 					const overflowY = window.getComputedStyle(scrollContainer).overflowY;
 					const arrowY = popoverRectangle.top + arrowTop + 8;
 					const titleCenterY = titleRectangle.top + titleRectangle.height / 2;
-					return Math.abs(arrowY - titleCenterY) <= 18 && overflowY !== 'auto' && overflowY !== 'scroll';
+					return (
+						Math.abs(arrowY - titleCenterY) <= 18 &&
+						popoverRectangle.bottom <= window.innerHeight &&
+						overflowY === 'scroll'
+					);
 				})
 			)
 			.toBe(true);
 	});
 
-	test('moves month edit popovers with their anchor and closes after the anchor leaves the calendar', async ({ page }) => {
+	test('closes month edit popovers immediately when the calendar scrolls', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 560 });
+		const savedPayloads: unknown[] = [];
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({
@@ -91,6 +94,23 @@ test.describe('calendar draft popover anchors', () => {
 				}
 			});
 		});
+		await page.route('**/calendar/api/events/scroll-anchor-event', async (route) => {
+			if (route.request().method() === 'PUT') savedPayloads.push(route.request().postDataJSON());
+			await route.fulfill({
+				json: {
+					id: 'scroll-anchor-event',
+					title: '스크롤 저장 일정',
+					description: '',
+					location: '',
+					startISO: '2026-06-17T00:00:00.000Z',
+					endISO: '2026-06-18T00:00:00.000Z',
+					timeZone: 'Asia/Seoul',
+					isAllDay: true,
+					color: '#1677ff',
+					updatedAt: '2026-06-10T12:00:00.000Z'
+				}
+			});
+		});
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
@@ -98,25 +118,13 @@ test.describe('calendar draft popover anchors', () => {
 		await page.locator('.calendar-month-direct-event[data-event-id="scroll-anchor-event"]').dblclick();
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
-		const initialGeometry = await monthPopoverAnchorGeometry(page, 'scroll-anchor-event');
+		await page.getByLabel('제목').fill('스크롤 저장 일정');
 
 		await scrollMonthViewBy(page, 80);
 
-		await expect
-			.poll(async () => {
-				const geometry = await monthPopoverAnchorGeometry(page, 'scroll-anchor-event');
-				return geometry ? Math.abs(geometry.arrowY - geometry.titleCenterY) : Number.POSITIVE_INFINITY;
-			})
-			.toBeLessThanOrEqual(18);
-		const movedGeometry = await monthPopoverAnchorGeometry(page, 'scroll-anchor-event');
-		const movedMotionStyle = await draftPopoverMotionStyle(page);
-		expect(movedGeometry?.titleCenterY).toBeLessThan(initialGeometry?.titleCenterY ?? Number.POSITIVE_INFINITY);
-		expect(movedGeometry?.arrowY).toBeLessThan(initialGeometry?.arrowY ?? Number.POSITIVE_INFINITY);
-		expect(['', 'none']).toContain(movedMotionStyle.transform);
-
-		await scrollMonthViewBy(page, 900);
-
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect.poll(() => savedPayloads.length).toBe(1);
+		expect(savedPayloads[0]).toMatchObject({ title: '스크롤 저장 일정' });
 	});
 
 	test('places a dragged month range preview below overlapping all-day events', async ({ page }) => {
@@ -180,7 +188,166 @@ test.describe('calendar draft popover anchors', () => {
 
 		await popover.getByLabel('종일').uncheck();
 
-		await expect(popover.getByLabel('시작 시간')).toHaveValue('09:00');
-		await expect(popover.getByLabel('종료 시간')).toHaveValue('10:00');
+		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.10 09:00/ })).toBeVisible();
+		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.12 10:00/ })).toBeVisible();
+	});
+
+	test('keeps compact date time summaries and action buttons accessible on a narrow viewport', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 640 });
+		await page.unroute('**/calendar/api/events?**');
+		await page.route('**/calendar/api/events?**', async (route) => {
+			await route.fulfill({
+				json: {
+					events: [
+						{
+							id: 'narrow-popover-event',
+							title: '좁은 화면 일정',
+							description: '작은 화면에서 버튼과 시간 입력이 보여야 합니다.',
+							location: '회의실',
+							startISO: '2026-06-17T00:30:00.000Z',
+							endISO: '2026-06-17T01:30:00.000Z',
+							timeZone: 'Asia/Seoul',
+							isAllDay: false,
+							color: '#1677ff',
+							updatedAt: '2026-06-10T11:30:00.000Z'
+						}
+					]
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
+
+		await page.locator('.calendar-month-direct-event[data-event-id="narrow-popover-event"]').dblclick();
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+
+		const geometry = await page.evaluate(() => {
+			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+			const scrollContainer = document.querySelector<HTMLElement>('.draft-popover-body');
+			const startSummary = document.querySelector<HTMLButtonElement>('.calendar-draft-popover [data-date-time-summary="start"]');
+			const endSummary = document.querySelector<HTMLButtonElement>('.calendar-draft-popover [data-date-time-summary="end"]');
+			const deleteButton = document.querySelector<HTMLButtonElement>('.draft-popover-delete');
+			const cancelButton = document.querySelector<HTMLButtonElement>('.draft-popover-cancel');
+			const completeButton = document.querySelector<HTMLButtonElement>('.draft-popover-complete');
+			if (!popover || !scrollContainer || !startSummary || !endSummary || !deleteButton || !cancelButton || !completeButton) {
+				throw new Error('Missing narrow popover elements');
+			}
+			const popoverRectangle = popover.getBoundingClientRect();
+			const startSummaryRectangle = startSummary.getBoundingClientRect();
+			const endSummaryRectangle = endSummary.getBoundingClientRect();
+			const buttonRectangles = [deleteButton, cancelButton, completeButton].map((button) => button.getBoundingClientRect());
+			return {
+				popoverBottom: Math.round(popoverRectangle.bottom),
+				popoverLeft: Math.round(popoverRectangle.left),
+				popoverRight: Math.round(popoverRectangle.right),
+				popoverTop: Math.round(popoverRectangle.top),
+				scrollOverflowY: window.getComputedStyle(scrollContainer).overflowY,
+				startSummaryRight: Math.round(startSummaryRectangle.right),
+				endSummaryRight: Math.round(endSummaryRectangle.right),
+				maxButtonBottom: Math.max(...buttonRectangles.map((rectangle) => Math.round(rectangle.bottom))),
+				viewportHeight: window.innerHeight,
+				viewportWidth: window.innerWidth
+			};
+		});
+
+		expect(geometry.popoverTop).toBeGreaterThanOrEqual(0);
+		expect(geometry.popoverLeft).toBeGreaterThanOrEqual(0);
+		expect(geometry.popoverRight).toBeLessThanOrEqual(geometry.viewportWidth);
+		expect(geometry.popoverBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.startSummaryRight).toBeLessThanOrEqual(geometry.popoverRight - 12);
+		expect(geometry.endSummaryRight).toBeLessThanOrEqual(geometry.popoverRight - 12);
+		expect(geometry.maxButtonBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.scrollOverflowY).toBe('scroll');
+	});
+
+	test('keeps more popovers and edit actions accessible when viewport height is limited', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 640 });
+		await page.unroute('**/calendar/api/events?**');
+		await page.route('**/calendar/api/events?**', async (route) => {
+			await route.fulfill({
+				json: {
+					events: Array.from({ length: 8 }, (_, index) => ({
+						id: `low-height-more-event-${index}`,
+						title: index === 3 ? '긴급 회식 장소 확인' : `낮은 화면 더보기 ${index}`,
+						description: index === 3 ? '17일 더보기 안에서 열어볼 수 있는 일정입니다.' : '',
+						location: index === 3 ? '성수' : '',
+						startISO: `2026-06-17T${String(9 + index).padStart(2, '0')}:00:00+09:00`,
+						endISO: `2026-06-17T${String(10 + index).padStart(2, '0')}:00:00+09:00`,
+						timeZone: 'Asia/Seoul',
+						isAllDay: false,
+						color: '#1677ff',
+						updatedAt: `2026-06-${String(10 + index).padStart(2, '0')}T00:00:00Z`
+					}))
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
+
+		await page.locator('.calendar-month-more-button[data-date-key="2026-06-17"]').click();
+		const morePopover = page.locator('.calendar-month-more-popover');
+		await expect(morePopover).toBeVisible();
+		await morePopover.getByRole('button', { name: /긴급 회식 장소 확인/ }).dblclick();
+
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await expect(morePopover).toBeVisible();
+		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.17/ })).toBeVisible();
+		await expect(popover).toHaveClass(/draft-popover-can-scroll-down/);
+
+		const geometry = await page.evaluate(() => {
+			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+			const scrollContainer = document.querySelector<HTMLElement>('.draft-popover-body');
+			const startSummary = document.querySelector<HTMLButtonElement>('.calendar-draft-popover [data-date-time-summary="start"]');
+			const footer = document.querySelector<HTMLElement>('.draft-popover-footer');
+			const deleteButton = document.querySelector<HTMLButtonElement>('.draft-popover-delete');
+			const cancelButton = document.querySelector<HTMLButtonElement>('.draft-popover-cancel');
+			const completeButton = document.querySelector<HTMLButtonElement>('.draft-popover-complete');
+			if (!popover || !scrollContainer || !startSummary || !footer || !deleteButton || !cancelButton || !completeButton) {
+				throw new Error('Missing low-height popover elements');
+			}
+			const popoverRectangle = popover.getBoundingClientRect();
+			const startSummaryRectangle = startSummary.getBoundingClientRect();
+			const footerRectangle = footer.getBoundingClientRect();
+			const buttonRectangles = [deleteButton, cancelButton, completeButton].map((button) => button.getBoundingClientRect());
+			const footerTopBeforeScroll = Math.round(footerRectangle.top);
+			const scrollDownAffordance = popover.classList.contains('draft-popover-can-scroll-down');
+			scrollContainer.scrollTop = Math.min(48, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+			scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
+			const footerTopAfterScroll = Math.round(footer.getBoundingClientRect().top);
+			return {
+				bodyCanScroll: scrollContainer.scrollHeight > scrollContainer.clientHeight,
+				bodyScrollTop: scrollContainer.scrollTop,
+				popoverBottom: Math.round(popoverRectangle.bottom),
+				popoverRight: Math.round(popoverRectangle.right),
+				popoverWidth: Math.round(popoverRectangle.width),
+				footerBottom: Math.round(footerRectangle.bottom),
+				footerHeight: Math.round(footerRectangle.height),
+				footerInsideBody: scrollContainer.contains(footer),
+				footerTopAfterScroll,
+				footerTopBeforeScroll,
+				maxButtonBottom: Math.max(...buttonRectangles.map((rectangle) => Math.round(rectangle.bottom))),
+				scrollDownAffordance,
+				scrollOverflowY: window.getComputedStyle(scrollContainer).overflowY,
+				startSummaryRight: Math.round(startSummaryRectangle.right),
+				viewportHeight: window.innerHeight
+			};
+		});
+
+		expect(geometry.bodyCanScroll).toBe(true);
+		expect(geometry.bodyScrollTop).toBeGreaterThan(0);
+		expect(geometry.footerInsideBody).toBe(false);
+		expect(geometry.footerTopAfterScroll).toBe(geometry.footerTopBeforeScroll);
+		expect(geometry.popoverBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.popoverWidth).toBe(400);
+		expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.footerHeight).toBe(65);
+		expect(geometry.maxButtonBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.scrollDownAffordance).toBe(true);
+		expect(geometry.startSummaryRight).toBeLessThanOrEqual(geometry.popoverRight - 12);
+		expect(geometry.scrollOverflowY).toBe('scroll');
 	});
 });

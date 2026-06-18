@@ -27,39 +27,6 @@ export function areSamePopoverPositions(
 	);
 }
 
-export function areSamePopoverAnchors(
-	firstAnchor: DraftPopoverAnchor | null,
-	secondAnchor: DraftPopoverAnchor | null
-): boolean {
-	if (!firstAnchor || !secondAnchor) return firstAnchor === secondAnchor;
-	return (
-		Math.abs(firstAnchor.clientX - secondAnchor.clientX) < 1 &&
-		Math.abs(firstAnchor.clientY - secondAnchor.clientY) < 1 &&
-		Math.abs((firstAnchor.leftClientX ?? 0) - (secondAnchor.leftClientX ?? 0)) < 1 &&
-		Math.abs((firstAnchor.rightClientX ?? 0) - (secondAnchor.rightClientX ?? 0)) < 1 &&
-		Math.abs((firstAnchor.titleEndClientX ?? 0) - (secondAnchor.titleEndClientX ?? 0)) < 1 &&
-		Math.abs((firstAnchor.titleTopClientY ?? 0) - (secondAnchor.titleTopClientY ?? 0)) < 1 &&
-		Math.abs((firstAnchor.titleBottomClientY ?? 0) - (secondAnchor.titleBottomClientY ?? 0)) < 1
-	);
-}
-
-export function isAnchorInsideVisibleStage(
-	stageElement: HTMLElement | null,
-	anchor: DraftPopoverAnchor
-): boolean {
-	if (!stageElement) return true;
-	const stageRectangle = stageElement.getBoundingClientRect();
-	const left = Math.max(stageRectangle.left, 0);
-	const top = Math.max(stageRectangle.top, 0);
-	const right = Math.min(stageRectangle.right, window.innerWidth);
-	const bottom = Math.min(stageRectangle.bottom, window.innerHeight);
-	const anchorLeft = anchor.leftClientX ?? anchor.clientX;
-	const anchorRight = anchor.rightClientX ?? anchor.titleEndClientX ?? anchor.clientX;
-	const anchorTop = anchor.titleTopClientY ?? anchor.topClientY ?? anchor.clientY;
-	const anchorBottom = anchor.titleBottomClientY ?? anchor.bottomClientY ?? anchor.clientY;
-	return anchorRight >= left && anchorLeft <= right && anchorBottom >= top && anchorTop <= bottom;
-}
-
 export function clearDraftPopoverElementMotion(): void {
 	const element = document.querySelector<HTMLElement>('.calendar-draft-popover');
 	if (!element) return;

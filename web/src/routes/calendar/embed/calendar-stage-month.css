@@ -86,10 +86,25 @@
 	}
 
 	.calendar-stage .df-month-day-cell.month-selected-date {
-		background: color-mix(in oklab, oklch(0.68 0.16 255) 5%, transparent);
+		position: relative;
+		background: transparent;
 		box-shadow:
 			inset -1px 0 0 #dedee3,
 			inset 0 -1px 0 #dedee3;
+	}
+
+	.calendar-stage .df-month-day-cell.month-selected-date::before {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		background: color-mix(in oklab, oklch(0.68 0.16 255) 5%, transparent);
+		content: '';
+		pointer-events: none;
+	}
+
+	.calendar-stage .df-month-day-cell.month-selected-date > * {
+		position: relative;
+		z-index: 1;
 	}
 
 	.calendar-stage.calendar-stage-week .calendar-selected-week-date {

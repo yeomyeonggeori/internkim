@@ -4,7 +4,7 @@ import {
 	expectMonthEventContentAligned,
 	expectMonthEventWithinDateCell,
 	expectMonthEventsShareBlockStyle,
-	expectMonthTimedEventTitleAndTime
+	expectMonthTimedEventTitleOnly
 } from './calendar-embed-interaction-assertions';
 import { navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 
@@ -44,8 +44,8 @@ test.describe('embedded calendar month layout', () => {
 		await expectMonthEventWithinDateCell(page, 'single-all-day-event', '2026-06-16');
 		await expectMonthEventWithinDateCell(page, 'single-timed-event', '2026-06-16');
 		await expectMonthEventWithinDateCell(page, 'single-24h-timed-event', '2026-06-21');
-		await expectMonthTimedEventTitleAndTime(page, 'single-timed-event', 'Single Timed Event 08:00', '09:00');
-		await expectMonthTimedEventTitleAndTime(page, 'single-24h-timed-event', 'Single 24h Timed Event 00:00', '00:00');
+		await expectMonthTimedEventTitleOnly(page, 'single-timed-event', 'Single Timed Event 08:00');
+		await expectMonthTimedEventTitleOnly(page, 'single-24h-timed-event', 'Single 24h Timed Event 00:00');
 	});
 
 	test('renders month events through a direct event layer instead of DayFlow post-processing', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe('embedded calendar month layout', () => {
 		await expect(page.locator('.df-month-week-event-layer-row [data-event-id="direct-layer-event"].df-month-event:visible')).toHaveCount(0);
 	});
 
-	test('shows start and end times on multi-day timed month events', async ({ page }) => {
+	test('shows only the start time on multi-day timed month events', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'month-multi-day-timed-event',
@@ -80,7 +80,7 @@ test.describe('embedded calendar month layout', () => {
 		await openCalendarEmbed(page, '월');
 		await navigateEmbeddedCalendar(page, '2026-06-16');
 
-		await expectMonthTimedEventTitleAndTime(page, 'month-multi-day-timed-event', 'Month Multi Day Timed 11:45', '12:30');
+		await expectMonthTimedEventTitleOnly(page, 'month-multi-day-timed-event', 'Month Multi Day Timed 11:45');
 	});
 
 	test('orders same-date month events by duration and then recent update time', async ({ page }) => {

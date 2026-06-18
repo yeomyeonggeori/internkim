@@ -34,6 +34,7 @@ type PopoverBounds = {
 };
 
 const estimatedDraftPopoverHeight = 552;
+const preferredDraftPopoverWidth = 400;
 
 export function draftPopoverPositionFromAnchor(
 	anchor: DraftPopoverAnchor | null,
@@ -45,7 +46,7 @@ export function draftPopoverPositionFromAnchor(
 	const visibleRectangle = visibleStageRectangle(stageRectangle);
 	const stageMargin = 12;
 	const popoverGap = 16;
-	const preferredWidth = Math.max(1, Math.min(540, visibleRectangle.width - stageMargin * 2));
+	const preferredWidth = Math.max(1, Math.min(preferredDraftPopoverWidth, visibleRectangle.width - stageMargin * 2));
 	const measuredHeight = size.height ?? estimatedDraftPopoverHeight;
 	const height = Math.max(1, Math.min(measuredHeight, visibleRectangle.height - stageMargin * 2));
 	const fallbackAnchor: DraftPopoverAnchor = {
@@ -100,10 +101,10 @@ function eventDraftPopoverPosition(
 	const targetRight = targetAnchor.titleEndClientX ?? targetAnchor.rightClientX ?? targetAnchor.clientX;
 	const rightAvailableWidth = Math.max(0, visibleRectangle.right - stageMargin - (targetRight + popoverGap));
 	const leftAvailableWidth = Math.max(0, targetLeft - popoverGap - (visibleRectangle.left + stageMargin));
-	const preferredMinimumWidth = Math.min(320, preferredWidth);
-	const shouldPlaceRight = rightAvailableWidth >= preferredMinimumWidth || rightAvailableWidth >= leftAvailableWidth;
-	const availableWidth = shouldPlaceRight ? rightAvailableWidth : leftAvailableWidth;
-	const width = Math.max(1, Math.min(preferredWidth, availableWidth));
+	const rightFitsPreferredWidth = rightAvailableWidth >= preferredWidth;
+	const leftFitsPreferredWidth = leftAvailableWidth >= preferredWidth;
+	const shouldPlaceRight = rightFitsPreferredWidth || (!leftFitsPreferredWidth && rightAvailableWidth >= leftAvailableWidth);
+	const width = preferredWidth;
 	const arrowSide = shouldPlaceRight ? 'left' : 'right';
 	const unclampedLeft = shouldPlaceRight ? targetRight + popoverGap : targetLeft - width - popoverGap;
 	const minLeft = visibleRectangle.left + stageMargin;
@@ -119,7 +120,6 @@ function popoverTopForAnchor(anchorY: number, visibleRectangle: PopoverBounds, h
 	const minTop = visibleRectangle.top + stageMargin;
 	const maxTop = visibleRectangle.bottom - height - stageMargin;
 	const minimumBoundedMaxTop = Math.max(minTop, maxTop);
-	if (anchorY < visibleRectangle.top || anchorY > visibleRectangle.bottom) return Math.max(minTop, sideAlignedTop);
 	return Math.max(minTop, Math.min(sideAlignedTop, minimumBoundedMaxTop));
 }
 

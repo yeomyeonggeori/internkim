@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import CalendarIcon from '@lucide/svelte/icons/calendar-days';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { CalendarViewValue } from './calendar-navigation-message';
 	import CalendarMiniMonth from './calendar-mini-month.svelte';
@@ -11,7 +10,6 @@
 		title: string;
 		moreOptions: string;
 		myCalendars: string;
-		addCalendar: string;
 		calendarVisibility: string;
 		subscriptionSettings: string;
 		refresh: string;
@@ -57,9 +55,6 @@
 		<section class="space-y-3 px-5 py-5">
 			<header class="flex items-center justify-between px-1">
 				<p class="text-[12px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{text.myCalendars}</p>
-				<button type="button" aria-label={text.addCalendar} class="flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground">
-					<PlusIcon class="size-3.5" />
-				</button>
 			</header>
 			<div class="space-y-2">
 				{#each calendarSources as source (source.id)}
