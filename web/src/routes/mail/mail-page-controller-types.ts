@@ -4,26 +4,39 @@ import type { mailText } from './text';
 
 export type MailPageText = (typeof mailText)['ko'];
 
+export type MailMessagePageCacheEntry = {
+	actorEmail: string;
+	mailbox: string;
+	searchText: string;
+	pageIndex: number;
+	cursor: string;
+	messages: MailMessage[];
+	nextCursor: string;
+	fetchedAt: number;
+};
+
 export type MailPageControllerState = {
 	account: MailAccount;
 	accountDraft: MailAccountDraft;
 	composeDraft: ComposeDraft;
 	mailboxes: Mailbox[];
 	messages: MailMessage[];
+	messageListCache: Map<string, MailMessagePageCacheEntry>;
 	messageDetailCache: Map<string, MailMessage>;
 	selectedMailbox: string;
 	selectedMessage: MailMessage | null;
 	searchText: string;
 	activeSearchText: string;
+	messagePageIndex: number;
 	nextCursor: string;
 	hasMoreMessages: boolean;
 	isUnreadOnly: boolean;
 	hasLoadedAccount: boolean;
 	isLoading: boolean;
+	isSyncing: boolean;
 	isLoadingMailboxes: boolean;
 	isLoadingMessages: boolean;
 	isLoadingMessage: boolean;
-	isLoadingMore: boolean;
 	isSavingAccount: boolean;
 	isTestingAccount: boolean;
 	isSending: boolean;
@@ -36,9 +49,14 @@ export type MailPageControllerState = {
 	messageDetailRequestID: number;
 	pageMailboxes: () => Mailbox[];
 	visibleMessages: () => MailMessage[];
+	canPreviousMessagePage: () => boolean;
+	canNextMessagePage: () => boolean;
 	mailActorEmail: () => string;
 	mailErrors: (fallback: string) => MailErrorMessages;
 	resetMessageList: () => void;
 	loadMail: () => Promise<void>;
 	loadMessages: () => Promise<void>;
+	loadPreviousMessages: () => Promise<void>;
+	loadNextMessages: () => Promise<void>;
+	setUnreadOnly: (isUnreadOnly: boolean) => Promise<void>;
 };

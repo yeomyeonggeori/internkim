@@ -27,8 +27,13 @@ export function rememberMailActorEmail(actorEmail: string, storage: MailActorSto
 	storage.setItem(mailRequesterEmailStorageKey, normalizedActorEmail);
 }
 
-export function resolveMailActorEmail(accountEmail: string, draftEmail: string, storage: MailActorStorage | undefined = localMailStorage()) {
-	return normalizeMailActorEmail(storedMailActorEmail(storage) || accountEmail || draftEmail);
+export function resolveMailActorEmail(
+	accountEmail: string,
+	draftEmail: string,
+	storage: MailActorStorage | undefined = localMailStorage(),
+	devActorEmail = localDevMailActorEmail()
+) {
+	return normalizeMailActorEmail(storedMailActorEmail(storage) || accountEmail || draftEmail || devActorEmail);
 }
 
 export function resolveMailAccountSaveActorEmail(draftEmail: string, storage: MailActorStorage | undefined = localMailStorage()) {
@@ -49,4 +54,9 @@ export function rememberLocalMailActorEmail(actorEmail: string, hostname = curre
 function localMailStorage() {
 	if (typeof localStorage === 'undefined') return undefined;
 	return localStorage;
+}
+
+function localDevMailActorEmail(hostname = currentMailHostname()) {
+	if (!isLocalMailHostname(hostname)) return '';
+	return import.meta.env?.VITE_DEV_USER_EMAIL ?? '';
 }

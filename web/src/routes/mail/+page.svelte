@@ -37,20 +37,24 @@
 		selectedMailbox={page.selectedMailbox}
 		messageCountText={page.messageCountText()}
 		isLoading={page.isLoading}
+		isSyncing={page.isSyncing}
 		hasLoadedAccount={page.hasLoadedAccount}
 		isLoadingMessages={page.isLoadingMessages}
 		bind:searchText={page.searchText}
-		bind:isUnreadOnly={page.isUnreadOnly}
+		isUnreadOnly={page.isUnreadOnly}
+		messagePageIndex={page.messagePageIndex}
+		canPreviousMessagePage={page.canPreviousMessagePage()}
+		canNextMessagePage={page.canNextMessagePage()}
 		errorMessage={page.errorMessage}
 		messages={page.visibleMessages()}
 		selectedMessage={page.selectedMessage}
-		isLoadingMore={page.isLoadingMore}
-		hasMoreMessages={page.hasMoreMessages}
 		{text}
 		openSettings={page.openSettings}
 		loadMail={page.loadMail}
 		loadMessages={page.loadMessages}
-		handleMessageListScroll={page.handleMessageListScroll}
+		loadPreviousMessages={page.loadPreviousMessages}
+		loadNextMessages={page.loadNextMessages}
+		setUnreadOnly={page.setUnreadOnly}
 		selectMessage={page.selectMessage}
 	/>
 

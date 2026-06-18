@@ -1,4 +1,4 @@
-import type { MailAccount, Mailbox, MailMessage } from './mail-types';
+import type { MailAccount, MailBootstrap, Mailbox, MailMessage } from './mail-types';
 
 export function normalizeMailAccountResponse(value: unknown): Partial<MailAccount> {
 	const objectValue = objectRecord(value);
@@ -56,6 +56,21 @@ export function normalizeMailMessagesResponse(value: unknown) {
 	};
 }
 
+export function normalizeMailBootstrapResponse(value: unknown): MailBootstrap {
+	const objectValue = objectRecord(value);
+	if (!objectValue) {
+		return emptyMailBootstrap();
+	}
+	return {
+		account: normalizeMailAccountResponse(objectValue.account),
+		mailboxes: normalizeMailboxesResponse({ mailboxes: objectValue.mailboxes }),
+		messages: normalizeMailMessagesResponse({ messages: objectValue.messages }).messages,
+		nextCursor: stringField(objectValue, 'nextCursor') ?? '',
+		hasCachedMailboxes: booleanField(objectValue, 'hasCachedMailboxes') ?? false,
+		hasCachedMessages: booleanField(objectValue, 'hasCachedMessages') ?? false
+	};
+}
+
 export function normalizeMailMessageDetailResponse(value: unknown): Partial<MailMessage> {
 	return normalizeMailMessageResponse(value) ?? {};
 }
@@ -97,6 +112,17 @@ function normalizeMailMessageResponse(value: unknown): MailMessage | undefined {
 	const bodyHTML = stringField(objectValue, 'bodyHTML');
 	if (bodyHTML !== undefined) message.bodyHTML = bodyHTML;
 	return message;
+}
+
+function emptyMailBootstrap(): MailBootstrap {
+	return {
+		account: {},
+		mailboxes: [],
+		messages: [],
+		nextCursor: '',
+		hasCachedMailboxes: false,
+		hasCachedMessages: false
+	};
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
