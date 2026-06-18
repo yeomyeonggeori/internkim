@@ -4,7 +4,6 @@ export type CalendarLocaleText = {
 	subtitle: string;
 	work: string;
 	myCalendars: string;
-	addCalendar: string;
 	moreOptions: string;
 	calendarVisibility: string;
 	previousMonth: string;
@@ -67,6 +66,21 @@ export type CalendarLocaleText = {
 		startTime: string;
 		endTime: string;
 		auditEmpty: string;
+		dateTimePicker: {
+			previousMonth: string;
+			nextMonth: string;
+			selectDate: string;
+			timeRange: string;
+			hour: string;
+			minute: string;
+			hourSuffix: string;
+			minuteSuffix: string;
+			save: string;
+			editStartDate: string;
+			editEndDate: string;
+			editStartDateTime: string;
+			editEndDateTime: string;
+		};
 	};
 	eventAudit: string;
 	eventAuditCreated: string;
@@ -87,7 +101,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		subtitle: '팀 일정과 외부 일정 연동을 한 화면에서 다룹니다.',
 		work: '팀 일정',
 		myCalendars: '내 일정',
-		addCalendar: '일정 추가',
 		moreOptions: '일정 옵션 더보기',
 		calendarVisibility: '표시 여부',
 		previousMonth: '이전 달',
@@ -149,7 +162,22 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: '종료 날짜',
 			startTime: '시작 시간',
 			endTime: '종료 시간',
-			auditEmpty: '등록·수정 정보 없음'
+			auditEmpty: '등록·수정 정보 없음',
+			dateTimePicker: {
+				previousMonth: '이전 달',
+				nextMonth: '다음 달',
+				selectDate: '날짜 선택',
+				timeRange: '시간대',
+				hour: '시',
+				minute: '분',
+				hourSuffix: '시',
+				minuteSuffix: '분',
+				save: '저장하기',
+				editStartDate: '시작 날짜 수정',
+				editEndDate: '종료 날짜 수정',
+				editStartDateTime: '시작 날짜 및 시간 수정',
+				editEndDateTime: '종료 날짜 및 시간 수정'
+			}
 		},
 		eventAudit: '일정 변경 이력',
 		eventAuditCreated: '등록',
@@ -179,7 +207,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		subtitle: 'Team schedule and external calendar sync in one place.',
 		work: 'Work',
 		myCalendars: 'My calendars',
-		addCalendar: 'Add calendar',
 		moreOptions: 'More calendar options',
 		calendarVisibility: 'calendar visibility',
 		previousMonth: 'Previous month',
@@ -241,7 +268,22 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: 'End date',
 			startTime: 'Start time',
 			endTime: 'End time',
-			auditEmpty: 'No creation or edit details'
+			auditEmpty: 'No creation or edit details',
+			dateTimePicker: {
+				previousMonth: 'Previous month',
+				nextMonth: 'Next month',
+				selectDate: 'Select date',
+				timeRange: 'Time',
+				hour: 'Hour',
+				minute: 'Minute',
+				hourSuffix: 'h',
+				minuteSuffix: 'min',
+				save: 'Save',
+				editStartDate: 'Edit start date',
+				editEndDate: 'Edit end date',
+				editStartDateTime: 'Edit start date and time',
+				editEndDateTime: 'Edit end date and time'
+			}
 		},
 		eventAudit: 'Event audit',
 		eventAuditCreated: 'Created',

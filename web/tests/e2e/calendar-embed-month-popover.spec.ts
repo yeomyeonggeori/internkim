@@ -132,4 +132,78 @@ test.describe('embedded calendar month popovers', () => {
 			)
 			.toBe(true);
 	});
+
+	test('keeps the more popover open and points edit popovers at the more row', async ({ page }) => {
+		await routeCalendarEvents(
+			page,
+			Array.from({ length: 8 }, (_, index) => ({
+				id: `more-edit-event-${index}`,
+				title: `More Edit Event ${index}`,
+				startISO: `2026-06-17T${String(9 + index).padStart(2, '0')}:00:00+09:00`,
+				endISO: `2026-06-17T${String(10 + index).padStart(2, '0')}:00:00+09:00`,
+				isAllDay: false,
+				updatedAt: `2026-06-${String(10 + index).padStart(2, '0')}T00:00:00Z`
+			}))
+		);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+
+		await page.locator('.calendar-month-more-button[data-date-key="2026-06-17"]').click();
+		const morePopover = page.locator('.calendar-month-more-popover');
+		await expect(morePopover).toBeVisible();
+		const hiddenEventRow = morePopover.locator('.calendar-month-more-popover-event').first();
+		const hiddenEventRowDisplay = await hiddenEventRow.evaluate((element) => {
+			const title = element.querySelector('.calendar-month-more-popover-event-title')?.textContent?.trim() ?? '';
+			const date = element.querySelector('.calendar-month-more-popover-event-date')?.textContent?.trim() ?? '';
+			const markerStyle = window.getComputedStyle(element, '::before');
+			return {
+				date,
+				markerBackground: markerStyle.backgroundColor,
+				markerWidth: markerStyle.width,
+				title
+			};
+		});
+		expect(hiddenEventRowDisplay.title).toMatch(/^More Edit Event \d+$/);
+		expect(hiddenEventRowDisplay.title).not.toMatch(/\d{2}:\d{2}/);
+		expect(hiddenEventRowDisplay.date).toMatch(/^6\.17 \d{2}:00$/);
+		expect(hiddenEventRowDisplay.markerWidth).toBe('3px');
+		expect(hiddenEventRowDisplay.markerBackground).toBe('rgb(59, 130, 246)');
+		const hiddenEventGeometry = await hiddenEventRow.evaluate((element) => {
+			const rectangle = element.getBoundingClientRect();
+			return {
+				centerY: rectangle.top + rectangle.height / 2,
+				left: rectangle.left,
+				right: rectangle.right
+			};
+		});
+
+		await hiddenEventRow.dblclick();
+
+		await expect(morePopover).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect
+			.poll(async () =>
+				page.evaluate((expectedCenterY) => {
+					const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+					if (!popover) return Number.POSITIVE_INFINITY;
+					const popoverRectangle = popover.getBoundingClientRect();
+					const arrowTop = Number.parseFloat(window.getComputedStyle(popover, '::before').top);
+					return Math.abs(popoverRectangle.top + arrowTop + 8 - expectedCenterY);
+				}, hiddenEventGeometry.centerY)
+			)
+			.toBeLessThanOrEqual(18);
+		await expect
+			.poll(async () =>
+				page.evaluate((rowGeometry) => {
+					const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+					if (!popover) return false;
+					const popoverRectangle = popover.getBoundingClientRect();
+					return popover.classList.contains('popover-arrow-right')
+						? popoverRectangle.right <= rowGeometry.left - 8
+						: popoverRectangle.left >= rowGeometry.right + 8;
+				}, hiddenEventGeometry)
+			)
+			.toBe(true);
+	});
 });

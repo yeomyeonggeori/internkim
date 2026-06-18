@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { MonthMorePlacement } from './calendar-month-event-geometry';
+	import type { MonthEventSegment } from './calendar-month-event-model';
 	import {
 		formattedMonthMoreDate,
 		monthMoreAriaLabel,
@@ -18,8 +19,8 @@
 		};
 		morePlacements: MonthMorePlacement[];
 		handleMoreButtonClick: (event: MouseEvent, placement: MonthMorePlacement) => void;
-		handleMoreEventClick: (event: MouseEvent, eventID: string) => void;
-		handleMoreEventDoubleClick: (event: MouseEvent, eventID: string) => void;
+		handleMoreEventClick: (event: MouseEvent, segment: MonthEventSegment) => void;
+		handleMoreEventDoubleClick: (event: MouseEvent, segment: MonthEventSegment) => void;
 	};
 
 	let {
@@ -54,11 +55,11 @@
 					type="button"
 					class="calendar-month-more-popover-event"
 					data-event-id={segment.eventID}
-					onclick={(event) => handleMoreEventClick(event, segment.eventID)}
-					ondblclick={(event) => handleMoreEventDoubleClick(event, segment.eventID)}
+					onclick={(event) => handleMoreEventClick(event, segment)}
+					ondblclick={(event) => handleMoreEventDoubleClick(event, segment)}
 				>
-					<span class="calendar-month-more-popover-event-title">{segment.titleText}</span>
-					<span class="calendar-month-more-popover-event-date">{monthMoreEventDateText(segment, localeCode)}</span>
+					<span class="calendar-month-more-popover-event-title">{segment.titleOnlyText}</span>
+					<span class="calendar-month-more-popover-event-date">{monthMoreEventDateText(segment)}</span>
 				</button>
 			{/each}
 		</div>

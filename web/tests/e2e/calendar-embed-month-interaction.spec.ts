@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import {
 	expectMonthEventFullBlockFocused,
@@ -75,6 +75,115 @@ test.describe('embedded calendar month interactions', () => {
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.getByLabel('제목')).toHaveValue('Double Click Month Event');
+	});
+
+	test('does not open a month event popover after a moved pointer gesture', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 720 });
+		await routeCalendarEvents(page, [
+			{
+				id: 'scroll-touch-month-event',
+				title: 'Scroll Touch Month Event',
+				startISO: '2026-06-09T09:00:00+09:00',
+				endISO: '2026-06-09T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-09');
+
+		await page.evaluate(() => {
+			const eventBlock = document.querySelector<HTMLElement>(
+				'[data-event-id="scroll-touch-month-event"].calendar-month-direct-event'
+			);
+			if (!eventBlock) throw new Error('Missing scroll touch month event');
+			const rectangle = eventBlock.getBoundingClientRect();
+			const pointerID = 42;
+			const clientX = rectangle.left + rectangle.width / 2;
+			const startClientY = rectangle.top + rectangle.height / 2;
+			eventBlock.dispatchEvent(
+				new PointerEvent('pointerdown', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: pointerID,
+					clientX,
+					clientY: startClientY
+				})
+			);
+			document.dispatchEvent(
+				new PointerEvent('pointermove', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: pointerID,
+					clientX,
+					clientY: startClientY + 72
+				})
+			);
+			document.dispatchEvent(
+				new PointerEvent('pointerup', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: pointerID,
+					clientX,
+					clientY: startClientY + 72
+				})
+			);
+			eventBlock.dispatchEvent(
+				new MouseEvent('dblclick', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					clientX,
+					clientY: startClientY + 72
+				})
+			);
+		});
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
+	test('moves the selected month date with arrow keys', async ({ page }) => {
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+
+		await page.keyboard.press('ArrowRight');
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-18');
+
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-25');
+
+		await page.keyboard.press('ArrowLeft');
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-24');
+
+		await page.keyboard.press('ArrowUp');
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-17');
+	});
+
+	test('keeps selected month date aligned with the selected month event', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'aligned-selection-event',
+				title: 'Aligned Selection Event',
+				startISO: '2026-06-18T19:00:00+09:00',
+				endISO: '2026-06-18T21:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+		await page.locator('[data-event-id="aligned-selection-event"].calendar-month-direct-event').click();
+
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-18');
+		await expectMonthEventFullBlockFocused(page, 'aligned-selection-event');
+
+		await page.keyboard.press('ArrowLeft');
+
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-17');
+		await expect(page.locator('[data-event-id="aligned-selection-event"].internkim-calendar-event-focused')).toHaveCount(0);
 	});
 
 	test('keeps month scroll position stable when opening an event popover', async ({ page }) => {
@@ -164,3 +273,7 @@ test.describe('embedded calendar month interactions', () => {
 		await expect(selectedDateNumber).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 	});
 });
+
+async function selectedMonthDateKey(page: Page): Promise<string> {
+	return page.locator('.calendar-stage').evaluate((element) => element.getAttribute('data-calendar-selected-date-key') ?? '');
+}

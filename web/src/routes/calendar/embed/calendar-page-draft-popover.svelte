@@ -57,7 +57,8 @@
 		endDate: text.draftPopover.endDate,
 		startTime: text.draftPopover.startTime,
 		endTime: text.draftPopover.endTime,
-		auditEmpty: text.draftPopover.auditEmpty
+		auditEmpty: text.draftPopover.auditEmpty,
+		dateTimePicker: text.draftPopover.dateTimePicker
 	});
 </script>
 
@@ -67,6 +68,7 @@
 		{calendarOptions}
 		{auditRows}
 		auditLabel={text.eventAudit}
+		{localeCode}
 		{isSaving}
 		text={popoverText}
 		{updatePopover}
