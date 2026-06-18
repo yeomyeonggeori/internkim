@@ -15,6 +15,7 @@ export async function dismissDraftPopoverFromTimeline(page: Page): Promise<void>
 export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '일' | '주'): Promise<void> {
 	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
+	await resetTimelineScrollerTop(page, viewLabel);
 	await page.evaluate(({ selector, view }) => {
 		const { target, clientX, clientY } = visibleTimelineTarget(selector, view);
 		if (!(target instanceof HTMLElement)) throw new Error(`Missing timeline target: ${selector}`);
@@ -25,8 +26,6 @@ export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '�
 		function visibleTimelineTarget(targetSelector: string, viewLabel: '일' | '주'): { target: Element | null; clientX: number; clientY: number } {
 			const scroller = document.querySelector(viewLabel === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller');
 			if (!(scroller instanceof HTMLElement)) throw new Error('Missing visible timeline scroller');
-			scroller.scrollTop = 0;
-			scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
 			const rectangle = scroller.getBoundingClientRect();
 			const timeAxisWidth = 124;
 			const gridWidth = Math.max(1, rectangle.width - timeAxisWidth);
@@ -48,6 +47,7 @@ export async function createTimelineRangeByDrag(page: Page, viewLabel: '일' | '
 export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주'): Promise<void> {
 	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
+	await resetTimelineScrollerTop(page, viewLabel);
 	await page.evaluate(({ selector, columnIndex, view }) => {
 		const { target, clientX: startClientX, clientY: startClientY } = visibleTimelineTarget(selector, view, columnIndex);
 		if (!(target instanceof HTMLElement)) throw new Error(`Missing timeline target: ${selector}`);
@@ -89,8 +89,6 @@ export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주
 		): { target: Element | null; clientX: number; clientY: number } {
 			const scroller = document.querySelector(viewLabel === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller');
 			if (!(scroller instanceof HTMLElement)) throw new Error('Missing visible timeline scroller');
-			scroller.scrollTop = 0;
-			scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
 			const rectangle = scroller.getBoundingClientRect();
 			const timeAxisWidth = 124;
 			const gridWidth = Math.max(1, rectangle.width - timeAxisWidth);
@@ -192,4 +190,24 @@ export function timelineTargetSelector(viewLabel: '일' | '주'): string {
 export function timelineTargetColumnIndex(viewLabel: '일' | '주'): number {
 	if (viewLabel === '일') return 0;
 	return 1;
+}
+
+async function resetTimelineScrollerTop(page: Page, viewLabel: '일' | '주'): Promise<void> {
+	await page.evaluate((view) => {
+		const scrollerSelector = view === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller';
+		const scroller = document.querySelector(scrollerSelector);
+		if (!(scroller instanceof HTMLElement)) throw new Error(`Missing timeline scroller: ${scrollerSelector}`);
+		scroller.scrollTop = 0;
+		scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+	}, viewLabel);
+	await waitForTimelineScrollSettle(page);
+}
+
+async function waitForTimelineScrollSettle(page: Page): Promise<void> {
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			})
+	);
 }

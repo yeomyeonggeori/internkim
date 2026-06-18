@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
+import { computedPseudoStyle, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import { navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 
 test.describe('embedded calendar month overflow', () => {
@@ -83,5 +83,35 @@ test.describe('embedded calendar month overflow', () => {
 		const morePopover = page.locator('.calendar-month-more-popover');
 		await expect(morePopover).toBeVisible();
 		await expect(morePopover.locator('.calendar-month-more-popover-event').first()).toContainText('Overflow Multi Day');
+	});
+
+	test('paints the selected date cell behind a more button as a full cell layer', async ({ page }) => {
+		await routeCalendarEvents(
+			page,
+			Array.from({ length: 8 }, (_, index) => ({
+				id: `selected-overflow-${index}`,
+				title: `Selected Overflow ${index}`,
+				startISO: `2026-06-17T${String(9 + index).padStart(2, '0')}:00:00+09:00`,
+				endISO: `2026-06-17T${String(10 + index).padStart(2, '0')}:00:00+09:00`,
+				isAllDay: false,
+				updatedAt: `2026-06-${String(10 + index).padStart(2, '0')}T00:00:00Z`
+			}))
+		);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+		await expect(page.locator('.calendar-month-more-button[data-date-key="2026-06-17"]')).toBeVisible();
+
+		const selectedCellLayerStyle = await computedPseudoStyle(
+			page,
+			'.df-month-day-cell[data-date="2026-06-17"].month-selected-date',
+			'::before',
+			['content', 'position', 'inset', 'background-color']
+		);
+
+		expect(selectedCellLayerStyle.content).not.toBe('none');
+		expect(selectedCellLayerStyle.position).toBe('absolute');
+		expect(selectedCellLayerStyle.inset).toBe('0px');
+		expect(selectedCellLayerStyle['background-color']).not.toBe('rgba(0, 0, 0, 0)');
 	});
 });
