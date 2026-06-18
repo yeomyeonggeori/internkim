@@ -428,7 +428,7 @@ func flowTaskListTwoOwnerStateService(t *testing.T) Service {
 	}
 }
 
-func TestFlowTaskListDefaultsToRequesterOwnTasks(t *testing.T) {
+func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
@@ -439,18 +439,34 @@ func TestFlowTaskListDefaultsToRequesterOwnTasks(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	result := string(response.Result)
-	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
-		t.Fatalf("expected only the requester's own tasks, got %s", result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || !strings.Contains(result, "lee-task") {
+		t.Fatalf("expected everyone's tasks when no person is named, got %s", result)
 	}
-	if !strings.Contains(result, `"scope":"self"`) || !strings.Contains(result, `"crossPerson":false`) || !strings.Contains(result, `"ownerID":"rain"`) {
-		t.Fatalf("expected self scope metadata, got %s", result)
-	}
-	if !strings.Contains(result, agentGuidanceKey) || !strings.Contains(result, "allPeople") {
-		t.Fatalf("expected internal broaden guidance on self scope, got %s", result)
+	if !strings.Contains(result, `"scope":"everyone"`) || !strings.Contains(result, `"ownerID":""`) {
+		t.Fatalf("expected everyone scope metadata, got %s", result)
 	}
 }
 
-func TestFlowTaskListSpansAllWeeksAndNormalizesStatusForOwnTasks(t *testing.T) {
+func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"김테스트"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected only the named requester's own tasks, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"person"`) || !strings.Contains(result, `"ownerID":"rain"`) {
+		t.Fatalf("expected person scope for own name, got %s", result)
+	}
+}
+
+func TestFlowTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
@@ -461,52 +477,11 @@ func TestFlowTaskListSpansAllWeeksAndNormalizesStatusForOwnTasks(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	result := string(response.Result)
-	if !strings.Contains(result, "rain-future") || strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
-		t.Fatalf("expected only own planned task across weeks, got %s", result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") || strings.Contains(result, "rain-done") {
+		t.Fatalf("expected everyone's planned tasks across weeks, got %s", result)
 	}
 	if !strings.Contains(result, `"statusFilter":"예정"`) {
 		t.Fatalf("expected status normalized to 예정, got %s", result)
-	}
-}
-
-func TestFlowTaskListAllPeopleReturnsEveryone(t *testing.T) {
-	service := flowTaskListTwoOwnerStateService(t)
-	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
-		Input:    []byte(`{"allPeople":true}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	result := string(response.Result)
-	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") {
-		t.Fatalf("expected all owners' tasks, got %s", result)
-	}
-	if !strings.Contains(result, `"scope":"allPeople"`) || !strings.Contains(result, `"crossPerson":true`) {
-		t.Fatalf("expected allPeople scope metadata, got %s", result)
-	}
-	if strings.Contains(result, agentGuidanceKey) {
-		t.Fatalf("did not expect broaden guidance when already scoped to everyone, got %s", result)
-	}
-}
-
-func TestFlowTaskListCoercesAllPeopleTokenInQuery(t *testing.T) {
-	service := flowTaskListTwoOwnerStateService(t)
-	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
-		Input:    []byte(`{"query":"allPeople=true"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	result := string(response.Result)
-	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") {
-		t.Fatalf("expected all owners' tasks after coercion, got %s", result)
-	}
-	if !strings.Contains(result, `"scope":"allPeople"`) || strings.Contains(result, agentGuidanceKey) {
-		t.Fatalf("expected allPeople scope and no broaden guidance after coercion, got %s", result)
 	}
 }
 
