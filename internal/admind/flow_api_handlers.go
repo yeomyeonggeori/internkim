@@ -86,6 +86,8 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 	weekCode := strings.TrimSpace(request.URL.Query().Get("week"))
 	if weekCode == "" {
 		weekCode = weekCodeForDate(now)
+	} else if canonical := canonicalWeekCode(weekCode); canonical != "" {
+		weekCode = canonical
 	}
 	weekStart := weekStartForCode(weekCode, now)
 	currentWeekCode := weekCodeForDate(now)
