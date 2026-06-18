@@ -1,8 +1,10 @@
 package admind
 
 type mailMessageListResponse struct {
-	Messages   []mailMessageResponse `json:"messages"`
-	NextCursor string                `json:"nextCursor"`
+	Messages    []mailMessageResponse `json:"messages"`
+	NextCursor  string                `json:"nextCursor"`
+	UIDNext     uint32                `json:"uidNext,omitempty"`
+	UIDValidity uint32                `json:"uidValidity,omitempty"`
 }
 
 type mailMessageResponse struct {
