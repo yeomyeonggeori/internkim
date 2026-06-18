@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -16,6 +18,9 @@ func (service *Service) writeMailboxes(responseWriter http.ResponseWriter, reque
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
+	}
+	if errorValue := service.saveCachedMailboxes(request.Context(), account.ActorEmail, mailboxes); errorValue != nil {
+		logMailCacheFailure("save mailboxes", account.ActorEmail, errorValue)
 	}
 	service.writeJSON(responseWriter, map[string]any{"mailboxes": mailboxes})
 }
@@ -36,6 +41,9 @@ func (service *Service) writeMailMessages(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	if errorValue := service.saveCachedMailMessages(request.Context(), account.ActorEmail, input, result); errorValue != nil {
+		logMailCacheFailure("save message list", account.ActorEmail, errorValue)
+	}
 	service.writeJSON(responseWriter, result)
 }
 
@@ -54,6 +62,9 @@ func (service *Service) writeMailMessage(responseWriter http.ResponseWriter, req
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
+	}
+	if errorValue := service.saveCachedMailMessageDetail(request.Context(), account.ActorEmail, message); errorValue != nil {
+		logMailCacheFailure("save message detail", account.ActorEmail, errorValue)
 	}
 	service.writeJSON(responseWriter, message)
 }
@@ -107,6 +118,10 @@ func (service *Service) moveMailMessage(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	if errorValue := service.deleteCachedMailMessage(request.Context(), account.ActorEmail, mailbox, uid); errorValue != nil {
+		logMailCacheFailure("delete moved message", account.ActorEmail, errorValue)
+		service.clearMailCacheBestEffort(request.Context(), account.ActorEmail)
+	}
 	service.writeJSON(responseWriter, map[string]bool{"moved": true})
 }
 
@@ -134,5 +149,19 @@ func (service *Service) markMailMessage(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	if errorValue := service.updateCachedMailMessageFlags(request.Context(), account.ActorEmail, mailbox, uid, payload); errorValue != nil {
+		logMailCacheFailure("update message flags", account.ActorEmail, errorValue)
+		service.clearMailCacheBestEffort(request.Context(), account.ActorEmail)
+	}
 	service.writeJSON(responseWriter, map[string]bool{"marked": true})
+}
+
+func logMailCacheFailure(operation string, actorEmail string, errorValue error) {
+	slog.Warn("mail cache operation failed", "operation", operation, "actor_email", strings.ToLower(strings.TrimSpace(actorEmail)), "error", errorValue.Error())
+}
+
+func (service *Service) clearMailCacheBestEffort(ctx context.Context, actorEmail string) {
+	if errorValue := service.clearMailCache(ctx, actorEmail); errorValue != nil {
+		logMailCacheFailure("clear", actorEmail, errorValue)
+	}
 }

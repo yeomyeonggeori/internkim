@@ -14,6 +14,8 @@ func (service *Service) handleMail(responseWriter http.ResponseWriter, request *
 	}
 	path := strings.TrimPrefix(request.URL.Path, "/mail/api")
 	switch {
+	case request.Method == http.MethodGet && path == "/bootstrap":
+		service.writeMailBootstrap(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/account":
 		service.writeMailAccount(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/account":
