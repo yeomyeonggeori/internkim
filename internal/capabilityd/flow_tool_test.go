@@ -3,10 +3,12 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -232,7 +234,7 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{"query":"디플랫 코리아"}`),
+		Input:    []byte(`{"query":"디플랫 코리아","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
 	if errorValue != nil {
@@ -432,7 +434,7 @@ func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{}`),
+		Input:    []byte(`{"weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -451,7 +453,7 @@ func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{"targetPersonHint":"신우경"}`),
+		Input:    []byte(`{"targetPersonHint":"신우경","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -470,7 +472,7 @@ func TestFlowTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{"status":"예약"}`),
+		Input:    []byte(`{"status":"예약","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -489,7 +491,7 @@ func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "flow.task.list",
-		Input:    []byte(`{"targetPersonHint":"이동하"}`),
+		Input:    []byte(`{"targetPersonHint":"이동하","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -501,6 +503,51 @@ func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	}
 	if !strings.Contains(result, `"scope":"person"`) {
 		t.Fatalf("expected person scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListWeekCodes(t *testing.T) {
+	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
+	thisWeek := weekCodeForFlowDate(now)
+	single := flowTaskListWeekCodes(0, 0, now)
+	if len(single) != 1 || !single[thisWeek] {
+		t.Fatalf("expected only this week %q, got %v", thisWeek, single)
+	}
+	threeWeeks := flowTaskListWeekCodes(-2, 0, now)
+	if len(threeWeeks) != 3 || !threeWeeks[thisWeek] ||
+		!threeWeeks[weekCodeForFlowDate(now.AddDate(0, 0, -7))] ||
+		!threeWeeks[weekCodeForFlowDate(now.AddDate(0, 0, -14))] {
+		t.Fatalf("expected this and the prior two weeks, got %v", threeWeeks)
+	}
+	if len(flowTaskListWeekCodes(0, -1, now)) != 2 {
+		t.Fatalf("expected swapped bounds to span 2 weeks")
+	}
+	if flowTaskListWeekCodes(-1000, 0, now) != nil {
+		t.Fatalf("expected no week filter for a very wide range")
+	}
+}
+
+func TestFlowTaskListDefaultsToThisWeekOnly(t *testing.T) {
+	thisWeek := weekCodeForFlowDate(time.Now())
+	priorWeek := weekCodeForFlowDate(time.Now().AddDate(0, 0, -21))
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이동하","content":"이번주 업무","status":"예정","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이동하","content":"지난 업무","status":"예정","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return flowToolJSONResponse(stateBody), nil
+		})},
+	}
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "this-week-task") || strings.Contains(result, "prior-week-task") {
+		t.Fatalf("expected only this week's task by default, got %s", result)
 	}
 }
 

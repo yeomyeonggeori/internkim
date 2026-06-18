@@ -24,7 +24,8 @@ type flowTaskAddInput struct {
 type flowTaskListInput struct {
 	Query            string `json:"query"`
 	TargetPersonHint string `json:"targetPersonHint"`
-	WeekCode         string `json:"weekCode"`
+	WeekFrom         int    `json:"weekFrom"`
+	WeekTo           int    `json:"weekTo"`
 	Status           string `json:"status"`
 	Limit            int    `json:"limit"`
 }
@@ -176,7 +177,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
+	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -190,10 +191,12 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
-	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, Limit: input.Limit})
+	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, time.Now())
+	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, WeekCodes: weekCodes, Limit: input.Limit})
 	result, _ := json.Marshal(map[string]any{
 		"scope":        flowTaskListPeopleScope(ownerID),
-		"weekCode":     summary.Week.Code,
+		"weekFrom":     input.WeekFrom,
+		"weekTo":       input.WeekTo,
 		"statusFilter": statusFilter,
 		"ownerID":      ownerID,
 		"tasks":        tasks,
@@ -310,7 +313,6 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 	}
 	input.Query = strings.TrimSpace(input.Query)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
-	input.WeekCode = strings.TrimSpace(input.WeekCode)
 	input.Status = strings.TrimSpace(input.Status)
 	if input.Limit < 0 {
 		input.Limit = 0
@@ -568,10 +570,11 @@ func (service Service) deleteFlowTask(ctx context.Context, taskID string, reques
 }
 
 type flowTaskFilter struct {
-	Query   string
-	OwnerID string
-	Status  string
-	Limit   int
+	Query     string
+	OwnerID   string
+	Status    string
+	WeekCodes map[string]bool
+	Limit     int
 }
 
 func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
@@ -590,6 +593,25 @@ func flowTaskListPeopleScope(ownerID string) string {
 		return "person"
 	}
 	return "everyone"
+}
+
+func flowTaskListWeekCodes(weekFrom int, weekTo int, now time.Time) map[string]bool {
+	if weekFrom > weekTo {
+		weekFrom, weekTo = weekTo, weekFrom
+	}
+	if weekTo-weekFrom > 520 {
+		return nil
+	}
+	weekCodes := map[string]bool{}
+	for offset := weekFrom; offset <= weekTo; offset++ {
+		weekCodes[weekCodeForFlowDate(now.AddDate(0, 0, offset*7))] = true
+	}
+	return weekCodes
+}
+
+func weekCodeForFlowDate(date time.Time) string {
+	year, week := date.ISOWeek()
+	return fmt.Sprintf("%02dW%02d", year%100, week)
 }
 
 func normalizeFlowStatusFilter(status string) string {
@@ -620,6 +642,9 @@ func filterFlowTasks(tasks []flowTaskForTool, filter flowTaskFilter) []flowTaskF
 	filteredTasks := []flowTaskForTool{}
 	for _, task := range tasks {
 		if filter.OwnerID != "" && task.OwnerID != filter.OwnerID {
+			continue
+		}
+		if len(filter.WeekCodes) > 0 && !filter.WeekCodes[task.WeekCode] {
 			continue
 		}
 		if filter.Status != "" && task.Status != filter.Status {
