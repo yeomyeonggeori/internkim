@@ -21,6 +21,8 @@
 		moveTask: (request: FlowTaskBoardMoveRequest) => void | Promise<void>;
 		pendingTaskIDs: string[];
 		canUpdateTask: (task: FlowTask) => boolean;
+		weekStartISO?: string;
+		weekEndISO?: string;
 	};
 
 	let {
@@ -32,7 +34,9 @@
 		createTask,
 		moveTask,
 		pendingTaskIDs,
-		canUpdateTask
+		canUpdateTask,
+		weekStartISO = '',
+		weekEndISO = ''
 	}: Props = $props();
 
 	const columnClass = [
@@ -49,7 +53,7 @@
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDragDataType = 'application/x-internkim-flow-task-id';
 
-	let columns = $derived(buildFlowTaskBoard(tasks));
+	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO }));
 	let draggedTaskID = $state('');
 	let dropTarget = $state<FlowTaskBoardMoveRequest | null>(null);
 
