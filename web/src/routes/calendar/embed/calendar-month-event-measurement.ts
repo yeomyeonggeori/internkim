@@ -34,18 +34,27 @@ export function createMonthEventMeasurementController(context: MonthEventMeasure
 		});
 	}
 
+	function measureScrolledEvents(): void {
+		measureEvents();
+		queueMeasurement();
+	}
+
 	function observeStage(): () => void {
 		const stageElement = context.getStageElement();
 		if (!stageElement) return () => {};
 		const observer = new MutationObserver(() => queueMeasurement());
 		observer.observe(stageElement, { childList: true, subtree: true, attributes: true });
 		const scroller = stageElement.querySelector<HTMLElement>('.df-month-view-virtual-scroller');
-		scroller?.addEventListener('scroll', queueMeasurement, { passive: true });
+		scroller?.addEventListener('scroll', measureScrolledEvents, { passive: true });
+		stageElement.addEventListener('scroll', measureScrolledEvents, true);
+		document.addEventListener('scroll', measureScrolledEvents, true);
 		window.addEventListener('resize', queueMeasurement);
 		queueMeasurement();
 		return () => {
 			observer.disconnect();
-			scroller?.removeEventListener('scroll', queueMeasurement);
+			scroller?.removeEventListener('scroll', measureScrolledEvents);
+			stageElement.removeEventListener('scroll', measureScrolledEvents, true);
+			document.removeEventListener('scroll', measureScrolledEvents, true);
 			window.removeEventListener('resize', queueMeasurement);
 		};
 	}
