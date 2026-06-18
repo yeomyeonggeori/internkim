@@ -27,7 +27,6 @@ type flowTaskListInput struct {
 	WeekCode         string `json:"weekCode"`
 	Status           string `json:"status"`
 	Limit            int    `json:"limit"`
-	AllPeople        bool   `json:"allPeople"`
 }
 
 type flowTaskUpdateInput struct {
@@ -177,7 +176,6 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	input = coerceFlowTaskListInput(input)
 	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -193,16 +191,14 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
 	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, Limit: input.Limit})
-	scope := flowTaskListPeopleScope(input, ownerID)
-	result, _ := json.Marshal(withAgentGuidance(map[string]any{
-		"scope":        scope,
+	result, _ := json.Marshal(map[string]any{
+		"scope":        flowTaskListPeopleScope(ownerID),
 		"weekCode":     summary.Week.Code,
 		"statusFilter": statusFilter,
-		"crossPerson":  input.AllPeople,
 		"ownerID":      ownerID,
 		"tasks":        tasks,
 		"count":        len(tasks),
-	}, flowTaskListBroadenGuidance(scope)))
+	})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
@@ -579,45 +575,21 @@ type flowTaskFilter struct {
 }
 
 func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
-	if input.AllPeople {
+	if strings.TrimSpace(input.TargetPersonHint) == "" {
 		return "", nil
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: input.Query, TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
 	if resolution.Failure != nil {
 		return "", resolution.Failure
 	}
 	return resolution.OwnerID, nil
 }
 
-func flowTaskListPeopleScope(input flowTaskListInput, ownerID string) string {
-	if input.AllPeople {
-		return "allPeople"
-	}
-	if strings.TrimSpace(input.TargetPersonHint) != "" {
+func flowTaskListPeopleScope(ownerID string) string {
+	if ownerID != "" {
 		return "person"
 	}
-	if ownerID != "" {
-		return "self"
-	}
-	return "unscoped"
-}
-
-func flowTaskListBroadenGuidance(scope string) string {
-	switch scope {
-	case "self":
-		return `These are only the requester's own tasks (the default when no person is named). Work tasks are shared, not private, so you are allowed to see everyone's. To include other people, call flow.task.list again and set the boolean argument "allPeople" to true for everyone, or set "targetPersonHint" to a name for one person. "allPeople" and "targetPersonHint" are separate top-level arguments — do not place them inside "query". Do not tell the user you lack permission or can only see their own tasks.`
-	case "person":
-		return `These are one named person's tasks. To cover everyone, call flow.task.list again and set the boolean argument "allPeople" to true (a separate top-level argument, not part of "query").`
-	}
-	return ""
-}
-
-func coerceFlowTaskListInput(input flowTaskListInput) flowTaskListInput {
-	if !input.AllPeople && strings.Contains(strings.ToLower(input.Query), "allpeople") {
-		input.AllPeople = true
-		input.Query = ""
-	}
-	return input
+	return "everyone"
 }
 
 func normalizeFlowStatusFilter(status string) string {
