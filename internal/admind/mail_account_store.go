@@ -32,7 +32,39 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
 	sent_mailbox TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 )`)
-	return errorValue
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS mail_mailbox_cache (
+	actor_email TEXT NOT NULL,
+	name TEXT NOT NULL,
+	display_name TEXT NOT NULL,
+	unseen INTEGER NOT NULL,
+	total INTEGER NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(actor_email, name)
+);
+CREATE TABLE IF NOT EXISTS mail_message_cache (
+	actor_email TEXT NOT NULL,
+	mailbox TEXT NOT NULL,
+	uid INTEGER NOT NULL,
+	subject TEXT NOT NULL,
+	from_address TEXT NOT NULL,
+	to_addresses TEXT NOT NULL,
+	cc_addresses TEXT NOT NULL,
+	date TEXT NOT NULL,
+	preview TEXT NOT NULL,
+	body TEXT NOT NULL,
+	body_html TEXT NOT NULL,
+	is_read INTEGER NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(actor_email, mailbox, uid)
+)`)
+	if errorValue != nil {
+		return errorValue
+	}
+	return ensureMailMessageListCacheSchema(ctx, database)
 }
 
 func (service *Service) readMailAccount(ctx context.Context, actorEmail string) (mailAccount, bool, error) {
@@ -120,5 +152,8 @@ ON CONFLICT(actor_email) DO UPDATE SET
 		account.SentMailbox,
 		account.UpdatedAt,
 	)
-	return errorValue
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.clearMailCache(ctx, account.ActorEmail)
 }
