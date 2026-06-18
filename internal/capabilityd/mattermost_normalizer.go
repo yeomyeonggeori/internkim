@@ -78,6 +78,9 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 	}
 
 	isDirect := strings.EqualFold(strings.TrimSpace(channelType), "D")
+	if !isDirect && mattermostMentionsExcludeBot(post.Message, addressing) {
+		return platformInboundEvent{}, false, nil
+	}
 	replyRootID := ""
 	if isDirect {
 		replyRootID = mattermostDirectReplyRootID(post)
@@ -161,6 +164,13 @@ func mattermostAddressingFromMessage(message string, botUsername string) platfor
 		addressing.OtherPersonMentioned = true
 	}
 	return addressing
+}
+
+func mattermostMentionsExcludeBot(message string, addressing platformAddressing) bool {
+	if addressing.BotMentioned {
+		return false
+	}
+	return len(mattermostMentionTokens(message)) > 0
 }
 
 func mattermostMentionTokens(message string) []string {

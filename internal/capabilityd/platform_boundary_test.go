@@ -484,6 +484,66 @@ func TestMattermostChannelMessageWithMentionIsForwarded(t *testing.T) {
 	}
 }
 
+func TestMattermostChannelMentionOfOtherPersonIsDropped(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "@gamyeong please review",
+	}, "bot-1", "O", "random-chat", platformAddressing{OtherPersonMentioned: true})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if hasEvent {
+		t.Fatal("expected channel message mentioning only another person to be dropped")
+	}
+}
+
+func TestMattermostChannelBroadcastMentionIsDropped(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "@all standup in five minutes",
+	}, "bot-1", "O", "random-chat", platformAddressing{})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if hasEvent {
+		t.Fatal("expected channel broadcast @all mention to be dropped")
+	}
+}
+
+func TestMattermostChannelMentionIncludingBotIsForwarded(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "@internkim @gamyeong take a look",
+	}, "bot-1", "O", "random-chat", platformAddressing{BotMentioned: true, OtherPersonMentioned: true})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected channel message mentioning the bot to be forwarded even alongside others")
+	}
+}
+
+func TestMattermostDirectMentionOfOtherPersonIsForwarded(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "direct-1",
+		Message:   "@gamyeong lunch?",
+	}, "bot-1", "D", "", platformAddressing{OtherPersonMentioned: true})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected direct message to be forwarded regardless of mentions")
+	}
+}
+
 func TestMattermostTownSquareForwardsWithoutMention(t *testing.T) {
 	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
@@ -570,15 +630,12 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 		t.Fatalf("expected bot mention metadata, got %+v", event.Context.Addressing)
 	}
 
-	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@iam 아직 상태 업데이트는 툴로 추가 안 했었어요."), "bot-1", "internkim")
+	_, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@iam 아직 상태 업데이트는 툴로 추가 안 했었어요."), "bot-1", "internkim")
 	if errorValue != nil {
 		t.Fatalf("expected fallback mention payload normalization to succeed: %v", errorValue)
 	}
-	if !hasEvent {
-		t.Fatal("expected fallback mention payload to be forwarded")
-	}
-	if event.Context.Addressing.BotMentioned || !event.Context.Addressing.OtherPersonMentioned {
-		t.Fatalf("expected fallback other-person mention metadata, got %+v", event.Context.Addressing)
+	if hasEvent {
+		t.Fatal("expected channel mention of only another person to be dropped at admission")
 	}
 
 	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@internkim 확인해줘"), "bot-1", "internkim")
