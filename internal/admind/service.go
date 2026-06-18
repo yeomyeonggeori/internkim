@@ -717,6 +717,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.proxyBlueclawTaskList(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/task-detail":
 		service.proxyBlueclawTaskDetail(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/maintenance/attachment-cleanup":
+		service.handleAttachmentCleanup(responseWriter, request, false)
+	case request.Method == http.MethodPost && path == "/maintenance/attachment-cleanup":
+		service.handleAttachmentCleanup(responseWriter, request, true)
 	case request.Method == http.MethodGet && path == "/diagnostics/service-logs":
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
