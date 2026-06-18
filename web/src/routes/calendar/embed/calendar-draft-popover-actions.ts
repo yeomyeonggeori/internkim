@@ -13,12 +13,10 @@ import {
 } from './calendar-event-anchor-capture';
 import {
 	anchorFromElement,
-	areSamePopoverAnchors,
 	areSamePopoverPositions,
 	calendarEventAnchorForEventID,
 	clearDraftPopoverElementMotion,
 	genericEventAnchorForEventID,
-	isAnchorInsideVisibleStage,
 	monthDateAnchor,
 	shouldShowInitialPopover
 } from './calendar-draft-popover-anchor';
@@ -32,7 +30,6 @@ export type CalendarDraftPopoverActions = {
 	openTimelineSingleDraftPopover: (startDate: Date, anchor: DraftPopoverAnchor) => void;
 	openTimelineRangeDraftPopover: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
 	openEventDraftPopover: (event: DayFlowEvent, mode: DraftPopoverMode, anchor?: DraftPopoverAnchor | null) => void;
-	refreshDraftPopoverAnchor: (size?: DraftPopoverSize) => boolean;
 	repositionDraftPopover: (size: DraftPopoverSize) => void;
 	updateDraftPopover: (changes: Partial<DraftPopoverState>) => void;
 	saveDraftPopover: () => Promise<void>;
@@ -98,21 +95,6 @@ export function createCalendarDraftPopoverActions(
 		if (areSamePopoverPositions(popover.position, position)) return;
 		clearDraftPopoverElementMotion();
 		context.setDraftPopover({ ...popover, position });
-	}
-
-	function refreshDraftPopoverAnchor(size: DraftPopoverSize = {}): boolean {
-		const popover = context.getDraftPopover();
-		if (!popover) return false;
-		const anchor = calendarEventAnchorForEventID(context.getStageElement(), popover.eventID);
-		if (!anchor || !isAnchorInsideVisibleStage(context.getStageElement(), anchor)) {
-			void persistence.cancelDraftPopover();
-			return false;
-		}
-		const position = draftPopoverPositionFromAnchor(anchor, context.getStageElement(), size);
-		if (areSamePopoverAnchors(popover.anchor, anchor) && areSamePopoverPositions(popover.position, position)) return true;
-		clearDraftPopoverElementMotion();
-		context.setDraftPopover({ ...popover, anchor, position });
-		return true;
 	}
 
 	function updateDraftPopover(changes: Partial<DraftPopoverState>): void {
@@ -183,7 +165,6 @@ export function createCalendarDraftPopoverActions(
 		openTimelineSingleDraftPopover,
 		openTimelineRangeDraftPopover,
 		openEventDraftPopover,
-		refreshDraftPopoverAnchor,
 		repositionDraftPopover,
 		updateDraftPopover,
 		saveDraftPopover: persistence.saveDraftPopover,

@@ -81,6 +81,12 @@ export function createCalendarPageLifecycleOptions(
 		eventSelection: {
 			clearSelectedEvent: context.eventSelection.clearSelectedEvent
 		},
+		monthKeyboardNavigation: {
+			currentView: context.getCurrentView,
+			getSelectedDateKey: () => context.selectedMonthDate.getSelectedMonthDateKey(),
+			navigateToDateKey: context.pageNavigation.navigateToDateKey,
+			clearSelectedEvent: context.eventSelection.clearSelectedEvent
+		},
 		keyboardDelete: keyboardDelete(context),
 		miniCalendarMonthPicker: miniCalendarMonthPicker(context),
 		navigateToDateKey: context.pageNavigation.navigateToDateKey
@@ -122,7 +128,6 @@ function wheelNavigation(context: CalendarPageLifecycleOptionsContext): Calendar
 function draftPopoverDismiss(context: CalendarPageLifecycleOptionsContext): CalendarEmbedLifecycleOptions['draftPopoverDismiss'] {
 	return {
 		getDraftPopover: context.getDraftPopover,
-		refreshDraftPopoverAnchor: context.draftPopoverActions.refreshDraftPopoverAnchor,
 		saveDraftPopover: context.draftPopoverActions.saveDraftPopover,
 		cancelDraftPopover: context.draftPopoverActions.cancelDraftPopover,
 		clearSelectedEvent: context.eventSelection.clearSelectedEvent

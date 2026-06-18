@@ -15,7 +15,8 @@ export type MonthEventSegment = {
 	endDateKey: string;
 	lane: number;
 	titleText: string;
-	endTimeText: string;
+	titleOnlyText: string;
+	startTimeText: string;
 	isAllDay: boolean;
 };
 
@@ -75,7 +76,8 @@ function segmentsForWeek(events: DayFlowEvent[], week: MonthEventWeek): MonthEve
 			endDateKey: candidate.endDateKey,
 			lane,
 			titleText: candidate.titleText,
-			endTimeText: candidate.endTimeText,
+			titleOnlyText: candidate.titleOnlyText,
+			startTimeText: candidate.startTimeText,
 			isAllDay: candidate.isAllDay
 		};
 	});
@@ -98,7 +100,8 @@ function segmentForEventAndWeek(event: DayFlowEvent, week: MonthEventWeek, event
 			startDateKey,
 			endDateKey,
 			titleText: titleText(event),
-			endTimeText: event.allDay ? '' : formatMonthEventTime(eventEndDate(event)),
+			titleOnlyText: titleOnlyText(event),
+			startTimeText: event.allDay ? '' : formatMonthEventTime(eventStartDate(event)),
 			isAllDay: event.allDay ?? false,
 			durationDays: inclusiveDurationDays(startDateKey, endDateKey),
 			sortTimestamp: eventSortTimestamp(event),
@@ -156,6 +159,13 @@ function titleText(event: DayFlowEvent): string {
 	const title = (event.title ?? '').trim();
 	const startTime = formatMonthEventTime(eventStartDate(event));
 	return title ? `${title} ${startTime}` : startTime;
+}
+
+function titleOnlyText(event: DayFlowEvent): string {
+	const title = (event.title ?? '').trim();
+	if (title) return title;
+	if (event.allDay) return '';
+	return formatMonthEventTime(eventStartDate(event));
 }
 
 function displayEndDate(event: DayFlowEvent): Date {

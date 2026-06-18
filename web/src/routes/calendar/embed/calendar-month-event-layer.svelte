@@ -29,6 +29,7 @@
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		selectEvent: (eventID: string) => void;
+		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		stageElement: HTMLElement | null;
 		toolbarView: ViewType;
@@ -42,6 +43,7 @@
 		openEvent,
 		saveMovedEvent,
 		selectEvent,
+		selectDate,
 		selectedEventID,
 		stageElement,
 		toolbarView
@@ -51,7 +53,7 @@
 	let morePlacements = $state<MonthMorePlacement[]>([]);
 	let activeMorePlacementID = $state<string | null>(null);
 	let dragState = $state<MonthEventDragState | null>(null);
-	let shouldSuppressNextClick = false;
+	let suppressedEventActivationUntil = 0;
 
 	const layerEvents = $derived(eventsWithMonthDragPreview(events, dragState));
 	const activeMorePlacement = $derived(morePlacements.find((placement) => placement.id === activeMorePlacementID) ?? null);
@@ -64,7 +66,7 @@
 			dragState = state;
 		},
 		suppressNextClick: () => {
-			shouldSuppressNextClick = true;
+			suppressedEventActivationUntil = Date.now() + 450;
 		}
 	});
 	const measurementController = createMonthEventMeasurementController({
@@ -117,6 +119,7 @@
 		if (pointerEvent.button !== 0) return;
 		const event = events.find((calendarEvent) => calendarEvent.id === placement.eventID);
 		if (!event) return;
+		selectDate(placement.startDateKey);
 		selectEvent(placement.eventID);
 		dragController.startDrag(pointerEvent, event);
 	}
@@ -124,17 +127,17 @@
 	function handleClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
 		mouseEvent.preventDefault();
 		mouseEvent.stopPropagation();
-		if (shouldSuppressNextClick) {
-			shouldSuppressNextClick = false;
-			return;
-		}
+		if (shouldSuppressEventActivation()) return;
+		selectDate(placement.startDateKey);
 		selectEvent(placement.eventID);
 	}
 
 	function handleDoubleClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
 		mouseEvent.preventDefault();
 		mouseEvent.stopPropagation();
+		if (shouldSuppressEventActivation()) return;
 		if (!(mouseEvent.currentTarget instanceof HTMLElement)) return;
+		selectDate(placement.startDateKey);
 		selectEvent(placement.eventID);
 		openEvent(placement.eventID, calendarEventAnchorFromElement(mouseEvent.currentTarget));
 	}
@@ -145,19 +148,26 @@
 		activeMorePlacementID = activeMorePlacementID === placement.id ? null : placement.id;
 	}
 
-	function handleMoreEventClick(mouseEvent: MouseEvent, eventID: string): void {
+	function handleMoreEventClick(mouseEvent: MouseEvent, segment: MonthMorePlacement['hiddenSegments'][number]): void {
 		mouseEvent.preventDefault();
 		mouseEvent.stopPropagation();
-		selectEvent(eventID);
+		selectDate(segment.startDateKey);
+		selectEvent(segment.eventID);
 	}
 
-	function handleMoreEventDoubleClick(mouseEvent: MouseEvent, eventID: string): void {
+	function handleMoreEventDoubleClick(mouseEvent: MouseEvent, segment: MonthMorePlacement['hiddenSegments'][number]): void {
 		mouseEvent.preventDefault();
 		mouseEvent.stopPropagation();
 		if (!(mouseEvent.currentTarget instanceof HTMLElement)) return;
-		selectEvent(eventID);
-		activeMorePlacementID = null;
-		openEvent(eventID, calendarEventAnchorFromElement(mouseEvent.currentTarget));
+		selectDate(segment.startDateKey);
+		selectEvent(segment.eventID);
+		openEvent(segment.eventID, calendarEventAnchorFromElement(mouseEvent.currentTarget));
+	}
+
+	function shouldSuppressEventActivation(): boolean {
+		if (Date.now() <= suppressedEventActivationUntil) return true;
+		suppressedEventActivationUntil = 0;
+		return false;
 	}
 
 </script>
@@ -181,9 +191,6 @@
 			>
 				<span class="calendar-event-content calendar-month-event-content">
 					<span class="calendar-event-title calendar-month-event-title">{placement.titleText}</span>
-					{#if !placement.isAllDay}
-						<span class="calendar-event-time calendar-month-event-time">{placement.endTimeText}</span>
-					{/if}
 				</span>
 			</button>
 		{/each}

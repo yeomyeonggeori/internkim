@@ -45,6 +45,7 @@
 		cancelPopover: () => void;
 		searchResults: CalendarSearchResult[];
 		selectEvent: (eventID: string) => void;
+		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		stageEvents: DayFlowEvent[];
 		text: CalendarLocaleText;
@@ -87,6 +88,7 @@
 		savePopover,
 		searchResults,
 		selectEvent,
+		selectDate,
 		selectedEventID,
 		stageEvents,
 		text,
@@ -130,6 +132,7 @@
 		selectedEventID={selectedEventID}
 		{openEvent}
 		{selectEvent}
+		{selectDate}
 		{saveMovedEvent}
 		bind:stageElement
 		{monthRangePreviewSegments}
