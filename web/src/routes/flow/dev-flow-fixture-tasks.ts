@@ -46,6 +46,7 @@ function taskFromSpec(spec: DevFlowTaskSpec, week: FlowWeek): FlowTask {
 		statusRank: 0,
 		startDate: addDays(week.startISO, spec.startOffset),
 		endDate: spec.endOffset > 0 ? addDays(week.startISO, spec.endOffset) : '',
+		createdAt: `${addDays(week.startISO, spec.startOffset)}T09:00:00Z`,
 		weekCode: week.code,
 		flag: isFlowStatusStopped(spec.status) || isFlowStatusPaused(spec.status) ? 1 : 0,
 		requestReason: spec.requestReason ?? '',
