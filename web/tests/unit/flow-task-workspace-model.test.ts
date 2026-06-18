@@ -11,7 +11,8 @@ import {
 	defaultParticipantFilterIDs,
 	filterFlowTasks,
 	flowBusinessLabel,
-	isDefaultParticipantFilter
+	isDefaultParticipantFilter,
+	sortFlowTaskList
 } from '../../src/routes/flow/flow-task-workspace-model';
 import type { FlowMember, FlowSummary, FlowTask } from '../../src/routes/flow/flow-types';
 
@@ -122,6 +123,26 @@ describe('flow task workspace model', () => {
 		expect(canRemoveFlowTaskParticipant(task, 'owner')).toBe(false);
 		expect(canRemoveFlowTaskParticipant(task, 'participant')).toBe(true);
 		expect(canRemoveFlowTaskParticipant(task, 'viewer')).toBe(false);
+	});
+
+	test('sorts the task list by status group, end date, and created date', () => {
+		const tasks = [
+			flowTask({ id: 'done-new', status: '완료', endDate: '2026-06-12', createdAt: '2026-06-01T10:00:00Z' }),
+			flowTask({ id: 'requested-old', status: '요청', endDate: '2026-06-01', createdAt: '2026-06-03T10:00:00Z' }),
+			flowTask({ id: 'stopped', status: '중단', endDate: '2026-06-15', createdAt: '2026-06-04T10:00:00Z' }),
+			flowTask({ id: 'requested-new', status: '요청', endDate: '2026-06-05', createdAt: '2026-06-02T10:00:00Z' }),
+			flowTask({ id: 'scheduled-created-new', status: '예정', endDate: '', createdAt: '2026-06-09T10:00:00Z' }),
+			flowTask({ id: 'scheduled-created-old', status: '예정', endDate: '', createdAt: '2026-06-08T10:00:00Z' })
+		];
+
+		expect(sortFlowTaskList(tasks).map((task) => task.id)).toEqual([
+			'requested-new',
+			'requested-old',
+			'scheduled-created-new',
+			'scheduled-created-old',
+			'stopped',
+			'done-new'
+		]);
 	});
 });
 

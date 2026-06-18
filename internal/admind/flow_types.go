@@ -73,6 +73,7 @@ type flowTask struct {
 	RequestReason      string   `json:"requestReason,omitempty"`
 	DecisionReason     string   `json:"decisionReason,omitempty"`
 	MattermostPostID   string   `json:"mattermostPostID,omitempty"`
+	CreatedAt          string   `json:"createdAt,omitempty"`
 }
 
 type flowMetrics struct {

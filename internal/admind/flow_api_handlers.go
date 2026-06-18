@@ -245,6 +245,7 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		task.Business = existingTask.Business
 	}
 	task.MattermostPostID = existingTask.MattermostPostID
+	task.CreatedAt = existingTask.CreatedAt
 	if task.Status != existingTask.Status {
 		task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
 		if errorValue != nil {
