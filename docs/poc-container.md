@@ -102,6 +102,31 @@ internkim tenant container reset --workdir <DIR> --purge
 internkim tenant container infra-down --workdir <DIR> [--purge]
 ```
 
+## 코드 재배포 (바이너리 갱신)
+
+코드를 바꾼 뒤 PoC에 반영할 때는 손으로 빌드·scp·docker를 돌리지 말고
+fleet-aware `deploy`를 쓴다. `.local/ops/targets.json`(gitignore)에 PoC를
+`kind: poc-container`로 등록해 두면 `--fleet <id>`로 그 호스트만 배포한다.
+
+```jsonc
+// .local/ops/targets.json
+{ "targets": [
+  { "id": "poc", "kind": "poc-container", "sshHost": "<host>", "sshUser": "<user>",
+    "workdir": "<DIR>", "imageTag": "internkim-poc-tenant:flow",
+    "composeFile": "tenants.generated.yml" }
+]}
+```
+
+```bash
+# 바뀐 컴포넌트만 (admind/capabilityd/blueclaw/web 공유 어휘)
+INTERNKIM_POC_SSH_PASSWORD=<pw> internkim deploy --components admind,web --fleet poc
+```
+
+`blueclaw`는 `.dependency/blueclaw`에서 `blueclaw`+`blueclaw-posix-helper`를
+linux/arm64로 빌드하고 마이그레이션까지 동기화한다(파이어크래커 페이로드 아님).
+deploy가 컴포넌트 빌드 → scp → `docker build` → `compose up --force-recreate`까지
+수행한다. fleet을 비워 두면 기존 단일 디바이스(`--host`/`--node`) 동작 그대로다.
+
 ## 외부 주소 (Cloudflare named 터널)
 
 공유 Mattermost는 진입점 하나이고, 테넌트 10개는 그 호스트의 팀 경로
