@@ -24,6 +24,16 @@ func TestMailMailboxResponsesFromListDataSkipsNonSelectableMailboxes(t *testing.
 	}
 }
 
+func TestMailMailboxResponsesFromListDataUsesZeroCountsWithoutStatus(t *testing.T) {
+	mailboxes := mailMailboxResponsesFromListData([]*imap.ListData{{Mailbox: "Sent"}})
+	if len(mailboxes) != 1 {
+		t.Fatalf("mailboxes = %#v", mailboxes)
+	}
+	if mailboxes[0].Name != "Sent" || mailboxes[0].Total != 0 || mailboxes[0].Unseen != 0 {
+		t.Fatalf("mailbox = %#v", mailboxes[0])
+	}
+}
+
 func TestDecodeMailHeaderDecodesEncodedWords(t *testing.T) {
 	encodedSubject := mime.QEncoding.Encode("utf-8", "테스트 제목")
 	if subject := decodeMailHeader(encodedSubject); subject != "테스트 제목" {
