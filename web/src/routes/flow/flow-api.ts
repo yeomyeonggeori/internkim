@@ -123,8 +123,9 @@ function quickTaskResultFromResponse(value: unknown): FlowQuickTaskResult {
 }
 
 function flowTaskSavePayload(task: FlowTask): Partial<FlowTask> {
-	if (task.id) return task;
-	const { id: _id, statusRank, ...payload } = task;
+	const { createdAt: _createdAt, ...taskPayload } = task;
+	if (taskPayload.id) return taskPayload;
+	const { id: _id, statusRank, ...payload } = taskPayload;
 	if (statusRank !== 0) return { ...payload, statusRank };
 	return payload;
 }
