@@ -445,6 +445,9 @@ func TestFlowTaskListDefaultsToRequesterOwnTasks(t *testing.T) {
 	if !strings.Contains(result, `"scope":"self"`) || !strings.Contains(result, `"crossPerson":false`) || !strings.Contains(result, `"ownerID":"rain"`) {
 		t.Fatalf("expected self scope metadata, got %s", result)
 	}
+	if !strings.Contains(result, agentGuidanceKey) || !strings.Contains(result, "allPeople=true") {
+		t.Fatalf("expected internal broaden guidance on self scope, got %s", result)
+	}
 }
 
 func TestFlowTaskListSpansAllWeeksAndNormalizesStatusForOwnTasks(t *testing.T) {
@@ -482,6 +485,9 @@ func TestFlowTaskListAllPeopleReturnsEveryone(t *testing.T) {
 	}
 	if !strings.Contains(result, `"scope":"allPeople"`) || !strings.Contains(result, `"crossPerson":true`) {
 		t.Fatalf("expected allPeople scope metadata, got %s", result)
+	}
+	if strings.Contains(result, agentGuidanceKey) {
+		t.Fatalf("did not expect broaden guidance when already scoped to everyone, got %s", result)
 	}
 }
 
