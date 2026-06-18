@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"strings"
 
 	"github.com/emersion/go-imap/v2"
@@ -12,6 +13,16 @@ type mailMailboxResponse struct {
 	DisplayName string `json:"displayName"`
 	Unseen      int    `json:"unseen"`
 	Total       int    `json:"total"`
+}
+
+func collectMailMailboxListData(ctx context.Context, imapClient *imapclient.Client) ([]*imap.ListData, error) {
+	listData, errorValue := imapClient.List("", "*", &imap.ListOptions{
+		ReturnStatus: &imap.StatusOptions{NumMessages: true, NumUnseen: true},
+	}).Collect()
+	if errorValue == nil || ctx.Err() != nil {
+		return listData, errorValue
+	}
+	return imapClient.List("", "*", nil).Collect()
 }
 
 func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxResponse {
@@ -28,17 +39,6 @@ func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxRe
 		})
 	}
 	return mailboxes
-}
-
-func addMailMailboxStatuses(imapClient *imapclient.Client, mailboxes []mailMailboxResponse) {
-	for index := range mailboxes {
-		status, errorValue := imapClient.Status(mailboxes[index].Name, &imap.StatusOptions{NumMessages: true, NumUnseen: true}).Wait()
-		if errorValue != nil {
-			continue
-		}
-		mailboxes[index].Unseen = statusInteger(status, "unseen")
-		mailboxes[index].Total = statusInteger(status, "total")
-	}
 }
 
 func displayMailMailboxName(mailboxData *imap.ListData) string {
