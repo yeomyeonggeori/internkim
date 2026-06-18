@@ -41,12 +41,11 @@ func (backend standardMailBackend) ListMailboxes(ctx context.Context, account ma
 		return nil, errorValue
 	}
 	defer closeIMAPClient(imapClient)
-	listData, errorValue := imapClient.List("", "*", nil).Collect()
+	listData, errorValue := collectMailMailboxListData(ctx, imapClient)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	mailboxes := mailMailboxResponsesFromListData(listData)
-	addMailMailboxStatuses(imapClient, mailboxes)
 	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
 		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
 	})
@@ -92,8 +91,10 @@ func (backend standardMailBackend) ListMessages(ctx context.Context, account mai
 		return responses[firstIndex].UID > responses[secondIndex].UID
 	})
 	return mailMessageListResponse{
-		Messages:   responses,
-		NextCursor: nextMailMessageCursor(input, visibleUIDs, hasMoreMessages),
+		Messages:    responses,
+		NextCursor:  nextMailMessageCursor(input, visibleUIDs, hasMoreMessages),
+		UIDNext:     uint32(selectedMailbox.UIDNext),
+		UIDValidity: uint32(selectedMailbox.UIDValidity),
 	}, nil
 }
 
