@@ -90,6 +90,8 @@
 				moveTask={page.moveTaskOnBoard}
 				pendingTaskIDs={page.pendingBoardTaskIDs}
 				canUpdateTask={page.canUpdateTask}
+				weekStartISO={summary?.week.startISO ?? ''}
+				weekEndISO={summary?.week.endISO ?? ''}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
