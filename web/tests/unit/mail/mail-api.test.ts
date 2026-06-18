@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
 	normalizeMailAccountResponse,
+	normalizeMailBootstrapResponse,
 	normalizeMailboxesResponse,
 	normalizeMailMessageDetailResponse,
 	normalizeMailMessagesResponse
@@ -75,6 +76,26 @@ describe('mail api response normalizers', () => {
 			body: 'plain',
 			bodyHTML: '<p>html</p>',
 			isRead: false
+		});
+	});
+
+	test('normalizes bootstrap cached state', () => {
+		expect(
+			normalizeMailBootstrapResponse({
+				account: { email: 'staff@example.com', isConfigured: true },
+				mailboxes: [{ name: 'INBOX', displayName: 'Inbox', unseen: 1, total: 3 }],
+				messages: [{ uid: 3, mailbox: 'INBOX', subject: 'Cached' }],
+				nextCursor: 'older',
+				hasCachedMailboxes: true,
+				hasCachedMessages: true
+			})
+		).toEqual({
+			account: { email: 'staff@example.com', isConfigured: true },
+			mailboxes: [{ name: 'INBOX', displayName: 'Inbox', unseen: 1, total: 3 }],
+			messages: [{ uid: 3, mailbox: 'INBOX', subject: 'Cached', from: '', date: '', preview: '', isRead: false }],
+			nextCursor: 'older',
+			hasCachedMailboxes: true,
+			hasCachedMessages: true
 		});
 	});
 });
