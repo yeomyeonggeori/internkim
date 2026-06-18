@@ -177,6 +177,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	input = coerceFlowTaskListInput(input)
 	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -604,11 +605,19 @@ func flowTaskListPeopleScope(input flowTaskListInput, ownerID string) string {
 func flowTaskListBroadenGuidance(scope string) string {
 	switch scope {
 	case "self":
-		return "These are only the requester's own tasks (the default when no person is named). Work tasks are shared, not private, so you are allowed to see everyone's. If the user asked about another person or about everyone, call flow.task.list again with targetPersonHint for one person or allPeople=true for everyone before answering. Do not tell the user you lack permission or can only see their own tasks."
+		return `These are only the requester's own tasks (the default when no person is named). Work tasks are shared, not private, so you are allowed to see everyone's. To include other people, call flow.task.list again and set the boolean argument "allPeople" to true for everyone, or set "targetPersonHint" to a name for one person. "allPeople" and "targetPersonHint" are separate top-level arguments — do not place them inside "query". Do not tell the user you lack permission or can only see their own tasks.`
 	case "person":
-		return "These are one named person's tasks. To cover everyone, call flow.task.list again with allPeople=true."
+		return `These are one named person's tasks. To cover everyone, call flow.task.list again and set the boolean argument "allPeople" to true (a separate top-level argument, not part of "query").`
 	}
 	return ""
+}
+
+func coerceFlowTaskListInput(input flowTaskListInput) flowTaskListInput {
+	if !input.AllPeople && strings.Contains(strings.ToLower(input.Query), "allpeople") {
+		input.AllPeople = true
+		input.Query = ""
+	}
+	return input
 }
 
 func normalizeFlowStatusFilter(status string) string {
