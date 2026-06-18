@@ -9,6 +9,8 @@ import { installCalendarEventSelection } from './calendar-event-selection';
 import type { CalendarEventSelectionOptions } from './calendar-event-selection';
 import { installCalendarKeyboardDelete } from './calendar-keyboard-delete';
 import type { CalendarKeyboardDeleteContext } from './calendar-keyboard-delete';
+import { installCalendarMonthKeyboardNavigation } from './calendar-month-selection';
+import type { CalendarMonthKeyboardNavigationOptions } from './calendar-month-selection';
 import { installCalendarMonthRangeAction } from './calendar-month-range-action';
 import type { MonthRangeActionOptions } from './calendar-month-range-action';
 import { installCalendarTimelineRangeAction } from './calendar-timeline-range-action';
@@ -47,6 +49,7 @@ export type CalendarEmbedLifecycleOptions = {
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
 	eventDoubleClick: Omit<CalendarEventDoubleClickOptions, 'stageElement'>;
 	eventSelection: Omit<CalendarEventSelectionOptions, 'stageElement'>;
+	monthKeyboardNavigation: CalendarMonthKeyboardNavigationOptions;
 	keyboardDelete: CalendarKeyboardDeleteContext;
 	miniCalendarMonthPicker: DayFlowMiniCalendarPickerContext;
 	navigateToDateKey: (dateKey: string) => void;
@@ -68,6 +71,7 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 	const draftTitleObserver = observeDraftTitleChanges(options);
 	const selectedDateObserver = observeSelectedDateChanges(options);
 	const stopStageActions = installStageActions(options);
+	const stopMonthKeyboardNavigation = installCalendarMonthKeyboardNavigation(options.monthKeyboardNavigation);
 	const stopKeyboardDelete = installCalendarKeyboardDelete(options.keyboardDelete);
 	const stopMiniCalendarDateSelection = installDayFlowMiniCalendarDateSelection(options.navigateToDateKey);
 	const stopMiniCalendarMonthPicker = installDayFlowMiniCalendarMonthPicker(options.miniCalendarMonthPicker);
@@ -80,6 +84,7 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 		draftTitleObserver.disconnect();
 		selectedDateObserver.disconnect();
 		stopStageActions();
+		stopMonthKeyboardNavigation();
 		stopKeyboardDelete();
 		stopMiniCalendarDateSelection();
 		stopMiniCalendarMonthPicker();
