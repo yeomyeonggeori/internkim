@@ -3,6 +3,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
+import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
 
@@ -22,6 +23,10 @@ export default defineConfig(({ mode }) => {
 			}),
 			devTasksMockPlugin({
 				isEnabled: env.VITE_MOCK_TASKS === '1',
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+			}),
+			devMailMockPlugin({
+				isEnabled: env.VITE_MOCK_MAIL === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devMemoryMockPlugin({
