@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS flow_tasks (
 	flag INTEGER NOT NULL,
 	request_reason TEXT NOT NULL,
 	decision_reason TEXT NOT NULL,
+	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 )`)
 	if errorValue != nil {
@@ -72,10 +73,37 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "status_rank", "INTEGER NOT NULL DEFAULT 0"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "created_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := backfillFlowTaskCreatedAt(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureFlowTaskIndexes(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureFlowChannelOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
 	return seedFlowDefinitions(ctx, database)
+}
+
+func backfillFlowTaskCreatedAt(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, "UPDATE flow_tasks SET created_at = updated_at WHERE created_at = '' AND updated_at != ''")
+	return errorValue
+}
+
+func ensureFlowTaskIndexes(ctx context.Context, database *sql.DB) error {
+	for _, statement := range []string{
+		"CREATE INDEX IF NOT EXISTS flow_tasks_week_code_idx ON flow_tasks(week_code)",
+		"CREATE INDEX IF NOT EXISTS flow_tasks_start_date_idx ON flow_tasks(start_date)",
+		"CREATE INDEX IF NOT EXISTS flow_tasks_end_date_idx ON flow_tasks(end_date)",
+	} {
+		if _, errorValue := database.ExecContext(ctx, statement); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func ensureFlowChannelOutboxTable(ctx context.Context, database *sql.DB) error {

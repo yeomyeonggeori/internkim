@@ -182,7 +182,8 @@ function createFlowTaskFallback(state: DevFlowMockState): FlowTask {
 		status: state.flowState.statusOptions[0] ?? '요청',
 		statusRank: statusRankStep,
 		weekCode: state.flowState.currentWeek?.code ?? '',
-		flag: 0
+		flag: 0,
+		createdAt: new Date().toISOString()
 	};
 }
 
@@ -203,6 +204,7 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 		statusRank: numberFromValue(parsed.statusRank, fallback.statusRank),
 		startDate: optionalStringFromValue(parsed.startDate, fallback.startDate),
 		endDate: optionalStringFromValue(parsed.endDate, fallback.endDate),
+		createdAt: optionalStringFromValue(parsed.createdAt, fallback.createdAt),
 		weekCode: stringFromValue(parsed.weekCode, fallback.weekCode),
 		flag: numberFromValue(parsed.flag, fallback.flag),
 		requestReason: optionalStringFromValue(parsed.requestReason, fallback.requestReason),

@@ -83,6 +83,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 			return
 		}
 	}
+	task = flowTaskWithCreatedAt(task)
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
