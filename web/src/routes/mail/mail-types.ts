@@ -47,6 +47,15 @@ export type Mailbox = {
 	total: number;
 };
 
+export type MailBootstrap = {
+	account: Partial<MailAccount>;
+	mailboxes: Mailbox[];
+	messages: MailMessage[];
+	nextCursor: string;
+	hasCachedMailboxes: boolean;
+	hasCachedMessages: boolean;
+};
+
 export type MailMessage = {
 	uid: number;
 	mailbox: string;

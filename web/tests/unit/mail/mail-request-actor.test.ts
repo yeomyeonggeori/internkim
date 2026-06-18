@@ -50,6 +50,7 @@ describe('mail request actor', () => {
 		expect(resolveMailActorEmail('', '', storage)).toBe('stored@example.com');
 		expect(resolveMailActorEmail(' Account@Example.COM ', 'draft@example.com', new TestMailActorStorage())).toBe('account@example.com');
 		expect(resolveMailActorEmail('', ' Draft@Example.COM ', new TestMailActorStorage())).toBe('draft@example.com');
+		expect(resolveMailActorEmail('', '', new TestMailActorStorage(), ' Dev@Example.COM ')).toBe('dev@example.com');
 	});
 
 	test('keeps stored actor email when saving an edited account address', () => {
