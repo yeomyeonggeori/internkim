@@ -4,7 +4,6 @@ import type { DraftPopoverState } from './calendar-draft-popover-state';
 export type CalendarDraftPopoverDismissOptions = {
 	stageElement: HTMLElement;
 	getDraftPopover: () => DraftPopoverState | null;
-	refreshDraftPopoverAnchor: () => boolean;
 	saveDraftPopover: () => Promise<void>;
 	cancelDraftPopover: () => Promise<void>;
 	clearSelectedEvent: () => void;
@@ -13,7 +12,6 @@ export type CalendarDraftPopoverDismissOptions = {
 export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopoverDismissOptions): () => void {
 	let shouldSuppressNextClick = false;
 	let isDismissing = false;
-	let refreshFrame: number | null = null;
 
 	const dismissPopover = (popover: DraftPopoverState): void => {
 		if (isDismissing) return;
@@ -51,25 +49,15 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 	const handleScroll = (event: Event): void => {
 		const popover = options.getDraftPopover();
 		if (!popover) return;
-		if (event.target instanceof Element && event.target.closest('.calendar-draft-popover')) return;
-		schedulePopoverAnchorRefresh();
+		if (isDraftPopoverTarget(event.target)) return;
+		dismissPopover(popover);
 	};
 
 	const handleWheel = (event: WheelEvent): void => {
 		const popover = options.getDraftPopover();
 		if (!popover) return;
-		schedulePopoverAnchorRefresh();
-	};
-
-	const schedulePopoverAnchorRefresh = (): void => {
-		if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
-		refreshFrame = requestAnimationFrame(() => {
-			refreshFrame = requestAnimationFrame(() => {
-				refreshFrame = null;
-				const isAnchorVisible = options.refreshDraftPopoverAnchor();
-				if (!isAnchorVisible) options.clearSelectedEvent();
-			});
-		});
+		if (isDraftPopoverTarget(event.target)) return;
+		dismissPopover(popover);
 	};
 
 	document.addEventListener('pointerdown', handlePointerDown, true);
@@ -82,6 +70,11 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 		document.removeEventListener('click', handleClick, true);
 		document.removeEventListener('scroll', handleScroll, true);
 		document.removeEventListener('wheel', handleWheel, true);
-		if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
 	};
+}
+
+function isDraftPopoverTarget(target: EventTarget | null): boolean {
+	if (target instanceof Element) return Boolean(target.closest('.calendar-draft-popover'));
+	if (target instanceof Text) return Boolean(target.parentElement?.closest('.calendar-draft-popover'));
+	return false;
 }

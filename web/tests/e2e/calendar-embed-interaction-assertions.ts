@@ -5,7 +5,7 @@ export {
 	expectMonthEventWithinDateCell,
 	expectMonthEventsShareBlockStyle,
 	expectMonthOverlayAlignedWithMonthStartRow,
-	expectMonthTimedEventTitleAndTime,
+	expectMonthTimedEventTitleOnly,
 	expectMonthWeekendCellsKeepGridLines
 } from './calendar-embed-month-assertions';
 export { expectMultiDayTimedProxy, expectWeekAllDayEventsDoNotOverlap } from './calendar-embed-multi-day-assertions';

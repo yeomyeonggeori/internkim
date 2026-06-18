@@ -33,6 +33,7 @@
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		selectEvent: (eventID: string) => void;
+		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
 		timelineRangePreviewTitle: string;
@@ -52,6 +53,7 @@
 		openEvent,
 		saveMovedEvent,
 		selectEvent,
+		selectDate,
 		selectedEventID,
 		timelineRangePreviewSegments,
 		timelineRangePreviewTitle,
@@ -86,6 +88,7 @@
 		{openEvent}
 		{saveMovedEvent}
 		{selectEvent}
+		{selectDate}
 		{selectedEventID}
 		{stageElement}
 		{toolbarView}

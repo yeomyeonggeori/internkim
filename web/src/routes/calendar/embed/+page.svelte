@@ -76,11 +76,13 @@
 	} = controller;
 
 	const stageEvents = $derived(
-		visibleEventsWithPreservedLocalEvents(
-			state.visibleEvents,
-			calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
-			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
-		)
+		state.calendarWorkVisible
+			? visibleEventsWithPreservedLocalEvents(
+					state.visibleEvents,
+					calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
+					(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
+				)
+			: []
 	);
 
 	const selectedAuditEvent = $derived(
@@ -203,6 +205,7 @@
 	selectedEventID={state.selectedAuditEventID}
 	openEvent={eventDetails.openEventDetails}
 	selectEvent={eventSelection.selectCalendarEvent}
+	selectDate={selectedMonthDate.selectMonthDate}
 	saveMovedEvent={eventSelection.saveMovedMonthEvent}
 	bind:stageElement={state.calendarStageElement}
 	monthRangePreviewSegments={state.monthRangePreviewSegments}
