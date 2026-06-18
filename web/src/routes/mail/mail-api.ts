@@ -1,5 +1,6 @@
 import { mailRequestHeaders } from './mail-request-actor';
 import {
+	normalizeMailBootstrapResponse,
 	normalizeMailAccountResponse,
 	normalizeMailboxesResponse,
 	normalizeMailMessageDetailResponse,
@@ -12,91 +13,109 @@ export type MailErrorMessages = {
 	serviceUnavailable: string;
 };
 
-export async function fetchMailAccount(actorEmail: string, errors: MailErrorMessages) {
-	const response = await fetch('/mail/api/account', {
+export async function fetchMailBootstrap(actorEmail: string, query: URLSearchParams, errors: MailErrorMessages) {
+	const response = await fetchMailResponse(`/mail/api/bootstrap?${query}`, {
+		method: 'GET',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail)
-	});
+	}, errors);
+	await assertMailResponse(response, errors);
+	return normalizeMailBootstrapResponse(await response.json());
+}
+
+export async function fetchMailAccount(actorEmail: string, errors: MailErrorMessages) {
+	const response = await fetchMailResponse('/mail/api/account', {
+		credentials: 'include',
+		headers: mailRequestHeaders(actorEmail)
+	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailAccountResponse(await response.json());
 }
 
 export async function fetchMailboxes(actorEmail: string, errors: MailErrorMessages) {
-	const response = await fetch('/mail/api/mailboxes', {
+	const response = await fetchMailResponse('/mail/api/mailboxes', {
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailboxesResponse(await response.json());
 }
 
 export async function fetchMailMessages(actorEmail: string, query: URLSearchParams, errors: MailErrorMessages) {
-	const response = await fetch(`/mail/api/messages?${query}`, {
+	const response = await fetchMailResponse(`/mail/api/messages?${query}`, {
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailMessagesResponse(await response.json());
 }
 
 export async function fetchMailMessage(actorEmail: string, message: MailMessage, errors: MailErrorMessages) {
-	const response = await fetch(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}`, {
+	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}`, {
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailMessageDetailResponse(await response.json());
 }
 
 export async function saveMailAccount(actorEmail: string, payload: MailAccountWritePayload, errors: MailErrorMessages) {
-	const response = await fetch('/mail/api/account', {
+	const response = await fetchMailResponse('/mail/api/account', {
 		method: 'PUT',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify(payload)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailAccountResponse(await response.json());
 }
 
 export async function testMailAccount(actorEmail: string, payload: MailAccountWritePayload, errors: MailErrorMessages) {
-	const response = await fetch('/mail/api/account/test', {
+	const response = await fetchMailResponse('/mail/api/account/test', {
 		method: 'POST',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify(payload)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 }
 
 export async function sendMailMessage(actorEmail: string, payload: ComposePayload, errors: MailErrorMessages) {
-	const response = await fetch('/mail/api/messages/send', {
+	const response = await fetchMailResponse('/mail/api/messages/send', {
 		method: 'POST',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify(payload)
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 }
 
 export async function moveMailMessage(actorEmail: string, message: MailMessage, targetMailbox: string, errors: MailErrorMessages) {
-	const response = await fetch(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/move`, {
+	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/move`, {
 		method: 'POST',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify({ targetMailbox })
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
 }
 
 export async function updateMailMessageFlags(actorEmail: string, message: MailMessage, seen: boolean, errors: MailErrorMessages) {
-	const response = await fetch(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/flags`, {
+	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/flags`, {
 		method: 'POST',
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify({ seen })
-	});
+	}, errors);
 	await assertMailResponse(response, errors);
+}
+
+async function fetchMailResponse(input: RequestInfo | URL, init: RequestInit, errors: MailErrorMessages) {
+	try {
+		return await fetch(input, init);
+	} catch (error) {
+		throw new Error(`${errors.fallback} ${errors.serviceUnavailable}`);
+	}
 }
 
 async function assertMailResponse(response: Response, errors: MailErrorMessages) {
