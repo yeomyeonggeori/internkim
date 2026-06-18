@@ -106,7 +106,7 @@ func validateFlowTaskBoardMoveRequest(request flowTaskBoardMoveRequest) error {
 
 func readFlowTasksForBoardMoveInTransaction(ctx context.Context, transaction *sql.Tx) ([]flowTask, error) {
 	rows, errorValue := transaction.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
 FROM flow_tasks`)
 	if errorValue != nil {
 		return nil, errorValue
