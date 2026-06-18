@@ -192,15 +192,16 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
 	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, Limit: input.Limit})
-	result, _ := json.Marshal(map[string]any{
-		"scope":        flowTaskListPeopleScope(input, ownerID),
+	scope := flowTaskListPeopleScope(input, ownerID)
+	result, _ := json.Marshal(withAgentGuidance(map[string]any{
+		"scope":        scope,
 		"weekCode":     summary.Week.Code,
 		"statusFilter": statusFilter,
 		"crossPerson":  input.AllPeople,
 		"ownerID":      ownerID,
 		"tasks":        tasks,
 		"count":        len(tasks),
-	})
+	}, flowTaskListBroadenGuidance(scope)))
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
@@ -598,6 +599,16 @@ func flowTaskListPeopleScope(input flowTaskListInput, ownerID string) string {
 		return "self"
 	}
 	return "unscoped"
+}
+
+func flowTaskListBroadenGuidance(scope string) string {
+	switch scope {
+	case "self":
+		return "These are only the requester's own tasks (the default when no person is named). Work tasks are shared, not private, so you are allowed to see everyone's. If the user asked about another person or about everyone, call flow.task.list again with targetPersonHint for one person or allPeople=true for everyone before answering. Do not tell the user you lack permission or can only see their own tasks."
+	case "person":
+		return "These are one named person's tasks. To cover everyone, call flow.task.list again with allPeople=true."
+	}
+	return ""
 }
 
 func normalizeFlowStatusFilter(status string) string {
