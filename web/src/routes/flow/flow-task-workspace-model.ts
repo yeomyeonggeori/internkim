@@ -19,6 +19,8 @@ export type FlowTaskOption = {
 	email?: string;
 };
 
+const flowTaskListStatusOrder = ['요청', '예정', '진행', '일시정지', '중단', '기각', '완료'];
+
 export function buildFlowTaskTabs(): FlowTaskWorkspaceTab[] {
 	return ['tasks', 'report', 'definitions', 'members'];
 }
@@ -48,6 +50,10 @@ export function filterFlowTasks(tasks: FlowTask[], filters: FlowTaskFilterState)
 		if (!normalizedSearch) return true;
 		return taskSearchText(task).includes(normalizedSearch);
 	});
+}
+
+export function sortFlowTaskList(tasks: FlowTask[]): FlowTask[] {
+	return tasks.toSorted(compareFlowTaskListOrder);
 }
 
 export function buildMemberFilterOptions(members: FlowMember[], allLabel: string): FlowTaskOption[] {
@@ -134,6 +140,32 @@ function taskSearchText(task: FlowTask): string {
 		task.type,
 		...task.participantNames
 	].join(' ').toLowerCase();
+}
+
+function compareFlowTaskListOrder(left: FlowTask, right: FlowTask): number {
+	const statusDifference = statusOrder(left.status) - statusOrder(right.status);
+	if (statusDifference !== 0) return statusDifference;
+
+	const dateDifference = compareDescendingDate(taskListSortDate(left), taskListSortDate(right));
+	if (dateDifference !== 0) return dateDifference;
+
+	return left.id.localeCompare(right.id);
+}
+
+function statusOrder(status: string): number {
+	const index = flowTaskListStatusOrder.indexOf(status);
+	return index < 0 ? flowTaskListStatusOrder.length : index;
+}
+
+function taskListSortDate(task: FlowTask): string {
+	return task.endDate?.trim() || task.createdAt?.trim() || '';
+}
+
+function compareDescendingDate(left: string, right: string): number {
+	if (!left && !right) return 0;
+	if (!left) return 1;
+	if (!right) return -1;
+	return right.localeCompare(left);
 }
 
 function sameStringSet(left: string[], right: string[]): boolean {

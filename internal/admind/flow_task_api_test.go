@@ -8,7 +8,147 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
+
+func TestFlowAPICreatesAndPreservesCreatedAt(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	task := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "생성 시각 업무", "진행", 0, []string{staffID}))
+	if _, errorValue := time.Parse(time.RFC3339, task.CreatedAt); errorValue != nil {
+		t.Fatalf("created at = %q error = %v", task.CreatedAt, errorValue)
+	}
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	createdAt := "2026-01-02T03:04:05Z"
+	if _, errorValue := database.ExecContext(context.Background(), "UPDATE flow_tasks SET created_at = ? WHERE id = ?", createdAt, task.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	updatedTask := updateFlowTaskForTest(t, handler, "staff@example.com", task.ID, newFlowTaskPayload("staff@example.com", "수정된 생성 시각 업무", "진행", task.StatusRank, []string{staffID}))
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+
+	if updatedTask.CreatedAt != createdAt {
+		t.Fatalf("updated created at = %q, want %q", updatedTask.CreatedAt, createdAt)
+	}
+	if reloadedTask.CreatedAt != createdAt {
+		t.Fatalf("reloaded created at = %q, want %q", reloadedTask.CreatedAt, createdAt)
+	}
+}
+
+func TestFlowSchemaCreatesTaskLookupIndexes(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(context.Background(), "PRAGMA index_list(flow_tasks)")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer rows.Close()
+	indexes := map[string]bool{}
+	for rows.Next() {
+		var sequence int
+		var name string
+		var unique int
+		var origin string
+		var partial int
+		if errorValue := rows.Scan(&sequence, &name, &unique, &origin, &partial); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		indexes[name] = true
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, name := range []string{"flow_tasks_week_code_idx", "flow_tasks_start_date_idx", "flow_tasks_end_date_idx"} {
+		if !indexes[name] {
+			t.Fatalf("missing flow task index %q in %+v", name, indexes)
+		}
+	}
+}
+
+func TestFlowSchemaBackfillsLegacyTaskCreatedAt(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	ctx := context.Background()
+	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.FlowDatabasePath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TABLE flow_tasks (
+	id TEXT PRIMARY KEY,
+	week_code TEXT NOT NULL,
+	owner_id TEXT NOT NULL,
+	owner_name TEXT NOT NULL,
+	participant_ids TEXT NOT NULL,
+	participant_names TEXT NOT NULL,
+	business TEXT NOT NULL,
+	type TEXT NOT NULL,
+	content TEXT NOT NULL,
+	goal TEXT NOT NULL,
+	size TEXT NOT NULL,
+	status TEXT NOT NULL,
+	start_date TEXT NOT NULL,
+	end_date TEXT NOT NULL,
+	flag INTEGER NOT NULL,
+	request_reason TEXT NOT NULL,
+	decision_reason TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+)`)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	updatedAt := "2026-06-01T12:34:56Z"
+	_, errorValue = database.ExecContext(ctx, `
+INSERT INTO flow_tasks (
+	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"legacy-task",
+		"26W23",
+		"member-1",
+		"김철수",
+		`["member-1"]`,
+		`["김철수"]`,
+		"여명거리",
+		"기능",
+		"기존 업무",
+		"정렬 보존",
+		"M",
+		"예정",
+		"2026-06-01",
+		"",
+		0,
+		"",
+		"",
+		updatedAt,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	database, errorValue = service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var createdAt string
+	if errorValue := database.QueryRowContext(ctx, "SELECT created_at FROM flow_tasks WHERE id = ?", "legacy-task").Scan(&createdAt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if createdAt != updatedAt {
+		t.Fatalf("created at = %q, want %q", createdAt, updatedAt)
+	}
+}
 
 func TestFlowAPIAssignsStatusRankAtEndOfStatusColumn(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)

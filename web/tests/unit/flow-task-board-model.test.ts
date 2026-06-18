@@ -50,6 +50,20 @@ describe('flow task board model', () => {
 			['일시정지', 'bg-[#e11d48]']
 		]);
 	});
+
+	test('limits only the completed column to tasks completed in the selected week', () => {
+		const board = buildFlowTaskBoard([
+			flowTask({ id: 'done-this-week', status: '완료', endDate: '2026-06-03' }),
+			flowTask({ id: 'done-last-week', status: '완료', endDate: '2026-05-28' }),
+			flowTask({ id: 'progress-last-week', status: '진행', endDate: '2026-05-28' })
+		], {
+			weekStartISO: '2026-06-01',
+			weekEndISO: '2026-06-07'
+		});
+
+		expect(board.find((column) => column.status === '완료')?.tasks.map((task) => task.id)).toEqual(['done-this-week']);
+		expect(board.find((column) => column.status === '진행')?.tasks.map((task) => task.id)).toEqual(['progress-last-week']);
+	});
 });
 
 function flowTask(overrides: Partial<FlowTask>): FlowTask {

@@ -9,13 +9,14 @@
 	import { onMount } from 'svelte';
 	import FlowDefinitionsEditor from './flow-definitions-editor.svelte';
 	import FlowMembersView from './flow-members-view.svelte';
+	import FlowPersonalScoreDetail from './flow-personal-score-detail.svelte';
 	import FlowReportView from './flow-report-view.svelte';
 	import FlowTabRow from './flow-tab-row.svelte';
 	import FlowTasksView from './flow-tasks-view.svelte';
 	import FlowWeekSelector from './flow-week-selector.svelte';
 	import { fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from './flow-api';
 	import { createFlowLoadTracker, type FlowLoadOptions } from './flow-load-tracker';
-	import type { FlowMetrics, FlowState, FlowSummary } from './flow-types';
+	import type { FlowMetrics, FlowState, FlowSummary, FlowWeeklySummary } from './flow-types';
 	import { buildFlowReportSections } from './report/flow-report-data';
 	import { flowText } from './text';
 
@@ -39,6 +40,7 @@
 	let focusedTaskID = $state('');
 	let isLoading = $state(false);
 	let errorMessage = $state('');
+	const weeklySummaryCache = new Map<string, FlowWeeklySummary>();
 
 	const currentWeek = () => summary?.week.code ?? '';
 	const members = () => summary?.members ?? [];
@@ -114,8 +116,11 @@
 		isLoading = true;
 		errorMessage = '';
 		try {
-			const nextState = reloadState || !flowState ? await fetchFlowState(text.loadError) : flowState;
-			const weeklySummary = await fetchFlowWeeklySummary(week, text.loadError);
+			if (reloadState) weeklySummaryCache.clear();
+			const [nextState, weeklySummary] = await Promise.all([
+				reloadState || !flowState ? fetchFlowState(text.loadError) : Promise.resolve(flowState),
+				fetchCachedFlowWeeklySummary(week)
+			]);
 			if (!flowLoadTracker.isCurrent(loadID)) return false;
 			flowState = nextState;
 			summary = mergeFlowSummary(nextState, weeklySummary);
@@ -149,11 +154,19 @@
 	}
 
 	function selectCurrentWeek() {
-		loadFlow('', { reloadState: false });
+		loadFlow(summary?.currentWeek?.code ?? '', { reloadState: false });
 	}
 
 	function selectWeek(week: string) {
 		loadFlow(week, { reloadState: false });
+	}
+
+	async function fetchCachedFlowWeeklySummary(week: string): Promise<FlowWeeklySummary> {
+		const cachedSummary = week ? weeklySummaryCache.get(week) : undefined;
+		if (cachedSummary) return cachedSummary;
+		const weeklySummary = await fetchFlowWeeklySummary(week, text.loadError);
+		if (weeklySummary.week.code) weeklySummaryCache.set(weeklySummary.week.code, weeklySummary);
+		return weeklySummary;
 	}
 
 </script>
@@ -201,18 +214,8 @@
 
 		<FlowTabRow activeTab={activeTab} labels={text.tabs} onSelectTab={(value) => (activeTab = value)} />
 
-		{#if activeTab === 'report'}
-			<FlowReportView sections={reportSections()} />
-		{:else if activeTab === 'definitions'}
-			<FlowDefinitionsEditor
-				{summary}
-				loadError={errorMessage || text.loadError}
-				text={text.definitions}
-				{loadFlow}
-			/>
-		{:else if activeTab === 'members'}
-			<FlowMembersView members={members()} text={text.members} />
-		{:else}
+		<div class={activeTab === 'tasks' ? 'space-y-6' : 'hidden'}>
+			<FlowPersonalScoreDetail {summary} text={text.report} />
 			<FlowTasksView
 				{summary}
 				{focusedTaskID}
@@ -222,7 +225,21 @@
 					errorMessage = message;
 				}}
 			/>
-		{/if}
+		</div>
+		<div class={activeTab === 'report' ? '' : 'hidden'}>
+			<FlowReportView sections={reportSections()} />
+		</div>
+		<div class={activeTab === 'definitions' ? '' : 'hidden'}>
+			<FlowDefinitionsEditor
+				{summary}
+				loadError={errorMessage || text.loadError}
+				text={text.definitions}
+				{loadFlow}
+			/>
+		</div>
+		<div class={activeTab === 'members' ? '' : 'hidden'}>
+			<FlowMembersView members={members()} text={text.members} />
+		</div>
 	</div>
 </main>
 

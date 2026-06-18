@@ -12,7 +12,8 @@ import {
 	canRemoveFlowTaskParticipant,
 	canUpdateFlowTask,
 	defaultParticipantFilterIDs,
-	filterFlowTasks
+	filterFlowTasks,
+	sortFlowTaskList
 } from './flow-task-workspace-model';
 import { flowText } from './text';
 import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
@@ -92,15 +93,15 @@ class FlowTasksController {
 	statusSelectOptions = () => this.statusOptions().map((status) => ({ value: status, label: this.statusLabel(status) }));
 	memberSelectOptions = () => this.members().map((member) => ({ value: member.id, label: member.name }));
 
-	filteredTasks = () => {
-		return filterFlowTasks(this.tasks(), {
+	filteredTasks = () => sortFlowTaskList(
+		filterFlowTasks(this.tasks(), {
 			searchText: this.searchText,
 			statusFilter: this.statusFilter,
 			participantFilterIDs: this.participantFilterIDs,
 			businessFilter: this.businessFilter,
 			typeFilter: this.typeFilter
-		});
-	};
+		})
+	);
 
 	clearStaleDuplicatePrompt = (): void => {
 		if (!this.quickTaskDuplicateMessage || this.quickTaskText.trim() === this.quickTaskDuplicatePrompt) return;
