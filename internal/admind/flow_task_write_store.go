@@ -41,6 +41,7 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 		return flowTask{}, errorValue
 	}
 	task.StatusRank = statusRank
+	task = flowTaskWithCreatedAt(task)
 	if errorValue := writeFlowTaskInTransaction(ctx, transaction, task); errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -49,6 +50,14 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 		return flowTask{}, errorValue
 	}
 	return task, nil
+}
+
+func flowTaskWithCreatedAt(task flowTask) flowTask {
+	if strings.TrimSpace(task.CreatedAt) != "" {
+		return task
+	}
+	task.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	return task
 }
 
 func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
@@ -60,10 +69,15 @@ func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task f
 	if errorValue != nil {
 		return errorValue
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	createdAt := strings.TrimSpace(task.CreatedAt)
+	if createdAt == "" {
+		createdAt = now
+	}
 	_, errorValue = transaction.ExecContext(ctx, `
 INSERT INTO flow_tasks (
-		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -103,7 +117,8 @@ ON CONFLICT(id) DO UPDATE SET
 		task.RequestReason,
 		task.DecisionReason,
 		task.MattermostPostID,
-		time.Now().UTC().Format(time.RFC3339),
+		createdAt,
+		now,
 	)
 	if errorValue != nil {
 		return errorValue
