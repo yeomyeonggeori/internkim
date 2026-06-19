@@ -50,6 +50,7 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 
 func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -67,6 +68,7 @@ func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 
 func TestPublicToolGatewayRequiresExplicitConnectScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -110,6 +112,7 @@ func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 
 func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -217,6 +220,39 @@ func TestFlowCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 	}
 }
 
+func denyScopeCapabilityHandler(t *testing.T) func(capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+	return func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+		t.Fatalf("scope-denied request must not reach capability invoke: %s", request.ToolName)
+		return capabilities.ToolInvokeResponse{}
+	}
+}
+
+func TestPublicToolScopeForDescriptorClosedByDefault(t *testing.T) {
+	cases := map[string]string{
+		"read":             "",
+		"workspace_write":  publicAPIScopeWrite,
+		"workspace_task":   publicAPIScopeWrite,
+		"external_write":   publicAPIScopeExternalWrite,
+		"external_send":    publicAPIScopeExternalSend,
+		"external_publish": publicAPIScopePublish,
+		"site_publish":     publicAPIScopePublish,
+		"connect":          publicAPIScopeConnect,
+		"destructive":      publicAPIScopeDestructive,
+		"browser_write":    publicAPIScopeCompanion,
+		"mystery_class":    publicAPIScopeAdmin,
+	}
+	for sideEffectClass, expectedScope := range cases {
+		scope := publicToolScopeForDescriptor(capabilities.Descriptor{SideEffectClass: sideEffectClass})
+		if scope != expectedScope {
+			t.Fatalf("%s: scope = %q, want %q", sideEffectClass, scope, expectedScope)
+		}
+	}
+	userBrowserScope := publicToolScopeForDescriptor(capabilities.Descriptor{SideEffectClass: "read", PrivacyClass: "user_browser"})
+	if userBrowserScope != publicAPIScopeCompanion {
+		t.Fatalf("user-local tool scope = %q, want %q", userBrowserScope, publicAPIScopeCompanion)
+	}
+}
+
 func startPublicToolGatewayCapabilityServer(t *testing.T, handler func(capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse) string {
 	t.Helper()
 	directoryPath, errorValue := os.MkdirTemp("/tmp", "ik-capability-*")
@@ -232,6 +268,10 @@ func startPublicToolGatewayCapabilityServer(t *testing.T, handler func(capabilit
 		t.Fatal(errorValue)
 	}
 	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/capabilities" {
+			_ = json.NewEncoder(responseWriter).Encode(capabilities.RegistryResponse{DeviceCapabilities: capabilities.DeviceDescriptors()})
+			return
+		}
 		var toolRequest capabilities.ToolInvokeRequest
 		if errorValue := json.NewDecoder(request.Body).Decode(&toolRequest); errorValue != nil {
 			t.Fatal(errorValue)
