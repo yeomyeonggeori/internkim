@@ -7,7 +7,7 @@ describe('dev tasks mock plugin', () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const response = await createDevTasksMockResponse(state, {
 			method: 'GET',
-			pathname: '/admin/api/diagnostics/tasks',
+			pathname: '/tasks/api/runs',
 			searchParams: new URLSearchParams('limit=15&offset=15&includeTotal=true')
 		});
 
@@ -15,6 +15,20 @@ describe('dev tasks mock plugin', () => {
 		const body = response?.body as TaskRunsResponse;
 		expect(body.totalCount).toBe(60);
 		expect(body.taskRuns.length).toBe(15);
+		expect(body.taskRuns[0]?.taskRunID).toBe('dev-task-run-016');
+	});
+
+	test('keeps the admin diagnostics task list mock available', async () => {
+		const state = createDevTasksMockState('admin@example.com');
+		const response = await createDevTasksMockResponse(state, {
+			method: 'GET',
+			pathname: '/admin/api/diagnostics/tasks',
+			searchParams: new URLSearchParams('limit=15&offset=15&includeTotal=true')
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as TaskRunsResponse;
+		expect(body.totalCount).toBe(60);
 		expect(body.taskRuns[0]?.taskRunID).toBe('dev-task-run-016');
 	});
 
