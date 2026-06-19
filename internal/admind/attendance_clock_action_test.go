@@ -23,6 +23,7 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -61,6 +62,7 @@ func TestAttendanceClockMessagesUseAdminLocale(t *testing.T) {
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -174,9 +176,11 @@ func TestAttendanceClockInButtonCreatesEventAfterClockOut(t *testing.T) {
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -193,6 +197,108 @@ func TestAttendanceClockInButtonCreatesEventAfterClockOut(t *testing.T) {
 	}
 	if len(events) != 3 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "재택" {
 		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceImmediateClockOutCancelsAccidentalClockIn(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	activeEvents := activeAttendanceEventsForTest(events)
+	if len(activeEvents) != 0 {
+		t.Fatalf("active events = %+v all events = %+v", activeEvents, events)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].CancelReason != attendanceAccidentalShortSegmentCancelReason {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceSameLocationResumeCancelsAccidentalClockOut(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	activeEvents := activeAttendanceEventsForTest(events)
+	if len(activeEvents) != 1 || activeEvents[0].Kind != attendanceKindClockIn || activeEvents[0].LocationID != "office" {
+		t.Fatalf("active events = %+v all events = %+v", activeEvents, events)
+	}
+	if len(events) != 2 || events[0].Kind != attendanceKindClockOut || events[0].CancelReason != attendanceSameLocationResumeCancelReason {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceDifferentLocationResumeKeepsSeparateSegment(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload.Context.LocationID = "home"
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	activeEvents := activeAttendanceEventsForTest(events)
+	if len(activeEvents) != 3 || activeEvents[0].LocationID != "home" || activeEvents[1].Kind != attendanceKindClockOut || activeEvents[2].LocationID != "office" {
+		t.Fatalf("active events = %+v all events = %+v", activeEvents, events)
 	}
 }
 
@@ -322,4 +428,35 @@ func setAttendanceActionTestLocale(t *testing.T, service *Service, locale string
 	if errorValue := os.WriteFile(service.adminLocalePath(), []byte(locale), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+}
+
+func moveLatestAttendanceEventByDurationForTest(t *testing.T, service *Service, duration time.Duration) {
+	t.Helper()
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	location, _ := service.workspaceTimeLocation()
+	localTime := time.Now().In(location).Add(duration)
+	if _, errorValue := database.ExecContext(context.Background(), `
+UPDATE attendance_events
+SET local_date = ?, occurred_at = ?, local_time = ?
+WHERE id = (SELECT id FROM attendance_events ORDER BY occurred_at DESC LIMIT 1)`,
+		localTime.Format("2006-01-02"),
+		localTime.UTC().Format(time.RFC3339Nano),
+		localTime.Format("15:04:05"),
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func activeAttendanceEventsForTest(events []attendanceEvent) []attendanceEvent {
+	activeEvents := []attendanceEvent{}
+	for _, event := range events {
+		if event.CanceledAt == "" {
+			activeEvents = append(activeEvents, event)
+		}
+	}
+	return activeEvents
 }
