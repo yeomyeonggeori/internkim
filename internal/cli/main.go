@@ -55,7 +55,6 @@ var (
 )
 
 const jetsonDefaultUser = "internkim"
-const jetsonDefaultPassword = "blueclaw"
 const mattermostDefaultPushNotificationServer = "https://push-test.mattermost.com"
 
 type config struct {
@@ -71,6 +70,25 @@ func loadConfig() config {
 		RegisterSecret: envOr("INTERNKIM_REGISTER_SECRET", ""),
 		CFDomain:       envOr("INTERNKIM_DOMAIN", "example.test"),
 	}
+}
+
+func updateEnvFile(key, value string) error {
+	const path = ".env"
+	data, _ := os.ReadFile(path)
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	prefix := key + "="
+	updated := false
+	for index, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			lines[index] = prefix + value
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		lines = append(lines, prefix+value)
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
 }
 
 func loadEnvFile() {
@@ -4554,7 +4572,7 @@ func resolveSetupSSHCredentials(boardType string, requestedUser string, requeste
 		requestedUser = jetsonDefaultUser
 	}
 	if requestedPassword == "" {
-		requestedPassword = jetsonDefaultPassword
+		requestedPassword = os.Getenv("INTERNKIM_CONSOLE_PASSWORD")
 	}
 	return requestedUser, requestedPassword
 }

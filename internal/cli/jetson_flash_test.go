@@ -259,13 +259,6 @@ func TestBuildJetsonFirstbootServiceRunsBeforeSetup(t *testing.T) {
 	}
 }
 
-func TestJetsonAutologinOverrideUsesInternKimUser(t *testing.T) {
-	document := buildJetsonAutologinOverride(jetsonDefaultUser)
-	if !strings.Contains(document, "--autologin internkim") {
-		t.Fatalf("expected autologin override for internkim, got:\n%s", document)
-	}
-}
-
 func TestValidateJetsonRootPatchDocumentsAcceptsCompletePatch(t *testing.T) {
 	errorValue := validateJetsonRootPatchDocuments(
 		completeJetsonAccountFilesFixture(),
@@ -289,20 +282,6 @@ func TestValidateJetsonRootPatchDocumentsRejectsMissingWiFi(t *testing.T) {
 	)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), jetsonWiFiConnectionPath("Office WiFi")) {
 		t.Fatalf("expected missing Wi-Fi verification error, got %v", errorValue)
-	}
-}
-
-func TestValidateJetsonRootPatchDocumentsRejectsMissingAutologin(t *testing.T) {
-	documents := completeJetsonPatchDocumentsFixture()
-	documents.autologin = ""
-	errorValue := validateJetsonRootPatchDocuments(
-		completeJetsonAccountFilesFixture(),
-		documents,
-		jetsonDefaultUser,
-		[]resolvedWiFiProfile{{SSID: "Office WiFi", Password: "secret"}},
-	)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), jetsonAutologinOverridePath) {
-		t.Fatalf("expected missing autologin verification error, got %v", errorValue)
 	}
 }
 
@@ -364,6 +343,5 @@ func completeJetsonPatchDocumentsFixture() jetsonPatchDocuments {
 		wifiTimer:        buildJetsonWiFiRecoveryTimer(),
 		firstbootScript:  buildJetsonFirstbootScript(),
 		firstbootService: buildJetsonFirstbootService(),
-		autologin:        buildJetsonAutologinOverride(jetsonDefaultUser),
 	}
 }
