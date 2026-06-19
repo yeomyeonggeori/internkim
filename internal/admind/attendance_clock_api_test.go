@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAttendanceClockRequiresActorEmail(t *testing.T) {
@@ -32,6 +33,9 @@ func TestAttendanceClockTogglesClockIn(t *testing.T) {
 	if !strings.Contains((*messages)[0].Message, "출근") {
 		t.Fatalf("expected clock-in message, got %q", (*messages)[0].Message)
 	}
+	if (*messages)[0].RootID != "entry-post" {
+		t.Fatalf("expected clock-in message in attendance thread, got root %q", (*messages)[0].RootID)
+	}
 }
 
 func TestAttendanceClockAcceptsExplicitClockOut(t *testing.T) {
@@ -43,6 +47,7 @@ func TestAttendanceClockAcceptsExplicitClockOut(t *testing.T) {
 	if clockInRecorder.Code != http.StatusOK {
 		t.Fatalf("clock-in status = %d body = %s", clockInRecorder.Code, clockInRecorder.Body.String())
 	}
+	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
 	clockOutRecorder := httptest.NewRecorder()
 	clockOutRequest := httptest.NewRequest(http.MethodPost, "/attendance/api/clock", strings.NewReader(`{"kind":"clock_out"}`))
 	clockOutRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
@@ -55,5 +60,8 @@ func TestAttendanceClockAcceptsExplicitClockOut(t *testing.T) {
 	}
 	if !strings.Contains((*messages)[1].Message, "퇴근") {
 		t.Fatalf("expected clock-out message, got %q", (*messages)[1].Message)
+	}
+	if (*messages)[0].RootID != "entry-post" || (*messages)[1].RootID != "entry-post" {
+		t.Fatalf("expected clock messages in attendance thread, got %v", *messages)
 	}
 }
