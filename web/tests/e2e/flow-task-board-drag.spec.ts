@@ -1,9 +1,21 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-const requestedTaskID = '26W23-attendance-policy';
-const scheduledTaskID = '26W23-mail-triage';
-const flowDashboardTaskID = '26W23-flow-dashboard';
-const marketScanTaskID = '26W23-market-scan';
+import { expect, test } from '@playwright/test';
+import {
+	columnAppendTarget,
+	dragToLocator,
+	dragToUpperHalf,
+	expectInsertionSlotAbove,
+	flowDashboardTaskID,
+	flowTaskBoardMovePayload,
+	insertionIndicator,
+	marketScanTaskID,
+	openFlowBoard,
+	progressCardIDs,
+	requestedTaskID,
+	scheduledTaskID,
+	showUpperInsertionIndicator,
+	taskCard,
+	taskColumn
+} from './flow-task-helpers';
 
 test.describe('flow task board drag interactions', () => {
 	test.beforeEach(async ({ request }) => {
@@ -209,52 +221,15 @@ test.describe('flow task board drag interactions', () => {
 		}).toBe(true);
 	});
 
-	test('opens AI quick add as a bottom floating conversation panel', async ({ page }) => {
+	test('resizes board columns with the viewport height', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openFlowBoard(page);
+		const mediumHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
 
-		const closedLauncher = page.getByRole('button', { name: 'AI로 업무 추가', exact: true });
-		const closedLauncherBox = await visibleBoundingBox(closedLauncher);
-		await closedLauncher.click();
-
-		const openLauncher = page.getByRole('button', { name: 'AI 업무 추가 닫기', exact: true });
-		await expect(openLauncher).toBeVisible();
-		await expect(openLauncher.locator('[data-flow-quick-add-closed-content]')).toBeAttached();
-		await expect(openLauncher.locator('[data-flow-quick-add-open-content]')).toBeAttached();
+		await page.setViewportSize({ width: 1440, height: 1200 });
 		await expect.poll(async () => {
-			const box = await openLauncher.boundingBox();
-			return box?.width ?? 0;
-		}).toBeLessThan(closedLauncherBox.width * 0.5);
-		const openLauncherBox = await visibleBoundingBox(openLauncher);
-		const panel = page.getByRole('dialog', { name: 'AI로 업무 추가', exact: true });
-		const panelBox = await visibleBoundingBox(panel);
-		const quickAddInput = page.getByPlaceholder('예: 10분 회의');
-		const viewportSize = page.viewportSize();
-		if (!viewportSize) throw new Error('viewport size was not available');
-
-		await expect(panel).toHaveCSS('transition-duration', '0.4s');
-		await expect(quickAddInput).toBeFocused();
-		expect(openLauncherBox.width).toBeLessThan(closedLauncherBox.width * 0.5);
-		expect(Math.abs(openLauncherBox.x + openLauncherBox.width - (closedLauncherBox.x + closedLauncherBox.width))).toBeLessThan(4);
-		expect(Math.abs(openLauncherBox.y + openLauncherBox.height - (closedLauncherBox.y + closedLauncherBox.height))).toBeLessThan(4);
-		expect(panelBox.width).toBeGreaterThanOrEqual(390);
-		expect(panelBox.width).toBeLessThanOrEqual(420);
-		expect(panelBox.height).toBeGreaterThanOrEqual(490);
-		expect(panelBox.height).toBeLessThanOrEqual(510);
-		expect(panelBox.height).toBeGreaterThan(panelBox.width * 1.2);
-		expect(panelBox.x + panelBox.width).toBeGreaterThan(viewportSize.width - 40);
-
-		await quickAddInput.fill('새 업무');
-		await page.keyboard.press('Tab');
-		await expect(panel.getByRole('button', { name: 'AI로 업무 추가', exact: true })).toBeFocused();
-		await page.keyboard.press('Tab');
-		await expect(openLauncher).toBeFocused();
-		await page.keyboard.press('Tab');
-		await expect(quickAddInput).toBeFocused();
-		await page.keyboard.press('Escape');
-		await expect(page.getByRole('dialog', { name: 'AI로 업무 추가', exact: true })).toHaveCount(0);
-		await expect(closedLauncher).toBeFocused();
-		await expect(closedLauncher).toBeVisible();
+			return taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		}).toBeGreaterThan(mediumHeight + 80);
 	});
 
 	test('shows definition autosave feedback after edits', async ({ page }) => {
@@ -281,155 +256,4 @@ test.describe('flow task board drag interactions', () => {
 		releaseDefinitionsSave();
 		await expect(page.getByText('저장됨')).toBeVisible();
 	});
-
-	test('explains why a non-participant task editor is read-only', async ({ page }) => {
-		await useMemberFlowSession(page, 'designer@example.com', '이영희');
-		await openFlowBoard(page);
-
-		await taskCard(page, marketScanTaskID).click();
-		await expect(page.getByText('관리자 또는 참여자만 수정할 수 있습니다.')).toBeVisible();
-		await expect(page.getByRole('button', { name: '업무 저장', exact: true })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: '업무 삭제', exact: true })).toHaveCount(0);
-	});
-
-	test('keeps assignment fields locked for a participant who is not the owner', async ({ page }) => {
-		await useMemberFlowSession(page, 'engineer@example.com', '박민준');
-		await openFlowBoard(page);
-
-		await taskCard(page, flowDashboardTaskID).click();
-		await expect(page.getByPlaceholder('업무 내용')).toBeEnabled();
-		await expect(page.getByRole('button', { name: '업무 저장', exact: true })).toBeVisible();
-		await expect(page.getByText('관리자 또는 참여자만 수정할 수 있습니다.')).toHaveCount(0);
-		await expect(page.getByRole('button', { name: /제거$/ })).toHaveCount(0);
-	});
-
-	test('keeps the owner participant locked while assignment fields are editable', async ({ page }) => {
-		await openFlowBoard(page);
-
-		await taskCard(page, flowDashboardTaskID).click();
-
-		await expect(page.getByRole('button', { name: '김철수 제거', exact: true })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: '박민준 제거', exact: true })).toBeVisible();
-	});
 });
-
-async function openFlowBoard(page: Page): Promise<void> {
-	await page.goto('/flow/');
-	await expect(page.getByRole('button', { name: '업무', exact: true })).toBeVisible();
-	await expect(page.getByRole('tab', { name: '보드', exact: true })).toHaveAttribute('aria-selected', 'true');
-	await page.getByRole('button', { name: /필터/ }).click();
-	await page.locator('[data-flow-filter-panel]').getByRole('button', { name: '전체 참여자', exact: true }).click();
-	await page.keyboard.press('Escape');
-	await expect(taskColumn(page, '진행')).toBeVisible();
-}
-
-async function useMemberFlowSession(page: Page, email: string, name: string): Promise<void> {
-	await page.route('**/flow/api/state', async (route) => {
-		const response = await route.fetch();
-		const state: unknown = await response.json();
-		if (!isUnknownRecord(state)) throw new Error('flow state response was not an object');
-		await route.fulfill({
-			response,
-			json: {
-				...state,
-				currentUserEmail: email,
-				currentUserName: name,
-				isAdmin: false
-			}
-		});
-	});
-}
-
-function taskColumn(page: Page, status: string): Locator {
-	return page.locator(`[data-flow-board-column="${status}"]`);
-}
-
-function taskCard(page: Page, taskID: string): Locator {
-	return page.locator(`[data-flow-board-card="${taskID}"]`);
-}
-
-function columnAppendTarget(page: Page, status: string): Locator {
-	return page.locator(`[data-flow-board-drop-zone="${status}"]`);
-}
-
-function insertionIndicator(page: Page, status: string, beforeTaskID: string): Locator {
-	return page.locator(`[data-flow-board-drop-indicator="${status}:${beforeTaskID}"]`);
-}
-
-async function visibleBoundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-	await expect(locator).toBeVisible();
-	const box = await locator.boundingBox();
-	if (!box) throw new Error('locator has no visible bounding box');
-	return box;
-}
-
-async function progressCardIDs(page: Page): Promise<string[]> {
-	return taskColumn(page, '진행').locator('[data-flow-board-card]').evaluateAll((elements) =>
-		elements.map((element) => element.getAttribute('data-flow-board-card') ?? '')
-			.filter((taskID) => taskID.startsWith('26W23-'))
-	);
-}
-
-function flowTaskBoardMovePayload(document: string | null): { taskID: string } {
-	if (!document) return { taskID: '' };
-	const parsed: unknown = JSON.parse(document);
-	if (!isUnknownRecord(parsed)) return { taskID: '' };
-	const taskID = parsed.taskID;
-	return { taskID: typeof taskID === 'string' ? taskID : '' };
-}
-
-function isUnknownRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-async function dragToLocator(source: Locator, target: Locator): Promise<void> {
-	const box = await target.boundingBox();
-	if (!box) throw new Error('target locator has no bounding box');
-	const dataTransfer = await source.evaluateHandle(() => new DataTransfer());
-	await source.dispatchEvent('dragstart', { dataTransfer });
-	await target.dispatchEvent('dragover', {
-		clientY: box.y + Math.max(2, box.height / 2),
-		dataTransfer
-	});
-	await target.dispatchEvent('drop', {
-		clientY: box.y + Math.max(2, box.height / 2),
-		dataTransfer
-	});
-	await source.dispatchEvent('dragend', { dataTransfer });
-}
-
-async function showUpperInsertionIndicator(page: Page, source: Locator, target: Locator): Promise<void> {
-	const targetBox = await target.boundingBox();
-	if (!targetBox) throw new Error('target locator has no bounding box');
-	const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
-	await source.dispatchEvent('dragstart', { dataTransfer });
-	await target.dispatchEvent('dragover', {
-		clientY: targetBox.y + targetBox.height * 0.25,
-		dataTransfer
-	});
-}
-
-async function expectInsertionSlotAbove(indicator: Locator, target: Locator): Promise<void> {
-	const indicatorBox = await indicator.boundingBox();
-	const targetBox = await target.boundingBox();
-	if (!indicatorBox) throw new Error('insertion indicator has no bounding box');
-	if (!targetBox) throw new Error('target locator has no bounding box');
-	expect(indicatorBox.height).toBeGreaterThanOrEqual(14);
-	expect(indicatorBox.y + indicatorBox.height).toBeLessThanOrEqual(targetBox.y);
-}
-
-async function dragToUpperHalf(source: Locator, target: Locator): Promise<void> {
-	const box = await target.boundingBox();
-	if (!box) throw new Error('target locator has no bounding box');
-	const dataTransfer = await source.evaluateHandle(() => new DataTransfer());
-	await source.dispatchEvent('dragstart', { dataTransfer });
-	await target.dispatchEvent('dragover', {
-		clientY: box.y + box.height * 0.25,
-		dataTransfer
-	});
-	await target.dispatchEvent('drop', {
-		clientY: box.y + box.height * 0.25,
-		dataTransfer
-	});
-	await source.dispatchEvent('dragend', { dataTransfer });
-}
