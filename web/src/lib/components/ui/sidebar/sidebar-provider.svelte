@@ -14,6 +14,7 @@
 		ref = $bindable(null),
 		open = $bindable(true),
 		onOpenChange = () => {},
+		keyboardShortcutEnabled = true,
 		class: className,
 		style,
 		children,
@@ -21,6 +22,7 @@
 	}: WithElementRef<HTMLAttributes<HTMLDivElement>> & {
 		open?: boolean;
 		onOpenChange?: (open: boolean) => void;
+		keyboardShortcutEnabled?: boolean;
 	} = $props();
 
 	const sidebar = setSidebar({
@@ -29,13 +31,17 @@
 			open = value;
 			onOpenChange(value);
 
-			// This sets the cookie to keep the sidebar state.
 			document.cookie = `${SIDEBAR_COOKIE_NAME}=${open}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 		},
 	});
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (!keyboardShortcutEnabled) return;
+		sidebar.handleShortcutKeydown(event);
+	}
 </script>
 
-<svelte:window onkeydown={sidebar.handleShortcutKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <Tooltip.Provider delayDuration={0}>
 	<div
