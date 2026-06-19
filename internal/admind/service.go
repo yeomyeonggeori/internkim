@@ -306,6 +306,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
+	service.startSoftDeletedMattermostPostPurge(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
