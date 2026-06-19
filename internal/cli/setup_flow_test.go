@@ -312,8 +312,8 @@ func TestJetsonSetupDefaultsSSHCredentials(t *testing.T) {
 	if username != jetsonDefaultUser {
 		t.Fatalf("expected default Jetson user %q, got %q", jetsonDefaultUser, username)
 	}
-	if password != jetsonDefaultPassword {
-		t.Fatalf("expected default Jetson password %q, got %q", jetsonDefaultPassword, password)
+	if password != "" {
+		t.Fatalf("expected empty Jetson password when INTERNKIM_CONSOLE_PASSWORD unset, got %q", password)
 	}
 }
 

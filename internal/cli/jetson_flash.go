@@ -2,6 +2,7 @@ package cli
 
 import (
 	"archive/zip"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -64,7 +65,6 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	}
 
 	username := firstNonEmptyString(argString("--jetson-user", ""), jetsonDefaultUser)
-	password := firstNonEmptyString(argString("--jetson-password", ""), jetsonDefaultPassword)
 	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory, filepath.Join(scriptDirectory, "bin", "get-ssid"))
 	if errorValue != nil {
 		return errorValue
@@ -95,14 +95,17 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	rootPatch := jetsonRootPatch{
 		partitionDevice: partitionDevice,
 		username:        username,
-		password:        password,
 		publicKey:       getLocalSSHPubKey(),
 		wifiProfiles:    wifiProfiles,
 	}
-	if errorValue := applyJetsonRootPatch(rootPatch); errorValue != nil {
+	consolePassword, errorValue := applyJetsonRootPatch(rootPatch)
+	if errorValue != nil {
 		return errorValue
 	}
 	if errorValue := verifyJetsonRootPatch(rootPatch); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := saveConsolePassword(consolePassword); errorValue != nil {
 		return errorValue
 	}
 
@@ -112,7 +115,8 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	fmt.Println("========================================")
 	fmt.Println()
 	fmt.Printf("  user: %s\n", username)
-	fmt.Printf("  password: %s\n", password)
+	fmt.Printf("  password: %s\n", consolePassword)
+	fmt.Println(messenger.t("  저장: .env, .local/secrets/console-password, macOS Keychain", "  Saved: .env, .local/secrets/console-password, macOS Keychain"))
 	fmt.Println(messenger.t("  SD 카드를 Jetson에 다시 꽂고 부팅하세요.", "  Put the SD card back into the Jetson and boot it."))
 	return nil
 }
@@ -488,46 +492,110 @@ func repairJetsonRootFilesystem(partitionDevice string) error {
 type jetsonRootPatch struct {
 	partitionDevice string
 	username        string
-	password        string
 	publicKey       string
 	wifiProfiles    []resolvedWiFiProfile
 }
 
-func applyJetsonRootPatch(rootPatch jetsonRootPatch) error {
-	rootFiles, errorValue := readJetsonAccountFiles(rootPatch.partitionDevice)
+func applyJetsonRootPatch(rootPatch jetsonRootPatch) (string, error) {
+	consolePassword, errorValue := resolveConsolePassword()
 	if errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
-	userID := nextLinuxUserID(rootFiles.passwd)
-	passwordHash := "$6$internkim$39idW6Pq8VREb6WyArAK.m2UJK34FTq0TWjzbJNdnmKFM5ORh7gwCRrPLaCdcC19vs5uUwnURgBKX8TnqLnJh/"
-	if rootPatch.password != jetsonDefaultPassword {
-		return errors.New("--jetson-password currently supports the default value blueclaw only")
+	passwordHash, errorValue := hashPasswordSHA512Crypt(consolePassword)
+	if errorValue != nil {
+		return "", errorValue
 	}
 
+	rootFiles, errorValue := readJetsonAccountFiles(rootPatch.partitionDevice)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	userID := nextLinuxUserID(rootFiles.passwd)
 	rootFiles.passwd = ensurePasswdUser(rootFiles.passwd, rootPatch.username, userID, userID)
 	rootFiles.shadow = ensureShadowUser(rootFiles.shadow, rootPatch.username, passwordHash)
 	rootFiles.group = ensureGroupUser(rootFiles.group, rootPatch.username, userID)
 	rootFiles.gshadow = ensureGShadowUser(rootFiles.gshadow, rootPatch.username)
 
 	if errorValue := writeJetsonAccountFiles(rootPatch.partitionDevice, rootFiles); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := createJetsonUserHome(rootPatch.partitionDevice, rootPatch.username, userID, rootPatch.publicKey); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := disableJetsonOEMConfig(rootPatch.partitionDevice); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := configureJetsonWiFiProfiles(rootPatch.partitionDevice, rootPatch.wifiProfiles); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := enableJetsonSSH(rootPatch.partitionDevice); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := installJetsonFirstboot(rootPatch.partitionDevice); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
-	return configureJetsonAutologin(rootPatch.partitionDevice, rootPatch.username)
+	return consolePassword, nil
+}
+
+func resolveConsolePassword() (string, error) {
+	if data, err := os.ReadFile(".local/secrets/console-password"); err == nil {
+		if password := strings.TrimSpace(string(data)); password != "" {
+			return password, nil
+		}
+	}
+	if password := os.Getenv("INTERNKIM_CONSOLE_PASSWORD"); password != "" {
+		return password, nil
+	}
+	output, err := exec.Command("security", "find-generic-password", "-a", "internkim", "-s", "internkim-console", "-w").Output()
+	if err == nil {
+		if password := strings.TrimSpace(string(output)); password != "" {
+			return password, nil
+		}
+	}
+	return generateConsolePassword()
+}
+
+func generateConsolePassword() (string, error) {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	randomBytes := make([]byte, 24)
+	if _, errorValue := rand.Read(randomBytes); errorValue != nil {
+		return "", fmt.Errorf("generate console password: %w", errorValue)
+	}
+	for index, byteValue := range randomBytes {
+		randomBytes[index] = alphabet[int(byteValue)%len(alphabet)]
+	}
+	return string(randomBytes), nil
+}
+
+func saveConsolePassword(password string) error {
+	if errorValue := updateEnvFile("INTERNKIM_CONSOLE_PASSWORD", password); errorValue != nil {
+		return fmt.Errorf("save console password to .env: %w", errorValue)
+	}
+	secretsPath := ".local/secrets/console-password"
+	if errorValue := os.MkdirAll(".local/secrets", 0o700); errorValue != nil {
+		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
+	}
+	if errorValue := os.WriteFile(secretsPath, []byte(password), 0o600); errorValue != nil {
+		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
+	}
+	_ = exec.Command("security", "add-generic-password",
+		"-a", "internkim", "-s", "internkim-console", "-w", password, "-U",
+	).Run()
+	return nil
+}
+
+func hashPasswordSHA512Crypt(password string) (string, error) {
+	output, errorValue := exec.Command("python3", "-c",
+		"import crypt; print(crypt.crypt("+strconv.Quote(password)+", crypt.mksalt(crypt.METHOD_SHA512)))",
+	).Output()
+	if errorValue != nil {
+		return "", fmt.Errorf("hash password via python3: %w", errorValue)
+	}
+	hash := strings.TrimSpace(string(output))
+	if !strings.HasPrefix(hash, "$6$") {
+		return "", fmt.Errorf("unexpected password hash format from python3")
+	}
+	return hash, nil
 }
 
 type jetsonAccountFiles struct {
@@ -547,7 +615,6 @@ type jetsonPatchDocuments struct {
 	wifiTimer        string
 	firstbootScript  string
 	firstbootService string
-	autologin        string
 }
 
 type jetsonDocumentExpectation struct {
@@ -906,17 +973,6 @@ WantedBy=multi-user.target
 `
 }
 
-func configureJetsonAutologin(partitionDevice string, username string) error {
-	ensureDebugfsDirectories(partitionDevice, "/etc/systemd/system/getty@tty1.service.d")
-	return writeDebugfsContent(partitionDevice, jetsonAutologinOverridePath, buildJetsonAutologinOverride(username), "0100644", 0, 0)
-}
-
-func buildJetsonAutologinOverride(username string) string {
-	return fmt.Sprintf(`[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin %s --noclear %%I $TERM
-`, username)
-}
 
 func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	accountFiles, errorValue := readJetsonAccountFiles(rootPatch.partitionDevice)
@@ -954,9 +1010,6 @@ func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	if documents.firstbootService, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonFirstbootServicePath); errorValue != nil {
 		return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonFirstbootServicePath, errorValue)
 	}
-	if documents.autologin, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonAutologinOverridePath); errorValue != nil {
-		return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonAutologinOverridePath, errorValue)
-	}
 	return validateJetsonRootPatchDocuments(accountFiles, documents, rootPatch.username, rootPatch.wifiProfiles)
 }
 
@@ -976,7 +1029,6 @@ func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents
 		{path: "/etc/nv-l4t-user-created", document: documents.oemMarker, expectedText: "1"},
 		{path: jetsonFirstbootScriptPath, document: documents.firstbootScript, expectedText: "Jetson firstboot complete"},
 		{path: jetsonFirstbootServicePath, document: documents.firstbootService, expectedText: "internkim-jetson-firstboot.sh"},
-		{path: jetsonAutologinOverridePath, document: documents.autologin, expectedText: "--autologin " + username},
 	} {
 		if !strings.Contains(expectation.document, expectation.expectedText) {
 			return fmt.Errorf("verify Jetson rootfs failed: %s does not include %q", expectation.path, expectation.expectedText)
