@@ -56,21 +56,34 @@
 	}
 
 	function formatCancelReason(reason: string): string {
-		return text.cancelReasonTemplate.replace('{reason}', reason);
+		return text.cancelReasonTemplate.replace('{reason}', cancelReasonLabel(reason));
+	}
+
+	function cancelReasonLabel(reason: string): string {
+		if (reason === 'repeated_click_confirmed' || reason === 'repeated click confirmed') {
+			return text.cancelReasonRepeatedClick;
+		}
+		if (reason === 'accidental_short_segment' || reason === 'accidental short segment') {
+			return text.cancelReasonAccidentalShortSegment;
+		}
+		if (reason === 'same_location_resume' || reason === 'same location resume') {
+			return text.cancelReasonSameLocationResume;
+		}
+		return reason;
 	}
 </script>
 
-<div class={`rounded border border-border/40 ${event.canceledAt ? 'opacity-60' : ''}`}>
+<div data-testid="personal-day-event-row" class={`rounded border border-border/40 ${event.canceledAt ? 'opacity-60' : ''}`}>
 	<button
 		type="button"
-		class="flex w-full items-center justify-between gap-2 p-2 text-left hover:bg-accent/40"
+		class="flex w-full min-w-0 items-center justify-between gap-2 p-2 text-left hover:bg-accent/40"
 		onclick={() => onToggle(event.id)}
 	>
-		<span class={event.canceledAt ? 'line-through' : ''}>
+		<span data-testid="personal-day-event-label" class={`min-w-0 truncate ${event.canceledAt ? 'line-through' : ''}`}>
 			{eventKindLabel(event.kind)} {event.localTime}
 			{#if event.locationName}<span class="text-muted-foreground"> · {event.locationName}</span>{/if}
 		</span>
-		<span class="flex items-center">
+		<span class="flex shrink-0 items-center">
 			{#if isExpanded}
 				<ChevronDownIcon class="h-3 w-3" />
 			{:else}
@@ -83,7 +96,7 @@
 			{#if event.sourceMessage}
 				<div>
 					<div class="text-[10px] uppercase tracking-wide text-muted-foreground">{text.originalMessage}</div>
-					<div class="mt-0.5 rounded bg-muted/40 px-2 py-1 italic">"{event.sourceMessage}"</div>
+					<div class="mt-0.5 break-words rounded bg-muted/40 px-2 py-1 italic">"{event.sourceMessage}"</div>
 				</div>
 			{:else if event.manualEntry}
 				<div class="text-muted-foreground">{text.manualEntry}</div>
