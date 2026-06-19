@@ -270,14 +270,14 @@ func (router CapabilityRouter) ShouldRouteToCompanion(request capabilities.ToolI
 	if !router.CompanionAvailable {
 		return false
 	}
+	if isDeviceBrowserTool(request.ToolName) {
+		return false
+	}
 	executionMode := strings.ToLower(strings.TrimSpace(request.ExecutionMode))
 	if executionMode == capabilities.ExecutionModeCompanion {
 		return true
 	}
 	if request.RequiresUserPresence {
-		return true
-	}
-	if router.PreferCompanionBrowser && isDeviceBrowserTool(request.ToolName) {
 		return true
 	}
 	return router.isCompanionCapability(request.ToolName)
@@ -341,9 +341,6 @@ func isCapabilityUnavailableResponse(response capabilities.ToolInvokeResponse) b
 func capabilityUnavailableResponse(toolName string, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(toolName, code)
 	var recovery *capabilities.RecoveryAction
-	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(toolName), "browser.") {
-		recovery = capabilities.CompanionConnectRecovery()
-	}
 	result, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,

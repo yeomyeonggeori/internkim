@@ -81,6 +81,9 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 	if !isDirect && mattermostMentionsExcludeBot(post.Message, addressing) {
 		return platformInboundEvent{}, false, nil
 	}
+	if !isDirect && !addressing.BotMentioned && isURLOnlyMessage(post.Message) {
+		return platformInboundEvent{}, false, nil
+	}
 	replyRootID := ""
 	if isDirect {
 		replyRootID = mattermostDirectReplyRootID(post)
@@ -183,6 +186,19 @@ func mattermostMentionTokens(message string) []string {
 		}
 	}
 	return mentions
+}
+
+func isURLOnlyMessage(message string) bool {
+	tokens := strings.Fields(strings.TrimSpace(message))
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, token := range tokens {
+		if !strings.HasPrefix(token, "http://") && !strings.HasPrefix(token, "https://") {
+			return false
+		}
+	}
+	return true
 }
 
 func isMattermostBroadcastMention(mention string) bool {
