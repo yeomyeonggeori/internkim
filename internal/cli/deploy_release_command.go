@@ -41,9 +41,10 @@ type releaseUpdateUploadCreateRequest struct {
 }
 
 type releaseUpdateUploadCreateResponse struct {
-	UploadID    string `json:"uploadID"`
-	UploadToken string `json:"uploadToken"`
-	ChunkSize   int    `json:"chunkSize"`
+	UploadID       string `json:"uploadID"`
+	UploadToken    string `json:"uploadToken"`
+	ChunkSize      int    `json:"chunkSize"`
+	ReceivedChunks []int  `json:"receivedChunks"`
 }
 
 type releaseUpdateUploadCompleteRequest struct {
@@ -475,6 +476,13 @@ func createReleaseUpdateUpload(target commandTarget, bundle directReleaseBundle)
 }
 
 func uploadReleaseUpdateBundle(target commandTarget, upload releaseUpdateUploadCreateResponse, archivePath string, chunkSize int) error {
+	receivedChunks := map[int]bool{}
+	for _, chunkIndex := range upload.ReceivedChunks {
+		receivedChunks[chunkIndex] = true
+	}
+	if len(receivedChunks) > 0 {
+		fmt.Printf("Resuming upload: skipping %d already-received chunks\n", len(receivedChunks))
+	}
 	file, errorValue := os.Open(archivePath)
 	if errorValue != nil {
 		return errorValue
@@ -489,12 +497,14 @@ func uploadReleaseUpdateBundle(target commandTarget, upload releaseUpdateUploadC
 		if readError != nil && !errors.Is(readError, io.ErrUnexpectedEOF) {
 			return readError
 		}
-		endpointURL, errorValue := releaseDeviceEndpointURL(target, fmt.Sprintf("/admin/api/updates/uploads/%s/chunks/%d", upload.UploadID, chunkIndex))
-		if errorValue != nil {
-			return errorValue
-		}
-		if errorValue := putReleaseUpdateChunk(endpointURL, upload.UploadToken, buffer[:bytesRead]); errorValue != nil {
-			return errorValue
+		if !receivedChunks[chunkIndex] {
+			endpointURL, errorValue := releaseDeviceEndpointURL(target, fmt.Sprintf("/admin/api/updates/uploads/%s/chunks/%d", upload.UploadID, chunkIndex))
+			if errorValue != nil {
+				return errorValue
+			}
+			if errorValue := putReleaseUpdateChunk(endpointURL, upload.UploadToken, buffer[:bytesRead]); errorValue != nil {
+				return errorValue
+			}
 		}
 		if errors.Is(readError, io.ErrUnexpectedEOF) {
 			return nil
