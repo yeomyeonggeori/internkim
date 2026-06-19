@@ -23,6 +23,7 @@ import (
 const releaseUpdateUploadAction = "release-update-upload"
 const releaseUpdateUploadChunkSize = 4 << 20
 const releaseUpdateHTTPTimeout = 2 * time.Minute
+const releaseUpdateRetryAttempts = 4
 
 var releaseUpdateHTTPClient = &http.Client{
 	Timeout: releaseUpdateHTTPTimeout,
@@ -528,49 +529,74 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 	return job, errors.New("release deploy did not finish before timeout")
 }
 
+func sendReleaseUpdateRequest(buildRequest func() (*http.Request, error)) (int, []byte, error) {
+	var lastError error
+	for attempt := 1; attempt <= releaseUpdateRetryAttempts; attempt++ {
+		request, buildError := buildRequest()
+		if buildError != nil {
+			return 0, nil, buildError
+		}
+		response, errorValue := releaseUpdateHTTPClient.Do(request)
+		if errorValue == nil {
+			responseBody, _ := io.ReadAll(io.LimitReader(response.Body, recoveryResponseBodyLimitBytes))
+			response.Body.Close()
+			if response.StatusCode < 500 {
+				return response.StatusCode, responseBody, nil
+			}
+			lastError = fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+		} else {
+			lastError = errorValue
+		}
+		if attempt < releaseUpdateRetryAttempts {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+	}
+	return 0, nil, lastError
+}
+
 func postReleaseUpdateJSON(endpointURL string, requestPayload any, token string, responseValue any) error {
 	document, errorValue := json.Marshal(requestPayload)
 	if errorValue != nil {
 		return errorValue
 	}
-	request, errorValue := http.NewRequest(http.MethodPost, endpointURL, bytes.NewReader(document))
+	statusCode, responseBody, errorValue := sendReleaseUpdateRequest(func() (*http.Request, error) {
+		request, buildError := http.NewRequest(http.MethodPost, endpointURL, bytes.NewReader(document))
+		if buildError != nil {
+			return nil, buildError
+		}
+		request.Header.Set("Content-Type", "application/json")
+		if token != "" {
+			request.Header.Set("X-InternKim-Upload-Token", token)
+		}
+		attachCloudflareAccessCookie(request)
+		return request, nil
+	})
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		request.Header.Set("X-InternKim-Upload-Token", token)
-	}
-	attachCloudflareAccessCookie(request)
-	response, errorValue := releaseUpdateHTTPClient.Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	responseBody, _ := io.ReadAll(io.LimitReader(response.Body, recoveryResponseBodyLimitBytes))
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+	if statusCode < 200 || statusCode >= 300 {
+		return fmt.Errorf("HTTP %d: %s", statusCode, strings.TrimSpace(string(responseBody)))
 	}
 	return json.NewDecoder(bytes.NewReader(responseBody)).Decode(responseValue)
 }
 
 func putReleaseUpdateChunk(endpointURL string, token string, document []byte) error {
-	request, errorValue := http.NewRequest(http.MethodPut, endpointURL, bytes.NewReader(document))
+	statusCode, responseBody, errorValue := sendReleaseUpdateRequest(func() (*http.Request, error) {
+		request, buildError := http.NewRequest(http.MethodPut, endpointURL, bytes.NewReader(document))
+		if buildError != nil {
+			return nil, buildError
+		}
+		request.Header.Set("X-InternKim-Upload-Token", token)
+		attachCloudflareAccessCookie(request)
+		return request, nil
+	})
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("X-InternKim-Upload-Token", token)
-	attachCloudflareAccessCookie(request)
-	response, errorValue := releaseUpdateHTTPClient.Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
+	if statusCode >= 200 && statusCode < 300 {
 		return nil
 	}
-	responseBody, _ := io.ReadAll(io.LimitReader(response.Body, recoveryResponseBodyLimitBytes))
-	return fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+	return fmt.Errorf("HTTP %d: %s", statusCode, strings.TrimSpace(string(responseBody)))
 }
 
 func releaseManifestComponentNames(manifest releaseset.Manifest) []string {
