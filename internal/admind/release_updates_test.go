@@ -586,6 +586,48 @@ func writeTestTarFile(writer *tar.Writer, name string, path string) error {
 	return errorValue
 }
 
+func TestReleaseUpdateUploadResumesReceivedChunks(t *testing.T) {
+	service := newReleaseUpdateUploadTestService(t)
+	bundlePath, manifest := writeTestReleaseBundle(t, service)
+	bundleSHA256 := fileSHA256(bundlePath)
+	bundleSize := fileSize(t, bundlePath)
+
+	createPayload := releaseUpdateUploadCreateRequest{
+		fleetSignedRequest: signedTestFleetRequest(t, service, releaseUpdateUploadAction, "nonce-1"),
+		ReleaseID:          manifest.ReleaseID,
+		Filename:           "release.tar.gz",
+		Size:               bundleSize,
+		SHA256:             bundleSHA256,
+	}
+	var firstUpload releaseUpdateUploadCreateResponse
+	firstResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", createPayload, "")
+	if errorValue := json.NewDecoder(firstResponse.Body).Decode(&firstUpload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	document, errorValue := os.ReadFile(bundlePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	chunkRequest := httptest.NewRequest(http.MethodPut, "/admin/api/updates/uploads/"+firstUpload.UploadID+"/chunks/0", bytes.NewReader(document))
+	chunkRequest.Header.Set("X-InternKim-Upload-Token", firstUpload.UploadToken)
+	service.handleAdmin(httptest.NewRecorder(), chunkRequest)
+
+	resumePayload := createPayload
+	resumePayload.fleetSignedRequest = signedTestFleetRequest(t, service, releaseUpdateUploadAction, "nonce-resume")
+	var resumeUpload releaseUpdateUploadCreateResponse
+	resumeResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", resumePayload, "")
+	if errorValue := json.NewDecoder(resumeResponse.Body).Decode(&resumeUpload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if resumeUpload.UploadID != firstUpload.UploadID {
+		t.Fatalf("resume returned new session %q, want reuse of %q", resumeUpload.UploadID, firstUpload.UploadID)
+	}
+	if len(resumeUpload.ReceivedChunks) != 1 || resumeUpload.ReceivedChunks[0] != 0 {
+		t.Fatalf("resume received chunks = %v, want [0]", resumeUpload.ReceivedChunks)
+	}
+}
+
 func performReleaseUploadJSON(t *testing.T, service *Service, method string, path string, payload any, uploadToken string) *httptest.ResponseRecorder {
 	t.Helper()
 	document, errorValue := json.Marshal(payload)

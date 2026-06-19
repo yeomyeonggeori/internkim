@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -41,9 +42,10 @@ type releaseUpdateUploadCreateRequest struct {
 }
 
 type releaseUpdateUploadCreateResponse struct {
-	UploadID    string `json:"uploadID"`
-	UploadToken string `json:"uploadToken"`
-	ChunkSize   int    `json:"chunkSize"`
+	UploadID       string `json:"uploadID"`
+	UploadToken    string `json:"uploadToken"`
+	ChunkSize      int    `json:"chunkSize"`
+	ReceivedChunks []int  `json:"receivedChunks,omitempty"`
 }
 
 type releaseUpdateUploadCompleteRequest struct {
@@ -76,6 +78,17 @@ func (service *Service) createReleaseUpdateUpload(responseWriter http.ResponseWr
 	}
 	if errorValue := validateReleaseUpdateUploadRequest(payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	releaseID := strings.TrimSpace(payload.ReleaseID)
+	sha256Value := strings.ToLower(strings.TrimSpace(payload.SHA256))
+	if existing, receivedChunks, isFound := service.findResumableReleaseUpdateUpload(releaseID, sha256Value); isFound {
+		service.writeJSON(responseWriter, releaseUpdateUploadCreateResponse{
+			UploadID:       existing.UploadID,
+			UploadToken:    existing.Token,
+			ChunkSize:      releaseUpdateChunkSize,
+			ReceivedChunks: receivedChunks,
+		})
 		return
 	}
 	uploadID := randomHex(16)
@@ -265,6 +278,28 @@ func (service *Service) findReleaseUpdateUpload(uploadID string) (*ReleaseUpdate
 	defer service.mutex.Unlock()
 	upload, isFound := service.releaseUpdateUploads[uploadID]
 	return upload, isFound
+}
+
+func (service *Service) findResumableReleaseUpdateUpload(releaseID string, sha256Value string) (*ReleaseUpdateUpload, []int, bool) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, upload := range service.releaseUpdateUploads {
+		if upload.ReleaseID == releaseID && upload.SHA256 == sha256Value && len(upload.ReceivedChunks) > 0 {
+			return upload, receivedChunkIndices(upload), true
+		}
+	}
+	return nil, nil, false
+}
+
+func receivedChunkIndices(upload *ReleaseUpdateUpload) []int {
+	indices := make([]int, 0, len(upload.ReceivedChunks))
+	for index, isReceived := range upload.ReceivedChunks {
+		if isReceived {
+			indices = append(indices, index)
+		}
+	}
+	sort.Ints(indices)
+	return indices
 }
 
 func (service *Service) markReleaseUpdateUploadChunk(uploadID string, chunkIndex int) {
