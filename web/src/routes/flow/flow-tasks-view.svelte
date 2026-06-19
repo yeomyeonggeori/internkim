@@ -110,16 +110,18 @@
 	</Tabs.Root>
 </div>
 
-<FlowTaskQuickAdd
-	bind:quickTaskText={page.quickTaskText}
-	taskErrorMessage={page.taskErrorMessage}
-	quickTaskDuplicateMessage={page.quickTaskDuplicateMessage}
-	isCreatingQuickTask={page.isCreatingQuickTask}
-	hasMembers={page.members().length > 0}
-	text={text.task}
-	createQuickTask={() => page.createQuickTask(false)}
-	confirmQuickTaskDuplicate={() => page.createQuickTask(true)}
-/>
+{#if page.taskDraft === null}
+	<FlowTaskQuickAdd
+		bind:quickTaskText={page.quickTaskText}
+		taskErrorMessage={page.taskErrorMessage}
+		quickTaskDuplicateMessage={page.quickTaskDuplicateMessage}
+		isCreatingQuickTask={page.isCreatingQuickTask}
+		hasMembers={page.members().length > 0}
+		text={text.task}
+		createQuickTask={() => page.createQuickTask(false)}
+		confirmQuickTaskDuplicate={() => page.createQuickTask(true)}
+	/>
+{/if}
 
 <FlowTaskEditor
 	bind:taskDraft={page.taskDraft}
