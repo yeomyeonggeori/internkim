@@ -749,6 +749,54 @@ func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 	}
 }
 
+func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=0&per_page=100":
+			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
+				Order: []string{"current-post"},
+				Posts: map[string]mattermostToolPost{
+					"current-post": {ID: "current-post", UserID: "bot-1", ChannelID: "channel-1", Message: "비밀", CreateAt: 1},
+				},
+			}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		default:
+			t.Fatalf("currentChannel must read only the current channel: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.search",
+		Input: mustJSON(t, map[string]any{
+			"scope":          "currentChannel",
+			"deliveryTarget": map[string]any{"type": "currentChannel", "channelID": "circle-secret"},
+			"authoredBy":     "assistant",
+			"queries":        []string{"비밀"},
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			ConversationID:          "channel:channel-1",
+			ChannelID:               "channel-1",
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "user-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result mattermostPostSearchResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" || result.Channel["id"] != "channel-1" {
+		t.Fatalf("expected currentChannel to ignore foreign override and read channel-1, got %+v", response)
+	}
+}
+
 func TestPlatformMessageDeleteRejectsCriteriaWithoutMessageIDs(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
