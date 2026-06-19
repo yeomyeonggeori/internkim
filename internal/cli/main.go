@@ -224,8 +224,6 @@ func Main() {
 			runModel()
 		case "migrate":
 			runMigrate()
-		case "companion":
-			runCompanion()
 		case "invite":
 			runInvite()
 		case "users":
@@ -280,7 +278,6 @@ func printUsage() {
 	fmt.Println("  ssh      Open SSH to the device")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  migrate  Migrate device metadata without full setup")
-	fmt.Println("  companion Build and upgrade the local companion app")
 	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  task     Inspect task runs and failure logs")
@@ -4075,6 +4072,11 @@ func cloudflareAccessServiceTokenArguments() string {
 }
 
 func loadCloudflareAccessServiceToken() (cloudflareAccessServiceToken, bool) {
+	clientID := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET"))
+	if clientID != "" && clientSecret != "" {
+		return cloudflareAccessServiceToken{ClientID: clientID, ClientSecret: clientSecret}, true
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return cloudflareAccessServiceToken{}, false
