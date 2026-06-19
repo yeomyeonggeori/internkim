@@ -497,7 +497,7 @@ type jetsonRootPatch struct {
 }
 
 func applyJetsonRootPatch(rootPatch jetsonRootPatch) (string, error) {
-	consolePassword, errorValue := generateConsolePassword()
+	consolePassword, errorValue := resolveConsolePassword()
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -535,6 +535,24 @@ func applyJetsonRootPatch(rootPatch jetsonRootPatch) (string, error) {
 		return "", errorValue
 	}
 	return consolePassword, nil
+}
+
+func resolveConsolePassword() (string, error) {
+	if data, err := os.ReadFile(".local/secrets/console-password"); err == nil {
+		if password := strings.TrimSpace(string(data)); password != "" {
+			return password, nil
+		}
+	}
+	if password := os.Getenv("INTERNKIM_CONSOLE_PASSWORD"); password != "" {
+		return password, nil
+	}
+	output, err := exec.Command("security", "find-generic-password", "-a", "internkim", "-s", "internkim-console", "-w").Output()
+	if err == nil {
+		if password := strings.TrimSpace(string(output)); password != "" {
+			return password, nil
+		}
+	}
+	return generateConsolePassword()
 }
 
 func generateConsolePassword() (string, error) {
