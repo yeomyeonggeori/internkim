@@ -32,7 +32,9 @@ export function computeDayEvents(date: string, events: AttendanceEvent[]): DayEv
 		.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 	const segments = buildAttendanceWorkSegments(date, sorted);
 	const activeSegment = [...segments].reverse().find((segment) => segment.isOpen);
-	const clockIn = segments[0]?.clockIn ?? sorted.find((event) => event.kind === 'clock_in');
+	const clockIn =
+		[...segments].reverse().find((segment) => segment.clockIn)?.clockIn ??
+		[...sorted].reverse().find((event) => event.kind === 'clock_in');
 	const clockOut =
 		[...segments].reverse().find((segment) => segment.clockOut)?.clockOut ??
 		[...sorted].reverse().find((event) => event.kind === 'clock_out');
