@@ -6,9 +6,6 @@ import type {
 	BlueclawUpdateStatus,
 	BotProfile,
 	CircleRecord,
-	CompanionPairingCodeResponse,
-	CompanionReleaseResponse,
-	CompanionStatusResponse,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
 	ReleaseHistoryResponse,
@@ -16,6 +13,7 @@ import type {
 	UserRecord,
 	UserRole,
 	UsersResponse,
+	WifiProfilesResponse,
 	WorkspaceSettings
 } from './admin-types';
 
@@ -101,11 +99,6 @@ export async function updateAttendanceLocations(adminBaseURL: string, locations:
 	return readJSON<AttendanceLocationsResponse>(response, fallbackMessage);
 }
 
-export async function fetchCompanionReleases(companionReleaseURL: string, fallbackMessage: string): Promise<CompanionReleaseResponse> {
-	const response = await fetch(companionReleaseURL, { credentials: 'include' });
-	return readJSON<CompanionReleaseResponse>(response, fallbackMessage);
-}
-
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {
 	const response = await fetch(`${adminBaseURL}/users?includePolicy=true`, { credentials: 'include' });
 	return readJSON<UsersResponse>(response, fallbackMessage);
@@ -165,6 +158,39 @@ export async function resetUserPassword(adminBaseURL: string, email: string, fal
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
 
+export async function fetchWifiProfiles(adminBaseURL: string, fallbackMessage: string): Promise<WifiProfilesResponse> {
+	const response = await fetch(`${adminBaseURL}/wifi-profiles`, { credentials: 'include' });
+	return readJSON<WifiProfilesResponse>(response, fallbackMessage);
+}
+
+export async function addWifiProfile(adminBaseURL: string, ssid: string, password: string, fallbackMessage: string): Promise<WifiProfilesResponse> {
+	const response = await fetch(`${adminBaseURL}/wifi-profiles`, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ ssid, password })
+	});
+	return readJSON<WifiProfilesResponse>(response, fallbackMessage);
+}
+
+export async function updateWifiPassword(adminBaseURL: string, connectionName: string, password: string, fallbackMessage: string): Promise<WifiProfilesResponse> {
+	const response = await fetch(`${adminBaseURL}/wifi-profiles/${encodeURIComponent(connectionName)}`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ password })
+	});
+	return readJSON<WifiProfilesResponse>(response, fallbackMessage);
+}
+
+export async function removeWifiProfile(adminBaseURL: string, connectionName: string, fallbackMessage: string): Promise<WifiProfilesResponse> {
+	const response = await fetch(`${adminBaseURL}/wifi-profiles/${encodeURIComponent(connectionName)}`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+	return readJSON<WifiProfilesResponse>(response, fallbackMessage);
+}
+
 export async function fetchDeviceHealth(adminBaseURL: string, fallbackMessage: string): Promise<void> {
 	const response = await fetch(`${adminBaseURL}/health`, { credentials: 'include' });
 	await readVoid(response, fallbackMessage);
@@ -194,27 +220,6 @@ export async function applyBlueclawUpdate(adminBaseURL: string, fallbackMessage:
 export async function fetchBlueclawUpdateJob(adminBaseURL: string, jobID: string, fallbackMessage: string): Promise<AdminJob> {
 	const response = await fetch(`${adminBaseURL}/updates/jobs/${encodeURIComponent(jobID)}`, { credentials: 'include' });
 	return readJSON<AdminJob>(response, fallbackMessage);
-}
-
-export async function fetchCompanions(adminBaseURL: string, fallbackMessage: string): Promise<CompanionStatusResponse> {
-	const response = await fetch(`${adminBaseURL}/companion/status`, { credentials: 'include' });
-	return readJSON<CompanionStatusResponse>(response, fallbackMessage);
-}
-
-export async function createCompanionPairingCode(adminBaseURL: string, fallbackMessage: string): Promise<CompanionPairingCodeResponse> {
-	const response = await fetch(`${adminBaseURL}/companion/pairing-codes`, {
-		method: 'POST',
-		credentials: 'include'
-	});
-	return readJSON<CompanionPairingCodeResponse>(response, fallbackMessage);
-}
-
-export async function revokeCompanion(adminBaseURL: string, companionID: string, fallbackMessage: string): Promise<void> {
-	const response = await fetch(`${adminBaseURL}/companion/${encodeURIComponent(companionID)}`, {
-		method: 'DELETE',
-		credentials: 'include'
-	});
-	await readVoid(response, fallbackMessage);
 }
 
 export async function createBackup(adminBaseURL: string, passphrase: string, fallbackMessage: string): Promise<AdminJob> {

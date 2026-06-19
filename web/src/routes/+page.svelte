@@ -13,9 +13,9 @@
 	import { fetchAdminSession } from './admin/admin-api';
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
-	import CompanionSection from './admin/companion-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
 	import DeviceSection from './admin/device-section.svelte';
+	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
 	import type { AdminSection, AdminSession } from './admin/admin-types';
 	import { adminText } from './admin/text';
@@ -50,24 +50,19 @@
 		return currentFleetID ? `https://${currentFleetID}.intern.kim/admin/api` : '';
 	}
 
-	function companionReleaseURL() {
-		if (fleetIDFromHost()) return '/admin/api/companion/releases';
-		return '/api/companion/releases';
-	}
-
 	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
 
 	function adminSections(): { value: AdminSection; label: string }[] {
 		const sections: { value: AdminSection; label: string }[] = [
 			{ value: 'users', label: text.sections.users },
 			{ value: 'credentials', label: text.sections.credentials },
-			{ value: 'companion', label: text.sections.companion },
 			{ value: 'backup', label: text.sections.backup },
 			{ value: 'bot', label: text.sections.bot },
 			{ value: 'settings', label: text.sections.settings }
 		];
 		if (showDeviceSection) {
 			sections.unshift({ value: 'device', label: text.sections.device });
+			sections.push({ value: 'network', label: text.sections.network });
 		}
 		return sections;
 	}
@@ -210,14 +205,6 @@
 				<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 			{:else if activeAdminSection === 'credentials'}
 				<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-			{:else if activeAdminSection === 'companion'}
-				<CompanionSection
-					adminBaseURL={adminBaseURL()}
-					companionReleaseURL={companionReleaseURL()}
-					isDeviceReachable={isDeviceReachable}
-					mattermostURL={mattermostURL()}
-					text={text}
-				/>
 			{:else if activeAdminSection === 'backup'}
 				<BackupSection
 					adminBaseURL={adminBaseURL()}
@@ -237,6 +224,8 @@
 				/>
 			{:else if activeAdminSection === 'settings'}
 				<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+			{:else if activeAdminSection === 'network'}
+				<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 			{/if}
 		</section>
 	</div>
