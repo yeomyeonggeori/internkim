@@ -789,6 +789,14 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAttendanceLocations(responseWriter)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/wifi-profiles":
+		service.writeWifiProfiles(responseWriter)
+	case request.Method == http.MethodPost && path == "/wifi-profiles":
+		service.addWifiProfile(responseWriter, request)
+	case request.Method == http.MethodPut && strings.HasPrefix(path, "/wifi-profiles/"):
+		service.updateWifiPassword(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
+	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/wifi-profiles/"):
+		service.removeWifiProfile(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/maintenance/mattermost-posts/") && strings.HasSuffix(path, "/repair"):
 		service.repairMattermostPost(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/maintenance/mattermost-posts/"), "/repair"))
 	case request.Method == http.MethodGet && path == "/sites":
