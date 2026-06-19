@@ -140,47 +140,19 @@ func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context
 	}
 	actionPostID := firstNonEmpty(payload.RootID, readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()))
 	if strings.TrimSpace(payload.RootID) != "" {
-		actionResult, errorValue := service.applyMattermostAttendanceReplyPostCommand(ctx, userRecord, adminToken, userToken, command, teamRecord.ID, channelID, actionPostID, commandPostID)
-		return attendancePostCommandResult{ActionResult: actionResult, ShouldDeleteCommandPost: actionResult.isIgnored()}, errorValue
+		actionResult, errorValue := service.applyMattermostAttendanceReplyPostCommand(ctx, userRecord, userToken, command, teamRecord.ID, channelID, actionPostID, commandPostID)
+		return attendancePostCommandResult{ActionResult: actionResult, ShouldDeleteCommandPost: shouldDeleteMattermostAttendanceReplyCommandPost(actionResult, commandPostID)}, errorValue
 	}
 	actionResult, errorValue := service.applyAttendanceAction(ctx, userRecord, userToken, command.Kind, teamRecord.ID, channelID, actionPostID, command.LocationID)
 	return attendancePostCommandResult{ActionResult: actionResult, ShouldDeleteCommandPost: true}, errorValue
 }
 
-func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Context, userRecord mattermostUserRecord, adminToken string, userToken string, command attendancePostCommand, teamID string, channelID string, actionPostID string, commandPostID string) (attendanceActionResult, error) {
-	now := time.Now().UTC()
-	database, errorValue := service.openAttendanceDatabase(ctx)
-	if errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	defer database.Close()
-	lastEvent, found, errorValue := service.latestAttendanceActionEvent(ctx, database, userRecord.ID, command.Kind, now)
-	if errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	eventLocation := attendanceLocation{}
-	if command.Kind == attendanceKindClockIn {
-		eventLocation = service.defaultAttendanceLocation()
-		if strings.TrimSpace(command.LocationID) != "" {
-			eventLocation = service.attendanceLocationByID(command.LocationID)
-		}
-	}
-	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, eventLocation, lastEvent, found, channelID, actionPostID)
-	if errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	if shouldIgnore {
-		return ignoredAttendanceActionResult(), nil
-	}
-	if errorValue := service.deleteLatestAttendanceResultPostForUserAndKind(ctx, database, adminToken, userRecord.ID, command.Kind); errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	message := service.attendanceMessageForKindAndLocation(command.Kind, eventLocation)
-	if errorValue := service.patchMattermostAttendanceResultPost(ctx, userToken, commandPostID, message); errorValue != nil {
-		return attendanceActionResult{}, errorValue
-	}
-	event := service.createAttendanceEvent(userRecord, command.Kind, now, teamID, channelID, actionPostID, commandPostID, eventLocation)
-	return createdAttendanceActionResult(commandPostID), service.insertAttendanceEvent(ctx, database, event)
+func shouldDeleteMattermostAttendanceReplyCommandPost(actionResult attendanceActionResult, commandPostID string) bool {
+	return strings.TrimSpace(actionResult.ResultPostID) != strings.TrimSpace(commandPostID)
+}
+
+func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Context, userRecord mattermostUserRecord, userToken string, command attendancePostCommand, teamID string, channelID string, actionPostID string, commandPostID string) (attendanceActionResult, error) {
+	return service.applyAttendanceActionWithResultPost(ctx, userRecord, userToken, command.Kind, teamID, channelID, actionPostID, command.LocationID, commandPostID)
 }
 
 func (service *Service) mattermostPostCreateUser(request *http.Request) (mattermostUserRecord, bool) {

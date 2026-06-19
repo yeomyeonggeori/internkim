@@ -68,6 +68,15 @@ func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, adminToken, channelID); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	actionPostID := readTrimmedFile(service.mattermostAttendanceEntryPostIDPath())
+	if actionPostID == "" {
+		http.Error(responseWriter, "attendance entry post id required", http.StatusInternalServerError)
+		return
+	}
 	if errorValue := service.ensureMattermostChannelMembership(ctx, adminToken, channelID, userRecord.ID); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -80,9 +89,9 @@ func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter,
 	locationID := strings.TrimSpace(body.LocationID)
 	result := attendanceActionResult{}
 	if kind == "" {
-		result, errorValue = service.applyAttendanceToggle(ctx, userRecord, userToken, teamRecord.ID, channelID, "")
+		result, errorValue = service.applyAttendanceToggle(ctx, userRecord, userToken, teamRecord.ID, channelID, actionPostID)
 	} else {
-		result, errorValue = service.applyAttendanceAction(ctx, userRecord, userToken, kind, teamRecord.ID, channelID, "", locationID)
+		result, errorValue = service.applyAttendanceAction(ctx, userRecord, userToken, kind, teamRecord.ID, channelID, actionPostID, locationID)
 	}
 	if errorValue != nil && !errors.Is(errorValue, errAttendanceDuplicateIgnored) {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)

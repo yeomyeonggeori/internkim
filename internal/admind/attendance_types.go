@@ -7,20 +7,23 @@ import (
 )
 
 const (
-	attendanceKindClockIn                  = "clock_in"
-	attendanceKindClockOut                 = "clock_out"
-	attendanceSourceMattermostButton       = "mattermost_button"
-	attendanceChannelName                  = mattermostdefaults.AttendanceChannelName
-	attendanceChannelDisplayName           = mattermostdefaults.AttendanceChannelDisplayName
-	attendanceClockInAction                = "attendanceClockIn"
-	attendanceClockOutAction               = "attendanceClockOut"
-	attendanceToggleAction                 = "attendance.toggle"
-	attendanceEntryPostProperty            = "internkim_attendance_entry"
-	attendanceEntryPostFingerprintProperty = "internkim_attendance_entry_fingerprint"
-	attendanceEntryPostIDFilename          = "mattermost-attendance-entry-post-id"
-	attendanceChannelIDFilename            = "mattermost-attendance-channel-id"
-	attendanceCancelReason                 = "repeated click confirmed"
-	attendanceDuplicateWindow              = 5 * time.Minute
+	attendanceKindClockIn                        = "clock_in"
+	attendanceKindClockOut                       = "clock_out"
+	attendanceSourceMattermostButton             = "mattermost_button"
+	attendanceChannelName                        = mattermostdefaults.AttendanceChannelName
+	attendanceChannelDisplayName                 = mattermostdefaults.AttendanceChannelDisplayName
+	attendanceClockInAction                      = "attendanceClockIn"
+	attendanceClockOutAction                     = "attendanceClockOut"
+	attendanceToggleAction                       = "attendance.toggle"
+	attendanceEntryPostProperty                  = "internkim_attendance_entry"
+	attendanceEntryPostFingerprintProperty       = "internkim_attendance_entry_fingerprint"
+	attendanceEntryPostIDFilename                = "mattermost-attendance-entry-post-id"
+	attendanceChannelIDFilename                  = "mattermost-attendance-channel-id"
+	attendanceCancelReason                       = "repeated_click_confirmed"
+	attendanceAccidentalShortSegmentCancelReason = "accidental_short_segment"
+	attendanceSameLocationResumeCancelReason     = "same_location_resume"
+	attendanceDuplicateWindow                    = 5 * time.Minute
+	attendanceAccidentalSequenceWindow           = 30 * time.Second
 )
 
 type attendanceEvent struct {
