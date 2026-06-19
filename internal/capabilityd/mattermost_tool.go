@@ -613,8 +613,8 @@ func (service Service) resolveCurrentMattermostThreadHandle(toolContext capabili
 }
 
 func (service Service) resolveCurrentMattermostChannelHandle(toolContext capabilities.ToolInvokeContext, input mattermostPostSearchInput) (platformHandle, map[string]string, mattermostToolFailure, bool) {
-	channelID := firstNonEmpty(input.ChannelID, toolContext.ChannelID)
-	if strings.TrimSpace(channelID) == "" {
+	channelID := strings.TrimSpace(toolContext.ChannelID)
+	if channelID == "" {
 		failure := mattermostToolStaticFailure("channel_not_available", "context", "current Mattermost channel is not available")
 		return platformHandle{}, nil, failure, true
 	}
