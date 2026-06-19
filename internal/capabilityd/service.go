@@ -624,6 +624,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
+		service.stopMattermostProgress(request.ReplyTargetID)
+		return service.sendMattermostEphemeralText(ctx, handle, request, message)
+	}
 	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
 	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
@@ -715,6 +719,28 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 
 func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
 	return request.Interaction != nil && request.mattermostAskEphemeralUserID() == ""
+}
+
+func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
+	post := map[string]any{
+		"channel_id": handle.ChannelID,
+		"message":    strings.TrimSpace(message),
+		"props": map[string]any{
+			"internkim_raw_event_id": request.RawEventID,
+			"internkim_outbox_id":    request.OutboxID,
+		},
+	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		post["root_id"] = handle.RootID
+	}
+	body := map[string]any{
+		"user_id": strings.TrimSpace(request.EphemeralUserID),
+		"post":    post,
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
+		return nil, errorValue
+	}
+	return map[string]string{"dispatchID": ""}, nil
 }
 
 func (service Service) sendMattermostAskEphemeral(ctx context.Context, handle platformHandle, request replyRequest) error {
