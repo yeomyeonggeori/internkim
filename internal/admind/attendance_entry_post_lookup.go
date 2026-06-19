@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -88,8 +89,29 @@ func isMattermostAttendanceEntryPostRecord(postRecord mattermostPostRecord, chan
 	return postRecord.Props[attendanceEntryPostProperty] == true
 }
 
-func isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord, expectedProps map[string]any) bool {
+func isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord, expectedProps map[string]any, message string) bool {
 	expectedFingerprint, expectedOK := expectedProps[attendanceEntryPostFingerprintProperty].(string)
-	storedFingerprint, storedOK := postRecord.Props[attendanceEntryPostFingerprintProperty].(string)
-	return expectedOK && storedOK && expectedFingerprint != "" && expectedFingerprint == storedFingerprint
+	if !expectedOK || expectedFingerprint == "" {
+		return false
+	}
+	if storedFingerprint, storedOK := postRecord.Props[attendanceEntryPostFingerprintProperty].(string); storedOK && storedFingerprint == expectedFingerprint {
+		return true
+	}
+	storedAttachments, parsed := parseMattermostAttachments(postRecord.Props["attachments"])
+	if !parsed {
+		return false
+	}
+	return attendanceEntryPostFingerprint(message, storedAttachments) == expectedFingerprint
+}
+
+func parseMattermostAttachments(value any) ([]mattermostAttachment, bool) {
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
+		return nil, false
+	}
+	var attachments []mattermostAttachment
+	if errorValue := json.Unmarshal(document, &attachments); errorValue != nil {
+		return nil, false
+	}
+	return attachments, true
 }

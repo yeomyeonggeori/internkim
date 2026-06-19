@@ -272,6 +272,52 @@ func TestAttendanceEntryPostSkipsPatchWhenFingerprintMatches(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryPostSkipsPatchWhenFingerprintStrippedButAttachmentsMatch(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:         stateDirectory,
+		MattermostBaseURL:      "http://mattermost.local",
+		MattermostBotTokenPath: writeTestFile(t, "bot-token"),
+		ListenAddress:          "127.0.0.1:9000",
+	})
+	storedPostDocument, errorValue := json.Marshal(map[string]any{
+		"id":         "entry-post",
+		"user_id":    "bot-1",
+		"channel_id": "attendance-channel",
+		"message":    "출퇴근 기록",
+		"is_pinned":  true,
+		"props": map[string]any{
+			attendanceEntryPostProperty: true,
+			"attachments":               service.mattermostAttendanceEntryPostProps()["attachments"],
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":`+string(storedPostDocument)+`}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
+			t.Fatal("entry post was patched despite matching attachments")
+			return nil, nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostAttendanceEntryPost(context.Background(), "admin-token", "attendance-channel"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
 func TestAttendanceEntryPostUsesStoredPostOutsideRecentPage(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{
