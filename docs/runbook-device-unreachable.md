@@ -95,9 +95,22 @@ a stable outbound connection, so `cloudflared` thrashes and every remote path
 dies. Software changes will not fix this. In order of effectiveness:
 
 1. **Wire the Jetson via Ethernet** instead of WiFi — most reliable fix.
-2. WiFi: check signal strength / congestion, move closer, change channel.
-3. Check the router and its DNS; reboot the router.
-4. On the LAN, restart the tunnel after fixing the link:
+2. **Hidden SSID** makes Linux reconnection slower and flakier (the client must
+   actively probe for the SSID by name), which widens every disconnect window.
+   The setup configures this via `nmcli ... wifi.hidden yes`
+   (`internal/cli/wifi_profiles.go`), but only when the device was set up as
+   hidden. Verify it is actually set:
+   ```sh
+   nmcli -f 802-11-wireless.hidden connection show <connection-name>
+   ```
+   If it shows `no` for a hidden network, that is the bug — fix it, or just
+   broadcast the SSID (hidden gives negligible security and costs reliability):
+   ```sh
+   nmcli connection modify <connection-name> wifi.hidden yes && nmcli connection up <connection-name>
+   ```
+3. WiFi: check signal strength / congestion, move closer, change channel.
+4. Check the router and its DNS; reboot the router.
+5. On the LAN, restart the tunnel after fixing the link:
    `systemctl restart cloudflared cloudflared-node-ssh`.
 
 ## LAN fallback (when you are on the same network)
