@@ -66,6 +66,9 @@ export function createDevTasksMockResponse(
 	state: DevTasksMockState,
 	request: DevMockRequest
 ): DevMockResponse | undefined {
+	if (request.method === 'GET' && request.pathname === '/tasks/api/runs') {
+		return { status: 200, body: paginatedTaskRuns(state.taskRuns, request.searchParams) };
+	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/diagnostics/tasks') {
 		return { status: 200, body: paginatedTaskRuns(state.taskRuns, request.searchParams) };
 	}
@@ -73,6 +76,7 @@ export function createDevTasksMockResponse(
 }
 
 function shouldHandleDevTasksMockRequest(method: string, pathname: string): boolean {
+	if (method === 'GET' && pathname === '/tasks/api/runs') return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/tasks') return true;
 	return shouldHandleDevAdminMockRequest(method, pathname);
 }

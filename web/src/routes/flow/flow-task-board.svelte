@@ -3,6 +3,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import FlowTaskBoardCard from './flow-task-board-card.svelte';
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
+	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
 	import { buildFlowTaskBoard, isFlowTaskBoardStatus } from './flow-task-board-model';
 	import type { FlowTask } from './flow-types';
 
@@ -40,7 +41,7 @@
 	}: Props = $props();
 
 	const columnClass = [
-		'group flex h-[min(48rem,calc(100vh-6rem))] min-h-[32rem]',
+		'group flex h-[var(--flow-task-board-height,32rem)] max-h-[var(--flow-task-board-height,32rem)] min-h-80',
 		'w-80 shrink-0 flex-col rounded-lg border bg-muted/30'
 	].join(' ');
 	const addTaskButtonClass = [
@@ -181,7 +182,7 @@
 	}
 </script>
 
-<div class="overflow-x-auto pb-2" data-flow-board-scroll>
+<div class="overflow-x-auto pb-2" data-flow-board-scroll use:flowTaskBoardViewportHeight>
 	<div class="flex min-w-max gap-3">
 		{#each columns as column (column.status)}
 			<section

@@ -723,6 +723,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleAttachmentCleanup(responseWriter, request, false)
 	case request.Method == http.MethodPost && path == "/maintenance/attachment-cleanup":
 		service.handleAttachmentCleanup(responseWriter, request, true)
+	case request.Method == http.MethodGet && path == "/maintenance/attachment-migration":
+		service.handleAttachmentMigration(responseWriter, request, false)
+	case request.Method == http.MethodPost && path == "/maintenance/attachment-migration":
+		service.handleAttachmentMigration(responseWriter, request, true)
 	case request.Method == http.MethodGet && path == "/diagnostics/service-logs":
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
