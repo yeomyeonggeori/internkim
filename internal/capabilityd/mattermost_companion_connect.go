@@ -44,15 +44,8 @@ func (service Service) handleMattermostCompanionConnectCommand(ctx context.Conte
 	return true, service.postMattermostMessage(ctx, event.Context.ChannelID, "", "Companion 연결 링크를 DM으로 보냈어요.")
 }
 
-func isMattermostCompanionConnectCommand(event platformInboundEvent) bool {
-	prompt := strings.ToLower(strings.TrimSpace(event.Prompt))
-	if prompt == "/connect" || prompt == "/internkim connect" || prompt == "companion connect" {
-		return true
-	}
-	if !strings.EqualFold(strings.TrimSpace(event.Context.ConversationType), "D") {
-		return false
-	}
-	return prompt == "connect" || prompt == "컴패니언 연결"
+func isMattermostCompanionConnectCommand(_ platformInboundEvent) bool {
+	return false
 }
 
 func (service Service) createCompanionPairingForMattermostSender(ctx context.Context, event platformInboundEvent) (companionConnectPairingResponse, error) {

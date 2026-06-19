@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -371,8 +372,8 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 		CompanionAvailable: true,
 		Descriptors:        capabilities.CompanionToolDescriptors(),
 	}
-	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.open"}) {
-		t.Fatal("expected browser tool to route to companion")
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.open"}) {
+		t.Fatal("expected browser tool to stay device-side")
 	}
 	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "unknown.tool"}) {
 		t.Fatal("expected unknown tool to stay unconfigured")
@@ -385,8 +386,8 @@ func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 		PreferCompanionBrowser: true,
 		Descriptors:            []capabilities.Descriptor{},
 	}
-	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
-		t.Fatal("expected browser tool to route to companion when PreferCompanionBrowser is true")
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+		t.Fatal("expected browser tool to stay device-side regardless of PreferCompanionBrowser")
 	}
 	for _, toolName := range []string{"flow.task.add", "flow.task.list", "flow.task.update", "flow.task.delete"} {
 		if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: toolName}) {
@@ -497,24 +498,13 @@ func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T
 }
 
 func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
+	companionWasCalled := false
 	commandWasCalled := false
-	denialResult, _ := json.Marshal(capabilities.DenialResult{
-		Status:     "denied",
-		Code:       capabilities.CapabilityNotReady,
-		ToolName:   "browser.open",
-		UserReason: "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
-	})
 	service := Service{
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return jsonResponse(capabilities.ToolInvokeResponse{
-				Provider: "companion",
-				ToolName: "browser.open",
-				Status:   "denied",
-				Content:  "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
-				IsError:  true,
-				Result:   denialResult,
-			}), nil
+			companionWasCalled = true
+			return nil, io.ErrUnexpectedEOF
 		})},
 		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
 			commandWasCalled = true
@@ -528,21 +518,26 @@ func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
 	}`))
 	if errorValue != nil {
-		t.Fatalf("expected structured not_ready denial: %v", errorValue)
+		t.Fatalf("expected structured denial: %v", errorValue)
 	}
-	if response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotReady) || strings.Contains(response.Content, "/connect") {
-		t.Fatalf("expected not_ready denial without reconnect advice, got %+v", response)
+	if response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) {
+		t.Fatalf("expected not_connected denial, got %+v", response)
+	}
+	if companionWasCalled {
+		t.Fatal("expected companion not to be called for browser tools")
 	}
 	if commandWasCalled {
-		t.Fatal("expected companion-only browser.open not to fallback to device browser")
+		t.Fatal("expected device browser not to run for companion-mode request")
 	}
 }
 
 func TestCompanionRequiredBrowserJobExpiryReportsNotReady(t *testing.T) {
+	companionWasCalled := false
 	commandWasCalled := false
 	service := Service{
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			companionWasCalled = true
 			return &http.Response{
 				StatusCode: http.StatusBadGateway,
 				Body:       io.NopCloser(strings.NewReader(`companion job expired`)),
@@ -562,17 +557,20 @@ func TestCompanionRequiredBrowserJobExpiryReportsNotReady(t *testing.T) {
 	}`))
 
 	if errorValue != nil {
-		t.Fatalf("expected structured not_ready denial: %v", errorValue)
+		t.Fatalf("expected structured denial: %v", errorValue)
 	}
 	var denial capabilities.DenialResult
 	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if denial.Code != capabilities.CapabilityNotReady || denial.Recovery != nil || strings.Contains(response.Content, "/connect") {
-		t.Fatalf("expected not_ready denial without connect recovery, got response=%+v denial=%+v", response, denial)
+	if denial.Code != capabilities.CapabilityNotConnected || denial.Recovery != nil {
+		t.Fatalf("expected not_connected denial without recovery, got response=%+v denial=%+v", response, denial)
+	}
+	if companionWasCalled {
+		t.Fatal("expected companion not to be called for browser tools")
 	}
 	if commandWasCalled {
-		t.Fatal("expected companion-required browser.open not to fallback to device browser")
+		t.Fatal("expected device browser not to run for companion-mode request")
 	}
 }
 
@@ -640,34 +638,24 @@ func TestCompanionRequiredBrowserDenialIncludesConnectRecovery(t *testing.T) {
 	}`))
 
 	if errorValue != nil {
-		t.Fatalf("expected structured companion-required denial: %v", errorValue)
+		t.Fatalf("expected structured denial: %v", errorValue)
 	}
 	var denial capabilities.DenialResult
 	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if denial.Code != capabilities.CapabilityNotConnected || denial.Recovery == nil {
-		t.Fatalf("expected not_connected recovery, got response=%+v denial=%+v", response, denial)
-	}
-	if denial.Recovery.Kind != "companion_connect" || denial.Recovery.Delivery != "dm_preferred" || denial.Recovery.ConnectCommand != "/connect" {
-		t.Fatalf("unexpected recovery action: %+v", denial.Recovery)
-	}
-	if !strings.Contains(denial.Recovery.DownloadURL, "internkim-companion-beta-macos-aarch64.dmg") {
-		t.Fatalf("expected companion download URL, got %+v", denial.Recovery)
-	}
-	if strings.Contains(response.Content, "/connect") {
-		t.Fatalf("expected short model-facing content, got %q", response.Content)
+	if denial.Code != capabilities.CapabilityNotConnected || denial.Recovery != nil {
+		t.Fatalf("expected not_connected denial without recovery, got response=%+v denial=%+v", response, denial)
 	}
 }
 
 func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
-	commandWasCalled := false
+	companionWasCalled := false
+	deviceCommandCalled := false
 	service := Service{
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/jobs" {
-				t.Fatalf("unexpected companion path: %s", request.URL.Path)
-			}
+			companionWasCalled = true
 			return jsonResponse(capabilities.ToolInvokeResponse{
 				Provider: "companion",
 				ToolName: "browser.open",
@@ -676,17 +664,17 @@ func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 			}), nil
 		})},
 		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-			commandWasCalled = true
-			return nil, nil
+			deviceCommandCalled = true
+			return nil, errors.New("device browser not configured in test")
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
-	if errorValue != nil {
-		t.Fatalf("expected companion browser response: %v", errorValue)
+	service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if companionWasCalled {
+		t.Fatal("expected browser.open to use device-only path, not companion")
 	}
-	if response.Provider != "companion" || commandWasCalled {
-		t.Fatalf("expected browser.open to use companion only, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+	if !deviceCommandCalled {
+		t.Fatal("expected device browser command to be called")
 	}
 }
 
