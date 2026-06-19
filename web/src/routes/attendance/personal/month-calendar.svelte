@@ -39,6 +39,14 @@
 		attendance.selectedDate = date;
 	}
 
+	function calendarTime(localTime: string | undefined): string {
+		return localTime ? localTime.slice(0, 5) : '-';
+	}
+
+	function segmentCountLabel(count: number): string {
+		return text.locationSegmentCountTemplate.replace('{count}', String(count));
+	}
+
 	function weekdayLabels(): string[] {
 		return [
 			text.weekdaySunday,
@@ -60,7 +68,7 @@
 		{/if}
 	</Card.Header>
 	<Card.Content>
-		<div class="grid grid-cols-7 gap-1.5 text-xs">
+		<div data-testid="personal-month-calendar-grid" class="grid min-w-0 grid-cols-7 gap-1 text-xs sm:gap-1.5">
 			{#each weekdayLabels() as label}
 				<div class="pb-1 text-center text-[11px] font-medium text-muted-foreground">{label}</div>
 			{/each}
@@ -72,24 +80,36 @@
 				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
 				<button
 					type="button"
-					class={`flex aspect-[1.05] flex-col justify-between rounded-md p-1.5 text-left transition ${cellClass(date, !!day.clockIn, !!dayAbsence)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
+					data-testid={`personal-calendar-day-${date}`}
+					class={`flex min-h-[4.75rem] min-w-0 flex-col justify-between overflow-hidden rounded-md p-0.5 text-left transition sm:aspect-[1.05] sm:min-h-0 sm:p-1.5 ${cellClass(date, !!day.clockIn, !!dayAbsence)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
 					onclick={() => selectDate(date)}
 				>
 					<span class="text-sm font-semibold leading-none">{Number(date.slice(-2))}</span>
 					{#if day.clockIn}
-						<div class="flex flex-col gap-0.5 text-[11px] font-semibold leading-tight tabular-nums">
-							<div class="flex items-center gap-1">
-								<span class="text-muted-foreground">{text.clockInShort}</span>
-								<span>{day.clockIn.localTime}</span>
+						<div class="min-w-0 space-y-0.5 text-[9px] font-normal leading-tight tabular-nums sm:text-[11px] sm:font-semibold">
+							<div
+								data-testid="personal-calendar-time-line"
+								class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-0.5 sm:gap-x-1"
+							>
+								<span class="text-muted-foreground max-[420px]:hidden">{text.clockInShort}</span>
+								<span class="min-w-0 truncate">{calendarTime(day.clockIn.localTime)}</span>
 							</div>
-							<div class="flex items-center gap-1">
-								<span class="text-muted-foreground">{text.clockOutShort}</span>
+							<div
+								data-testid="personal-calendar-time-line"
+								class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-0.5 sm:gap-x-1"
+							>
+								<span class="text-muted-foreground max-[420px]:hidden">{text.clockOutShort}</span>
 								{#if day.inProgress}
-									<span class="text-emerald-600 dark:text-emerald-400">{text.inProgress}</span>
+									<span class="min-w-0 truncate text-emerald-600 dark:text-emerald-400">{text.inProgress}</span>
 								{:else}
-									<span>{day.clockOut?.localTime ?? '-'}</span>
+									<span class="min-w-0 truncate">{calendarTime(day.clockOut?.localTime)}</span>
 								{/if}
 							</div>
+							{#if day.segments.length > 1}
+								<span class="mt-0.5 hidden w-fit max-w-full rounded bg-background/70 px-1 text-[10px] font-medium text-muted-foreground sm:inline-block">
+									{segmentCountLabel(day.segments.length)}
+								</span>
+							{/if}
 						</div>
 					{:else if dayAbsence}
 						<span class="text-[11px] font-semibold leading-tight text-info">
