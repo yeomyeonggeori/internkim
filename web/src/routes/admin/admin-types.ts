@@ -2,7 +2,7 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'companion' | 'backup' | 'users' | 'settings';
+export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'network';
 export type AdminPageText = typeof adminText.ko;
 
 export type UserRecord = {
@@ -95,46 +95,6 @@ export type RestoreUploadResponse = {
 	chunkSize: number;
 };
 
-export type CompanionCapability = {
-	name: string;
-	version?: string;
-	privacyClass?: string;
-	requiresUserPresence?: boolean;
-	worksOffline?: boolean;
-};
-
-export type CompanionStatus = {
-	companionID: string;
-	displayName: string;
-	capabilities?: CompanionCapability[];
-	localOnly?: boolean;
-	isOnline?: boolean;
-	lastSeenAt?: string;
-	disabled?: boolean;
-};
-
-export type CompanionStatusResponse = {
-	companions?: CompanionStatus[];
-};
-
-export type CompanionPairingCodeResponse = {
-	code: string;
-	expiresAt: string;
-	deepLink: string;
-};
-
-export type CompanionRelease = {
-	platform: string;
-	label: string;
-	architecture: string;
-	status?: string;
-	url: string;
-};
-
-export type CompanionReleaseResponse = {
-	platforms?: CompanionRelease[];
-};
-
 export type BotProfile = {
 	username: string;
 	displayName: string;
@@ -170,4 +130,15 @@ export type AttendanceLocation = {
 
 export type AttendanceLocationsResponse = {
 	locations?: AttendanceLocation[];
+};
+
+export type WifiProfile = {
+	name: string;
+	ssid: string;
+	isActive: boolean;
+	isManagedByInternkim: boolean;
+};
+
+export type WifiProfilesResponse = {
+	profiles?: WifiProfile[];
 };
