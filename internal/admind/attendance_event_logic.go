@@ -56,6 +56,10 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 }
 
 func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) (attendanceActionResult, error) {
+	return service.applyAttendanceActionWithResultPost(ctx, userRecord, userToken, kind, teamID, channelID, actionPostID, locationID, "")
+}
+
+func (service *Service) applyAttendanceActionWithResultPost(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string, resultPostID string) (attendanceActionResult, error) {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -79,6 +83,13 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 	}
 	if shouldIgnore {
 		return ignoredAttendanceActionResult(), nil
+	}
+	accidentalResult, handled, errorValue := service.handleAccidentalAttendanceSequence(ctx, database, userRecord.ID, userToken, kind, eventLocation, lastEvent, found, now)
+	if errorValue != nil || handled {
+		return accidentalResult, errorValue
+	}
+	if strings.TrimSpace(resultPostID) != "" {
+		return service.createAttendanceEventFromExistingResultPostForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation, resultPostID)
 	}
 	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
 }
@@ -144,6 +155,41 @@ func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, datab
 	return updatedAttendanceActionResult(event.ResultPostID), service.cancelAttendanceEvent(ctx, database, userToken, event, occurredAt)
 }
 
+func (service *Service) handleAccidentalAttendanceSequence(ctx context.Context, database *sql.DB, mattermostUserID string, userToken string, kind string, eventLocation attendanceLocation, lastEvent attendanceEvent, hasLastEvent bool, occurredAt time.Time) (attendanceActionResult, bool, error) {
+	if kind == attendanceKindClockOut && hasLastEvent && lastEvent.Kind == attendanceKindClockIn && attendanceEventOccurredWithin(lastEvent, occurredAt, attendanceAccidentalSequenceWindow) {
+		errorValue := service.cancelAttendanceEventWithReason(ctx, database, userToken, lastEvent, occurredAt, attendanceAccidentalShortSegmentCancelReason, "")
+		return updatedAttendanceActionResult(lastEvent.ResultPostID), true, errorValue
+	}
+	if kind != attendanceKindClockIn {
+		return attendanceActionResult{}, false, nil
+	}
+	clockOutEvent, foundClockOut, errorValue := service.latestAccidentalClockOutEvent(ctx, database, mattermostUserID, lastEvent, hasLastEvent, occurredAt)
+	if errorValue != nil || !foundClockOut {
+		return attendanceActionResult{}, false, errorValue
+	}
+	clockOutOccurredAt, errorValue := parseAttendanceEventTime(clockOutEvent.OccurredAt)
+	if errorValue != nil {
+		return attendanceActionResult{}, false, errorValue
+	}
+	clockInEvent, foundClockIn, errorValue := service.latestActiveAttendanceEventBefore(ctx, database, mattermostUserID, attendanceKindClockIn, clockOutOccurredAt)
+	if errorValue != nil || !foundClockIn || !attendanceEventLocationMatches(clockInEvent, eventLocation) {
+		return attendanceActionResult{}, false, errorValue
+	}
+	errorValue = service.cancelAttendanceEventWithReason(ctx, database, userToken, clockOutEvent, occurredAt, attendanceSameLocationResumeCancelReason, "")
+	return updatedAttendanceActionResult(clockOutEvent.ResultPostID), true, errorValue
+}
+
+func (service *Service) latestAccidentalClockOutEvent(ctx context.Context, database *sql.DB, mattermostUserID string, lastEvent attendanceEvent, hasLastEvent bool, occurredAt time.Time) (attendanceEvent, bool, error) {
+	if hasLastEvent && lastEvent.Kind == attendanceKindClockOut && attendanceEventOccurredWithin(lastEvent, occurredAt, attendanceAccidentalSequenceWindow) {
+		return lastEvent, true, nil
+	}
+	event, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, mattermostUserID)
+	if errorValue != nil || !found || event.Kind != attendanceKindClockOut || !attendanceEventOccurredWithin(event, occurredAt, attendanceAccidentalSequenceWindow) {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
 func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) (attendanceActionResult, error) {
 	kind := nextAttendanceKind(lastEvent, hasLastEvent)
 	eventLocation := attendanceLocation{}
@@ -165,8 +211,41 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
+	return service.insertAttendanceEventForKind(ctx, database, userRecord, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
+}
+
+func (service *Service) createAttendanceEventFromExistingResultPostForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if errorValue := service.deleteLatestAttendanceResultPostForUserAndKind(ctx, database, adminToken, userRecord.ID, kind); errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if errorValue := service.patchMattermostAttendanceResultPost(ctx, userToken, resultPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation)); errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	return service.insertAttendanceEventForKind(ctx, database, userRecord, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
+}
+
+func (service *Service) insertAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
 	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
+	var errorValue error
+	if kind == attendanceKindClockOut {
+		event.LocalDate, errorValue = service.attendanceClockOutLocalDate(ctx, database, userRecord.ID, occurredAt, event.LocalDate)
+		if errorValue != nil {
+			return attendanceActionResult{}, errorValue
+		}
+	}
 	return createdAttendanceActionResult(resultPostID), service.insertAttendanceEvent(ctx, database, event)
+}
+
+func (service *Service) attendanceClockOutLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, occurredAt time.Time, fallbackLocalDate string) (string, error) {
+	event, found, errorValue := service.latestActiveAttendanceEventBefore(ctx, database, mattermostUserID, attendanceKindClockIn, occurredAt)
+	if errorValue != nil || !found || strings.TrimSpace(event.LocalDate) == "" {
+		return fallbackLocalDate, errorValue
+	}
+	return event.LocalDate, nil
 }
 
 func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx context.Context, database *sql.DB, adminToken string, mattermostUserID string, kind string) error {
@@ -178,6 +257,10 @@ func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx conte
 }
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
+	return service.cancelAttendanceEventWithReason(ctx, database, userToken, event, canceledAt, attendanceCancelReason, canceledAt.Format(time.RFC3339))
+}
+
+func (service *Service) cancelAttendanceEventWithReason(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time, reason string, repeatedClickAt string) error {
 	message := service.attendanceCancelMessage(event.Kind, attendanceLocation{ID: event.LocationID, Name: event.LocationName})
 	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
 		return errorValue
@@ -187,8 +270,8 @@ UPDATE attendance_events
 SET canceled_at = ?, cancel_reason = ?, repeated_click_at = ?
 WHERE id = ?`,
 		canceledAt.Format(time.RFC3339),
-		attendanceCancelReason,
-		canceledAt.Format(time.RFC3339),
+		reason,
+		repeatedClickAt,
 		event.ID,
 	)
 	return errorValue

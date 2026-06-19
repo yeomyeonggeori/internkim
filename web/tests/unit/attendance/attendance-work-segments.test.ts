@@ -17,6 +17,8 @@ describe('attendance work segments', () => {
 		expect(day.workedMinutes).toBe(150);
 		expect(day.segments.map((segment) => segment.locationName)).toEqual(['재택', '사무실']);
 		expect(day.segments.map((segment) => segment.workedMinutes)).toEqual([90, 60]);
+		expect(day.clockIn?.localTime).toBe('17:00:00');
+		expect(day.clockOut?.localTime).toBe('18:00:00');
 	});
 
 	test('marks the latest unclosed location as the active segment', () => {
@@ -31,6 +33,7 @@ describe('attendance work segments', () => {
 		expect(day.inProgress).toBe(true);
 		expect(day.activeSegment?.locationName).toBe('외부');
 		expect(day.activeSegment?.startTime).toBe('18:00:00');
+		expect(day.clockIn?.localTime).toBe('18:00:00');
 		expect(day.workedMinutes).toBe(90);
 	});
 
