@@ -63,7 +63,7 @@ func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	channelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, adminToken, teamRecord.ID)
+	channelID, errorValue := service.mattermostAttendanceActionChannelID(ctx, adminToken, teamRecord.ID, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
