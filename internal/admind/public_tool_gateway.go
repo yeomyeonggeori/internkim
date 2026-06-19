@@ -22,6 +22,34 @@ import (
 
 const publicAPITokenStoreFilename = "api-tokens.json"
 
+const (
+	publicAPIScopeRead          = "read"
+	publicAPIScopeWrite         = "write"
+	publicAPIScopeExternalWrite = "external_write"
+	publicAPIScopeExternalSend  = "external_send"
+	publicAPIScopePublish       = "publish"
+	publicAPIScopeConnect       = "connect"
+	publicAPIScopeDestructive   = "destructive"
+	publicAPIScopeCompanion     = "companion"
+	publicAPIScopeAgentRun      = "agent.run"
+	publicAPIScopeAdmin         = "admin"
+)
+
+func knownPublicAPIScopes() []string {
+	return []string{
+		publicAPIScopeRead,
+		publicAPIScopeWrite,
+		publicAPIScopeExternalWrite,
+		publicAPIScopeExternalSend,
+		publicAPIScopePublish,
+		publicAPIScopeConnect,
+		publicAPIScopeDestructive,
+		publicAPIScopeCompanion,
+		publicAPIScopeAgentRun,
+		publicAPIScopeAdmin,
+	}
+}
+
 type publicAPITokenRecord struct {
 	ID        string    `json:"id"`
 	Label     string    `json:"label"`
@@ -69,8 +97,12 @@ func (service *Service) handlePublicAPI(responseWriter http.ResponseWriter, requ
 		return
 	}
 	switch {
+	case request.Method == http.MethodPost && path == "/agent/messages":
+		service.handleAgentMessage(responseWriter, request, actor)
+	case request.Method == http.MethodGet && path == "/agent/replies":
+		service.handleAgentReplies(responseWriter, request, actor)
 	case request.Method == http.MethodGet && path == "/tools":
-		service.writePublicTools(responseWriter, actor)
+		service.writePublicTools(responseWriter, request, actor)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/tools/"):
 		service.writePublicTool(responseWriter, request, actor, strings.TrimPrefix(path, "/tools/"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/tools/") && strings.HasSuffix(path, "/invoke"):
@@ -158,13 +190,21 @@ func (service *Service) authenticatePublicAPIToolRequest(responseWriter http.Res
 	return publicToolGatewayActor{Record: record, Actor: publicAPIActorContext(record, actor.isAdmin())}, true
 }
 
-func (service *Service) writePublicTools(responseWriter http.ResponseWriter, actor publicToolGatewayActor) {
-	descriptors := publicToolDescriptorsForActor(actor)
+func (service *Service) writePublicTools(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
+	descriptors, errorValue := service.publicToolDescriptorsForActor(request.Context(), actor)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]any{"tools": descriptors})
 }
 
 func (service *Service) writePublicTool(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor, rawToolName string) {
-	descriptor, ok := publicToolDescriptor(strings.Trim(rawToolName, "/"))
+	descriptor, ok, errorValue := service.publicToolDescriptor(request.Context(), strings.Trim(rawToolName, "/"))
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
 	if !ok || !publicToolAllowedForActor(descriptor, actor) {
 		http.NotFound(responseWriter, request)
 		return
@@ -174,7 +214,11 @@ func (service *Service) writePublicTool(responseWriter http.ResponseWriter, requ
 
 func (service *Service) invokePublicTool(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor, rawToolName string) {
 	toolName := strings.Trim(rawToolName, "/")
-	descriptor, ok := publicToolDescriptor(toolName)
+	descriptor, ok, errorValue := service.publicToolDescriptor(request.Context(), toolName)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
 	if !ok || !publicToolAllowedForActor(descriptor, actor) {
 		http.Error(responseWriter, "tool is not available for this token", http.StatusForbidden)
 		return
@@ -193,22 +237,49 @@ func (service *Service) invokePublicTool(responseWriter http.ResponseWriter, req
 	service.writeCapabilityResponse(responseWriter, response, errorValue)
 }
 
-func (service *Service) invokeCapabilityTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	document, errorValue := json.Marshal(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	httpClient := http.Client{
+func (service *Service) capabilitySocketClient() http.Client {
+	return http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network string, address string) (net.Conn, error) {
-				_ = network
-				_ = address
+			DialContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
 				var dialer net.Dialer
 				return dialer.DialContext(ctx, "unix", service.Configuration.CapabilitySocketPath)
 			},
 		},
 		Timeout: 90 * time.Second,
 	}
+}
+
+func (service *Service) fetchCapabilityRegistry(ctx context.Context) (capabilities.RegistryResponse, error) {
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, "http://internkim/v1/capabilities", nil)
+	if errorValue != nil {
+		return capabilities.RegistryResponse{}, errorValue
+	}
+	httpClient := service.capabilitySocketClient()
+	httpResponse, errorValue := httpClient.Do(httpRequest)
+	if errorValue != nil {
+		return capabilities.RegistryResponse{}, errorValue
+	}
+	defer httpResponse.Body.Close()
+	responseDocument, readError := io.ReadAll(httpResponse.Body)
+	if readError != nil {
+		return capabilities.RegistryResponse{}, readError
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return capabilities.RegistryResponse{}, fmt.Errorf("capability registry failed: %s", strings.TrimSpace(string(responseDocument)))
+	}
+	var registry capabilities.RegistryResponse
+	if errorValue := json.Unmarshal(responseDocument, &registry); errorValue != nil {
+		return capabilities.RegistryResponse{}, errorValue
+	}
+	return registry, nil
+}
+
+func (service *Service) invokeCapabilityTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	httpClient := service.capabilitySocketClient()
 	requestURL := "http://internkim/v1/tools/" + request.ToolName + "/invoke"
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(document))
 	if errorValue != nil {
@@ -244,20 +315,22 @@ func (service *Service) writeCapabilityResponse(responseWriter http.ResponseWrit
 
 func decodePublicToolInvokeRequest(reader io.Reader) (capabilities.ToolInvokeRequest, error) {
 	var request capabilities.ToolInvokeRequest
+	errorValue := decodeOptionalJSONBody(reader, &request)
+	return request, errorValue
+}
+
+func decodeOptionalJSONBody(reader io.Reader, target any) error {
 	if reader == nil {
-		return request, nil
+		return nil
 	}
 	document, errorValue := io.ReadAll(reader)
 	if errorValue != nil {
-		return capabilities.ToolInvokeRequest{}, errorValue
+		return errorValue
 	}
 	if len(bytes.TrimSpace(document)) == 0 {
-		return request, nil
+		return nil
 	}
-	if errorValue := json.Unmarshal(document, &request); errorValue != nil {
-		return capabilities.ToolInvokeRequest{}, errorValue
-	}
-	return request, nil
+	return json.Unmarshal(document, target)
 }
 
 func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabilities.Descriptor) capabilities.ToolInvokeContext {
@@ -271,55 +344,42 @@ func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabil
 	}
 }
 
-func publicToolDescriptorsForActor(actor publicToolGatewayActor) []capabilities.Descriptor {
-	descriptors := publicToolDescriptors()
+func (service *Service) exposableCapabilityDescriptors(ctx context.Context) ([]capabilities.Descriptor, error) {
+	registry, errorValue := service.fetchCapabilityRegistry(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	descriptors := make([]capabilities.Descriptor, 0, len(registry.DeviceCapabilities)+len(registry.CompanionCapabilities))
+	descriptors = append(descriptors, registry.DeviceCapabilities...)
+	descriptors = append(descriptors, registry.CompanionCapabilities...)
+	return descriptors, nil
+}
+
+func (service *Service) publicToolDescriptorsForActor(ctx context.Context, actor publicToolGatewayActor) ([]capabilities.Descriptor, error) {
+	descriptors, errorValue := service.exposableCapabilityDescriptors(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	allowedDescriptors := make([]capabilities.Descriptor, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		if publicToolAllowedForActor(descriptor, actor) {
 			allowedDescriptors = append(allowedDescriptors, descriptor)
 		}
 	}
-	return allowedDescriptors
+	return allowedDescriptors, nil
 }
 
-func publicToolDescriptor(toolName string) (capabilities.Descriptor, bool) {
-	for _, descriptor := range publicToolDescriptors() {
+func (service *Service) publicToolDescriptor(ctx context.Context, toolName string) (capabilities.Descriptor, bool, error) {
+	descriptors, errorValue := service.exposableCapabilityDescriptors(ctx)
+	if errorValue != nil {
+		return capabilities.Descriptor{}, false, errorValue
+	}
+	for _, descriptor := range descriptors {
 		if descriptor.Name == toolName {
-			return descriptor, true
+			return descriptor, true, nil
 		}
 	}
-	return capabilities.Descriptor{}, false
-}
-
-func publicToolDescriptors() []capabilities.Descriptor {
-	names := map[string]bool{
-		"flow.task.add":              true,
-		"flow.task.list":             true,
-		"flow.task.update":           true,
-		"flow.task.delete":           true,
-		"calendar.event.add":         true,
-		"calendar.event.list":        true,
-		"calendar.event.update":      true,
-		"calendar.event.delete":      true,
-		"calendar.connection.status": true,
-		"calendar.connection.start":  true,
-		"mail.connection.status":     true,
-		"mail.connection.start":      true,
-		"mail.message.list":          true,
-		"mail.message.search":        true,
-		"mail.message.read":          true,
-		"mail.message.send":          true,
-		"platform.message.context":   true,
-		"platform.message.search":    true,
-		"platform.message.send":      true,
-	}
-	descriptors := make([]capabilities.Descriptor, 0, len(names))
-	for _, descriptor := range capabilities.DeviceDescriptors() {
-		if names[descriptor.Name] {
-			descriptors = append(descriptors, descriptor)
-		}
-	}
-	return descriptors
+	return capabilities.Descriptor{}, false, nil
 }
 
 func publicToolAllowedForActor(descriptor capabilities.Descriptor, actor publicToolGatewayActor) bool {
@@ -328,22 +388,37 @@ func publicToolAllowedForActor(descriptor capabilities.Descriptor, actor publicT
 }
 
 func publicToolScopeForDescriptor(descriptor capabilities.Descriptor) string {
+	if isUserLocalPrivacyClass(descriptor.PrivacyClass) {
+		return publicAPIScopeCompanion
+	}
 	switch descriptor.SideEffectClass {
 	case "read":
 		return ""
 	case "workspace_write", "workspace_calendar", "workspace_task":
-		return "write"
+		return publicAPIScopeWrite
+	case "external_write":
+		return publicAPIScopeExternalWrite
 	case "external_send":
-		return "external_send"
+		return publicAPIScopeExternalSend
+	case "external_publish", "site_publish":
+		return publicAPIScopePublish
 	case "connect":
-		return "connect"
+		return publicAPIScopeConnect
 	case "destructive":
-		return "destructive"
+		return publicAPIScopeDestructive
+	case "browser", "browser_write", "handoff", "local_file", "approval":
+		return publicAPIScopeCompanion
 	default:
-		if descriptor.RequiresApproval {
-			return "write"
-		}
-		return "write"
+		return publicAPIScopeAdmin
+	}
+}
+
+func isUserLocalPrivacyClass(privacyClass string) bool {
+	switch privacyClass {
+	case "user_browser", "user_input", "local_file":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -359,11 +434,12 @@ func publicAPIActorContext(record publicAPITokenRecord, isAdmin bool) capabiliti
 }
 
 func normalizePublicAPITokenScopes(scopes []string) []string {
+	known := knownPublicAPIScopes()
 	seen := map[string]bool{}
 	normalizedScopes := make([]string, 0, len(scopes)+1)
-	for _, scope := range append([]string{"read"}, scopes...) {
+	for _, scope := range append([]string{publicAPIScopeRead}, scopes...) {
 		normalizedScope := strings.ToLower(strings.TrimSpace(scope))
-		if normalizedScope == "" || seen[normalizedScope] {
+		if normalizedScope == "" || seen[normalizedScope] || !slices.Contains(known, normalizedScope) {
 			continue
 		}
 		seen[normalizedScope] = true
