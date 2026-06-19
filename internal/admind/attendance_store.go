@@ -112,6 +112,22 @@ LIMIT 1`, mattermostUserID, kind)
 	return event, true, nil
 }
 
+func (service *Service) latestActiveAttendanceEventBefore(ctx context.Context, database *sql.DB, mattermostUserID string, kind string, occurredAt time.Time) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE mattermost_user_id = ? AND kind = ? AND occurred_at < ? AND canceled_at = ''
+ORDER BY occurred_at DESC
+LIMIT 1`, mattermostUserID, kind, occurredAt.UTC().Format(time.RFC3339Nano))
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
 func (service *Service) markAttendanceRepeatedClick(ctx context.Context, database *sql.DB, eventID string, occurredAt time.Time) error {
 	_, errorValue := database.ExecContext(ctx, "UPDATE attendance_events SET repeated_click_at = ? WHERE id = ?", occurredAt.Format(time.RFC3339), eventID)
 	if errorValue != nil {

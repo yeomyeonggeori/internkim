@@ -35,6 +35,8 @@ func TestAttendanceChannelPostAllowsOvernightClockOut(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
 	service.saveMattermostAttendanceEntryPostID("entry-post")
+	location, _ := service.workspaceTimeLocation()
+	expectedWorkDate := time.Now().In(location).AddDate(0, 0, -1).Format("2006-01-02")
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -56,7 +58,7 @@ func TestAttendanceChannelPostAllowsOvernightClockOut(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	events, errorValue := service.readAttendanceEvents(context.Background(), expectedWorkDate[:7], "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -73,6 +75,8 @@ func TestAttendanceChannelPostAllowsOvernightClockOut(t *testing.T) {
 
 func TestAttendanceToggleAfterOvernightClockInProducesClockOut(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
+	location, _ := service.workspaceTimeLocation()
+	expectedWorkDate := time.Now().In(location).AddDate(0, 0, -1).Format("2006-01-02")
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -89,9 +93,12 @@ func TestAttendanceToggleAfterOvernightClockInProducesClockOut(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	events, errorValue := service.readAttendanceEvents(context.Background(), expectedWorkDate[:7], "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	if len(events) == 0 {
+		t.Fatalf("expected overnight events for %s", expectedWorkDate[:7])
 	}
 	latestEvent := events[0]
 	for _, event := range events {
@@ -102,12 +109,83 @@ func TestAttendanceToggleAfterOvernightClockInProducesClockOut(t *testing.T) {
 	if latestEvent.Kind != attendanceKindClockOut {
 		t.Fatalf("expected toggle to clock out after overnight clock-in, events = %+v", events)
 	}
+	if latestEvent.LocalDate != expectedWorkDate {
+		t.Fatalf("expected clock-out work date %s, got %+v", expectedWorkDate, latestEvent)
+	}
+}
+
+func TestAttendanceOvernightClockOutStaysInClockInMonthAcrossBoundaries(t *testing.T) {
+	cases := []struct {
+		name      string
+		clockIn   time.Time
+		clockOut  time.Time
+		workMonth string
+		nextMonth string
+		workDate  string
+	}{
+		{
+			name:      "month end",
+			clockIn:   time.Date(2026, 6, 30, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			clockOut:  time.Date(2026, 7, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			workMonth: "2026-06",
+			nextMonth: "2026-07",
+			workDate:  "2026-06-30",
+		},
+		{
+			name:      "year end",
+			clockIn:   time.Date(2026, 12, 31, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			clockOut:  time.Date(2027, 1, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			workMonth: "2026-12",
+			nextMonth: "2027-01",
+			workDate:  "2026-12-31",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service, _ := newAttendanceActionTestService(t)
+			if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			database, errorValue := service.openAttendanceDatabase(context.Background())
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			defer database.Close()
+			userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+
+			if _, errorValue := service.createAttendanceEventForKind(context.Background(), database, userRecord, "user-token", attendanceKindClockIn, "team-1", "attendance-channel", "entry-post", testCase.clockIn.UTC(), service.attendanceLocationByID("office")); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if _, errorValue := service.createAttendanceEventForKind(context.Background(), database, userRecord, "user-token", attendanceKindClockOut, "team-1", "attendance-channel", "entry-post", testCase.clockOut.UTC(), attendanceLocation{}); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+
+			workMonthEvents, errorValue := service.readAttendanceEvents(context.Background(), testCase.workMonth, "")
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			nextMonthEvents, errorValue := service.readAttendanceEvents(context.Background(), testCase.nextMonth, "")
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(workMonthEvents) != 2 || len(nextMonthEvents) != 0 {
+				t.Fatalf("work month events = %+v next month events = %+v", workMonthEvents, nextMonthEvents)
+			}
+			clockOutEvent, found := findAttendanceEventByKind(workMonthEvents, attendanceKindClockOut)
+			if !found || clockOutEvent.LocalDate != testCase.workDate {
+				t.Fatalf("clock out event = %+v", clockOutEvent)
+			}
+		})
+	}
 }
 
 func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
 	service.saveMattermostAttendanceEntryPostID("entry-post")
+	location, _ := service.workspaceTimeLocation()
+	forgottenWorkMonth := time.Now().In(location).AddDate(0, 0, -1).Format("2006-01")
+	currentWorkMonth := time.Now().In(location).Format("2006-01")
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -129,9 +207,16 @@ func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	events, errorValue := service.readAttendanceEvents(context.Background(), forgottenWorkMonth, "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	if currentWorkMonth != forgottenWorkMonth {
+		currentMonthEvents, errorValue := service.readAttendanceEvents(context.Background(), currentWorkMonth, "")
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		events = append(events, currentMonthEvents...)
 	}
 	clockInCount := 0
 	for _, event := range events {
