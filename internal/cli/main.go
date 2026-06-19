@@ -4574,6 +4574,11 @@ func resolveSetupSSHCredentials(boardType string, requestedUser string, requeste
 	if requestedPassword == "" {
 		requestedPassword = os.Getenv("INTERNKIM_CONSOLE_PASSWORD")
 	}
+	if requestedPassword == "" {
+		if data, err := os.ReadFile(".local/secrets/console-password"); err == nil {
+			requestedPassword = strings.TrimSpace(string(data))
+		}
+	}
 	return requestedUser, requestedPassword
 }
 

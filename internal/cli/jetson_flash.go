@@ -105,8 +105,8 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	if errorValue := verifyJetsonRootPatch(rootPatch); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := updateEnvFile("INTERNKIM_CONSOLE_PASSWORD", consolePassword); errorValue != nil {
-		return fmt.Errorf("save console password to .env: %w", errorValue)
+	if errorValue := saveConsolePassword(consolePassword); errorValue != nil {
+		return errorValue
 	}
 
 	fmt.Println()
@@ -115,7 +115,8 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	fmt.Println("========================================")
 	fmt.Println()
 	fmt.Printf("  user: %s\n", username)
-	fmt.Printf("  password: %s (saved to .env)\n", consolePassword)
+	fmt.Printf("  password: %s\n", consolePassword)
+	fmt.Println(messenger.t("  저장: .env, .local/secrets/console-password, macOS Keychain", "  Saved: .env, .local/secrets/console-password, macOS Keychain"))
 	fmt.Println(messenger.t("  SD 카드를 Jetson에 다시 꽂고 부팅하세요.", "  Put the SD card back into the Jetson and boot it."))
 	return nil
 }
@@ -546,6 +547,23 @@ func generateConsolePassword() (string, error) {
 		randomBytes[index] = alphabet[int(byteValue)%len(alphabet)]
 	}
 	return string(randomBytes), nil
+}
+
+func saveConsolePassword(password string) error {
+	if errorValue := updateEnvFile("INTERNKIM_CONSOLE_PASSWORD", password); errorValue != nil {
+		return fmt.Errorf("save console password to .env: %w", errorValue)
+	}
+	secretsPath := ".local/secrets/console-password"
+	if errorValue := os.MkdirAll(".local/secrets", 0o700); errorValue != nil {
+		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
+	}
+	if errorValue := os.WriteFile(secretsPath, []byte(password), 0o600); errorValue != nil {
+		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
+	}
+	_ = exec.Command("security", "add-generic-password",
+		"-a", "internkim", "-s", "internkim-console", "-w", password, "-U",
+	).Run()
+	return nil
 }
 
 func hashPasswordSHA512Crypt(password string) (string, error) {
