@@ -162,6 +162,68 @@ router's upload queue filling under load. Fix order for the WAN case:
 5. On the LAN, restart the tunnel after fixing the link:
    `systemctl restart cloudflared cloudflared-node-ssh`.
 
+## Tunnel recovery: how it works, and how to improve it
+
+We cannot fix the WAN/ISP jitter from the device, so the strategy is **recover
+fast and reliably from each flap** instead of preventing it. Three layers, all
+provisioned (`internal/cli/wifi_profiles.go`, `setup_flow.go`, `firstboot.go`):
+
+1. **`cloudflared --protocol quic`** (the tunnel transport). QUIC runs over UDP
+   with its own loss/jitter recovery and per-connection independence. Observed
+   2026-06-20: under the same WAN jitter, only one of the four edge connections
+   drops at a time (the others keep the tunnel at HTTP 200) and it **re-registers
+   in ~1s**, versus HTTP/2 where all four dropped together and stalled for
+   minutes. UDP `:7844` outbound must be open (verified). If an ISP ever throttles
+   UDP, revert to `http2` (`--protocol`) — the one knob.
+2. **`internkim-tunnel-recovery` watchdog** (the backstop). A timer fires every
+   60s and runs `/usr/local/lib/internkim/tunnel-recovery.sh`, which reads the
+   `cloudflared` journal for the last 75s: if there were disconnect events but
+   **zero** `Registered tunnel connection`, the connector is stuck, so it
+   `systemctl restart cloudflared`. This bounds a stuck-down window to ~75–135s
+   and forces fresh edge-IP selection. It is a no-op when the tunnel is healthy
+   (recent registration) or quiet (no disconnects), so it never churns a working
+   tunnel.
+3. **systemd `Restart=always`** only catches a *process exit*; during a flap
+   `cloudflared` stays alive and retries internally, so layers 1–2 are what
+   actually carry recovery. (`internkim-wifi-recovery` every 2 min and
+   `internkim-network-snapshot` every 5 min cover the WiFi-link and diagnostics
+   sides separately.)
+
+Verify the recovery layers on the device:
+
+```sh
+grep -h ExecStart /etc/systemd/system/cloudflared*.service        # expect --protocol quic
+systemctl is-enabled internkim-tunnel-recovery.timer              # expect enabled
+journalctl -t internkim-tunnel-recovery -n 20 --no-pager          # watchdog restart history
+journalctl -u cloudflared --since=-10min | grep -oE 'protocol=(quic|http2)' | sort | uniq -c
+```
+
+### To improve recovery further (in rough order of leverage)
+
+1. **Cure the source (outside the device):** the real fix is the WAN/ISP — enable
+   **SQM/QoS (bufferbloat control)** on the router, reboot/update it, or escalate
+   the line to the ISP. Everything below only mitigates.
+2. **Second uplink / failover:** an LTE or second-WAN path with `cloudflared`'s
+   HA connections riding both removes the single-uplink dependency. Highest-impact
+   software-reachable option when the primary ISP cannot be fixed.
+3. **Metrics-based watchdog instead of journal grep:** run `cloudflared` with
+   `--metrics 127.0.0.1:<port>` and have the watchdog read the
+   `cloudflared_tunnel_ha_connections` gauge (restart when it hits 0). More precise
+   than parsing log lines, and immune to journal wording changes. Current ceiling:
+   the watchdog keys on log strings (`Registered tunnel connection`, `Lost
+   connection`, …) — if cloudflared changes its log format, update the patterns.
+4. **Tune the watchdog window/interval** (`window=-75s`, `OnUnitActiveSec=60s` in
+   `wifi_profiles.go`): shorter = faster restart but more risk of restarting a
+   tunnel that was about to recover on its own. 75s/60s was chosen so QUIC's ~1s
+   native reconnect almost always wins first and the watchdog only fires on a
+   genuine multi-minute stall.
+5. **External watcher** (off-device): a second host that probes the public URL and
+   triggers `internkim recover ssh -action restart-cloudflared-node-ssh` when it
+   stays down — covers the case where the device itself is too wedged to self-heal.
+6. **Wired Ethernet** only helps if the *local* hop degrades (gateway ping loss);
+   it does nothing for WAN/ISP jitter. See "Localize first" above before reaching
+   for it.
+
 ## LAN fallback (when you are on the same network)
 
 Cloudflare-independent. The Jetson's LAN IP has been `192.168.0.248`.
