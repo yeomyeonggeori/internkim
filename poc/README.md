@@ -124,6 +124,15 @@ POSTGRES_HOST=$PG_IP TENANT_COUNT=15 bash poc/generate-configs.sh
 python3 poc/start-poc.py 15
 ```
 
+### Cloudflare 터널 재시작
+
+```bash
+python3 poc/restart-tunnel.py
+```
+
+컨테이너 IP가 바뀌면 터널 ingress도 자동으로 업데이트한다.
+`~/internkim-poc/cf.env`에 `CF_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` 필요.
+
 ### 인프라만 재시작
 
 ```bash
@@ -133,6 +142,7 @@ sleep 5
 container start poc-mattermost
 sleep 10
 python3 poc/start-poc.py
+python3 poc/restart-tunnel.py
 ```
 
 ### 컨테이너 상태 확인
@@ -160,6 +170,6 @@ container exec poc-tenant-01 cat /tmp/blueclaw.log
 
 ## 미구현 항목
 
-- Cloudflare 터널 (테넌트당 외부 주소)
+- 테넌트별 Cloudflare 터널 (현재는 poc-0.intern.kim → Mattermost 단일 터널만)
 - 터미널 툴체인 (bun/uv/python) — `terminal.run` 태스크 필요 시 이미지에 추가
 - POSIX per-person 격리

@@ -8,3 +8,4 @@ sleep 5
 container start poc-mattermost 2>/dev/null || true
 sleep 10
 python3 "$(dirname "$0")/start-poc.py"
+python3 "$(dirname "$0")/restart-tunnel.py"
