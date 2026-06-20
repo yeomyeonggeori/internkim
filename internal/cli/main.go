@@ -3903,7 +3903,7 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 
 	// ── 6. Cloudflared service ──
 	fmt.Println("    cloudflared service")
-	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target time-sync.target\nWants=network-online.target time-sync.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target time-sync.target\nWants=network-online.target time-sync.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 	writeContent(cfService, "/etc/systemd/system/cloudflared.service", "0100644")
 	mkSymlink("/etc/systemd/system/multi-user.target.wants/cloudflared.service",
 		"/etc/systemd/system/cloudflared.service")
@@ -4710,7 +4710,7 @@ Wants=network-online.target time-sync.target
 
 [Service]
 Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/tunnel-token)"'
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/tunnel-token)"'
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -4727,7 +4727,7 @@ Wants=network-online.target time-sync.target
 
 [Service]
 Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
 Restart=always
 RestartSec=5
 StandardOutput=journal
