@@ -613,6 +613,9 @@ type jetsonPatchDocuments struct {
 	wifiSelector     string
 	wifiRecovery     string
 	wifiTimer        string
+	networkSnapshot  string
+	networkTimer     string
+	journalConfig    string
 	firstbootScript  string
 	firstbootService string
 }
@@ -731,7 +734,11 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 		partitionDevice,
 		jetsonWiFiConnectionDirectory,
 		filepath.Dir(jetsonWiFiSelectorScriptPath),
+		filepath.Dir(jetsonNetworkSnapshotScriptPath),
 		filepath.Dir(jetsonWiFiRecoveryServicePath),
+		filepath.Dir(jetsonPersistentJournalConfigurationPath),
+		"/var/log/internkim/network-snapshots",
+		"/var/log/journal",
 		"/etc/systemd/system/timers.target.wants",
 	)
 	for _, profile := range profiles {
@@ -743,15 +750,28 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiSelectorScriptPath, buildJetsonWiFiSelectorScript()+"\n", "0100755", 0, 0); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonPersistentJournalConfigurationPath, buildJetsonPersistentJournalConfiguration(), "0100644", 0, 0); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonNetworkSnapshotScriptPath, buildJetsonNetworkSnapshotScript()+"\n", "0100755", 0, 0); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiRecoveryServicePath, buildJetsonWiFiRecoveryService(), "0100644", 0, 0); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiRecoveryTimerPath, buildJetsonWiFiRecoveryTimer(), "0100644", 0, 0); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonNetworkSnapshotServicePath, buildJetsonNetworkSnapshotService(), "0100644", 0, 0); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonNetworkSnapshotTimerPath, buildJetsonNetworkSnapshotTimer(), "0100644", 0, 0); errorValue != nil {
+		return errorValue
+	}
 	_, _ = runDebugfs(partitionDevice, true, "mkdir /etc/systemd/system/multi-user.target.wants")
 	_, _ = runDebugfs(partitionDevice, true, "symlink /etc/systemd/system/multi-user.target.wants/NetworkManager.service /lib/systemd/system/NetworkManager.service")
 	_, _ = runDebugfs(partitionDevice, true, "symlink /etc/systemd/system/timers.target.wants/internkim-wifi-recovery.timer "+jetsonWiFiRecoveryTimerPath)
+	_, _ = runDebugfs(partitionDevice, true, "symlink /etc/systemd/system/timers.target.wants/internkim-network-snapshot.timer "+jetsonNetworkSnapshotTimerPath)
 	return nil
 }
 
@@ -812,7 +832,7 @@ func escapeNetworkManagerValue(value string) string {
 }
 
 func buildJetsonFirstbootScript() string {
-	return strings.TrimSpace(`#!/bin/bash
+	document := strings.TrimSpace(`#!/bin/bash
 set -euo pipefail
 exec > /var/log/internkim-jetson-firstboot.log 2>&1
 
@@ -910,10 +930,16 @@ systemctl enable NetworkManager.service 2>/dev/null || true
 systemctl start NetworkManager.service 2>/dev/null || true
 systemctl enable ssh.service 2>/dev/null || systemctl enable sshd.service 2>/dev/null || true
 systemctl restart ssh.service 2>/dev/null || systemctl restart sshd.service 2>/dev/null || true
+__INTERNKIM_NETWORK_SNAPSHOT__
+systemctl restart systemd-journald 2>/dev/null || true
+systemctl daemon-reload
+systemctl enable --now internkim-network-snapshot.timer 2>/dev/null || true
+systemctl start internkim-network-snapshot.service 2>/dev/null || true
 
 if wait_for_network_manager; then
   nmcli connection reload 2>/dev/null || true
   nmcli radio wifi on 2>/dev/null || true
+  __INTERNKIM_ETHERNET_PRIORITY__
   if [ -x /usr/local/bin/internkim-wifi-select ]; then
     /usr/local/bin/internkim-wifi-select 2>/dev/null || true
   fi
@@ -935,7 +961,10 @@ upgrade_jetpack
 
 touch /var/lib/internkim/jetson-firstboot.done
 echo "Jetson firstboot complete"
-`) + "\n"
+`)
+	document = strings.ReplaceAll(document, "__INTERNKIM_ETHERNET_PRIORITY__", buildJetsonEthernetPriorityScript())
+	document = strings.ReplaceAll(document, "__INTERNKIM_NETWORK_SNAPSHOT__", buildJetsonNetworkSnapshotFilesScript())
+	return document + "\n"
 }
 
 func installJetsonFirstboot(partitionDevice string) error {
@@ -973,7 +1002,6 @@ WantedBy=multi-user.target
 `
 }
 
-
 func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	accountFiles, errorValue := readJetsonAccountFiles(rootPatch.partitionDevice)
 	if errorValue != nil {
@@ -1002,6 +1030,15 @@ func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 		}
 		if documents.wifiTimer, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonWiFiRecoveryTimerPath); errorValue != nil {
 			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonWiFiRecoveryTimerPath, errorValue)
+		}
+		if documents.networkSnapshot, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonNetworkSnapshotScriptPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonNetworkSnapshotScriptPath, errorValue)
+		}
+		if documents.networkTimer, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonNetworkSnapshotTimerPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonNetworkSnapshotTimerPath, errorValue)
+		}
+		if documents.journalConfig, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonPersistentJournalConfigurationPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonPersistentJournalConfigurationPath, errorValue)
 		}
 	}
 	if documents.firstbootScript, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonFirstbootScriptPath); errorValue != nil {
@@ -1049,6 +1086,15 @@ func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents
 	}
 	if !strings.Contains(documents.wifiTimer, "OnBootSec=20s") {
 		return fmt.Errorf("verify Jetson rootfs failed: %s does not include boot recovery", jetsonWiFiRecoveryTimerPath)
+	}
+	if !strings.Contains(documents.networkSnapshot, "network-snapshots") || strings.Contains(documents.networkSnapshot, "ps -eo args") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include safe network snapshots", jetsonNetworkSnapshotScriptPath)
+	}
+	if !strings.Contains(documents.networkTimer, "OnUnitActiveSec=5min") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include periodic network snapshots", jetsonNetworkSnapshotTimerPath)
+	}
+	if !strings.Contains(documents.journalConfig, "Storage=persistent") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not enable persistent journals", jetsonPersistentJournalConfigurationPath)
 	}
 	return nil
 }
