@@ -92,9 +92,58 @@ done
 
 Root cause when the journal shows DNS/dial/TLS timeouts: the device cannot hold
 a stable outbound connection, so `cloudflared` thrashes and every remote path
-dies. Software changes will not fix this. In order of effectiveness:
+dies. Software changes will not fix this.
 
-1. **Wire the Jetson via Ethernet** instead of WiFi — most reliable fix.
+### Localize first: local WiFi vs WAN uplink (2026-06-20 LAN diagnosis)
+
+Before touching the WiFi, prove **which hop** is bad. "Network problem" has two
+very different homes and they need opposite fixes:
+
+- **device → router (local WiFi)** — fixed by Ethernet, signal, channel.
+- **router → ISP (WAN uplink)** — Ethernet does **nothing**; it's the router/ISP.
+
+From a LAN shell on the device, compare the gateway against the WAN:
+
+```sh
+iw dev wlP1p1s0 link | grep -E 'signal|bitrate'   # local RF quality
+iw dev wlP1p1s0 get power_save                     # expect: off
+ping -c 20 -i 0.2 192.168.0.1                      # GATEWAY: local hop
+ping -c 30 -i 0.2 1.1.1.1                           # WAN: beyond the router
+ping -M do -c1 -s 1472 198.41.200.193              # path MTU to CF edge (1500 ok?)
+```
+
+Read it like this:
+
+| Gateway ping | WAN ping | Verdict |
+|---|---|---|
+| loss / high RTT | (any) | **local WiFi** — Ethernet/signal/channel will help |
+| clean (~1ms, 0%) | RTT spikes (100–300ms+), high `mdev`, ~0% loss | **WAN/ISP uplink jitter** — Ethernet will NOT help |
+| clean | clean | not the network — look at origin/service |
+
+The 2026-06-20 case was the **second row**: signal `-46 dBm` @ 866 Mbit/s,
+powersave `off`, gateway `~1.2ms / 0% loss`, full 1500 MTU to the edge, but WAN
+RTT intermittently `5ms → 320ms` (`mdev 108ms`) at **0% loss**. That jitter alone
+made `cloudflared` edge TLS handshakes (`:7844`) time out → all four tunnel
+connections dropped, then re-registered minutes later → user sees `502` /
+SSH `banner exchange timeout` in the gap, then self-heal. The device, WiFi, DNS,
+MTU, and origin (`:18080 → 200`) were all healthy.
+
+`mdev`/jitter spikes at **0% packet loss** is the bufferbloat signature: the
+router's upload queue filling under load. Fix order for the WAN case:
+
+1. **Reboot the router; update its firmware.**
+2. **Enable SQM / QoS (bufferbloat control)** on the router — directly targets the
+   0%-loss latency spikes.
+3. **ISP line quality** — sustained WAN jitter beyond the router is the ISP;
+   escalate or add a secondary uplink.
+4. Software only mitigates, never cures: making `cloudflared` more jitter-tolerant
+   (`--protocol quic`, reconnect/keepalive tuning) shortens flap windows but does
+   not fix the uplink.
+
+### Fix order when it IS the local WiFi
+
+1. **Wire the Jetson via Ethernet** instead of WiFi — most reliable fix *only when
+   the gateway hop itself is bad* (see localization above).
 2. **Hidden SSID** makes Linux reconnection slower and flakier (the client must
    actively probe for the SSID by name), which widens every disconnect window.
    The setup configures this via `nmcli ... wifi.hidden yes`
