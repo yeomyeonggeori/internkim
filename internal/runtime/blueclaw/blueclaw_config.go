@@ -12,6 +12,8 @@ const (
 	BlueclawCapabilityTimeoutSecond                     = 0
 	BlueclawPinnedMemoryHardLimitCharacterCount         = 6000
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
+	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
+	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
 )
 
 type defaultCircleDefinition struct {
@@ -188,8 +190,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"rootfsImagePath":        rootFilesystemImagePath,
 			"workspaceImagePath":     workspaceImagePath,
 			"hostWorkspacePath":      hostWorkspacePath,
-			"vcpuCount":              4,
-			"memoryMiB":              8192,
+			"vcpuCount":              BlueclawFirecrackerDefaultVirtualCPUCount,
+			"memoryMiB":              BlueclawFirecrackerDefaultMemoryMiB,
 			"vsockCID":               52,
 			"healthPortOrService":    healthPortOrService,
 			"guestHTTPPortOrService": guestHTTPPortOrService,

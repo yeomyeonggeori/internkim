@@ -235,6 +235,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}
 	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+	if firecracker["vcpuCount"] != float64(BlueclawFirecrackerDefaultVirtualCPUCount) || firecracker["memoryMiB"] != float64(BlueclawFirecrackerDefaultMemoryMiB) {
+		t.Fatalf("expected bounded Firecracker resources, got %+v", firecracker)
+	}
 	outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
 	if outboundNetwork["enabled"] != true {
 		t.Fatalf("expected outbound network enabled, got %+v", outboundNetwork)

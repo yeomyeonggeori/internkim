@@ -30,10 +30,17 @@ type recoveryResponse struct {
 	Status      string            `json:"status"`
 	Action      string            `json:"action"`
 	Services    map[string]string `json:"services"`
+	Results     []recoveryResult  `json:"results"`
 	JournalTail string            `json:"journalTail"`
 	Snapshot    string            `json:"snapshot"`
 	NextStep    string            `json:"nextStep"`
 	ObservedAt  time.Time         `json:"observedAt"`
+}
+
+type recoveryResult struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Output string `json:"output"`
 }
 
 const recoveryResponseBodyLimitBytes = 256 * 1024
@@ -60,7 +67,7 @@ func runRecoverArguments(arguments []string) error {
 
 func runRecoverSSH(arguments []string) error {
 	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-cloudflared-node-ssh, restart-ssh, journal-tail, unlock-mattermost-admin")
+	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-cloudflared-node-ssh, restart-ssh, journal-tail, unlock-mattermost-admin, limit-blueclaw")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
@@ -95,6 +102,12 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 			fmt.Printf("  %-22s %s\n", serviceName, serviceState)
 		}
 	}
+	for _, result := range response.Results {
+		fmt.Printf("  %-22s %s\n", result.Name, result.Status)
+		if strings.TrimSpace(result.Output) != "" {
+			fmt.Printf("%s\n", strings.TrimSpace(result.Output))
+		}
+	}
 	if strings.TrimSpace(response.JournalTail) != "" {
 		fmt.Printf("\n--- recovery journal tail ---\n%s\n-----------------------------\n", response.JournalTail)
 	}
@@ -104,7 +117,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if diagnose {
 		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
 	}
-	if action == "status" || action == "snapshot" || action == "journal-tail" {
+	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" {
 		return nil
 	}
 	if action == "reboot" {
@@ -137,7 +150,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw":
 		return true
 	default:
 		return false
