@@ -1,57 +1,165 @@
-# InternKim multi-tenant container PoC (M1, Firecracker-free)
+# InternKim PoC — Apple Container 멀티테넌트
 
-Runs N independent InternKim tenants as lightweight containers on Apple Silicon
-that cannot nest virtualization (M1/M2). Each tenant runs Blueclaw in
-**direct/native mode** (no Firecracker, no supervisor, no systemd), sharing one
-Postgres and one Mattermost.
+M1/M2 맥에서 Firecracker 없이 N개의 독립 인턴김 테넌트를 Apple Container로 실행.
+Postgres 하나, Mattermost 하나를 공유하고 테넌트당 컨테이너 한 개.
 
-## Architecture
+## 아키텍처
 
-- **Shared Postgres** — one database per tenant (`tenant_01`..`tenant_NN`) plus
-  `mattermost`.
-- **Shared Mattermost** — one team and one agent identity per tenant. The agent's
-  bot token is the tenant boundary: the connector only sees channels that token
-  can read.
-- **Per-tenant container** — `internkim-capabilityd` + `blueclaw` started directly
-  by `tenant/entrypoint.sh`, connected over a unix socket. `terminal.mode=native`,
-  graphiti disabled, POSIX synchronization skipped, LLM via OpenRouter.
-
-Measured idle footprint: ~8 MiB per tenant; whole 10-tenant stack ~1.4 GiB
-including Postgres and Mattermost.
-
-## Layout
-
-- `configgen/` — emits direct-mode `runtime.json` + `policy.json` (uses
-  `BlueclawRuntimeConfigDocumentWithOptions(DirectExecution: true)`).
-- `tenant/` — tenant image (`Dockerfile`, `entrypoint.sh`, `bin/`, `migrations/`).
-- `infra/docker-compose.yml` — Postgres + Mattermost.
-- `generate-configs.sh` / `render-compose.sh` / `provision-mattermost.sh`.
-- `config/`, `secrets/`, `tenants.generated.yml` — generated, gitignored.
-
-## Run (Mac Studio, colima)
-
-```bash
-colima start --cpu 6 --memory 20 --disk 60
-
-# build linux/arm64 binaries on a dev machine, copy into tenant/bin/:
-#   blueclaw, blueclaw-posix-helper, internkim-capabilityd
-# copy .dependency/blueclaw/migrations -> tenant/migrations
-# place the OpenRouter key at secrets/openrouter-key
-
-export TENANT_COUNT=10
-bash generate-configs.sh                       # run where the Go module lives
-docker compose -f infra/docker-compose.yml up -d
-bash provision-mattermost.sh                   # teams, agent users, bot tokens
-docker build -t internkim-poc-tenant:latest tenant
-bash render-compose.sh
-docker compose -f tenants.generated.yml up -d
+```
+internkim-poc 네트워크 (192.168.65.0/24)
+├── poc-postgres        — postgres:16-alpine (arm64)
+├── poc-mattermost      — mattermost-team-edition:10.5 (amd64, Rosetta)
+├── poc-tenant-01
+├── poc-tenant-02
+│   ...
+└── poc-tenant-NN
 ```
 
-## Not yet wired
+각 테넌트 컨테이너는 `internkim-capabilityd` + `blueclaw`를 직접 실행(Firecracker/systemd 없음).
+LLM은 OpenRouter, 터미널은 native 모드.
 
-- External addresses (Cloudflare tunnel per team).
-- Terminal toolchain (bun/uv/python) in the tenant image — only needed for
-  `terminal.run` tasks; the chat loop does not require it.
-- POSIX per-person isolation (bake the `blueclaw` base user into the image and
-  restore `posixHelperPath` to re-enable).
-- arm64 Mattermost image (current `10.5` tag is amd64, runs under emulation).
+측정 유휴 메모리: 테넌트당 ~8 MiB, 10테넌트 전체 ~1.4 GiB (Postgres + Mattermost 포함).
+
+## 디렉터리 구조
+
+```
+poc/
+├── setup-apple-container.sh   # 신규 맥 초기 셋업 (한 번만)
+├── start-poc.py               # 테넌트 시작/재시작 (매 부팅 또는 수동)
+├── poc-autostart.sh           # LaunchAgent 래퍼 (직접 편집 불필요)
+├── launchagent.plist.template # LaunchAgent plist 템플릿
+├── generate-configs.sh        # 테넌트 runtime.json 생성
+├── provision-mattermost.sh    # Mattermost 팀·봇 계정 프로비저닝
+├── configgen/                 # runtime.json 생성기 (Go)
+├── tenant/                    # 테넌트 이미지 (Dockerfile, entrypoint.sh)
+└── infra/                     # 인프라 설정
+
+~/internkim-poc/               # 런타임 데이터 (gitignore)
+├── volumes/postgres/          # Postgres 영구 데이터
+├── volumes/mattermost/        # Mattermost 영구 데이터
+├── config/tenant_NN/          # 테넌트별 runtime.json, policy.json
+├── secrets/tenant_NN/         # 테넌트별 봇 토큰, 관리자 비번 등
+├── secrets/openrouter-key     # 공용 OpenRouter API 키
+└── infra/mattermost.cfg       # Mattermost 환경변수 (DB 접속 정보 등)
+```
+
+---
+
+## 신규 맥 셋업
+
+### 1. 사전 준비
+
+```bash
+# Apple Container 설치 확인
+container system status   # "running" 이어야 함
+
+# 런타임 데이터 디렉터리 생성 및 복사
+mkdir -p ~/internkim-poc
+# 기존 맥에서 복사:
+rsync -av dawn@macstudio.local:~/internkim-poc/secrets/ ~/internkim-poc/secrets/
+rsync -av dawn@macstudio.local:~/internkim-poc/infra/   ~/internkim-poc/infra/
+rsync -av dawn@macstudio.local:~/internkim-poc/volumes/ ~/internkim-poc/volumes/
+```
+
+### 2. 테넌트 이미지 준비
+
+```bash
+# 이미지 빌드용 바이너리를 tenant/bin/ 에 넣어야 함:
+#   blueclaw, blueclaw-posix-helper, internkim-capabilityd  (linux/arm64)
+# .dependency/blueclaw/migrations → tenant/migrations/ 복사
+
+# 기존 맥에서 이미지 내보내기
+container image save internkim-poc-tenant:flow -o tenant-flow.tar
+# 새 맥에 옮겨서 로드
+container image load -i tenant-flow.tar
+```
+
+### 3. 셋업 실행
+
+```bash
+cd /path/to/internkim
+
+# DB 복원 없이 (secrets/config 이미 있는 경우)
+bash poc/setup-apple-container.sh
+
+# 또는 DB 덤프에서 복원
+pg_dumpall -U internkim -h <기존_pg_ip> > dump.sql   # 기존 맥에서
+bash poc/setup-apple-container.sh --restore-from dump.sql
+```
+
+`setup-apple-container.sh`가 하는 일:
+1. `internkim-poc` 네트워크 생성
+2. postgres/mattermost 이미지 pull
+3. 인프라 컨테이너 기동 및 대기
+4. 테넌트 configs 생성 (postgres/mattermost IP 자동 주입)
+5. LaunchAgent 설치 (부팅 시 자동 시작)
+6. 테넌트 컨테이너 기동
+
+---
+
+## 일상적인 관리
+
+### 테넌트 재시작
+
+```bash
+python3 poc/start-poc.py
+```
+
+컨테이너 IP가 매 실행마다 달라질 수 있어서, `start-poc.py`가 실행 시마다
+`container inspect`로 실제 IP를 읽어 `config/tenant_NN/runtime.json`을 자동 패치한다.
+
+### 테넌트 추가 (예: 10 → 15개)
+
+```bash
+# 1. Mattermost에 새 팀·봇 프로비저닝
+TENANT_START=11 TENANT_COUNT=15 bash poc/provision-mattermost.sh
+
+# 2. 새 테넌트 config 생성
+PG_IP=$(container inspect poc-postgres | python3 -c "
+import sys, json; d=json.load(sys.stdin)
+print(d[0]['status']['networks'][0]['ipv4Address'].split('/')[0])")
+POSTGRES_HOST=$PG_IP TENANT_COUNT=15 bash poc/generate-configs.sh
+
+# 3. 새 테넌트 시작 (기존 테넌트는 재시작 없이 11-15만 추가됨)
+python3 poc/start-poc.py 15
+```
+
+### 인프라만 재시작
+
+```bash
+export PATH=/opt/homebrew/bin:$PATH
+container start poc-postgres
+sleep 5
+container start poc-mattermost
+sleep 10
+python3 poc/start-poc.py
+```
+
+### 컨테이너 상태 확인
+
+```bash
+container list
+container logs poc-tenant-01
+container exec poc-tenant-01 cat /tmp/blueclaw.log
+```
+
+---
+
+## 주의사항
+
+| 항목 | 내용 |
+|------|------|
+| colima와 동시 실행 불가 | 32GB 맥에서 메모리 부족. colima는 완전히 중단 후 Apple Container 사용 |
+| 컨테이너 이름 DNS 없음 | Apple Container 1.0은 네트워크 내 이름 해석 미지원. IP 직접 사용 |
+| `container restart` 없음 | 1.0.0 미지원. `container stop` + `container start` 사용 |
+| IP 변동 | 재시작할 때마다 IP가 바뀔 수 있음. `start-poc.py`가 자동 패치 |
+| mattermost.cfg | DB 접속 정보 포함. `~/internkim-poc/infra/mattermost.cfg`에 위치 |
+| arm64 Mattermost 없음 | 10.5 태그가 amd64 전용이라 Rosetta 에뮬레이션으로 실행됨 |
+
+---
+
+## 미구현 항목
+
+- Cloudflare 터널 (테넌트당 외부 주소)
+- 터미널 툴체인 (bun/uv/python) — `terminal.run` 태스크 필요 시 이미지에 추가
+- POSIX per-person 격리
