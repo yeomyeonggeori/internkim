@@ -134,7 +134,6 @@ export const flowText = {
 			businessFallback: '기타',
 			type: '종류',
 			size: '크기',
-			flag: '플래그',
 			startDate: '시작일',
 			endDate: '종료일',
 			participants: '참여자',
@@ -174,7 +173,6 @@ export const flowText = {
 			status: '상태',
 			startDate: '시작일',
 			endDate: '종료일',
-			flag: '플래그',
 			pagination: {
 				label: '업무 목록 페이지',
 				previous: '이전',
@@ -353,7 +351,6 @@ export const flowText = {
 			businessFallback: 'Other',
 			type: 'Type',
 			size: 'Size',
-			flag: 'Flag',
 			startDate: 'Start date',
 			endDate: 'End date',
 			participants: 'Participants',
@@ -393,7 +390,6 @@ export const flowText = {
 			status: 'Status',
 			startDate: 'Start date',
 			endDate: 'End date',
-			flag: 'Flag',
 			pagination: {
 				label: 'Task list pages',
 				previous: 'Previous',

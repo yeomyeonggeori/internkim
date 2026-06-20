@@ -28,7 +28,5 @@ function participantIDsWithoutOwner(task: FlowTask): string[] {
 }
 
 function buildMetadataLabels(task: FlowTask, emptyBusinessLabel: string): string[] {
-	const labels = [flowBusinessLabel(task.business, emptyBusinessLabel), task.type].filter((label): label is string => Boolean(label));
-	if (task.flag > 0) return [...labels, `F ${task.flag}`];
-	return labels;
+	return [flowBusinessLabel(task.business, emptyBusinessLabel), task.type].filter((label): label is string => Boolean(label));
 }

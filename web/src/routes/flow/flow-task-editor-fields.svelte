@@ -137,10 +137,6 @@
 		</Select.Root>
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-		{text.flag}
-		<Input type="number" min={0} step={1} bind:value={taskDraft.flag} disabled={!canEditTask} />
-	</label>
-	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.startDate}
 		<Input type="date" bind:value={taskDraft.startDate} disabled={!canEditTask} />
 	</label>

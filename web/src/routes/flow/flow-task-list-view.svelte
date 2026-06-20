@@ -94,11 +94,6 @@
 			header: () => renderSnippet(taskHeader, { label: text.table.endDate, id: 'endDate' }),
 			cell: (info) => renderSnippet(taskTextCell, { value: info.row.original.endDate || '-', muted: true }),
 			sortingFn: (left, right) => compareOptionalDate(left.original.endDate, right.original.endDate)
-		},
-		{
-			accessorKey: 'flag',
-			header: () => renderSnippet(taskHeader, { label: text.table.flag, id: 'flag', align: 'right' }),
-			cell: (info) => renderSnippet(taskNumberCell, { value: info.row.original.flag })
 		}
 	];
 
@@ -150,11 +145,11 @@
 	{focusedTaskID}
 />
 
-{#snippet taskHeader({ label, id, align }: { label: string; id: string; align?: 'left' | 'right' })}
+{#snippet taskHeader({ label, id }: { label: string; id: string })}
 	{@const column = taskTable.getColumn(id)}
 	{@const sortDirection = column?.getIsSorted()}
 	{@const canSort = column?.getCanSort()}
-	<div class={cn('flex items-center gap-1', align === 'right' && 'justify-end')}>
+	<div class="flex items-center gap-1">
 		{#if canSort}
 			<button
 				type="button"
@@ -227,8 +222,4 @@
 			</Select.Content>
 		</Select.Root>
 	</div>
-{/snippet}
-
-{#snippet taskNumberCell({ value }: { value: number })}
-	<span class="block text-right tabular-nums">{value}</span>
 {/snippet}
