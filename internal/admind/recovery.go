@@ -3,9 +3,12 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type sshRecoveryRequest struct {
@@ -54,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw":
 		return true
 	default:
 		return false
@@ -91,10 +94,50 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "stop tenant pilots", "sh", "-lc", stopTenantPilotsCommand()))
 	case "remove-tenant-pilots":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
+	case "limit-blueclaw":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw Firecracker", "sh", "-lc", blueclawResourceLimitCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
 	return response
+}
+
+func blueclawResourceLimitCommand() string {
+	workspaceRuntimeConfigPath := blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json"
+	return strings.TrimSpace(fmt.Sprintf(`
+set -eu
+virtual_cpu_count=%d
+memory_mib=%d
+for path in %s %s; do
+  [ -f "$path" ] || continue
+  temporary_path=$(mktemp)
+  jq --argjson virtualCPUCount "$virtual_cpu_count" --argjson memoryMiB "$memory_mib" '.firecracker.vcpuCount = $virtualCPUCount | .firecracker.memoryMiB = $memoryMiB' "$path" > "$temporary_path"
+  cat "$temporary_path" > "$path"
+  rm -f "$temporary_path"
+  printf '%%s updated\n' "$path"
+done
+systemctl restart %s
+health_status=failed
+for attempt in $(seq 1 90); do
+	if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/tmp/internkim-blueclaw-health.json 2>/dev/null; then
+    health_status=ok
+    break
+  fi
+  sleep 2
+done
+printf 'blueclaw health %%s\n' "$health_status"
+jq -r '"runtime vcpuCount=" + (.firecracker.vcpuCount|tostring) + " memoryMiB=" + (.firecracker.memoryMiB|tostring)' %s
+ps -eo pcpu,pmem,rss,pid,comm --sort=-rss | head -8
+free -h
+[ "$health_status" = ok ]
+	`,
+		blueclaw.BlueclawFirecrackerDefaultVirtualCPUCount,
+		blueclaw.BlueclawFirecrackerDefaultMemoryMiB,
+		blueclaw.BlueclawRuntimeConfigPath,
+		workspaceRuntimeConfigPath,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawRuntimeConfigPath,
+	))
 }
 
 func stopTenantPilotsCommand() string {
