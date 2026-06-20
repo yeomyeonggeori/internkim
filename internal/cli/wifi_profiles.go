@@ -19,6 +19,11 @@ const jetsonWiFiConnectionDirectory = "/etc/NetworkManager/system-connections"
 const jetsonWiFiSelectorScriptPath = "/usr/local/bin/internkim-wifi-select"
 const jetsonWiFiRecoveryServicePath = "/etc/systemd/system/internkim-wifi-recovery.service"
 const jetsonWiFiRecoveryTimerPath = "/etc/systemd/system/internkim-wifi-recovery.timer"
+const jetsonNetworkSnapshotScriptPath = "/usr/local/lib/internkim/network-snapshot.sh"
+const jetsonNetworkSnapshotServicePath = "/etc/systemd/system/internkim-network-snapshot.service"
+const jetsonNetworkSnapshotTimerPath = "/etc/systemd/system/internkim-network-snapshot.timer"
+const jetsonPersistentJournalConfigurationPath = "/etc/systemd/journald.conf.d/internkim-persistent.conf"
+const jetsonEthernetConnectionID = "internkim-ethernet"
 
 type wifiProfile struct {
 	SSID       string `json:"ssid"`
@@ -319,7 +324,7 @@ func buildJetsonWiFiUpsertScript(profiles []resolvedWiFiProfile) string {
 		}
 		builder.WriteString("nmcli connection delete " + quoteShellValue(connectionID) + " >/dev/null 2>&1 || true\n")
 		builder.WriteString("nmcli connection add type wifi ifname '*' con-name " + quoteShellValue(connectionID) + " ssid " + quoteShellValue(profile.SSID) + "\n")
-		builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " connection.autoconnect yes wifi.hidden " + hiddenValue + " ipv4.method auto ipv6.method auto\n")
+		builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " connection.autoconnect yes connection.autoconnect-priority 0 wifi.hidden " + hiddenValue + " 802-11-wireless.powersave 2 ipv4.method auto ipv4.dns \"1.1.1.1 8.8.8.8\" ipv4.ignore-auto-dns yes ipv4.route-metric 600 ipv6.method auto ipv6.route-metric 600\n")
 		if !profile.IsOpen {
 			builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " wifi-sec.key-mgmt wpa-psk wifi-sec.psk " + quoteShellValue(profile.Password) + "\n")
 		}
@@ -329,12 +334,16 @@ func buildJetsonWiFiUpsertScript(profiles []resolvedWiFiProfile) string {
 
 func buildJetsonWiFiInstallScript(profiles []resolvedWiFiProfile) string {
 	upsertScript := buildJetsonWiFiUpsertScript(profiles)
+	ethernetPriorityScript := buildJetsonEthernetPriorityScript()
 	selectorScript := buildJetsonWiFiSelectorScript()
 	recoveryService := buildJetsonWiFiRecoveryService()
 	recoveryTimer := buildJetsonWiFiRecoveryTimer()
+	networkSnapshotFilesScript := buildJetsonNetworkSnapshotFilesScript()
 	return fmt.Sprintf(`systemctl unmask NetworkManager.service 2>/dev/null || true
 systemctl enable --now NetworkManager.service 2>/dev/null || true
 nmcli radio wifi on
+%s
+%s
 %s
 cat > %s <<'WIFIEOF'
 %s
@@ -346,9 +355,13 @@ SERVICEEOF
 cat > %s <<'TIMEREOF'
 %s
 TIMEREOF
+systemctl restart systemd-journald 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now internkim-wifi-recovery.timer`,
+systemctl enable --now internkim-wifi-recovery.timer internkim-network-snapshot.timer
+systemctl start internkim-network-snapshot.service 2>/dev/null || true`,
 		upsertScript,
+		ethernetPriorityScript,
+		networkSnapshotFilesScript,
 		jetsonWiFiSelectorScriptPath,
 		selectorScript,
 		jetsonWiFiSelectorScriptPath,
@@ -356,6 +369,49 @@ systemctl enable --now internkim-wifi-recovery.timer`,
 		recoveryService,
 		jetsonWiFiRecoveryTimerPath,
 		recoveryTimer,
+	)
+}
+
+func buildJetsonEthernetPriorityScript() string {
+	return strings.TrimSpace(`
+ethernet_connection=` + quoteShellValue(jetsonEthernetConnectionID) + `
+ethernet_device="$(nmcli -t -f DEVICE,TYPE device status | awk -F: '$2 == "ethernet" && $1 !~ /^(usb|l4tbr|bctap|lo)/ {print $1; exit}')"
+if [ -n "$ethernet_device" ]; then
+  nmcli connection delete "Wired connection 1" >/dev/null 2>&1 || true
+  if ! nmcli -t -f NAME connection show | grep -Fxq "$ethernet_connection"; then
+    nmcli connection add type ethernet ifname "$ethernet_device" con-name "$ethernet_connection"
+  fi
+  nmcli connection modify "$ethernet_connection" connection.autoconnect yes connection.autoconnect-priority 100 ipv4.method auto ipv4.dns "1.1.1.1 8.8.8.8" ipv4.ignore-auto-dns yes ipv4.route-metric 100 ipv6.method auto ipv6.route-metric 100
+fi
+for connection in $(nmcli -t -f NAME,TYPE connection show | awk -F: '$2 ~ /^(802-11-wireless|wifi)$/ && $1 ~ /^internkim-wifi-/ {print $1}'); do
+  nmcli connection modify "$connection" connection.autoconnect yes connection.autoconnect-priority 0 802-11-wireless.powersave 2 ipv4.dns "1.1.1.1 8.8.8.8" ipv4.ignore-auto-dns yes ipv4.route-metric 600 ipv6.route-metric 600
+done`)
+}
+
+func buildJetsonNetworkSnapshotFilesScript() string {
+	return fmt.Sprintf(`mkdir -p /usr/local/lib/internkim /var/log/internkim/network-snapshots /var/log/journal /etc/systemd/journald.conf.d
+cat > %s <<'JOURNALEOF'
+%s
+JOURNALEOF
+cat > %s <<'SNAPSHOEOF'
+%s
+SNAPSHOEOF
+chmod 755 %s
+cat > %s <<'SNAPSHOTSERVICEEOF'
+%s
+SNAPSHOTSERVICEEOF
+cat > %s <<'SNAPSHOTTIMEREOF'
+%s
+SNAPSHOTTIMEREOF`,
+		jetsonPersistentJournalConfigurationPath,
+		buildJetsonPersistentJournalConfiguration(),
+		jetsonNetworkSnapshotScriptPath,
+		buildJetsonNetworkSnapshotScript(),
+		jetsonNetworkSnapshotScriptPath,
+		jetsonNetworkSnapshotServicePath,
+		buildJetsonNetworkSnapshotService(),
+		jetsonNetworkSnapshotTimerPath,
+		buildJetsonNetworkSnapshotTimer(),
 	)
 }
 
@@ -452,6 +508,97 @@ Description=Intern Kim Wi-Fi Recovery Timer
 OnBootSec=20s
 OnUnitActiveSec=2min
 Unit=internkim-wifi-recovery.service
+
+[Install]
+WantedBy=timers.target
+`
+}
+
+func buildJetsonPersistentJournalConfiguration() string {
+	return `[Journal]
+Storage=persistent
+SystemMaxUse=512M
+`
+}
+
+func buildJetsonNetworkSnapshotScript() string {
+	return strings.TrimSpace(`#!/bin/sh
+set +e
+output_dir=/var/log/internkim/network-snapshots
+mkdir -p "$output_dir"
+output_file="$output_dir/$(date -u +%Y%m%dT%H%M%SZ).log"
+section() {
+  printf "\n== %s ==\n" "$1"
+}
+{
+  section time
+  date -u
+  uptime
+  section routes
+  ip route show default
+  ip -brief address show
+  nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status
+  section ethernet
+  for device in /sys/class/net/en*; do
+    [ -e "$device" ] || continue
+    name=$(basename "$device")
+    printf "%s carrier=" "$name"
+    cat "$device/carrier" 2>/dev/null || true
+    printf "%s operstate=" "$name"
+    cat "$device/operstate" 2>/dev/null || true
+    ethtool "$name" 2>/dev/null | grep -E "Speed|Duplex|Auto-negotiation|Link detected" || true
+  done
+  section wifi
+  iw dev 2>/dev/null | sed -n "1,80p"
+  section pressure
+  cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io 2>/dev/null
+  section memory
+  free -h
+  swapon --show 2>/dev/null
+  section top
+  top -b -n 1 | head -30
+  section processes
+  ps -eo pcpu,pmem,rss,pid,comm --sort=-pcpu | head -25
+  section failed-services
+  systemctl --no-pager --failed
+  section service-states
+  systemctl is-active ssh cloudflared cloudflared-node-ssh NetworkManager 2>/dev/null
+  section cloudflared-journal
+  journalctl -u cloudflared -u cloudflared-node-ssh -n 120 --no-pager 2>/dev/null
+  section networkmanager-journal
+  journalctl -u NetworkManager -n 80 --no-pager 2>/dev/null
+  section kernel-network
+  journalctl -k -n 120 --no-pager 2>/dev/null | grep -i -E "oom|killed process|eth|wifi|wlan|carrier|link|r816|network|timeout|tls|dns|error|fail|reset" | tail -80
+} > "$output_file"
+find "$output_dir" -type f -name "*.log" -mtime +14 -delete
+ls -1t "$output_dir"/*.log 2>/dev/null | tail -n +289 | xargs -r rm -f
+printf "%s\n" "$output_file"`)
+}
+
+func buildJetsonNetworkSnapshotService() string {
+	return `[Unit]
+Description=Intern Kim Network Snapshot
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/internkim/network-snapshot.sh
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal
+
+`
+}
+
+func buildJetsonNetworkSnapshotTimer() string {
+	return `[Unit]
+Description=Intern Kim Network Snapshot Timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=internkim-network-snapshot.service
 
 [Install]
 WantedBy=timers.target

@@ -18,6 +18,7 @@ type sshRecoveryResponse struct {
 	Services    map[string]string          `json:"services"`
 	Results     []sshRecoveryCommandResult `json:"results,omitempty"`
 	JournalTail string                     `json:"journalTail,omitempty"`
+	Snapshot    string                     `json:"snapshot,omitempty"`
 	NextStep    string                     `json:"nextStep"`
 	Rejected    string                     `json:"rejected,omitempty"`
 	ObservedAt  time.Time                  `json:"observedAt"`
@@ -53,7 +54,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
 		return true
 	default:
 		return false
@@ -70,6 +71,9 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 	}
 	switch action {
 	case "status":
+		return response
+	case "snapshot":
+		response.Snapshot = service.sshRecoverySnapshot(ctx)
 		return response
 	case "restart-ssh":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart ssh", "systemctl", "restart", "ssh"))
@@ -173,6 +177,58 @@ func (service *Service) sshRecoveryJournalTail(ctx context.Context) string {
 	return redactRecoveryOutput(string(output))
 }
 
+func (service *Service) sshRecoverySnapshot(ctx context.Context) string {
+	output, _ := service.runCommand(ctx, "sh", "-lc", sshRecoverySnapshotCommand())
+	return redactRecoveryOutput(string(output))
+}
+
+func sshRecoverySnapshotCommand() string {
+	return strings.TrimSpace(`
+set +e
+section() {
+  printf '\n== %s ==\n' "$1"
+}
+section time
+date -u
+uptime
+section routes
+ip route show default
+ip -brief address show
+nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status
+section ethernet
+for device in /sys/class/net/en*; do
+  [ -e "$device" ] || continue
+  name=$(basename "$device")
+  printf '%s carrier=' "$name"
+  cat "$device/carrier" 2>/dev/null || true
+  printf '%s operstate=' "$name"
+  cat "$device/operstate" 2>/dev/null || true
+  ethtool "$name" 2>/dev/null | grep -E 'Speed|Duplex|Auto-negotiation|Link detected' || true
+done
+section wifi
+iw dev 2>/dev/null | sed -n '1,80p'
+section pressure
+cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io 2>/dev/null
+section memory
+free -h
+swapon --show 2>/dev/null
+section top
+top -b -n 1 | head -30
+section processes
+ps -eo pcpu,pmem,rss,pid,comm --sort=-pcpu | head -25
+section failed-services
+systemctl --no-pager --failed
+section service-states
+systemctl is-active ssh cloudflared cloudflared-node-ssh NetworkManager 2>/dev/null
+section cloudflared-journal
+journalctl -u cloudflared -u cloudflared-node-ssh -n 120 --no-pager 2>/dev/null
+section networkmanager-journal
+journalctl -u NetworkManager -n 80 --no-pager 2>/dev/null
+section kernel-network
+journalctl -k -n 120 --no-pager 2>/dev/null | grep -i -E 'oom|killed process|eth|wifi|wlan|carrier|link|r816|network|timeout|tls|dns|error|fail|reset' | tail -80
+`)
+}
+
 func redactRecoveryOutput(value string) string {
 	lines := strings.Split(value, "\n")
 	for index, line := range lines {
@@ -182,14 +238,19 @@ func redactRecoveryOutput(value string) string {
 }
 
 func redactRecoveryLine(value string) string {
+	normalizedLine := strings.ToLower(value)
+	if strings.Contains(normalizedLine, "authorization:") || strings.Contains(normalizedLine, "bearer ") {
+		return "[redacted]"
+	}
 	fields := strings.Fields(value)
 	for index, field := range fields {
 		normalizedField := strings.ToLower(field)
-		if strings.Contains(normalizedField, "authorization:") ||
-			strings.Contains(normalizedField, "bearer") ||
-			strings.Contains(normalizedField, "token") ||
+		if strings.Contains(normalizedField, "token") ||
 			strings.Contains(normalizedField, "secret") {
 			fields[index] = "[redacted]"
+			if index+1 < len(fields) && !strings.Contains(field, "=") {
+				fields[index+1] = "[redacted]"
+			}
 		}
 	}
 	return strings.Join(fields, " ")

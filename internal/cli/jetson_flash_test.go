@@ -214,6 +214,30 @@ func TestBuildJetsonWiFiRecoveryUnits(t *testing.T) {
 			t.Fatalf("expected Wi-Fi recovery timer to include %q, got:\n%s", fragment, timerDocument)
 		}
 	}
+
+	snapshotDocument := buildJetsonNetworkSnapshotScript()
+	for _, fragment := range []string{"network-snapshots", "ps -eo pcpu,pmem,rss,pid,comm", "journalctl -u cloudflared", "Link detected"} {
+		if !strings.Contains(snapshotDocument, fragment) {
+			t.Fatalf("expected network snapshot script to include %q, got:\n%s", fragment, snapshotDocument)
+		}
+	}
+	if strings.Contains(snapshotDocument, "ps -eo args") {
+		t.Fatalf("network snapshot script must avoid process arguments, got:\n%s", snapshotDocument)
+	}
+
+	snapshotTimerDocument := buildJetsonNetworkSnapshotTimer()
+	for _, fragment := range []string{"OnBootSec=1min", "OnUnitActiveSec=5min", "Unit=internkim-network-snapshot.service", "WantedBy=timers.target"} {
+		if !strings.Contains(snapshotTimerDocument, fragment) {
+			t.Fatalf("expected network snapshot timer to include %q, got:\n%s", fragment, snapshotTimerDocument)
+		}
+	}
+
+	journalDocument := buildJetsonPersistentJournalConfiguration()
+	for _, fragment := range []string{"Storage=persistent", "SystemMaxUse=512M"} {
+		if !strings.Contains(journalDocument, fragment) {
+			t.Fatalf("expected persistent journal configuration to include %q, got:\n%s", fragment, journalDocument)
+		}
+	}
 }
 
 func TestBuildJetsonFirstbootScriptStartsNetworkAndSSH(t *testing.T) {
@@ -223,7 +247,11 @@ func TestBuildJetsonFirstbootScriptStartsNetworkAndSSH(t *testing.T) {
 		"expand_rootfs",
 		"resize2fs \"$rootSource\"",
 		"systemctl start NetworkManager.service",
+		"internkim-ethernet",
+		"ipv4.route-metric 100",
 		"internkim-wifi-select",
+		"internkim-network-snapshot.timer",
+		"Storage=persistent",
 		"systemctl restart ssh.service",
 		"/var/lib/internkim/board-ip",
 		"jetson-firstboot.done",
@@ -341,6 +369,9 @@ func completeJetsonPatchDocumentsFixture() jetsonPatchDocuments {
 		wifiSelector:     buildJetsonWiFiSelectorScript(),
 		wifiRecovery:     buildJetsonWiFiRecoveryService(),
 		wifiTimer:        buildJetsonWiFiRecoveryTimer(),
+		networkSnapshot:  buildJetsonNetworkSnapshotScript(),
+		networkTimer:     buildJetsonNetworkSnapshotTimer(),
+		journalConfig:    buildJetsonPersistentJournalConfiguration(),
 		firstbootScript:  buildJetsonFirstbootScript(),
 		firstbootService: buildJetsonFirstbootService(),
 	}

@@ -97,6 +97,40 @@ func TestSSHRecoveryUnlockMattermostAdminUsesAllowlistedDatabaseReset(t *testing
 	}
 }
 
+func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
+	service := newRecoveryTestService(t)
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
+			return []byte("active\n"), nil
+		}
+		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
+			if !strings.Contains(arguments[1], "ps -eo pcpu,pmem,rss,pid,comm") {
+				t.Fatalf("snapshot command must avoid process arguments: %s", arguments[1])
+			}
+			if !strings.Contains(arguments[1], "journalctl -u cloudflared") {
+				t.Fatalf("snapshot command must include tunnel logs: %s", arguments[1])
+			}
+			return []byte("token: secret-value\n== routes ==\ndefault via 192.168.0.1\n"), nil
+		}
+		t.Fatalf("unexpected command %s %v", name, arguments)
+		return nil, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	request := signedRecoveryRequest(t, service, "snapshot", "nonce-1", time.Now().UTC())
+	service.handleAdmin(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "default via 192.168.0.1") {
+		t.Fatalf("expected snapshot in response, got %s", recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "secret-value") {
+		t.Fatalf("expected snapshot secrets redacted, got %s", recorder.Body.String())
+	}
+}
+
 func TestSSHRecoveryRejectsInvalidSignature(t *testing.T) {
 	service := newRecoveryTestService(t)
 	request := signedRecoveryRequest(t, service, "status", "nonce-1", time.Now().UTC())
