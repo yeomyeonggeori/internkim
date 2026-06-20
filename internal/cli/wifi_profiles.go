@@ -22,6 +22,9 @@ const jetsonWiFiRecoveryTimerPath = "/etc/systemd/system/internkim-wifi-recovery
 const jetsonNetworkSnapshotScriptPath = "/usr/local/lib/internkim/network-snapshot.sh"
 const jetsonNetworkSnapshotServicePath = "/etc/systemd/system/internkim-network-snapshot.service"
 const jetsonNetworkSnapshotTimerPath = "/etc/systemd/system/internkim-network-snapshot.timer"
+const jetsonTunnelRecoveryScriptPath = "/usr/local/lib/internkim/tunnel-recovery.sh"
+const jetsonTunnelRecoveryServicePath = "/etc/systemd/system/internkim-tunnel-recovery.service"
+const jetsonTunnelRecoveryTimerPath = "/etc/systemd/system/internkim-tunnel-recovery.timer"
 const jetsonPersistentJournalConfigurationPath = "/etc/systemd/journald.conf.d/internkim-persistent.conf"
 const jetsonEthernetConnectionID = "internkim-ethernet"
 
@@ -339,9 +342,11 @@ func buildJetsonWiFiInstallScript(profiles []resolvedWiFiProfile) string {
 	recoveryService := buildJetsonWiFiRecoveryService()
 	recoveryTimer := buildJetsonWiFiRecoveryTimer()
 	networkSnapshotFilesScript := buildJetsonNetworkSnapshotFilesScript()
+	tunnelRecoveryFilesScript := buildJetsonTunnelRecoveryFilesScript()
 	return fmt.Sprintf(`systemctl unmask NetworkManager.service 2>/dev/null || true
 systemctl enable --now NetworkManager.service 2>/dev/null || true
 nmcli radio wifi on
+%s
 %s
 %s
 %s
@@ -357,11 +362,12 @@ cat > %s <<'TIMEREOF'
 TIMEREOF
 systemctl restart systemd-journald 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now internkim-wifi-recovery.timer internkim-network-snapshot.timer
+systemctl enable --now internkim-wifi-recovery.timer internkim-network-snapshot.timer internkim-tunnel-recovery.timer
 systemctl start internkim-network-snapshot.service 2>/dev/null || true`,
 		upsertScript,
 		ethernetPriorityScript,
 		networkSnapshotFilesScript,
+		tunnelRecoveryFilesScript,
 		jetsonWiFiSelectorScriptPath,
 		selectorScript,
 		jetsonWiFiSelectorScriptPath,
@@ -599,6 +605,72 @@ Description=Intern Kim Network Snapshot Timer
 OnBootSec=1min
 OnUnitActiveSec=5min
 Unit=internkim-network-snapshot.service
+
+[Install]
+WantedBy=timers.target
+`
+}
+
+func buildJetsonTunnelRecoveryFilesScript() string {
+	return fmt.Sprintf(`mkdir -p /usr/local/lib/internkim
+cat > %s <<'TUNNELRECOVERYEOF'
+%s
+TUNNELRECOVERYEOF
+chmod 755 %s
+cat > %s <<'TUNNELRECOVERYSERVICEEOF'
+%s
+TUNNELRECOVERYSERVICEEOF
+cat > %s <<'TUNNELRECOVERYTIMEREOF'
+%s
+TUNNELRECOVERYTIMEREOF`,
+		jetsonTunnelRecoveryScriptPath,
+		buildJetsonTunnelRecoveryScript(),
+		jetsonTunnelRecoveryScriptPath,
+		jetsonTunnelRecoveryServicePath,
+		buildJetsonTunnelRecoveryService(),
+		jetsonTunnelRecoveryTimerPath,
+		buildJetsonTunnelRecoveryTimer(),
+	)
+}
+
+func buildJetsonTunnelRecoveryScript() string {
+	return strings.TrimSpace(`#!/bin/sh
+set +e
+window=-75s
+registered=$(journalctl -u cloudflared --since="$window" --no-pager 2>/dev/null | grep -c "Registered tunnel connection")
+disconnected=$(journalctl -u cloudflared --since="$window" --no-pager 2>/dev/null | grep -cE "Lost connection|Serve tunnel error|Connection terminated|i/o timeout|Unregistered tunnel")
+if [ "$registered" -gt 0 ]; then
+  exit 0
+fi
+if [ "$disconnected" -eq 0 ]; then
+  exit 0
+fi
+logger -t internkim-tunnel-recovery "cloudflared stuck disconnected ($disconnected events, no re-registration in 75s); restarting"
+systemctl restart cloudflared`)
+}
+
+func buildJetsonTunnelRecoveryService() string {
+	return `[Unit]
+Description=Intern Kim Tunnel Recovery
+After=cloudflared.service
+Wants=cloudflared.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/internkim/tunnel-recovery.sh
+TimeoutStartSec=45
+
+`
+}
+
+func buildJetsonTunnelRecoveryTimer() string {
+	return `[Unit]
+Description=Intern Kim Tunnel Recovery Timer
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=60s
+Unit=internkim-tunnel-recovery.service
 
 [Install]
 WantedBy=timers.target
