@@ -95,7 +95,12 @@ echo "LaunchAgent installed at ~/Library/LaunchAgents/kim.intern.poc.autostart.p
 echo "==> Starting tenant containers"
 python3 "$SCRIPT_DIR/start-poc.py"
 
+echo "==> Starting Cloudflare tunnel"
+cp "$SCRIPT_DIR/restart-tunnel.py" "$BASE/restart-tunnel.py"
+[[ -f "$BASE/cf.env" ]] && python3 "$BASE/restart-tunnel.py" || echo "SKIP: $BASE/cf.env missing — run restart-tunnel.py manually after copying cf.env"
+
 echo ""
 echo "Setup complete. Tenants are running."
 echo "Postgres: $PG_IP  Mattermost: $MM_IP"
 echo "To add more tenants: TENANT_COUNT=15 python3 $SCRIPT_DIR/start-poc.py 15"
+echo "To restart tunnel:   python3 $SCRIPT_DIR/restart-tunnel.py"
