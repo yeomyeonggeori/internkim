@@ -131,6 +131,50 @@ func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
 	}
 }
 
+func TestSSHRecoveryLimitBlueclawUsesBoundedRuntimeUpdate(t *testing.T) {
+	service := newRecoveryTestService(t)
+	commands := []string{}
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
+		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
+			command := arguments[1]
+			for _, expected := range []string{
+				"virtual_cpu_count=2",
+				"memory_mib=4096",
+				"systemctl restart blueclaw",
+				"jq --argjson virtualCPUCount",
+			} {
+				if !strings.Contains(command, expected) {
+					t.Fatalf("expected Blueclaw limit command to contain %q, got %s", expected, command)
+				}
+			}
+			return []byte("runtime vcpuCount=2 memoryMiB=4096\nblueclaw health ok\n"), nil
+		}
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
+			return []byte("active\n"), nil
+		}
+		if name == "journalctl" {
+			return []byte("ok\n"), nil
+		}
+		t.Fatalf("unexpected command %s %v", name, arguments)
+		return nil, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	request := signedRecoveryRequest(t, service, "limit-blueclaw", "nonce-1", time.Now().UTC())
+	service.handleAdmin(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !containsString(commands, "sh -lc "+blueclawResourceLimitCommand()) {
+		t.Fatalf("expected Blueclaw limit command, got %+v", commands)
+	}
+	if !strings.Contains(recorder.Body.String(), "runtime vcpuCount=2 memoryMiB=4096") {
+		t.Fatalf("expected resource limit result in response, got %s", recorder.Body.String())
+	}
+}
+
 func TestSSHRecoveryRejectsInvalidSignature(t *testing.T) {
 	service := newRecoveryTestService(t)
 	request := signedRecoveryRequest(t, service, "status", "nonce-1", time.Now().UTC())
