@@ -138,7 +138,36 @@ sudo systemctl restart cloudflared-node-ssh
 
 ---
 
-## 5. 다중 젯슨 원격 지원 전략
+## 5. 다른 Mac에서 설치한 젯슨에 내 Mac으로 재연결하기
+
+설치(setup)를 다른 컴퓨터에서 실행했을 경우, 내 Mac에는 해당 디바이스 state가 없다. `./internkim ssh`, `./internkim deploy`, `./internkim recover` 모두 이 state를 참조하므로 복사가 필요하다.
+
+### 전달받아야 할 것
+
+설치한 컴퓨터의 `~/.internkim/` 디렉토리를 압축해서 메일로 받는다:
+
+```bash
+# 설치한 컴퓨터에서 실행 — 출력된 파일을 메일로 전달
+tar czf internkim-state.tar.gz -C ~ .internkim/
+```
+
+### 내 Mac에서 적용
+
+```bash
+# 기존 ~/.internkim/ 이 없으면 그냥 압축 해제
+tar xzf internkim-state.tar.gz -C ~
+
+# 이미 다른 디바이스 state가 있으면 병합 (덮어쓰기 대신)
+tar xzf internkim-state.tar.gz -C ~ --keep-old-files
+```
+
+이후 `./internkim ssh --node <node-id>` 그대로 사용 가능.
+
+> **참고:** `.env` 파일(Cloudflare Access 토큰 등)은 팀 공유이므로 따로 받을 필요 없다.
+
+---
+
+## 6. 다중 젯슨 원격 지원 전략
 
 ### 5-1. Cloudflare 터널로 일시 SSH
 
