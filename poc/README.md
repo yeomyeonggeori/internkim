@@ -155,6 +155,35 @@ container exec poc-tenant-01 cat /tmp/blueclaw.log
 
 ---
 
+## 외부 네트워크에서 복구
+
+macstudio는 SSH용 Cloudflare 터널(`ssh-poc.intern.kim`)이 맥OS 호스트 LaunchAgent로 상시 동작.
+컨테이너가 전부 죽어도 macOS가 살아있는 한 SSH 접속 가능.
+
+```bash
+# 클라이언트에 cloudflared 필요
+brew install cloudflare/cloudflare/cloudflared
+
+# 접속
+ssh -o ProxyCommand='cloudflared access ssh --hostname %h' dawn@ssh-poc.intern.kim
+
+# ~/.ssh/config 등록 (편의)
+Host ssh-poc.intern.kim
+    ProxyCommand cloudflared access ssh --hostname %h
+```
+
+복구 후:
+```bash
+export PATH=/opt/homebrew/bin:$PATH
+python3 ~/internkim-poc/poc-autostart.sh   # 인프라 + 테넌트 + 터널 전체 재기동
+```
+
+새 맥에 SSH 터널 처음 셋업:
+```bash
+brew install cloudflare/cloudflare/cloudflared
+python3 poc/setup-ssh-tunnel.py   # cf.env가 ~/internkim-poc/에 있어야 함
+```
+
 ## 주의사항
 
 | 항목 | 내용 |
