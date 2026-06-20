@@ -31,6 +31,7 @@ type recoveryResponse struct {
 	Action      string            `json:"action"`
 	Services    map[string]string `json:"services"`
 	JournalTail string            `json:"journalTail"`
+	Snapshot    string            `json:"snapshot"`
 	NextStep    string            `json:"nextStep"`
 	ObservedAt  time.Time         `json:"observedAt"`
 }
@@ -59,7 +60,7 @@ func runRecoverArguments(arguments []string) error {
 
 func runRecoverSSH(arguments []string) error {
 	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, restart-cloudflared-node-ssh, restart-ssh, journal-tail, unlock-mattermost-admin")
+	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-cloudflared-node-ssh, restart-ssh, journal-tail, unlock-mattermost-admin")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
@@ -97,10 +98,13 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if strings.TrimSpace(response.JournalTail) != "" {
 		fmt.Printf("\n--- recovery journal tail ---\n%s\n-----------------------------\n", response.JournalTail)
 	}
+	if strings.TrimSpace(response.Snapshot) != "" {
+		fmt.Printf("\n--- recovery snapshot ---\n%s\n-------------------------\n", response.Snapshot)
+	}
 	if diagnose {
 		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
 	}
-	if action == "status" || action == "journal-tail" {
+	if action == "status" || action == "snapshot" || action == "journal-tail" {
 		return nil
 	}
 	if action == "reboot" {
@@ -133,7 +137,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
 		return true
 	default:
 		return false
