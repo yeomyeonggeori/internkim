@@ -19,6 +19,24 @@ def container_ip(name):
     return json.loads(out.stdout)[0]["status"]["networks"][0]["ipv4Address"].split("/")[0]
 
 
+def tenant_flow_routes():
+    listing = subprocess.run([CONTAINER, "ls"], capture_output=True, text=True)
+    routes = []
+    for line in listing.stdout.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        match = re.match(r"^poc-tenant-(\d+)$", fields[0])
+        if not match:
+            continue
+        routes.append({
+            "hostname": f"poc0-t{match.group(1)}.example.test",
+            "service": f"http://{container_ip(fields[0])}:18080",
+        })
+    routes.sort(key=lambda route: route["hostname"])
+    return routes
+
+
 def read_env(path):
     env = {}
     for line in open(path):
@@ -51,11 +69,15 @@ def main():
     mattermost_ip = container_ip("poc-mattermost")
     print(f"mattermost_ip={mattermost_ip}")
 
+    flow_routes = tenant_flow_routes()
+    print(f"flow_routes={len(flow_routes)}")
+
+    ingress = [{"hostname": PUBLIC_HOST, "service": f"http://{mattermost_ip}:8065"}]
+    ingress += flow_routes
+    ingress.append({"service": "http_status:404"})
+
     cf("PUT", f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations",
-        {"config": {"ingress": [
-            {"hostname": PUBLIC_HOST, "service": f"http://{mattermost_ip}:8065"},
-            {"service": "http_status:404"}
-        ]}})
+        {"config": {"ingress": ingress}})
     print("ingress=updated")
 
     connector_token = cf("GET", f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token")["result"]
