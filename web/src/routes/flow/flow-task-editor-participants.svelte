@@ -35,6 +35,7 @@
 		suggestions={members.map((member) => member.name)}
 		restrictToSuggestions
 		showSelectedTags={false}
+		suggestionsPlacement="top"
 		placeholder={text.participantsPlaceholder}
 		disabled={!canEditTask || !canEditTaskAssignment}
 		onValueChange={setParticipantNames}
