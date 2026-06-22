@@ -112,15 +112,25 @@ export async function createDevAttendanceMockResponse(
 	}
 	if (request.method === 'POST' && request.pathname === '/attendance/api/absences') {
 		const payload = absencePayloadFromBody(request.body);
-		const absences = datesBetween(payload.startDate, payload.endDate).map((date) => ({
-			id: `dev-absence-${state.nextAbsenceID++}`,
+		const rangeID = `dev-absence-range-${state.nextAbsenceID++}`;
+		const dates = datesBetween(payload.startDate, payload.endDate);
+		const dateSet = new Set(dates);
+		const absences = dates.map((date) => ({
+			id: `${rangeID}__date_${date}`,
+			rangeID,
 			email: state.userEmail,
 			kind: payload.kind,
 			labelKey: payload.kind,
 			date,
+			startDate: payload.startDate,
+			endDate: payload.endDate,
 			reason: payload.reason,
 			createdBy: state.userEmail,
-			createdAt: `${date}T09:00:00+09:00`
+			createdAt: `${date}T09:00:00+09:00`,
+			isRangeStart: date === dates[0],
+			isRangeEnd: date === dates[dates.length - 1],
+			isChunkStart: !dateSet.has(addDays(date, -1)),
+			isChunkEnd: !dateSet.has(addDays(date, 1))
 		}));
 		state.createdAbsences.push(...absences);
 		return { status: 200, body: { absences } };
@@ -156,7 +166,7 @@ function parseJSONRecord(body: string | undefined): Record<string, unknown> {
 }
 
 function absenceKindFromValue(value: unknown): AttendanceAbsenceKind {
-	if (value === 'business_trip' || value === 'day_off' || value === 'other') return value;
+	if (value === 'business_trip' || value === 'other') return value;
 	return 'leave';
 }
 
@@ -180,6 +190,12 @@ function datesBetween(startDate: string, endDate: string): string[] {
 		cursor.setUTCDate(cursor.getUTCDate() + 1);
 	}
 	return dates;
+}
+
+function addDays(date: string, days: number): string {
+	const parsedDate = new Date(`${date}T00:00:00Z`);
+	parsedDate.setUTCDate(parsedDate.getUTCDate() + days);
+	return parsedDate.toISOString().slice(0, 10);
 }
 
 function currentMonth(): string {
