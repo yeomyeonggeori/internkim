@@ -16,6 +16,7 @@
 	let titleInputElement: HTMLInputElement | null = null;
 	let focusedTitleEventID = '';
 	let pendingTitleFocusEventID = '';
+	let titleFocusFrame: number | null = null;
 
 	function inputValue(event: Event): string {
 		return event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : '';
@@ -27,25 +28,34 @@
 		void tick().then(() => {
 			if (pendingTitleFocusEventID !== eventID) return;
 			if (popover.eventID !== eventID || popover.mode !== 'create') return;
-			titleInputElement?.focus({ preventScroll: true });
-			titleInputElement?.select();
+			if (titleFocusFrame !== null) cancelAnimationFrame(titleFocusFrame);
+			titleFocusFrame = requestAnimationFrame(() => {
+				titleFocusFrame = null;
+				if (pendingTitleFocusEventID !== eventID) return;
+				if (popover.eventID !== eventID || popover.mode !== 'create') return;
+				titleInputElement?.focus({ preventScroll: true });
+				titleInputElement?.select();
+				focusedTitleEventID = eventID;
+			});
 		});
 	}
 
 	$effect(() => {
 		popover.eventID;
 		popover.mode;
+		popover.position.isReady;
 		if (popover.mode !== 'create') {
 			focusedTitleEventID = '';
 			return;
 		}
+		if (!popover.position.isReady) return;
 		if (focusedTitleEventID === popover.eventID) return;
-		focusedTitleEventID = popover.eventID;
 		focusTitleInputForCreatePopover();
 	});
 
 	onDestroy(() => {
 		pendingTitleFocusEventID = '';
+		if (titleFocusFrame !== null) cancelAnimationFrame(titleFocusFrame);
 	});
 </script>
 

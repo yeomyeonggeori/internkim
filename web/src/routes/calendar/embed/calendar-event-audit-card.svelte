@@ -1,26 +1,30 @@
 <script lang="ts">
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import type { CalendarAuditRow } from './calendar-audit';
 
-type CalendarEventAuditCardProps = {
-	rows: CalendarAuditRow[];
-	label: string;
-	emptyText?: string;
-};
+	type CalendarEventAuditCardProps = {
+		rows: CalendarAuditRow[];
+		label: string;
+		emptyText?: string;
+	};
 
-let { rows, label, emptyText = '' }: CalendarEventAuditCardProps = $props();
+	let { rows, label, emptyText = '' }: CalendarEventAuditCardProps = $props();
 </script>
 
 {#if rows.length > 0 || emptyText}
 	<aside class="event-audit-card" aria-label={label}>
 		{#if rows.length > 0}
-			{#each rows as row (row.label)}
-				<p>
-					<span>{row.label}</span>
-					<strong>{row.person}</strong>
+			{#each rows as row (`${row.label}:${row.actor.email}:${row.actor.name}`)}
+				<div class="event-audit-row">
+					<span class="event-audit-label">{row.label}</span>
+					<span class="event-audit-person" title={row.actor.email || row.actor.name}>
+						<PersonAvatar name={row.actor.name} email={row.actor.email} image={row.actor.image} class="size-6" />
+						<strong>{row.actor.name}</strong>
+					</span>
 					{#if row.time}
 						<time>{row.time}</time>
 					{/if}
-				</p>
+				</div>
 			{/each}
 		{:else}
 			<p class="event-audit-empty">{emptyText}</p>
@@ -42,7 +46,7 @@ let { rows, label, emptyText = '' }: CalendarEventAuditCardProps = $props();
 		line-height: 1.35;
 	}
 
-	.event-audit-card p {
+	.event-audit-row {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
@@ -50,12 +54,19 @@ let { rows, label, emptyText = '' }: CalendarEventAuditCardProps = $props();
 		margin: 0;
 	}
 
-	.event-audit-card span {
+	.event-audit-label {
 		color: #6b7280;
 		font-weight: 600;
 	}
 
-	.event-audit-card strong {
+	.event-audit-person {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.event-audit-person strong {
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -80,7 +91,7 @@ let { rows, label, emptyText = '' }: CalendarEventAuditCardProps = $props();
 		color: #f4f4f5;
 	}
 
-	:global(html.dark) .event-audit-card span,
+	:global(html.dark) .event-audit-label,
 	:global(html.dark) .event-audit-empty,
 	:global(html.dark) .event-audit-card time {
 		color: #a1a1aa;
