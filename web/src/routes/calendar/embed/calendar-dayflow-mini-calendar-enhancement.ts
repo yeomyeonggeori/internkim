@@ -1,4 +1,3 @@
-// DayFlow 내부 mini calendar의 날짜 상태와 보조 UI 속성을 보정합니다.
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 
