@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
+import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
@@ -15,6 +16,10 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			devAttendanceMockPlugin({
 				isEnabled: env.VITE_MOCK_ATTENDANCE === '1',
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+			}),
+			devFilesMockPlugin({
+				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devFlowMockPlugin({

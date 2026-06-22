@@ -390,7 +390,7 @@ func (service *Service) workspaceRootLabels() workspaceRootLabelSet {
 	if strings.HasPrefix(strings.ToLower(service.workspaceLanguage()), "en") {
 		return workspaceRootLabelSet{personal: "My workspace", public: "Public"}
 	}
-	return workspaceRootLabelSet{personal: "내 워크스페이스", public: "공개"}
+	return workspaceRootLabelSet{personal: "개인", public: "공개"}
 }
 
 func writeWorkspacePathError(responseWriter http.ResponseWriter, errorValue error) {
