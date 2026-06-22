@@ -283,7 +283,6 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.delete", service.handleReplyDelete)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
@@ -433,42 +432,6 @@ func (service Service) handleInteractionResolve(responseWriter http.ResponseWrit
 		return
 	}
 	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleReplyDelete(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostReplyDelete(request.Context(), request.Body)
-	case "slack", "signal":
-		response = map[string]string{"status": "noop"}
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) mattermostReplyDelete(ctx context.Context, reader io.Reader) (any, error) {
-	var request struct {
-		DispatchID string `json:"dispatchID"`
-	}
-	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
-		return nil, errorValue
-	}
-	dispatchID := strings.TrimSpace(request.DispatchID)
-	if dispatchID == "" {
-		return nil, errors.New("dispatchID is required")
-	}
-	failure, hasFailure := service.deleteMattermostPost(ctx, dispatchID)
-	if !hasFailure {
-		return map[string]string{"status": "ok"}, nil
-	}
-	if failure.ErrorCode == "post_not_found" {
-		return map[string]string{"status": "gone"}, nil
-	}
-	return nil, errors.New("mattermost reply delete failed: " + failure.ErrorCode)
 }
 
 func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, request *http.Request) {
