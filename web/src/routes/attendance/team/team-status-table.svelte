@@ -3,7 +3,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import type { AttendanceText } from '../text';
 	import { isWeekend } from '../shared/attendance-date';
-	import { absenceDisplayClass, locationDotClass } from '../shared/color-tokens';
+	import { absenceDisplayClass } from '../shared/color-tokens';
 	import TeamStatusDayDetailDialog, { type TeamStatusDayDetail } from './team-status-day-detail-dialog.svelte';
 	import type { TeamStatusPersonDay, TeamStatusPersonRow } from './team-status-table-model';
 
@@ -144,7 +144,7 @@
 								<span class="flex max-w-full items-center gap-1" style:color={day.locationColor}>
 									{#if day.locationName}
 										<span
-											class={`size-1.5 shrink-0 rounded-full ${day.locationColor ? '' : locationDotClass(day.locationName, day.locationID)}`}
+											class={`size-1.5 shrink-0 rounded-full ${day.locationColor ? '' : 'bg-success'}`}
 											style:background-color={day.locationColor}
 										></span>
 									{/if}

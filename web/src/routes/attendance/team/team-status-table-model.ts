@@ -43,6 +43,11 @@ export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'm
 	days: TeamStatusPersonDay[];
 };
 
+type LocationColorLookup = {
+	byID: Map<string, string>;
+	byName: Map<string, string>;
+};
+
 export function buildTeamStatusRows(
 	month: string,
 	summary: AttendanceSummary,
@@ -106,7 +111,7 @@ function buildTeamStatusPersonDay(
 	date: string,
 	person: PersonToday | undefined,
 	text: AttendanceText,
-	locationColors: Map<string, string>
+	locationColors: LocationColorLookup
 ): TeamStatusPersonDay {
 	if (!person) return emptyTeamStatusPersonDay(date);
 	if (person.status === 'working') {
@@ -161,7 +166,7 @@ function emptyTeamStatusPersonDay(date: string): TeamStatusPersonDay {
 function buildTeamStatusPersonDaySegments(
 	segments: AttendanceWorkSegment[],
 	text: AttendanceText,
-	locationColors: Map<string, string>
+	locationColors: LocationColorLookup
 ): TeamStatusPersonDaySegment[] {
 	return segments.map((segment) => ({
 		id: segment.id,
@@ -178,23 +183,24 @@ function buildTeamStatusPersonDaySegments(
 	}));
 }
 
-function buildLocationColors(locations: AttendanceLocation[]): Map<string, string> {
-	const colors = new Map<string, string>();
+function buildLocationColors(locations: AttendanceLocation[]): LocationColorLookup {
+	const byID = new Map<string, string>();
+	const byName = new Map<string, string>();
 	for (const location of locations) {
 		if (!location.color) continue;
-		colors.set(location.id, location.color);
-		colors.set(location.name, location.color);
+		byID.set(location.id, location.color);
+		byName.set(location.name, location.color);
 	}
-	return colors;
+	return { byID, byName };
 }
 
 function findLocationColor(
-	locationColors: Map<string, string>,
+	locationColors: LocationColorLookup,
 	locationID: string | undefined,
 	locationName: string | undefined
 ): string | undefined {
-	if (locationID && locationColors.has(locationID)) return locationColors.get(locationID);
-	if (locationName && locationColors.has(locationName)) return locationColors.get(locationName);
+	if (locationID && locationColors.byID.has(locationID)) return locationColors.byID.get(locationID);
+	if (locationName && locationColors.byName.has(locationName)) return locationColors.byName.get(locationName);
 	return undefined;
 }
 
