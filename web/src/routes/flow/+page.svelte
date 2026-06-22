@@ -214,7 +214,7 @@
 
 		<FlowTabRow activeTab={activeTab} labels={text.tabs} onSelectTab={(value) => (activeTab = value)} />
 
-		<div class={activeTab === 'tasks' ? 'space-y-6' : 'hidden'}>
+		<div class={activeTab === 'tasks' ? 'flex flex-col gap-6' : 'hidden'}>
 			<FlowPersonalScoreDetail {summary} text={text.report} />
 			<FlowTasksView
 				{summary}
