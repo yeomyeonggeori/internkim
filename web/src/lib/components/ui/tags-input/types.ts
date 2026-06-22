@@ -8,6 +8,7 @@ export type TagsInputPropsWithoutHTML = {
 	filterSuggestions?: (inputValue: string, suggestions: string[]) => string[];
 	restrictToSuggestions?: boolean;
 	showSelectedTags?: boolean;
+	suggestionsPlacement?: 'top' | 'bottom';
 };
 
 export type TagsInputProps = TagsInputPropsWithoutHTML & Omit<HTMLInputAttributes, 'value'>;
