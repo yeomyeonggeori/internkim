@@ -1,13 +1,15 @@
 <script lang="ts">
-	import OverviewDashboard from './overview-dashboard.svelte';
-	import StatusBoard from './status-board.svelte';
-	import MonthHeatmap from './month-heatmap.svelte';
+	import TeamKpiSummary from './team-kpi-summary.svelte';
+	import TeamMonthCalendar from './team-month-calendar.svelte';
+	import TeamStatusGrid from './team-status-grid.svelte';
 </script>
 
-<div class="flex flex-col gap-4">
-	<OverviewDashboard />
-	<div class="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
-		<StatusBoard />
-		<MonthHeatmap />
+<div class="flex min-w-0 flex-col gap-4">
+	<div data-testid="team-top-dashboard" class="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
+		<div class="flex min-h-0 min-w-0 flex-col gap-4">
+			<TeamKpiSummary />
+			<TeamStatusGrid />
+		</div>
+		<TeamMonthCalendar />
 	</div>
 </div>
