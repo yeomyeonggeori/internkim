@@ -29,20 +29,41 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 	workspaceRoot := service.Configuration.BlueclawWorkspacePath
 	targetDraftHostPath := filepath.Join(workspaceRoot, "circles", "staff", "sites", siteID, "draft")
 
-	currentSourceHostPath := locateSiteSourceHostPath(workspaceRoot, siteID, targetDraftHostPath)
-	if currentSourceHostPath == "" {
+	workspaceSourceHostPath := locateSiteSourceHostPath(workspaceRoot, siteID, targetDraftHostPath)
+	if workspaceSourceHostPath != "" {
+		if workspaceSourceHostPath != targetDraftHostPath {
+			if errorValue := relocateDirectory(workspaceSourceHostPath, targetDraftHostPath); errorValue != nil {
+				return errorValue
+			}
+			_ = os.Remove(filepath.Dir(workspaceSourceHostPath))
+		}
+		healStaffCirclePermissions(targetDraftHostPath)
+		return service.recordStaffCircleSitePaths(site, siteID)
+	}
+
+	ledgerSourceHostPath := service.siteSourceLedgerPath(siteID)
+	if !directoryHasEntries(ledgerSourceHostPath) {
 		return nil
 	}
-
-	if currentSourceHostPath != targetDraftHostPath {
-		if errorValue := relocateDirectory(currentSourceHostPath, targetDraftHostPath); errorValue != nil {
+	if !isExistingDirectory(targetDraftHostPath) {
+		if errorValue := copyDirectoryIntoStaffCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
 			return errorValue
 		}
-		_ = os.Remove(filepath.Dir(currentSourceHostPath))
 	}
-
 	healStaffCirclePermissions(targetDraftHostPath)
 	return service.recordStaffCircleSitePaths(site, siteID)
+}
+
+func copyDirectoryIntoStaffCircle(sourcePath string, targetPath string) error {
+	if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o770); errorValue != nil {
+		return errorValue
+	}
+	return copyDirectory(sourcePath, targetPath)
+}
+
+func directoryHasEntries(path string) bool {
+	entries, errorValue := os.ReadDir(path)
+	return errorValue == nil && len(entries) > 0
 }
 
 func locateSiteSourceHostPath(workspaceRoot string, siteID string, targetDraftHostPath string) string {
