@@ -12,6 +12,21 @@ var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
 const openRouterNativeToolMaxFunctionCount = 12
 
+var nativeBlueclawPlanningFields = []nativeBlueclawPlanningField{
+	{ActionFieldName: "message", ArgumentFieldName: "blueclawMessage"},
+	{ActionFieldName: "reason", ArgumentFieldName: "blueclawReason"},
+	{ActionFieldName: "goalStatus", ArgumentFieldName: "blueclawGoalStatus"},
+	{ActionFieldName: "goalSatisfied", ArgumentFieldName: "blueclawGoalSatisfied"},
+	{ActionFieldName: "remainingWork", ArgumentFieldName: "blueclawRemainingWork"},
+	{ActionFieldName: "executionStateUpdate", ArgumentFieldName: "blueclawExecutionStateUpdate"},
+	{ActionFieldName: "nextStepPlan", ArgumentFieldName: "blueclawNextStepPlan"},
+}
+
+type nativeBlueclawPlanningField struct {
+	ActionFieldName   string
+	ArgumentFieldName string
+}
+
 type nativeActionToolSet struct {
 	Tools            []nativeActionTool
 	ToolByName       map[string]nativeActionTool
@@ -219,13 +234,14 @@ func nativeContinueActionPayload(tool nativeActionTool, argumentDocument json.Ra
 }
 
 func fixedContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
-	var payload map[string]any
-	if errorValue := json.Unmarshal(argumentDocument, &payload); errorValue != nil {
+	var flatArguments map[string]json.RawMessage
+	if errorValue := json.Unmarshal(argumentDocument, &flatArguments); errorValue != nil {
 		return nil, errorValue
 	}
-	toolInput := payload["toolInput"]
-	if toolInput == nil {
-		toolInput = map[string]any{}
+	toolInput, planningFields := reconstructActionFromFlatArguments(flatArguments, nativeBlueclawPlanningArgumentNames())
+	payload := map[string]any{}
+	for fieldName, fieldValue := range planningFields {
+		payload[fieldName] = fieldValue
 	}
 	payload["action"] = tool.Action
 	payload["toolName"] = tool.ToolName
@@ -260,6 +276,64 @@ func dispatchedToolInput(payload map[string]any) (any, error) {
 	return map[string]any{}, nil
 }
 
+func flattenToolInputSchema(toolInputSchema json.RawMessage) (map[string]json.RawMessage, []string) {
+	var document struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	if errorValue := json.Unmarshal(toolInputSchema, &document); errorValue != nil {
+		return map[string]json.RawMessage{}, nil
+	}
+	properties := map[string]json.RawMessage{}
+	for propertyName, propertySchema := range document.Properties {
+		properties[propertyName] = propertySchema
+	}
+	return properties, append([]string{}, document.Required...)
+}
+
+func reconstructActionFromFlatArguments(flatArguments map[string]json.RawMessage, knownBlueclawFields []string) (map[string]any, map[string]any) {
+	blueclawFieldNames := stringSetForNativeSchema(knownBlueclawFields)
+	toolInput := map[string]any{}
+	planningFields := map[string]any{}
+	for fieldName, fieldValue := range flatArguments {
+		decodedValue := valueFromNativeArgument(fieldValue)
+		if blueclawFieldNames[fieldName] {
+			planningFields[actionFieldNameForBlueclawArgument(fieldName)] = decodedValue
+			continue
+		}
+		toolInput[fieldName] = decodedValue
+	}
+	return toolInput, planningFields
+}
+
+func valueFromNativeArgument(fieldValue json.RawMessage) any {
+	if len(fieldValue) == 0 {
+		return nil
+	}
+	var decodedValue any
+	if errorValue := json.Unmarshal(fieldValue, &decodedValue); errorValue != nil {
+		return nil
+	}
+	return decodedValue
+}
+
+func actionFieldNameForBlueclawArgument(fieldName string) string {
+	for _, planningField := range nativeBlueclawPlanningFields {
+		if planningField.ArgumentFieldName == fieldName {
+			return planningField.ActionFieldName
+		}
+	}
+	return fieldName
+}
+
+func nativeBlueclawPlanningArgumentNames() []string {
+	fieldNames := make([]string, 0, len(nativeBlueclawPlanningFields))
+	for _, planningField := range nativeBlueclawPlanningFields {
+		fieldNames = append(fieldNames, planningField.ArgumentFieldName)
+	}
+	return fieldNames
+}
+
 func stringSliceContains(values []string, expected string) bool {
 	for _, value := range values {
 		if strings.TrimSpace(value) == expected {
@@ -270,15 +344,12 @@ func stringSliceContains(values []string, expected string) bool {
 }
 
 func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
-	properties := map[string]json.RawMessage{
-		"toolInput": variant.Properties["toolInput"],
-	}
-	required := []string{"toolInput"}
-	for _, fieldName := range []string{"message", "reason", "goalStatus", "goalSatisfied", "remainingWork", "executionStateUpdate", "nextStepPlan"} {
-		if propertySchema, isFound := variant.Properties[fieldName]; isFound {
-			properties[fieldName] = propertySchema
-			if fieldName == "executionStateUpdate" || fieldName == "nextStepPlan" {
-				required = append(required, fieldName)
+	properties, required := flattenToolInputSchema(variant.Properties["toolInput"])
+	for _, planningField := range nativeBlueclawPlanningFields {
+		if propertySchema, isFound := variant.Properties[planningField.ActionFieldName]; isFound {
+			properties[planningField.ArgumentFieldName] = propertySchema
+			if planningField.ActionFieldName == "executionStateUpdate" || planningField.ActionFieldName == "nextStepPlan" {
+				required = append(required, planningField.ArgumentFieldName)
 			}
 		}
 	}
