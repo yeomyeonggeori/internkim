@@ -5,6 +5,7 @@ import {
 	type DayFlowMiniCalendarEnhancementContext
 } from './calendar-dayflow-mini-calendar-enhancement';
 import { syncCalendarMultiDayProxyLayout } from './calendar-multi-day-proxy-layout';
+import { syncTimelineEventLaneLayout } from './calendar-timeline-event-lanes';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 
 type CalendarDOMSyncTask = () => void;
@@ -17,6 +18,7 @@ type CalendarDOMSyncScheduler = (task: CalendarDOMSyncTask) => void;
 const dayFlowMiniCalendarScheduler = createBrowserCalendarDOMSyncScheduler();
 const allDayLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const multiDayProxyLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
+const timelineEventLaneLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 
 export function scheduleDayFlowMiniCalendarEnhancement(context: DayFlowMiniCalendarEnhancementContext): void {
 	dayFlowMiniCalendarScheduler(() => enhanceDayFlowMiniCalendar(context));
@@ -41,6 +43,20 @@ export function scheduleCalendarMultiDayProxyLayoutSync(
 			events: events(),
 			openEvent
 		})
+	);
+}
+
+export function scheduleTimelineEventLaneLayoutSync(
+	stageElement: HTMLElement | null,
+	currentView: CalendarViewType,
+	events: () => DayFlowEvent[]
+): void {
+	timelineEventLaneLayoutScheduler(() =>
+		syncTimelineEventLaneLayout(
+			stageElement,
+			currentView,
+			events()
+		)
 	);
 }
 
