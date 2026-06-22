@@ -51,8 +51,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
-		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be staff-circle draft path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.intern.kim", "/")
@@ -271,8 +271,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
-		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be staff-circle draft path, got %q", site.SourceWorkspacePath)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
@@ -1064,10 +1064,10 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
-		t.Fatalf("expected owner-private draft workspace, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("expected staff-circle draft workspace, got %q", site.SourceWorkspacePath)
 	}
-	if !strings.HasPrefix(site.WorkspacePath, "home/sites/") || strings.HasSuffix(site.WorkspacePath, "/draft") {
+	if !strings.HasPrefix(site.WorkspacePath, "/workspace/circles/staff/sites/") || strings.HasSuffix(site.WorkspacePath, "/draft") {
 		t.Fatalf("workspace path should point at project root: %+v", site)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
