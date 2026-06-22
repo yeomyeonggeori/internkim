@@ -27,9 +27,8 @@ export class FilesState {
 		this.loadFailedMessage = loadFailedMessage;
 	}
 
-	get rootEntries(): WorkspaceEntry[] {
-		if (!this.currentRoot) return [];
-		return this.childrenCache[this.currentRoot.agentPath] ?? [];
+	get currentEntries(): WorkspaceEntry[] {
+		return this.childrenCache[this.currentPath] ?? [];
 	}
 
 	get breadcrumbs(): WorkspaceBreadcrumb[] {
@@ -77,8 +76,9 @@ export class FilesState {
 		return this.loadingPaths[path] === true;
 	}
 
-	setActiveDirectory(path: string) {
+	async openDirectory(path: string) {
 		this.currentPath = path;
+		await this.loadChildren(path);
 	}
 
 	selectFile(entry: WorkspaceEntry) {
