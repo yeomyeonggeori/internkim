@@ -50,15 +50,36 @@ type attendanceEvent struct {
 }
 
 type attendanceAbsence struct {
-	ID         string `json:"id"`
-	Email      string `json:"email"`
-	Kind       string `json:"kind"`
-	LabelKey   string `json:"labelKey"`
-	Date       string `json:"date"`
-	Reason     string `json:"reason,omitempty"`
-	CreatedBy  string `json:"createdBy,omitempty"`
-	CreatedAt  string `json:"createdAt"`
-	CanceledAt string `json:"canceledAt,omitempty"`
+	ID           string `json:"id"`
+	RangeID      string `json:"rangeID,omitempty"`
+	Email        string `json:"email"`
+	Kind         string `json:"kind"`
+	LabelKey     string `json:"labelKey"`
+	Date         string `json:"date"`
+	StartDate    string `json:"startDate,omitempty"`
+	EndDate      string `json:"endDate,omitempty"`
+	Reason       string `json:"reason,omitempty"`
+	CreatedBy    string `json:"createdBy,omitempty"`
+	CreatedAt    string `json:"createdAt"`
+	CanceledAt   string `json:"canceledAt,omitempty"`
+	IsRangeStart bool   `json:"isRangeStart,omitempty"`
+	IsRangeEnd   bool   `json:"isRangeEnd,omitempty"`
+	IsChunkStart bool   `json:"isChunkStart,omitempty"`
+	IsChunkEnd   bool   `json:"isChunkEnd,omitempty"`
+}
+
+type attendanceAbsenceRange struct {
+	ID         string
+	Email      string
+	Kind       string
+	StartDate  string
+	EndDate    string
+	Reason     string
+	CreatedBy  string
+	CreatedAt  string
+	UpdatedAt  string
+	CanceledAt string
+	ReplacedBy string
 }
 
 type attendanceSummaryResponse struct {
