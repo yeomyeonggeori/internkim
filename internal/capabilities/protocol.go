@@ -57,7 +57,6 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
 	}
-	descriptors = append(descriptors, DeviceBrowserDescriptors()...)
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
