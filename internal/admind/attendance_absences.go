@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -28,13 +29,16 @@ func (service *Service) writeAttendanceAbsences(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	dates, errorValue := attendanceAbsenceDates(payload.StartDate, payload.EndDate)
-	if errorValue != nil {
+	if _, errorValue := attendanceAbsenceDates(payload.StartDate, payload.EndDate); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	createdAbsences, errorValue := service.insertAttendanceAbsences(request.Context(), targetEmail, kind, dates, payload.Reason, firstNonEmpty(actorEmail, attendanceAbsenceLocalAdminActor))
+	createdAbsences, errorValue := service.insertAttendanceAbsenceRange(request.Context(), targetEmail, kind, payload.StartDate, payload.EndDate, payload.Reason, firstNonEmpty(actorEmail, attendanceAbsenceLocalAdminActor))
 	if errorValue != nil {
+		if errors.Is(errorValue, errAttendanceAbsenceDateConflict) {
+			http.Error(responseWriter, errorValue.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
