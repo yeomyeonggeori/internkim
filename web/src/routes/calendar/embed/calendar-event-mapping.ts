@@ -23,8 +23,10 @@ export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEven
 			timeZone: event.timeZone,
 			createdByEmail: event.createdByEmail,
 			createdByName: event.createdByName,
+			createdByImage: event.createdByImage ?? '',
 			updatedByEmail: event.updatedByEmail ?? '',
 			updatedByName: event.updatedByName ?? '',
+			updatedByImage: event.updatedByImage ?? '',
 			updatedByAt: event.updatedByAt ?? '',
 			updatedAt: event.updatedAt
 		}

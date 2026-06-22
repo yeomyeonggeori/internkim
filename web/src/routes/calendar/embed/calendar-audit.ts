@@ -2,8 +2,14 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 
 export type CalendarAuditRow = {
 	label: string;
-	person: string;
+	actor: CalendarAuditActor;
 	time: string;
+};
+
+export type CalendarAuditActor = {
+	name: string;
+	email: string;
+	image: string;
 };
 
 export type CalendarAuditLabels = {
@@ -18,20 +24,27 @@ export function calendarAuditRows(
 ): CalendarAuditRow[] {
 	if (!event) return [];
 	const rows: CalendarAuditRow[] = [];
-	const createdBy = auditPerson(event.meta?.createdByName, event.meta?.createdByEmail);
+	const createdBy = auditActor(event.meta?.createdByName, event.meta?.createdByEmail, event.meta?.createdByImage);
 	if (createdBy) {
-		rows.push({ label: labels.created, person: createdBy, time: '' });
+		rows.push({ label: labels.created, actor: createdBy, time: '' });
 	}
-	const updatedBy = auditPerson(event.meta?.updatedByName, event.meta?.updatedByEmail);
+	const updatedBy = auditActor(event.meta?.updatedByName, event.meta?.updatedByEmail, event.meta?.updatedByImage);
 	const updatedAt = auditTime(event.meta?.updatedByAt, localeCode);
 	if (updatedBy && updatedAt) {
-		rows.push({ label: labels.updated, person: updatedBy, time: updatedAt });
+		rows.push({ label: labels.updated, actor: updatedBy, time: updatedAt });
 	}
 	return rows;
 }
 
-function auditPerson(name: unknown, email: unknown): string {
-	return stringMeta(name) || stringMeta(email);
+function auditActor(name: unknown, email: unknown, image: unknown): CalendarAuditActor | null {
+	const actorName = stringMeta(name) || stringMeta(email);
+	const actorEmail = stringMeta(email);
+	if (!actorName && !actorEmail) return null;
+	return {
+		name: actorName || actorEmail,
+		email: actorEmail,
+		image: stringMeta(image)
+	};
 }
 
 function auditTime(value: unknown, localeCode: string): string {

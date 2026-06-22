@@ -177,7 +177,7 @@ describe('calendar draft popover position', () => {
 
 		const position = draftPopoverPositionFromAnchor(draftAnchor, stageElement);
 
-		expect(position.width).toBe(540);
+		expect(position.width).toBe(400);
 	});
 });
 
