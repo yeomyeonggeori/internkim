@@ -107,10 +107,10 @@ export async function expectDayAllDayRowCompact(page: Page): Promise<void> {
 		};
 	});
 	expect(measurements).not.toBeNull();
-	expect(measurements?.rowHeight).toBeGreaterThanOrEqual(72);
-	expect(measurements?.rowHeight).toBeLessThanOrEqual(76);
-	expect(measurements?.labelHeight).toBeGreaterThanOrEqual(72);
-	expect(measurements?.labelHeight).toBeLessThanOrEqual(76);
+	expect(measurements?.rowHeight).toBeGreaterThanOrEqual(44);
+	expect(measurements?.rowHeight).toBeLessThanOrEqual(48);
+	expect(measurements?.labelHeight).toBeGreaterThanOrEqual(44);
+	expect(measurements?.labelHeight).toBeLessThanOrEqual(48);
 	expect(Math.abs(measurements?.labelTopGap ?? 0)).toBeLessThanOrEqual(1);
 }
 
@@ -133,4 +133,42 @@ export async function expectDayAllDayRowEmptyCompact(page: Page): Promise<void> 
 	expect(measurements?.labelHeight).toBeGreaterThanOrEqual(48);
 	expect(measurements?.labelHeight).toBeLessThanOrEqual(52);
 	expect(Math.abs(measurements?.labelTopGap ?? 0)).toBeLessThanOrEqual(1);
+}
+
+export async function expectDayAllDayCompactEventsCentered(page: Page, expectedCount: number): Promise<void> {
+	const measurements = await page.evaluate(() => {
+		const row = document.querySelector('.df-day-content-all-day-row');
+		if (!(row instanceof HTMLElement)) return null;
+		const rowRectangle = row.getBoundingClientRect();
+		const eventRectangles = Array.from(document.querySelectorAll<HTMLElement>('.df-day-content-all-day-lane .df-event'))
+			.filter((element) => {
+				const rectangle = element.getBoundingClientRect();
+				const style = window.getComputedStyle(element);
+				return rectangle.width > 0 && rectangle.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+			})
+			.map((element) => {
+				const rectangle = element.getBoundingClientRect();
+				return {
+					bottom: Math.round(rectangle.bottom - rowRectangle.top),
+					height: Math.round(rectangle.height),
+					top: Math.round(rectangle.top - rowRectangle.top)
+				};
+			})
+			.sort((firstEvent, secondEvent) => firstEvent.top - secondEvent.top);
+		const firstEventTop = eventRectangles[0]?.top ?? 0;
+		const lastEventBottom = eventRectangles[eventRectangles.length - 1]?.bottom ?? 0;
+		return {
+			bottomGap: Math.round(rowRectangle.height - lastEventBottom),
+			eventCount: eventRectangles.length,
+			eventHeights: eventRectangles.map((eventRectangle) => eventRectangle.height),
+			rowHeight: Math.round(rowRectangle.height),
+			topGap: firstEventTop
+		};
+	});
+	expect(measurements).not.toBeNull();
+	expect(measurements?.eventCount).toBe(expectedCount);
+	expect(measurements?.rowHeight).toBeGreaterThanOrEqual(44);
+	expect(measurements?.rowHeight).toBeLessThanOrEqual(48);
+	expect(measurements?.eventHeights).toEqual(Array(expectedCount).fill(16));
+	expect(Math.abs((measurements?.topGap ?? 0) - (measurements?.bottomGap ?? 0))).toBeLessThanOrEqual(2);
 }
