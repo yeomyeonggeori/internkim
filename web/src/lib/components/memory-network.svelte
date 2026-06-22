@@ -28,7 +28,19 @@
 		weight: number;
 	};
 
-	let { nodes, edges }: { nodes: MemoryNetworkNode[]; edges: MemoryNetworkEdge[] } = $props();
+	let {
+		nodes,
+		edges,
+		selectedNodeID = null,
+		onNodeSelect,
+		onClearSelection
+	}: {
+		nodes: MemoryNetworkNode[];
+		edges: MemoryNetworkEdge[];
+		selectedNodeID?: string | null;
+		onNodeSelect?: (nodeID: string) => void;
+		onClearSelection?: () => void;
+	} = $props();
 
 	let containerElement: HTMLDivElement;
 	let graph: ForceGraphDefault<ForceGraphNode, ForceGraphLink> | null = null;
@@ -57,6 +69,11 @@
 		scheduleGraphFit();
 	});
 
+	$effect(() => {
+		selectedNodeID;
+		graph?.nodeColor((node: ForceGraphNode) => nodeColor(node)).nodeVal((node: ForceGraphNode) => nodeValue(node));
+	});
+
 	onMount(() => {
 		let isMounted = true;
 		let resizeObserver: ResizeObserver | null = null;
@@ -81,6 +98,8 @@
 				.nodeLabel((node: ForceGraphNode) => nodeLabel(node))
 				.nodeColor((node: ForceGraphNode) => nodeColor(node))
 				.nodeVal((node: ForceGraphNode) => nodeValue(node))
+				.onNodeClick((node: ForceGraphNode) => onNodeSelect?.(node.id))
+				.onBackgroundClick(() => onClearSelection?.())
 				.linkColor(() => 'rgba(100,116,139,0.35)')
 				.linkWidth((link: ForceGraphLink) => Math.max(1, Number(link.weight || 1)))
 				.warmupTicks(graphLayoutWarmupTickCount)
@@ -125,6 +144,7 @@
 	}
 
 	function nodeColor(node: ForceGraphNode): string {
+		if (node.id === selectedNodeID) return '#f59e0b';
 		if (node.kind === 'namespace') return '#0f766e';
 		if (node.kind === 'fact') return '#7c3aed';
 		if (node.status === 'failed') return '#dc2626';
@@ -132,9 +152,8 @@
 	}
 
 	function nodeValue(node: ForceGraphNode): number {
-		if (node.kind === 'namespace') return 9;
-		if (node.kind === 'fact') return 5;
-		return 4;
+		const baseValue = node.kind === 'namespace' ? 9 : node.kind === 'fact' ? 5 : 4;
+		return node.id === selectedNodeID ? baseValue * 1.6 : baseValue;
 	}
 </script>
 
