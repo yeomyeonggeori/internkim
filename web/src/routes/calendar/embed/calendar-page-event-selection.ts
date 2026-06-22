@@ -32,6 +32,7 @@ export function createCalendarPageEventSelection(
 ): CalendarPageEventSelectionActions {
 	function selectCalendarEvent(eventID: string): void {
 		context.setSelectedAuditEventID(eventID);
+		focusCalendarEventElement(context.getStageElement(), eventID);
 		context.calendar.app.selectEvent(eventID);
 		requestAnimationFrame(() => focusCalendarEventElement(context.getStageElement(), eventID));
 	}

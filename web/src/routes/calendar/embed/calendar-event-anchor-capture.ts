@@ -39,17 +39,19 @@ export function recentCalendarEventAnchorForID(eventID: string): DraftPopoverAnc
 
 export function calendarEventAnchorFromElement(element: HTMLElement): DraftPopoverAnchor {
 	const rectangle = element.getBoundingClientRect();
-	const titleRectangle = titleRectangleFromElement(element) ?? rectangle;
+	const anchorRectangle = anchorRectangleFromElement(element) ?? rectangle;
+	const titleEndClientX = shouldUseTitleEndClientX(element) ? anchorRectangle.right : rectangle.right;
 	return {
 		clientX: rectangle.right,
-		clientY: titleRectangle.top + titleRectangle.height / 2,
+		clientY: anchorRectangle.top + anchorRectangle.height / 2,
 		leftClientX: rectangle.left,
 		rightClientX: rectangle.right,
 		topClientY: rectangle.top,
 		bottomClientY: rectangle.bottom,
-		titleEndClientX: titleRectangle.right,
-		titleTopClientY: titleRectangle.top,
-		titleBottomClientY: titleRectangle.bottom
+		titleEndClientX,
+		titleTopClientY: anchorRectangle.top,
+		titleBottomClientY: anchorRectangle.bottom,
+		preferredSide: preferredPopoverSideFromElement(element)
 	};
 }
 
@@ -67,12 +69,30 @@ function anchorFromElement(element: HTMLElement): DraftPopoverAnchor {
 	return calendarEventAnchorFromElement(element);
 }
 
+function anchorRectangleFromElement(element: HTMLElement): DOMRect | null {
+	const timeElement = shouldUseTimeEndClientX(element) ? element.querySelector<HTMLElement>('.calendar-event-time') : null;
+	return timeElement?.getBoundingClientRect() ?? titleRectangleFromElement(element);
+}
+
 function titleRectangleFromElement(element: HTMLElement): DOMRect | null {
 	if (element.classList.contains('draft-empty-title-event')) return null;
 	const titleElement = element.querySelector<HTMLElement>(
 		'.calendar-event-title, .calendar-month-event-title, .calendar-multi-day-all-day-proxy-start'
 	);
 	return titleElement?.getBoundingClientRect() ?? null;
+}
+
+function shouldUseTimeEndClientX(element: HTMLElement): boolean {
+	return element.classList.contains('df-day-event') && !element.classList.contains('df-right-panel-event-card');
+}
+
+function shouldUseTitleEndClientX(element: HTMLElement): boolean {
+	return !element.classList.contains('df-week-event');
+}
+
+function preferredPopoverSideFromElement(element: HTMLElement): DraftPopoverAnchor['preferredSide'] {
+	if (element.classList.contains('df-right-panel-event-card') || element.closest('.df-right-panel-events')) return 'left';
+	return undefined;
 }
 
 function canonicalCalendarEventElementForID(stageElement: HTMLElement | null, eventID: string): HTMLElement | null {
