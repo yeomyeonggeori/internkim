@@ -41,7 +41,7 @@
 	}: Props = $props();
 
 	const columnClass = [
-		'group flex h-[var(--flow-task-board-height,32rem)] max-h-[var(--flow-task-board-height,32rem)] min-h-80',
+		'group flex h-full min-h-0',
 		'w-80 shrink-0 flex-col rounded-lg border bg-muted/30'
 	].join(' ');
 	const addTaskButtonClass = [
@@ -182,98 +182,100 @@
 	}
 </script>
 
-<div class="overflow-x-auto pb-2" data-flow-board-scroll use:flowTaskBoardViewportHeight>
-	<div class="flex min-w-max gap-3">
-		{#each columns as column (column.status)}
-			<section
-				class={columnClass}
-				role="group"
-				aria-label={statusLabel(column.status)}
-				data-flow-board-column={column.status}
-				ondragover={(event) => handleColumnDragOver(event, column.status, column.tasks)}
-				ondrop={(event) => handleColumnDrop(event, column.status, column.tasks)}
-			>
-				<header class={`flex items-center justify-between gap-2 border-b px-3 py-2 ${column.theme.headerClass}`}>
-					<div class="flex min-w-0 items-center gap-2">
-						<span class={`size-2.5 shrink-0 rounded-full ${column.theme.dotClass}`}></span>
-						<h3 class={`truncate text-sm font-semibold ${column.theme.titleClass}`}>{statusLabel(column.status)}</h3>
-					</div>
-					<span class="rounded-full bg-background px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-						{column.tasks.length}
-					</span>
-				</header>
-
-				<div
-					class="min-h-0 flex-1 overflow-y-auto p-2"
-					role="list"
+<div class="sticky top-0 bg-background">
+	<div class="h-[var(--flow-task-board-height,32rem)] min-h-80 overflow-x-auto pb-2" data-flow-board-scroll use:flowTaskBoardViewportHeight>
+		<div class="flex h-full min-w-max gap-3">
+			{#each columns as column (column.status)}
+				<section
+					class={columnClass}
+					role="group"
 					aria-label={statusLabel(column.status)}
+					data-flow-board-column={column.status}
 					ondragover={(event) => handleColumnDragOver(event, column.status, column.tasks)}
 					ondrop={(event) => handleColumnDrop(event, column.status, column.tasks)}
 				>
-					<div class="space-y-2">
-						{#each column.tasks as task (task.id)}
-							{#if shouldShowCardInsertionLine(column.status, task.id)}
-								<div
-									class={insertionLineWrapperClass}
-									data-flow-board-drop-indicator={insertionIndicatorID(column.status, task.id)}
-								>
-									<div class={insertionLineClass}></div>
-								</div>
-							{/if}
+					<header class={`flex items-center justify-between gap-2 border-b px-3 py-2 ${column.theme.headerClass}`}>
+						<div class="flex min-w-0 items-center gap-2">
+							<span class={`size-2.5 shrink-0 rounded-full ${column.theme.dotClass}`}></span>
+							<h3 class={`truncate text-sm font-semibold ${column.theme.titleClass}`}>{statusLabel(column.status)}</h3>
+						</div>
+						<span class="rounded-full bg-background px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+							{column.tasks.length}
+						</span>
+					</header>
 
-							<div role="listitem">
+					<div
+						class="min-h-0 flex-1 overflow-y-auto p-2"
+						role="list"
+						aria-label={statusLabel(column.status)}
+						ondragover={(event) => handleColumnDragOver(event, column.status, column.tasks)}
+						ondrop={(event) => handleColumnDrop(event, column.status, column.tasks)}
+					>
+						<div class="space-y-2">
+							{#each column.tasks as task (task.id)}
+								{#if shouldShowCardInsertionLine(column.status, task.id)}
+									<div
+										class={insertionLineWrapperClass}
+										data-flow-board-drop-indicator={insertionIndicatorID(column.status, task.id)}
+									>
+										<div class={insertionLineClass}></div>
+									</div>
+								{/if}
+
+								<div role="listitem">
 									<FlowTaskBoardCard
 										{task}
 										{businessFallback}
 										{openTask}
-									isPending={isTaskPending(task.id)}
-									isReadOnly={!canUpdateTask(task)}
-									onTaskDragStart={handleTaskDragStart}
-									onTaskDragEnd={handleTaskDragEnd}
-									onTaskDragOver={(event, value) => handleCardDragOver(event, column.status, column.tasks, value)}
-									onTaskDrop={(event, value) => handleCardDrop(event, column.status, column.tasks, value)}
-								/>
-							</div>
-						{/each}
+										isPending={isTaskPending(task.id)}
+										isReadOnly={!canUpdateTask(task)}
+										onTaskDragStart={handleTaskDragStart}
+										onTaskDragEnd={handleTaskDragEnd}
+										onTaskDragOver={(event, value) => handleCardDragOver(event, column.status, column.tasks, value)}
+										onTaskDrop={(event, value) => handleCardDrop(event, column.status, column.tasks, value)}
+									/>
+								</div>
+							{/each}
 
-						<div
-							class="min-h-4"
-							role="presentation"
-							data-flow-board-drop-zone={column.status}
-							ondragover={(event) => handleColumnDragOver(event, column.status, column.tasks)}
-							ondrop={(event) => handleColumnDrop(event, column.status, column.tasks)}
-						>
-							{#if shouldShowAppendInsertionLine(column.status)}
-								<div
-									class={insertionLineWrapperClass}
-									data-flow-board-drop-indicator={insertionIndicatorID(column.status, 'append')}
-								>
-									<div class={insertionLineClass}></div>
+							<div
+								class="min-h-4"
+								role="presentation"
+								data-flow-board-drop-zone={column.status}
+								ondragover={(event) => handleColumnDragOver(event, column.status, column.tasks)}
+								ondrop={(event) => handleColumnDrop(event, column.status, column.tasks)}
+							>
+								{#if shouldShowAppendInsertionLine(column.status)}
+									<div
+										class={insertionLineWrapperClass}
+										data-flow-board-drop-indicator={insertionIndicatorID(column.status, 'append')}
+									>
+										<div class={insertionLineClass}></div>
+									</div>
+								{/if}
+							</div>
+
+							{#if column.tasks.length === 0}
+								<div class="rounded-md border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
+									{boardText.emptyColumn}
 								</div>
 							{/if}
+
+							<Button
+								type="button"
+								variant="ghost"
+								class={addTaskButtonClass}
+								aria-label={addTaskLabel(column.status)}
+								title={addTaskLabel(column.status)}
+								onclick={() => {
+									if (isFlowTaskBoardStatus(column.status)) createTask(column.status);
+								}}
+							>
+								<PlusIcon class="size-4" />
+							</Button>
 						</div>
-
-						{#if column.tasks.length === 0}
-							<div class="rounded-md border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
-								{boardText.emptyColumn}
-							</div>
-						{/if}
-
-						<Button
-							type="button"
-							variant="ghost"
-							class={addTaskButtonClass}
-							aria-label={addTaskLabel(column.status)}
-							title={addTaskLabel(column.status)}
-							onclick={() => {
-								if (isFlowTaskBoardStatus(column.status)) createTask(column.status);
-							}}
-						>
-							<PlusIcon class="size-4" />
-						</Button>
 					</div>
-				</div>
-			</section>
-		{/each}
+				</section>
+			{/each}
+		</div>
 	</div>
 </div>
