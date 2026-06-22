@@ -42,6 +42,8 @@ const (
 	sitePortEnd   = 19999
 )
 
+const staffCircleSitesWorkspacePath = "/workspace/circles/staff/sites"
+
 var sitePersistenceMutex sync.Mutex
 
 type SiteRecord struct {
@@ -2632,13 +2634,13 @@ func siteProjectWorkspacePath(siteID string) string {
 	if strings.TrimSpace(siteID) == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join("home", "sites", strings.TrimSpace(siteID)))
+	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID)))
 }
 
 func siteDraftWorkspacePath(siteID string, requestedPath string) string {
 	canonicalPath := filepath.ToSlash(filepath.Join(siteProjectWorkspacePath(siteID), "draft"))
 	cleanRequestedPath := filepath.ToSlash(strings.TrimSpace(requestedPath))
-	if strings.HasPrefix(cleanRequestedPath, "home/sites/") && strings.HasSuffix(cleanRequestedPath, "/draft") {
+	if strings.HasPrefix(cleanRequestedPath, staffCircleSitesWorkspacePath+"/") && strings.HasSuffix(cleanRequestedPath, "/draft") {
 		return cleanRequestedPath
 	}
 	return canonicalPath
