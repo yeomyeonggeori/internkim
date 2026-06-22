@@ -108,6 +108,23 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 	}, nil
 }
 
+func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	apiKey, errorValue := backend.resolveAPIKey()
+	if errorValue != nil {
+		return ChatResponse{}, errorValue
+	}
+	modelName := backend.resolveModelName(request.Model)
+	requestDocument, errorValue := json.Marshal(openAIChatCompletionRequest(modelName, request))
+	if errorValue != nil {
+		return ChatResponse{}, errorValue
+	}
+	response, errorValue := backend.sendChatCompletion(ctx, apiKey, requestDocument)
+	if errorValue != nil {
+		return ChatResponse{}, errorValue
+	}
+	return chatResponseFromOpenAI("openrouter", modelName, response), nil
+}
+
 func (backend OpenRouterBackend) resolveAPIKey() (string, error) {
 	apiKey := readOpenRouterKey(backend.KeyPath)
 	if apiKey == "" {
@@ -207,6 +224,39 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 		}
 	}
 	return "", Usage{}, errors.New("openrouter chat completion response did not include tool_calls")
+}
+
+func (backend OpenRouterBackend) sendChatCompletion(ctx context.Context, apiKey string, requestDocument []byte) (openAIResponseWithUsage, error) {
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		return openAIResponseWithUsage{}, errorValue
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
+	httpRequest.Header.Set("Content-Type", "application/json")
+	backend.setGatewaySecretHeader(httpRequest)
+
+	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
+	if errorValue != nil {
+		return openAIResponseWithUsage{}, errorValue
+	}
+	defer httpResponse.Body.Close()
+
+	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return openAIResponseWithUsage{}, errors.New("read openrouter response: " + errorValue.Error())
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return openAIResponseWithUsage{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
+	}
+
+	var response openAIResponseWithUsage
+	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
+		return openAIResponseWithUsage{}, errorValue
+	}
+	if len(response.Choices) == 0 {
+		return openAIResponseWithUsage{}, errors.New("openrouter response did not include choices")
+	}
+	return response, nil
 }
 
 func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {

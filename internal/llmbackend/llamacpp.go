@@ -75,6 +75,10 @@ func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextReq
 	}, nil
 }
 
+func (backend LlamaCppBackend) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	return backend.client().chatCompletion(ctx, request)
+}
+
 func (backend LlamaCppBackend) client() openAICompatClient {
 	return openAICompatClient{
 		ProviderName: "llamacpp",

@@ -435,6 +435,34 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 	return response, nil
 }
 
+func (provider companionProvider) CompleteChat(ctx context.Context, request ChatLLMRequest) (ChatLLMResponse, error) {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return ChatLLMResponse{}, errorValue
+	}
+	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
+		ToolName:      "llm.chat",
+		Input:         document,
+		Context:       toolInvokeContextFromLLMRequest(request.Context),
+		ExecutionMode: capabilities.ExecutionModeCompanion,
+		PrivacyClass:  "model_input",
+	})
+	if errorValue != nil {
+		return ChatLLMResponse{}, errorValue
+	}
+	if errorValue := validateCompanionToolResponse(toolResponse); errorValue != nil {
+		return ChatLLMResponse{}, errorValue
+	}
+	var response ChatLLMResponse
+	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
+		return ChatLLMResponse{}, errorValue
+	}
+	if response.Provider == "" {
+		response.Provider = "companion"
+	}
+	return response, nil
+}
+
 func validateCompanionToolResponse(response capabilities.ToolInvokeResponse) error {
 	if response.IsError {
 		return errors.New(firstNonEmpty(response.Content, response.Status, "companion tool returned an error"))
