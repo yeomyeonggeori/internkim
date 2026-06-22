@@ -149,15 +149,6 @@ type RecoveryAction struct {
 
 func CompanionToolDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserOpenInputSchema(), SideEffectClass: "browser"},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserSnapshotInputSchema(), SideEffectClass: "read"},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserScreenshotInputSchema(), SideEffectClass: "read"},
-		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserHandoffInputSchema(), SideEffectClass: "handoff", RequiresApproval: true},
-		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserTargetInputSchema(), SideEffectClass: "browser_write", RequiresApproval: true},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserFillInputSchema(), SideEffectClass: "browser_write"},
-		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserSelectInputSchema(), SideEffectClass: "browser_write"},
-		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserPressInputSchema(), SideEffectClass: "browser_write"},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserWaitInputSchema(), SideEffectClass: "read"},
 		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userConfirmInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
 		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
 		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: filePickInputSchema(), SideEffectClass: "local_file", RequiresApproval: true},
