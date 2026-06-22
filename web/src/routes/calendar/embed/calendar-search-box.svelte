@@ -17,6 +17,11 @@
 	}: CalendarSearchBoxProps = $props();
 
 	const text = createPageText(calendarText);
+
+	function selectSearchResult(result: CalendarSearchResult): void {
+		navigateToSearchResult(result);
+		searchText = '';
+	}
 </script>
 
 <div class="calendar-search-shell">
@@ -27,7 +32,7 @@
 	{#if searchResults.length > 0}
 		<div class="calendar-search-results" role="listbox" aria-label={text.searchResults}>
 			{#each searchResults as result (result.id)}
-				<button type="button" role="option" aria-selected="false" class="calendar-search-result" onclick={() => navigateToSearchResult(result)}>
+				<button type="button" role="option" aria-selected="false" class="calendar-search-result" onclick={() => selectSearchResult(result)}>
 					<span class="calendar-search-result-date">{result.dateLabel}</span>
 					<span class="calendar-search-result-title">
 						{#each result.highlightParts as part}

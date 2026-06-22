@@ -11,8 +11,10 @@ export type CalendarEvent = {
 	color: string;
 	createdByEmail: string;
 	createdByName: string;
+	createdByImage?: string;
 	updatedByEmail?: string;
 	updatedByName?: string;
+	updatedByImage?: string;
 	updatedByAt?: string;
 	updatedAt: string;
 };

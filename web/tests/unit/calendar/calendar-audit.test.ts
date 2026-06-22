@@ -7,7 +7,10 @@ describe('calendar audit rows', () => {
 			{
 				meta: {
 					createdByName: 'Creator',
+					createdByEmail: 'creator@example.com',
+					createdByImage: '/calendar/api/events/event-1/actor-image?actor=created',
 					updatedByName: 'Updater',
+					updatedByEmail: 'updater@example.com',
 					updatedByAt: '2026-06-17T01:30:00.000Z'
 				}
 			},
@@ -15,9 +18,18 @@ describe('calendar audit rows', () => {
 			{ created: 'Created', updated: 'Updated' }
 		);
 
-		expect(rows[0]).toEqual({ label: 'Created', person: 'Creator', time: '' });
+		expect(rows[0]).toEqual({
+			label: 'Created',
+			actor: {
+				name: 'Creator',
+				email: 'creator@example.com',
+				image: '/calendar/api/events/event-1/actor-image?actor=created'
+			},
+			time: ''
+		});
 		expect(rows[1]?.label).toBe('Updated');
-		expect(rows[1]?.person).toBe('Updater');
+		expect(rows[1]?.actor.name).toBe('Updater');
+		expect(rows[1]?.actor.email).toBe('updater@example.com');
 		expect(rows[1]?.time.includes('2026')).toBe(true);
 	});
 });
