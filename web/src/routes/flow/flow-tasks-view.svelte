@@ -50,8 +50,8 @@
 	$effect(page.clearStaleDuplicatePrompt);
 </script>
 
-<div class="space-y-4 pb-20 md:pb-16">
-	<Tabs.Root bind:value={taskViewTab} class="space-y-4" data-flow-task-results>
+<div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-20 md:pb-16'}>
+	<Tabs.Root bind:value={taskViewTab} class="flex flex-col gap-4" data-flow-task-results>
 		<div class="flex flex-wrap items-center gap-2">
 			<Tabs.List class="h-10 rounded-full border bg-muted/50 p-1">
 				<Tabs.Trigger value="board" class={taskViewTabTriggerClass}>
