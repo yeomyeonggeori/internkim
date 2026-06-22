@@ -1,0 +1,113 @@
+import { expect, test, type Page } from '@playwright/test';
+import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
+import { dispatchElementScroll, doubleClickCalendarEvent, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import {
+	duplicateDayAnchorTimelineEventSelector,
+	routeDuplicateDayAnchorEvent
+} from './calendar-embed-timeline-fixtures';
+
+test.describe('embedded calendar timeline scroll and pointer guards', () => {
+	test.beforeEach(async ({ page }) => {
+		await routeDefaultCalendarAPI(page);
+	});
+
+	test('does not open a day event popover after a moved pointer gesture', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'moved-pointer-day-event',
+				title: 'Moved Pointer Day Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		const eventSelector = '.calendar-stage [data-event-id="moved-pointer-day-event"].df-day-event:not(.df-right-panel-event-card)';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector);
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
+	test('does not open a day event popover after a touch scroll gesture', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await routeCalendarEvents(page, [
+			{
+				id: 'touch-scroll-day-event',
+				title: 'Touch Scroll Day Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		const eventSelector = '.calendar-stage [data-event-id="touch-scroll-day-event"].df-day-event:not(.df-right-panel-event-card)';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector, { pointerType: 'touch' });
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
+	test('dismisses day edit popovers on calendar scroll without dismissing internal popover scroll', async ({ page }) => {
+		const updatedEvents = await routeCalendarEventUpdates(page);
+		await routeDuplicateDayAnchorEvent(page);
+
+		await openCalendarEmbed(page, '일');
+		await doubleClickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+
+		await dispatchElementScroll(page, '.draft-popover-body', 24);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+
+		await dispatchElementScroll(page, '.df-day-content-grid', 120);
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect.poll(() => updatedEvents.length).toBe(1);
+	});
+});
+
+type MovedPointerActivationOptions = {
+	pointerType?: string;
+};
+
+async function dispatchMovedPointerActivation(page: Page, selector: string, options: MovedPointerActivationOptions = {}): Promise<void> {
+	await page.evaluate(async ({ targetSelector, pointerType }) => {
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!target) throw new Error(`Missing calendar event: ${targetSelector}`);
+		target.scrollIntoView({ block: 'center', inline: 'nearest' });
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		const rectangle = target.getBoundingClientRect();
+		const startClientX = rectangle.left + Math.min(32, rectangle.width / 2);
+		const startClientY = rectangle.top + Math.min(24, rectangle.height / 2);
+		const movedClientY = startClientY + 32;
+		const pointerID = 25;
+		const startPointerEvent: PointerEventInit = {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			pointerId: pointerID,
+			pointerType,
+			clientX: startClientX,
+			clientY: startClientY
+		};
+		const movedPointerEvent: PointerEventInit = {
+			...startPointerEvent,
+			clientY: movedClientY
+		};
+		const movedMouseEvent: MouseEventInit = {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			clientX: startClientX,
+			clientY: movedClientY
+		};
+		target.dispatchEvent(new PointerEvent('pointerdown', startPointerEvent));
+		document.dispatchEvent(new PointerEvent('pointermove', movedPointerEvent));
+		window.dispatchEvent(new PointerEvent('pointerup', movedPointerEvent));
+		target.dispatchEvent(new MouseEvent('click', movedMouseEvent));
+		target.dispatchEvent(new MouseEvent('dblclick', movedMouseEvent));
+	}, { targetSelector: selector, pointerType: options.pointerType ?? 'mouse' });
+}
