@@ -8,7 +8,14 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
-	import { fetchMemoryGraph, type MemoryGraphResponse } from './memory-graph-api';
+	import {
+		fetchMemoryGraph,
+		type MemoryGraphResponse,
+		type MemoryGraphNode,
+		type MemoryGraphEdge,
+		type MemoryGraphFact,
+		type MemoryGraphEpisode
+	} from './memory-graph-api';
 	import type { MemoryText } from './text';
 
 	let { text }: { text: MemoryText } = $props();
@@ -17,16 +24,43 @@
 	let memoryGraphQuery = $state('');
 	let errorMessage = $state('');
 	let isLoading = $state(false);
+	let selectedNode = $state<MemoryGraphNode | null>(null);
+
+	const mergedPersonalNodeID = 'namespace:personal';
 
 	const namespaces = () => memoryGraph?.namespaces ?? [];
 	const facts = () => memoryGraph?.facts ?? [];
-	const nodes = () =>
-		(memoryGraph?.nodes ?? []).map((node) =>
-			node.kind === 'namespace' && node.scopeType && isPersonalScope(node.scopeType)
-				? { ...node, label: text.myMemory }
-				: node
-		);
-	const edges = () => memoryGraph?.edges ?? [];
+	const graphTopology = $derived(mergePersonalNamespaceNodes(memoryGraph?.nodes ?? [], memoryGraph?.edges ?? []));
+	const nodes = () => graphTopology.nodes;
+	const edges = () => graphTopology.edges;
+	const visibleFacts = () => factsForSelection(facts(), selectedNode);
+	const selectedEpisode = (): MemoryGraphEpisode | null => {
+		if (selectedNode?.kind !== 'episode') return null;
+		return (memoryGraph?.episodes ?? []).find((episode) => `episode:${episode.episodeID}` === selectedNode?.nodeID) ?? null;
+	};
+
+	function selectNode(nodeID: string): void {
+		selectedNode = nodes().find((node) => node.nodeID === nodeID) ?? null;
+	}
+
+	function clearSelection(): void {
+		selectedNode = null;
+	}
+
+	function factsForSelection(allFacts: MemoryGraphFact[], node: MemoryGraphNode | null): MemoryGraphFact[] {
+		if (!node) return allFacts;
+		if (node.kind === 'fact') {
+			return allFacts.filter((fact) => `fact:${fact.namespaceID}:${fact.factID}` === node.nodeID);
+		}
+		if (node.kind === 'namespace') {
+			if (node.nodeID === mergedPersonalNodeID) {
+				return allFacts.filter((fact) => isPersonalScope(fact.scopeType));
+			}
+			const namespaceID = node.nodeID.slice('namespace:'.length);
+			return allFacts.filter((fact) => fact.namespaceID === namespaceID);
+		}
+		return [];
+	}
 	const episodes = () => memoryGraph?.episodes ?? [];
 	const hasMemoryGraph = () => Boolean(memoryGraph);
 	const hasMemoryHealth = () => Boolean(memoryGraph?.health);
@@ -46,9 +80,49 @@
 		return isPersonalScope(scopeType) ? text.myMemory : namespaceID;
 	}
 
+	function mergePersonalNamespaceNodes(
+		rawNodes: MemoryGraphNode[],
+		rawEdges: MemoryGraphEdge[]
+	): { nodes: MemoryGraphNode[]; edges: MemoryGraphEdge[] } {
+		const personalNodeIDs = new Set(
+			rawNodes
+				.filter((node) => node.kind === 'namespace' && node.scopeType && isPersonalScope(node.scopeType))
+				.map((node) => node.nodeID)
+		);
+		if (personalNodeIDs.size === 0) return { nodes: rawNodes, edges: rawEdges };
+
+		const remapNodeID = (nodeID: string) => (personalNodeIDs.has(nodeID) ? mergedPersonalNodeID : nodeID);
+
+		const nodes: MemoryGraphNode[] = [];
+		let hasMergedNode = false;
+		for (const node of rawNodes) {
+			if (!personalNodeIDs.has(node.nodeID)) {
+				nodes.push(node);
+				continue;
+			}
+			if (hasMergedNode) continue;
+			nodes.push({ ...node, nodeID: mergedPersonalNodeID, label: text.myMemory });
+			hasMergedNode = true;
+		}
+
+		const seenEdgeKeys = new Set<string>();
+		const edges: MemoryGraphEdge[] = [];
+		for (const edge of rawEdges) {
+			const sourceID = remapNodeID(edge.sourceID);
+			const targetID = remapNodeID(edge.targetID);
+			if (sourceID === targetID) continue;
+			const edgeKey = `${sourceID}->${targetID}`;
+			if (seenEdgeKeys.has(edgeKey)) continue;
+			seenEdgeKeys.add(edgeKey);
+			edges.push({ ...edge, sourceID, targetID });
+		}
+		return { nodes, edges };
+	}
+
 	async function loadMemoryGraph(): Promise<void> {
 		isLoading = true;
 		errorMessage = '';
+		selectedNode = null;
 		try {
 			memoryGraph = await fetchMemoryGraph(memoryGraphQuery);
 		} catch {
@@ -132,16 +206,42 @@
 	<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
 {:else if nodes().length > 0}
 	<section class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-		<MemoryNetwork nodes={nodes()} edges={edges()} />
+		<MemoryNetwork
+				nodes={nodes()}
+				edges={edges()}
+				selectedNodeID={selectedNode?.nodeID ?? null}
+				onNodeSelect={selectNode}
+				onClearSelection={clearSelection}
+			/>
 		<aside class="flex h-[min(58svh,520px)] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
 			<div class="flex items-center justify-between gap-3 border-b px-3 py-2">
 				<div class="min-w-0">
-					<h2 class="truncate text-sm font-semibold">{text.memoryDetails}</h2>
-					<p class="text-xs text-muted-foreground">{facts().length} {text.facts}</p>
+					<h2 class="truncate text-sm font-semibold">{selectedNode ? selectedNode.label : text.memoryDetails}</h2>
+					<p class="text-xs text-muted-foreground">{visibleFacts().length} {text.facts}</p>
 				</div>
+				{#if selectedNode}
+					<Button type="button" variant="ghost" size="sm" onclick={clearSelection}>{text.viewAll}</Button>
+				{/if}
 			</div>
 			<div class="min-h-0 overflow-y-auto">
-				{#each facts() as fact}
+				{#if selectedEpisode()}
+					{@const episode = selectedEpisode()}
+					<article class="grid gap-2 border-b px-3 py-3">
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<Badge variant={episode?.ingestionStatus === 'failed' ? 'destructive' : 'outline'}>
+								{episode?.ingestionStatus ?? text.episodes}
+							</Badge>
+							<span class="truncate text-xs text-muted-foreground">{episode?.platform}</span>
+							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{(episode?.occurredAt ?? '').slice(0, 16).replace('T', ' ')}</span>
+						</div>
+						{#if episode?.ingestionError}
+							<p class="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs break-words text-destructive">
+								{episode.ingestionError}
+							</p>
+						{/if}
+					</article>
+				{/if}
+				{#each visibleFacts() as fact}
 					<article class="grid gap-2 border-b px-3 py-3 last:border-b-0">
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
 							<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
@@ -153,6 +253,9 @@
 					</div>
 					</article>
 				{/each}
+				{#if visibleFacts().length === 0 && !selectedEpisode()}
+					<p class="px-3 py-8 text-center text-xs text-muted-foreground">{text.noVisibleMemory}</p>
+				{/if}
 			</div>
 		</aside>
 	</section>

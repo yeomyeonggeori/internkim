@@ -38,10 +38,18 @@ export type MemoryGraphEdge = {
 	weight?: number;
 };
 
+export type MemoryGraphEpisode = {
+	episodeID: string;
+	platform?: string;
+	ingestionStatus?: string;
+	ingestionError?: string;
+	occurredAt?: string;
+};
+
 export type MemoryGraphResponse = {
 	health?: MemoryGraphHealth;
 	namespaces?: MemoryGraphNamespace[];
-	episodes?: unknown[];
+	episodes?: MemoryGraphEpisode[];
 	facts?: MemoryGraphFact[];
 	nodes?: MemoryGraphNode[];
 	edges?: MemoryGraphEdge[];
@@ -64,7 +72,7 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 
 	const health = normalizeMemoryGraphHealth(record.health);
 	const namespaces = readArray(record.namespaces, normalizeMemoryGraphNamespace);
-	const episodes = Array.isArray(record.episodes) ? record.episodes : undefined;
+	const episodes = readArray(record.episodes, normalizeMemoryGraphEpisode);
 	const facts = readArray(record.facts, normalizeMemoryGraphFact);
 	const nodes = readArray(record.nodes, normalizeMemoryGraphNode);
 	const edges = readArray(record.edges, normalizeMemoryGraphEdge);
@@ -141,6 +149,27 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 		content,
 		...(typeof score === 'number' || score === null ? { score } : {}),
 		...(sourceKind ? { sourceKind } : {})
+	};
+}
+
+function normalizeMemoryGraphEpisode(document: unknown): MemoryGraphEpisode | undefined {
+	const record = readRecord(document);
+	if (!record) return undefined;
+
+	const episodeID = readString(record.episodeID);
+	if (!episodeID) return undefined;
+
+	const platform = readString(record.platform);
+	const ingestionStatus = readString(record.ingestionStatus);
+	const ingestionError = readString(record.ingestionError);
+	const occurredAt = readString(record.occurredAt);
+
+	return {
+		episodeID,
+		...(platform ? { platform } : {}),
+		...(ingestionStatus ? { ingestionStatus } : {}),
+		...(ingestionError ? { ingestionError } : {}),
+		...(occurredAt ? { occurredAt } : {})
 	};
 }
 
