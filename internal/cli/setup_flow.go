@@ -1340,11 +1340,16 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 		strings.TrimSpace(state.sshClient.run(setup.BlueclawRootfsBaseContractCheckCommand())) == "ok",
 		manifestDocument == remoteManifestDocument,
 	)
+	if context.Force {
+		installPlan = forceBlueclawRuntimeInstallPlan(installPlan)
+	}
 	printBlueclawRuntimeInstallPlan(installPlan)
 	if blueclawRuntimeInstallPlanIsCurrent(installPlan) {
 		fmt.Println("already current")
 		return nil
 	}
+	blueclawWasActive := strings.TrimSpace(state.sshClient.run("systemctl is-active blueclaw 2>/dev/null || true")) == "active"
+	state.sshClient.run("systemctl stop blueclaw 2>/dev/null || true")
 	state.sshClient.run("rm -rf /tmp/internkim-blueclaw-runtime && mkdir -p /tmp/internkim-blueclaw-runtime/runtime " + blueclaw.BlueclawRuntimeInstallPath + " /var/lib/blueclaw /var/log/blueclaw-supervisor")
 	for _, artifact := range installPlan.artifacts {
 		if !artifact.shouldInstall {
@@ -1411,6 +1416,12 @@ mkdir -p /var/log/blueclaw-supervisor
 	if errorValue != nil {
 		fmt.Println("failed")
 		return fmt.Errorf("verify blueclaw Firecracker runtime: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	if blueclawWasActive {
+		if _, startError := state.sshClient.runResult("systemctl start blueclaw"); startError != nil {
+			fmt.Println("failed")
+			return fmt.Errorf("restart blueclaw after runtime install: %w", startError)
+		}
 	}
 	fmt.Println("installed")
 	return nil

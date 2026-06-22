@@ -50,6 +50,15 @@ func buildBlueclawRuntimeInstallPlan(
 	return blueclawRuntimeInstallPlan{artifacts: artifacts, shouldInstallManifest: shouldInstallManifest}
 }
 
+func forceBlueclawRuntimeInstallPlan(installPlan blueclawRuntimeInstallPlan) blueclawRuntimeInstallPlan {
+	for artifactIndex := range installPlan.artifacts {
+		installPlan.artifacts[artifactIndex].shouldInstall = true
+		installPlan.artifacts[artifactIndex].reason = "forced"
+	}
+	installPlan.shouldInstallManifest = true
+	return installPlan
+}
+
 func blueclawRuntimeArtifactInstallDecision(
 	artifactName string,
 	localManifestFile blueclaw.RuntimeArtifactManifestFile,
