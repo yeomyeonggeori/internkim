@@ -12,9 +12,13 @@ import {
 	progressCardIDs,
 	requestedTaskID,
 	scheduledTaskID,
+	scrollFlowBoardToTop,
+	scrollFlowPageBy,
+	setFlowPageScrollTop,
 	showUpperInsertionIndicator,
 	taskCard,
-	taskColumn
+	taskColumn,
+	waitForFlowBoardHeightUpdate
 } from './flow-task-helpers';
 
 test.describe('flow task board drag interactions', () => {
@@ -230,6 +234,31 @@ test.describe('flow task board drag interactions', () => {
 		await expect.poll(async () => {
 			return taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
 		}).toBeGreaterThan(mediumHeight + 80);
+	});
+
+	test('resizes board columns after scrolling the board into view', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await openFlowBoard(page);
+		await setFlowPageScrollTop(page, 0);
+		const topHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+
+		await scrollFlowBoardToTop(page);
+
+		await expect.poll(async () => {
+			return taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		}).toBeGreaterThan(topHeight + 120);
+
+		await scrollFlowPageBy(page, 2000);
+		await waitForFlowBoardHeightUpdate(page);
+		const cappedHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+
+		await scrollFlowPageBy(page, 2000);
+		await waitForFlowBoardHeightUpdate(page);
+
+		await expect.poll(async () => {
+			const currentHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+			return currentHeight <= cappedHeight + 1;
+		}).toBe(true);
 	});
 
 	test('shows definition autosave feedback after edits', async ({ page }) => {
