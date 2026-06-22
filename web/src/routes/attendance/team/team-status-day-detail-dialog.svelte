@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Dialog from '$lib/components/ui/dialog';
 	import type { AttendanceText } from '../text';
-	import { absenceDisplayClass, locationDotClass } from '../shared/color-tokens';
+	import { absenceDisplayClass } from '../shared/color-tokens';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
 	export type TeamStatusDayDetail = {
@@ -62,7 +62,7 @@
 									<div class="flex min-w-0 items-center gap-2 text-sm font-medium">
 										{#if segment.locationName !== '-'}
 											<span
-												class={`size-2 shrink-0 rounded-full ${segment.locationColor ? '' : locationDotClass(segment.locationName, segment.locationID)}`}
+												class={`size-2 shrink-0 rounded-full ${segment.locationColor ? '' : 'bg-success'}`}
 												style:background-color={segment.locationColor}
 											></span>
 										{/if}
