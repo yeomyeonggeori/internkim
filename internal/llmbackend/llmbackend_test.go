@@ -130,7 +130,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"toolInput\":{\"siteID\":\"site-1\"},\"message\":\"publishing\",\"executionStateUpdate\":{},\"nextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -169,19 +169,20 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
 	}
 	properties := parameters["properties"].(map[string]any)
-	toolInput := properties["toolInput"].(map[string]any)
-	toolInputProperties := toolInput["properties"].(map[string]any)
-	if _, isFound := toolInputProperties["siteID"]; !isFound {
+	if _, isFound := properties["siteID"]; !isFound {
 		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
 	}
+	if _, isFound := properties["toolInput"]; isFound {
+		t.Fatalf("expected projected tool parameters to omit nested toolInput, got %+v", parameters)
+	}
 	required := parameters["required"].([]any)
-	for _, fieldName := range []string{"executionStateUpdate", "nextStepPlan", "toolInput"} {
+	for _, fieldName := range []string{"blueclawExecutionStateUpdate", "blueclawNextStepPlan", "siteID"} {
 		if !requiredContains(required, fieldName) {
 			t.Fatalf("expected required fields to include %s, got %+v", fieldName, parameters)
 		}
 	}
-	if requiredContains(required, "message") {
-		t.Fatalf("expected optional message field to be removed from required, got %+v", parameters)
+	if requiredContains(required, "blueclawMessage") {
+		t.Fatalf("expected optional blueclawMessage field to be removed from required, got %+v", parameters)
 	}
 	if receivedDocument["seed"] != float64(seed) {
 		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
@@ -419,7 +420,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsPreserveNestedToolInputOptionalityForProviderCompatibility(t *testing.T) {
+func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -436,16 +437,19 @@ func TestNativeActionToolsPreserveNestedToolInputOptionalityForProviderCompatibi
 	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected calendar parameters: %v", errorValue)
 	}
-	properties, _ := nativeToolInputProperties(parameters)
+	properties, _ := parameters["properties"].(map[string]any)
 	for _, fieldName := range []string{"title", "startISO", "endISO"} {
 		if _, isFound := properties[fieldName]; !isFound {
 			t.Fatalf("expected property %q in calendar schema: %+v", fieldName, parameters)
 		}
 	}
-	required := nativeToolInputRequired(parameters)
+	if _, isFound := properties["toolInput"]; isFound {
+		t.Fatalf("expected flattened calendar schema to omit toolInput: %+v", parameters)
+	}
+	required := parameters["required"].([]any)
 	for _, fieldName := range []string{"title", "startISO", "endISO"} {
 		if requiredContains(required, fieldName) {
-			t.Fatalf("expected optional nested toolInput field %s to be removed from required, got %+v", fieldName, parameters)
+			t.Fatalf("expected optional flattened toolInput field %s to be removed from required, got %+v", fieldName, parameters)
 		}
 	}
 	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
@@ -565,17 +569,20 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	if errorValue := json.Unmarshal(tool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected parameters json: %v", errorValue)
 	}
-	toolInputProperties, isFound := nativeToolInputProperties(parameters)
+	properties, isFound := parameters["properties"].(map[string]any)
 	if !isFound {
-		t.Fatalf("expected object toolInput properties, got %s", tool.Parameters)
+		t.Fatalf("expected object properties, got %s", tool.Parameters)
 	}
-	if _, isFound := toolInputProperties["path"]; !isFound {
-		t.Fatalf("expected path property to survive projection, got %+v", toolInputProperties)
+	if _, isFound := properties["path"]; !isFound {
+		t.Fatalf("expected path property to survive projection, got %+v", properties)
 	}
-	required := nativeToolInputRequired(parameters)
+	if _, isFound := properties["toolInput"]; isFound {
+		t.Fatalf("expected flattened schema to omit toolInput, got %+v", properties)
+	}
+	required := parameters["required"].([]any)
 	for _, fieldName := range []string{"path", "content"} {
 		if requiredContains(required, fieldName) {
-			t.Fatalf("expected portable optional toolInput field %s to be removed from required, got %+v in %s", fieldName, required, tool.Parameters)
+			t.Fatalf("expected portable optional flattened field %s to be removed from required, got %+v in %s", fieldName, required, tool.Parameters)
 		}
 	}
 	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
@@ -1562,7 +1569,7 @@ func TestOpenRouterBackendPopulatesUsageFromNativeActionResponse(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"toolInput\":{\"siteID\":\"site-1\"},\"message\":\"publishing\",\"executionStateUpdate\":{},\"nextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
