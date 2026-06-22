@@ -8,6 +8,7 @@ export type DraftPopoverAnchor = {
 	titleEndClientX?: number;
 	titleTopClientY?: number;
 	titleBottomClientY?: number;
+	preferredSide?: 'left' | 'right';
 };
 
 export type DraftPopoverPosition = {
@@ -35,6 +36,8 @@ type PopoverBounds = {
 
 const estimatedDraftPopoverHeight = 552;
 const preferredDraftPopoverWidth = 400;
+const defaultPopoverGap = 16;
+const eventPopoverGap = 24;
 
 export function draftPopoverPositionFromAnchor(
 	anchor: DraftPopoverAnchor | null,
@@ -45,7 +48,6 @@ export function draftPopoverPositionFromAnchor(
 	if (!stageRectangle) return { left: 16, top: 16, width: 320, arrowTop: 42, arrowSide: 'left', isReady: true };
 	const visibleRectangle = visibleStageRectangle(stageRectangle);
 	const stageMargin = 12;
-	const popoverGap = 16;
 	const preferredWidth = Math.max(1, Math.min(preferredDraftPopoverWidth, visibleRectangle.width - stageMargin * 2));
 	const measuredHeight = size.height ?? estimatedDraftPopoverHeight;
 	const height = Math.max(1, Math.min(measuredHeight, visibleRectangle.height - stageMargin * 2));
@@ -56,9 +58,9 @@ export function draftPopoverPositionFromAnchor(
 	};
 	const targetAnchor = anchor ?? fallbackAnchor;
 	if (!isEventBlockAnchor(targetAnchor)) {
-		return genericDraftPopoverPosition(targetAnchor, visibleRectangle, preferredWidth, height, stageMargin, popoverGap);
+		return genericDraftPopoverPosition(targetAnchor, visibleRectangle, preferredWidth, height, stageMargin, defaultPopoverGap);
 	}
-	return eventDraftPopoverPosition(targetAnchor, visibleRectangle, preferredWidth, height, isMeasuredHeight, stageMargin, popoverGap);
+	return eventDraftPopoverPosition(targetAnchor, visibleRectangle, preferredWidth, height, isMeasuredHeight, stageMargin, eventPopoverGap);
 }
 
 function genericDraftPopoverPosition(
@@ -76,7 +78,9 @@ function genericDraftPopoverPosition(
 	const anchorCenterY = (anchorTop + anchorBottom) / 2;
 	const rightAvailableWidth = Math.max(0, visibleRectangle.right - stageMargin - (targetRight + popoverGap));
 	const leftAvailableWidth = Math.max(0, targetLeft - popoverGap - (visibleRectangle.left + stageMargin));
-	const shouldPlaceRight = rightAvailableWidth >= width || rightAvailableWidth >= leftAvailableWidth;
+	const shouldPlaceRight =
+		targetAnchor.preferredSide === 'right' ||
+		(targetAnchor.preferredSide !== 'left' && (rightAvailableWidth >= width || rightAvailableWidth >= leftAvailableWidth));
 	const arrowSide = shouldPlaceRight ? 'left' : 'right';
 	const unclampedLeft = shouldPlaceRight ? targetRight + popoverGap : targetLeft - width - popoverGap;
 	const minLeft = visibleRectangle.left + stageMargin;
@@ -105,7 +109,10 @@ function eventDraftPopoverPosition(
 	const leftAvailableWidth = Math.max(0, targetLeft - popoverGap - (visibleRectangle.left + stageMargin));
 	const rightFitsPreferredWidth = rightAvailableWidth >= preferredWidth;
 	const leftFitsPreferredWidth = leftAvailableWidth >= preferredWidth;
-	const shouldPlaceRight = rightFitsPreferredWidth || (!leftFitsPreferredWidth && rightAvailableWidth >= leftAvailableWidth);
+	const shouldPlaceRight =
+		targetAnchor.preferredSide === 'right' ||
+		(targetAnchor.preferredSide !== 'left' &&
+			(rightFitsPreferredWidth || (!leftFitsPreferredWidth && rightAvailableWidth >= leftAvailableWidth)));
 	const sideAvailableWidth = shouldPlaceRight ? rightAvailableWidth : leftAvailableWidth;
 	const width = Math.max(1, Math.min(preferredWidth, sideAvailableWidth || preferredWidth));
 	const arrowSide = shouldPlaceRight ? 'left' : 'right';
