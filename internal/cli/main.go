@@ -29,6 +29,7 @@ import (
 	"golang.org/x/term"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
@@ -222,6 +223,8 @@ func Main() {
 			runDeviceSSH()
 		case "model":
 			runModel()
+		case "sync-tools":
+			runSyncTools()
 		case "migrate":
 			runMigrate()
 		case "invite":
@@ -559,6 +562,51 @@ func runModel() {
 	default:
 		fmt.Println("Usage: internkim model <current|set|list>")
 	}
+}
+
+func runSyncTools() {
+	configuration := loadConfig()
+	scriptDir, _ := os.Getwd()
+	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
+	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
+	target = resolveLabHostForCommandTarget(target, scriptDir)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	syncToolDescriptorsCmd(ssh)
+}
+
+func syncToolDescriptorsCmd(ssh *sshClient) {
+	currentDocument := strings.TrimSpace(ssh.run("cat " + blueclaw.BlueclawRuntimeConfigPath + " 2>/dev/null"))
+	var document map[string]any
+	if err := json.Unmarshal([]byte(currentDocument), &document); err != nil {
+		fatal("Failed to parse blueclaw runtime config: " + err.Error())
+	}
+	capabilitiesSection, _ := document["capabilities"].(map[string]any)
+	if capabilitiesSection == nil {
+		fatal("blueclaw runtime config has no capabilities section")
+	}
+	capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
+	capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
+	updatedDocument, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		fatal("Failed to write blueclaw runtime config: " + err.Error())
+	}
+	temporaryPath := filepath.Join(os.TempDir(), "blueclaw-runtime.json")
+	if err := os.WriteFile(temporaryPath, append(updatedDocument, '\n'), 0o600); err != nil {
+		fatal("Failed to stage blueclaw runtime config: " + err.Error())
+	}
+	defer os.Remove(temporaryPath)
+	for _, runtimeConfigPath := range blueclawRuntimeConfigPaths() {
+		if errorValue := ssh.scp(temporaryPath, runtimeConfigPath); errorValue != nil {
+			fatal("Failed to upload blueclaw runtime config: " + errorValue.Error())
+		}
+	}
+	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + quoteShellValues(blueclawRuntimeConfigPaths()) + " && chmod 640 " + quoteShellValues(blueclawRuntimeConfigPaths()))
+	ssh.run("systemctl restart " + blueclaw.BlueclawServiceName + " 2>/dev/null")
+	fmt.Printf("Synced %d tool descriptors to blueclaw runtime config.\n", len(capabilities.DefaultToolDescriptors()))
+	fmt.Println("blueclaw restarted.")
 }
 
 func modelCurrentCmd(ssh *sshClient) {
