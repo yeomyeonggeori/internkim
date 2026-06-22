@@ -146,6 +146,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   final workspace access boundary.
 - Use `/workspace/shared/cache/dependencies` only for package caches. Never
   place private/source files there.
+- `/workspace/shared/public` is for externally-shareable content (safe to show
+  non-staff such as investors). Never put editable source, drafts, secrets, or
+  staff-only files there. For all-employee internal sharing use a staff circle
+  under `/workspace/circles/<circleID>`, not `shared/public`.
 - Preserve denied executable and denied path guardrails, especially OS package
   managers and system modification commands.
 - Built-in tools that read through grants must not leave privileged source files
