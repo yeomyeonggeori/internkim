@@ -107,6 +107,8 @@ type Service struct {
 	lastCalendarPullAt      time.Time
 	calendarRecentPushMutex sync.Mutex
 	recentCalendarPushUIDs  map[string]time.Time
+	calendarActorCacheMutex sync.Mutex
+	calendarActorCache      map[string]calendarActorProfileCacheEntry
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
 	mattermostSessions      *mattermostSessionCache
@@ -282,6 +284,7 @@ func NewService(configuration Configuration) *Service {
 		sites:                 map[string]*SiteRecord{},
 		mailBackend:           standardMailBackend{},
 		calendarSyncWakeUp:    make(chan struct{}, 1),
+		calendarActorCache:    map[string]calendarActorProfileCacheEntry{},
 		requestMetrics:        newAdminRequestMetrics(),
 		databaseSchemas:       newAdminDatabaseSchemas(),
 		mattermostSessions:    newMattermostSessionCache(),

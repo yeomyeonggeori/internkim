@@ -25,6 +25,7 @@ type CalendarPageNavigationContext = {
 	setVisibleDate: (date: Date) => void;
 	setSelectedMonthDateKey: (dateKey: string) => void;
 	refreshSelectedMonthDateCellAfterRender: () => void;
+	selectCalendarEvent: (eventID: string) => void;
 	broadcastCalendarView: (view: CalendarViewValue) => void;
 };
 
@@ -73,6 +74,7 @@ export function createCalendarPageNavigation(context: CalendarPageNavigationCont
 		},
 		navigateToSearchResult: (result) => {
 			selectCalendarDate(result.startDate);
+			context.selectCalendarEvent(result.id);
 		},
 		setVisibleDate: context.setVisibleDate
 	};
