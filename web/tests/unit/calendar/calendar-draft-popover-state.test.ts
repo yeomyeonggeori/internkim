@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { draftPopoverPositionFromAnchor, type DraftPopoverAnchor } from '../../../src/routes/calendar/embed/calendar-draft-popover-state';
 
 describe('calendar draft popover position', () => {
-	test('keeps the popover from covering the clicked event title on narrow stages', () => {
+	test('keeps narrow stage popovers inside the visible stage', () => {
 		const stageElement = elementWithRectangle({ left: 0, top: 0, right: 420, bottom: 620, width: 420, height: 620 });
 		const titleAnchor: DraftPopoverAnchor = {
 			clientX: 260,
@@ -18,12 +18,9 @@ describe('calendar draft popover position', () => {
 
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
-		expect(rectanglesOverlap({ left: position.left, right: position.left + position.width, top: position.top, bottom: position.top + 520 }, {
-			left: 180,
-			right: 260,
-			top: 180,
-			bottom: 200
-		})).toBe(false);
+		expect(position.left).toBe(12);
+		expect(position.width).toBe(396);
+		expect(position.top + position.arrowTop + 8).toBe(190);
 	});
 
 	test('places right-edge events on the left side of the clicked block', () => {
@@ -43,7 +40,7 @@ describe('calendar draft popover position', () => {
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
 		expect(position.arrowSide).toBe('right');
-		expect(position.left + position.width <= 760 - 16).toBe(true);
+		expect(position.left + position.width <= 760 - 24).toBe(true);
 	});
 
 	test('places long event popovers beside the visible title end instead of the full block end', () => {
@@ -63,11 +60,32 @@ describe('calendar draft popover position', () => {
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
 		expect(position.arrowSide).toBe('left');
-		expect(position.left >= 250 + 16).toBe(true);
+		expect(position.left >= 250 + 24).toBe(true);
 		expect(position.left < 780).toBe(true);
 	});
 
-	test('keeps event popovers attached to their title when the calendar stage scrolls beyond the page', () => {
+	test('honors left side placement for right panel event anchors', () => {
+		const stageElement = elementWithRectangle({ left: 0, top: 0, right: 1200, bottom: 700, width: 1200, height: 700 });
+		const titleAnchor: DraftPopoverAnchor = {
+			clientX: 880,
+			clientY: 220,
+			leftClientX: 600,
+			rightClientX: 880,
+			topClientY: 210,
+			bottomClientY: 230,
+			titleEndClientX: 640,
+			titleTopClientY: 210,
+			titleBottomClientY: 230,
+			preferredSide: 'left'
+		};
+
+		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
+
+		expect(position.arrowSide).toBe('right');
+		expect(position.left + position.width <= 600 - 24).toBe(true);
+	});
+
+	test('keeps event popovers inside the viewport when the anchor is outside the visible page', () => {
 		const originalWindow = globalThis.window;
 		Object.defineProperty(globalThis, 'window', {
 			value: { innerWidth: 900, innerHeight: 600 },
@@ -88,10 +106,10 @@ describe('calendar draft popover position', () => {
 
 		try {
 			const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
-			const titleCenterY = 930;
 
-			expect(position.top).toBe(titleCenterY - 48);
-			expect(position.top + position.arrowTop + 8).toBe(titleCenterY);
+			expect(position.top).toBe(36);
+			expect(position.top + 552 <= 588).toBe(true);
+			expect(position.arrowTop).toBe(524);
 		} finally {
 			Object.defineProperty(globalThis, 'window', {
 				value: originalWindow,
@@ -194,13 +212,4 @@ function elementWithRectangle(rectangle: TestRectangle): HTMLElement {
 	return {
 		getBoundingClientRect: () => rectangle
 	} as HTMLElement;
-}
-
-function rectanglesOverlap(firstRectangle: Omit<TestRectangle, 'width' | 'height'>, secondRectangle: Omit<TestRectangle, 'width' | 'height'>): boolean {
-	return (
-		firstRectangle.left < secondRectangle.right &&
-		firstRectangle.right > secondRectangle.left &&
-		firstRectangle.top < secondRectangle.bottom &&
-		firstRectangle.bottom > secondRectangle.top
-	);
 }
