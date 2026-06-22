@@ -17,6 +17,13 @@ type Message struct {
 	Parts   []MessagePart `json:"parts,omitempty"`
 }
 
+type ChatMessage struct {
+	Role       string         `json:"role"`
+	Content    string         `json:"content,omitempty"`
+	ToolCallID string         `json:"toolCallId,omitempty"`
+	ToolCalls  []ChatToolCall `json:"toolCalls,omitempty"`
+}
+
 type MessagePart struct {
 	Type       string `json:"type"`
 	Text       string `json:"text,omitempty"`
@@ -68,6 +75,18 @@ type TextRequest struct {
 	EnableResponseHealing bool           `json:"enableResponseHealing"`
 }
 
+type ChatRequest struct {
+	Model             string          `json:"model"`
+	Provider          string          `json:"provider,omitempty"`
+	Accelerator       string          `json:"accelerator,omitempty"`
+	ExecutionMode     string          `json:"executionMode"`
+	Context           RequestContext  `json:"context,omitempty"`
+	Messages          []ChatMessage   `json:"messages"`
+	Tools             []ChatTool      `json:"tools,omitempty"`
+	ToolChoice        json.RawMessage `json:"toolChoice,omitempty"`
+	ParallelToolCalls bool            `json:"parallelToolCalls"`
+}
+
 type Usage struct {
 	PromptTokens          int64   `json:"promptTokens"`
 	CompletionTokens      int64   `json:"completionTokens"`
@@ -88,6 +107,42 @@ type Response struct {
 	Usage           Usage  `json:"usage"`
 }
 
+type ChatResponse struct {
+	FinishReason string              `json:"finishReason"`
+	Provider     string              `json:"provider"`
+	Model        string              `json:"model"`
+	Message      ChatResponseMessage `json:"message"`
+	Usage        Usage               `json:"usage"`
+}
+
+type ChatResponseMessage struct {
+	Role      string         `json:"role"`
+	Content   string         `json:"content"`
+	ToolCalls []ChatToolCall `json:"toolCalls"`
+}
+
+type ChatTool struct {
+	Type     string       `json:"type"`
+	Function ChatFunction `json:"function"`
+}
+
+type ChatFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+type ChatToolCall struct {
+	ID       string               `json:"id"`
+	Type     string               `json:"type"`
+	Function ChatToolCallFunction `json:"function"`
+}
+
+type ChatToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
 const (
 	ConstraintModeOpenAIJSONSchema           = "openai_json_schema"
 	ConstraintModeLlamaJSONSchema            = "llama_json_schema"
@@ -102,6 +157,10 @@ type StructuredCompleter interface {
 
 type TextCompleter interface {
 	CompleteText(context.Context, TextRequest) (Response, error)
+}
+
+type ChatCompleter interface {
+	CompleteChat(context.Context, ChatRequest) (ChatResponse, error)
 }
 
 type Provider interface {
@@ -143,6 +202,14 @@ func (provider AutoProvider) CompleteText(ctx context.Context, request TextReque
 	})
 }
 
+func (provider AutoProvider) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	return completeChatWithProviderChain(provider.Providers, chatRequestTrace(request), func(candidate ChatCompleter) (ChatResponse, error) {
+		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		defer cancel()
+		return candidate.CompleteChat(attemptContext, request)
+	})
+}
+
 func (provider AutoProvider) attemptTimeout() time.Duration {
 	if provider.AttemptTimeout <= 0 {
 		return DefaultAttemptTimeout
@@ -169,6 +236,31 @@ func completeWithProviderChain(providers []Provider, requestTrace string, comple
 		return Response{}, errors.New("no llm provider is available")
 	}
 	return Response{}, errors.New("llm provider attempts failed: " + strings.Join(attempts, "; ") + "; " + requestTrace)
+}
+
+func completeChatWithProviderChain(providers []Provider, requestTrace string, complete func(ChatCompleter) (ChatResponse, error)) (ChatResponse, error) {
+	attempts := make([]string, 0, len(providers))
+	for index, candidate := range providers {
+		if candidate == nil {
+			continue
+		}
+		chatCompleter, isChatCompleter := candidate.(ChatCompleter)
+		if !isChatCompleter {
+			continue
+		}
+		response, errorValue := complete(chatCompleter)
+		if errorValue == nil {
+			return response, nil
+		}
+		attempts = append(attempts, providerFailure(candidate, errorValue))
+		if index < len(providers)-1 {
+			logFallback(candidate, errorValue, requestTrace)
+		}
+	}
+	if len(attempts) == 0 {
+		return ChatResponse{}, errors.New("no native chat llm provider is available")
+	}
+	return ChatResponse{}, errors.New("llm provider attempts failed: " + strings.Join(attempts, "; ") + "; " + requestTrace)
 }
 
 func providerFailure(provider Provider, errorValue error) string {
@@ -223,6 +315,19 @@ func textRequestTrace(request TextRequest) string {
 	}, " ")
 }
 
+func chatRequestTrace(request ChatRequest) string {
+	return strings.Join([]string{
+		"kind=chat",
+		"constraintMode=native_tool_call",
+		"toolChoice=" + chatToolChoiceTrace(request),
+		"executionMode=" + traceValue(request.ExecutionMode),
+		"provider=" + traceValue(request.Provider),
+		"model=" + traceValue(request.Model),
+		"messagesHash=" + hashTraceValue(request.Messages),
+		"toolsHash=" + hashTraceValue(request.Tools),
+	}, " ")
+}
+
 func structuredConstraintModeTrace(request StructuredRequest) string {
 	if isActionTurnStructuredRequest(request) {
 		return ConstraintModeNativeToolCall
@@ -235,6 +340,17 @@ func structuredToolChoiceTrace(request StructuredRequest) string {
 		return "required"
 	}
 	return "none"
+}
+
+func chatToolChoiceTrace(request ChatRequest) string {
+	if len(request.ToolChoice) == 0 {
+		return "default"
+	}
+	var value string
+	if errorValue := json.Unmarshal(request.ToolChoice, &value); errorValue == nil {
+		return traceValue(value)
+	}
+	return hashTraceValue(request.ToolChoice)
 }
 
 func isActionTurnStructuredRequest(request StructuredRequest) bool {

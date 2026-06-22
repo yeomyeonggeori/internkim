@@ -23,7 +23,7 @@ type openAIRequest struct {
 	Stream               bool                   `json:"stream"`
 	ResponseFormat       *openAIJSONSchema      `json:"response_format,omitempty"`
 	Tools                []openAITool           `json:"tools,omitempty"`
-	ToolChoice           string                 `json:"tool_choice,omitempty"`
+	ToolChoice           json.RawMessage        `json:"tool_choice,omitempty"`
 	ParallelTools        *bool                  `json:"parallel_tool_calls,omitempty"`
 	Seed                 *int64                 `json:"seed,omitempty"`
 	Temperature          *float64               `json:"temperature,omitempty"`
@@ -31,8 +31,10 @@ type openAIRequest struct {
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content any    `json:"content"`
+	Role       string           `json:"role"`
+	Content    any              `json:"content"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAIJSONSchema struct {
@@ -67,6 +69,7 @@ type openAIResponse struct {
 	Choices []struct {
 		FinishReason string `json:"finish_reason"`
 		Message      struct {
+			Role      string           `json:"role"`
 			Content   string           `json:"content"`
 			ToolCalls []openAIToolCall `json:"tool_calls"`
 		} `json:"message"`
@@ -77,6 +80,7 @@ type openAIResponseWithUsage struct {
 	Choices []struct {
 		FinishReason string `json:"finish_reason"`
 		Message      struct {
+			Role      string           `json:"role"`
 			Content   string           `json:"content"`
 			ToolCalls []openAIToolCall `json:"tool_calls"`
 		} `json:"message"`
@@ -128,6 +132,16 @@ func (client openAICompatClient) chatCompletionAction(ctx context.Context, reque
 		}
 	}
 	return "", Usage{}, errors.New("chat completion response did not include tool_calls")
+}
+
+func (client openAICompatClient) chatCompletion(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	modelName := firstNonEmpty(request.Model, client.ModelName)
+	chatRequest := openAIChatCompletionRequest(modelName, request)
+	response, errorValue := client.chatCompletionResponse(ctx, chatRequest)
+	if errorValue != nil {
+		return ChatResponse{}, errorValue
+	}
+	return chatResponseFromOpenAI(client.providerName(), modelName, response), nil
 }
 
 func (client openAICompatClient) chatCompletionResponse(ctx context.Context, request openAIRequest) (openAIResponseWithUsage, error) {
@@ -230,11 +244,23 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 		Messages:             openAIMessages(messages),
 		Stream:               false,
 		Tools:                openAIActionTools(normalizedTools),
-		ToolChoice:           "required",
+		ToolChoice:           json.RawMessage(`"required"`),
 		ParallelTools:        &parallelTools,
 		Seed:                 options.Seed,
 		Temperature:          options.Temperature,
 		NativeToolSchemaLint: lintResult,
+	}
+}
+
+func openAIChatCompletionRequest(modelName string, request ChatRequest) openAIRequest {
+	parallelToolCalls := request.ParallelToolCalls
+	return openAIRequest{
+		Model:         modelName,
+		Messages:      openAIChatMessages(request.Messages),
+		Stream:        false,
+		Tools:         openAIChatTools(request.Tools),
+		ToolChoice:    request.ToolChoice,
+		ParallelTools: &parallelToolCalls,
 	}
 }
 
@@ -259,6 +285,19 @@ func openAIMessages(messages []Message) []openAIMessage {
 		result = append(result, openAIMessage{
 			Role:    message.Role,
 			Content: openAIMessageContent(message),
+		})
+	}
+	return result
+}
+
+func openAIChatMessages(messages []ChatMessage) []openAIMessage {
+	result := make([]openAIMessage, 0, len(messages))
+	for _, message := range messages {
+		result = append(result, openAIMessage{
+			Role:       message.Role,
+			Content:    message.Content,
+			ToolCallID: message.ToolCallID,
+			ToolCalls:  openAIToolCalls(message.ToolCalls),
 		})
 	}
 	return result
@@ -327,6 +366,70 @@ func openAIActionTools(tools []nativeActionTool) []openAITool {
 				Name:        tool.FunctionName,
 				Description: tool.Description,
 				Parameters:  tool.Parameters,
+			},
+		})
+	}
+	return result
+}
+
+func openAIChatTools(tools []ChatTool) []openAITool {
+	result := make([]openAITool, 0, len(tools))
+	for _, tool := range tools {
+		result = append(result, openAITool{
+			Type: tool.Type,
+			Function: openAIFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  tool.Function.Parameters,
+			},
+		})
+	}
+	return result
+}
+
+func openAIToolCalls(toolCalls []ChatToolCall) []openAIToolCall {
+	result := make([]openAIToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		result = append(result, openAIToolCall{
+			ID:   toolCall.ID,
+			Type: toolCall.Type,
+			Function: struct {
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			}{
+				Name:      toolCall.Function.Name,
+				Arguments: toolCall.Function.Arguments,
+			},
+		})
+	}
+	return result
+}
+
+func chatResponseFromOpenAI(providerName string, modelName string, response openAIResponseWithUsage) ChatResponse {
+	choice := response.Choices[0]
+	role := firstNonEmpty(choice.Message.Role, "assistant")
+	return ChatResponse{
+		FinishReason: choice.FinishReason,
+		Provider:     providerName,
+		Model:        modelName,
+		Message: ChatResponseMessage{
+			Role:      role,
+			Content:   choice.Message.Content,
+			ToolCalls: chatToolCallsFromOpenAI(choice.Message.ToolCalls),
+		},
+		Usage: normalizeUsage(response.Usage),
+	}
+}
+
+func chatToolCallsFromOpenAI(toolCalls []openAIToolCall) []ChatToolCall {
+	result := make([]ChatToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		result = append(result, ChatToolCall{
+			ID:   toolCall.ID,
+			Type: toolCall.Type,
+			Function: ChatToolCallFunction{
+				Name:      toolCall.Function.Name,
+				Arguments: toolCall.Function.Arguments,
 			},
 		})
 	}

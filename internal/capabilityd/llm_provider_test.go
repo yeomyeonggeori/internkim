@@ -373,8 +373,9 @@ func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
 			return nil, os.ErrNotExist
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			_ = request
-			ollamaCalled = true
+			if request.URL.Host == "ollama.test" {
+				ollamaCalled = true
+			}
 			return nil, os.ErrNotExist
 		})},
 	}

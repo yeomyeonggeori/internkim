@@ -65,8 +65,10 @@ func TestMattermostAskMenuOptionsUseShortLabelsAndEncodedSelection(t *testing.T)
 
 func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"litert"}
 	service := Service{
-		Configuration: DefaultConfiguration(),
+		Configuration: configuration,
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
 			_ = ctx
 			_ = executablePath
@@ -144,8 +146,10 @@ func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
 }
 
 func TestTextCompletionReturnsPlainContent(t *testing.T) {
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"litert"}
 	service := Service{
-		Configuration: DefaultConfiguration(),
+		Configuration: configuration,
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
 			return []byte(`{"content":"plain reply"}`), nil
 		},
@@ -165,8 +169,10 @@ func TestTextCompletionReturnsPlainContent(t *testing.T) {
 
 func TestStructuredEndpointReturnsConstrainedContent(t *testing.T) {
 	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"litert"}
 	service := Service{
-		Configuration: DefaultConfiguration(),
+		Configuration: configuration,
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
 			return []byte(`{"content":"{\"reply\":\"hello\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
 		},
@@ -200,9 +206,85 @@ func TestStructuredEndpointReturnsConstrainedContent(t *testing.T) {
 	}
 }
 
-func TestTextEndpointReturnsPlainContent(t *testing.T) {
+func TestChatEndpointReturnsNativeToolCalls(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var receivedDocument map[string]any
 	service := Service{
-		Configuration: DefaultConfiguration(),
+		Configuration: Configuration{
+			OpenRouterKeyPath: secretPath,
+			OpenRouterBaseURL: "https://openrouter.test/api/v1/chat/completions",
+			OpenRouterModel:   "configured-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/api/v1/chat/completions" {
+				t.Fatalf("expected OpenRouter chat path, got %s", request.URL.Path)
+			}
+			if request.Header.Get("Authorization") != "Bearer sk-test" {
+				t.Fatalf("expected authorization header, got %q", request.Header.Get("Authorization"))
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+				t.Fatalf("expected request document: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":"","tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"query\":\"status\"}"}}]}}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/chat", strings.NewReader(`{
+		"model":"default",
+		"executionMode":"remote",
+		"messages":[{"role":"user","content":"check status"}],
+		"tools":[{"type":"function","function":{"name":"lookup","description":"Lookup status","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}],
+		"toolChoice":{"type":"function","function":{"name":"lookup"}},
+		"parallelToolCalls":false
+	}`))
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected chat endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if receivedDocument["model"] != "configured-model" {
+		t.Fatalf("expected configured model, got %+v", receivedDocument)
+	}
+	toolChoice := receivedDocument["tool_choice"].(map[string]any)
+	function := toolChoice["function"].(map[string]any)
+	if toolChoice["type"] != "function" || function["name"] != "lookup" {
+		t.Fatalf("expected tool choice object, got %+v", toolChoice)
+	}
+	if receivedDocument["parallel_tool_calls"] != false {
+		t.Fatalf("expected parallel tool calls false, got %+v", receivedDocument)
+	}
+	var response ChatLLMResponse
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("expected response to decode: %v", errorValue)
+	}
+	if response.FinishReason != "tool_calls" {
+		t.Fatalf("expected tool_calls finish reason, got %q", response.FinishReason)
+	}
+	if len(response.Message.ToolCalls) != 1 {
+		t.Fatalf("expected one tool call, got %+v", response.Message.ToolCalls)
+	}
+	toolCall := response.Message.ToolCalls[0]
+	if toolCall.Function.Name != "lookup" || toolCall.Function.Arguments != `{"query":"status"}` {
+		t.Fatalf("expected tool call arguments string, got %+v", toolCall)
+	}
+	if response.Usage.TotalTokens != 7 {
+		t.Fatalf("expected usage to round trip, got %+v", response.Usage)
+	}
+}
+
+func TestTextEndpointReturnsPlainContent(t *testing.T) {
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"litert"}
+	service := Service{
+		Configuration: configuration,
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
 			return []byte(`{"content":"plain endpoint reply"}`), nil
 		},

@@ -55,6 +55,17 @@ func (backend ManagedLlamaCppBackend) CompleteText(ctx context.Context, request 
 	return backend.Backend.CompleteText(ctx, request)
 }
 
+func (backend ManagedLlamaCppBackend) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	response, errorValue := backend.Backend.CompleteChat(ctx, request)
+	if errorValue == nil || !isLlamaCppServerUnavailable(errorValue) {
+		return response, errorValue
+	}
+	if errorValue := backend.startAndWait(ctx); errorValue != nil {
+		return ChatResponse{}, errorValue
+	}
+	return backend.Backend.CompleteChat(ctx, request)
+}
+
 func (backend ManagedLlamaCppBackend) startAndWait(ctx context.Context) error {
 	if backend.RunCommand == nil {
 		return errors.New("llama.cpp service manager is not configured")

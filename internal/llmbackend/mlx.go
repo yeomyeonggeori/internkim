@@ -39,6 +39,10 @@ func (backend MLXBackend) CompleteText(ctx context.Context, request TextRequest)
 	}, nil
 }
 
+func (backend MLXBackend) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	return backend.client().chatCompletion(ctx, request)
+}
+
 func (backend MLXBackend) client() openAICompatClient {
 	return openAICompatClient{
 		ProviderName: "mlx",

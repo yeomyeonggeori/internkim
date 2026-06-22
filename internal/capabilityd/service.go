@@ -281,6 +281,7 @@ func (service Service) Run(ctx context.Context) error {
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
+	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
@@ -366,6 +367,16 @@ func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, r
 		return
 	}
 	response, errorValue := service.completeStructured(request.Context(), structuredRequest)
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleChatLLM(responseWriter http.ResponseWriter, request *http.Request) {
+	var chatRequest ChatLLMRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&chatRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	response, errorValue := service.completeChat(request.Context(), chatRequest)
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
