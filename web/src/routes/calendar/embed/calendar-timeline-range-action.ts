@@ -194,7 +194,7 @@ function timelinePointerHourFromDayRows(dayRowsElement: HTMLElement, clientY: nu
 	const contentHeight = Math.max(dayRowsElement.scrollHeight, contentRectangle.height, timelineHourHeightPx * 24);
 	const hourHeight = contentHeight / 24;
 	const relativeY = clientY - contentRectangle.top + dayRowsElement.scrollTop;
-	return Math.max(0, Math.min(24, relativeY / hourHeight + 0.5));
+	return Math.max(0, Math.min(24, relativeY / hourHeight));
 }
 
 function timelineColumnIndex(firstGridRow: HTMLElement, clientX: number, view: CalendarViewType): number {
