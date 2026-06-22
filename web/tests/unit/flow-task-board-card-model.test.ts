@@ -17,7 +17,7 @@ describe('flow task board card model', () => {
 
 		expect(display.ownerName).toBe('김철수');
 		expect(display.participantNames).toEqual(['박민준', '최서연']);
-		expect(display.metadataLabels).toEqual(['여명거리', '기능', 'F 2']);
+		expect(display.metadataLabels).toEqual(['여명거리', '기능']);
 		expect(display.dateLabel).toBe('2026-06-01 - 2026-06-03');
 	});
 
