@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { draftPopoverPositionFromAnchor, type DraftPopoverAnchor } from '../../../src/routes/calendar/embed/calendar-draft-popover-state';
 
 describe('calendar draft popover position', () => {
-	test('keeps narrow stage popovers inside the visible stage', () => {
+	test('keeps the popover from covering the clicked event title on narrow stages', () => {
 		const stageElement = elementWithRectangle({ left: 0, top: 0, right: 420, bottom: 620, width: 420, height: 620 });
 		const titleAnchor: DraftPopoverAnchor = {
 			clientX: 260,
@@ -18,9 +18,12 @@ describe('calendar draft popover position', () => {
 
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
-		expect(position.left).toBe(12);
-		expect(position.width).toBe(396);
-		expect(position.top + position.arrowTop + 8).toBe(190);
+		expect(
+			rectanglesOverlap(
+				{ left: position.left, right: position.left + position.width, top: position.top, bottom: position.top + 520 },
+				{ left: 180, right: 260, top: 180, bottom: 200 }
+			)
+		).toBe(false);
 	});
 
 	test('places right-edge events on the left side of the clicked block', () => {
@@ -85,7 +88,7 @@ describe('calendar draft popover position', () => {
 		expect(position.left + position.width <= 600 - 24).toBe(true);
 	});
 
-	test('keeps event popovers inside the viewport when the anchor is outside the visible page', () => {
+	test('keeps event popovers attached to their title when the calendar stage scrolls beyond the page', () => {
 		const originalWindow = globalThis.window;
 		Object.defineProperty(globalThis, 'window', {
 			value: { innerWidth: 900, innerHeight: 600 },
@@ -106,10 +109,10 @@ describe('calendar draft popover position', () => {
 
 		try {
 			const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
+			const titleCenterY = 930;
 
-			expect(position.top).toBe(36);
-			expect(position.top + 552 <= 588).toBe(true);
-			expect(position.arrowTop).toBe(524);
+			expect(position.top).toBe(titleCenterY - 48);
+			expect(position.top + position.arrowTop + 8).toBe(titleCenterY);
 		} finally {
 			Object.defineProperty(globalThis, 'window', {
 				value: originalWindow,
@@ -212,4 +215,16 @@ function elementWithRectangle(rectangle: TestRectangle): HTMLElement {
 	return {
 		getBoundingClientRect: () => rectangle
 	} as HTMLElement;
+}
+
+function rectanglesOverlap(
+	firstRectangle: Pick<TestRectangle, 'left' | 'right' | 'top' | 'bottom'>,
+	secondRectangle: Pick<TestRectangle, 'left' | 'right' | 'top' | 'bottom'>
+): boolean {
+	return (
+		firstRectangle.left < secondRectangle.right &&
+		secondRectangle.left < firstRectangle.right &&
+		firstRectangle.top < secondRectangle.bottom &&
+		secondRectangle.top < firstRectangle.bottom
+	);
 }
