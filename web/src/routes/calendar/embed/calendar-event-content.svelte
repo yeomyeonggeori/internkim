@@ -12,5 +12,8 @@
 </script>
 
 <span class:calendar-event-content-timed={shouldShowTime} class="calendar-event-content calendar-month-event-content">
-	<span class="calendar-event-title calendar-month-event-title">{event.title}{#if shouldShowTime} {startTime}{/if}</span>
+	<span class="calendar-event-title calendar-month-event-title">{event.title}</span>
+	{#if shouldShowTime}
+		<span class="calendar-event-time">{startTime}</span>
+	{/if}
 </span>
