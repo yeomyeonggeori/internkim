@@ -20,7 +20,12 @@
 
 	const namespaces = () => memoryGraph?.namespaces ?? [];
 	const facts = () => memoryGraph?.facts ?? [];
-	const nodes = () => memoryGraph?.nodes ?? [];
+	const nodes = () =>
+		(memoryGraph?.nodes ?? []).map((node) =>
+			node.kind === 'namespace' && node.scopeType && isPersonalScope(node.scopeType)
+				? { ...node, label: text.myMemory }
+				: node
+		);
 	const edges = () => memoryGraph?.edges ?? [];
 	const episodes = () => memoryGraph?.episodes ?? [];
 	const hasMemoryGraph = () => Boolean(memoryGraph);
@@ -31,6 +36,14 @@
 	function factScoreText(score: number | null | undefined): string {
 		if (typeof score !== 'number' || !Number.isFinite(score)) return text.scoreUnavailable;
 		return `${text.score} ${Math.round(score * 100)}%`;
+	}
+
+	function isPersonalScope(scopeType: string): boolean {
+		return scopeType === 'user' || scopeType === 'private';
+	}
+
+	function scopeDisplayName(scopeType: string, namespaceID: string): string {
+		return isPersonalScope(scopeType) ? text.myMemory : namespaceID;
 	}
 
 	async function loadMemoryGraph(): Promise<void> {
@@ -132,7 +145,7 @@
 					<article class="grid gap-2 border-b px-3 py-3 last:border-b-0">
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
 							<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
-							<span class="truncate text-xs text-muted-foreground">{fact.namespaceID}</span>
+							<span class="truncate text-xs text-muted-foreground">{scopeDisplayName(fact.scopeType, fact.namespaceID)}</span>
 							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
 						</div>
 						<div class="memory-markdown text-sm leading-5">
@@ -150,10 +163,12 @@
 		{#each namespaces().slice(0, 10) as namespace}
 			<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
 				<div class="min-w-0">
-					<p class="truncate text-sm font-medium">{namespace.namespaceID}</p>
+					<p class="truncate text-sm font-medium">{scopeDisplayName(namespace.scopeType, namespace.namespaceID)}</p>
 					<p class="text-xs text-muted-foreground">{namespace.scopeType} · {namespace.episodeCount ?? 0} {text.episodes}</p>
 				</div>
-				<Badge variant="outline">{namespace.scopeCircleID || namespace.scopePersonID || namespace.scopeConversationID || text.workspace}</Badge>
+				{#if !isPersonalScope(namespace.scopeType)}
+					<Badge variant="outline">{namespace.scopeCircleID || namespace.scopeConversationID || text.workspace}</Badge>
+				{/if}
 			</div>
 		{/each}
 	</section>
