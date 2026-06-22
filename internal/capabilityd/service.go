@@ -15,11 +15,13 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
@@ -256,7 +258,7 @@ func (service Service) Run(ctx context.Context) error {
 	server := &http.Server{Handler: service.router()}
 	go func() {
 		<-ctx.Done()
-		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownContext)
 	}()
@@ -1954,7 +1956,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 }
 
 func Run(configuration Configuration) error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	service := Service{Configuration: configuration.WithDefaults()}
 	if errorValue := service.Run(ctx); errorValue != nil {
 		return fmt.Errorf("capabilityd failed: %w", errorValue)
