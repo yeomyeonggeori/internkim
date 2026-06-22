@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import {
 	expectCalendarEventSelectedBlue,
@@ -11,7 +11,7 @@ import {
 	expectPopoverArrowPointsToEventTimeEnd,
 	expectPopoverOpensLeftOfElement
 } from './calendar-embed-draft-assertions';
-import { dispatchElementScroll, doubleClickCalendarEvent, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { dispatchElementScroll, doubleClickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 import {
 	clearCalendarSelectionFromTestPage,
 	duplicateDayAnchorPanelEventSelector,
@@ -97,6 +97,70 @@ test.describe('embedded calendar timeline popover and selection behavior', () =>
 		await expect(page.getByLabel('제목')).toHaveValue('Double Click Timeline Event');
 	});
 
+	test('does not open a day event popover after a moved pointer gesture', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'moved-pointer-day-event',
+				title: 'Moved Pointer Day Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		const eventSelector = '.calendar-stage [data-event-id="moved-pointer-day-event"].df-day-event:not(.df-right-panel-event-card)';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector);
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
+	test('does not open a day event popover after a touch scroll gesture', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await routeCalendarEvents(page, [
+			{
+				id: 'touch-scroll-day-event',
+				title: 'Touch Scroll Day Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		const eventSelector = '.calendar-stage [data-event-id="touch-scroll-day-event"].df-day-event:not(.df-right-panel-event-card)';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector, { pointerType: 'touch' });
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
+	test('anchors day multi-day proxy popovers to the clicked proxy block', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'day-proxy-anchor-event',
+				title: 'Day Proxy Anchor Event',
+				startISO: '2026-06-16T11:45:00+09:00',
+				endISO: '2026-06-18T12:30:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+		const proxySelector = '.calendar-stage .calendar-multi-day-all-day-proxy[data-event-id="day-proxy-anchor-event::multi-day-proxy"]';
+		await expect(page.locator(proxySelector)).toBeVisible();
+		await expect(page.locator('.calendar-stage .df-day-event.df-event-timed[data-event-id="day-proxy-anchor-event"]:visible')).toHaveCount(0);
+
+		await doubleClickCalendarEvent(page, proxySelector);
+
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expectPopoverArrowPointsToElement(page, proxySelector);
+	});
+
 	test('anchors day edit popovers to the clicked timeline event block when a right panel duplicate exists', async ({ page }) => {
 		await routeDuplicateDayAnchorEvent(page);
 
@@ -166,3 +230,46 @@ test.describe('embedded calendar timeline popover and selection behavior', () =>
 		await expect(panelEvent).not.toContainText('03:00');
 	});
 });
+
+type MovedPointerActivationOptions = {
+	pointerType?: string;
+};
+
+async function dispatchMovedPointerActivation(page: Page, selector: string, options: MovedPointerActivationOptions = {}): Promise<void> {
+	await page.evaluate(async ({ targetSelector, pointerType }) => {
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!target) throw new Error(`Missing calendar event: ${targetSelector}`);
+		target.scrollIntoView({ block: 'center', inline: 'nearest' });
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		const rectangle = target.getBoundingClientRect();
+		const startClientX = rectangle.left + Math.min(32, rectangle.width / 2);
+		const startClientY = rectangle.top + Math.min(24, rectangle.height / 2);
+		const movedClientY = startClientY + 32;
+		const pointerID = 25;
+		const startPointerEvent: PointerEventInit = {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			pointerId: pointerID,
+			pointerType,
+			clientX: startClientX,
+			clientY: startClientY
+		};
+		const movedPointerEvent: PointerEventInit = {
+			...startPointerEvent,
+			clientY: movedClientY
+		};
+		const movedMouseEvent: MouseEventInit = {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			clientX: startClientX,
+			clientY: movedClientY
+		};
+		target.dispatchEvent(new PointerEvent('pointerdown', startPointerEvent));
+		document.dispatchEvent(new PointerEvent('pointermove', movedPointerEvent));
+		window.dispatchEvent(new PointerEvent('pointerup', movedPointerEvent));
+		target.dispatchEvent(new MouseEvent('click', movedMouseEvent));
+		target.dispatchEvent(new MouseEvent('dblclick', movedMouseEvent));
+	}, { targetSelector: selector, pointerType: options.pointerType ?? 'mouse' });
+}
