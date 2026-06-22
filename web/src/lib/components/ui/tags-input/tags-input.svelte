@@ -36,6 +36,7 @@
 		filterSuggestions = defaultFilter,
 		restrictToSuggestions = false,
 		showSelectedTags = true,
+		suggestionsPlacement = 'bottom',
 		...rest
 	}: TagsInputProps = $props();
 
@@ -350,7 +351,10 @@
 			bind:this={listboxEl}
 			id={listboxId}
 			role="listbox"
-			class="bg-popover text-popover-foreground absolute top-full right-0 left-0 z-50 mt-1 max-h-50 overflow-y-auto rounded-md border p-1 shadow-md"
+			class={cn(
+				'bg-popover text-popover-foreground absolute right-0 left-0 z-50 max-h-50 overflow-y-auto rounded-md border p-1 shadow-md',
+				suggestionsPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
+			)}
 		>
 			{#each filteredSuggestions as suggestion, i (suggestion)}
 				<TagsInputSuggestion
