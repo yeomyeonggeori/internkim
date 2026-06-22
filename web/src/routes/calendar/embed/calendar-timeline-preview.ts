@@ -1,4 +1,3 @@
-// 캘린더 timeline drag preview segment와 overlap lane 보정을 계산합니다.
 import { ViewType } from '@dayflow/svelte';
 import type { CalendarViewType, Event as DayFlowEvent } from '@dayflow/core';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
@@ -26,6 +25,9 @@ type TimelineRangePreviewContext = {
 
 const minimumPreviewHeight = 24;
 const minimumLaneWidthPx = 32;
+const minimumTimelinePreviewWidth = 18;
+const timelinePreviewColumnInset = 4;
+const timelinePreviewLaneGap = 8;
 const defaultHourHeight = 72;
 const defaultBoundaryTop = 12;
 
@@ -100,8 +102,10 @@ function timelineRangePreviewSegment(
 	const segmentEndDate = dateWithMinute(cursorDate, endMinute);
 	const overlapCount = timelineEventsOverlappingRange(context.events, segmentStartDate, segmentEndDate).length;
 	const laneCount = overlapCount + 1;
-	const laneWidth = Math.max(minimumLaneWidthPx, layout.columnWidth / laneCount - 8);
-	const left = layout.gridLeft + columnIndex * layout.columnWidth + 4;
+	const availableColumnWidth = Math.max(minimumTimelinePreviewWidth, layout.columnWidth - timelinePreviewColumnInset * 2);
+	const availableLaneWidth = Math.max(minimumTimelinePreviewWidth, availableColumnWidth / laneCount - timelinePreviewLaneGap);
+	const laneWidth = Math.min(availableColumnWidth, Math.max(minimumTimelinePreviewWidth, availableLaneWidth));
+	const left = layout.gridLeft + columnIndex * layout.columnWidth + timelinePreviewColumnInset;
 	const top = layout.gridTop + layout.boundaryTop + startMinute * layout.minuteHeight;
 	return {
 		id: `timeline-preview-${dateKey(cursorDate)}`,
@@ -141,7 +145,7 @@ function timelineLayout(stageElement: HTMLElement, view: CalendarViewType): Time
 }
 
 function timelineGridElement(stageElement: HTMLElement, view: CalendarViewType): HTMLElement | null {
-	const selector = view === ViewType.WEEK ? '.df-week-time-grid-grid' : '.df-day-content-grid';
+	const selector = view === ViewType.WEEK ? '.df-week-time-grid-grid' : '.df-day-content-grid-column';
 	return stageElement.querySelector<HTMLElement>(selector);
 }
 
@@ -177,7 +181,7 @@ function applyTimelinePreviewOverlapLane(element: HTMLElement, laneCount: number
 	if (!Number.isFinite(baseWidthPx)) return;
 	element.dataset.timelinePreviewBaseWidth = baseWidth;
 	element.classList.add('calendar-timeline-overlap-adjusted');
-	element.style.width = `${Math.max(minimumLaneWidthPx, (baseWidthPx + 8) / laneCount - 8)}px`;
+	element.style.width = `${Math.min(baseWidthPx, Math.max(minimumTimelinePreviewWidth, (baseWidthPx + timelinePreviewLaneGap) / laneCount - timelinePreviewLaneGap))}px`;
 }
 
 function restoreTimelinePreviewWidth(element: HTMLElement): void {
