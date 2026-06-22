@@ -122,6 +122,61 @@ export async function dragToUpperHalf(source: Locator, target: Locator): Promise
 	await source.dispatchEvent('dragend', { dataTransfer });
 }
 
+export async function setFlowPageScrollTop(page: Page, scrollTop: number): Promise<void> {
+	await updateFlowPageScroll(page, { type: 'set', value: scrollTop });
+}
+
+export async function scrollFlowBoardToTop(page: Page): Promise<void> {
+	await updateFlowPageScroll(page, { type: 'alignBoardTop', value: 0 });
+}
+
+export async function scrollFlowPageBy(page: Page, offset: number): Promise<void> {
+	await updateFlowPageScroll(page, { type: 'offset', value: offset });
+}
+
+export async function waitForFlowBoardHeightUpdate(page: Page): Promise<void> {
+	await page.evaluate(() => new Promise<void>((resolve) => {
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => resolve());
+		});
+	}));
+}
+
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+type FlowPageScrollInstruction = {
+	type: 'alignBoardTop' | 'offset' | 'set';
+	value: number;
+};
+
+async function updateFlowPageScroll(page: Page, instruction: FlowPageScrollInstruction): Promise<void> {
+	await page.locator('[data-flow-board-scroll]').evaluate((element, nextInstruction) => {
+		let scrollParent = element.parentElement;
+		while (scrollParent && !['auto', 'scroll', 'overlay'].includes(getComputedStyle(scrollParent).overflowY)) {
+			scrollParent = scrollParent.parentElement;
+		}
+		if (!scrollParent) {
+			if (nextInstruction.type === 'alignBoardTop') {
+				element.scrollIntoView();
+			} else if (nextInstruction.type === 'offset') {
+				window.scrollBy({ top: nextInstruction.value });
+			} else {
+				window.scrollTo({ top: nextInstruction.value });
+			}
+			window.dispatchEvent(new Event('scroll'));
+			return;
+		}
+		if (nextInstruction.type === 'alignBoardTop') {
+			const scrollParentBounds = scrollParent.getBoundingClientRect();
+			const elementBounds = element.getBoundingClientRect();
+			scrollParent.scrollTop += elementBounds.top - scrollParentBounds.top;
+		} else if (nextInstruction.type === 'offset') {
+			scrollParent.scrollTop += nextInstruction.value;
+		} else {
+			scrollParent.scrollTop = nextInstruction.value;
+		}
+		scrollParent.dispatchEvent(new Event('scroll'));
+	}, instruction);
 }
