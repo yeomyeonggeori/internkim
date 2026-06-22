@@ -10,10 +10,17 @@
 		sublabel?: string;
 	};
 
-	let { items }: { items: KpiItem[] } = $props();
+	type Props = {
+		items: KpiItem[];
+		columns?: 'compact' | 'wide';
+	};
+
+	let { items, columns = 'compact' }: Props = $props();
+
+	const gridClass = $derived(columns === 'wide' ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2');
 </script>
 
-<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+<div class={`grid gap-3 ${gridClass}`}>
 	{#each items as item, index (index)}
 		<Card.Root>
 			<Card.Content class="space-y-2 p-4">
@@ -24,7 +31,7 @@
 					{/if}
 					<span>{item.label}</span>
 				</div>
-				<p class="text-2xl font-semibold leading-tight">{item.value}</p>
+				<p class="break-keep text-xl font-semibold leading-tight sm:text-2xl">{item.value}</p>
 				{#if item.sublabel}
 					<p class="text-xs text-muted-foreground">{item.sublabel}</p>
 				{/if}
