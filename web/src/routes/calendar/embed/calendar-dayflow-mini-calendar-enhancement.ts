@@ -33,12 +33,15 @@ export function enhanceDayFlowMiniCalendar(context: DayFlowMiniCalendarEnhanceme
 	});
 	enhanceMiniCalendarWeekdayHeaders(context.stageElement, context.weekdayLabels);
 	enhanceMiniCalendarMonthLabel(context.stageElement, month, context.localeCode);
-	enhanceMiniCalendarNavigationButtons(context.stageElement, context.previousLabel, context.nextLabel);
+	enhanceMiniCalendarNavigationButtons(context.stageElement, context.currentDate, context.previousLabel, context.nextLabel, context.selectDateKey);
 }
 
 export function installDayFlowMiniCalendarDateSelection(selectDateKey: (dateKey: string) => void): () => void {
 	const handleClick = (event: MouseEvent): void => {
-		const target = event.target instanceof Element ? event.target.closest<HTMLElement>('.df-mini-calendar-day[data-mini-date-key]') : null;
+		const target =
+			event.target instanceof Element
+				? event.target.closest<HTMLElement>('.df-mini-calendar-day[data-mini-date-key], .df-mini-calendar-nav-btn[data-mini-date-key]')
+				: null;
 		if (!target) return;
 		event.preventDefault();
 		event.stopImmediatePropagation();
@@ -133,11 +136,55 @@ function enhanceMiniCalendarMonthLabel(stageElement: HTMLElement, month: Date, l
 	label.setAttribute('aria-haspopup', 'dialog');
 }
 
-function enhanceMiniCalendarNavigationButtons(stageElement: HTMLElement, previousLabel: string, nextLabel: string): void {
+function enhanceMiniCalendarNavigationButtons(
+	stageElement: HTMLElement,
+	currentDate: Date,
+	previousLabel: string,
+	nextLabel: string,
+	selectDateKey: (dateKey: string) => void
+): void {
 	const buttons = stageElement.querySelectorAll<HTMLButtonElement>('.df-mini-calendar-header-nav .df-mini-calendar-nav-btn');
 	buttons.forEach((button, index) => {
 		button.setAttribute('aria-label', index === 0 ? previousLabel : nextLabel);
+		installMiniCalendarNavigation(button, currentDate, index === 0 ? -1 : 1, selectDateKey);
 	});
+}
+
+function installMiniCalendarNavigation(
+	button: HTMLButtonElement,
+	currentDate: Date,
+	monthDelta: -1 | 1,
+	selectDateKey: (dateKey: string) => void
+): void {
+	button.dataset.miniDateKey = dateKey(shiftedMonthDate(currentDate, monthDelta));
+	if (button.dataset.monthNavigationInstalled === 'true') return;
+	button.dataset.monthNavigationInstalled = 'true';
+	button.addEventListener(
+		'click',
+		(event) => {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			const selectedDateKey = button.dataset.miniDateKey;
+			if (!selectedDateKey) return;
+			selectDateKey(selectedDateKey);
+		},
+		{ capture: true }
+	);
+	button.addEventListener('keydown', (event) => {
+		if (event.key !== 'Enter' && event.key !== ' ') return;
+		event.preventDefault();
+		const selectedDateKey = button.dataset.miniDateKey;
+		if (!selectedDateKey) return;
+		selectDateKey(selectedDateKey);
+	});
+}
+
+function shiftedMonthDate(currentDate: Date, monthDelta: -1 | 1): Date {
+	const targetYear = currentDate.getFullYear();
+	const targetMonth = currentDate.getMonth() + monthDelta;
+	const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+	const targetDay = Math.min(currentDate.getDate(), daysInTargetMonth);
+	return new Date(targetYear, targetMonth, targetDay, 12, 0, 0, 0);
 }
 
 function miniCalendarGridStartDate(month: Date): Date {
