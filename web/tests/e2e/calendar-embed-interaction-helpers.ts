@@ -12,6 +12,37 @@ export async function dismissDraftPopoverFromTimeline(page: Page): Promise<void>
 	});
 }
 
+export async function dispatchElementScroll(page: Page, selector: string, scrollTop: number): Promise<void> {
+	await page.evaluate(
+		({ targetSelector, targetScrollTop }) => {
+			const target = document.querySelector<HTMLElement>(targetSelector);
+			if (!target) throw new Error(`Missing scroll target: ${targetSelector}`);
+			target.scrollTop = targetScrollTop;
+			target.dispatchEvent(new Event('scroll', { bubbles: true }));
+		},
+		{ targetSelector: selector, targetScrollTop: scrollTop }
+	);
+}
+
+export async function doubleClickCalendarEvent(page: Page, selector: string): Promise<void> {
+	await page.evaluate(async (targetSelector) => {
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!target) throw new Error(`Missing calendar event: ${targetSelector}`);
+		target.scrollIntoView({ block: 'center', inline: 'nearest' });
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		const rectangle = target.getBoundingClientRect();
+		const clientX = rectangle.left + rectangle.width / 2;
+		const clientY = rectangle.top + rectangle.height / 2;
+		target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerId: 17, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+	}, selector);
+}
+
 export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '일' | '주'): Promise<void> {
 	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
@@ -99,6 +130,84 @@ export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주
 			return { target: targetElement, clientX, clientY };
 		}
 	}, { selector: timelineTargetSelector(viewLabel), columnIndex: timelineTargetColumnIndex(viewLabel), view: viewLabel });
+}
+
+export async function startDayTimelineRangeDragAtHour(page: Page, startHour: number, durationHours: number): Promise<void> {
+	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
+	await page.waitForSelector('.df-day-content-grid-column', { state: 'attached' });
+	await resetTimelineScrollerTop(page, '일');
+	await page.evaluate(
+		({ targetStartHour, targetDurationHours }) => {
+			const grid = document.querySelector('.df-day-content-grid-column');
+			const rows = document.querySelector('.df-day-content-grid-rows');
+			if (!(grid instanceof HTMLElement) || !(rows instanceof HTMLElement)) throw new Error('Missing day timeline grid');
+			const gridRectangle = grid.getBoundingClientRect();
+			const rowsRectangle = rows.getBoundingClientRect();
+			const hourHeight = rowsRectangle.height / 24;
+			const startClientX = gridRectangle.left + gridRectangle.width / 2;
+			const startClientY = rowsRectangle.top + hourHeight * targetStartHour + 4;
+			const endClientY = startClientY + hourHeight * targetDurationHours;
+			const target = document.elementFromPoint(startClientX, startClientY)?.closest('.df-day-content-grid-column') ?? grid;
+			if (!(target instanceof HTMLElement)) throw new Error('Missing day timeline target');
+			target.dispatchEvent(
+				new PointerEvent('pointerdown', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: 3,
+					clientX: startClientX,
+					clientY: startClientY
+				})
+			);
+			target.dispatchEvent(
+				new MouseEvent('mousedown', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					clientX: startClientX,
+					clientY: startClientY
+				})
+			);
+			document.dispatchEvent(
+				new PointerEvent('pointermove', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: 3,
+					clientX: startClientX,
+					clientY: endClientY
+				})
+			);
+		},
+		{ targetStartHour: startHour, targetDurationHours: durationHours }
+	);
+}
+
+export async function createDayTimelineRangeByDragAtHour(page: Page, startHour: number, durationHours: number): Promise<void> {
+	await startDayTimelineRangeDragAtHour(page, startHour, durationHours);
+	await page.evaluate(
+		({ targetStartHour, targetDurationHours }) => {
+			const grid = document.querySelector('.df-day-content-grid-column');
+			const rows = document.querySelector('.df-day-content-grid-rows');
+			if (!(grid instanceof HTMLElement) || !(rows instanceof HTMLElement)) throw new Error('Missing day timeline grid');
+			const gridRectangle = grid.getBoundingClientRect();
+			const rowsRectangle = rows.getBoundingClientRect();
+			const hourHeight = rowsRectangle.height / 24;
+			const clientX = gridRectangle.left + gridRectangle.width / 2;
+			const clientY = rowsRectangle.top + hourHeight * (targetStartHour + targetDurationHours) + 4;
+			window.dispatchEvent(
+				new PointerEvent('pointerup', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+					pointerId: 3,
+					clientX,
+					clientY
+				})
+			);
+		},
+		{ targetStartHour: startHour, targetDurationHours: durationHours }
+	);
 }
 
 export async function finishTimelineRangeDrag(page: Page, viewLabel: '일' | '주'): Promise<void> {
