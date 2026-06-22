@@ -16,7 +16,6 @@ export type FlowTaskEditorText = {
 	businessFallback: string;
 	type: string;
 	size: string;
-	flag: string;
 	startDate: string;
 	endDate: string;
 	participants: string;
