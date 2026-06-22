@@ -210,6 +210,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		getLocaleCode: context.getLocaleCode,
 		isBrowser: context.isBrowser,
 		selectedMonthDate,
+		selectCalendarEvent: eventSelection.selectCalendarEvent,
 		setVisibleDate: context.setVisibleDate,
 		state: context.state
 	});

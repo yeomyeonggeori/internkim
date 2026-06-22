@@ -141,12 +141,28 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	service := newCalendarTestService(t)
 	service.Configuration.MattermostBaseURL = "http://mattermost.local"
+	service.Configuration.MattermostAdminPasswordPath = writeTestFile(t, "admin-password")
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
+		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token"):
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
-		}
-		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=editor-token") {
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=editor-token"):
 			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"editor@example.com","username":"editor","display_name":"수정자"}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/creator@example.com":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/editor@example.com":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"editor@example.com","username":"editor","display_name":"수정자"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/image":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("creator-image")),
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+			}, nil
 		}
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
@@ -172,6 +188,10 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	if createdEvent.CreatedByEmail != "creator@example.com" || createdEvent.CreatedByName != "등록자" {
 		t.Fatalf("created actor = %q/%q", createdEvent.CreatedByEmail, createdEvent.CreatedByName)
 	}
+	createdActorImage := "/calendar/api/events/" + url.PathEscape(createdEvent.ID) + "/actor-image?actor=created"
+	if createdEvent.CreatedByImage != createdActorImage {
+		t.Fatalf("created actor image = %q", createdEvent.CreatedByImage)
+	}
 
 	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+createdEvent.ID, strings.NewReader(`{
 		"title":"Actor audit edited",
@@ -187,6 +207,14 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	if updateResponse.Code != http.StatusOK {
 		t.Fatalf("update status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
 	}
+	var updatedEvent calendarEvent
+	if errorValue := json.Unmarshal(updateResponse.Body.Bytes(), &updatedEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	updatedActorImage := "/calendar/api/events/" + url.PathEscape(createdEvent.ID) + "/actor-image?actor=updated"
+	if updatedEvent.CreatedByImage != createdActorImage || updatedEvent.UpdatedByImage != updatedActorImage {
+		t.Fatalf("updated actor images = %q/%q", updatedEvent.CreatedByImage, updatedEvent.UpdatedByImage)
+	}
 
 	stored, found, errorValue := service.readCalendarEventByID(context.Background(), createdEvent.ID)
 	if errorValue != nil || !found {
@@ -197,6 +225,49 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	}
 	if stored.UpdatedByEmail != "editor@example.com" || stored.UpdatedByName != "수정자" || stored.UpdatedByAt == "" {
 		t.Fatalf("stored updated actor = %q/%q at %q", stored.UpdatedByEmail, stored.UpdatedByName, stored.UpdatedByAt)
+	}
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/events?startISO=2026-05-01T00:00:00Z&endISO=2026-06-01T00:00:00Z", nil)
+	listRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	listResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(listResponse, listRequest)
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("list status = %d body = %s", listResponse.Code, listResponse.Body.String())
+	}
+	var eventsResponse calendarEventsResponse
+	if errorValue := json.Unmarshal(listResponse.Body.Bytes(), &eventsResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(eventsResponse.Events) != 1 || eventsResponse.Events[0].CreatedByName != "등록자" || eventsResponse.Events[0].UpdatedByName != "수정자" {
+		t.Fatalf("event actor names = %#v", eventsResponse.Events)
+	}
+
+	imageRequest := httptest.NewRequest(http.MethodGet, createdActorImage, nil)
+	imageRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	imageResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(imageResponse, imageRequest)
+	if imageResponse.Code != http.StatusOK || imageResponse.Body.String() != "creator-image" || imageResponse.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("image response = %d %q %q", imageResponse.Code, imageResponse.Body.String(), imageResponse.Header().Get("Content-Type"))
+	}
+
+	if _, errorValue := service.writeCalendarICSToken(context.Background(), "calendar-token"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	tokenImageRequest := httptest.NewRequest(http.MethodGet, createdActorImage, nil)
+	tokenImageRequest.RemoteAddr = "203.0.113.10:49152"
+	tokenImageRequest.SetBasicAuth(calendarDAVUsername, "calendar-token")
+	tokenImageResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(tokenImageResponse, tokenImageRequest)
+	if tokenImageResponse.Code != http.StatusForbidden {
+		t.Fatalf("token image status = %d body = %s", tokenImageResponse.Code, tokenImageResponse.Body.String())
+	}
+
+	legacyImageRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/actor-image?email="+url.QueryEscape("creator@example.com"), nil)
+	legacyImageRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	legacyImageResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(legacyImageResponse, legacyImageRequest)
+	if legacyImageResponse.Code != http.StatusNotFound {
+		t.Fatalf("legacy image status = %d body = %s", legacyImageResponse.Code, legacyImageResponse.Body.String())
 	}
 }
 

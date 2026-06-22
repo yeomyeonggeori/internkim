@@ -29,6 +29,7 @@ type CalendarPageInteractionServicesContext = {
 	getLocaleCode: () => string;
 	isBrowser: () => boolean;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
+	selectCalendarEvent: (eventID: string) => void;
 	setVisibleDate: (date: Date) => void;
 	state: CalendarEmbedPageState;
 };
@@ -46,6 +47,7 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 			context.state.selectedMonthDateKey = dateKey;
 		},
 		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
+		selectCalendarEvent: context.selectCalendarEvent,
 		broadcastCalendarView: context.broadcastCalendarView
 	});
 
