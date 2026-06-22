@@ -311,7 +311,7 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "continue__site_app_publish" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
 	}
-	if request.ToolChoice != "required" {
+	if string(request.ToolChoice) != `"required"` {
 		t.Fatalf("expected required tool choice, got %+v", request)
 	}
 	if request.ParallelTools == nil || *request.ParallelTools {

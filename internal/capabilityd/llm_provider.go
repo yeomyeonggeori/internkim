@@ -13,14 +13,18 @@ import (
 
 type (
 	LLMMessage             = llmbackend.Message
+	ChatLLMMessage         = llmbackend.ChatMessage
 	StructuredOutputSchema = llmbackend.StructuredOutputSchema
 	StructuredLLMRequest   = llmbackend.StructuredRequest
 	TextLLMRequest         = llmbackend.TextRequest
+	ChatLLMRequest         = llmbackend.ChatRequest
 	LLMResponse            = llmbackend.Response
+	ChatLLMResponse        = llmbackend.ChatResponse
 
 	LLMProvider           = llmbackend.Provider
 	StructuredLLMProvider = llmbackend.StructuredCompleter
 	TextLLMProvider       = llmbackend.TextCompleter
+	ChatLLMProvider       = llmbackend.ChatCompleter
 
 	LiteRTProvider    = llmbackend.LiteRTProvider
 	OllamaBackend     = llmbackend.OllamaBackend
@@ -50,6 +54,18 @@ func (service Service) completeText(ctx context.Context, request TextLLMRequest)
 		return LLMResponse{}, errorValue
 	}
 	return provider.CompleteText(ctx, request)
+}
+
+func (service Service) completeChat(ctx context.Context, request ChatLLMRequest) (ChatLLMResponse, error) {
+	provider, errorValue := service.providerForExecutionMode(ctx, "llm.chat", request.ExecutionMode, request.Provider, request.Accelerator)
+	if errorValue != nil {
+		return ChatLLMResponse{}, errorValue
+	}
+	chatProvider, isChatProvider := provider.(ChatLLMProvider)
+	if !isChatProvider {
+		return ChatLLMResponse{}, errors.New("selected llm provider does not support native chat completions")
+	}
+	return chatProvider.CompleteChat(ctx, request)
 }
 
 func (service Service) providerForExecutionMode(ctx context.Context, toolName, executionMode, providerName, accelerator string) (LLMProvider, error) {
