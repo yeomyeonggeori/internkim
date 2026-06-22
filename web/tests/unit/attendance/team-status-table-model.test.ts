@@ -12,12 +12,12 @@ describe('team status table model', () => {
 	test('maps monthly rows to location-aware statuses', () => {
 		const summary = attendanceSummary(
 			[
-				attendanceEvent('kim-office-in', 'kim@example.com', '김철수', '2026-06-16', 'clock_in', '09:00', 'office', '사무실'),
-				attendanceEvent('kim-office-out', 'kim@example.com', '김철수', '2026-06-16', 'clock_out', '10:00', 'office', '사무실'),
-				attendanceEvent('kim-remote-in', 'kim@example.com', '김철수', '2026-06-16', 'clock_in', '11:00', 'remote', '재택'),
-				attendanceEvent('kim-remote-out', 'kim@example.com', '김철수', '2026-06-16', 'clock_out', '12:00', 'remote', '재택'),
-				attendanceEvent('kim-working-in', 'kim@example.com', '김철수', '2026-06-17', 'clock_in', '13:00', 'remote', '재택'),
-				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-16', 'clock_in', '09:00', 'office', '사무실'),
+				attendanceEvent('kim-lab-in', 'kim@example.com', '김철수', '2026-06-16', 'clock_in', '09:00', 'lab-a', 'Lab A'),
+				attendanceEvent('kim-lab-out', 'kim@example.com', '김철수', '2026-06-16', 'clock_out', '10:00', 'lab-a', 'Lab A'),
+				attendanceEvent('kim-client-in', 'kim@example.com', '김철수', '2026-06-16', 'clock_in', '11:00', 'client-site', '고객사'),
+				attendanceEvent('kim-client-out', 'kim@example.com', '김철수', '2026-06-16', 'clock_out', '12:00', 'client-site', '고객사'),
+				attendanceEvent('kim-working-in', 'kim@example.com', '김철수', '2026-06-17', 'clock_in', '13:00', 'client-site', '고객사'),
+				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-16', 'clock_in', '09:00', 'lab-a', 'Lab A'),
 			],
 			[
 				attendanceAbsence('lee-1', 'lee@example.com', 'business_trip', '2026-06-17', {
@@ -41,17 +41,17 @@ describe('team status table model', () => {
 			detailLabel: '2h',
 			totalDurationLabel: '2h',
 			segments: [
-				{ locationName: '사무실', locationColor: '#22c55e', timeLabel: '09:00-10:00', durationLabel: '1h' },
-				{ locationName: '재택', locationColor: '#3b82f6', timeLabel: '11:00-12:00', durationLabel: '1h' },
+				{ locationName: 'Lab A', locationColor: '#22c55e', timeLabel: '09:00-10:00', durationLabel: '1h' },
+				{ locationName: '고객사', locationColor: '#f59e0b', timeLabel: '11:00-12:00', durationLabel: '1h' },
 			],
 		});
 		expect(kim?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '재택',
+			label: '고객사',
 			tone: 'working',
-			locationName: '재택',
-			locationColor: '#3b82f6',
+			locationName: '고객사',
+			locationColor: '#f59e0b',
 			detailLabel: '13:00',
-			segments: [{ locationName: '재택', locationColor: '#3b82f6', timeLabel: '13:00~', durationLabel: '진행 중', isOpen: true }],
+			segments: [{ locationName: '고객사', locationColor: '#f59e0b', timeLabel: '13:00~', durationLabel: '진행 중', isOpen: true }],
 		});
 		expect(lee?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
 			label: '출장',
@@ -78,6 +78,33 @@ describe('team status table model', () => {
 			label: '미출근',
 			tone: 'absent',
 		});
+	});
+
+	test('uses registered location colors without interpreting location names', () => {
+		const summary = attendanceSummary(
+			[
+				attendanceEvent('choi-room-in', 'choi@example.com', '최민준', '2026-06-16', 'clock_in', '09:00', '', '회의실 A'),
+				attendanceEvent('jung-remote-in', 'jung@example.com', '정수아', '2026-06-16', 'clock_in', '09:00', '', 'remote'),
+			],
+			[]
+		);
+
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-20');
+		const choiDay = rows.find((row) => row.email === 'choi@example.com')?.days.find((day) => day.date === '2026-06-16');
+		const jungDay = rows.find((row) => row.email === 'jung@example.com')?.days.find((day) => day.date === '2026-06-16');
+
+		expect(choiDay).toMatchObject({
+			label: '회의실 A',
+			tone: 'working',
+			locationName: '회의실 A',
+			locationColor: '#a855f7',
+		});
+		expect(jungDay).toMatchObject({
+			label: 'remote',
+			tone: 'working',
+			locationName: 'remote',
+		});
+		expect(jungDay?.locationColor).toBe(undefined);
 	});
 
 	test('maps monthly status rows across every date in the selected month', () => {
@@ -151,8 +178,9 @@ function attendanceSummary(events: AttendanceEvent[], absences: AttendanceAbsenc
 		absences,
 		todayStatus: '근무 중',
 		locations: [
-			{ id: 'office', name: '사무실', color: '#22c55e', isDefault: true },
-			{ id: 'remote', name: '재택', color: '#3b82f6', isDefault: false },
+			{ id: 'lab-a', name: 'Lab A', color: '#22c55e', isDefault: true },
+			{ id: 'client-site', name: '고객사', color: '#f59e0b', isDefault: false },
+			{ id: 'meeting-room', name: '회의실 A', color: '#a855f7', isDefault: false },
 		],
 		teamViewVisibleToAll: true,
 		teamViewBlocked: false,
