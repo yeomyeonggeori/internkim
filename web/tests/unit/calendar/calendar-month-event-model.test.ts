@@ -19,7 +19,7 @@ const juneThirdWeek: MonthEventWeek = {
 };
 
 describe('monthEventSegments', () => {
-	test('clips a timed multi-day event to each visible week and includes start and end times', () => {
+	test('clips a timed multi-day event to each visible week and includes the start time', () => {
 		const event = createEvent({
 			id: 'timed-cross-week',
 			title: 'Timed Cross Week',
@@ -34,7 +34,8 @@ describe('monthEventSegments', () => {
 				startDateKey: '2026-06-12',
 				endDateKey: '2026-06-13',
 				titleText: 'Timed Cross Week 09:30',
-				endTimeText: '10:45',
+				titleOnlyText: 'Timed Cross Week',
+				startTimeText: '09:30',
 				lane: 0
 			},
 			{
@@ -42,7 +43,8 @@ describe('monthEventSegments', () => {
 				startDateKey: '2026-06-14',
 				endDateKey: '2026-06-16',
 				titleText: 'Timed Cross Week 09:30',
-				endTimeText: '10:45',
+				titleOnlyText: 'Timed Cross Week',
+				startTimeText: '09:30',
 				lane: 0
 			}
 		]);
@@ -63,7 +65,8 @@ describe('monthEventSegments', () => {
 				startDateKey: '2026-06-10',
 				endDateKey: '2026-06-10',
 				titleText: 'Single 24h 00:00',
-				endTimeText: '00:00'
+				titleOnlyText: 'Single 24h',
+				startTimeText: '00:00'
 			}
 		]);
 	});
@@ -179,7 +182,8 @@ describe('monthEventSegments', () => {
 				startDateKey: '2026-06-20',
 				endDateKey: '2026-06-20',
 				titleText: '09:00',
-				endTimeText: '10:00'
+				titleOnlyText: '09:00',
+				startTimeText: '09:00'
 			}
 		]);
 	});

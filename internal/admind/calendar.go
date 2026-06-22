@@ -47,8 +47,10 @@ type calendarEvent struct {
 	ReminderLeadHours int      `json:"reminderLeadHours"`
 	CreatedByEmail    string   `json:"createdByEmail"`
 	CreatedByName     string   `json:"createdByName"`
+	CreatedByImage    string   `json:"createdByImage,omitempty"`
 	UpdatedByEmail    string   `json:"updatedByEmail,omitempty"`
 	UpdatedByName     string   `json:"updatedByName,omitempty"`
+	UpdatedByImage    string   `json:"updatedByImage,omitempty"`
 	UpdatedByAt       string   `json:"updatedByAt,omitempty"`
 	UpdatedAt         string   `json:"updatedAt"`
 	MattermostPostID  string   `json:"mattermostPostID,omitempty"`
@@ -128,14 +130,16 @@ func (service *Service) serveCalendarIndex(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) handleCalendar(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeCalendarRequest(request) {
+	path := strings.TrimPrefix(request.URL.Path, "/calendar/api")
+	if !service.authorizeCalendarAPIRequest(request, path) {
 		http.Error(responseWriter, "calendar access required", http.StatusForbidden)
 		return
 	}
-	path := strings.TrimPrefix(request.URL.Path, "/calendar/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/events":
 		service.listCalendarEvents(responseWriter, request)
+	case request.Method == http.MethodGet && isCalendarActorImageAPIPath(path):
+		service.serveCalendarActorImage(responseWriter, request, path)
 	case request.Method == http.MethodPost && path == "/events":
 		service.createCalendarEvent(responseWriter, request)
 	case request.Method == http.MethodPut && strings.HasPrefix(path, "/events/"):
@@ -159,6 +163,17 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	default:
 		http.NotFound(responseWriter, request)
 	}
+}
+
+func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
+	if isCalendarActorImageAPIPath(path) {
+		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+	}
+	return service.authorizeCalendarRequest(request)
+}
+
+func isCalendarActorImageAPIPath(path string) bool {
+	return strings.HasPrefix(path, "/events/") && strings.HasSuffix(path, "/actor-image")
 }
 
 func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
@@ -191,7 +206,7 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, calendarEventsResponse{Events: events})
+	service.writeJSON(responseWriter, calendarEventsResponse{Events: service.calendarEventsWithActorProfiles(request.Context(), events)})
 }
 
 func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, request *http.Request) {
@@ -205,7 +220,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	responseWriter.WriteHeader(http.StatusCreated)
-	service.writeJSON(responseWriter, event)
+	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }
 
 func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
@@ -242,7 +257,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, event)
+	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {

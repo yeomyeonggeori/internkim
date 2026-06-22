@@ -1,10 +1,28 @@
 .calendar-page .draft-popover-datetime-inputs {
 	display: grid;
 	gap: 8px;
+	min-width: 0;
+	padding-right: 16px;
+}
+
+.calendar-page .draft-popover-datetime-inputs .draft-date-time-picker {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
+	justify-self: start;
+}
+
+.calendar-page .draft-popover-datetime-inputs .draft-date-time-time {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.calendar-page .draft-popover-datetime-inputs .draft-date-time-time-label {
+	grid-column: 1 / -1;
 }
 
 .calendar-page .draft-popover-date-time-summary {
 	display: grid;
+	box-sizing: border-box;
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 8px;
@@ -67,6 +85,14 @@
 }
 
 @media (max-width: 520px) {
+	.calendar-page .draft-popover-datetime-inputs {
+		padding-right: 0;
+	}
+
+	.calendar-page .draft-popover-datetime-inputs .draft-date-time-picker {
+		width: 100%;
+	}
+
 	.calendar-page .draft-popover-date-time-summary {
 		grid-template-columns: minmax(0, 1fr) auto;
 	}

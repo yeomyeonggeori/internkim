@@ -60,6 +60,10 @@
 		}
 	}
 
+	function toggleDateTimePicker(kind: DraftDateTimePickerKind): void {
+		activeDateTimePicker = activeDateTimePicker === kind ? null : kind;
+	}
+
 	$effect(() => {
 		if (popover.eventID === activePickerEventID) return;
 		activePickerEventID = popover.eventID;
@@ -70,40 +74,52 @@
 <div class="draft-popover-field">
 	<span class="draft-popover-field-label">{text.startDate}</span>
 	<div class="draft-popover-datetime-inputs">
-		<button
-			type="button"
-			class="draft-popover-date-time-summary"
-			data-date-time-summary="start"
-			aria-label={dateTimeSummaryLabel('start')}
-			onclick={() => {
-				activeDateTimePicker = activeDateTimePicker === 'start' ? null : 'start';
-			}}
-		>
-			<span class="draft-popover-date-time-label">{text.startDate}</span>
-			<span class="draft-popover-date-time-value">{startDateTimeSummary}</span>
-			<CalendarDaysIcon class="size-4" />
-		</button>
-		<button
-			type="button"
-			class="draft-popover-date-time-summary"
-			data-date-time-summary="end"
-			aria-label={dateTimeSummaryLabel('end')}
-			onclick={() => {
-				activeDateTimePicker = activeDateTimePicker === 'end' ? null : 'end';
-			}}
-		>
-			<span class="draft-popover-date-time-label">{text.endDate}</span>
-			<span class="draft-popover-date-time-value">{endDateTimeSummary}</span>
-			<CalendarDaysIcon class="size-4" />
-		</button>
-		{#if activeDateTimePicker}
-			<CalendarDraftDateTimePicker
-				kind={activeDateTimePicker}
-				dateKey={pickerDateKey(activeDateTimePicker)}
-				time={pickerTime(activeDateTimePicker)}
-				allDay={popover.allDay}
-				label={activePickerLabel}
-				{localeCode}
+			<button
+				type="button"
+				class="draft-popover-date-time-summary"
+				data-date-time-summary="start"
+				aria-label={dateTimeSummaryLabel('start')}
+				onclick={() => toggleDateTimePicker('start')}
+			>
+				<span class="draft-popover-date-time-label">{text.startDate}</span>
+				<span class="draft-popover-date-time-value">{startDateTimeSummary}</span>
+				<CalendarDaysIcon class="size-4" />
+			</button>
+			{#if activeDateTimePicker === 'start'}
+				<CalendarDraftDateTimePicker
+					kind="start"
+					dateKey={pickerDateKey('start')}
+					time={pickerTime('start')}
+					allDay={popover.allDay}
+					label={activePickerLabel}
+					{localeCode}
+					text={text.dateTimePicker}
+					cancelText={text.cancel}
+					save={saveDateTimePicker}
+					cancel={() => {
+						activeDateTimePicker = null;
+					}}
+				/>
+			{/if}
+			<button
+				type="button"
+				class="draft-popover-date-time-summary"
+				data-date-time-summary="end"
+				aria-label={dateTimeSummaryLabel('end')}
+				onclick={() => toggleDateTimePicker('end')}
+			>
+				<span class="draft-popover-date-time-label">{text.endDate}</span>
+				<span class="draft-popover-date-time-value">{endDateTimeSummary}</span>
+				<CalendarDaysIcon class="size-4" />
+			</button>
+			{#if activeDateTimePicker === 'end'}
+				<CalendarDraftDateTimePicker
+					kind="end"
+					dateKey={pickerDateKey('end')}
+					time={pickerTime('end')}
+					allDay={popover.allDay}
+					label={activePickerLabel}
+					{localeCode}
 				text={text.dateTimePicker}
 				cancelText={text.cancel}
 				save={saveDateTimePicker}
