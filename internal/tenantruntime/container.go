@@ -538,6 +538,7 @@ func RenderContainerTenantCompose(tenants []ContainerTenant, imageName string, o
 		buffer.WriteString("      ENABLE_ADMIND: \"1\"\n")
 		buffer.WriteString("    volumes:\n")
 		buffer.WriteString("      - ./config/" + tenant.RuntimeID + ":/etc/blueclaw:rw\n")
+		buffer.WriteString("      - ./workspace/" + tenant.RuntimeID + ":/workspace:rw\n")
 		buffer.WriteString("      - " + mountOpenRouterKeyPath + ":/secrets/openrouter-key:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/secrets/mattermost-bot-token:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro\n")
@@ -805,6 +806,9 @@ func writeContainerInfraFiles(workDirectoryPath string, mattermostPublicURL stri
 
 func writeContainerTenantFiles(options ContainerTenantAddOptions, tenant ContainerTenant, mattermostToken string, databasePassword string, operatorAdminPassword string) error {
 	if errorValue := os.MkdirAll(containerTenantConfigPath(options.WorkDirectoryPath, tenant), 0o755); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(containerTenantWorkspacePath(options.WorkDirectoryPath, tenant), 0o755); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := os.MkdirAll(containerTenantSecretPath(options.WorkDirectoryPath, tenant), 0o700); errorValue != nil {
@@ -1839,6 +1843,10 @@ func containerTenantsComposePath(workDirectoryPath string) string {
 
 func containerTenantConfigPath(workDirectoryPath string, tenant ContainerTenant) string {
 	return filepath.Join(workDirectoryPath, "config", tenant.RuntimeID)
+}
+
+func containerTenantWorkspacePath(workDirectoryPath string, tenant ContainerTenant) string {
+	return filepath.Join(workDirectoryPath, "workspace", tenant.RuntimeID)
 }
 
 func containerTenantSecretPath(workDirectoryPath string, tenant ContainerTenant) string {
