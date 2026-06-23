@@ -10,7 +10,8 @@ import (
 
 var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
-const openRouterNativeToolMaxFunctionCount = 12
+// must exceed blueclaw maxSchemaCallableToolCount (15) plus control actions so per-tool strict schemas are kept instead of the argument-less dispatcher
+const openRouterNativeToolMaxFunctionCount = 24
 
 var nativeBlueclawPlanningFields = []nativeBlueclawPlanningField{
 	{ActionFieldName: "message", ArgumentFieldName: "blueclawMessage"},

@@ -531,22 +531,22 @@ func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *tes
 	}
 }
 
-func TestNativeActionToolsCompactRepresentativeSiteWorkingSet(t *testing.T) {
+func TestNativeActionToolsKeepRepresentativeSiteWorkingSetPerTool(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaWithControlActionsAndToolCount(t, 13),
 	})
 	if errorValue != nil {
-		t.Fatalf("expected compact native site tool set: %v", errorValue)
+		t.Fatalf("expected native site tool set: %v", errorValue)
 	}
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	if _, isDispatcher := toolSet.ToolByName["continue"]; !isDispatcher {
-		t.Fatalf("expected representative site working set to use dispatcher, got %+v", toolSet.Tools)
+	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
+		t.Fatalf("representative site working set must keep per-tool schemas so tool arguments survive instead of collapsing to the argument-less dispatcher, got %+v", toolSet.Tools)
 	}
-	if len(toolSet.Tools) >= 13 {
-		t.Fatalf("expected native function count to shrink, got %+v", toolSet.Tools)
+	if len(toolSet.Tools) < 13 {
+		t.Fatalf("expected one function per site tool, got %d", len(toolSet.Tools))
 	}
 }
 
