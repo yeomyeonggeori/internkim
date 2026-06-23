@@ -181,7 +181,8 @@ func flowTaskListInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("query", jsonschema.String().WithDescription("Free-text keyword filter matched against task titles and content, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.")),
 		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person whose tasks to list. Leave empty to list tasks for all people. Example: 'Alice' or 'alice@example.com'.")),
-		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Filter to a specific work-week in YYYY-WNN format, e.g. '2026-W26'. Leave empty for the current week. Use week offset notation like '0' (current) or '-1' (last week) if supported.")),
+		jsonschema.Field("weekFrom", jsonschema.Integer().WithDescription("Start of the week range as an offset from this week: 0 this week, -1 last week, 1 next week. Omit both weekFrom and weekTo to list the current week; widen the range for other periods.")),
+		jsonschema.Field("weekTo", jsonschema.Integer().WithDescription("End of the week range as an offset from this week. Omit both weekFrom and weekTo to list the current week.")),
 		jsonschema.Field("status", jsonschema.String().WithDescription("Filter by task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단' (or English equivalents: 'planned', 'in_progress', 'done', 'requested', 'paused', 'rejected', 'cancelled'). Leave empty to return all statuses.")),
 		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of tasks to return. Defaults to 50.")),
 	).RawMessage()
