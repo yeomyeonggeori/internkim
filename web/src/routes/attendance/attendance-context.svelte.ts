@@ -10,7 +10,7 @@ import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from 
 import { currentMonthInTimeZone } from './shared/attendance-date';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
-export type AttendanceAbsenceKind = 'leave' | 'business_trip' | 'day_off' | 'other';
+export type AttendanceAbsenceKind = 'leave' | 'business_trip' | 'other';
 export type ChartMode = 'day' | 'week' | 'month';
 export type AttendanceTab = 'team' | 'personal';
 export type AttendancePresence = 'online' | 'away' | 'offline' | 'dnd';
@@ -49,14 +49,21 @@ export type AttendanceEvent = {
 
 export type AttendanceAbsence = {
 	id: string;
+	rangeID?: string;
 	email: string;
 	kind: AttendanceAbsenceKind;
 	labelKey: AttendanceAbsenceKind;
 	date: string;
+	startDate?: string;
+	endDate?: string;
 	reason?: string;
 	createdBy?: string;
 	createdAt: string;
 	canceledAt?: string;
+	isRangeStart?: boolean;
+	isRangeEnd?: boolean;
+	isChunkStart?: boolean;
+	isChunkEnd?: boolean;
 };
 
 export type AttendanceSummary = {

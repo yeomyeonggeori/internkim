@@ -3,7 +3,6 @@ import type { AttendanceAbsence } from '../attendance-context.svelte';
 type AbsenceLabelText = {
 	absenceKindLeave: string;
 	absenceKindBusinessTrip: string;
-	absenceKindDayOff: string;
 	absenceKindOther: string;
 };
 
@@ -21,8 +20,6 @@ export function absenceLabelText(absence: AttendanceAbsence, text: AbsenceLabelT
 			return text.absenceKindLeave;
 		case 'business_trip':
 			return text.absenceKindBusinessTrip;
-		case 'day_off':
-			return text.absenceKindDayOff;
 		case 'other':
 			return text.absenceKindOther;
 	}
