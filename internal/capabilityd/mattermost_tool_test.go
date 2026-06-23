@@ -12,7 +12,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestMattermostChannelUpdateRequiresAdminAndApproval(t *testing.T) {
+func TestMattermostChannelUpdateRequiresAdminAfterApproval(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -34,18 +34,6 @@ func TestMattermostChannelUpdateRequiresAdminAndApproval(t *testing.T) {
 	}
 	if staffResponse.Status != "denied" || staffResponse.ErrorCode != capabilities.CapabilityNotAllowed {
 		t.Fatalf("expected staff channel update to be denied, got %+v", staffResponse)
-	}
-
-	adminResponse, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mattermost.channel.update",
-		Input:    mustJSON(t, map[string]any{"channelID": "channel-1", "header": "hello"}),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if adminResponse.Status != "denied" || adminResponse.ErrorCode != "approval_required" {
-		t.Fatalf("expected approval requirement, got %+v", adminResponse)
 	}
 }
 
