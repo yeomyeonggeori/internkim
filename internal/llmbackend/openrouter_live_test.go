@@ -122,12 +122,13 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 	}
 }
 
-func TestOpenRouterLiveCompactedLargeActionSchemaFromEnv(t *testing.T) {
+func TestOpenRouterLiveLargePerToolActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	descriptors := make([]capabilities.Descriptor, 0, openRouterNativeToolMaxFunctionCount+1)
-	for index := 0; index <= openRouterNativeToolMaxFunctionCount; index++ {
+	const probeToolCount = 30
+	descriptors := make([]capabilities.Descriptor, 0, probeToolCount)
+	for index := 0; index < probeToolCount; index++ {
 		descriptors = append(descriptors, capabilities.Descriptor{
 			Name:        "probe.tool." + strconv.Itoa(index),
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`),
@@ -143,7 +144,7 @@ func TestOpenRouterLiveCompactedLargeActionSchemaFromEnv(t *testing.T) {
 	}
 	errorValue := assertOpenRouterLiveSchemaAccepted(ctx, backend, request)
 	if errorValue != nil {
-		t.Fatalf("expected compacted live OpenRouter native tool schema to be accepted: %v", errorValue)
+		t.Fatalf("expected large per-tool live OpenRouter native tool schema to be accepted: %v", errorValue)
 	}
 }
 
