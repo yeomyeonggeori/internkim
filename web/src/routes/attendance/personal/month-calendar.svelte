@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-aggregation';
 	import { absenceLabelText, absencesForDate } from '../shared/attendance-absence';
@@ -17,6 +18,7 @@
 	const personalAbsences = $derived(
 		attendance.summary ? attendance.summary.absences.filter((absence) => absence.email === targetEmail) : []
 	);
+	const calendarMonth = $derived(attendance.summary?.month ?? attendance.selectedMonth);
 	const byDay = $derived(groupEventsByDay(personalEvents));
 	const days = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
 	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
@@ -37,6 +39,12 @@
 
 	function selectDate(date: string) {
 		attendance.selectedDate = date;
+	}
+
+	function selectMonth(month: string) {
+		attendance.selectedMonth = month;
+		attendance.selectedDate = '';
+		attendance.load();
 	}
 
 	function calendarTime(localTime: string | undefined): string {
@@ -61,11 +69,18 @@
 </script>
 
 <Card.Root>
-	<Card.Header>
-		<Card.Title class="text-base">{text.calendarTitleTemplate.replace('{month}', attendance.summary?.month ?? '')}</Card.Title>
-		{#if targetEmail}
-			<p class="text-xs text-muted-foreground">{targetEmail}</p>
-		{/if}
+	<Card.Header class="flex min-w-0 flex-col items-stretch gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between">
+		<div class="min-w-0">
+			<Card.Title class="min-w-0 truncate pt-1 text-base">
+				{text.calendarTitleTemplate.replace('{month}', calendarMonth)}
+			</Card.Title>
+			{#if targetEmail}
+				<p class="mt-1 truncate text-xs text-muted-foreground">{targetEmail}</p>
+			{/if}
+		</div>
+		<div class="flex w-full shrink-0 justify-center sm:w-auto sm:justify-end">
+			<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
+		</div>
 	</Card.Header>
 	<Card.Content>
 		<div data-testid="personal-month-calendar-grid" class="grid min-w-0 grid-cols-7 gap-1 text-xs sm:gap-1.5">

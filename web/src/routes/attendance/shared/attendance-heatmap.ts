@@ -1,4 +1,4 @@
-import type { AttendanceEvent } from '../attendance-context.svelte';
+import type { AttendanceAbsence, AttendanceEvent } from '../attendance-context.svelte';
 import { eachDayOfMonth } from './attendance-date';
 import { uniquePeople } from './attendance-people';
 
@@ -9,11 +9,13 @@ export type DayHeatCell = {
 	level: 0 | 1 | 2 | 3;
 };
 
-export function computeHeatmap(month: string, events: AttendanceEvent[]): DayHeatCell[] {
+export function computeHeatmap(month: string, events: AttendanceEvent[], absences: AttendanceAbsence[] = []): DayHeatCell[] {
 	const days = eachDayOfMonth(month);
-	const peopleCount = uniquePeople(events).length;
+	const monthEvents = events.filter((event) => event.localDate.startsWith(month));
+	const monthAbsences = absences.filter((absence) => absence.date.startsWith(month));
+	const peopleCount = uniquePeople(monthEvents, monthAbsences).length;
 	const byDate = new Map<string, Set<string>>();
-	for (const event of events) {
+	for (const event of monthEvents) {
 		if (event.canceledAt) continue;
 		if (event.kind !== 'clock_in') continue;
 		const set = byDate.get(event.localDate) ?? new Set();

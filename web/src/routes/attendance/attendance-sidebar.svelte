@@ -6,17 +6,11 @@
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { getAttendanceState } from './attendance-context.svelte';
-	import AttendanceMonthPicker from './attendance-month-picker.svelte';
 	import QuickActions from './quick-actions.svelte';
 	import { attendanceText } from './text';
 
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
-
-	function selectMonth(month: string) {
-		attendance.selectedMonth = month;
-		attendance.load();
-	}
 </script>
 
 <aside class="flex w-60 shrink-0 flex-col border-r bg-background max-md:hidden">
@@ -32,11 +26,6 @@
 	</div>
 
 	<div class="min-h-0 flex-1 space-y-4 overflow-auto p-4">
-		<div class="space-y-2">
-			<Label class="text-xs font-medium text-muted-foreground">{text.month}</Label>
-			<AttendanceMonthPicker selectedMonth={attendance.selectedMonth} onSelectMonth={selectMonth} />
-		</div>
-
 		{#if attendance.summary?.isAdmin}
 			<div class="space-y-1 rounded-md border p-3">
 				<Label for="attendance-team-visible" class="text-xs font-medium text-muted-foreground">
