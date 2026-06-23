@@ -14,16 +14,13 @@ func multiToolActionDescriptors(t *testing.T) []capabilities.Descriptor {
 	descriptors = append(descriptors, capabilities.FlowDescriptors()...)
 	descriptors = append(descriptors, capabilities.CalendarDescriptors()...)
 	descriptors = append(descriptors, capabilities.WebDescriptors()...)
-	if len(descriptors) <= openRouterNativeToolMaxFunctionCountOldThreshold {
-		t.Fatalf("need more tools than the old dispatcher threshold of %d to exercise the regression, got %d", openRouterNativeToolMaxFunctionCountOldThreshold, len(descriptors))
-	}
-	if len(descriptors) > openRouterNativeToolMaxFunctionCount {
-		descriptors = descriptors[:openRouterNativeToolMaxFunctionCount]
+	if len(descriptors) <= formerDispatcherThreshold {
+		t.Fatalf("need more tools than the former dispatcher threshold of %d to exercise the regression, got %d", formerDispatcherThreshold, len(descriptors))
 	}
 	return descriptors
 }
 
-const openRouterNativeToolMaxFunctionCountOldThreshold = 12
+const formerDispatcherThreshold = 12
 
 func TestNativeActionToolsKeepPerToolSchemasInsteadOfDispatcher(t *testing.T) {
 	descriptors := multiToolActionDescriptors(t)
@@ -37,10 +34,8 @@ func TestNativeActionToolsKeepPerToolSchemasInsteadOfDispatcher(t *testing.T) {
 		t.Fatalf("expected action schema, got isAction=%v error=%v", isActionSchema, errorValue)
 	}
 
-	for _, tool := range toolSet.Tools {
-		if tool.IsDispatcher {
-			t.Fatalf("expected per-tool strict functions for %d tools, got the argument-less dispatcher", len(descriptors))
-		}
+	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
+		t.Fatalf("expected per-tool strict functions for %d tools, got the argument-less dispatcher", len(descriptors))
 	}
 	if len(toolSet.Tools) != len(descriptors) {
 		t.Fatalf("expected one function per tool, got %d functions for %d tools", len(toolSet.Tools), len(descriptors))
