@@ -23,7 +23,7 @@
 </script>
 
 <aside
-	class="group relative z-40 h-svh w-[60px] shrink-0"
+	class="group relative z-40 hidden h-svh w-[60px] shrink-0 md:block"
 	data-profile-open={isProfileMenuOpen}
 	onmouseenter={() => (isRailHovered = true)}
 	onmouseleave={() => (isRailHovered = false)}
