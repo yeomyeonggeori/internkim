@@ -123,6 +123,36 @@ func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.
 	}
 }
 
+func TestOpenRouterLiveFullDeviceToolSetFitsAndFillsFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	descriptors := capabilities.DeviceDescriptors()
+	schemaDocument := testActionSchemaForDescriptors(t, descriptors)
+
+	for _, modelName := range toolContractModelsFromEnv() {
+		t.Run(modelName, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			request := StructuredRequest{
+				Model:    modelName,
+				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},
+				StructuredOutputSchema: StructuredOutputSchema{
+					Name:               "blueclaw_agent_turn_action",
+					Document:           schemaDocument,
+					IsStrictlyEnforced: true,
+				},
+			}
+			response, errorValue := backend.CompleteStructured(ctx, request)
+			if errorValue != nil {
+				t.Fatalf("full device tool set (%d tools) was rejected or failed: %v", len(descriptors), errorValue)
+			}
+			if response.ConstraintMode != ConstraintModeNativeToolCall {
+				t.Fatalf("expected native_tool_call mode, got %q (content=%s)", response.ConstraintMode, response.Content)
+			}
+			assertActionToolInputNotEmpty(t, response.Content)
+		})
+	}
+}
+
 func assertActionToolInputNotEmpty(t *testing.T, content string) {
 	t.Helper()
 	var action struct {
