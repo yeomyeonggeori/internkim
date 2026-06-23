@@ -1,6 +1,4 @@
-import type { AttendanceLocation } from '../attendance-context.svelte';
-
-export type CellTone = 'default' | 'remote' | 'office' | 'empty' | 'weekend';
+export type AbsenceDisplayTone = 'leave' | 'work' | 'other';
 
 export const HEAT_LEVEL_CLASSES = {
 	0: 'bg-muted/50',
@@ -18,17 +16,16 @@ export const STATUS_TONE = {
 	upcoming: 'text-muted-foreground',
 } as const;
 
-export function locationCellClass(location?: AttendanceLocation | null): string {
-	if (!location) return 'bg-success/15';
-	if (location.isDefault) return 'bg-success/15';
-	const name = location.name.toLowerCase();
-	if (name.includes('재택') || name.includes('remote') || name.includes('home')) {
-		return 'bg-info/15';
-	}
-	return 'bg-secondary';
+export function absenceDisplayClass(tone: AbsenceDisplayTone, hasLeadingBorder = false): string {
+	const borderClass = absenceBorderClass(tone, hasLeadingBorder);
+	if (tone === 'work') return `${borderClass} bg-warning-subtle text-warning-subtle-foreground`;
+	if (tone === 'other') return `${borderClass} bg-muted text-muted-foreground`;
+	return `${borderClass} bg-[color-mix(in_oklab,var(--color-info)_12%,var(--color-background))] text-info`;
 }
 
-export function locationChipStyle(location?: AttendanceLocation | null): string {
-	if (!location?.color) return '';
-	return `background-color: ${location.color}20; color: ${location.color};`;
+function absenceBorderClass(tone: AbsenceDisplayTone, hasLeadingBorder: boolean): string {
+	if (!hasLeadingBorder) return '';
+	if (tone === 'work') return 'border-l-warning';
+	if (tone === 'other') return 'border-l-muted-foreground/40';
+	return 'border-l-info';
 }

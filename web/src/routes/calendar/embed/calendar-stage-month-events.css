@@ -46,6 +46,13 @@
 		outline-offset: 1px;
 	}
 
+	.calendar-stage .df-month-event.draft-empty-title-event {
+		border-color: transparent !important;
+		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
+		color: #ffffff !important;
+		box-shadow: 0 8px 18px rgb(100 115 201 / 0.2) !important;
+	}
+
 	.calendar-stage .calendar-month-more-button {
 		position: absolute;
 		z-index: 24;

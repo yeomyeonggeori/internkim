@@ -32,7 +32,6 @@
 	const kindOptions = $derived([
 		{ value: 'leave' as const, label: text.absenceKindLeave },
 		{ value: 'business_trip' as const, label: text.absenceKindBusinessTrip },
-		{ value: 'day_off' as const, label: text.absenceKindDayOff },
 		{ value: 'other' as const, label: text.absenceKindOther }
 	]);
 

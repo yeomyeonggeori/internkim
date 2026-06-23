@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { replaceState } from '$app/navigation';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { getAttendanceState, type AttendanceTab } from './attendance-context.svelte';
 	import TeamView from './team/team-view.svelte';
@@ -22,9 +21,9 @@
 	function setTab(value: string) {
 		const next = value as AttendanceTab;
 		attendance.setTab(next);
-		const params = new URLSearchParams($page.url.searchParams);
-		params.set('tab', next);
-		goto(`?${params.toString()}`, { replaceState: true, keepFocus: true, noScroll: true });
+		const url = new URL(location.href);
+		url.searchParams.set('tab', next);
+		replaceState(url, {});
 	}
 
 	const isTeamBlocked = $derived(
@@ -40,14 +39,14 @@
 		<Tabs.Trigger value="team" disabled={isTeamBlocked} class={tabTriggerClass}>{text.tabTeam}</Tabs.Trigger>
 		<Tabs.Trigger value="personal" class={tabTriggerClass}>{text.tabPersonal}</Tabs.Trigger>
 	</Tabs.List>
-	<Tabs.Content value="team">
+	<div class={attendance.tab === 'team' ? 'text-sm flex-1 outline-none' : 'hidden'}>
 		{#if isTeamBlocked}
 			<p class="text-sm text-muted-foreground">{text.teamBlocked}</p>
 		{:else}
 			<TeamView />
 		{/if}
-	</Tabs.Content>
-	<Tabs.Content value="personal">
+	</div>
+	<div class={attendance.tab === 'personal' ? 'text-sm flex-1 outline-none' : 'hidden'}>
 		<PersonalView />
-	</Tabs.Content>
+	</div>
 </Tabs.Root>
