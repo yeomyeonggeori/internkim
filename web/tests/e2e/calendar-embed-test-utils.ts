@@ -39,13 +39,23 @@ export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLo
 			}
 		});
 	});
+	await routeCalendarBackgroundAPI(page);
+	await routeCalendarLocale(page, locale);
+}
+
+export async function routeCalendarBackgroundAPI(page: Page): Promise<void> {
+	await page.route('**/calendar/api/account-status', async (route) => {
+		await route.fulfill({ json: { connected: false, needsReauth: false } });
+	});
 	await page.route('**/calendar/api/remote-sync', async (route) => {
 		await route.fulfill({ json: { synced: false } });
 	});
 	await page.route('**/calendar/api/conflicts', async (route) => {
 		await route.fulfill({ json: { conflicts: [] } });
 	});
-	await routeCalendarLocale(page, locale);
+	await page.route('**/calendar/api/conflicts/*', async (route) => {
+		await route.fulfill({ json: {} });
+	});
 }
 
 export async function routeCalendarLocale(page: Page, locale: CalendarTestLocale): Promise<void> {
@@ -84,7 +94,7 @@ export async function routeCalendarEventUpdates(page: Page): Promise<CalendarEve
 	const updatedEvents: CalendarEventUpdatePayload[] = [];
 	await page.route('**/calendar/api/events/*', async (route) => {
 		if (route.request().method() !== 'PUT') {
-			await route.fallback();
+			await route.fulfill({ json: {} });
 			return;
 		}
 		const payload = calendarEventUpdatePayloadFromRequestData(route.request().postData());
@@ -114,7 +124,7 @@ export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
 	const deletedEventIDs: string[] = [];
 	await page.route('**/calendar/api/events/*', async (route) => {
 		if (route.request().method() !== 'DELETE') {
-			await route.fallback();
+			await route.fulfill({ json: {} });
 			return;
 		}
 		const eventID = decodeURIComponent(route.request().url().split('/').pop() ?? '');
