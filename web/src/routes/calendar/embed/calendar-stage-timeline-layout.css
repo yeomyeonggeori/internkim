@@ -8,6 +8,37 @@
 		content: '';
 	}
 
+	.calendar-stage.calendar-stage-week .df-week-time-grid-boundary-tail::before {
+		position: absolute;
+		top: 0;
+		right: -1px;
+		width: var(--calendar-time-axis-tick-width);
+		border-top: 1px solid var(--calendar-grid-line);
+		content: '';
+	}
+
+	.calendar-stage.calendar-stage-day .df-time-column::before {
+		position: absolute;
+		top: calc(100% - var(--calendar-time-boundary-height) + 1px);
+		right: -1px;
+		bottom: 0;
+		z-index: 1;
+		width: 1px;
+		background: var(--df-color-background);
+		content: '';
+		pointer-events: none;
+	}
+
+	.calendar-stage.calendar-stage-day .df-time-column::after {
+		position: absolute;
+		top: calc(100% - var(--calendar-time-boundary-height));
+		right: -1px;
+		z-index: 2;
+		width: var(--calendar-time-axis-tick-width);
+		border-top: 1px solid var(--calendar-grid-line);
+		content: '';
+	}
+
 	.calendar-stage.calendar-stage-day.calendar-stage-scrolled .df-time-column > .df-time-slot:nth-child(2)::before,
 	.calendar-stage.calendar-stage-week.calendar-stage-scrolled .df-week-time-grid-time-column > .df-time-slot:nth-child(2)::before {
 		border-top-color: var(--calendar-grid-line-strong);
@@ -38,7 +69,7 @@
 	.calendar-stage.calendar-stage-week .df-week-all-day-shell {
 		position: relative;
 		z-index: 5;
-		background: #ffffff;
+		background: var(--df-color-background);
 	}
 
 	.calendar-stage.calendar-stage-day .df-day-content-all-day-row {
@@ -46,7 +77,78 @@
 		min-height: var(--calendar-day-all-day-row-height) !important;
 		border-top: 0 !important;
 		border-bottom: 0 !important;
-		background: #ffffff;
+		background: var(--df-color-background);
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content {
+		position: relative;
+		border-right: 0 !important;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content::before {
+		content: none;
+	}
+
+	.calendar-stage.calendar-stage-day .df-right-panel {
+		position: relative;
+	}
+
+	.calendar-stage.calendar-stage-day .df-right-panel::before {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 6;
+		width: 1px;
+		background: var(--calendar-grid-line);
+		content: '';
+		pointer-events: none;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content::after {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		z-index: 4;
+		width: 2px;
+		height: calc(var(--calendar-time-boundary-height) - 1px);
+		background: var(--df-color-background);
+		content: '';
+		pointer-events: none;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-rows,
+	.calendar-stage.calendar-stage-week .df-week-time-grid-grid {
+		position: relative;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-rows {
+		border-right: 0 !important;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-rows::before {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: var(--calendar-time-boundary-height);
+		z-index: 2;
+		width: 1px;
+		background: var(--calendar-grid-line);
+		content: '';
+		pointer-events: none;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-rows::after,
+	.calendar-stage.calendar-stage-week .df-week-time-grid-grid::after {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		z-index: 4;
+		width: 2px;
+		height: calc(var(--calendar-time-boundary-height) - 1px);
+		background: var(--df-color-background);
+		content: '';
+		pointer-events: none;
 	}
 
 	.calendar-stage.calendar-stage-day .df-time-grid-row,
@@ -100,6 +202,7 @@
 	.calendar-stage.calendar-stage-week .df-week-all-day-content-wrap {
 		height: var(--calendar-week-all-day-shell-height) !important;
 		min-height: var(--calendar-week-all-day-shell-height) !important;
+		scrollbar-gutter: auto !important;
 		background:
 			linear-gradient(
 				to right,
@@ -107,7 +210,11 @@
 				transparent var(--calendar-week-column-width) calc(600% / 7),
 				var(--calendar-weekend-background) calc(600% / 7) 100%
 			),
-			#ffffff;
+			var(--df-color-background);
+	}
+
+	.calendar-stage.calendar-stage-week .df-week-header > .df-week-day-cell {
+		border-right: 1px solid var(--calendar-grid-line) !important;
 	}
 
 	.calendar-stage.calendar-stage-week .df-week-all-day-cell,

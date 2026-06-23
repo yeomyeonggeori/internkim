@@ -3,6 +3,15 @@
 		display: none !important;
 	}
 
+	.calendar-stage.calendar-stage-month .df-month-view-virtual-scroller {
+		scrollbar-width: none;
+	}
+
+	.calendar-stage.calendar-stage-month .df-month-view-virtual-scroller::-webkit-scrollbar {
+		width: 0;
+		height: 0;
+	}
+
 	.calendar-stage .df-month-week-event-layer-row {
 		height: 18px !important;
 		min-height: 18px !important;
@@ -71,9 +80,6 @@
 	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1),
 	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) {
 		background: #111113;
-		box-shadow:
-			inset -1px 0 0 #27272a,
-			inset 0 -1px 0 #27272a;
 	}
 
 	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1) .df-month-date-number,
@@ -88,9 +94,6 @@
 	.calendar-stage .df-month-day-cell.month-selected-date {
 		position: relative;
 		background: transparent;
-		box-shadow:
-			inset -1px 0 0 #dedee3,
-			inset 0 -1px 0 #dedee3;
 	}
 
 	.calendar-stage .df-month-day-cell.month-selected-date::before {
@@ -183,7 +186,4 @@
 	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1),
 	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) {
 		background: #fafafa;
-		box-shadow:
-			inset -1px 0 0 var(--calendar-grid-line),
-			inset 0 -1px 0 var(--calendar-grid-line);
 	}
