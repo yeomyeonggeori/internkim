@@ -95,6 +95,25 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	}
 }
 
+func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "http://admind.local/calendar/api/events?window=upcoming" {
+				t.Fatalf("unexpected request %s", request.URL.String())
+			}
+			return calendarToolJSONResponse(`{"events":[]}`), nil
+		})},
+	}
+
+	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.event.list",
+		Input:    []byte(`{}`),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
 func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
 	_, errorValue := decodeCalendarEventDeleteInput([]byte(`{}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventID") {
