@@ -4,7 +4,7 @@ import { dayFlowSelector, visibleDayFlowElements } from './calendar-dayflow-dom-
 
 const emptyDayAllDayRowHeight = 48;
 const compactAllDayRowHeight = 36;
-const compactDayAllDayRowHeight = 72;
+const compactDayAllDayRowHeight = 46;
 const allDayEventHeight = 16;
 const allDayEventGap = 4;
 const allDaySingleEventTop = 7;
@@ -40,7 +40,7 @@ function syncDayAllDayLayout(stageElement: HTMLElement): void {
 	rowElement.style.setProperty('--calendar-day-all-day-row-height', `${rowHeight}px`);
 	rowElement.dataset.eventRows = String(rowCount);
 	eventElements.forEach((eventElement, index) => {
-		applyAllDayEventGeometry(eventElement, rowCount, index);
+		applyAllDayEventGeometry(eventElement, rowCount, index, true);
 	});
 }
 
@@ -55,7 +55,7 @@ function syncWeekAllDayLayout(stageElement: HTMLElement): void {
 	rowElement.dataset.eventRows = String(rowCount);
 	eventElements.forEach((eventElement) => {
 		const rowIndex = compactEventRowIndexes.get(eventElement) ?? 0;
-		applyAllDayEventGeometry(eventElement, rowCount, rowIndex);
+		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, false);
 	});
 }
 
@@ -141,13 +141,17 @@ function dayAllDayRowHeight(rowCount: number): number {
 	return Math.max(compactDayAllDayRowHeight, allDayRowHeight(rowCount));
 }
 
-function allDayEventTop(rowCount: number, rowIndex: number): number {
+function allDayEventTop(rowCount: number, rowIndex: number, shouldCenterCompactRows: boolean): number {
+	if (shouldCenterCompactRows && rowCount > 0 && rowCount <= 2) {
+		const groupHeight = rowCount * allDayEventHeight + (rowCount - 1) * allDayEventGap;
+		return Math.round((compactDayAllDayRowHeight - groupHeight) / 2) - allDayStackEventTop + rowIndex * (allDayEventHeight + allDayEventGap);
+	}
 	if (rowCount <= 1) return allDaySingleEventTop;
 	return allDayStackEventTop + rowIndex * (allDayEventHeight + allDayEventGap);
 }
 
-function applyAllDayEventGeometry(eventElement: HTMLElement, rowCount: number, rowIndex: number): void {
-	eventElement.style.top = `${allDayEventTop(rowCount, rowIndex)}px`;
+function applyAllDayEventGeometry(eventElement: HTMLElement, rowCount: number, rowIndex: number, shouldCenterCompactRows: boolean): void {
+	eventElement.style.top = `${allDayEventTop(rowCount, rowIndex, shouldCenterCompactRows)}px`;
 	eventElement.style.height = `${allDayEventHeight}px`;
 	eventElement.style.minHeight = `${allDayEventHeight}px`;
 	eventElement.style.lineHeight = `${allDayEventHeight}px`;

@@ -40,6 +40,10 @@ export function calendarEventAnchorForEventID(
 	eventID: string,
 	anchor: DraftPopoverAnchor | null = null
 ): DraftPopoverAnchor | null {
+	if (anchor) {
+		const anchoredElement = calendarEventElementForAnchor(stageElement, eventID, anchor);
+		if (anchoredElement) return calendarEventAnchorFromElement(anchoredElement);
+	}
 	const canonicalAnchor = canonicalCalendarEventAnchorForID(stageElement, eventID);
 	if (canonicalAnchor) return canonicalAnchor;
 	const eventElement = calendarEventElementForAnchor(stageElement, eventID, anchor);
@@ -69,12 +73,18 @@ export function anchorFromElement(element: EventTarget | Element | null): DraftP
 		clientY: rectangle.top + Math.min(40, rectangle.height / 2),
 		leftClientX: rectangle.left,
 		topClientY: rectangle.top,
-		bottomClientY: rectangle.top + titleHeight
+		bottomClientY: rectangle.top + titleHeight,
+		preferredSide: preferredPopoverSideFromElement(element)
 	};
 }
 
 function isEventBlockAnchor(anchor: DraftPopoverAnchor | null): boolean {
 	return Boolean(anchor?.rightClientX !== undefined && anchor.titleTopClientY !== undefined && anchor.titleBottomClientY !== undefined);
+}
+
+function preferredPopoverSideFromElement(element: Element): DraftPopoverAnchor['preferredSide'] {
+	if (element.classList.contains('df-right-panel-event-card') || element.closest('.df-right-panel-events')) return 'left';
+	return undefined;
 }
 
 function calendarEventElementForAnchor(

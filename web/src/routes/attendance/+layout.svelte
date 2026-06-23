@@ -20,7 +20,7 @@
 	});
 </script>
 
-<div class="flex min-h-0 flex-1">
+<div class="flex min-h-0 min-w-0 flex-1">
 	<AttendanceSidebar />
 
 	<div class="min-w-0 flex-1 overflow-y-auto p-6">

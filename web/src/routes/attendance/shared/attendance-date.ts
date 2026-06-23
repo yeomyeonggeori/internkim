@@ -33,6 +33,18 @@ export function eachDayOfMonth(month: string): string[] {
 	return days;
 }
 
+export function addDays(date: string, count: number): string {
+	const nextDate = new Date(`${date}T00:00:00Z`);
+	if (Number.isNaN(nextDate.getTime())) return date;
+	nextDate.setUTCDate(nextDate.getUTCDate() + count);
+	return utcDateKey(nextDate);
+}
+
+export function eachDayOfWeek(date: string): string[] {
+	const startDate = isoWeekStart(date);
+	return Array.from({ length: 7 }, (_, index) => addDays(startDate, index));
+}
+
 export function isWeekday(date: string): boolean {
 	const day = new Date(`${date}T00:00:00Z`).getUTCDay();
 	return day !== 0 && day !== 6;

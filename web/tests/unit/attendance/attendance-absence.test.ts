@@ -30,8 +30,8 @@ const absences: AttendanceAbsence[] = [
 	{
 		id: 'absence-3',
 		email: 'kim@example.com',
-		kind: 'day_off',
-		labelKey: 'day_off',
+		kind: 'leave',
+		labelKey: 'leave',
 		date: '2026-06-11',
 		createdAt: '2026-06-01T09:00:00Z'
 	}

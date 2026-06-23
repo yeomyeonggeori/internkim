@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/botassets"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -33,7 +34,6 @@ const (
 	DefaultContainerTunnelName        = "internkim-poc-0"
 	containerMattermostNameDisplay    = "nickname_full_name"
 	containerMattermostDefaultLocale  = "ko"
-	containerBotProfileImagePath      = "/opt/internkim/board-ui/logo.png"
 )
 
 type ContainerCommandInvocation struct {
@@ -534,9 +534,11 @@ func RenderContainerTenantCompose(tenants []ContainerTenant, imageName string, o
 		buffer.WriteString("      POSTGRES_HOST: postgres\n")
 		buffer.WriteString("      MATTERMOST_HOST: mattermost\n")
 		buffer.WriteString("      MATTERMOST_TEAM: " + tenant.TeamName + "\n")
+		buffer.WriteString("      BOT_USERNAME: " + tenant.AgentUsername + "\n")
 		buffer.WriteString("      ENABLE_ADMIND: \"1\"\n")
 		buffer.WriteString("    volumes:\n")
 		buffer.WriteString("      - ./config/" + tenant.RuntimeID + ":/etc/blueclaw:rw\n")
+		buffer.WriteString("      - ./workspace/" + tenant.RuntimeID + ":/workspace:rw\n")
 		buffer.WriteString("      - " + mountOpenRouterKeyPath + ":/secrets/openrouter-key:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/secrets/mattermost-bot-token:ro\n")
 		buffer.WriteString("      - ./secrets/" + tenant.RuntimeID + "/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro\n")
@@ -804,6 +806,9 @@ func writeContainerInfraFiles(workDirectoryPath string, mattermostPublicURL stri
 
 func writeContainerTenantFiles(options ContainerTenantAddOptions, tenant ContainerTenant, mattermostToken string, databasePassword string, operatorAdminPassword string) error {
 	if errorValue := os.MkdirAll(containerTenantConfigPath(options.WorkDirectoryPath, tenant), 0o755); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(containerTenantWorkspacePath(options.WorkDirectoryPath, tenant), 0o755); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := os.MkdirAll(containerTenantSecretPath(options.WorkDirectoryPath, tenant), 0o700); errorValue != nil {
@@ -1198,26 +1203,7 @@ func (client containerMattermostClient) login(ctx context.Context, password stri
 }
 
 func (runtime ContainerRuntime) uploadContainerBotProfileImage(ctx context.Context, options ContainerTenantAddOptions, client containerMattermostClient, token string, userID string) error {
-	imageDocument, errorValue := runtime.containerImageFile(options.ImageName, containerBotProfileImagePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	return client.uploadUserImage(ctx, token, userID, filepath.Base(containerBotProfileImagePath), imageDocument)
-}
-
-func (runtime ContainerRuntime) containerImageFile(imageName string, path string) ([]byte, error) {
-	output, errorValue := runtime.executor().CombinedOutput(ContainerCommandInvocation{
-		ExecutableName: "docker",
-		Arguments:      []string{"run", "--rm", "--entrypoint", "cat", defaultContainerTenantImageName(imageName), path},
-		Stderr:         runtime.errorOutput(),
-	})
-	if errorValue != nil {
-		return nil, fmt.Errorf("read tenant image file %s failed: %w", path, errorValue)
-	}
-	if len(bytes.TrimSpace(output)) == 0 {
-		return nil, fmt.Errorf("tenant image file %s is empty", path)
-	}
-	return output, nil
+	return client.uploadUserImage(ctx, token, userID, botassets.AvatarFileName(), botassets.AvatarPNG())
 }
 
 func (client containerMattermostClient) patchUserProfile(ctx context.Context, token string, username string, firstName string, lastName string, nickname string) (string, error) {
@@ -1857,6 +1843,10 @@ func containerTenantsComposePath(workDirectoryPath string) string {
 
 func containerTenantConfigPath(workDirectoryPath string, tenant ContainerTenant) string {
 	return filepath.Join(workDirectoryPath, "config", tenant.RuntimeID)
+}
+
+func containerTenantWorkspacePath(workDirectoryPath string, tenant ContainerTenant) string {
+	return filepath.Join(workDirectoryPath, "workspace", tenant.RuntimeID)
 }
 
 func containerTenantSecretPath(workDirectoryPath string, tenant ContainerTenant) string {

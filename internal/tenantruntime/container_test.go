@@ -1,6 +1,7 @@
 package tenantruntime
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/botassets"
 )
 
 type recordingContainerCommandExecutor struct {
@@ -34,9 +37,6 @@ func (executor *recordingContainerCommandExecutor) CombinedOutput(invocation Con
 	joinedArguments := strings.Join(invocation.Arguments, " ")
 	if strings.Contains(joinedArguments, "token generate") {
 		return []byte(`{"token":"tenant-token"}`), nil
-	}
-	if strings.Contains(joinedArguments, "run --rm --entrypoint cat") {
-		return []byte(`<svg></svg>`), nil
 	}
 	if strings.Contains(joinedArguments, "team search") {
 		return []byte(`[{"name":"tenant01"}]`), nil
@@ -426,8 +426,8 @@ func installContainerRuntimeHTTPTransport(t *testing.T) {
 			if errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if fileHeader.Filename != "logo.png" || string(document) != "<svg></svg>" {
-				t.Fatalf("unexpected profile image upload: %s %q", fileHeader.Filename, string(document))
+			if fileHeader.Filename != botassets.AvatarFileName() || !bytes.Equal(document, botassets.AvatarPNG()) {
+				t.Fatalf("unexpected profile image upload: %s (%d bytes)", fileHeader.Filename, len(document))
 			}
 			return newContainerRuntimeHTTPResponse(t, http.StatusOK, map[string]bool{"ok": true}, ""), nil
 		case request.URL.Path == "/api/v4/teams/team-id/members/company-admin-id/schemeRoles":
