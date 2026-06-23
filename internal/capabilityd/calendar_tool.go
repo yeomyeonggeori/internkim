@@ -294,7 +294,7 @@ func stableCalendarToolEventID(input calendarEventWriteInput) string {
 
 func calendarEventListPath(input calendarEventListInput) string {
 	if input.StartISO == "" && input.EndISO == "" {
-		return "/calendar/api/events"
+		return "/calendar/api/events?window=upcoming"
 	}
 	query := url.Values{}
 	query.Set("startISO", input.StartISO)
