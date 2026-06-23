@@ -11,15 +11,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestMailMessageSendRequiresApprovalContinuation(t *testing.T) {
+func TestMailMessageSendRequiresDescriptorApproval(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
-	_, errorValue := service.invokeMailMessageSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.message.send",
-		Input:    []byte(`{"to":["recipient@example.com"],"subject":"Demo"}`),
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "requires approval") {
-		t.Fatalf("expected approval error, got %v", errorValue)
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "mail.message.send", strings.NewReader(`{"input":{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
+	assertCapabilityApprovalRequired(t, response, "mail.message.send")
 }
 
 func TestMailMessageSendApprovedContinuationPostsToAdmind(t *testing.T) {

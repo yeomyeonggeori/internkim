@@ -380,6 +380,33 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 	}
 }
 
+func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
+	service := Service{}
+	toolNames := []string{
+		"platform.message.send",
+		"platform.message.update",
+		"platform.message.delete",
+		"mattermost.channel.update",
+		"flow.task.delete",
+		"calendar.event.delete",
+		"mail.connection.start",
+		"mail.message.send",
+		"site.app.rollback",
+		"site.app.unpublish",
+		"site.app.delete",
+		"google.gmail.send",
+	}
+	for _, toolName := range toolNames {
+		t.Run(toolName, func(t *testing.T) {
+			response, errorValue := service.invokeCapabilityTool(context.Background(), toolName, strings.NewReader(`{"input":{}}`))
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			assertCapabilityApprovalRequired(t, response, toolName)
+		})
+	}
+}
+
 func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 	router := CapabilityRouter{
 		CompanionAvailable:     true,
@@ -739,6 +766,24 @@ func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	}
 	if strings.Contains(errorValue.Error(), "sk-must-not-leak") {
 		t.Fatalf("expected error to omit secrets, got %q", errorValue.Error())
+	}
+}
+
+func assertCapabilityApprovalRequired(t *testing.T, response capabilities.ToolInvokeResponse, toolName string) {
+	t.Helper()
+	if response.Status != "denied" || !response.IsError {
+		t.Fatalf("expected approval denial, got %+v", response)
+	}
+	if response.ToolName != toolName || response.ErrorCode != "approval_required" || response.FailureStage != "authorization" {
+		t.Fatalf("unexpected approval response for %s: %+v", toolName, response)
+	}
+	var failure capabilityApprovalFailure
+	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedMessage := toolName + " requires approval before execution"
+	if failure.ErrorCode != response.ErrorCode || failure.FailureStage != response.FailureStage || failure.Message != expectedMessage {
+		t.Fatalf("unexpected approval failure: %+v response=%+v", failure, response)
 	}
 }
 
