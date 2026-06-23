@@ -25,6 +25,7 @@ Rules:
 - If the user asks to edit, rename, change, or revise an existing work item, use `flow.task.update`. Do not create a new work item with `flow.task.add` for edits.
 - Call `flow.task.add` with `prompt` containing the user's natural-language task request.
 - Call `flow.task.list` before update or completion when the matching work item is uncertain.
+- `flow.task.list` lists the current week by default. Pass `weekFrom` and `weekTo` as week offsets from this week (0 this week, -1 last week, 1 next week) when the user asks for another period: 지난주 is `weekFrom -1, weekTo -1`; the last 4 weeks is `weekFrom -3, weekTo 0`; the whole history is a wide range such as `weekFrom -520`. Leave both unset for this week.
 - Call `flow.task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the tool marks the item complete.
 - Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
 - Use `weekCode` only when the user names a specific work week.
