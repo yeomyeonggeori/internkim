@@ -476,9 +476,10 @@ func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *testing.T) {
-	descriptors := make([]capabilities.Descriptor, 0, openRouterNativeToolMaxFunctionCount+1)
-	for index := 0; index <= openRouterNativeToolMaxFunctionCount; index++ {
+func TestNativeActionToolsKeepLargeToolSetsPerToolWithoutDispatcher(t *testing.T) {
+	const toolCount = 30
+	descriptors := make([]capabilities.Descriptor, 0, toolCount)
+	for index := 0; index < toolCount; index++ {
 		descriptors = append(descriptors, capabilities.Descriptor{
 			Name:        fmt.Sprintf("tool.%02d", index),
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`),
@@ -489,45 +490,16 @@ func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *test
 		Document: testActionSchemaForDescriptors(t, descriptors),
 	})
 	if errorValue != nil {
-		t.Fatalf("expected compact native tool set: %v", errorValue)
-	}
-	if !isActionSchema {
-		t.Fatal("expected action schema")
-	}
-	if len(toolSet.Tools) != 1 {
-		t.Fatalf("expected dispatcher-only tool set, got %+v", toolSet.Tools)
-	}
-	dispatcher := toolSet.ToolByName["continue"]
-	if !dispatcher.IsDispatcher || len(dispatcher.ToolNames) != len(descriptors) {
-		t.Fatalf("expected continue dispatcher with tool names, got %+v", dispatcher)
-	}
-	assertNativeSchemaDoesNotUseToolInputJSONString(t, dispatcher.Parameters)
-	content, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInput":{"value":"ok"},"executionStateUpdate":{},"nextStepPlan":{"objective":"publish","expectedTools":[],"doneCriteria":[],"risk":"","workingSetReason":"continue"}}`)
-	if errorValue != nil {
-		t.Fatalf("expected dispatcher action JSON: %v", errorValue)
-	}
-	if !strings.Contains(content, `"toolName":"tool.03"`) || !strings.Contains(content, `"value":"ok"`) || strings.Contains(content, "toolInputJSON") {
-		t.Fatalf("expected decoded dispatcher payload, got %s", content)
-	}
-}
-
-func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *testing.T) {
-	toolCount := openRouterNativeToolMaxFunctionCount - 4
-	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
-		Document: testActionSchemaWithControlActionsAndToolCount(t, toolCount),
-	})
-	if errorValue != nil {
 		t.Fatalf("expected native tool set: %v", errorValue)
 	}
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	if len(toolSet.Tools) != openRouterNativeToolMaxFunctionCount {
-		t.Fatalf("expected %d native functions, got %+v", openRouterNativeToolMaxFunctionCount, toolSet.Tools)
-	}
 	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
-		t.Fatalf("expected fixed continue tools instead of dispatcher, got %+v", toolSet.Tools)
+		t.Fatalf("large tool sets must keep per-tool schemas instead of collapsing to a dispatcher, got %+v", toolSet.Tools)
+	}
+	if len(toolSet.Tools) != toolCount {
+		t.Fatalf("expected %d per-tool functions, got %d", toolCount, len(toolSet.Tools))
 	}
 }
 
@@ -1251,21 +1223,6 @@ func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json
 	}
 	if len(lintResult.RemainingViolations) > 0 {
 		t.Fatalf("schema for %s is not provider safe: %+v", toolName, lintResult.RemainingViolations)
-	}
-}
-
-func assertNativeSchemaDoesNotUseToolInputJSONString(t *testing.T, schema json.RawMessage) {
-	t.Helper()
-	var document map[string]any
-	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
-		t.Fatalf("dispatcher schema is invalid: %v", errorValue)
-	}
-	properties, _ := document["properties"].(map[string]any)
-	if _, isFound := properties["toolInputJSON"]; isFound {
-		t.Fatalf("dispatcher schema must not require JSON strings: %+v", document)
-	}
-	if _, isFound := properties["toolInput"]; !isFound {
-		t.Fatalf("dispatcher schema must expose toolInput object: %+v", document)
 	}
 }
 

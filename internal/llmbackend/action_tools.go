@@ -10,9 +10,6 @@ import (
 
 var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
-// must exceed blueclaw maxSchemaCallableToolCount (15) plus control actions so per-tool strict schemas are kept instead of the argument-less dispatcher
-const openRouterNativeToolMaxFunctionCount = 24
-
 var nativeBlueclawPlanningFields = []nativeBlueclawPlanningField{
 	{ActionFieldName: "message", ArgumentFieldName: "blueclawMessage"},
 	{ActionFieldName: "reason", ArgumentFieldName: "blueclawReason"},
@@ -40,8 +37,6 @@ type nativeActionTool struct {
 	Action       string
 	ToolName     string
 	Parameters   json.RawMessage
-	ToolNames    []string
-	IsDispatcher bool
 }
 
 type actionSchemaDocument struct {
@@ -79,13 +74,6 @@ func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionTool
 	if len(toolSet.Tools) == 0 {
 		return nativeActionToolSet{}, true, errors.New("agent action schema did not include callable variants")
 	}
-	if len(toolSet.Tools) > openRouterNativeToolMaxFunctionCount {
-		compactToolSet, errorValue := compactNativeActionToolSet(toolSet)
-		if errorValue != nil {
-			return nativeActionToolSet{}, true, errorValue
-		}
-		toolSet = compactToolSet
-	}
 	return normalizeNativeActionToolSet(toolSet), true, nil
 }
 
@@ -104,37 +92,6 @@ func nativeActionToolByName(tools []nativeActionTool) map[string]nativeActionToo
 		result[tool.FunctionName] = tool
 	}
 	return result
-}
-
-func compactNativeActionToolSet(toolSet nativeActionToolSet) (nativeActionToolSet, error) {
-	controlTools := []nativeActionTool{}
-	toolNames := []string{}
-	for _, tool := range toolSet.Tools {
-		if isNativeToolAction(tool.Action) {
-			toolNames = append(toolNames, tool.ToolName)
-			continue
-		}
-		controlTools = append(controlTools, tool)
-	}
-	if len(toolNames) == 0 {
-		return toolSet, nil
-	}
-	compactToolSet := nativeActionToolSet{ToolByName: map[string]nativeActionTool{}}
-	for _, tool := range controlTools {
-		compactToolSet = addNativeActionTool(compactToolSet, tool)
-	}
-	dispatcherTool, errorValue := nativeContinueDispatcherTool(toolNames)
-	if errorValue != nil {
-		return nativeActionToolSet{}, errorValue
-	}
-	compactToolSet = addNativeActionTool(compactToolSet, dispatcherTool)
-	return compactToolSet, nil
-}
-
-func addNativeActionTool(toolSet nativeActionToolSet, tool nativeActionTool) nativeActionToolSet {
-	toolSet.Tools = append(toolSet.Tools, tool)
-	toolSet.ToolByName[tool.FunctionName] = tool
-	return toolSet
 }
 
 func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, bool, error) {
@@ -228,13 +185,6 @@ func isNativeToolAction(action string) bool {
 }
 
 func nativeContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
-	if tool.IsDispatcher {
-		return dispatchContinueActionPayload(tool, argumentDocument)
-	}
-	return fixedContinueActionPayload(tool, argumentDocument)
-}
-
-func fixedContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
 	var flatArguments map[string]json.RawMessage
 	if errorValue := json.Unmarshal(argumentDocument, &flatArguments); errorValue != nil {
 		return nil, errorValue
@@ -248,33 +198,6 @@ func fixedContinueActionPayload(tool nativeActionTool, argumentDocument json.Raw
 	payload["toolName"] = tool.ToolName
 	payload["toolInput"] = toolInput
 	return payload, nil
-}
-
-func dispatchContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
-	var payload map[string]any
-	if errorValue := json.Unmarshal(argumentDocument, &payload); errorValue != nil {
-		return nil, errorValue
-	}
-	toolName, _ := payload["toolName"].(string)
-	toolName = strings.TrimSpace(toolName)
-	if !stringSliceContains(tool.ToolNames, toolName) {
-		return nil, errors.New("native continue dispatcher referenced unknown tool: " + toolName)
-	}
-	toolInput, errorValue := dispatchedToolInput(payload)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	payload["action"] = tool.Action
-	payload["toolName"] = toolName
-	payload["toolInput"] = toolInput
-	return payload, nil
-}
-
-func dispatchedToolInput(payload map[string]any) (any, error) {
-	if toolInput, isFound := payload["toolInput"]; isFound {
-		return toolInput, nil
-	}
-	return map[string]any{}, nil
 }
 
 func flattenToolInputSchema(toolInputSchema json.RawMessage) (map[string]json.RawMessage, []string) {
@@ -372,51 +295,6 @@ func controlActionParameters(variant actionSchemaVariant) (json.RawMessage, erro
 		}
 	}
 	return nativeStrictObjectParameters(properties, required)
-}
-
-func nativeContinueDispatcherTool(toolNames []string) (nativeActionTool, error) {
-	parameters, errorValue := nativeContinueDispatcherParameters(toolNames)
-	if errorValue != nil {
-		return nativeActionTool{}, errorValue
-	}
-	return nativeActionTool{
-		FunctionName: "continue",
-		Description:  "Continue work by calling one available tool. toolInput must be a JSON object for the selected tool.",
-		Action:       "continue",
-		Parameters:   parameters,
-		ToolNames:    toolNames,
-		IsDispatcher: true,
-	}, nil
-}
-
-func nativeContinueDispatcherParameters(toolNames []string) (json.RawMessage, error) {
-	parameters := nativeStrictSchemaValue(map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"toolName": map[string]any{
-				"type": "string",
-				"enum": toolNames,
-			},
-			"toolInput": map[string]any{
-				"type":        "object",
-				"properties":  map[string]any{},
-				"description": "Input object for the selected tool. Use {} when the tool takes no input.",
-			},
-			"message":              map[string]any{"type": "string"},
-			"reason":               map[string]any{"type": "string"},
-			"goalStatus":           map[string]any{"type": "string", "enum": []string{"in_progress"}},
-			"goalSatisfied":        map[string]any{"type": "boolean"},
-			"remainingWork":        map[string]any{"type": "string"},
-			"executionStateUpdate": nativeDispatcherExecutionStateSchema(),
-			"nextStepPlan":         nativeDispatcherNextStepPlanSchema(),
-		},
-		"required": []string{"toolName", "toolInput", "executionStateUpdate", "nextStepPlan"},
-	})
-	content, errorValue := json.Marshal(parameters)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return content, nil
 }
 
 func nativeStrictObjectParameters(properties map[string]json.RawMessage, required []string) (json.RawMessage, error) {
@@ -602,35 +480,6 @@ func mapFromNativeSchema(value any) map[string]any {
 func stringFromNativeSchema(value any) string {
 	stringValue, _ := value.(string)
 	return stringValue
-}
-
-func nativeDispatcherExecutionStateSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"goal":           map[string]any{"type": "string"},
-			"workspace":      map[string]any{"type": "string"},
-			"knownFacts":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"triedAndFailed": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"currentBlocker": map[string]any{"type": "string"},
-			"nextPlan":       map[string]any{"type": "string"},
-		},
-	}
-}
-
-func nativeDispatcherNextStepPlanSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"objective":           map[string]any{"type": "string"},
-			"expectedTools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"expectedNextResults": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"doneCriteria":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"risk":                map[string]any{"type": "string"},
-			"workingSetReason":    map[string]any{"type": "string"},
-		},
-		"required": []string{"objective", "expectedTools", "doneCriteria", "risk", "workingSetReason"},
-	}
 }
 
 func enumStringValue(schema json.RawMessage) (string, bool) {
