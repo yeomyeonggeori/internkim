@@ -84,8 +84,8 @@ export function createCalendarDraftPopoverActions(
 	}
 
 	function openEventDraftPopover(event: DayFlowEvent, mode: DraftPopoverMode, anchor: DraftPopoverAnchor | null = null): void {
-		const canonicalAnchor = calendarEventAnchorForEventID(context.getStageElement(), event.id);
-		openDraftPopoverForEvent(event, mode, canonicalAnchor ?? anchor ?? recentCalendarEventAnchorForID(event.id), false);
+		const eventAnchor = calendarEventAnchorForEventID(context.getStageElement(), event.id, anchor) ?? anchor ?? recentCalendarEventAnchorForID(event.id);
+		openDraftPopoverForEvent(event, mode, eventAnchor, false);
 	}
 
 	function repositionDraftPopover(size: DraftPopoverSize): void {
@@ -142,7 +142,7 @@ export function createCalendarDraftPopoverActions(
 		if (!popover || popover.eventID !== eventID) return;
 		const renderedEventAnchor =
 			mode === 'edit'
-				? (calendarEventAnchorForEventID(context.getStageElement(), eventID) ?? anchor)
+				? (calendarEventAnchorForEventID(context.getStageElement(), eventID, anchor) ?? anchor)
 				: (calendarEventAnchorForEventID(context.getStageElement(), eventID, anchor) ??
 					genericEventAnchorForEventID(context.getStageElement(), eventID));
 		if (!renderedEventAnchor) {

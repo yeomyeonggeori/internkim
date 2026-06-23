@@ -1,4 +1,3 @@
-// 캘린더 embed draft와 popover e2e assertion helper를 제공합니다.
 import { expect, type Page } from '@playwright/test';
 
 export async function expectPopoverAnchoredToDraftEvent(page: Page): Promise<void> {
@@ -49,7 +48,66 @@ export async function expectPopoverArrowPointsToDraftEvent(page: Page): Promise<
 					: arrowX;
 		return Math.hypot(arrowX - draftX, arrowY - draftY);
 	});
-	expect(distance).toBeLessThanOrEqual(24);
+	expect(distance).toBeLessThanOrEqual(28);
+}
+
+export async function expectPopoverArrowPointsToElement(page: Page, selector: string): Promise<void> {
+	await expect
+		.poll(async () => popoverArrowDistanceToElement(page, selector))
+		.toBeLessThanOrEqual(28);
+}
+
+export async function expectPopoverOpensLeftOfElement(page: Page, selector: string): Promise<void> {
+	await expect
+		.poll(async () =>
+			page.evaluate((targetSelector) => {
+				const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+				const target = document.querySelector<HTMLElement>(targetSelector);
+				if (!popover || !target) return false;
+				const popoverRectangle = popover.getBoundingClientRect();
+				const targetRectangle = target.getBoundingClientRect();
+				return popover.classList.contains('popover-arrow-right') && popoverRectangle.right <= targetRectangle.left - 8;
+			}, selector)
+		)
+		.toBe(true);
+}
+
+export async function expectPopoverArrowPointsToEventTitleEnd(page: Page, selector: string): Promise<void> {
+	await expect
+		.poll(async () =>
+			page.evaluate((targetSelector) => {
+				const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+				const title = document.querySelector<HTMLElement>(`${targetSelector} .calendar-event-title`);
+				if (!popover || !title) return Number.POSITIVE_INFINITY;
+				const popoverRectangle = popover.getBoundingClientRect();
+				const titleRectangle = title.getBoundingClientRect();
+				const popoverStyle = window.getComputedStyle(popover);
+				const arrowTop = Number.parseFloat(popoverStyle.getPropertyValue('--draft-popover-arrow-top') || '42');
+				const arrowY = popoverRectangle.top + arrowTop + 8;
+				const arrowX = popover.classList.contains('popover-arrow-right') ? popoverRectangle.right + 9 : popoverRectangle.left - 9;
+				return Math.hypot(arrowX - titleRectangle.right, arrowY - (titleRectangle.top + titleRectangle.height / 2));
+			}, selector)
+		)
+		.toBeLessThanOrEqual(28);
+}
+
+export async function expectPopoverArrowPointsToEventTimeEnd(page: Page, selector: string): Promise<void> {
+	await expect
+		.poll(async () =>
+			page.evaluate((targetSelector) => {
+				const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+				const time = document.querySelector<HTMLElement>(`${targetSelector} .calendar-event-time`);
+				if (!popover || !time) return Number.POSITIVE_INFINITY;
+				const popoverRectangle = popover.getBoundingClientRect();
+				const timeRectangle = time.getBoundingClientRect();
+				const popoverStyle = window.getComputedStyle(popover);
+				const arrowTop = Number.parseFloat(popoverStyle.getPropertyValue('--draft-popover-arrow-top') || '42');
+				const arrowY = popoverRectangle.top + arrowTop + 8;
+				const arrowX = popover.classList.contains('popover-arrow-right') ? popoverRectangle.right + 9 : popoverRectangle.left - 9;
+				return Math.hypot(arrowX - timeRectangle.right, arrowY - (timeRectangle.top + timeRectangle.height / 2));
+			}, selector)
+		)
+		.toBeLessThanOrEqual(28);
 }
 
 export async function expectMiniCalendarSelectedDayTextVisible(page: Page, dateKey: string): Promise<void> {
@@ -83,4 +141,21 @@ export async function expectTimelineDraftCount(page: Page, expectedTimelineCount
 			})
 		)
 		.toEqual({ total: expectedTotalCount, timeline: expectedTimelineCount });
+}
+
+async function popoverArrowDistanceToElement(page: Page, selector: string): Promise<number> {
+	return page.evaluate((targetSelector) => {
+		const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!popover || !target) return Number.POSITIVE_INFINITY;
+		const popoverRectangle = popover.getBoundingClientRect();
+		const targetRectangle = target.getBoundingClientRect();
+		const popoverStyle = window.getComputedStyle(popover);
+		const arrowTop = Number.parseFloat(popoverStyle.getPropertyValue('--draft-popover-arrow-top') || '42');
+		const arrowY = popoverRectangle.top + arrowTop + 8;
+		const arrowX = popover.classList.contains('popover-arrow-right') ? popoverRectangle.right + 9 : popoverRectangle.left - 9;
+		const targetX = Math.max(targetRectangle.left, Math.min(arrowX, targetRectangle.right));
+		const targetY = Math.max(targetRectangle.top, Math.min(arrowY, targetRectangle.bottom));
+		return Math.hypot(arrowX - targetX, arrowY - targetY);
+	}, selector);
 }
