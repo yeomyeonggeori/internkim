@@ -39,15 +39,15 @@
 	let quickAddLauncherElement = $state<HTMLElement | null>(null);
 
 	const closedLauncherClass =
-		'fixed bottom-5 right-5 z-[60] h-10 w-36 rounded-full px-3 text-sm shadow-lg transition-all duration-[400ms] md:bottom-6 md:right-6 md:px-4';
+		'fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc((100vw-30rem)/2))] z-30 h-10 w-36 rounded-full px-3 text-sm shadow-lg transition-all duration-[400ms] md:bottom-6 md:right-6 md:z-[60] md:px-4';
 	const openLauncherClass =
-		'fixed bottom-5 right-5 z-[60] size-12 rounded-full bg-destructive px-0 text-destructive-foreground shadow-xl transition-all duration-[400ms] hover:bg-destructive/90 md:bottom-6 md:right-6';
+		'fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc((100vw-30rem)/2))] z-[60] size-12 rounded-full bg-destructive px-0 text-destructive-foreground shadow-xl transition-all duration-[400ms] hover:bg-destructive/90 md:bottom-6 md:right-6';
 	const visibleLauncherContentClass =
 		'absolute inset-0 flex items-center justify-center gap-1.5 opacity-100 scale-100 transition-all duration-[400ms]';
 	const hiddenLauncherContentClass =
 		'absolute inset-0 flex items-center justify-center gap-1.5 opacity-0 scale-75 transition-all duration-[400ms]';
 	const panelBaseClass =
-		'fixed bottom-[5.75rem] right-5 z-[55] flex h-[min(500px,calc(100vh-7rem))] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 transition-all duration-[400ms] md:bottom-[6.25rem] md:right-6';
+		'fixed bottom-[calc(8.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc((100vw-30rem)/2))] z-[55] flex h-[min(500px,calc(100vh-10rem))] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 transition-all duration-[400ms] md:bottom-[6.25rem] md:right-6 md:h-[min(500px,calc(100vh-7rem))]';
 	const visiblePanelClass = 'translate-y-0 scale-100 opacity-100';
 	const hiddenPanelClass = 'pointer-events-none translate-y-3 scale-95 opacity-0';
 
@@ -191,6 +191,7 @@
 	size={isOpen ? 'icon-lg' : 'lg'}
 	bind:ref={quickAddLauncherElement}
 	class={`${launcherClass} overflow-hidden`}
+	data-flow-quick-add-launcher
 	disabled={!hasMembers && !isOpen}
 	aria-label={launcherLabel}
 	aria-controls="flow-ai-quick-add-panel"
@@ -205,3 +206,12 @@
 		<XIcon class="size-6" />
 	</span>
 </Button>
+
+<style>
+	:global(body:has([data-slot='sheet-content'][data-state='open']) [data-flow-quick-add-launcher][aria-expanded='false']),
+	:global(body:has([data-slot='sheet-content'][data-open]) [data-flow-quick-add-launcher][aria-expanded='false']) {
+		pointer-events: none;
+		opacity: 0;
+		transform: translateY(0.5rem) scale(0.95);
+	}
+</style>
