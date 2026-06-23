@@ -506,6 +506,93 @@ func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	}
 }
 
+func TestFlowTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "http://admind.local/flow/api/state" {
+				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
+			}
+			return flowToolJSONResponse(`{"currentWeek":{"code":"26W25"},"members":[{"id":"owner","name":"오너","email":"owner@example.com"},{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"owner-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner","lee"],"participantNames":["오너","이동하"],"content":"이동하 참여 업무","status":"진행","weekCode":"26W25"},{"id":"other-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner"],"participantNames":["오너"],"content":"오너 단독 업무","status":"진행","weekCode":"26W25"}]}`), nil
+		})},
+	}
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"이동하","weekFrom":-1000}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "owner@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "owner-task") || strings.Contains(result, "other-task") {
+		t.Fatalf("expected tasks where the named person participates, got %s", result)
+	}
+}
+
+func TestFlowTaskListTreatsPlannedAndPausedAsCurrentWeek(t *testing.T) {
+	now := time.Now()
+	thisWeek := weekCodeForFlowDate(now)
+	priorWeek := weekCodeForFlowDate(now.AddDate(0, 0, -14))
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"planned-old-week","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"예정 업무","status":"예정","weekCode":%q},{"id":"paused-old-week","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"일시정지 업무","status":"일시정지","weekCode":%q}]}`, thisWeek, priorWeek, priorWeek)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "http://admind.local/flow/api/state" {
+				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
+			}
+			return flowToolJSONResponse(stateBody), nil
+		})},
+	}
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"이동하"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, "planned-old-week") || !strings.Contains(result, "paused-old-week") {
+		t.Fatalf("expected planned and paused tasks to be treated as current week, got %s", result)
+	}
+}
+
+func TestFlowTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
+	now := time.Now()
+	thisWeek := weekCodeForFlowDate(now)
+	oldWeek := weekCodeForFlowDate(now.AddDate(0, 0, -28))
+	thisWeekDate := now.Format("2006-01-02")
+	priorWeekDate := now.AddDate(0, 0, -7).Format("2006-01-02")
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"completed-current-end","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"완료 업무","status":"완료","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"rejected-current-end","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"기각 업무","status":"기각","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"stopped-current-start","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"중단 시작일 업무","status":"중단","startDate":%q,"weekCode":%q},{"id":"stopped-prior-end","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"participantNames":["이동하"],"content":"중단 종료일 우선 업무","status":"중단","startDate":%q,"endDate":%q,"weekCode":%q}]}`, thisWeek, priorWeekDate, thisWeekDate, oldWeek, priorWeekDate, thisWeekDate, oldWeek, thisWeekDate, oldWeek, thisWeekDate, priorWeekDate, oldWeek)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "http://admind.local/flow/api/state" {
+				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
+			}
+			return flowToolJSONResponse(stateBody), nil
+		})},
+	}
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.list",
+		Input:    []byte(`{"targetPersonHint":"이동하"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	for _, expectedTaskID := range []string{"completed-current-end", "rejected-current-end", "stopped-current-start"} {
+		if !strings.Contains(result, expectedTaskID) {
+			t.Fatalf("expected %s in current week result, got %s", expectedTaskID, result)
+		}
+	}
+	if strings.Contains(result, "stopped-prior-end") {
+		t.Fatalf("expected end date to take precedence over start date, got %s", result)
+	}
+}
+
 func TestFlowTaskListWeekCodes(t *testing.T) {
 	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
 	thisWeek := weekCodeForFlowDate(now)
@@ -530,7 +617,7 @@ func TestFlowTaskListWeekCodes(t *testing.T) {
 func TestFlowTaskListDefaultsToThisWeekOnly(t *testing.T) {
 	thisWeek := weekCodeForFlowDate(time.Now())
 	priorWeek := weekCodeForFlowDate(time.Now().AddDate(0, 0, -21))
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이동하","content":"이번주 업무","status":"예정","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이동하","content":"지난 업무","status":"예정","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이동하","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이동하","content":"이번주 업무","status":"진행","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이동하","content":"지난 업무","status":"진행","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
