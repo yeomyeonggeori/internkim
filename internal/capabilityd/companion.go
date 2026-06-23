@@ -86,6 +86,25 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "google.drive.import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 }
 
+var capabilityToolApprovalRequirements = buildCapabilityToolApprovalRequirements()
+
+type capabilityApprovalFailure struct {
+	ErrorCode    string `json:"errorCode"`
+	FailureStage string `json:"failureStage"`
+	Message      string `json:"message"`
+}
+
+func buildCapabilityToolApprovalRequirements() map[string]bool {
+	descriptors := capabilities.DeviceDescriptors()
+	descriptors = append(descriptors, capabilities.ArtifactDescriptors()...)
+	descriptors = append(descriptors, capabilities.GoogleWorkspaceDescriptors()...)
+	requirements := make(map[string]bool, len(descriptors))
+	for _, descriptor := range descriptors {
+		requirements[strings.TrimSpace(descriptor.Name)] = descriptor.RequiresApproval
+	}
+	return requirements
+}
+
 func capabilityToolRouteFor(toolName string) (capabilityToolRoute, bool) {
 	for _, route := range capabilityToolRoutes {
 		if route.matches(toolName) {
@@ -145,6 +164,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	if response, isDenied := capabilityToolApprovalDeniedResponse(request); isDenied {
+		return response, nil
+	}
 	toolRoute, hasToolRoute := capabilityToolRouteFor(request.ToolName)
 
 	router := CapabilityRouter{
@@ -174,6 +196,38 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		return toolRoute.Handler(service, ctx, request)
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
+}
+
+func capabilityToolApprovalDeniedResponse(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
+	if !toolRequiresApproval(request.ToolName) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	if request.Context.IsApprovalContinuation || request.Context.IsScheduledRun {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	toolName := strings.TrimSpace(request.ToolName)
+	message := toolName + " requires approval before execution"
+	result, _ := json.Marshal(capabilityApprovalFailure{
+		ErrorCode:    "approval_required",
+		FailureStage: "authorization",
+		Message:      message,
+	})
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        toolName,
+		Status:          "denied",
+		Content:         message,
+		IsError:         true,
+		Message:         message,
+		ErrorCode:       "approval_required",
+		FailureStage:    "authorization",
+		Result:          result,
+	}, true
+}
+
+func toolRequiresApproval(toolName string) bool {
+	return capabilityToolApprovalRequirements[strings.TrimSpace(toolName)]
 }
 
 func companionRequiredBrowserErrorCode(errorValue error) string {
