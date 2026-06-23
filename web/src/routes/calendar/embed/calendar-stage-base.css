@@ -30,6 +30,7 @@
 		--calendar-time-axis-width: 124px;
 		--calendar-time-axis-label-inset: 9px;
 		--calendar-time-axis-tick-width: 18px;
+		--calendar-time-boundary-height: 0.75rem;
 		--calendar-week-column-width: calc(100% / 7);
 		--calendar-all-day-row-height: 72px;
 		--calendar-all-day-label-height: 36px;
@@ -142,6 +143,33 @@
 	.calendar-stage.calendar-stage-day .df-time-column > .df-time-slot:nth-child(2) .df-time-label,
 	.calendar-stage.calendar-stage-week .df-week-time-grid-time-column > .df-time-slot:nth-child(2) .df-time-label {
 		display: none !important;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-boundary-bottom .df-midnight-label {
+		z-index: 3;
+		background: transparent;
+		font-weight: 600;
+	}
+
+	.calendar-stage.calendar-stage-day .df-day-content-grid-boundary-bottom {
+		border-right: 0 !important;
+	}
+
+	.calendar-stage.calendar-stage-week .df-week-time-grid-boundary-tail > .df-time-label {
+		font-weight: 600;
+	}
+
+	.calendar-stage.calendar-stage-week
+		.df-time-grid-boundary-bottom.df-week-time-grid-boundary-row
+		> .df-week-time-grid-boundary-cell {
+		border-right: 0 !important;
+		background: transparent !important;
+	}
+
+	@media (max-width: 767px) {
+		.calendar-stage.calendar-stage-day .df-day-content-grid-boundary-bottom .df-midnight-label {
+			font-size: 10px;
+		}
 	}
 
 	.calendar-stage.calendar-stage-day .df-time-day-column-spacer,
