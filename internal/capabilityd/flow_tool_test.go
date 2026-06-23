@@ -530,11 +530,12 @@ func TestFlowTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
 	}
 }
 
-func TestFlowTaskListTreatsPlannedAndPausedAsCurrentWeek(t *testing.T) {
+func TestFlowTaskListTreatsAvailablePlannedAndPausedAsCurrentWeek(t *testing.T) {
 	now := time.Now()
 	thisWeek := weekCodeForFlowDate(now)
 	priorWeek := weekCodeForFlowDate(now.AddDate(0, 0, -14))
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"planned-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"예정 업무","status":"예정","weekCode":%q},{"id":"paused-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"일시정지 업무","status":"일시정지","weekCode":%q}]}`, thisWeek, priorWeek, priorWeek)
+	futureStartDate := now.AddDate(0, 0, 14).Format("2006-01-02")
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"planned-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"예정 업무","status":"예정","weekCode":%q},{"id":"planned-future-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"미래 예정 업무","status":"예정","startDate":%q,"weekCode":%q},{"id":"paused-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"일시정지 업무","status":"일시정지","weekCode":%q}]}`, thisWeek, priorWeek, futureStartDate, priorWeek, priorWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -555,6 +556,9 @@ func TestFlowTaskListTreatsPlannedAndPausedAsCurrentWeek(t *testing.T) {
 	result := string(response.Result)
 	if !strings.Contains(result, "planned-old-week") || !strings.Contains(result, "paused-old-week") {
 		t.Fatalf("expected planned and paused tasks to be treated as current week, got %s", result)
+	}
+	if strings.Contains(result, "planned-future-start") {
+		t.Fatalf("expected future planned tasks to stay out of current week, got %s", result)
 	}
 }
 

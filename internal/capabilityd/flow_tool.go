@@ -687,13 +687,48 @@ func flowTaskMatchesWeekCodes(task flowTaskForTool, weekCodes map[string]bool, c
 
 func flowTaskFilterWeekCodes(task flowTaskForTool, currentWeekCode string) []string {
 	switch strings.TrimSpace(task.Status) {
-	case "예정", "일시정지":
+	case "예정":
+		return plannedFlowTaskWeekCodes(task, currentWeekCode)
+	case "일시정지":
 		return firstFlowWeekCode(currentWeekCode, task.WeekCode)
 	case "완료", "기각", "중단":
 		return firstFlowWeekCode(flowTaskDateWeekCode(task.EndDate), flowTaskDateWeekCode(task.StartDate), task.WeekCode)
 	default:
 		return firstFlowWeekCode(task.WeekCode)
 	}
+}
+
+func plannedFlowTaskWeekCodes(task flowTaskForTool, currentWeekCode string) []string {
+	startWeekCode := flowTaskDateWeekCode(task.StartDate)
+	if startWeekCode == "" {
+		return firstFlowWeekCode(currentWeekCode, task.WeekCode)
+	}
+	if flowWeekCodeIsCurrentOrEarlier(startWeekCode, currentWeekCode) {
+		return firstFlowWeekCode(currentWeekCode, task.WeekCode)
+	}
+	return firstFlowWeekCode(startWeekCode, task.WeekCode)
+}
+
+func flowWeekCodeIsCurrentOrEarlier(weekCode string, currentWeekCode string) bool {
+	year, week, ok := parseFlowWeekCode(weekCode)
+	if !ok {
+		return false
+	}
+	currentYear, currentWeek, ok := parseFlowWeekCode(currentWeekCode)
+	if !ok {
+		return false
+	}
+	return year < currentYear || year == currentYear && week <= currentWeek
+}
+
+func parseFlowWeekCode(weekCode string) (int, int, bool) {
+	var year int
+	var week int
+	_, errorValue := fmt.Sscanf(strings.TrimSpace(strings.ToUpper(weekCode)), "%dW%d", &year, &week)
+	if errorValue != nil {
+		return 0, 0, false
+	}
+	return year, week, true
 }
 
 func firstFlowWeekCode(values ...string) []string {
