@@ -28,7 +28,7 @@ Rules:
 - `flow.task.list` lists the current week by default. Pass `weekFrom` and `weekTo` as week offsets from this week (0 this week, -1 last week, 1 next week) when the user asks for another period: 지난주 is `weekFrom -1, weekTo -1`; the last 4 weeks is `weekFrom -3, weekTo 0`; the whole history is a wide range such as `weekFrom -520`. Leave both unset for this week.
 - Call `flow.task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the tool marks the item complete.
 - Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
-- Use `weekCode` only when the user names a specific work week.
+- Use `weekCode` only with `flow.task.add`, `flow.task.update`, or `flow.task.delete` when the user names a specific work week. Use `weekFrom` and `weekTo` for `flow.task.list`.
 - Do not add the requester as a participant by default when asking another person to do work. Include the requester only when the user implies joint work, such as 같이, 함께, 나랑, 저랑, 우리, with me, with us, together, joint, or collaborate.
 - Do not say a task was added until `flow.task.add` succeeds.
 - If `flow.task.add` returns `flow_owner_ambiguous`, ask the user which candidate they mean and show the `@handle` candidates returned by the tool.
