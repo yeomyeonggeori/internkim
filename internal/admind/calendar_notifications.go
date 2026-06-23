@@ -605,7 +605,7 @@ func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, 
 	if normalizedUserID == "" {
 		return "", fmt.Errorf("Mattermost user ID is required")
 	}
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
 	if errorValue != nil {
 		return "", errorValue
 	}

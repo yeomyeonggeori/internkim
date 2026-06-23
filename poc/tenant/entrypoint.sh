@@ -41,6 +41,7 @@ if [ -x /usr/local/bin/internkim-admind ] && [ "${ENABLE_ADMIND:-0}" = "1" ]; th
     --mattermost-public-url "${publicMattermostURL}" \
     --flow-public-url "${FLOW_PUBLIC_URL:-}" \
     --mattermost-team "${MATTERMOST_TEAM:-internkim}" \
+    --bot-username "${BOT_USERNAME:-internkim}" \
     --mattermost-admin-password /root/.internkim/secrets/mm-admin-pass \
     --admin-email-path /root/.internkim/secrets/admin-email \
     --state-dir /workspace/.admind/state \

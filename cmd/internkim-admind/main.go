@@ -13,6 +13,7 @@ func main() {
 	flag.StringVar(&configuration.ListenAddress, "listen", configuration.ListenAddress, "HTTP listen address")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", configuration.MattermostBaseURL, "Mattermost upstream URL")
 	flag.StringVar(&configuration.MattermostTeamName, "mattermost-team", configuration.MattermostTeamName, "Mattermost team name this admind manages")
+	flag.StringVar(&configuration.BotUsername, "bot-username", configuration.BotUsername, "Mattermost bot username this admind manages")
 	flag.StringVar(&configuration.MattermostPublicURL, "mattermost-public-url", configuration.MattermostPublicURL, "public Mattermost URL for cross-host OAuth authorize (defaults to the request host)")
 	flag.StringVar(&configuration.FlowPublicURL, "flow-public-url", configuration.FlowPublicURL, "public Flow web URL for channel open links (defaults to the Mattermost flow base URL)")
 	flag.StringVar(&configuration.MattermostAdminPasswordPath, "mattermost-admin-password", configuration.MattermostAdminPasswordPath, "Mattermost admin password path")
