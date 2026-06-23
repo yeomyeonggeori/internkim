@@ -130,7 +130,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -145,7 +145,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"continue","executionStateUpdate":{},"message":"publishing","nextStepPlan":{"doneCriteria":["published"],"expectedTools":[],"objective":"confirm publish","risk":"none","workingSetReason":"publish result completes the task"},"toolInput":{"siteID":"site-1"},"toolName":"site.app.publish"}` {
+	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site.app.publish"}` {
 		t.Fatalf("expected action JSON, got %s", response.Content)
 	}
 	if response.ConstraintMode != ConstraintModeNativeToolCall {
@@ -175,11 +175,15 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if _, isFound := properties["toolInput"]; isFound {
 		t.Fatalf("expected projected tool parameters to omit nested toolInput, got %+v", parameters)
 	}
+	if _, isFound := properties["blueclawExecutionStateUpdate"]; isFound {
+		t.Fatalf("expected per-tool continue schema to omit blueclawExecutionStateUpdate, got %+v", parameters)
+	}
+	if _, isFound := properties["blueclawNextStepPlan"]; isFound {
+		t.Fatalf("expected per-tool continue schema to omit blueclawNextStepPlan, got %+v", parameters)
+	}
 	required := parameters["required"].([]any)
-	for _, fieldName := range []string{"blueclawExecutionStateUpdate", "blueclawNextStepPlan", "siteID"} {
-		if !requiredContains(required, fieldName) {
-			t.Fatalf("expected required fields to include %s, got %+v", fieldName, parameters)
-		}
+	if !requiredContains(required, "siteID") {
+		t.Fatalf("expected required fields to include siteID, got %+v", parameters)
 	}
 	if requiredContains(required, "blueclawMessage") {
 		t.Fatalf("expected optional blueclawMessage field to be removed from required, got %+v", parameters)
