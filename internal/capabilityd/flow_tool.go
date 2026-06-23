@@ -191,8 +191,9 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
-	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, time.Now())
-	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, OwnerID: ownerID, Status: statusFilter, WeekCodes: weekCodes, Limit: input.Limit})
+	now := time.Now()
+	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, now)
+	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit})
 	result, _ := json.Marshal(map[string]any{
 		"scope":        flowTaskListPeopleScope(ownerID),
 		"weekFrom":     input.WeekFrom,
@@ -570,11 +571,12 @@ func (service Service) deleteFlowTask(ctx context.Context, taskID string, reques
 }
 
 type flowTaskFilter struct {
-	Query     string
-	OwnerID   string
-	Status    string
-	WeekCodes map[string]bool
-	Limit     int
+	Query           string
+	MemberID        string
+	Status          string
+	WeekCodes       map[string]bool
+	CurrentWeekCode string
+	Limit           int
 }
 
 func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
@@ -641,10 +643,10 @@ func normalizeFlowStatusFilter(status string) string {
 func filterFlowTasks(tasks []flowTaskForTool, filter flowTaskFilter) []flowTaskForTool {
 	filteredTasks := []flowTaskForTool{}
 	for _, task := range tasks {
-		if filter.OwnerID != "" && task.OwnerID != filter.OwnerID {
+		if !flowTaskMatchesMember(task, filter.MemberID) {
 			continue
 		}
-		if len(filter.WeekCodes) > 0 && !filter.WeekCodes[task.WeekCode] {
+		if !flowTaskMatchesWeekCodes(task, filter.WeekCodes, filter.CurrentWeekCode) {
 			continue
 		}
 		if filter.Status != "" && task.Status != filter.Status {
@@ -659,6 +661,57 @@ func filterFlowTasks(tasks []flowTaskForTool, filter flowTaskFilter) []flowTaskF
 		}
 	}
 	return filteredTasks
+}
+
+func flowTaskMatchesMember(task flowTaskForTool, memberID string) bool {
+	if memberID == "" {
+		return true
+	}
+	if task.OwnerID == memberID {
+		return true
+	}
+	return containsString(task.ParticipantIDs, memberID)
+}
+
+func flowTaskMatchesWeekCodes(task flowTaskForTool, weekCodes map[string]bool, currentWeekCode string) bool {
+	if len(weekCodes) == 0 {
+		return true
+	}
+	for _, weekCode := range flowTaskFilterWeekCodes(task, currentWeekCode) {
+		if weekCodes[weekCode] {
+			return true
+		}
+	}
+	return false
+}
+
+func flowTaskFilterWeekCodes(task flowTaskForTool, currentWeekCode string) []string {
+	switch strings.TrimSpace(task.Status) {
+	case "예정", "일시정지":
+		return firstFlowWeekCode(currentWeekCode, task.WeekCode)
+	case "완료", "기각", "중단":
+		return firstFlowWeekCode(flowTaskDateWeekCode(task.EndDate), flowTaskDateWeekCode(task.StartDate), task.WeekCode)
+	default:
+		return firstFlowWeekCode(task.WeekCode)
+	}
+}
+
+func firstFlowWeekCode(values ...string) []string {
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			return []string{trimmedValue}
+		}
+	}
+	return nil
+}
+
+func flowTaskDateWeekCode(dateText string) string {
+	date, errorValue := time.Parse("2006-01-02", strings.TrimSpace(dateText))
+	if errorValue != nil {
+		return ""
+	}
+	return weekCodeForFlowDate(date)
 }
 
 func flowTaskMatchesQuery(task flowTaskForTool, query string) bool {
