@@ -1469,7 +1469,7 @@ func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, to
 	if normalizedUserID == "" {
 		return nil
 	}
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -1484,7 +1484,7 @@ func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, to
 }
 
 func (service *Service) ensureMattermostBotChannelMember(ctx context.Context, token string, channelID string) error {
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -1559,7 +1559,7 @@ func (service *Service) setMattermostRole(ctx context.Context, token string, use
 }
 
 func (service *Service) ensureMattermostBotEphemeralPermission(ctx context.Context, token string) error {
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
 	if errorValue != nil {
 		return errorValue
 	}
