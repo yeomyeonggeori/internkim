@@ -89,6 +89,62 @@ func TestOpenRouterLiveNativeToolArgumentsAreFilledFromEnv(t *testing.T) {
 	}
 }
 
+func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	descriptors := []capabilities.Descriptor{}
+	descriptors = append(descriptors, capabilities.FileDescriptors()...)
+	descriptors = append(descriptors, capabilities.FlowDescriptors()...)
+	descriptors = append(descriptors, capabilities.CalendarDescriptors()...)
+	descriptors = append(descriptors, capabilities.WebDescriptors()...)
+	schemaDocument := testActionSchemaForDescriptors(t, descriptors)
+
+	for _, modelName := range toolContractModelsFromEnv() {
+		t.Run(modelName, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			request := StructuredRequest{
+				Model:    modelName,
+				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},
+				StructuredOutputSchema: StructuredOutputSchema{
+					Name:               "blueclaw_agent_turn_action",
+					Document:           schemaDocument,
+					IsStrictlyEnforced: true,
+				},
+			}
+			response, errorValue := backend.CompleteStructured(ctx, request)
+			if errorValue != nil {
+				t.Fatalf("live native tool call failed: %v", errorValue)
+			}
+			if response.ConstraintMode != ConstraintModeNativeToolCall {
+				t.Fatalf("expected native_tool_call mode, got %q (content=%s)", response.ConstraintMode, response.Content)
+			}
+			assertActionToolInputNotEmpty(t, response.Content)
+		})
+	}
+}
+
+func assertActionToolInputNotEmpty(t *testing.T, content string) {
+	t.Helper()
+	var action struct {
+		ToolName  string                     `json:"toolName"`
+		ToolInput map[string]json.RawMessage `json:"toolInput"`
+	}
+	if errorValue := json.Unmarshal([]byte(content), &action); errorValue != nil {
+		t.Fatalf("could not parse action content %q: %v", content, errorValue)
+	}
+	hasNonNullValue := false
+	for _, rawValue := range action.ToolInput {
+		trimmed := strings.TrimSpace(string(rawValue))
+		if trimmed != "" && trimmed != "null" && trimmed != "\"\"" {
+			hasNonNullValue = true
+			break
+		}
+	}
+	if !hasNonNullValue {
+		t.Fatalf("tool %q received empty/all-null arguments in a large tool set (content=%s)", action.ToolName, content)
+	}
+}
+
 func assertToolArgumentFilled(t *testing.T, content string, contractCase toolArgumentContractCase) {
 	t.Helper()
 	var action struct {
