@@ -44,6 +44,7 @@ type actionSchemaDocument struct {
 }
 
 type actionSchemaVariant struct {
+	Description string                     `json:"description"`
 	Properties map[string]json.RawMessage `json:"properties"`
 	Required   []string                   `json:"required"`
 }
@@ -110,7 +111,7 @@ func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, 
 		}
 		return nativeActionTool{
 			FunctionName: nativeActionFunctionName(action, toolName),
-			Description:  "Call " + toolName,
+			Description:  nativeToolDescription(variant.Description, toolName),
 			Action:       action,
 			ToolName:     toolName,
 			Parameters:   parameters,
@@ -515,10 +516,19 @@ func nativeControlFunctionName(action string) string {
 	return nativeSafeFunctionName(action)
 }
 
+func nativeToolDescription(description string, toolName string) string {
+	if trimmed := strings.TrimSpace(description); trimmed != "" {
+		return trimmed
+	}
+	return "Call " + toolName
+}
+
 func nativeControlDescription(action string) string {
 	switch strings.TrimSpace(action) {
 	case "finish":
 		return "Finish the task only when the user goal is satisfied and completion evidence is available."
+	case "tool.request":
+		return "Load tools or skills into your callable set by exact name. The action schema exposes only a subset of your tools each turn; when the tool you need is listed in the tool catalog but absent from this turn's schema, call this with its toolNames (and skillNames) and it becomes directly callable next turn. Never run a tool name as a shell command instead."
 	}
 	return "Return agent action " + action
 }
