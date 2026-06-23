@@ -18,17 +18,26 @@ const (
 var attendanceAbsenceKinds = map[string]struct{}{
 	attendanceAbsenceLeave:        {},
 	attendanceAbsenceBusinessTrip: {},
-	attendanceAbsenceDayOff:       {},
 	attendanceAbsenceOther:        {},
 }
 
 func normalizeAttendanceAbsenceKind(value string) (string, error) {
 	kind := strings.ToLower(strings.TrimSpace(value))
+	if kind == attendanceAbsenceDayOff {
+		return attendanceAbsenceLeave, nil
+	}
 	_, exists := attendanceAbsenceKinds[kind]
 	if !exists {
 		return "", errors.New("unsupported attendance absence kind")
 	}
 	return kind, nil
+}
+
+func normalizeStoredAttendanceAbsenceKind(value string) string {
+	if value == attendanceAbsenceDayOff {
+		return attendanceAbsenceLeave
+	}
+	return value
 }
 
 func attendanceAbsenceDates(startDate string, endDate string) ([]string, error) {
