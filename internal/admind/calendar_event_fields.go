@@ -78,6 +78,10 @@ func diffCalendarEventFields(previous calendarEvent, current calendarEvent) []st
 	return fields
 }
 
+func hasCalendarEventUserEditableChanges(previous calendarEvent, current calendarEvent) bool {
+	return len(diffCalendarEventFields(previous, current)) > 0
+}
+
 func mergeCalendarEventChanges(remote calendarEvent, local calendarEvent, changedFields []string) calendarEvent {
 	merged := remote
 	for _, field := range changedFields {

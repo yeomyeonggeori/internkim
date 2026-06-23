@@ -1,5 +1,18 @@
 import type { Page, Route } from '@playwright/test';
 
+export type CalendarDraftPopoverEvent = {
+	id: string;
+	title: string;
+	description: string;
+	location: string;
+	startISO: string;
+	endISO: string;
+	timeZone: string;
+	isAllDay: boolean;
+	color: string;
+	updatedAt: string;
+};
+
 export async function routeCalendarAPI(page: Page): Promise<void> {
 	await page.route('**/admin/api/locale', async (route) => {
 		await route.fulfill({ json: { locale: 'ko' } });
@@ -29,6 +42,58 @@ export async function routeCalendarAPI(page: Page): Promise<void> {
 	await page.route('**/calendar/api/conflicts/*', async (route) => {
 		await fulfillEmptyResponse(route);
 	});
+}
+
+export function draftPopoverEvent(overrides: Partial<CalendarDraftPopoverEvent>): CalendarDraftPopoverEvent {
+	return {
+		id: 'draft-popover-event',
+		title: '일정',
+		description: '',
+		location: '',
+		startISO: '2026-06-17T00:00:00.000Z',
+		endISO: '2026-06-18T00:00:00.000Z',
+		timeZone: 'Asia/Seoul',
+		isAllDay: true,
+		color: '#1677ff',
+		updatedAt: '2026-06-10T11:30:00.000Z',
+		...overrides
+	};
+}
+
+export async function routeDraftPopoverEvents(page: Page, events: CalendarDraftPopoverEvent[]): Promise<void> {
+	await page.unroute('**/calendar/api/events?**');
+	await page.route('**/calendar/api/events?**', async (route) => {
+		await route.fulfill({ json: { events } });
+	});
+}
+
+export async function routeDraftPopoverEventUpdate(
+	page: Page,
+	event: CalendarDraftPopoverEvent
+): Promise<Record<string, unknown>[]> {
+	const updatedPayloads: Record<string, unknown>[] = [];
+	await page.route(`**/calendar/api/events/${event.id}`, async (route) => {
+		if (route.request().method() !== 'PUT') {
+			await route.fulfill({ json: {} });
+			return;
+		}
+
+		const payload = route.request().postDataJSON() as Record<string, unknown>;
+		updatedPayloads.push(payload);
+		await route.fulfill({
+			json: {
+				...event,
+				title: String(payload.title),
+				description: String(payload.description ?? ''),
+				location: String(payload.location ?? ''),
+				startISO: String(payload.startISO),
+				endISO: String(payload.endISO),
+				isAllDay: Boolean(payload.isAllDay),
+				updatedAt: '2026-06-10T12:00:00.000Z'
+			}
+		});
+	});
+	return updatedPayloads;
 }
 
 export async function waitForClientHydration(page: Page): Promise<void> {

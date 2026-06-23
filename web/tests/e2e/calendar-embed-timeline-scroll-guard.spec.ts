@@ -52,7 +52,7 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
-	test('dismisses day edit popovers on calendar scroll without dismissing internal popover scroll', async ({ page }) => {
+	test('dismisses unchanged day edit popovers on calendar scroll without saving or dismissing internal popover scroll', async ({ page }) => {
 		const updatedEvents = await routeCalendarEventUpdates(page);
 		await routeDuplicateDayAnchorEvent(page);
 
@@ -63,9 +63,15 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		await dispatchElementScroll(page, '.draft-popover-body', 24);
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
+		const unexpectedUpdate = page
+			.waitForRequest((request) => request.method() === 'PUT' && request.url().includes('/calendar/api/events/'), {
+				timeout: 500
+			})
+			.then(() => true, () => false);
 		await dispatchElementScroll(page, '.df-day-content-grid', 120);
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect.poll(() => updatedEvents.length).toBe(1);
+		await expect(unexpectedUpdate).resolves.toBe(false);
+		expect(updatedEvents).toHaveLength(0);
 	});
 });
 
