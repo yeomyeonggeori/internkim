@@ -201,6 +201,9 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	if startTime.IsZero() && endTime.IsZero() && request.URL.Query().Get("window") == "upcoming" {
+		startTime, endTime = service.upcomingCalendarWindow(time.Now())
+	}
 	events, errorValue := service.readCalendarEvents(request.Context(), startTime, endTime)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -536,6 +539,13 @@ func normalizeCalendarReminderLeadHours(value int) int {
 	default:
 		return calendarDefaultReminderLeadHours
 	}
+}
+
+func (service *Service) upcomingCalendarWindow(now time.Time) (time.Time, time.Time) {
+	location, _ := service.workspaceTimeLocation()
+	local := now.In(location)
+	startOfToday := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+	return startOfToday.UTC(), startOfToday.AddDate(0, 0, 7).UTC()
 }
 
 func parseCalendarRange(request *http.Request) (time.Time, time.Time, error) {
