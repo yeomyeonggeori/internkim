@@ -81,7 +81,6 @@ var blueclawNativeToolNames = []string{
 	"skill.add",
 	"skill.remove",
 	"skill.search",
-	"tool.describe",
 	"schedule.create",
 	"schedule.cancel",
 }

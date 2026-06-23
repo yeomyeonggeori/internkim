@@ -22,7 +22,6 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"ask.confirm",
 		"document.read",
 		"image.read",
-		"tool.describe",
 		"runtime-config-mirror-drift",
 		"runtime-outbound-network-disabled",
 		"runtime-outbound-network-cidr",

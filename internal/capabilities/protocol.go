@@ -52,10 +52,10 @@ func DeviceBrowserDescriptors() []Descriptor {
 
 func DeviceDescriptors() []Descriptor {
 	descriptors := []Descriptor{
-		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "llm.text", Description: "Generate free-form text using the device LLM. Internal capability used by Blueclaw's LLM backend; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
+		{Name: "llm.structured", Description: "Generate structured JSON output using the device LLM. Internal capability used by Blueclaw's LLM backend for structured extraction; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
+		{Name: "embedding.create", Description: "Generate vector embeddings for text using the device embedding model. Internal capability used for semantic search and memory retrieval; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
+		{Name: "platform.reply", Description: "Send a reply in the current Mattermost conversation context. Internal shorthand used by the platform reply path; use platform.message.send for explicit delivery targeting.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
 	}
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
@@ -70,97 +70,97 @@ func DeviceDescriptors() []Descriptor {
 
 func WebDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "web.search", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webSearchInputSchema(), PolicyResource: "tool:web.search", SideEffectClass: "read"},
-		{Name: "web.fetch", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webFetchInputSchema(), PolicyResource: "tool:web.fetch", SideEffectClass: "read"},
+		{Name: "web.search", Description: "Search the public web and return ranked result snippets. Use this when you need current information, facts, or links that are not already in context. Do not use for workspace data, calendar, mail, or tasks — those have dedicated tools.", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webSearchInputSchema(), PolicyResource: "tool:web.search", SideEffectClass: "read"},
+		{Name: "web.fetch", Description: "Fetch and return the text content of one or more public URLs. Use after web.search when you need the full page content, not just a snippet. Do not fetch localhost or private network addresses — those are blocked.", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webFetchInputSchema(), PolicyResource: "tool:web.fetch", SideEffectClass: "read"},
 	}
 }
 
 func FileDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "document.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read"},
-		{Name: "image.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read"},
+		{Name: "document.read", Description: "Read a workspace document (PDF, Office, HTML, text, etc.) and return its content as Markdown. Use this to read files at /workspace paths; do not run a shell command to cat files. For image files use image.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read"},
+		{Name: "image.read", Description: "Read a workspace image file (PNG, JPG, etc.) and return it as a base64-encoded attachment for vision analysis. Use this for image files at /workspace paths; for text/document files use document.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read"},
 	}
 }
 
 func PlatformMessageDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "platform.message.context", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageContextInputSchema(), PolicyResource: "tool:platform.message.context", SideEffectClass: "read"},
-		{Name: "platform.message.search", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSearchInputSchema(), PolicyResource: "tool:platform.message.search", SideEffectClass: "read"},
-		{Name: "platform.message.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSendInputSchema(), PolicyResource: "tool:platform.message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_message", "message")},
-		{Name: "platform.message.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageUpdateInputSchema(), PolicyResource: "tool:platform.message.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_message", "message")},
-		{Name: "platform.message.delete", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageDeleteInputSchema(), PolicyResource: "tool:platform.message.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_message", "message")},
+		{Name: "platform.message.context", Description: "Return metadata about the current Mattermost conversation context — the active channel, thread, and requester identity. Call this first when you need to know where the conversation is happening before sending or searching messages.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageContextInputSchema(), PolicyResource: "tool:platform.message.context", SideEffectClass: "read"},
+		{Name: "platform.message.search", Description: "Search past Mattermost messages in a channel, thread, or DM conversation. Use this to find what was said, retrieve prior messages, or check history. Do not use this to send a message — use platform.message.send.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSearchInputSchema(), PolicyResource: "tool:platform.message.search", SideEffectClass: "read"},
+		{Name: "platform.message.send", Description: "Send a Mattermost message to a channel, thread, or DM. Requires approval before delivering. For DM to multiple people set personHints instead of personHint to fan out with a single approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSendInputSchema(), PolicyResource: "tool:platform.message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_message", "message")},
+		{Name: "platform.message.update", Description: "Edit the text of an existing Mattermost message or change its pinned state. Requires the messageID from a prior search or send result — never invent an ID. Requires approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageUpdateInputSchema(), PolicyResource: "tool:platform.message.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_message", "message")},
+		{Name: "platform.message.delete", Description: "Permanently delete one or more Mattermost messages by their IDs (up to 25 at once). Requires the messageIDs from a prior search result — never invent IDs. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageDeleteInputSchema(), PolicyResource: "tool:platform.message.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_message", "message")},
 	}
 }
 
 func MattermostDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "mattermost.channel.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelUpdateInputSchema(), PolicyResource: "tool:mattermost.channel.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_channel", "channel")},
+		{Name: "mattermost.channel.update", Description: "Update a Mattermost channel's display name, header text, or member list. Provide channelID or channelName to identify the channel. At least one of displayName, header, or inviteeHints must be set. Requires approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelUpdateInputSchema(), PolicyResource: "tool:mattermost.channel.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_channel", "channel")},
 	}
 }
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
-		{Name: "flow.task.list", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:flow.task.list", SideEffectClass: "read"},
-		{Name: "flow.task.update", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:flow.task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
-		{Name: "flow.task.delete", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:flow.task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
+		{Name: "flow.task.add", Description: "Create a new workspace task from a natural-language prompt. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use flow.task.update.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "flow.task.list", Description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. Leave targetPersonHint empty to list all people.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:flow.task.list", SideEffectClass: "read"},
+		{Name: "flow.task.update", Description: "Update fields on an existing task — title, status, dates, size, category, and more. Identify the task by taskID (from a prior list result) or by a text query. If no patch fields are provided the task is automatically marked complete.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:flow.task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "flow.task.delete", Description: "Permanently delete a task. Identify the task by taskID or by query plus weekCode and targetPersonHint. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:flow.task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
 	}
 }
 
 func CalendarDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "calendar.connection.status", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.status", SideEffectClass: "read"},
-		{Name: "calendar.connection.start", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.start", SideEffectClass: "connect", RequiresApproval: true},
-		{Name: "calendar.event.add", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.event.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
-		{Name: "calendar.event.list", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
-		{Name: "calendar.event.update", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
-		{Name: "calendar.event.delete", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.event.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "calendar.connection.status", Description: "Check whether the requester's calendar account is connected. Call this before any calendar read or write operation when you are unsure if the calendar is set up.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.status", SideEffectClass: "read"},
+		{Name: "calendar.connection.start", Description: "Start the calendar account connection flow and return an authorization URL for the requester to open. Requires the user to be present (RequiresUserPresence=true). Only call this when calendar.connection.status reports the calendar is not connected.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.start", SideEffectClass: "connect"},
+		{Name: "calendar.event.add", Description: "Create a new calendar event. Provide title, startISO, and endISO at minimum. Use ISO 8601 with timezone for times, e.g. 2026-06-23T14:00:00+09:00. Do not call this to update an existing event — use calendar.event.update.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.event.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "calendar.event.list", Description: "List the requester's calendar events within a time window. Use this to answer any 'what is on my calendar' question (today, this week, a date range): compute the concrete startISO/endISO window yourself and call it directly — do not run a shell command and do not ask the user for their calendar. Returns the events in the window (possibly empty).", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
+		{Name: "calendar.event.update", Description: "Update an existing calendar event. Requires the eventID from a prior calendar.event.list result — never invent an ID. All required fields (title, startISO, endISO) must be re-supplied even if unchanged.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "calendar.event.delete", Description: "Delete a calendar event by its eventID. Requires the eventID from a prior calendar.event.list result — never invent an ID. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.event.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
 	}
 }
 
 func MailDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "mail.connection.status", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.status", SideEffectClass: "read"},
-		{Name: "mail.connection.start", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.start", SideEffectClass: "connect", RequiresApproval: true},
-		{Name: "mail.message.list", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageListInputSchema(), PolicyResource: "tool:mail.message.list", SideEffectClass: "read"},
-		{Name: "mail.message.search", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSearchInputSchema(), PolicyResource: "tool:mail.message.search", SideEffectClass: "read"},
-		{Name: "mail.message.read", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageReadInputSchema(), PolicyResource: "tool:mail.message.read", SideEffectClass: "read"},
-		{Name: "mail.message.send", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSendInputSchema(), PolicyResource: "tool:mail.message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_email", "email")},
-		{Name: "mail.message.move", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMoveInputSchema(), PolicyResource: "tool:mail.message.move", SideEffectClass: "workspace_write"},
-		{Name: "mail.message.mark", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMarkInputSchema(), PolicyResource: "tool:mail.message.mark", SideEffectClass: "workspace_write"},
+		{Name: "mail.connection.status", Description: "Check whether the requester's email account is connected. Call this before any mail read or write operation when you are unsure if mail is set up.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.status", SideEffectClass: "read"},
+		{Name: "mail.connection.start", Description: "Start the email account connection flow and return setup instructions for the requester. Requires the user to be present (RequiresUserPresence=true). Only call this when mail.connection.status reports mail is not connected.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.start", SideEffectClass: "connect", RequiresApproval: true},
+		{Name: "mail.message.list", Description: "List emails in a mailbox folder with optional pagination. Use this to browse recent messages; use mail.message.search when you need to find by keyword or subject.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageListInputSchema(), PolicyResource: "tool:mail.message.list", SideEffectClass: "read"},
+		{Name: "mail.message.search", Description: "Search emails by keyword, sender, or subject. Returns matching messages with their UIDs for use with mail.message.read. Do not put pagination cursors in the query field.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSearchInputSchema(), PolicyResource: "tool:mail.message.search", SideEffectClass: "read"},
+		{Name: "mail.message.read", Description: "Fetch the full content of a single email by its mailbox name and UID. The UID must come from a prior mail.message.list or mail.message.search result — never invent a UID.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageReadInputSchema(), PolicyResource: "tool:mail.message.read", SideEffectClass: "read"},
+		{Name: "mail.message.send", Description: "Send an email from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSendInputSchema(), PolicyResource: "tool:mail.message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_email", "email")},
+		{Name: "mail.message.move", Description: "Move an email to a different mailbox folder (e.g. Archive, Trash). The UID and mailbox must come from a prior list or search result. Use this to archive or sort messages.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMoveInputSchema(), PolicyResource: "tool:mail.message.move", SideEffectClass: "workspace_write"},
+		{Name: "mail.message.mark", Description: "Set the read (seen) or starred (flagged) status of an email. The UID and mailbox must come from a prior list or search result. Omit a flag field to leave it unchanged.", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMarkInputSchema(), PolicyResource: "tool:mail.message.mark", SideEffectClass: "workspace_write"},
 	}
 }
 
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "create_site", "site")},
-		{Name: "site.app.preview", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.preview", SideEffectClass: "external_publish"},
-		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
-		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
-		{Name: "site.app.history", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.history", SideEffectClass: "read"},
-		{Name: "site.app.diff", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.app.diff", SideEffectClass: "read"},
-		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
-		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
-		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
-		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
-		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.app.create", Description: "Create a new workspace site or web app. Provide a unique slug (URL identifier) and a prompt or design brief describing what to build. Do not call this to update an existing site — use site.app.publish or site.app.restore.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "create_site", "site")},
+		{Name: "site.app.preview", Description: "Build a preview of a site without publishing it publicly. Use this to verify the site renders correctly before committing to a public publish. Identify the site by siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.preview", SideEffectClass: "external_publish"},
+		{Name: "site.app.publish", Description: "Build and publish a site so it is publicly accessible. Identify the site by siteID or slug. Use site.app.preview first if you want to check output before going live.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.app.status", Description: "Check the current status of a site (live, unpublished, building, etc.). Set scope to 'mine' to list all sites owned by the requester without needing a siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
+		{Name: "site.app.history", Description: "Retrieve the deployment history (list of past revisions and their publish timestamps) for a site. Identify the site by siteID or slug. Use this before rollback to pick a target revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.history", SideEffectClass: "read"},
+		{Name: "site.app.diff", Description: "Show the source code diff between two revisions of a site. Provide fromRevision and toRevision from a prior site.app.history result. Omit both to diff the current draft against the last published revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.app.diff", SideEffectClass: "read"},
+		{Name: "site.app.logs", Description: "Fetch build and deployment logs for a site. Use this to diagnose why a publish or preview failed. Identify the site by siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
+		{Name: "site.app.rollback", Description: "Roll back a site to a previous published revision. Provide the revision from a site.app.history result. Requires approval; this replaces the live site.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.app.unpublish", Description: "Take a site offline so it is no longer publicly accessible. The source and revision history are preserved. Requires approval.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.app.restore", Description: "Restore the editable source files of a site from a prior revision into the workspace. Use this to recover from a bad edit or to undo source changes without republishing.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.app.delete", Description: "Permanently delete a site and all its revisions. Requires both the confirm field (set to the site slug) and userConfirmed=true to prevent accidental deletion. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 	}
 }
 
 func ArtifactDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "artifact.review", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: artifactReviewInputSchema(), PolicyResource: "tool:artifact.review", SideEffectClass: "read"},
+		{Name: "artifact.review", Description: "Review rendered artifact screenshots (site, slides, PPTX, DOCX, PDF) against an intent and rubric using vision analysis. Returns a list of issues with severity (blocking/warning/info) and suggested fixes. Use this after building a site or generating a document to catch layout, text-fit, and visual hierarchy problems before delivery.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: artifactReviewInputSchema(), PolicyResource: "tool:artifact.review", SideEffectClass: "read"},
 	}
 }
 
 func GoogleWorkspaceDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDocsCreateInputSchema(), PolicyResource: "tool:google.docs.create", SideEffectClass: "external_write"},
-		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleSheetsCreateInputSchema(), PolicyResource: "tool:google.sheets.create", SideEffectClass: "external_write"},
-		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleGmailSendInputSchema(), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_email", "email")},
-		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarEventInputSchema(), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
-		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarListInputSchema(), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
-		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDriveImportPPTXInputSchema(), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
+		{Name: "google.docs.create", Description: "Create a new Google Doc in the requester's Google Drive. Provide a title and optionally the initial body text (plain text or Markdown). Returns a link to the created document.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDocsCreateInputSchema(), PolicyResource: "tool:google.docs.create", SideEffectClass: "external_write"},
+		{Name: "google.sheets.create", Description: "Create a new Google Spreadsheet in the requester's Google Drive. Optionally provide sheet names and initial cell values. Returns a link to the created spreadsheet.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleSheetsCreateInputSchema(), PolicyResource: "tool:google.sheets.create", SideEffectClass: "external_write"},
+		{Name: "google.gmail.send", Description: "Send an email via the requester's connected Gmail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleGmailSendInputSchema(), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_email", "email")},
+		{Name: "google.calendar.event", Description: "Create a new Google Calendar event. Provide title, start, and end as ISO 8601 timestamps. Add attendees as email addresses. Returns a link to the created event.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarEventInputSchema(), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "google.calendar.list", Description: "List events from the requester's Google Calendar within an optional time window. Use start and end (ISO 8601) to bound the window; use query to filter by event title keyword.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarListInputSchema(), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
+		{Name: "google.drive.import_pptx", Description: "Import a PPTX file from the workspace into Google Drive as a native Google Slides presentation. Provide the workspace path to the .pptx file. Returns a link to the created presentation.", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDriveImportPPTXInputSchema(), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
 	}
 }
 
@@ -170,95 +170,95 @@ func completionEvidence(mode string, action string, targetKind string) *Completi
 
 func flowTaskAddInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("prompt", jsonschema.String()),
-		jsonschema.Field("targetPersonHint", jsonschema.String()),
-		jsonschema.Field("weekCode", jsonschema.String()),
-		jsonschema.Field("allowDuplicate", jsonschema.Boolean()),
+		jsonschema.Required("prompt", jsonschema.String().WithDescription("Natural-language description of the task to create, e.g. 'Prepare the Q3 budget report by Friday'. The system uses this to generate the structured task fields.")),
+		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person the task belongs to, e.g. 'Alice' or 'alice@example.com'. Leave empty to assign to the requester themselves.")),
+		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week the task belongs to in YYYY-WNN format, e.g. '2026-W26'. Leave empty to use the current week.")),
+		jsonschema.Field("allowDuplicate", jsonschema.Boolean().WithDescription("If true, create the task even if a similar one already exists. Defaults to false, which deduplicates by content.")),
 	).RawMessage()
 }
 
 func flowTaskListInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("query", jsonschema.String()),
-		jsonschema.Field("targetPersonHint", jsonschema.String()),
-		jsonschema.Field("weekCode", jsonschema.String()),
-		jsonschema.Field("status", jsonschema.String()),
-		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Free-text keyword filter matched against task titles and content, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.")),
+		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person whose tasks to list. Leave empty to list tasks for all people. Example: 'Alice' or 'alice@example.com'.")),
+		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Filter to a specific work-week in YYYY-WNN format, e.g. '2026-W26'. Leave empty for the current week. Use week offset notation like '0' (current) or '-1' (last week) if supported.")),
+		jsonschema.Field("status", jsonschema.String().WithDescription("Filter by task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단' (or English equivalents: 'planned', 'in_progress', 'done', 'requested', 'paused', 'rejected', 'cancelled'). Leave empty to return all statuses.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of tasks to return. Defaults to 50.")),
 	).RawMessage()
 }
 
 func flowTaskUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("taskID", jsonschema.String()),
-		jsonschema.Field("query", jsonschema.String()),
-		jsonschema.Field("targetPersonHint", jsonschema.String()),
-		jsonschema.Field("weekCode", jsonschema.String()),
-		jsonschema.Field("content", jsonschema.String()),
-		jsonschema.Field("goal", jsonschema.String()),
-		jsonschema.Field("status", jsonschema.String()),
-		jsonschema.Field("size", jsonschema.String()),
-		jsonschema.Field("category", jsonschema.String()),
-		jsonschema.Field("type", jsonschema.String()),
-		jsonschema.Field("startDate", jsonschema.String()),
-		jsonschema.Field("endDate", jsonschema.String()),
-		jsonschema.Field("flag", jsonschema.Integer()),
-		jsonschema.Field("requestReason", jsonschema.String()),
-		jsonschema.Field("decisionReason", jsonschema.String()),
+		jsonschema.Field("taskID", jsonschema.String().WithDescription("ID of the task to update, from a prior flow.task.list result. Provide either taskID or query+weekCode+targetPersonHint to identify the task.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword search to locate the task when taskID is unknown, e.g. 'budget report'. Used together with weekCode and targetPersonHint.")),
+		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the task owner when identifying by query, e.g. 'Alice'. Leave empty for the requester's own tasks.")),
+		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week of the task in YYYY-WNN format, e.g. '2026-W26'. Helps disambiguate when multiple tasks match the query.")),
+		jsonschema.Field("content", jsonschema.String().WithDescription("New title/description text for the task. Omit to leave the content unchanged.")),
+		jsonschema.Field("goal", jsonschema.String().WithDescription("Definition of done or success criterion for this task. Omit to leave unchanged.")),
+		jsonschema.Field("status", jsonschema.String().WithDescription("New task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단'. Providing no patch fields at all automatically sets status to '완료'.")),
+		jsonschema.Field("size", jsonschema.String().WithDescription("Effort size estimate for the task, e.g. 'S', 'M', 'L', 'XL'. Omit to leave unchanged.")),
+		jsonschema.Field("category", jsonschema.String().WithDescription("Business category label for the task. Omit to leave unchanged.")),
+		jsonschema.Field("type", jsonschema.String().WithDescription("Task type classification, e.g. 'task', 'milestone'. Omit to leave unchanged.")),
+		jsonschema.Field("startDate", jsonschema.String().WithDescription("Task start date in YYYY-MM-DD format, e.g. '2026-06-23'. Omit to leave unchanged.")),
+		jsonschema.Field("endDate", jsonschema.String().WithDescription("Task due date in YYYY-MM-DD format, e.g. '2026-06-30'. Omit to leave unchanged.")),
+		jsonschema.Field("flag", jsonschema.Integer().WithDescription("Numeric flag bitmask for internal task classification. Omit to leave unchanged.")),
+		jsonschema.Field("requestReason", jsonschema.String().WithDescription("Reason for requesting this task (used in approval or delegation flows). Omit to leave unchanged.")),
+		jsonschema.Field("decisionReason", jsonschema.String().WithDescription("Reason for the approval or rejection decision. Omit to leave unchanged.")),
 	).RawMessage()
 }
 
 func flowTaskDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("taskID", jsonschema.String()),
-		jsonschema.Field("query", jsonschema.String()),
-		jsonschema.Field("targetPersonHint", jsonschema.String()),
-		jsonschema.Field("weekCode", jsonschema.String()),
+		jsonschema.Field("taskID", jsonschema.String().WithDescription("ID of the task to delete, from a prior flow.task.list result. Provide either taskID or query+weekCode+targetPersonHint.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword to locate the task when taskID is unknown, e.g. 'old planning task'. Used together with weekCode and targetPersonHint.")),
+		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the task owner when identifying by query, e.g. 'Alice'. Leave empty for the requester's own tasks.")),
+		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week of the task in YYYY-WNN format, e.g. '2026-W26'. Helps disambiguate when multiple tasks match the query.")),
 	).RawMessage()
 }
 
 func webSearchInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("query", jsonschema.String()),
-		jsonschema.Field("location", jsonschema.String()),
-		jsonschema.Field("language", jsonschema.String()),
-		jsonschema.Field("limit", jsonschema.Integer()),
-		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("excludedDomains", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("query", jsonschema.String().WithDescription("The search query string, e.g. 'current weather in Seoul' or 'TypeScript best practices 2026'. Do not put URLs here.")),
+		jsonschema.Field("location", jsonschema.String().WithDescription("Optional location bias for geographically relevant results, e.g. 'Seoul, South Korea'. Omit for global results.")),
+		jsonschema.Field("language", jsonschema.String().WithDescription("Optional BCP 47 language code to bias results language, e.g. 'ko' for Korean or 'en' for English.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of results to return. Defaults to 5; maximum is 10.")),
+		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String()).WithDescription("Restrict results to these domains only, e.g. [\"github.com\", \"docs.python.org\"]. Omit to search all domains.")),
+		jsonschema.Field("excludedDomains", jsonschema.Array(jsonschema.String()).WithDescription("Exclude results from these domains, e.g. [\"pinterest.com\"]. Omit to include all domains.")),
 	).RawMessage()
 }
 
 func webFetchInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("urls", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("maxContentTokens", jsonschema.Integer()),
-		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("blockedDomains", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("urls", jsonschema.Array(jsonschema.String()).WithDescription("List of fully-qualified public URLs to fetch, e.g. [\"https://example.com/article\"]. Maximum 10 URLs per call. Localhost and private IPs are blocked.")),
+		jsonschema.Field("maxContentTokens", jsonschema.Integer().WithDescription("Soft cap on tokens returned per URL. Defaults to 50000; maximum is 100000. Reduce when fetching many URLs.")),
+		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String()).WithDescription("If set, only URLs from these domains are fetched; others are skipped with an error. Useful for safety when the URL list is dynamic.")),
+		jsonschema.Field("blockedDomains", jsonschema.Array(jsonschema.String()).WithDescription("Domains to refuse fetching even if present in urls, e.g. [\"malicious.example\"]. Supplements the built-in block list.")),
 	).RawMessage()
 }
 
 func documentReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("materialID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("maxPages", jsonschema.Integer()),
-		jsonschema.Field("maxOutputBytes", jsonschema.Integer()),
+		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
+		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the file, e.g. /workspace/shared/report.pdf. Provide either path or materialID.")),
+		jsonschema.Field("maxPages", jsonschema.Integer().WithDescription("Maximum number of pages to extract from a PDF. Range 0–500; 0 means use the default. Omit for non-paginated files.")),
+		jsonschema.Field("maxOutputBytes", jsonschema.Integer().WithDescription("Soft cap on the returned Markdown size in bytes. Defaults to 200000 (200 KB); maximum is 1000000 (1 MB). Reduce for very large files when you only need a summary.")),
 	).RawMessage()
 }
 
 func imageReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("materialID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
+		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
+		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the image file, e.g. /workspace/shared/logo.png. Supported formats: PNG, JPG, WEBP. Maximum file size 8 MB.")),
 	).RawMessage()
 }
 
 func platformMessageDeliveryTargetSchema() jsonschema.Schema {
 	return jsonschema.Object(
-		jsonschema.Required("type", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel")),
-		jsonschema.Field("personHint", jsonschema.String()),
+		jsonschema.Required("type", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel").WithDescription("Where to deliver the message. 'directMessage' sends a DM to personHint or personHints. 'currentThread' replies in the active thread. 'currentChannel' posts in the active channel. 'channel' posts in the channel identified by channelID or channelName.")),
+		jsonschema.Field("personHint", jsonschema.String().WithDescription("For type=directMessage: name or email of the single recipient, e.g. 'Alice' or 'alice@example.com'. Resolved to a workspace person. Use personHints for multiple recipients.")),
 		jsonschema.Field("personHints", jsonschema.Array(jsonschema.String()).WithDescription("Send the same directMessage to several people at once. When set, this takes precedence over personHint; the tool fans out with one approval and returns a per-recipient delivery rollup.")),
-		jsonschema.Field("channelID", jsonschema.String()),
-		jsonschema.Field("channelName", jsonschema.String()),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("For type=channel: the internal Mattermost channel ID from a prior context or search result. Provide either channelID or channelName.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("For type=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide either channelName or channelID.")),
 	)
 }
 
@@ -268,55 +268,55 @@ func platformMessageContextInputSchema() json.RawMessage {
 
 func platformMessageSearchInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel")),
+		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel").WithDescription("Where to search. 'currentThread' and 'currentChannel' use the active conversation context. 'directMessage' searches a DM with a person; set deliveryTarget.personHint. 'channel' searches a specific channel; set deliveryTarget.channelID or channelName.")),
 		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
-		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone")),
-		jsonschema.Field("queries", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("limit", jsonschema.Integer()),
-		jsonschema.Field("cursor", jsonschema.String()),
+		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone").WithDescription("Filter by author. 'assistant' returns only bot messages, 'requester' returns only the requesting user's messages, 'anyone' returns all. Defaults to 'anyone'.")),
+		jsonschema.Field("queries", jsonschema.Array(jsonschema.String()).WithDescription("One or more keyword search strings matched against message content. Each entry is a separate query; results are unioned. Do not put author names or dates here.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of messages to return. Defaults to 20.")),
+		jsonschema.Field("cursor", jsonschema.String().WithDescription("Pagination cursor from a previous search response. Omit on the first call.")),
 	).RawMessage()
 }
 
 func platformMessageSendInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
-		jsonschema.Field("recipientHint", jsonschema.String()),
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("pin", jsonschema.Boolean()),
-		jsonschema.Field("reason", jsonschema.String()),
+		jsonschema.Field("recipientHint", jsonschema.String().WithDescription("Shorthand for a DM recipient when deliveryTarget is not set. Name or email of the person to DM, e.g. 'Alice'. Prefer using deliveryTarget for full control.")),
+		jsonschema.Required("message", jsonschema.String().WithDescription("The message text to send. Supports Markdown formatting.")),
+		jsonschema.Field("pin", jsonschema.Boolean().WithDescription("If true, pin the message in the channel after sending. Defaults to false.")),
+		jsonschema.Field("reason", jsonschema.String().WithDescription("Optional human-readable reason for this send shown in the approval prompt, e.g. 'weekly status update'. Helps the approver understand intent.")),
 	).RawMessage()
 }
 
 func platformMessageUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("messageID", jsonschema.String()),
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("isPinned", jsonschema.Boolean()),
+		jsonschema.Required("messageID", jsonschema.String().WithDescription("ID of the message to update. Must come from a prior platform.message.search or platform.message.send result — never invent an ID.")),
+		jsonschema.Field("message", jsonschema.String().WithDescription("New text content for the message. Omit to leave the text unchanged.")),
+		jsonschema.Field("isPinned", jsonschema.Boolean().WithDescription("Set to true to pin the message or false to unpin it. Omit to leave pin state unchanged.")),
 	).RawMessage()
 }
 
 func platformMessageDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String()).WithDescription("IDs of messages to delete. Must come from a prior platform.message.search result — never invent IDs. Maximum 25 IDs per call.")),
 	).RawMessage()
 }
 
 func mattermostChannelUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("channelID", jsonschema.String()),
-		jsonschema.Field("channelName", jsonschema.String()),
-		jsonschema.Field("header", jsonschema.String()),
-		jsonschema.Field("displayName", jsonschema.String()),
-		jsonschema.Field("inviteeHints", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("Internal Mattermost channel ID from a prior context or search result. Provide either channelID or channelName.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("Channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide either channelName or channelID.")),
+		jsonschema.Field("header", jsonschema.String().WithDescription("New header text displayed below the channel name. Set to empty string to clear the header.")),
+		jsonschema.Field("displayName", jsonschema.String().WithDescription("New human-readable channel display name shown in the sidebar, e.g. 'Team Announcements'.")),
+		jsonschema.Field("inviteeHints", jsonschema.Array(jsonschema.String()).WithDescription("Names or emails of people to invite to the channel, e.g. [\"Alice\", \"bob@example.com\"]. They will be added as members.")),
 	).RawMessage()
 }
 
 func mattermostChannelPostsListInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("channelID", jsonschema.String()),
-		jsonschema.Field("channelName", jsonschema.String()),
-		jsonschema.Field("page", jsonschema.Integer()),
-		jsonschema.Field("perPage", jsonschema.Integer()),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("Internal Mattermost channel ID. Provide either channelID or channelName.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("Channel name without the # prefix, e.g. 'general'. Provide either channelName or channelID.")),
+		jsonschema.Field("page", jsonschema.Integer().WithDescription("Zero-based page index for pagination. Defaults to 0 (first page).")),
+		jsonschema.Field("perPage", jsonschema.Integer().WithDescription("Number of posts to return per page. Defaults to 60; maximum is 200.")),
 	).RawMessage()
 }
 
@@ -326,41 +326,41 @@ func mattermostContextInspectInputSchema() json.RawMessage {
 
 func mattermostPostSearchInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("scope", jsonschema.String()),
-		jsonschema.Field("channelID", jsonschema.String()),
-		jsonschema.Field("channelName", jsonschema.String()),
-		jsonschema.Field("personHint", jsonschema.String()),
-		jsonschema.Field("rootPostID", jsonschema.String()),
-		jsonschema.Field("authoredBy", jsonschema.String()),
-		jsonschema.Field("queries", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("scope", jsonschema.String().WithDescription("Search scope: 'currentThread', 'currentChannel', 'directMessage', or 'channel'.")),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("Internal Mattermost channel ID. Used when scope is 'channel'. Provide either channelID or channelName.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("Channel name without the # prefix. Used when scope is 'channel'. Provide either channelName or channelID.")),
+		jsonschema.Field("personHint", jsonschema.String().WithDescription("Name or email of a person. Used when scope is 'directMessage' to identify the DM partner.")),
+		jsonschema.Field("rootPostID", jsonschema.String().WithDescription("Mattermost post ID of the thread root. Used when scope is 'currentThread' to identify the thread.")),
+		jsonschema.Field("authoredBy", jsonschema.String().WithDescription("Filter by author: 'internkim' (bot messages), 'requester' (the calling user), or 'anyone'.")),
+		jsonschema.Field("queries", jsonschema.Array(jsonschema.String()).WithDescription("Keyword search strings matched against post content. Each entry is a separate query; results are unioned.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of posts to return. Defaults to 25; maximum is 25.")),
 	).RawMessage()
 }
 
 func mattermostPostUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("postID", jsonschema.String()),
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("isPinned", jsonschema.Boolean()),
+		jsonschema.Required("postID", jsonschema.String().WithDescription("Mattermost post ID to update. Must come from a prior search result — never invent an ID.")),
+		jsonschema.Field("message", jsonschema.String().WithDescription("New text content for the post. Omit to leave the text unchanged.")),
+		jsonschema.Field("isPinned", jsonschema.Boolean().WithDescription("Set to true to pin the post or false to unpin. Omit to leave pin state unchanged.")),
 	).RawMessage()
 }
 
 func mattermostPostDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("postIDs", jsonschema.Array(jsonschema.String()))).RawMessage()
+	return jsonschema.Object(jsonschema.Required("postIDs", jsonschema.Array(jsonschema.String()).WithDescription("Mattermost post IDs to delete. Must come from a prior search result — never invent IDs. Maximum 25 per call."))).RawMessage()
 }
 
 func calendarEventWriteInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("title", jsonschema.String()),
-		jsonschema.Field("description", jsonschema.String()),
-		jsonschema.Field("location", jsonschema.String()),
-		jsonschema.Required("startISO", jsonschema.String()),
-		jsonschema.Required("endISO", jsonschema.String()),
-		jsonschema.Field("timeZone", jsonschema.String()),
-		jsonschema.Field("isAllDay", jsonschema.Boolean()),
-		jsonschema.Field("color", jsonschema.String()),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Event title shown in the calendar, e.g. 'Team standup'.")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("Optional event notes or agenda visible to all attendees.")),
+		jsonschema.Field("location", jsonschema.String().WithDescription("Physical or virtual location, e.g. 'Conference Room B' or 'https://meet.example.com/xyz'.")),
+		jsonschema.Required("startISO", jsonschema.String().WithDescription("Event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Resolve relative times like 'tomorrow 2pm' yourself before calling.")),
+		jsonschema.Required("endISO", jsonschema.String().WithDescription("Event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Must be after startISO.")),
+		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier for the event, e.g. 'Asia/Seoul'. Defaults to the workspace timezone if omitted.")),
+		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event. When true, startISO and endISO should use date-only format (YYYY-MM-DD).")),
+		jsonschema.Field("color", jsonschema.String().WithDescription("Optional color label for the event, e.g. 'tomato', 'blueberry'. Supported values depend on the calendar provider.")),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("List of attendee email addresses to invite, e.g. [\"alice@example.com\", \"bob@example.com\"].")),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Send a reminder this many hours before the event, e.g. 1 for a 1-hour-before reminder. Omit to use the calendar default.")),
 	).RawMessage()
 }
 
@@ -370,117 +370,144 @@ func emptyInputSchema() json.RawMessage {
 
 func calendarEventListInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("startISO", jsonschema.String()),
-		jsonschema.Field("endISO", jsonschema.String()),
-		jsonschema.Field("query", jsonschema.String()),
-		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("startISO", jsonschema.String().WithDescription("Inclusive start of the time window to list, as ISO 8601 with timezone, e.g. 2026-06-23T00:00:00+09:00. Resolve relative ranges like today / this week to concrete dates yourself before calling.")),
+		jsonschema.Field("endISO", jsonschema.String().WithDescription("Exclusive end of the time window, as ISO 8601 with timezone. Pair with startISO to bound the listing; for a single day use the next day at 00:00.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Optional free-text filter matched against event titles. Do NOT put a date or date range here — the time window goes in startISO/endISO. Leave empty to list everything in the window.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Optional maximum number of events to return.")),
 	).RawMessage()
 }
 
 func calendarEventUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("eventID", jsonschema.String()),
-		jsonschema.Required("title", jsonschema.String()),
-		jsonschema.Field("description", jsonschema.String()),
-		jsonschema.Field("location", jsonschema.String()),
-		jsonschema.Required("startISO", jsonschema.String()),
-		jsonschema.Required("endISO", jsonschema.String()),
-		jsonschema.Field("timeZone", jsonschema.String()),
-		jsonschema.Field("isAllDay", jsonschema.Boolean()),
-		jsonschema.Field("color", jsonschema.String()),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
+		jsonschema.Required("eventID", jsonschema.String().WithDescription("ID of the event to update. Must come from a prior calendar.event.list result — never invent an ID.")),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Event title. Must be re-supplied even if unchanged.")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("Event notes or agenda. Omit to clear the existing description.")),
+		jsonschema.Field("location", jsonschema.String().WithDescription("Physical or virtual location. Omit to clear the existing location.")),
+		jsonschema.Required("startISO", jsonschema.String().WithDescription("Event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Must be re-supplied even if unchanged.")),
+		jsonschema.Required("endISO", jsonschema.String().WithDescription("Event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Must be re-supplied even if unchanged.")),
+		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier, e.g. 'Asia/Seoul'. Omit to keep the existing timezone.")),
+		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event; false for a timed event.")),
+		jsonschema.Field("color", jsonschema.String().WithDescription("Color label for the event. Omit to keep the existing color.")),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Updated list of attendee email addresses. This replaces the existing attendee list entirely.")),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Reminder lead time in hours. Omit to keep the existing reminder setting.")),
 	).RawMessage()
 }
 
 func calendarEventDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("eventID", jsonschema.String())).RawMessage()
+	return jsonschema.Object(jsonschema.Required("eventID", jsonschema.String().WithDescription("ID of the calendar event to delete. Must come from a prior calendar.event.list result — never invent an ID."))).RawMessage()
 }
 
 func mailMessageListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)
+	return jsonschema.Object(
+		jsonschema.Field("mailbox", jsonschema.String().WithDescription("IMAP mailbox folder to list, e.g. 'INBOX', 'Sent', 'Archive'. Defaults to INBOX when omitted.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of messages to return. Defaults to 20.")),
+		jsonschema.Field("cursor", jsonschema.String().WithDescription("Pagination cursor from a previous list response. Omit on the first call.")),
+	).RawMessage()
 }
 
 func mailMessageSearchInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}},"required":["query"]}`)
+	return jsonschema.Object(
+		jsonschema.Field("mailbox", jsonschema.String().WithDescription("IMAP mailbox folder to search, e.g. 'INBOX'. Defaults to all folders when omitted.")),
+		jsonschema.Required("query", jsonschema.String().WithDescription("Search terms matched against subject, sender, and body, e.g. 'invoice Q2 2026'. Required.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of matching messages to return. Defaults to 20.")),
+		jsonschema.Field("cursor", jsonschema.String().WithDescription("Pagination cursor from a previous search response. Omit on the first call.")),
+	).RawMessage()
 }
 
 func mailMessageReadInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"]}`)
+	return jsonschema.Object(
+		jsonschema.Required("mailbox", jsonschema.String().WithDescription("IMAP mailbox folder the message is in, e.g. 'INBOX'. Must come from a prior list or search result.")),
+		jsonschema.Required("uid", jsonschema.String().WithDescription("IMAP UID of the message to read. Must come from a prior mail.message.list or mail.message.search result — never invent a UID.")),
+	).RawMessage()
 }
 
 func mailMessageSendInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"]}`)
+	return jsonschema.Object(
+		jsonschema.Required("to", jsonschema.Array(jsonschema.String()).WithDescription("Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required.")),
+		jsonschema.Required("subject", jsonschema.String().WithDescription("Email subject line.")),
+		jsonschema.Required("body", jsonschema.String().WithDescription("Email body text. Plain text or HTML.")),
+		jsonschema.Field("cc", jsonschema.Array(jsonschema.String()).WithDescription("CC recipient email addresses.")),
+		jsonschema.Field("bcc", jsonschema.Array(jsonschema.String()).WithDescription("BCC recipient email addresses. Recipients cannot see each other.")),
+	).RawMessage()
 }
 
 func mailMessageMoveInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"]}`)
+	return jsonschema.Object(
+		jsonschema.Required("mailbox", jsonschema.String().WithDescription("Current IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.")),
+		jsonschema.Required("uid", jsonschema.String().WithDescription("IMAP UID of the message to move. Must come from a prior list or search result — never invent a UID.")),
+		jsonschema.Required("targetMailbox", jsonschema.String().WithDescription("Destination IMAP folder, e.g. 'Archive', 'Trash', 'Work/Projects'. The folder must already exist.")),
+	).RawMessage()
 }
 
 func mailMessageMarkInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"]}`)
+	return jsonschema.Object(
+		jsonschema.Required("mailbox", jsonschema.String().WithDescription("IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.")),
+		jsonschema.Required("uid", jsonschema.String().WithDescription("IMAP UID of the message to mark. Must come from a prior list or search result — never invent a UID.")),
+		jsonschema.Field("seen", jsonschema.Boolean().WithDescription("Set to true to mark as read, false to mark as unread. Omit to leave the read state unchanged.")),
+		jsonschema.Field("flagged", jsonschema.Boolean().WithDescription("Set to true to star/flag the message, false to remove the flag. Omit to leave the flagged state unchanged.")),
+	).RawMessage()
 }
 
 func siteAppCreateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("slug", jsonschema.String()),
-		jsonschema.Field("title", jsonschema.String()),
-		jsonschema.Field("prompt", jsonschema.String()),
-		jsonschema.Field("designBrief", jsonschema.String()),
-		jsonschema.Field("prototypeScope", jsonschema.String()),
-		jsonschema.Field("description", jsonschema.String()),
-		jsonschema.Field("idea", jsonschema.String()),
-		jsonschema.Field("purpose", jsonschema.String()),
-		jsonschema.Field("audience", jsonschema.String()),
-		jsonschema.Field("archetype", jsonschema.String()),
-		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("slug", jsonschema.String().WithDescription("URL-safe identifier for the site, used as the subdomain or path segment. Lowercase, hyphens allowed, e.g. 'team-dashboard'. Must be unique across the workspace.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("Human-readable site name shown in the dashboard, e.g. 'Team Dashboard'.")),
+		jsonschema.Field("prompt", jsonschema.String().WithDescription("Natural-language description of what to build, e.g. 'A status page that shows on-call rotation and incident history'. The more specific, the better the generated output.")),
+		jsonschema.Field("designBrief", jsonschema.String().WithDescription("Visual style or layout guidance for the site, e.g. 'minimal dark theme, data-dense tables, no sidebars'.")),
+		jsonschema.Field("prototypeScope", jsonschema.String().WithDescription("Scope limit for the initial prototype, e.g. 'single page, no backend, static data only'.")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("Short public-facing description of the site's purpose.")),
+		jsonschema.Field("idea", jsonschema.String().WithDescription("Core concept or value proposition, e.g. 'make sprint progress visible to the whole company'.")),
+		jsonschema.Field("purpose", jsonschema.String().WithDescription("Why this site exists and who it serves, e.g. 'internal tool for the ops team to track vendor SLAs'.")),
+		jsonschema.Field("audience", jsonschema.String().WithDescription("Intended audience for the site, e.g. 'all employees' or 'engineering managers'.")),
+		jsonschema.Field("archetype", jsonschema.String().WithDescription("Site archetype or template type, e.g. 'dashboard', 'landing-page', 'wiki'.")),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String()).WithDescription("Domain-specific keywords to include in generation context, e.g. [\"inventory\", \"reorder\", \"supplier\"].")),
 	).RawMessage()
 }
 
 func siteAppPublishInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("siteID", jsonschema.String()),
-		jsonschema.Field("slug", jsonschema.String()),
-		jsonschema.Field("title", jsonschema.String()),
-		jsonschema.Field("visibility", jsonschema.String()),
-		jsonschema.Field("description", jsonschema.String()),
-		jsonschema.Field("idea", jsonschema.String()),
-		jsonschema.Field("purpose", jsonschema.String()),
-		jsonschema.Field("audience", jsonschema.String()),
-		jsonschema.Field("archetype", jsonschema.String()),
-		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("sourceWorkspacePath", jsonschema.String()),
-		jsonschema.Field("appWorkspacePath", jsonschema.String()),
+		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.app.status or site.app.create result. Provide either siteID or slug.")),
+		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug used to identify the site, e.g. 'team-dashboard'. Provide either slug or siteID.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("Human-readable site title. Omit to keep the existing title.")),
+		jsonschema.Field("visibility", jsonschema.String().WithDescription("Visibility of the published site, e.g. 'public' or 'internal'. Defaults to the site's current visibility setting.")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("Short description of the site. Omit to keep the existing description.")),
+		jsonschema.Field("idea", jsonschema.String().WithDescription("Core concept for this publish iteration. Omit to keep the existing value.")),
+		jsonschema.Field("purpose", jsonschema.String().WithDescription("Purpose of this publish iteration. Omit to keep the existing value.")),
+		jsonschema.Field("audience", jsonschema.String().WithDescription("Intended audience. Omit to keep the existing value.")),
+		jsonschema.Field("archetype", jsonschema.String().WithDescription("Site archetype for this publish. Omit to keep the existing value.")),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String()).WithDescription("Domain keywords for generation context. Omit to keep existing keywords.")),
+		jsonschema.Field("message", jsonschema.String().WithDescription("Changelog message for this publish revision, e.g. 'Updated hero section copy'. Shown in site history.")),
+		jsonschema.Field("sourceWorkspacePath", jsonschema.String().WithDescription("Workspace path containing the editable site source files, e.g. /workspace/circles/staff/sites/team-dashboard. Provide when the source location differs from the default.")),
+		jsonschema.Field("appWorkspacePath", jsonschema.String().WithDescription("Workspace path for the built app output. Provide when the build output location differs from the default.")),
 	).RawMessage()
 }
 
 func siteAppLookupInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("siteID", jsonschema.String()),
-		jsonschema.Field("slug", jsonschema.String()),
-		jsonschema.Field("scope", jsonschema.StringEnum("conversation", "mine")),
-		jsonschema.Field("checkLive", jsonschema.Boolean()),
+		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.app.create or site.app.status result. Provide either siteID or slug.")),
+		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
+		jsonschema.Field("scope", jsonschema.StringEnum("conversation", "mine").WithDescription("Lookup scope when no siteID or slug is given. 'conversation' returns sites referenced in the current conversation; 'mine' returns all sites owned by the requester.")),
+		jsonschema.Field("checkLive", jsonschema.Boolean().WithDescription("If true, also probe the live URL to verify the site is actually reachable. Defaults to false.")),
 	).RawMessage()
 }
 
 func siteAppDiffInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("siteID", jsonschema.String()),
-		jsonschema.Field("slug", jsonschema.String()),
-		jsonschema.Field("fromRevision", jsonschema.String()),
-		jsonschema.Field("toRevision", jsonschema.String()),
+		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID. Provide either siteID or slug.")),
+		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
+		jsonschema.Field("fromRevision", jsonschema.String().WithDescription("Starting revision for the diff, from a prior site.app.history result. Omit to diff against the last published revision.")),
+		jsonschema.Field("toRevision", jsonschema.String().WithDescription("Ending revision for the diff, from a prior site.app.history result. Omit to diff against the current draft.")),
 	).RawMessage()
 }
 
 func siteAppLifecycleInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("siteID", jsonschema.String()),
-		jsonschema.Field("slug", jsonschema.String()),
-		jsonschema.Field("reason", jsonschema.String()),
-		jsonschema.Field("revision", jsonschema.String()),
-		jsonschema.Field("confirm", jsonschema.String()),
-		jsonschema.Field("userConfirmed", jsonschema.Boolean()),
+		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.app.status result. Provide either siteID or slug.")),
+		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
+		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for this lifecycle action, e.g. 'reverting bad CSS change'. Shown in the approval prompt.")),
+		jsonschema.Field("revision", jsonschema.String().WithDescription("Target revision identifier from a prior site.app.history result. Required for rollback; omit for unpublish/restore.")),
+		jsonschema.Field("confirm", jsonschema.String().WithDescription("Confirmation token. For destructive actions set this to the site slug to confirm intent.")),
+		jsonschema.Field("userConfirmed", jsonschema.Boolean().WithDescription("Set to true when the user has explicitly confirmed the action. Required alongside confirm for destructive operations.")),
 	).RawMessage()
 }
 
@@ -490,63 +517,63 @@ func artifactReviewInputSchema() json.RawMessage {
 
 func siteAppDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("siteID", jsonschema.String()),
-		jsonschema.Field("slug", jsonschema.String()),
-		jsonschema.Field("reason", jsonschema.String()),
-		jsonschema.Required("confirm", jsonschema.String()),
-		jsonschema.Required("userConfirmed", jsonschema.Boolean()),
+		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.app.status result. Provide either siteID or slug.")),
+		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
+		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for deleting the site. Shown in the approval prompt.")),
+		jsonschema.Required("confirm", jsonschema.String().WithDescription("Must be set to the exact site slug (e.g. 'team-dashboard') to confirm the deletion. This prevents accidental deletes.")),
+		jsonschema.Required("userConfirmed", jsonschema.Boolean().WithDescription("Must be set to true when the user has explicitly confirmed the deletion. Both confirm and userConfirmed are required.")),
 	).RawMessage()
 }
 
 func googleDocsCreateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("title", jsonschema.String()),
-		jsonschema.Field("body", jsonschema.String()),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Title of the new Google Doc, e.g. 'Q3 OKR Review'.")),
+		jsonschema.Field("body", jsonschema.String().WithDescription("Initial document body as plain text or Markdown. Omit to create an empty document.")),
 	).RawMessage()
 }
 
 func googleSheetsCreateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("title", jsonschema.String()),
-		jsonschema.Field("sheets", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("values", jsonschema.Array(jsonschema.Array(jsonschema.String()))),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Title of the new Google Spreadsheet, e.g. 'Budget Tracker 2026'.")),
+		jsonschema.Field("sheets", jsonschema.Array(jsonschema.String()).WithDescription("Names of sheets (tabs) to create, e.g. [\"January\", \"February\"]. Omit to create a single default sheet.")),
+		jsonschema.Field("values", jsonschema.Array(jsonschema.Array(jsonschema.String())).WithDescription("Initial cell values as a 2D array of strings (rows × columns), e.g. [[\"Name\",\"Amount\"],[\"Alice\",\"500\"]]. Written to the first sheet.")),
 	).RawMessage()
 }
 
 func googleGmailSendInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("to", jsonschema.Array(jsonschema.String())),
-		jsonschema.Required("subject", jsonschema.String()),
-		jsonschema.Required("body", jsonschema.String()),
-		jsonschema.Field("cc", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("bcc", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("to", jsonschema.Array(jsonschema.String()).WithDescription("Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required.")),
+		jsonschema.Required("subject", jsonschema.String().WithDescription("Email subject line.")),
+		jsonschema.Required("body", jsonschema.String().WithDescription("Email body text. Plain text or HTML.")),
+		jsonschema.Field("cc", jsonschema.Array(jsonschema.String()).WithDescription("CC recipient email addresses.")),
+		jsonschema.Field("bcc", jsonschema.Array(jsonschema.String()).WithDescription("BCC recipient email addresses. Recipients cannot see each other.")),
 	).RawMessage()
 }
 
 func googleCalendarEventInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("title", jsonschema.String()),
-		jsonschema.Required("start", jsonschema.String()),
-		jsonschema.Required("end", jsonschema.String()),
-		jsonschema.Field("attendees", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("description", jsonschema.String()),
-		jsonschema.Field("location", jsonschema.String()),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Event title shown in Google Calendar, e.g. 'Design Review'.")),
+		jsonschema.Required("start", jsonschema.String().WithDescription("Event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Resolve relative times before calling.")),
+		jsonschema.Required("end", jsonschema.String().WithDescription("Event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Must be after start.")),
+		jsonschema.Field("attendees", jsonschema.Array(jsonschema.String()).WithDescription("Attendee email addresses to invite, e.g. [\"alice@example.com\", \"bob@example.com\"].")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("Event notes or agenda visible to all attendees.")),
+		jsonschema.Field("location", jsonschema.String().WithDescription("Physical or virtual location, e.g. 'Room 3B' or 'https://meet.google.com/xyz'.")),
 	).RawMessage()
 }
 
 func googleCalendarListInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("start", jsonschema.String()),
-		jsonschema.Field("end", jsonschema.String()),
-		jsonschema.Field("limit", jsonschema.Integer()),
-		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("start", jsonschema.String().WithDescription("Start of the listing window as ISO 8601 with timezone, e.g. 2026-06-23T00:00:00+09:00. Omit to default to the current time.")),
+		jsonschema.Field("end", jsonschema.String().WithDescription("End of the listing window as ISO 8601 with timezone. Pair with start to bound the window.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of events to return. Defaults to 20.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Free-text filter matched against event titles. Do not put dates here — use start/end instead.")),
 	).RawMessage()
 }
 
 func googleDriveImportPPTXInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("path", jsonschema.String()),
-		jsonschema.Field("title", jsonschema.String()),
+		jsonschema.Required("path", jsonschema.String().WithDescription("Absolute workspace path to the .pptx file to import, e.g. /workspace/shared/presentation.pptx.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("Title for the Google Slides presentation. Defaults to the filename without extension.")),
 	).RawMessage()
 }
 
