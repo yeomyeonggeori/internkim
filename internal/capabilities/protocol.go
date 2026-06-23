@@ -181,7 +181,8 @@ func flowTaskListInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("query", jsonschema.String()),
 		jsonschema.Field("targetPersonHint", jsonschema.String()),
-		jsonschema.Field("weekCode", jsonschema.String()),
+		jsonschema.Field("weekFrom", jsonschema.Integer().WithDescription("Start of the week range as an offset from this week: 0 this week, -1 last week, 1 next week. Omit both weekFrom and weekTo to list the current week; widen the range for other periods.")),
+		jsonschema.Field("weekTo", jsonschema.Integer().WithDescription("End of the week range as an offset from this week. Omit both weekFrom and weekTo to list the current week.")),
 		jsonschema.Field("status", jsonschema.String()),
 		jsonschema.Field("limit", jsonschema.Integer()),
 	).RawMessage()
