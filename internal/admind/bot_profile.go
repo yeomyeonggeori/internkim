@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/botassets"
 	"gitlab.com/eastriver/internkim/internal/identity"
 )
 
@@ -140,7 +141,7 @@ func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botPro
 	if errorValue != nil {
 		return profile
 	}
-	userRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, "internkim")
+	userRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, service.Configuration.BotUsername)
 	if errorValue != nil || !found {
 		return profile
 	}
@@ -193,12 +194,12 @@ func (service *Service) syncMattermostBotProfile(ctx context.Context, profile bo
 	if errorValue != nil {
 		return errorValue
 	}
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, "internkim")
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, service.Configuration.BotUsername)
 	if errorValue != nil {
 		return errorValue
 	}
 	if !found || botRecord.ID == "" {
-		return fmt.Errorf("Mattermost bot internkim is missing")
+		return fmt.Errorf("Mattermost bot %s is missing", service.Configuration.BotUsername)
 	}
 	body := mattermostBotProfilePatch(profile)
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(botRecord.ID)+"/patch", adminToken, body, nil); errorValue != nil {
@@ -212,17 +213,16 @@ func (service *Service) syncMattermostBotProfile(ctx context.Context, profile bo
 
 func (service *Service) syncMattermostBotProfileImage(ctx context.Context, token string, userID string) error {
 	imagePath := strings.TrimSpace(service.Configuration.BotProfileImagePath)
-	if imagePath == "" {
-		return nil
-	}
-	imageDocument, errorValue := os.ReadFile(imagePath)
-	if errorValue != nil {
-		if os.IsNotExist(errorValue) {
-			return nil
+	if imagePath != "" {
+		imageDocument, errorValue := os.ReadFile(imagePath)
+		if errorValue == nil {
+			return service.mattermostUploadUserImage(ctx, token, userID, filepath.Base(imagePath), imageDocument)
 		}
-		return fmt.Errorf("read bot profile image: %w", errorValue)
+		if !os.IsNotExist(errorValue) {
+			return fmt.Errorf("read bot profile image: %w", errorValue)
+		}
 	}
-	return service.mattermostUploadUserImage(ctx, token, userID, filepath.Base(imagePath), imageDocument)
+	return service.mattermostUploadUserImage(ctx, token, userID, botassets.AvatarFileName(), botassets.AvatarPNG())
 }
 
 func (service *Service) mattermostUploadUserImage(ctx context.Context, token string, userID string, filename string, imageDocument []byte) error {

@@ -1766,6 +1766,8 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 			body, _ := io.ReadAll(request.Body)
 			patchBody = string(body)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/image":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return nil, nil

@@ -39,6 +39,7 @@ type Configuration struct {
 	ListenAddress                  string
 	MattermostBaseURL              string
 	MattermostTeamName             string
+	BotUsername                    string
 	MattermostPublicURL            string
 	FlowPublicURL                  string
 	APIBaseURL                     string
@@ -228,6 +229,7 @@ func DefaultConfiguration() Configuration {
 		ListenAddress:                  "127.0.0.1:18080",
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
+		BotUsername:                    "internkim",
 		APIBaseURL:                     "https://api.intern.kim",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
@@ -2808,6 +2810,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.BotProfileImagePath == "" {
 		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
+	}
+	if configuration.BotUsername == "" {
+		configuration.BotUsername = defaultConfiguration.BotUsername
 	}
 	if configuration.BlueclawWorkspacePath == "" {
 		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
