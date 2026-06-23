@@ -115,10 +115,7 @@ func TestCalendarConnectionStartUsesAdmindOAuthEndpoint(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCalendarConnectionStart(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.connection.start",
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
-	})
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.connection.start", strings.NewReader(`{"context":{"requesterEmail":"Staff@Example.com"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -130,6 +127,31 @@ func TestCalendarConnectionStartUsesAdmindOAuthEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(string(response.Result), "authorization_required") {
 		t.Fatalf("result = %s", string(response.Result))
+	}
+}
+
+func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
+	var requesterEmail string
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodDelete || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			requesterEmail = request.Header.Get("CF-Access-Authenticated-User-Email")
+			return calendarToolJSONResponse(`{"deleted":true}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.event.delete", strings.NewReader(`{"input":{"eventID":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "deleted" || response.IsError {
+		t.Fatalf("expected scheduled delete to execute, got %+v", response)
+	}
+	if requesterEmail != "staff@example.com" {
+		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 }
 
