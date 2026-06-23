@@ -48,7 +48,9 @@ def start_tenant(n, pg_ip, mm_ip):
     team_name = f'tenant{n:02d}'
     secrets = os.path.join(BASE, 'secrets', tenant_id)
     config = os.path.join(BASE, 'config', tenant_id)
+    workspace = os.path.join(BASE, 'workspace', tenant_id)
     openrouter = os.path.join(BASE, 'secrets', 'openrouter-key')
+    os.makedirs(workspace, exist_ok=True)
 
     existing = run([CONTAINER, 'inspect', name], check=False)
     if existing:
@@ -57,8 +59,9 @@ def start_tenant(n, pg_ip, mm_ip):
 
     cmd = [CONTAINER, 'run', '--detach', '--name', name, '--network', NETWORK,
         '-e', f'POSTGRES_HOST={pg_ip}', '-e', f'MATTERMOST_HOST={mm_ip}',
-        '-e', f'MATTERMOST_TEAM={team_name}', '-e', 'ENABLE_ADMIND=1',
+        '-e', f'MATTERMOST_TEAM={team_name}', '-e', f'BOT_USERNAME=internkim{n:02d}', '-e', 'ENABLE_ADMIND=1',
         '-v', f'{config}:/etc/blueclaw:rw',
+        '-v', f'{workspace}:/workspace:rw',
         '-v', f'{openrouter}:/secrets/openrouter-key:ro',
         '-v', f'{secrets}/mattermost-bot-token:/secrets/mattermost-bot-token:ro',
         '-v', f'{secrets}/mattermost-bot-token:/root/.internkim/secrets/mattermost-bot-token:ro',

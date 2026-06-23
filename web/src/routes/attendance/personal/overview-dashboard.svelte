@@ -98,6 +98,6 @@
 </script>
 
 <div class="flex flex-col gap-4">
-	<KpiCardGrid {items} />
+	<KpiCardGrid {items} columns="wide" />
 	<WorkTimeChart title={text.myWorkTime} {dailyValues} formatValue={formatHoursMinutes} />
 </div>

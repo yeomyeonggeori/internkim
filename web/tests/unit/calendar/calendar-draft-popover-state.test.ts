@@ -18,12 +18,12 @@ describe('calendar draft popover position', () => {
 
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
-		expect(rectanglesOverlap({ left: position.left, right: position.left + position.width, top: position.top, bottom: position.top + 520 }, {
-			left: 180,
-			right: 260,
-			top: 180,
-			bottom: 200
-		})).toBe(false);
+		expect(
+			rectanglesOverlap(
+				{ left: position.left, right: position.left + position.width, top: position.top, bottom: position.top + 520 },
+				{ left: 180, right: 260, top: 180, bottom: 200 }
+			)
+		).toBe(false);
 	});
 
 	test('places right-edge events on the left side of the clicked block', () => {
@@ -43,7 +43,7 @@ describe('calendar draft popover position', () => {
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
 		expect(position.arrowSide).toBe('right');
-		expect(position.left + position.width <= 760 - 16).toBe(true);
+		expect(position.left + position.width <= 760 - 24).toBe(true);
 	});
 
 	test('places long event popovers beside the visible title end instead of the full block end', () => {
@@ -63,8 +63,29 @@ describe('calendar draft popover position', () => {
 		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
 
 		expect(position.arrowSide).toBe('left');
-		expect(position.left >= 250 + 16).toBe(true);
+		expect(position.left >= 250 + 24).toBe(true);
 		expect(position.left < 780).toBe(true);
+	});
+
+	test('honors left side placement for right panel event anchors', () => {
+		const stageElement = elementWithRectangle({ left: 0, top: 0, right: 1200, bottom: 700, width: 1200, height: 700 });
+		const titleAnchor: DraftPopoverAnchor = {
+			clientX: 880,
+			clientY: 220,
+			leftClientX: 600,
+			rightClientX: 880,
+			topClientY: 210,
+			bottomClientY: 230,
+			titleEndClientX: 640,
+			titleTopClientY: 210,
+			titleBottomClientY: 230,
+			preferredSide: 'left'
+		};
+
+		const position = draftPopoverPositionFromAnchor(titleAnchor, stageElement);
+
+		expect(position.arrowSide).toBe('right');
+		expect(position.left + position.width <= 600 - 24).toBe(true);
 	});
 
 	test('keeps event popovers attached to their title when the calendar stage scrolls beyond the page', () => {
@@ -196,11 +217,14 @@ function elementWithRectangle(rectangle: TestRectangle): HTMLElement {
 	} as HTMLElement;
 }
 
-function rectanglesOverlap(firstRectangle: Omit<TestRectangle, 'width' | 'height'>, secondRectangle: Omit<TestRectangle, 'width' | 'height'>): boolean {
+function rectanglesOverlap(
+	firstRectangle: Pick<TestRectangle, 'left' | 'right' | 'top' | 'bottom'>,
+	secondRectangle: Pick<TestRectangle, 'left' | 'right' | 'top' | 'bottom'>
+): boolean {
 	return (
 		firstRectangle.left < secondRectangle.right &&
-		firstRectangle.right > secondRectangle.left &&
+		secondRectangle.left < firstRectangle.right &&
 		firstRectangle.top < secondRectangle.bottom &&
-		firstRectangle.bottom > secondRectangle.top
+		secondRectangle.top < firstRectangle.bottom
 	);
 }

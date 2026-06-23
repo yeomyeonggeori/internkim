@@ -79,7 +79,8 @@ export function createCalendarPageLifecycleOptions(
 			openEvent: context.eventDetails.openEventDetails
 		},
 		eventSelection: {
-			clearSelectedEvent: context.eventSelection.clearSelectedEvent
+			clearSelectedEvent: context.eventSelection.clearSelectedEvent,
+			selectEvent: context.eventSelection.selectCalendarEvent
 		},
 		monthKeyboardNavigation: {
 			currentView: context.getCurrentView,
