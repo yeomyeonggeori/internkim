@@ -41,7 +41,7 @@ test.describe('attendance', () => {
 		await expect(page.getByText('2026-05 출결 달력')).toBeVisible();
 		await expect(page.getByText('팀 근무 시간')).toHaveCount(0);
 		await expect(page.getByTestId('team-calendar-day-2026-05-01').getByText('이영희 출장')).toBeVisible();
-		await expect(page.getByTestId('team-calendar-day-2026-05-01').getByText('5/6')).toBeVisible();
+		await expect(page.getByTestId('team-calendar-day-2026-05-01').getByText('1/6')).toBeVisible();
 		await expect(page.getByTestId('team-calendar-day-2026-05-06').getByText('박지민 휴가')).toBeVisible();
 		await expect(page.getByTestId('team-calendar-day-2026-05-07').getByText('휴가', { exact: true })).toHaveCount(0);
 		await expect(page.getByTestId('team-calendar-day-2026-05-08').getByText('휴가', { exact: true })).toHaveCount(0);
@@ -57,11 +57,16 @@ test.describe('attendance', () => {
 		await expect(overlappingDay.getByText('6/10', { exact: true })).toBeVisible();
 		await page.getByTestId('team-calendar-day-2026-06-03').click();
 		await expect(overlappingDay.getByText('6/9~6/11')).toHaveCount(0);
-		for (const date of ['2026-06-24', '2026-06-25', '2026-06-26']) {
+		const overflowRangeDates = [
+			{ date: '2026-06-24', moreLabel: '+2건' },
+			{ date: '2026-06-25', moreLabel: '+1건' },
+			{ date: '2026-06-26', moreLabel: '+1건' },
+		];
+		for (const { date, moreLabel } of overflowRangeDates) {
 			const overflowRangeDay = page.getByTestId(`team-calendar-day-${date}`);
 			await expect(overflowRangeDay.getByText('이영희 기타')).toHaveCount(0);
-			await expect(overflowRangeDay.getByRole('button', { name: '+1건' })).toBeVisible();
-			await overflowRangeDay.getByRole('button', { name: '+1건' }).click();
+			await expect(overflowRangeDay.getByRole('button', { name: moreLabel })).toBeVisible();
+			await overflowRangeDay.getByRole('button', { name: moreLabel }).click();
 			await expect(overflowRangeDay.getByText('이영희 기타')).toBeVisible();
 			await expect(overflowRangeDay.locator('[title="이영희 기타 6/24~6/26"]')).toBeVisible();
 			await page.getByTestId('team-calendar-day-2026-06-03').click();

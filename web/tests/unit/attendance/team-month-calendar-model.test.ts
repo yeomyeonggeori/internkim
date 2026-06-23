@@ -146,9 +146,8 @@ describe('team month calendar model', () => {
 function heatCells(month: string): DayHeatCell[] {
 	return eachDayOfMonth(month).map((date) => ({
 		date,
-		presentCount: date.endsWith('-01') ? 1 : 0,
+		absenceCount: date.endsWith('-01') ? 1 : 0,
 		totalPeople: 2,
-		level: date.endsWith('-01') ? 1 : 0,
 	}));
 }
 

@@ -130,7 +130,7 @@
 		{:else}
 			<span></span>
 		{/if}
-		{#if cell.presentCount > 0 && cell.totalPeople > 0}
+		{#if cell.absenceCount > 0 && cell.totalPeople > 0}
 			<span class="text-[10px] font-semibold leading-4 text-muted-foreground tabular-nums">
 				{countLabel}
 			</span>

@@ -37,8 +37,8 @@
 	}
 
 	function countLabel(cell: TeamCalendarDayCell): string {
-		return text.presentCountTemplate
-			.replace('{present}', String(cell.presentCount))
+		return text.absenceCountTemplate
+			.replace('{absence}', String(cell.absenceCount))
 			.replace('{total}', String(cell.totalPeople));
 	}
 

@@ -38,7 +38,7 @@ export function buildTeamCalendarCells(cells: DayHeatCell[], month: string): Tea
 		const date = addDays(startDate, index);
 		const current = byDate.get(date);
 		if (current) return { ...current, inCurrentMonth: true };
-		return { date, presentCount: 0, totalPeople, level: 0, inCurrentMonth: false };
+		return { date, absenceCount: 0, totalPeople, inCurrentMonth: false };
 	});
 }
 
