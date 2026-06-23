@@ -47,8 +47,10 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 	if _, isFound := properties["toolInput"]; isFound {
 		t.Fatalf("expected no toolInput property, got %+v", parameters)
 	}
+	if _, isFound := properties["blueclawMessage"]; !isFound {
+		t.Fatalf("expected blueclawMessage planning field, got %+v", parameters)
+	}
 	for _, fieldName := range []string{
-		"blueclawMessage",
 		"blueclawReason",
 		"blueclawGoalStatus",
 		"blueclawGoalSatisfied",
@@ -56,14 +58,17 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 		"blueclawExecutionStateUpdate",
 		"blueclawNextStepPlan",
 	} {
-		if _, isFound := properties[fieldName]; !isFound {
-			t.Fatalf("expected planning field %s, got %+v", fieldName, parameters)
+		if _, isFound := properties[fieldName]; isFound {
+			t.Fatalf("expected planning field %s to be omitted from per-tool continue schema, got %+v", fieldName, parameters)
 		}
 	}
 	required := parameters["required"].([]any)
-	for _, fieldName := range []string{"command", "blueclawExecutionStateUpdate", "blueclawNextStepPlan"} {
-		if !requiredContains(required, fieldName) {
-			t.Fatalf("expected required field %s, got %+v", fieldName, required)
+	if !requiredContains(required, "command") {
+		t.Fatalf("expected command to be required, got %+v", required)
+	}
+	for _, fieldName := range []string{"blueclawExecutionStateUpdate", "blueclawNextStepPlan"} {
+		if requiredContains(required, fieldName) {
+			t.Fatalf("expected %s not to be required (omitted), got %+v", fieldName, required)
 		}
 	}
 }

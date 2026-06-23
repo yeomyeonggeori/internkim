@@ -267,14 +267,23 @@ func stringSliceContains(values []string, expected string) bool {
 	return false
 }
 
+var nativeContinueKeptPlanningActionFieldNames = map[string]bool{
+	"message": true,
+}
+
+var nativeOmittedPlanningActionFieldNames = map[string]bool{
+	"executionStateUpdate": true,
+	"nextStepPlan":         true,
+}
+
 func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
 	properties, required := flattenToolInputSchema(variant.Properties["toolInput"])
 	for _, planningField := range nativeBlueclawPlanningFields {
+		if !nativeContinueKeptPlanningActionFieldNames[planningField.ActionFieldName] {
+			continue
+		}
 		if propertySchema, isFound := variant.Properties[planningField.ActionFieldName]; isFound {
 			properties[planningField.ArgumentFieldName] = propertySchema
-			if planningField.ActionFieldName == "executionStateUpdate" || planningField.ActionFieldName == "nextStepPlan" {
-				required = append(required, planningField.ArgumentFieldName)
-			}
 		}
 	}
 	return nativeStrictObjectParameters(properties, required)
@@ -283,16 +292,17 @@ func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) 
 func controlActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
 	properties := map[string]json.RawMessage{}
 	for propertyName, propertySchema := range variant.Properties {
-		if propertyName == "action" {
+		if propertyName == "action" || nativeOmittedPlanningActionFieldNames[propertyName] {
 			continue
 		}
 		properties[propertyName] = propertySchema
 	}
 	required := []string{}
 	for _, fieldName := range variant.Required {
-		if strings.TrimSpace(fieldName) != "action" {
-			required = append(required, fieldName)
+		if strings.TrimSpace(fieldName) == "action" || nativeOmittedPlanningActionFieldNames[fieldName] {
+			continue
 		}
+		required = append(required, fieldName)
 	}
 	return nativeStrictObjectParameters(properties, required)
 }
