@@ -248,7 +248,7 @@ test.describe('attendance', () => {
 });
 
 async function selectKorean(page: Page): Promise<void> {
-	await page.getByRole('button', { name: 'Change language' }).click();
+	await page.getByRole('button', { name: /Change language|언어 변경/ }).click();
 	await page.getByRole('menuitemradio', { name: '한국어' }).click();
 }
 
