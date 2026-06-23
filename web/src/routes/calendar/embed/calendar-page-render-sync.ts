@@ -2,7 +2,8 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import { ViewType } from '@dayflow/svelte';
 import {
 	scheduleCalendarAllDayLayoutSync,
-	scheduleCalendarMultiDayProxyLayoutSync
+	scheduleCalendarMultiDayProxyLayoutSync,
+	scheduleTimelineEventLaneLayoutSync
 } from './calendar-embed-dom-sync';
 import type { CalendarEventLoader } from './calendar-event-loader';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
@@ -44,6 +45,11 @@ export function createCalendarPageRenderSync(
 			context.openEventDetails
 		);
 		scheduleCalendarAllDayLayoutSync(context.getStageElement(), context.getToolbarView());
+		scheduleTimelineEventLaneLayoutSync(
+			context.getStageElement(),
+			context.getToolbarView(),
+			context.getCalendarEvents
+		);
 	}
 
 	async function syncRemoteCalendarAndRefresh(): Promise<void> {
