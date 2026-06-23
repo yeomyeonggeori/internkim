@@ -53,16 +53,6 @@ type platformDMRecipientResolution struct {
 	Candidates []platformDMResolvedRecipient `json:"candidates,omitempty"`
 }
 
-func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) string {
-	if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
-		return ""
-	}
-	if isPlatformDMSelfRecipient(toolContext, recipient) {
-		return ""
-	}
-	return "platform.message.send requires approval for immediate sends; scheduled runs may send without approval"
-}
-
 func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
 	if strings.TrimSpace(toolContext.RequesterPersonID) != "" && strings.TrimSpace(toolContext.RequesterPersonID) == recipient.PersonID {
 		return true

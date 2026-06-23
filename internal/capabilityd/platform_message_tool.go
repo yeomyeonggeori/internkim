@@ -51,24 +51,24 @@ type platformMessageDeleteInput struct {
 func (service Service) invokePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch request.ToolName {
 	case "platform.message.context":
-		if response, isDenied := service.authorizePlatformMessageTool(ctx, request, false); isDenied {
+		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokeMattermostContextInspect(ctx, request)
 	case "platform.message.search":
-		if response, isDenied := service.authorizePlatformMessageTool(ctx, request, false); isDenied {
+		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokePlatformMessageSearch(ctx, request)
 	case "platform.message.send":
 		return service.invokePlatformMessageSend(ctx, request)
 	case "platform.message.update":
-		if response, isDenied := service.authorizePlatformMessageTool(ctx, request, true); isDenied {
+		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokePlatformMessageUpdate(ctx, request)
 	case "platform.message.delete":
-		if response, isDenied := service.authorizePlatformMessageTool(ctx, request, true); isDenied {
+		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokePlatformMessageDelete(ctx, request)
@@ -77,14 +77,10 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 	}
 }
 
-func (service Service) authorizePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest, requiresApproval bool) (capabilities.ToolInvokeResponse, bool) {
+func (service Service) authorizePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
 	if !service.mattermostRequesterHasCircle(ctx, request.Context, mattermostToolStaffCircle) {
 		message := request.ToolName + " requires staff access"
 		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure(capabilities.CapabilityNotAllowed, "authorization", message)), true
-	}
-	if requiresApproval && !request.Context.IsApprovalContinuation && !request.Context.IsScheduledRun {
-		message := request.ToolName + " requires approval before execution"
-		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure("approval_required", "authorization", message)), true
 	}
 	return capabilities.ToolInvokeResponse{}, false
 }
@@ -122,7 +118,7 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 		}
 		return service.invokePlatformMessageDirectSend(ctx, request, input)
 	}
-	if response, isDenied := service.authorizePlatformMessageTool(ctx, request, true); isDenied {
+	if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 		return response, nil
 	}
 	channelID, rootID, failure, hasFailure := service.resolvePlatformMessageSendTarget(ctx, request.Context, input.DeliveryTarget)
@@ -140,9 +136,6 @@ func (service Service) invokePlatformMessageDirectSend(ctx context.Context, requ
 	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.DeliveryTarget.PersonHint)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	if errorMessage := validatePlatformDMSendAuthorization(request.Context, recipient); errorMessage != "" {
-		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
 	}
 	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message, request.IdempotencyKey)
 	if hasFailure {
@@ -170,9 +163,6 @@ type platformMessageBroadcastResult struct {
 }
 
 func (service Service) invokePlatformMessageDirectBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
-	if errorMessage := validatePlatformDMBroadcastAuthorization(request.Context); errorMessage != "" {
-		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
-	}
 	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
 	sentCount := 0
 	for _, personHint := range input.DeliveryTarget.PersonHints {
@@ -222,13 +212,6 @@ func platformMessageBroadcastIdempotencyKey(baseKey string, recipientUserID stri
 		return ""
 	}
 	return trimmedBaseKey + ":" + strings.TrimSpace(recipientUserID)
-}
-
-func validatePlatformDMBroadcastAuthorization(toolContext capabilities.ToolInvokeContext) string {
-	if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
-		return ""
-	}
-	return "platform.message.send to multiple recipients requires approval for immediate sends; scheduled runs may send without approval"
 }
 
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
