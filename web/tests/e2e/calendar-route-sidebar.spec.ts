@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Frame, type Page } from '@playwright/test';
 
 test.describe('calendar route sidebar', () => {
 	test.beforeEach(async ({ page }) => {
@@ -103,6 +103,7 @@ test.describe('calendar route sidebar', () => {
 
 		const calendarFrame = page.frameLocator('iframe');
 		await expect(calendarFrame.getByRole('button', { name: '오늘' })).toBeVisible();
+		await waitForEmbeddedCalendarHydration(page);
 		await calendarFrame.getByRole('button', { name: '주', exact: true }).click();
 
 		await expect
@@ -209,6 +210,23 @@ async function expectHorizontalOverflow(page: Page, expected: boolean): Promise<
 			page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
 		)
 		.toBe(expected);
+}
+
+async function waitForEmbeddedCalendarHydration(page: Page): Promise<void> {
+	await expect(page.frameLocator('iframe').locator('.calendar-stage')).toBeVisible();
+	const calendarFrame = findEmbeddedCalendarFrame(page);
+	await calendarFrame.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			})
+	);
+}
+
+function findEmbeddedCalendarFrame(page: Page): Frame {
+	const calendarFrame = page.frames().find((frame) => frame.url().includes('/calendar/embed'));
+	if (!calendarFrame) throw new Error('Calendar embed frame must be loaded');
+	return calendarFrame;
 }
 
 async function expectReferenceWeekRangeStyle(page: Page, dateKey: string, rangePosition: 'start' | 'middle' | 'end'): Promise<void> {
