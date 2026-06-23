@@ -174,3 +174,16 @@
 		color: oklch(0.55 0.19 255);
 		font-weight: 800;
 	}
+
+	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1) .df-month-date-number,
+	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) .df-month-date-number {
+		color: #ef4444;
+	}
+
+	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1),
+	.calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) {
+		background: #fafafa;
+		box-shadow:
+			inset -1px 0 0 var(--calendar-grid-line),
+			inset 0 -1px 0 var(--calendar-grid-line);
+	}

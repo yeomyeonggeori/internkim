@@ -22,6 +22,7 @@
 		box-shadow:
 			0 0 0 1px #3b82f6,
 			0 8px 16px rgb(59 130 246 / 0.18) !important;
+		transition: none !important;
 	}
 
 	.calendar-stage .df-event::before,
@@ -84,6 +85,16 @@
 		overflow: hidden;
 		line-height: 16px;
 		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.calendar-stage .calendar-event-time {
+		display: block;
+		flex: none;
+		height: 16px;
+		color: inherit;
+		font-variant-numeric: tabular-nums;
+		line-height: 16px;
 		white-space: nowrap;
 	}
 

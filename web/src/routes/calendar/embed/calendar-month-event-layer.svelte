@@ -3,6 +3,7 @@
 	import { ViewType } from '@dayflow/svelte';
 	import { onMount } from 'svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
+	import { calendarEventAnchorForEventID } from './calendar-draft-popover-anchor';
 	import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
 	import {
 		type MonthEventPlacement,
@@ -139,7 +140,8 @@
 		if (!(mouseEvent.currentTarget instanceof HTMLElement)) return;
 		selectDate(placement.startDateKey);
 		selectEvent(placement.eventID);
-		openEvent(placement.eventID, calendarEventAnchorFromElement(mouseEvent.currentTarget));
+		const anchor = calendarEventAnchorForEventID(stageElement, placement.eventID) ?? calendarEventAnchorFromElement(mouseEvent.currentTarget);
+		openEvent(placement.eventID, anchor);
 	}
 
 	function handleMoreButtonClick(mouseEvent: MouseEvent, placement: MonthMorePlacement): void {
