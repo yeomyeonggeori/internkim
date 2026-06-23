@@ -370,10 +370,10 @@ func emptyInputSchema() json.RawMessage {
 
 func calendarEventListInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("startISO", jsonschema.String()),
-		jsonschema.Field("endISO", jsonschema.String()),
-		jsonschema.Field("query", jsonschema.String()),
-		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("startISO", jsonschema.String().WithDescription("Inclusive start of the time window to list, as ISO 8601 with timezone, e.g. 2026-06-23T00:00:00+09:00. Resolve relative ranges like 오늘/이번 주/this week to concrete dates yourself before calling.")),
+		jsonschema.Field("endISO", jsonschema.String().WithDescription("Exclusive end of the time window, as ISO 8601 with timezone. Pair with startISO to bound the listing; for a single day use the next day at 00:00.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Optional free-text filter matched against event titles. Do NOT put a date or date range here — the time window goes in startISO/endISO. Leave empty to list everything in the window.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Optional maximum number of events to return.")),
 	).RawMessage()
 }
 
