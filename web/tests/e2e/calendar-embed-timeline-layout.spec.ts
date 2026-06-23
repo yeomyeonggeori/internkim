@@ -5,10 +5,13 @@ import {
 	expectDayAllDayCompactEventsCentered,
 	expectDayAllDayRowCompact,
 	expectDayAllDayRowEmptyCompact,
+	expectDayRightPanelDividerContinuous,
 	expectDayAllDayUsesContinuousTimelineBoundary,
+	expectDayTimelineRowsRightBorderHidden,
 	expectDayToolbarDividerUsesSingleBorder,
 	expectElementHeightAtLeast,
 	expectFirstVisibleTimeLabel,
+	expectTimelineEndsAt24,
 	expectTimelineScrollState,
 	expectWeekendGridStyle,
 	expectWeekAllDayEventsCompactAndLabelCentered,
@@ -37,10 +40,19 @@ test.describe('embedded calendar timeline layout', () => {
 		await expectFirstVisibleTimeLabel(page, '01:00');
 		await expectDayAllDayRowEmptyCompact(page);
 		await expectDayAllDayUsesContinuousTimelineBoundary(page);
+		await expectDayRightPanelDividerContinuous(page);
 		await expectDayToolbarDividerUsesSingleBorder(page);
+		await expectTimelineEndsAt24(page, '.df-day-content-grid', '.df-day-content-grid-boundary-bottom .df-midnight-label');
 
 		await openCalendarEmbed(page, '주');
 		await expectFirstVisibleTimeLabel(page, '01:00');
+		await expectTimelineEndsAt24(page, '.df-week-time-grid-scroller', '.df-week-time-grid-boundary-tail > .df-time-label');
+	});
+
+	test('clips the day timeline right border at 24:00 while the document is scrolled', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 2382 });
+		await openCalendarEmbed(page, '일');
+		await expectDayTimelineRowsRightBorderHidden(page);
 	});
 
 	test('navigates day view from the right mini calendar month arrows', async ({ page }) => {
