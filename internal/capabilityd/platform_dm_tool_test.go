@@ -73,44 +73,23 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 }
 
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
+	service := Service{}
 
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"동하"},"message":"테스트"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterPersonID:       "person-other",
-			RequesterPlatformUserID: "user-other",
-		},
-	})
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "platform.message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHint":"동하"},"message":"테스트"},"context":{"requesterPersonID":"person-other","requesterPlatformUserID":"user-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "denied" || !response.IsError {
-		t.Fatalf("expected denied response, got %+v", response)
-	}
-	assertPlatformDMStructuredFailure(t, response, "denied", "approval_required", "authorization", false, false)
+	assertCapabilityApprovalRequired(t, response, "platform.message.send")
 }
 
-func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
+func TestPlatformDMSendImmediateSelfRequiresDescriptorApproval(t *testing.T) {
+	service := Service{}
 
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"동하"},"message":"본인 확인"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterPersonID:       "person-dongha",
-			RequesterPlatformUserID: "user-dongha",
-		},
-	})
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "platform.message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHint":"동하"},"message":"본인 확인"},"context":{"requesterPersonID":"person-dongha","requesterPlatformUserID":"user-dongha"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "sent" || response.IsError {
-		t.Fatalf("expected self DM to send without approval, got %+v", response)
-	}
+	assertCapabilityApprovalRequired(t, response, "platform.message.send")
 }
 
 func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
@@ -517,18 +496,13 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 }
 
 func TestPlatformMessageBroadcastImmediateRunRequiresApproval(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
+	service := Service{}
 
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHints":["동하","정국"]},"message":"확인"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-other"},
-	})
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "platform.message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHints":["동하","정국"]},"message":"확인"},"context":{"requesterPersonID":"person-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertPlatformDMStructuredFailure(t, response, "denied", "approval_required", "authorization", false, false)
+	assertCapabilityApprovalRequired(t, response, "platform.message.send")
 }
 
 func platformDMTestJSONResponse(document string) *http.Response {

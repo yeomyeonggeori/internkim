@@ -156,10 +156,6 @@ func (service Service) authorizeMattermostTool(ctx context.Context, request capa
 		message := "mattermost tool requires " + requiredCircle + " access"
 		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure(capabilities.CapabilityNotAllowed, "authorization", message)), true
 	}
-	if mattermostToolRequiresApproval(request.ToolName) && !request.Context.IsApprovalContinuation {
-		message := request.ToolName + " requires approval before execution"
-		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure("approval_required", "authorization", message)), true
-	}
 	return capabilities.ToolInvokeResponse{}, false
 }
 
@@ -168,15 +164,6 @@ func mattermostRequiredCircle(toolName string) string {
 		return mattermostToolAdminCircle
 	}
 	return mattermostToolStaffCircle
-}
-
-func mattermostToolRequiresApproval(toolName string) bool {
-	switch toolName {
-	case "mattermost.channel.update":
-		return true
-	default:
-		return false
-	}
 }
 
 func (service Service) invokeMattermostContextInspect(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

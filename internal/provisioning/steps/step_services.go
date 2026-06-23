@@ -382,7 +382,7 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-mandatory_profile_tools = {"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "math.calculate", "file.read", "file.preview", "document.read", "image.read", "file.write", "file.edit", "file.patch", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"}
+mandatory_profile_tools = {"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "math.calculate", "file.read", "file.preview", "document.read", "image.read", "file.write", "file.edit", "file.patch", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"}
 missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))

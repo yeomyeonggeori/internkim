@@ -26,6 +26,7 @@ const (
 
 type Descriptor struct {
 	Name                 string                        `json:"name"`
+	Description          string                        `json:"description,omitempty"`
 	Version              string                        `json:"version"`
 	PrivacyClass         string                        `json:"privacyClass"`
 	EstimatedLatency     string                        `json:"estimatedLatency"`
