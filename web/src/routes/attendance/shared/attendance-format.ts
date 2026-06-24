@@ -1,12 +1,22 @@
 const MINUTES_PER_HOUR = 60;
 
-export function formatHoursMinutes(minutes: number): string {
-	if (!minutes) return '0h';
+type DurationUnitText = {
+	hourUnit: string;
+	minuteUnit: string;
+};
+
+const defaultDurationUnits: DurationUnitText = {
+	hourUnit: 'h',
+	minuteUnit: 'm',
+};
+
+export function formatHoursMinutes(minutes: number, units: DurationUnitText = defaultDurationUnits): string {
+	if (!minutes) return `0${units.hourUnit}`;
 	const hours = Math.floor(minutes / MINUTES_PER_HOUR);
 	const remainder = minutes % MINUTES_PER_HOUR;
-	if (!hours) return `${remainder}m`;
-	if (!remainder) return `${hours}h`;
-	return `${hours}h ${remainder}m`;
+	if (!hours) return `${remainder}${units.minuteUnit}`;
+	if (!remainder) return `${hours}${units.hourUnit}`;
+	return `${hours}${units.hourUnit} ${remainder}${units.minuteUnit}`;
 }
 
 export function formatTimeOfDay(minutesSinceMidnight: number): string {
