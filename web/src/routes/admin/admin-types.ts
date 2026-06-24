@@ -14,7 +14,7 @@ export type UserRecord = {
 	role: UserRole;
 	circles?: string[];
 	jobTitle?: string;
-	primaryCircle?: string;
+	group?: string;
 	supervisorID?: string;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
@@ -28,10 +28,16 @@ export type CircleRecord = {
 	isMattermostManaged?: boolean;
 };
 
+export type OrgGroup = {
+	id: string;
+	name: string;
+};
+
 export type UsersResponse = {
 	users?: string[];
 	records?: UserRecord[];
 	availableCircles?: CircleRecord[];
+	availableGroups?: OrgGroup[];
 	temporaryPassword?: string;
 	temporaryPasswordEmail?: string;
 };
