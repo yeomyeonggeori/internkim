@@ -4,7 +4,16 @@
 			var(--calendar-mobile-week-column-header-height) + var(--calendar-week-all-day-row-content-height)
 		);
 		--calendar-mobile-week-compact-header-height: 76px;
+		--calendar-mobile-week-range-background: #dbeafe;
+		--calendar-mobile-week-range-foreground: #1e3a8a;
+		--calendar-mobile-week-weekend-label: #ef4444;
 		--calendar-week-column-width: calc(100% / 2);
+	}
+
+	html.dark .calendar-stage.calendar-stage-mobile-two-day-week {
+		--calendar-mobile-week-range-background: color-mix(in oklab, var(--df-color-primary) 28%, transparent);
+		--calendar-mobile-week-range-foreground: #bfdbfe;
+		--calendar-mobile-week-weekend-label: #f87171;
 	}
 
 	.calendar-stage.calendar-stage-mobile-two-day-week .df-week-all-day {
@@ -21,14 +30,14 @@
 	}
 
 	.calendar-stage.calendar-stage-mobile-two-day-week .df-compact-header-date-button.calendar-mobile-two-day-week-range-date .df-compact-header-date-pill {
-		background: #dbeafe;
-		color: #1e3a8a;
+		background: var(--calendar-mobile-week-range-background) !important;
+		color: var(--calendar-mobile-week-range-foreground) !important;
 		font-weight: 800;
 	}
 
 	.calendar-stage.calendar-stage-mobile-two-day-week .df-compact-header-label-cell:first-child .df-compact-header-label,
 	.calendar-stage.calendar-stage-mobile-two-day-week .df-compact-header-label-cell:last-child .df-compact-header-label {
-		color: #ef4444;
+		color: var(--calendar-mobile-week-weekend-label);
 	}
 
 	.calendar-stage.calendar-stage-mobile-two-day-week .df-week-all-day-side-spacer {
