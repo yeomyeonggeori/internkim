@@ -145,14 +145,35 @@ function createDevMemoryGraph(): MemoryGraphResponse {
 	return {
 		health: { configured: true, reachable: true },
 		namespaces: [{ namespaceID: 'dev-memory', scopeType: 'workspace', episodeCount: 3 }],
+		episodes: [
+			{
+				episodeID: 'dev-episode-1',
+				platform: 'mattermost',
+				prompt: '개발 확인용 기억을 저장해줘.',
+				namespaceIDs: ['dev-memory'],
+				ingestionStatus: 'succeeded',
+				occurredAt: '2026-06-17T12:00:00+09:00'
+			}
+		],
 		facts: [
-			{ factID: 'dev-fact-1', scopeType: 'workspace', namespaceID: 'dev-memory', content: '개발 확인용 기억입니다.', score: 0.92 }
+			{
+				factID: 'dev-fact-1',
+				scopeType: 'workspace',
+				namespaceID: 'dev-memory',
+				content: '개발 확인용 기억입니다.',
+				score: 0.92,
+				sourceEpisodeID: 'dev-episode-1'
+			}
 		],
 		nodes: [
-			{ nodeID: 'dev-node-user', label: '김인턴', kind: 'person', scopeType: 'workspace' },
-			{ nodeID: 'dev-node-task', label: '예약 작업', kind: 'topic', scopeType: 'workspace' }
+			{ nodeID: 'namespace:dev-memory', label: 'dev-memory', kind: 'namespace', scopeType: 'workspace' },
+			{ nodeID: 'episode:dev-episode-1', label: 'mattermost 06-17 12:00', kind: 'episode', status: 'succeeded' },
+			{ nodeID: 'fact:dev-memory:dev-fact-1', label: '개발 확인용 기억입니다.', kind: 'fact', scopeType: 'workspace' }
 		],
-		edges: [{ sourceID: 'dev-node-user', targetID: 'dev-node-task', weight: 1 }]
+		edges: [
+			{ sourceID: 'namespace:dev-memory', targetID: 'episode:dev-episode-1', weight: 1 },
+			{ sourceID: 'namespace:dev-memory', targetID: 'fact:dev-memory:dev-fact-1', weight: 2 }
+		]
 	};
 }
 
