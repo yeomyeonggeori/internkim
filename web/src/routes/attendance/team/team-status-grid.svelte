@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { eachDayOfMonth, todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
@@ -20,12 +21,25 @@
 	);
 	const statusDates = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
 	const rows = $derived(
-		attendance.summary ? buildTeamStatusRows(attendance.summary.month, attendance.summary, text) : []
+		attendance.summary
+			? buildTeamStatusRows(
+					attendance.summary.month,
+					attendance.summary,
+					text,
+					today,
+					attendance.currentMonthSummary ?? attendance.summary
+				)
+			: []
 	);
 	const filteredRows = $derived(filterRows(rows, searchText));
 
 	function selectDate(date: string) {
 		attendance.selectedDate = date;
+	}
+
+	function selectMonth(month: string) {
+		attendance.selectedMonth = month;
+		attendance.load();
 	}
 
 	function filterRows(rowsToFilter: typeof rows, query: string) {
@@ -35,15 +49,17 @@
 	}
 </script>
 
-<Card.Root data-testid="team-status-grid" class="flex min-h-0 min-w-0 flex-1 flex-col">
+<Card.Root data-testid="team-status-grid" class="flex min-h-[calc(100vh-7rem)] min-w-0 flex-1 flex-col">
 	<Card.Header class="flex min-w-0 flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
 		<div>
 			<Card.Title class="text-base">{text.teamMonthlyStatus}</Card.Title>
-			<Card.Description>{calendarMonth}</Card.Description>
 		</div>
-		<div class="relative w-full sm:w-48">
-			<SearchIcon class="pointer-events-none absolute left-2 top-2.5 size-4 text-muted-foreground" />
-			<Input class="h-9 pl-8" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
+		<div class="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+			<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
+			<div class="relative w-full sm:w-48">
+				<SearchIcon class="pointer-events-none absolute left-2 top-2.5 size-4 text-muted-foreground" />
+				<Input class="h-9 pl-8" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
+			</div>
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
@@ -51,6 +67,7 @@
 			rows={filteredRows}
 			{statusDates}
 			selectedDate={attendance.selectedDate || defaultAnchorDate}
+			{today}
 			{text}
 			onSelectDate={selectDate}
 		/>
