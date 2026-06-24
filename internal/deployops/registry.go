@@ -86,6 +86,7 @@ func normalizeTarget(target Target) Target {
 	target.SecretSource = strings.TrimSpace(target.SecretSource)
 	target.SSHHost = strings.TrimSpace(target.SSHHost)
 	target.SSHUser = strings.TrimSpace(target.SSHUser)
+	target.SSHProxyCommand = strings.TrimSpace(target.SSHProxyCommand)
 	target.Workdir = strings.TrimSpace(target.Workdir)
 	target.ImageTag = strings.TrimSpace(target.ImageTag)
 	target.ComposeFile = strings.TrimSpace(target.ComposeFile)
