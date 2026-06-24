@@ -2,7 +2,7 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'network';
+export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'orgchart' | 'settings' | 'network';
 export type AdminPageText = typeof adminText.ko;
 
 export type UserRecord = {
@@ -13,6 +13,9 @@ export type UserRecord = {
 	hireDate?: string;
 	role: UserRole;
 	circles?: string[];
+	jobTitle?: string;
+	primaryCircle?: string;
+	supervisorID?: string;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
 	status?: string;

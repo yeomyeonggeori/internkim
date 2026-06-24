@@ -325,10 +325,13 @@ func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID
 }
 
 func (service *Service) localSaveBlueclawPerson(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) error {
-	if hasExplicitCircleMutation {
-		return service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles)
+	if !hasExplicitCircleMutation {
+		return service.inviteBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name)
 	}
-	return service.inviteBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name)
+	if errorValue := service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles); errorValue != nil {
+		return errorValue
+	}
+	return service.applyBlueclawPersonProfile(ctx, payload)
 }
 
 func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request, response pagesUsersResponse) {
