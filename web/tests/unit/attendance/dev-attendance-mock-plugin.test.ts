@@ -111,14 +111,14 @@ describe('dev attendance mock plugin', () => {
 		const parkLeaveDates = absences
 			.filter((absence) => absence.email === 'park@example.com' && absence.kind === 'leave')
 			.map((absence) => absence.date);
-		const choiBusinessTripDates = absences
-			.filter((absence) => absence.email === 'choi@example.com' && absence.kind === 'business_trip')
+		const kangOtherDates = absences
+			.filter((absence) => absence.email === 'kang@example.com' && absence.kind === 'other')
 			.map((absence) => absence.date);
 
-		expect(absences.length >= 10).toBe(true);
-		expect(absenceKinds).toEqual(new Set(['business_trip', 'leave', 'other']));
+		expect(absences.length >= 7).toBe(true);
+		expect(absenceKinds).toEqual(new Set(['leave', 'other']));
 		expect(parkLeaveDates).toEqual(['2026-05-06', '2026-05-07', '2026-05-08']);
-		expect(choiBusinessTripDates).toEqual(['2026-05-12', '2026-05-13']);
+		expect(kangOtherDates).toEqual(['2026-05-22']);
 		expect(absences.some((absence) => absence.email === 'jung@example.com' && absence.kind === 'other' && absence.date === '2026-05-18')).toBe(true);
 		expect(absences.some((absence) => absence.email === 'lee@example.com' && absence.kind === 'leave' && absence.date === '2026-05-27')).toBe(true);
 	});
@@ -138,9 +138,6 @@ describe('dev attendance mock plugin', () => {
 			.filter((absence) => absence.date === '2026-06-10')
 			.map((absence) => `${absence.email}:${absence.kind}`)
 			.sort();
-		const parkBusinessTripDates = absences
-			.filter((absence) => absence.email === 'park@example.com' && absence.kind === 'business_trip')
-			.map((absence) => absence.date);
 		const leeOtherDates = absences
 			.filter((absence) => absence.email === 'lee@example.com' && absence.kind === 'other' && absence.rangeID === 'absence-june-lee-other')
 			.map((absence) => absence.date);
@@ -148,18 +145,6 @@ describe('dev attendance mock plugin', () => {
 		expect(overlappingAbsences).toEqual([
 			'choi@example.com:other',
 			'kim@example.com:leave',
-			'lee@example.com:business_trip',
-		]);
-		expect(parkBusinessTripDates).toEqual([
-			'2026-06-18',
-			'2026-06-19',
-			'2026-06-22',
-			'2026-06-23',
-			'2026-06-24',
-			'2026-06-25',
-			'2026-06-26',
-			'2026-06-29',
-			'2026-06-30',
 		]);
 		expect(leeOtherDates).toEqual(['2026-06-24', '2026-06-25', '2026-06-26']);
 	});
@@ -188,6 +173,102 @@ describe('dev attendance mock plugin', () => {
 			date: '2026-05-12',
 			reason: 'local test'
 		});
+	});
+
+	test('deletes a development absence for the current mock user', async () => {
+		const state = createDevAttendanceMockState('kim@example.com');
+		const createResponse = await createDevAttendanceMockResponse(state, {
+			method: 'POST',
+			pathname: '/attendance/api/absences',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				kind: 'leave',
+				startDate: '2026-06-10',
+				endDate: '2026-06-10',
+				reason: 'family'
+			})
+		});
+		const createdAbsence = (createResponse?.body as { absences: AttendanceAbsence[] }).absences[0];
+		const deleteResponse = await createDevAttendanceMockResponse(state, {
+			method: 'DELETE',
+			pathname: `/attendance/api/absences/${createdAbsence.id}`,
+			searchParams: new URLSearchParams()
+		});
+		const summaryResponse = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/attendance/api/summary',
+			searchParams: new URLSearchParams('month=2026-06')
+		});
+		const summary = summaryResponse?.body as AttendanceSummary | undefined;
+
+		expect(deleteResponse?.status).toBe(200);
+		expect(summary?.absences.some((absence) => absence.id === createdAbsence.id)).toBe(false);
+	});
+
+	test('stores event overrides and projects them into the development summary', async () => {
+		const state = createDevAttendanceMockState('kim@example.com');
+		const initialSummaryResponse = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/attendance/api/summary',
+			searchParams: new URLSearchParams('month=2026-05')
+		});
+		const initialSummary = initialSummaryResponse?.body as AttendanceSummary | undefined;
+		const event = initialSummary?.events.find(
+			(candidate) =>
+				candidate.email === 'kim@example.com' &&
+				candidate.localDate === '2026-05-19' &&
+				candidate.kind === 'clock_in' &&
+				candidate.localTime === '08:30'
+		);
+
+		if (!event) {
+			throw new Error('expected editable fixture event');
+		}
+		const overrideResponse = await createDevAttendanceMockResponse(state, {
+			method: 'PATCH',
+			pathname: `/attendance/api/events/${event.id}`,
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				localDate: '2026-05-19',
+				localTime: '09:05',
+				locationID: 'office',
+				reason: 'dev edit'
+			})
+		});
+		const secondOverrideResponse = await createDevAttendanceMockResponse(state, {
+			method: 'PATCH',
+			pathname: `/attendance/api/events/${event.id}`,
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				localDate: '2026-05-19',
+				localTime: '09:15',
+				locationID: 'outside',
+				reason: 'second dev edit'
+			})
+		});
+		const updatedSummaryResponse = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/attendance/api/summary',
+			searchParams: new URLSearchParams('month=2026-05')
+		});
+		const updatedSummary = updatedSummaryResponse?.body as AttendanceSummary | undefined;
+		const updatedEvent = updatedSummary?.events.find((candidate) => candidate.id === event.id);
+
+		expect(overrideResponse?.status).toBe(200);
+		expect(secondOverrideResponse?.status).toBe(200);
+		expect(updatedEvent).toMatchObject({
+			localTime: '09:15',
+			locationID: 'outside',
+			locationName: '외부',
+			originalLocalTime: '09:05',
+			originalLocationID: 'office',
+			overrideReason: 'second dev edit',
+			overriddenBy: 'kim@example.com'
+		});
+		expect(updatedEvent?.overrideHistory?.map((override) => override.reason)).toEqual([
+			'second dev edit',
+			'dev edit'
+		]);
 	});
 
 	test('skips weekend dates in development absence ranges', async () => {
