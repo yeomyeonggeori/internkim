@@ -268,18 +268,42 @@ export async function expectMonthOverlayAlignedWithMonthStartRow(page: Page): Pr
 export async function expectMonthWeekendCellsKeepGridLines(page: Page): Promise<void> {
 	await page.waitForSelector('.df-month-day-cell[data-date="2026-06-07"]');
 	await page.waitForSelector('.df-month-day-cell[data-date="2026-06-13"]');
-	const styles = await page.evaluate(() => {
-		const sunday = document.querySelector('.df-month-day-cell[data-date="2026-06-07"]');
-		const saturday = document.querySelector('.df-month-day-cell[data-date="2026-06-13"]');
-		if (!(sunday instanceof HTMLElement) || !(saturday instanceof HTMLElement)) return null;
-		const sundayStyle = window.getComputedStyle(sunday);
-		const saturdayStyle = window.getComputedStyle(saturday);
-		return {
-			saturdayBoxShadow: saturdayStyle.boxShadow,
-			sundayBoxShadow: sundayStyle.boxShadow
-		};
-	});
-	expect(styles).not.toBeNull();
-	expect(styles?.saturdayBoxShadow).not.toBe('none');
-	expect(styles?.sundayBoxShadow).not.toBe('none');
+	await expect
+		.poll(async () =>
+			page.evaluate(() => {
+				const headerElements = Array.from(document.querySelectorAll<HTMLElement>('.df-week-grid > .df-day-label')).slice(0, 7);
+				const dateKeys = ['2026-06-07', '2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12', '2026-06-13'];
+				const cellElements = dateKeys.map((dateKey) => document.querySelector<HTMLElement>(`.df-month-day-cell[data-date="${dateKey}"]`));
+				const scrollerElement = document.querySelector<HTMLElement>('.df-month-view-virtual-scroller');
+				if (headerElements.length !== 7 || cellElements.some((element) => element === null) || !scrollerElement) {
+					return {
+						status: 'missing',
+						isAligned: false
+					};
+				}
+
+				const rightEdgeDeltas = headerElements.map((headerElement, index) => {
+					const cellElement = cellElements[index];
+					if (!cellElement) return Number.POSITIVE_INFINITY;
+					return Math.abs(headerElement.getBoundingClientRect().right - cellElement.getBoundingClientRect().right);
+				});
+				const weekendCells = [cellElements[0], cellElements[6]].filter((element): element is HTMLElement => element instanceof HTMLElement);
+				const weekendStyles = weekendCells.map((element) => window.getComputedStyle(element));
+				const maximumRightEdgeDelta = Math.max(...rightEdgeDeltas);
+				const hasSingleGridLine = weekendStyles.every((style) => style.borderRightWidth === '1px' && style.boxShadow === 'none');
+				const hasNoScrollbarGutter = scrollerElement.offsetWidth === scrollerElement.clientWidth;
+
+				return {
+					status: 'measured',
+					maximumRightEdgeDelta: Math.round(maximumRightEdgeDelta * 100) / 100,
+					hasSingleGridLine,
+					hasNoScrollbarGutter,
+					isAligned: maximumRightEdgeDelta <= 1 && hasSingleGridLine && hasNoScrollbarGutter
+				};
+			})
+		)
+		.toMatchObject({
+			status: 'measured',
+			isAligned: true
+		});
 }

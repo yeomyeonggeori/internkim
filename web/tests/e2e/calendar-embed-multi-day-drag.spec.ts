@@ -76,6 +76,7 @@ test.describe('embedded calendar multi-day and drag interactions', () => {
 	});
 
 	test('keeps multi-day month drag feedback within the event date span', async ({ page }) => {
+		await routeCalendarEventUpdates(page);
 		await routeCalendarEvents(page, [
 			{
 				id: 'month-multi-day-drag-event',

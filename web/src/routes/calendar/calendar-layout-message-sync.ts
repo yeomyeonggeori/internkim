@@ -48,10 +48,13 @@ export function installCalendarLayoutMessageSync(options: CalendarLayoutMessageS
 		const message = event.data;
 		if (isCalendarVisibleDateMessage(message)) {
 			if (message.dateKey === options.selectedDateKey()) return;
-			options.applyVisibleDate(calendarDateFromKey(message.dateKey));
+			const visibleDate = calendarDateFromKey(message.dateKey);
+			window.localStorage.setItem(calendarDateStorageKey, visibleDate.toISOString());
+			options.applyVisibleDate(visibleDate);
 			return;
 		}
 		if (isCalendarViewMessage(message)) {
+			window.localStorage.setItem(calendarViewStorageKey, message.view);
 			options.applyCalendarView(message.view);
 			return;
 		}

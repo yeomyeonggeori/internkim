@@ -45,7 +45,8 @@ describe('memory graph api normalizer', () => {
 		expect(hasProperty(response.health, 'lastIngestionError')).toBe(false);
 		expect(hasProperty(response.health, 'lastSearchError')).toBe(false);
 		expect(response.namespaces?.length).toBe(1);
-		expect(response.episodes?.length).toBe(2);
+		expect(response.episodes?.length).toBe(1);
+		expect(response.episodes?.[0]?.episodeID).toBe('episode-1');
 		expect(response.facts?.length).toBe(1);
 		expect(response.nodes?.length).toBe(1);
 		expect(response.edges?.length).toBe(1);
