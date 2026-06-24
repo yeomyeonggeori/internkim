@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-	type CalendarEventUpdatePayload,
+	routeCalendarEventCreates,
+	routeCalendarEventDeletes,
+	routeCalendarEventUpdates,
 	routeCalendarEvents,
 	routeDefaultCalendarAPI
 } from './calendar-embed-test-utils';
@@ -273,6 +275,38 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await expect.poll(() => createdEvents.length).toBe(1);
 		expect(createdEvents[0]?.title).toBe('모바일 저장 일정');
 	});
+
+	test('updates mobile-edited events through the calendar persistence path', async ({ page }) => {
+		const updatedEvents = await routeCalendarEventUpdates(page);
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-01');
+
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await expect(dayFlowMobileEditor(page)).toBeVisible();
+		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 수정 일정');
+		await dayFlowMobileEditor(page).getByRole('button', { name: '완료' }).click();
+
+		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
+		await expect.poll(() => updatedEvents.length).toBe(1);
+		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
+		expect(updatedEvents[0]?.title).toBe('모바일 수정 일정');
+	});
+
+	test('deletes mobile-edited events through the calendar persistence path', async ({ page }) => {
+		const deletedEventIDs = await routeCalendarEventDeletes(page);
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-01');
+
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await expect(dayFlowMobileEditor(page)).toBeVisible();
+		await dayFlowMobileEditor(page).getByRole('button', { name: '삭제' }).click();
+
+		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
+		await expect.poll(() => deletedEventIDs).toEqual(['mobile-two-day-edit']);
+		await expect(page.locator('[data-event-id="mobile-two-day-edit"]')).toHaveCount(0);
+	});
 });
 
 async function selectedDateKey(page: Page): Promise<string> {
@@ -304,36 +338,6 @@ async function enableDarkMode(page: Page): Promise<void> {
 				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 			})
 	);
-}
-
-async function routeCalendarEventCreates(page: Page): Promise<CalendarEventUpdatePayload[]> {
-	const createdEvents: CalendarEventUpdatePayload[] = [];
-	await page.route('**/calendar/api/events', async (route) => {
-		if (route.request().method() !== 'POST') {
-			await route.fallback();
-			return;
-		}
-		const payload = JSON.parse(route.request().postData() ?? '{}') as CalendarEventUpdatePayload;
-		createdEvents.push(payload);
-		await route.fulfill({
-			json: {
-				id: payload.eventID,
-				uid: payload.eventID,
-				title: payload.title,
-				description: payload.description,
-				location: payload.location,
-				startISO: payload.startISO,
-				endISO: payload.endISO,
-				timeZone: payload.timeZone,
-				isAllDay: payload.isAllDay,
-				color: payload.color,
-				createdByEmail: 'test@example.com',
-				createdByName: 'Test User',
-				updatedAt: '2026-06-08T00:00:00Z'
-			}
-		});
-	});
-	return createdEvents;
 }
 
 async function verifyMobileEditorControls(page: Page): Promise<void> {
