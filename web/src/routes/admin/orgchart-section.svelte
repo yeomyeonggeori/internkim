@@ -7,7 +7,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import { apiErrorMessage, fetchUsers, saveUser } from './admin-api';
+	import { apiErrorMessage, fetchUsers, saveUsers } from './admin-api';
 	import type { AdminPageText, CircleRecord, UserRecord, UsersResponse } from './admin-types';
 
 	type OrgchartSectionProps = {
@@ -22,15 +22,45 @@
 		reports: OrgNode[];
 	};
 
+	type OrgProfile = {
+		jobTitle: string;
+		primaryCircle: string;
+		supervisorID: string;
+	};
+
 	let { adminBaseURL, fleetID, isDeviceContext, text }: OrgchartSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let userRecords = $state<UserRecord[]>([]);
 	let availableCircles = $state<CircleRecord[]>([]);
+	let originalProfiles = $state<Record<string, OrgProfile>>({});
 	let isEditing = $state(false);
 	let isLoading = $state(false);
-	let savingUserID = $state('');
+	let isSaving = $state(false);
 	let errorMessage = $state('');
+
+	function profileOf(record: UserRecord): OrgProfile {
+		return {
+			jobTitle: record.jobTitle?.trim() ?? '',
+			primaryCircle: record.primaryCircle ?? '',
+			supervisorID: record.supervisorID ?? ''
+		};
+	}
+
+	function isChanged(record: UserRecord) {
+		const original = originalProfiles[record.userID];
+		if (!original) return false;
+		const current = profileOf(record);
+		return (
+			current.jobTitle !== original.jobTitle ||
+			current.primaryCircle !== original.primaryCircle ||
+			current.supervisorID !== original.supervisorID
+		);
+	}
+
+	function changedRecords() {
+		return userRecords.filter(isChanged);
+	}
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -47,6 +77,7 @@
 			primaryCircle: record.primaryCircle ?? '',
 			supervisorID: record.supervisorID ?? ''
 		}));
+		originalProfiles = Object.fromEntries(userRecords.map((record) => [record.userID, profileOf(record)]));
 	}
 
 	async function loadUsers() {
@@ -108,34 +139,33 @@
 		return roots;
 	}
 
-	async function saveMember(record: UserRecord) {
+	async function saveAll() {
 		if (!fleetID || !adminBaseURL) return;
-		savingUserID = record.userID;
+		const pending = changedRecords();
+		if (pending.length === 0) return;
+		isSaving = true;
 		errorMessage = '';
 		try {
-			applyUsersResponse(await saveUser(
-				adminBaseURL,
-				{
-					userID: record.userID,
-					handle: record.handle,
-					name: record.name?.trim() ?? '',
-					hireDate: record.hireDate ?? '',
-					email: record.email,
-					role: record.role,
-					circles: record.circles ?? ['staff'],
-					mattermostUserID: record.mattermostUserID,
-					mattermostUsername: record.mattermostUsername,
-					status: record.status,
-					jobTitle: record.jobTitle?.trim() ?? '',
-					primaryCircle: record.primaryCircle ?? '',
-					supervisorID: record.supervisorID ?? ''
-				},
-				text.messages.userSaveError
-			));
+			const users = pending.map((record) => ({
+				userID: record.userID,
+				handle: record.handle,
+				name: record.name?.trim() ?? '',
+				hireDate: record.hireDate ?? '',
+				email: record.email,
+				role: record.role,
+				circles: record.circles ?? ['staff'],
+				mattermostUserID: record.mattermostUserID,
+				mattermostUsername: record.mattermostUsername,
+				status: record.status,
+				jobTitle: record.jobTitle?.trim() ?? '',
+				primaryCircle: record.primaryCircle ?? '',
+				supervisorID: record.supervisorID ?? ''
+			}));
+			applyUsersResponse(await saveUsers(adminBaseURL, users, text.messages.userSaveError));
 		} catch (error) {
 			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
 		} finally {
-			savingUserID = '';
+			isSaving = false;
 		}
 	}
 </script>
@@ -146,10 +176,20 @@
 		<p class="text-muted-foreground text-sm">{text.orgchart.description}</p>
 	</div>
 	{#if isDeviceContext && userRecords.length > 0}
-		<label class="flex items-center gap-2 text-sm">
-			<Switch bind:checked={isEditing} />
-			{text.orgchart.editMode}
-		</label>
+		<div class="flex items-center gap-3">
+			{#if isEditing}
+				<Button size="sm" disabled={isSaving || changedRecords().length === 0} onclick={saveAll} class="gap-2">
+					{#if isSaving}
+						<RefreshCwIcon class="size-4 animate-spin" />
+					{/if}
+					{text.users.save}{#if changedRecords().length > 0}&nbsp;{changedRecords().length}{/if}
+				</Button>
+			{/if}
+			<label class="flex items-center gap-2 text-sm">
+				<Switch bind:checked={isEditing} />
+				{text.orgchart.editMode}
+			</label>
+		</div>
 	{/if}
 </div>
 
@@ -191,7 +231,7 @@
 			</div>
 
 			{#if isEditing}
-				<div class="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+				<div class="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-3">
 					<label class="grid gap-1.5">
 						<Label class="text-xs">{text.orgchart.jobTitle}</Label>
 						<Input bind:value={record.jobTitle} placeholder={text.orgchart.jobTitlePlaceholder} autocomplete="off" />
@@ -224,12 +264,6 @@
 							</Select.Content>
 						</Select.Root>
 					</label>
-					<Button variant="outline" size="sm" disabled={savingUserID === record.userID} onclick={() => saveMember(record)} class="gap-2">
-						{#if savingUserID === record.userID}
-							<RefreshCwIcon class="size-4 animate-spin" />
-						{/if}
-						{text.users.save}
-					</Button>
 				</div>
 			{/if}
 		</div>
