@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { ViewType } from '@dayflow/svelte';
@@ -30,6 +31,7 @@
 	import { createCalendarPageController } from './calendar-page-controller.svelte';
 	import { installCalendarPageEffects } from './calendar-page-effects.svelte';
 	import { installCalendarPageLifecycle } from './calendar-page-lifecycle-install';
+	import { isCalendarMobileTwoDayWeekView } from './calendar-mobile-two-day-week';
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
@@ -47,11 +49,14 @@
 		toolbarView: initialCalendarView(),
 		pendingEventID: initialCalendarEventID()
 	});
+	const isMobile = new IsMobile();
+	const isMobileTwoDayWeekView = $derived(isCalendarMobileTwoDayWeekView(state.toolbarView, isMobile.current));
 	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
 	const controller = createCalendarPageController({
 		isBrowser: () => browser,
 		getCalendarLocale: () => calendarLocale,
 		getLocaleCode: () => localeCode,
+		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		initialCalendarDate,
 		initialCalendarView,
 		setVisibleDate,
@@ -102,6 +107,7 @@
 		getVisibleEvents: () => state.visibleEvents,
 		getLocaleCode: () => localeCode,
 		getSelectedMonthDateKey: () => state.selectedMonthDateKey,
+		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		rangePreview,
 		renderSync,
 		selectedMonthDate,
@@ -134,6 +140,7 @@
 			getStageElement: () => state.calendarStageElement,
 			getTimelineRangeSelection: () => state.timelineRangeSelection,
 			getToolbarDate: () => state.toolbarDate,
+			getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 			initialCalendarDate,
 			initialCalendarView,
 			pageMessages,
@@ -179,6 +186,14 @@
 		if (calendar.currentView === ViewType.MONTH) return ViewType.MONTH;
 		return state.toolbarView;
 	}
+
+	function createQuickEvent(event: MouseEvent): void {
+		if (isMobileTwoDayWeekView) {
+			eventActions.openQuickEventMobileEditor();
+			return;
+		}
+		draftPopoverActions.createQuickDraftPopover(event);
+	}
 </script>
 <svelte:head>
 	<title>{text.pageTitle}</title>
@@ -192,13 +207,15 @@
 	{currentMonthTitle}
 	bind:searchText={state.searchText}
 	{searchResults}
+	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
 	goToToday={pageNavigation.goToToday}
 	goToPrevious={pageNavigation.goToPrevious}
 	goToNext={pageNavigation.goToNext}
+	navigateToDateKey={pageNavigation.navigateToDateKey}
 	navigateToSearchResult={pageNavigation.navigateToSearchResult}
-	createQuickEvent={draftPopoverActions.createQuickDraftPopover}
+	{createQuickEvent}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
 	{localeCode}
@@ -213,6 +230,7 @@
 	timelineRangePreviewSegments={state.timelineRangePreviewSegments}
 	timelineRangePreviewTitle={draftEventPlaceholderTitle()}
 	monthScrollOverlayLabels={state.monthScrollOverlayLabels}
+	isMobileTwoDayWeekView={isMobileTwoDayWeekView}
 	popover={state.draftPopover}
 	auditEvent={selectedAuditEvent}
 	{calendarOptions}

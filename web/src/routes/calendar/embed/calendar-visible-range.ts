@@ -1,13 +1,19 @@
 import { ViewType } from '@dayflow/svelte';
+import { calendarWeekNavigationDayCount } from './calendar-mobile-two-day-week';
 
-export function shiftedCalendarToolbarDate(date: Date, viewType: ViewType, direction: -1 | 1): Date {
+export function shiftedCalendarToolbarDate(
+	date: Date,
+	viewType: ViewType,
+	direction: -1 | 1,
+	isMobileTwoDayWeekView = false
+): Date {
 	const nextDate = new Date(date);
 	if (viewType === ViewType.DAY) {
 		nextDate.setDate(nextDate.getDate() + direction);
 		return nextDate;
 	}
 	if (viewType === ViewType.WEEK) {
-		nextDate.setDate(nextDate.getDate() + direction * 7);
+		nextDate.setDate(nextDate.getDate() + direction * calendarWeekNavigationDayCount(isMobileTwoDayWeekView));
 		return nextDate;
 	}
 	nextDate.setMonth(nextDate.getMonth() + direction);

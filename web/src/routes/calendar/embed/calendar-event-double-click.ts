@@ -5,6 +5,8 @@ import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture'
 export type CalendarEventDoubleClickOptions = {
 	stageElement: HTMLElement;
 	openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
+	openMobileEvent: (eventID: string) => void;
+	isMobileEventEditor: () => boolean;
 };
 
 export function installCalendarEventDoubleClick(options: CalendarEventDoubleClickOptions): () => void {
@@ -24,6 +26,11 @@ export function installCalendarEventDoubleClick(options: CalendarEventDoubleClic
 		}
 		event.preventDefault();
 		event.stopPropagation();
+		if (options.isMobileEventEditor()) {
+			event.stopImmediatePropagation();
+			options.openMobileEvent(eventID);
+			return;
+		}
 		options.openEvent(eventID, calendarEventAnchorFromElement(eventElement));
 	};
 

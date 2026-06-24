@@ -29,6 +29,7 @@ type CalendarPageLifecycleOptionsContext = {
 	getDraftPopover: () => DraftPopoverState | null;
 	getCurrentView: () => ViewType;
 	getLocaleCode: () => string;
+	getIsMobileTwoDayWeekView: () => boolean;
 	getMonthRangeSelection: () => MonthRangeSelection | null;
 	getSelectedAuditEventID: () => string | null;
 	getStageElement: () => HTMLElement | null;
@@ -76,7 +77,9 @@ export function createCalendarPageLifecycleOptions(
 		wheelNavigation: wheelNavigation(context),
 		draftPopoverDismiss: draftPopoverDismiss(context),
 		eventDoubleClick: {
-			openEvent: context.eventDetails.openEventDetails
+			openEvent: context.eventDetails.openEventDetails,
+			openMobileEvent: context.eventActions.openEventMobileEditor,
+			isMobileEventEditor: context.getIsMobileTwoDayWeekView
 		},
 		eventSelection: {
 			clearSelectedEvent: context.eventSelection.clearSelectedEvent,
@@ -110,9 +113,11 @@ function timelineRangeAction(context: CalendarPageLifecycleOptionsContext): Cale
 	return {
 		currentView: context.getCurrentView,
 		currentDate: context.getToolbarDate,
+		isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView,
 		getSelection: context.getTimelineRangeSelection,
 		setSelection: context.rangePreview.setTimelineRangeSelection,
 		createSingleEvent: context.draftPopoverActions.openTimelineSingleDraftPopover,
+		createMobileSingleEvent: context.eventActions.openTimelineSingleEventMobileEditor,
 		createRangeEvent: context.draftPopoverActions.openTimelineRangeDraftPopover
 	};
 }

@@ -56,6 +56,7 @@ export type CalendarLocaleText = {
 	monthMoreAriaLabel: string;
 	new: string;
 	newEvent: string;
+	editEvent: string;
 	draftPopover: {
 		calendar: string;
 		cancel: string;
@@ -153,6 +154,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		monthMoreAriaLabel: '{date}의 숨겨진 일정 {count}개 보기',
 		new: '새로 만들기',
 		newEvent: '새 일정',
+		editEvent: '일정 편집',
 		draftPopover: {
 			calendar: '캘린더',
 			cancel: '취소',
@@ -259,6 +261,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		monthMoreAriaLabel: 'Show {count} more events on {date}',
 		new: 'New',
 		newEvent: 'New Event',
+		editEvent: 'Edit Event',
 		draftPopover: {
 			calendar: 'Calendar',
 			cancel: 'Cancel',

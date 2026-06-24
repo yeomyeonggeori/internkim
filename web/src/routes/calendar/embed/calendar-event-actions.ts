@@ -28,6 +28,7 @@ export type CalendarEventActionsContext = {
 	setStatusMessage: (message: string) => void;
 	setErrorMessage: (message: string) => void;
 	openEventDetails: (eventID: string) => void;
+	openMobileEventEditor: (event: DayFlowEvent) => void;
 	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
 	text: {
@@ -40,6 +41,9 @@ export type CalendarEventActionsContext = {
 
 export type CalendarEventActions = {
 	createQuickEvent: () => DayFlowEvent;
+	openQuickEventMobileEditor: () => void;
+	openTimelineSingleEventMobileEditor: (startDate: Date) => void;
+	openEventMobileEditor: (eventID: string) => void;
 	createMonthRangeEvent: (selection: MonthRangeSelection) => DayFlowEvent;
 	createMonthSingleDayEvent: (dateKey: string) => DayFlowEvent | null;
 	createTimelineSingleEvent: (startDate: Date) => DayFlowEvent | null;
@@ -95,7 +99,23 @@ export function createCalendarEventActions(
 	const draftAction = createCalendarEventDraftActions({
 		addDraftEvent,
 		getCurrentDate: context.getCurrentDate
-		});
+	});
+
+	function openQuickEventMobileEditor(): void {
+		context.openMobileEventEditor(draftAction.createQuickEvent());
+	}
+
+	function openTimelineSingleEventMobileEditor(startDate: Date): void {
+		const event = draftAction.createTimelineSingleEvent(startDate);
+		if (!event) return;
+		context.openMobileEventEditor(event);
+	}
+
+	function openEventMobileEditor(eventID: string): void {
+		const event = context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === eventID);
+		if (!event) return;
+		context.openMobileEventEditor(event);
+	}
 
 	async function resetDraftEventTitle(eventID: string): Promise<void> {
 		await programmaticUpdates.run(eventID, () => context.updateCalendarEvent(eventID, { title: '' }, false));
@@ -128,6 +148,9 @@ export function createCalendarEventActions(
 
 	return {
 		createQuickEvent: draftAction.createQuickEvent,
+		openQuickEventMobileEditor,
+		openTimelineSingleEventMobileEditor,
+		openEventMobileEditor,
 		createMonthRangeEvent: draftAction.createMonthRangeEvent,
 		createMonthSingleDayEvent: draftAction.createMonthSingleDayEvent,
 		createTimelineSingleEvent: draftAction.createTimelineSingleEvent,
