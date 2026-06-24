@@ -70,4 +70,30 @@ test.describe('flow task quick add', () => {
 		await expect(page.getByRole('dialog', { name: '업무 수정', exact: true })).toHaveCount(0);
 		await expect(launcher).toBeVisible();
 	});
+
+	test('keeps AI quick add above mobile navigation and hides it behind mobile sheets', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await openFlowBoard(page);
+
+		const launcher = page.getByRole('button', { name: 'AI로 업무 추가', exact: true });
+		const bottomNavigation = page.locator('nav[aria-label]').filter({ has: page.getByRole('button', { name: '더보기', exact: true }) });
+		const launcherBox = await visibleBoundingBox(launcher);
+		const bottomNavigationBox = await visibleBoundingBox(bottomNavigation);
+
+		expect(bottomNavigationBox.y - (launcherBox.y + launcherBox.height)).toBeGreaterThanOrEqual(12);
+		expect(Math.abs((launcherBox.x + launcherBox.width) - (bottomNavigationBox.x + bottomNavigationBox.width))).toBeLessThanOrEqual(1);
+
+		await bottomNavigation.getByRole('button', { name: '더보기', exact: true }).click();
+		const moreSheet = page.locator('[data-slot="sheet-content"][data-state="open"]');
+		await expect(moreSheet).toBeVisible();
+		await expect(moreSheet.getByRole('button', { name: '닫기', exact: true })).toBeVisible();
+		await expect(moreSheet.getByRole('link', { name: '기억', exact: true })).toBeVisible();
+		await expect(moreSheet.getByRole('link', { name: '파일', exact: true })).toBeVisible();
+		await expect(moreSheet.getByRole('link', { name: '작업 기록', exact: true })).toBeVisible();
+		await expect(moreSheet.getByRole('link', { name: '관리', exact: true })).toBeVisible();
+		await expect(launcher).toHaveCSS('opacity', '0');
+
+		await page.keyboard.press('Escape');
+		await expect(launcher).toHaveCSS('opacity', '1');
+	});
 });

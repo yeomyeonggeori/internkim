@@ -360,6 +360,11 @@ function readRequestBody(request: IncomingMessage, callback: (body: string) => v
 		callback('');
 		return;
 	}
+	const contentLength = request.headers['content-length'];
+	if (contentLength === '0' || (!contentLength && !request.headers['transfer-encoding'])) {
+		callback('');
+		return;
+	}
 	let body = '';
 	request.on('data', (chunk: Buffer) => {
 		body += chunk.toString('utf8');
