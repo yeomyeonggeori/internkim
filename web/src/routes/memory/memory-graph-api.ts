@@ -21,6 +21,7 @@ export type MemoryGraphFact = {
 	namespaceID: string;
 	content: string;
 	score?: number | null;
+	sourceEpisodeID?: string;
 	sourceKind?: string;
 };
 
@@ -41,6 +42,8 @@ export type MemoryGraphEdge = {
 export type MemoryGraphEpisode = {
 	episodeID: string;
 	platform?: string;
+	prompt?: string;
+	namespaceIDs?: string[];
 	ingestionStatus?: string;
 	ingestionError?: string;
 	occurredAt?: string;
@@ -66,6 +69,18 @@ export async function fetchMemoryGraph(memoryGraphQuery: string): Promise<Memory
 	return normalizeMemoryGraphResponse(document);
 }
 
+export async function deleteMemoryEpisode(episodeID: string, namespaceIDs: string[]): Promise<void> {
+	await postMemoryGraphRequest('/memory/api/episodes/delete', { episodeID, namespaceIDs });
+}
+
+export async function savePinnedMemory(content: string): Promise<void> {
+	await postMemoryGraphRequest('/memory/api/pinned/update', { content });
+}
+
+export async function deletePinnedMemory(): Promise<void> {
+	await postMemoryGraphRequest('/memory/api/pinned/delete', {});
+}
+
 export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResponse {
 	const record = readRecord(document);
 	if (!record) return {};
@@ -85,6 +100,18 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 		...(nodes ? { nodes } : {}),
 		...(edges ? { edges } : {})
 	};
+}
+
+async function postMemoryGraphRequest(path: string, body: Record<string, unknown>): Promise<void> {
+	const response = await fetch(path, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+	if (!response.ok) {
+		throw new Error(`Memory graph request returned ${response.status}`);
+	}
 }
 
 function normalizeMemoryGraphHealth(document: unknown): MemoryGraphHealth | undefined {
@@ -140,6 +167,7 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 	if (!factID || !scopeType || !namespaceID || !content) return undefined;
 
 	const score = readNullableNumber(record.score);
+	const sourceEpisodeID = readString(record.sourceEpisodeID);
 	const sourceKind = readString(record.sourceKind);
 
 	return {
@@ -148,6 +176,7 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 		namespaceID,
 		content,
 		...(typeof score === 'number' || score === null ? { score } : {}),
+		...(sourceEpisodeID ? { sourceEpisodeID } : {}),
 		...(sourceKind ? { sourceKind } : {})
 	};
 }
@@ -160,6 +189,8 @@ function normalizeMemoryGraphEpisode(document: unknown): MemoryGraphEpisode | un
 	if (!episodeID) return undefined;
 
 	const platform = readString(record.platform);
+	const prompt = readString(record.prompt);
+	const namespaceIDs = readStringArray(record.namespaceIDs);
 	const ingestionStatus = readString(record.ingestionStatus);
 	const ingestionError = readString(record.ingestionError);
 	const occurredAt = readString(record.occurredAt);
@@ -167,6 +198,8 @@ function normalizeMemoryGraphEpisode(document: unknown): MemoryGraphEpisode | un
 	return {
 		episodeID,
 		...(platform ? { platform } : {}),
+		...(prompt ? { prompt } : {}),
+		...(namespaceIDs ? { namespaceIDs } : {}),
 		...(ingestionStatus ? { ingestionStatus } : {}),
 		...(ingestionError ? { ingestionError } : {}),
 		...(occurredAt ? { occurredAt } : {})
@@ -229,6 +262,16 @@ function isRecord(document: unknown): document is Record<string, unknown> {
 
 function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const values = value.flatMap((item) => {
+		if (typeof item !== 'string') return [];
+		const trimmedItem = item.trim();
+		return trimmedItem ? [trimmedItem] : [];
+	});
+	return values.length > 0 ? values : undefined;
 }
 
 function readNumber(value: unknown): number | undefined {

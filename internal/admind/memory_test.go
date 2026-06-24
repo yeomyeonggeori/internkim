@@ -297,6 +297,50 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 	}
 }
 
+func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		BlueclawBaseURL:   "http://blueclaw.local",
+		FleetIDPath:       writeTestFile(t, "device-1"),
+		FleetSecretPath:   writeTestFile(t, "secret-1"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.Path == "/admin/api/memory/pinned/update" && request.Method == http.MethodPost {
+			var payload struct {
+				ReaderPersonID string `json:"readerPersonID"`
+				Content        string `json:"content"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if payload.ReaderPersonID != "user:person-1" {
+				t.Fatalf("readerPersonID = %q", payload.ReaderPersonID)
+			}
+			if payload.Content != "# Memory\n- New memory." {
+				t.Fatalf("content = %q", payload.Content)
+			}
+			return jsonResponse(http.StatusOK, `{"updated":true}`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/pinned/update", strings.NewReader(`{"readerPersonID":"spoofed-person","content":"# Memory\n- New memory."}`))
+	request.RemoteAddr = "127.0.0.1:44999"
+	request.Header.Set(flowRequesterEmailHeader, "member@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("memory pinned update status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
 func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.intern.kim",
