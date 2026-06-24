@@ -27,6 +27,7 @@ type CalendarPageInteractionServicesContext = {
 	calendar: CalendarPageInteractionCalendar;
 	eventLoader: CalendarEventLoader;
 	getLocaleCode: () => string;
+	getIsMobileTwoDayWeekView: () => boolean;
 	isBrowser: () => boolean;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	selectCalendarEvent: (eventID: string) => void;
@@ -48,7 +49,8 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		},
 		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
 		selectCalendarEvent: context.selectCalendarEvent,
-		broadcastCalendarView: context.broadcastCalendarView
+		broadcastCalendarView: context.broadcastCalendarView,
+		isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView
 	});
 
 	const visibilityActions = createCalendarPageVisibility({
@@ -81,6 +83,7 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		},
 		getToolbarView: () => context.state.toolbarView,
 		getToolbarDate: () => context.state.toolbarDate,
+		getIsMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView,
 		getVisibleEvents: () => context.state.visibleEvents
 	});
 

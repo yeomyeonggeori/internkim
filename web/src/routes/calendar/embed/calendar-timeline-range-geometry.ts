@@ -1,11 +1,16 @@
 import type { CalendarViewType } from '@dayflow/core';
 import { ViewType } from '@dayflow/svelte';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
+import {
+	calendarTimelineDisplayDayCount,
+	calendarTimelineDisplayStartDate
+} from './calendar-mobile-two-day-week';
 
 type TimelineRangeGeometryOptions = {
 	stageElement: HTMLElement;
 	currentView: () => CalendarViewType;
 	currentDate: () => Date;
+	isMobileTwoDayWeekView: () => boolean;
 };
 
 type TimelineRangePointerStart = {
@@ -28,8 +33,13 @@ export function timelineDateFromPointerEvent(
 	const firstGridRow = timelineFirstGridRow(options.stageElement);
 	if (!timelineTimeSource || !firstGridRow) return null;
 	const rawHour = timelinePointerHour(timelineTimeSource, firstGridRow, event.clientY);
-	const columnIndex = timelineColumnIndex(firstGridRow, event.clientX, options.currentView());
-	const date = timelineDateForColumn(options.currentDate(), options.currentView(), columnIndex);
+	const columnIndex = timelineColumnIndex(firstGridRow, event.clientX, options.currentView(), options.isMobileTwoDayWeekView());
+	const date = timelineDateForColumn(
+		options.currentDate(),
+		options.currentView(),
+		columnIndex,
+		options.isMobileTwoDayWeekView()
+	);
 	return timelineDateWithHour(date, rawHour, timelineRangeMinuteStep);
 }
 
@@ -110,16 +120,26 @@ function timelinePointerHourFromDayRows(dayRowsElement: HTMLElement, clientY: nu
 	return Math.max(0, Math.min(24, relativeY / hourHeight));
 }
 
-function timelineColumnIndex(firstGridRow: HTMLElement, clientX: number, view: CalendarViewType): number {
-	const displayDays = view === ViewType.WEEK ? 7 : 1;
+function timelineColumnIndex(
+	firstGridRow: HTMLElement,
+	clientX: number,
+	view: CalendarViewType,
+	isMobileTwoDayWeekView: boolean
+): number {
+	const displayDays = calendarTimelineDisplayDayCount(view, isMobileTwoDayWeekView);
 	const gridRectangle = firstGridRow.getBoundingClientRect();
 	if (gridRectangle.width <= 0) return 0;
 	const rawColumnIndex = Math.floor(((clientX - gridRectangle.left) / gridRectangle.width) * displayDays);
 	return Math.max(0, Math.min(displayDays - 1, rawColumnIndex));
 }
 
-function timelineDateForColumn(currentDate: Date, view: CalendarViewType, columnIndex: number): Date {
-	const date = view === ViewType.WEEK ? startOfWeek(currentDate) : new Date(currentDate);
+function timelineDateForColumn(
+	currentDate: Date,
+	view: CalendarViewType,
+	columnIndex: number,
+	isMobileTwoDayWeekView: boolean
+): Date {
+	const date = calendarTimelineDisplayStartDate(currentDate, view, isMobileTwoDayWeekView);
 	date.setDate(date.getDate() + columnIndex);
 	date.setHours(0, 0, 0, 0);
 	return date;
@@ -130,11 +150,4 @@ function timelineDateWithHour(date: Date, rawHour: number, minuteStep: number): 
 	const nextDate = new Date(date);
 	nextDate.setHours(0, minutes, 0, 0);
 	return nextDate;
-}
-
-function startOfWeek(date: Date): Date {
-	const startDate = new Date(date);
-	startDate.setDate(startDate.getDate() - startDate.getDay());
-	startDate.setHours(0, 0, 0, 0);
-	return startDate;
 }

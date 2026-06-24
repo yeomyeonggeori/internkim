@@ -32,6 +32,7 @@ import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 type CalendarPageControllerContext = {
 	isBrowser: () => boolean;
 	getCalendarLocale: () => Locale;
+	getIsMobileTwoDayWeekView: () => boolean;
 	getLocaleCode: () => string;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
@@ -119,6 +120,10 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			setStatusMessage: () => {},
 			setErrorMessage: () => {},
 			openEventDetails: (eventID) => eventDetails.openEventDetails(eventID),
+			openMobileEventEditor: (event) => {
+				context.state.draftPopover = null;
+				calendar.app.onMobileEventDetailToggle(event);
+			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
 			refreshCalendar: async () => {
 				await renderSync.refreshCalendar();
@@ -208,6 +213,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		calendar,
 		eventLoader,
 		getLocaleCode: context.getLocaleCode,
+		getIsMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView,
 		isBrowser: context.isBrowser,
 		selectedMonthDate,
 		selectCalendarEvent: eventSelection.selectCalendarEvent,

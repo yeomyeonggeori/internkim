@@ -3,7 +3,10 @@ import type { Locale } from '@dayflow/core';
 import type { ViewType } from '@dayflow/svelte';
 import type { CalendarLocaleText } from '../text';
 import { miniCalendarWeekdayLabels } from './calendar-embed-view-helpers';
-import { scheduleDayFlowMiniCalendarEnhancement } from './calendar-embed-dom-sync';
+import {
+	scheduleCalendarMobileTwoDayWeekLayoutSync,
+	scheduleDayFlowMiniCalendarEnhancement
+} from './calendar-embed-dom-sync';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
 import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';
 import type { CalendarSelectedMonthDateActions } from './calendar-month-selection';
@@ -24,6 +27,7 @@ type CalendarPageEffectsContext = {
 	calendar: CalendarPageEffectsCalendar;
 	getCalendarLocale: () => Locale;
 	getCurrentLocale: () => 'ko' | 'en';
+	getIsMobileTwoDayWeekView: () => boolean;
 	getMonthRangeSelection: () => MonthRangeSelection | null;
 	getTimelineRangeSelection: () => TimelineRangeSelection | null;
 	getStageElement: () => HTMLElement | null;
@@ -86,6 +90,22 @@ export function installCalendarPageEffects(context: CalendarPageEffectsContext):
 		context.calendar.events;
 		context.getVisibleEvents();
 		context.renderSync.scheduleCalendarEventDOMSync();
+	});
+
+	$effect(() => {
+		const stageElement = context.getStageElement();
+		const toolbarDate = context.getToolbarDate();
+		const isMobileTwoDayWeekView = context.getIsMobileTwoDayWeekView();
+		const visibleEvents = context.getVisibleEvents();
+		const localeCode = context.getLocaleCode();
+		if (!context.isBrowser()) return;
+		scheduleCalendarMobileTwoDayWeekLayoutSync({
+			stageElement,
+			currentDate: toolbarDate,
+			events: visibleEvents,
+			isMobileTwoDayWeekView,
+			localeCode
+		});
 	});
 
 	$effect(() => {
