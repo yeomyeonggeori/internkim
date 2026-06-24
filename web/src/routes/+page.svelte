@@ -16,6 +16,7 @@
 	import CredentialsSection from './admin/credentials-section.svelte';
 	import DeviceSection from './admin/device-section.svelte';
 	import NetworkSection from './admin/network-section.svelte';
+	import OrgchartSection from './admin/orgchart-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
 	import type { AdminSection, AdminSession } from './admin/admin-types';
 	import { adminText } from './admin/text';
@@ -55,6 +56,7 @@
 	function adminSections(): { value: AdminSection; label: string }[] {
 		const sections: { value: AdminSection; label: string }[] = [
 			{ value: 'users', label: text.sections.users },
+			{ value: 'orgchart', label: text.sections.orgchart },
 			{ value: 'credentials', label: text.sections.credentials },
 			{ value: 'backup', label: text.sections.backup },
 			{ value: 'bot', label: text.sections.bot },
@@ -221,6 +223,13 @@
 					isDeviceContext={!!fleetID()}
 					text={text}
 					onUserChanged={loadAdminSession}
+				/>
+			{:else if activeAdminSection === 'orgchart'}
+				<OrgchartSection
+					adminBaseURL={adminBaseURL()}
+					fleetID={fleetID()}
+					isDeviceContext={!!fleetID()}
+					text={text}
 				/>
 			{:else if activeAdminSection === 'settings'}
 				<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
