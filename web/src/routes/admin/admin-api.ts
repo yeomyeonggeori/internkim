@@ -284,6 +284,9 @@ export type UserSaveRequest = Pick<UserRecord, 'userID' | 'handle' | 'email' | '
 	hireDate: string;
 	role: UserRole;
 	circles: string[];
+	jobTitle?: string;
+	primaryCircle?: string;
+	supervisorID?: string;
 };
 
 export type RestoreCompletionRequest = {

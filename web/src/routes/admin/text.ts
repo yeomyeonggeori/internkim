@@ -10,6 +10,7 @@ export const adminText = {
 		sections: {
 			device: '기기',
 			users: '사용자',
+			orgchart: '조직도',
 			credentials: '인증 정보',
 			backup: '백업',
 			bot: '봇',
@@ -211,6 +212,16 @@ export const adminText = {
 			makeMember: '일반으로 변경',
 			makeAdmin: '관리자로 변경',
 			remove: '삭제'
+		},
+		orgchart: {
+			title: '조직도',
+			description: '상급자 기준 보고 체계를 한눈에 보여줍니다. 편집을 켜면 직책·대표 그룹·상급자를 바로 수정할 수 있습니다.',
+			jobTitle: '직책',
+			jobTitlePlaceholder: '백엔드 엔지니어',
+			primaryCircle: '대표 그룹',
+			supervisor: '상급자',
+			editMode: '편집',
+			none: '없음'
 		}
 	},
 	en: {
@@ -224,6 +235,7 @@ export const adminText = {
 		sections: {
 			device: 'Device',
 			users: 'Users',
+			orgchart: 'Org chart',
 			credentials: 'Credentials',
 			backup: 'Backup',
 			bot: 'Bot',
@@ -425,6 +437,16 @@ export const adminText = {
 			makeMember: 'Make member',
 			makeAdmin: 'Make admin',
 			remove: 'Remove'
+		},
+		orgchart: {
+			title: 'Org chart',
+			description: 'See the reporting hierarchy at a glance. Turn on edit to change job titles, groups, and supervisors.',
+			jobTitle: 'Job title',
+			jobTitlePlaceholder: 'Backend engineer',
+			primaryCircle: 'Primary group',
+			supervisor: 'Supervisor',
+			editMode: 'Edit',
+			none: 'None'
 		}
 	}
 } as const;

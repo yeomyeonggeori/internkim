@@ -30,6 +30,9 @@ type adminUserMutation struct {
 	HireDate               string   `json:"hireDate,omitempty"`
 	Role                   string   `json:"role"`
 	Circles                []string `json:"circles,omitempty"`
+	JobTitle               string   `json:"jobTitle,omitempty"`
+	PrimaryCircle          string   `json:"primaryCircle,omitempty"`
+	SupervisorID           string   `json:"supervisorID,omitempty"`
 	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
 	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
 	Status                 string   `json:"status,omitempty"`

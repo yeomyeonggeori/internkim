@@ -2244,6 +2244,40 @@ func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email s
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
 }
 
+func (service *Service) applyBlueclawPersonProfile(ctx context.Context, payload adminUserMutation) error {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
+	}
+	people, _ := policyDocument["people"].([]any)
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson || !blueclawPersonHasEmail(person, payload.Email) {
+			continue
+		}
+		person["jobTitle"] = strings.TrimSpace(payload.JobTitle)
+		person["supervisorID"] = strings.TrimSpace(payload.SupervisorID)
+		person["primaryCircle"] = primaryCircleWithinMembership(payload.PrimaryCircle, person["circles"])
+		break
+	}
+	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+}
+
+func primaryCircleWithinMembership(primaryCircle string, circleValues any) string {
+	normalizedPrimary := strings.ToLower(strings.TrimSpace(primaryCircle))
+	if normalizedPrimary == "" {
+		return ""
+	}
+	circles, _ := circleValues.([]any)
+	for _, value := range circles {
+		candidate, isString := value.(string)
+		if isString && strings.ToLower(strings.TrimSpace(candidate)) == normalizedPrimary {
+			return normalizedPrimary
+		}
+	}
+	return ""
+}
+
 func blueclawPersonHasEmail(person map[string]any, email string) bool {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	emailValues, _ := person["emails"].([]any)
@@ -2267,9 +2301,14 @@ func (service *Service) withBlueclawCircles(ctx context.Context, responseBody []
 	}
 	usersResponse.AvailableCircles = blueclawAvailableCircles(policyDocument)
 	circlesByEmail := blueclawCirclesByEmail(policyDocument)
+	profilesByEmail := blueclawProfilesByEmail(policyDocument)
 	for index := range usersResponse.Records {
 		email := strings.ToLower(strings.TrimSpace(usersResponse.Records[index].Email))
 		usersResponse.Records[index].Circles = normalizeAdminUserCircles(circlesByEmail[email], usersResponse.Records[index].Role)
+		profile := profilesByEmail[email]
+		usersResponse.Records[index].JobTitle = profile.JobTitle
+		usersResponse.Records[index].PrimaryCircle = profile.PrimaryCircle
+		usersResponse.Records[index].SupervisorID = profile.SupervisorID
 	}
 	return json.Marshal(usersResponse)
 }
@@ -2317,6 +2356,36 @@ func blueclawCirclesByEmail(policyDocument map[string]any) map[string][]string {
 		}
 	}
 	return circlesByEmail
+}
+
+type blueclawPersonProfile struct {
+	JobTitle      string
+	PrimaryCircle string
+	SupervisorID  string
+}
+
+func blueclawProfilesByEmail(policyDocument map[string]any) map[string]blueclawPersonProfile {
+	people, _ := policyDocument["people"].([]any)
+	profilesByEmail := map[string]blueclawPersonProfile{}
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson {
+			continue
+		}
+		profile := blueclawPersonProfile{
+			JobTitle:      strings.TrimSpace(mattermostPolicyString(person["jobTitle"])),
+			PrimaryCircle: strings.ToLower(strings.TrimSpace(mattermostPolicyString(person["primaryCircle"]))),
+			SupervisorID:  strings.TrimSpace(mattermostPolicyString(person["supervisorID"])),
+		}
+		emailValues, _ := person["emails"].([]any)
+		for _, emailValue := range emailValues {
+			email, isString := emailValue.(string)
+			if isString {
+				profilesByEmail[strings.ToLower(strings.TrimSpace(email))] = profile
+			}
+		}
+	}
+	return profilesByEmail
 }
 
 func policyStringList(value any) []string {
