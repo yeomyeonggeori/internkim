@@ -1,0 +1,78 @@
+package cli
+
+import (
+	"strings"
+	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/deployops"
+)
+
+func TestSelectedPocContainerComponentsDefaultsToFullTenantSet(t *testing.T) {
+	components, errorValue := selectedPocContainerComponents(nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedComponents := []string{"admind", "capabilityd", "blueclaw", "web"}
+	if strings.Join(components, ",") != strings.Join(expectedComponents, ",") {
+		t.Fatalf("components = %v, want %v", components, expectedComponents)
+	}
+}
+
+func TestNormalizePocContainerComponentMapsBlueclawPayload(t *testing.T) {
+	component, errorValue := normalizePocContainerComponent("blueclawPayload")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if component != "blueclaw" {
+		t.Fatalf("component = %q, want blueclaw", component)
+	}
+}
+
+func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {
+	target := deployops.Target{ImageTag: "internkim-poc-tenant:flow"}
+	command := pocContainerRecreateCommand(target)
+	requiredFragments := []string{
+		"container build --platform linux/arm64",
+		"python3 start-poc.py",
+		"python3 restart-tunnel.py",
+		"TENANT_IMAGE='internkim-poc-tenant:flow'",
+		"base-before-deploy",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(command, fragment) {
+			t.Fatalf("command missing %q:\n%s", fragment, command)
+		}
+	}
+	for _, forbiddenFragment := range []string{"docker build", "docker compose"} {
+		if strings.Contains(command, forbiddenFragment) {
+			t.Fatalf("command unexpectedly contains %q:\n%s", forbiddenFragment, command)
+		}
+	}
+}
+
+func TestPocContainerBaseImageTagReplacesOnlyTrailingTag(t *testing.T) {
+	cases := map[string]string{
+		"internkim-poc-tenant:flow":              "internkim-poc-tenant:base-before-deploy",
+		"registry.local:5000/internkim/poc:flow": "registry.local:5000/internkim/poc:base-before-deploy",
+		"internkim-poc-tenant":                   "internkim-poc-tenant:base-before-deploy",
+	}
+	for imageTag, expectedBaseImageTag := range cases {
+		baseImageTag := pocContainerBaseImageTag(imageTag)
+		if baseImageTag != expectedBaseImageTag {
+			t.Fatalf("base image tag for %q = %q, want %q", imageTag, baseImageTag, expectedBaseImageTag)
+		}
+	}
+}
+
+func TestPocContainerSSHArgumentsIncludeProxyCommand(t *testing.T) {
+	t.Setenv("INTERNKIM_POC_SSH_PASSWORD", "secret-password")
+	target := deployops.Target{SSHProxyCommand: "cloudflared access ssh --hostname %h"}
+	arguments := pocContainerSSHBaseArguments(target, "ssh")
+	joinedArguments := strings.Join(arguments, "\n")
+	if !strings.Contains(joinedArguments, "ProxyCommand=cloudflared access ssh --hostname %h") {
+		t.Fatalf("arguments missing proxy command: %v", arguments)
+	}
+	if strings.Contains(strings.Join(redactPocCommandArguments(arguments), " "), "secret-password") {
+		t.Fatalf("redacted arguments leaked password: %v", redactPocCommandArguments(arguments))
+	}
+}

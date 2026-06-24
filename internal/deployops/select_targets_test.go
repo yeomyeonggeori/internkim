@@ -58,12 +58,13 @@ func TestTargetResolvedKindDefaultsToJetson(t *testing.T) {
 
 func TestNormalizeRegistryKeepsPocContainerWithSSHHost(t *testing.T) {
 	registry := normalizeRegistry(TargetRegistry{Targets: []Target{{
-		ID:       " poc-1 ",
-		Kind:     " poc-container ",
-		SSHHost:  " studio.local ",
-		SSHUser:  " lee ",
-		Workdir:  " /srv/internkim ",
-		ImageTag: " internkim-poc:latest ",
+		ID:              " poc-1 ",
+		Kind:            " poc-container ",
+		SSHHost:         " studio.local ",
+		SSHUser:         " lee ",
+		SSHProxyCommand: " cloudflared access ssh --hostname %h ",
+		Workdir:         " /srv/internkim ",
+		ImageTag:        " internkim-poc:latest ",
 	}}})
 
 	if len(registry.Targets) != 1 {
@@ -75,5 +76,8 @@ func TestNormalizeRegistryKeepsPocContainerWithSSHHost(t *testing.T) {
 	}
 	if target.Name != "studio.local" {
 		t.Fatalf("name = %q, want studio.local", target.Name)
+	}
+	if target.SSHProxyCommand != "cloudflared access ssh --hostname %h" {
+		t.Fatalf("ssh proxy command = %q", target.SSHProxyCommand)
 	}
 }

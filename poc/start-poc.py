@@ -13,7 +13,7 @@ import os, subprocess, json, sys, glob, re
 CONTAINER = '/opt/homebrew/bin/container'
 BASE = os.path.expanduser('~/internkim-poc')
 NETWORK = 'internkim-poc'
-TENANT_IMAGE = 'internkim-poc-tenant:flow'
+TENANT_IMAGE = os.environ.get('TENANT_IMAGE', 'internkim-poc-tenant:flow')
 DEFAULT_TENANT_COUNT = int(os.environ.get('TENANT_COUNT', '10'))
 
 

@@ -113,7 +113,7 @@ fleet-aware `deploy`를 쓴다. `.local/ops/targets.json`(gitignore)에 PoC를
 { "targets": [
   { "id": "poc", "kind": "poc-container", "sshHost": "<host>", "sshUser": "<user>",
     "workdir": "<DIR>", "imageTag": "internkim-poc-tenant:flow",
-    "composeFile": "tenants.generated.yml" }
+    "sshProxyCommand": "cloudflared access ssh --hostname %h" }
 ]}
 ```
 
@@ -124,8 +124,11 @@ INTERNKIM_POC_SSH_PASSWORD=<pw> internkim deploy --components admind,web --fleet
 
 `blueclaw`는 `.dependency/blueclaw`에서 `blueclaw`+`blueclaw-posix-helper`를
 linux/arm64로 빌드하고 마이그레이션까지 동기화한다(파이어크래커 페이로드 아님).
-deploy가 컴포넌트 빌드 → scp → `docker build` → `compose up --force-recreate`까지
-수행한다. fleet을 비워 두면 기존 단일 디바이스(`--host`/`--node`) 동작 그대로다.
+deploy가 컴포넌트 빌드 → scp → Apple `container build` →
+`start-poc.py` → `restart-tunnel.py`까지 수행한다. 전체 이미지 빌드가
+Apple Container builder snapshot 문제로 실패하면 기존 tenant 이미지를 base로
+앱 산출물만 overlay build해서 같은 `imageTag`로 적용한다. fleet을 비워 두면
+기존 단일 디바이스(`--host`/`--node`) 동작 그대로다.
 
 ## 외부 주소 (Cloudflare named 터널)
 
@@ -149,10 +152,9 @@ internkim tenant sync-cloudflare-tunnel \
 ## 점검 명령 모음
 
 ```bash
-colima status
-docker compose -f <DIR>/infra/docker-compose.yml ps
-docker compose -f <DIR>/tenants.generated.yml ps
-docker stats --no-stream
+container system status
+container list
+container image list
 internkim tenant container status --workdir <DIR>
 ```
 

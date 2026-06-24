@@ -37,6 +37,9 @@ func deployPocContainer(target deployops.Target, components []string) error {
 			return errorValue
 		}
 	}
+	if errorValue := syncPocContainerRuntimeScripts(target, repositoryRootPath); errorValue != nil {
+		return errorValue
+	}
 	return recreatePocContainer(target)
 }
 
@@ -150,36 +153,89 @@ func syncMigrations(target deployops.Target, repositoryRootPath string, temporar
 	))
 }
 
-func recreatePocContainer(target deployops.Target) error {
-	return runRemote(target, fmt.Sprintf(
-		"chmod +x tenant/bin/* && docker build -q -t %s ./tenant && docker compose -f %s up -d --force-recreate",
-		quoteShellValue(target.ImageTag),
-		quoteShellValue(pocContainerComposeFile(target)),
-	))
+func syncPocContainerRuntimeScripts(target deployops.Target, repositoryRootPath string) error {
+	for _, scriptName := range []string{"start-poc.py", "restart-tunnel.py"} {
+		localPath := filepath.Join(repositoryRootPath, "poc", scriptName)
+		remotePath := path.Join(target.Workdir, scriptName)
+		if errorValue := scpToTarget(target, localPath, remotePath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return runRemote(target, "chmod +x start-poc.py restart-tunnel.py")
 }
 
-func pocContainerComposeFile(target deployops.Target) string {
-	composeFile := strings.TrimSpace(target.ComposeFile)
-	if composeFile == "" {
-		return "tenants.generated.yml"
+func recreatePocContainer(target deployops.Target) error {
+	return runRemote(target, pocContainerRecreateCommand(target))
+}
+
+func pocContainerRecreateCommand(target deployops.Target) string {
+	overlayPath := "tenant/Dockerfile.deploy-overlay"
+	return strings.Join([]string{
+		"set -eu",
+		"trap " + quoteShellValue("rm -f "+overlayPath) + " EXIT",
+		"chmod +x tenant/bin/* start-poc.py restart-tunnel.py",
+		"rm -f " + quoteShellValue(overlayPath),
+		pocContainerTagExistingImageCommand(target),
+		pocContainerBuildImageCommand(target, overlayPath),
+		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " python3 start-poc.py",
+		"[ ! -f cf.env ] || python3 restart-tunnel.py",
+	}, "\n")
+}
+
+func pocContainerTagExistingImageCommand(target deployops.Target) string {
+	return "if container image inspect " + quoteShellValue(target.ImageTag) + " >/dev/null 2>&1; then " +
+		"container image tag " + quoteShellValue(target.ImageTag) + " " + quoteShellValue(pocContainerBaseImageTag(target.ImageTag)) + "; " +
+		"fi"
+}
+
+func pocContainerBuildImageCommand(target deployops.Target, overlayPath string) string {
+	imageTag := quoteShellValue(target.ImageTag)
+	baseImageTag := quoteShellValue(pocContainerBaseImageTag(target.ImageTag))
+	overlayDocument := pocContainerOverlayDockerfile(pocContainerBaseImageTag(target.ImageTag))
+	return "if ! container build --platform linux/arm64 -t " + imageTag + " ./tenant; then\n" +
+		"container image inspect " + baseImageTag + " >/dev/null 2>&1\n" +
+		"cat > " + quoteShellValue(overlayPath) + " <<'INTERNKIM_OVERLAY_EOF'\n" +
+		overlayDocument +
+		"INTERNKIM_OVERLAY_EOF\n" +
+		"container build --platform linux/arm64 -f " + quoteShellValue(overlayPath) + " -t " + imageTag + " ./tenant\n" +
+		"fi"
+}
+
+func pocContainerOverlayDockerfile(baseImageTag string) string {
+	return "FROM " + baseImageTag + "\n" +
+		"COPY --chmod=0755 bin/internkim-capabilityd /usr/local/bin/internkim-capabilityd\n" +
+		"COPY --chmod=0755 bin/blueclaw /usr/local/bin/blueclaw\n" +
+		"COPY --chmod=4755 bin/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper\n" +
+		"COPY --chmod=0755 bin/internkim-admind /usr/local/bin/internkim-admind\n" +
+		"COPY migrations /opt/blueclaw/migrations\n" +
+		"COPY board-ui /opt/internkim/board-ui\n" +
+		"COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh\n"
+}
+
+func pocContainerBaseImageTag(imageTag string) string {
+	imageTag = strings.TrimSpace(imageTag)
+	tagSeparatorIndex := strings.LastIndex(imageTag, ":")
+	slashIndex := strings.LastIndex(imageTag, "/")
+	if tagSeparatorIndex > slashIndex {
+		return imageTag[:tagSeparatorIndex+1] + "base-before-deploy"
 	}
-	return composeFile
+	return imageTag + ":base-before-deploy"
 }
 
 func scpToTarget(target deployops.Target, localPath string, remotePath string) error {
 	destination := pocContainerSSHDestination(target) + ":" + remotePath
-	arguments := append(pocContainerSSHBaseArguments("scp"), localPath, destination)
+	arguments := append(pocContainerSSHBaseArguments(target, "scp"), localPath, destination)
 	return runPocCommand("", nil, filepath.Join(pocContainerRepositoryRootPath(), "bin", "sshpass"), arguments...)
 }
 
 func runRemote(target deployops.Target, remoteCommand string) error {
 	command := pocContainerRemoteEnvironmentPrefix + "cd " + quoteShellValue(target.Workdir) + " && " + remoteCommand
-	arguments := append(pocContainerSSHBaseArguments("ssh"), pocContainerSSHDestination(target), command)
+	arguments := append(pocContainerSSHBaseArguments(target, "ssh"), pocContainerSSHDestination(target), command)
 	return runPocCommand("", nil, filepath.Join(pocContainerRepositoryRootPath(), "bin", "sshpass"), arguments...)
 }
 
-func pocContainerSSHBaseArguments(commandName string) []string {
-	return []string{
+func pocContainerSSHBaseArguments(target deployops.Target, commandName string) []string {
+	arguments := []string{
 		"-p", os.Getenv("INTERNKIM_POC_SSH_PASSWORD"),
 		commandName,
 		"-o", "StrictHostKeyChecking=no",
@@ -187,7 +243,12 @@ func pocContainerSSHBaseArguments(commandName string) []string {
 		"-o", "PreferredAuthentications=password",
 		"-o", "PubkeyAuthentication=no",
 		"-o", "IdentitiesOnly=yes",
+		"-o", "ConnectTimeout=20",
 	}
+	if target.SSHProxyCommand != "" {
+		arguments = append(arguments, "-o", "ProxyCommand="+target.SSHProxyCommand)
+	}
+	return arguments
 }
 
 func pocContainerSSHDestination(target deployops.Target) string {
