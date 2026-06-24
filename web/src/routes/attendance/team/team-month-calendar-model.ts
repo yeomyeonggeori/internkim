@@ -4,7 +4,7 @@ import { absenceLabelText } from '../shared/attendance-absence';
 import { addDays } from '../shared/attendance-date';
 import type { DayHeatCell } from '../shared/attendance-aggregation';
 
-export type TeamCalendarAbsenceTone = 'leave' | 'work' | 'other';
+export type TeamCalendarAbsenceTone = 'leave' | 'other';
 
 export const teamCalendarVisibleLaneCount = 2;
 
@@ -46,7 +46,7 @@ export function buildTeamAbsenceByDate(
 	summary: AttendanceSummary | null,
 	text: Pick<
 		AttendanceText,
-		'absenceKindLeave' | 'absenceKindBusinessTrip' | 'absenceKindOther'
+		'absenceKindLeave' | 'absenceKindOther'
 	>
 ): Map<string, TeamCalendarAbsence[]> {
 	if (!summary) return new Map();
@@ -205,7 +205,6 @@ function absenceSpanKey(absence: AttendanceAbsence): string {
 }
 
 function absenceTone(kind: AttendanceAbsence['kind']): TeamCalendarAbsenceTone {
-	if (kind === 'business_trip') return 'work';
 	if (kind === 'other') return 'other';
 	return 'leave';
 }

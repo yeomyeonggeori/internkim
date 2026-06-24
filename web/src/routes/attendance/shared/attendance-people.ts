@@ -55,7 +55,7 @@ export function computePeopleToday(
 	today: string = todayDateInTimeZone(),
 	absences: AttendanceAbsence[] = []
 ): PersonToday[] {
-	const activeAbsences = absences.filter((absence) => absence.date === date && !absence.canceledAt);
+	const activeAbsences = isWeekend(date) ? [] : absences.filter((absence) => absence.date === date && !absence.canceledAt);
 	const people = uniquePeople(events, activeAbsences);
 	const byPerson = new Map<string, AttendanceEvent[]>();
 	for (const event of events) {
@@ -102,6 +102,6 @@ export function statusForDay(
 	const day = computeDayEvents(date, events.filter((event) => event.localDate === date));
 	if (day.inProgress) return 'working';
 	if (day.clockIn && day.clockOut) return 'finished';
-	if (absences.some((absence) => absence.date === date && !absence.canceledAt)) return 'absence';
+	if (!isWeekend(date) && absences.some((absence) => absence.date === date && !absence.canceledAt)) return 'absence';
 	return 'absent';
 }

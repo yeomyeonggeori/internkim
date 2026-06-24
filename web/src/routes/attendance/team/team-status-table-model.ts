@@ -6,7 +6,7 @@ import type { AttendanceWorkSegment, PersonToday } from '../shared/attendance-ag
 import { computePeopleToday, uniquePeople } from '../shared/attendance-aggregation';
 
 export type TeamStatusPersonDayTone = 'working' | 'finished' | 'absence' | 'absent' | 'empty';
-export type TeamStatusAbsenceTone = 'leave' | 'work' | 'other';
+export type TeamStatusAbsenceTone = 'leave' | 'other';
 
 export type TeamStatusPersonDaySegment = {
 	id: string;
@@ -15,6 +15,8 @@ export type TeamStatusPersonDaySegment = {
 	locationColor?: string;
 	timeLabel: string;
 	durationLabel?: string;
+	sharePercent: number;
+	tooltipLabel: string;
 	isOpen: boolean;
 };
 
@@ -40,6 +42,8 @@ export type TeamStatusPersonDay = {
 };
 
 export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'> & {
+	currentLocationName?: string;
+	currentLocationColor?: string;
 	days: TeamStatusPersonDay[];
 };
 
@@ -52,9 +56,10 @@ export function buildTeamStatusRows(
 	month: string,
 	summary: AttendanceSummary,
 	text: AttendanceText,
-	today: string = todayDateInTimeZone(summary.timeZone)
+	today: string = todayDateInTimeZone(summary.timeZone),
+	currentSummary: AttendanceSummary = summary
 ): TeamStatusPersonRow[] {
-	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today);
+	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today, currentSummary);
 }
 
 export function resolveDefaultDate(
@@ -76,7 +81,8 @@ function buildTeamRowsForDates(
 	dates: string[],
 	summary: AttendanceSummary,
 	text: AttendanceText,
-	today: string
+	today: string,
+	currentSummary: AttendanceSummary
 ): TeamStatusPersonRow[] {
 	const people = buildTeamPeopleForDates(summary, dates);
 	const locationColors = buildLocationColors(summary.locations);
@@ -85,12 +91,31 @@ function buildTeamRowsForDates(
 		const dayPeople = computePeopleToday(date, summary.events, summary.presences, today, summary.absences);
 		peopleByDate.set(date, new Map(dayPeople.map((person) => [person.email, person])));
 	}
-	return people.map((person) => ({
-		...person,
-		days: dates.map((date) =>
-			buildTeamStatusPersonDay(date, peopleByDate.get(date)?.get(person.email), text, locationColors)
-		),
-	}));
+	const currentLocationColors = buildLocationColors(currentSummary.locations);
+	const todayPeople = new Map(computePeopleToday(
+		today,
+		currentSummary.events,
+		currentSummary.presences,
+		today,
+		currentSummary.absences
+	).map((person) => [person.email, person]));
+	return people.map((person) => {
+		const todayPerson = todayPeople.get(person.email);
+		const currentLocationName = todayPerson?.status === 'working'
+			? (todayPerson.activeSegment?.locationName ?? todayPerson.locationName)
+			: undefined;
+		const currentLocationID = todayPerson?.status === 'working'
+			? (todayPerson.activeSegment?.locationID ?? todayPerson.locationID)
+			: undefined;
+		return {
+			...person,
+			currentLocationName,
+			currentLocationColor: findLocationColor(currentLocationColors, currentLocationID, currentLocationName),
+			days: dates.map((date) =>
+				buildTeamStatusPersonDay(date, peopleByDate.get(date)?.get(person.email), text, locationColors)
+			),
+		};
+	});
 }
 
 function buildTeamPeopleForDates(
@@ -125,17 +150,17 @@ function buildTeamStatusPersonDay(
 			locationID,
 			locationColor: findLocationColor(locationColors, locationID, locationName),
 			detailLabel: person.activeSegment?.startTime,
-			totalDurationLabel: person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes) : undefined,
+			totalDurationLabel: person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes, text) : undefined,
 			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors),
 		};
 	}
 	if (person.status === 'finished') {
+		const totalDurationLabel = person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes, text) : undefined;
 		return {
 			date,
-			label: text.finished,
+			label: totalDurationLabel ?? '-',
 			tone: 'finished',
-			detailLabel: person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes) : undefined,
-			totalDurationLabel: person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes) : undefined,
+			totalDurationLabel,
 			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors),
 		};
 	}
@@ -155,7 +180,7 @@ function buildTeamStatusPersonDay(
 			segments: [],
 		};
 	}
-	if (person.status === 'absent') return { date, label: text.absent, tone: 'absent', segments: [] };
+	if (person.status === 'absent') return { date, label: '-', tone: 'absent', segments: [] };
 	return emptyTeamStatusPersonDay(date);
 }
 
@@ -168,19 +193,31 @@ function buildTeamStatusPersonDaySegments(
 	text: AttendanceText,
 	locationColors: LocationColorLookup
 ): TeamStatusPersonDaySegment[] {
-	return segments.map((segment) => ({
-		id: segment.id,
-		locationName: segment.locationName || '-',
-		locationID: segment.locationID,
-		locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
-		timeLabel: segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`,
-		durationLabel: segment.isOpen
+	const totalWorkedMinutes = segments.reduce((totalMinutes, segment) => totalMinutes + segment.workedMinutes, 0);
+	const fallbackSharePercent = segments.length > 0 ? Math.round(100 / segments.length) : 0;
+	return segments.map((segment) => {
+		const locationName = segment.locationName || '-';
+		const timeLabel = segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`;
+		const durationLabel = segment.isOpen
 			? text.inProgress
 			: segment.workedMinutes > 0
-				? formatHoursMinutes(segment.workedMinutes)
-				: undefined,
-		isOpen: segment.isOpen,
-	}));
+				? formatHoursMinutes(segment.workedMinutes, text)
+				: undefined;
+		const sharePercent = totalWorkedMinutes > 0
+			? Math.max(1, Math.round((segment.workedMinutes / totalWorkedMinutes) * 100))
+			: fallbackSharePercent;
+		return {
+			id: segment.id,
+			locationName,
+			locationID: segment.locationID,
+			locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
+			timeLabel,
+			durationLabel,
+			sharePercent,
+			tooltipLabel: durationLabel ? `${locationName} ${timeLabel} · ${durationLabel}` : `${locationName} ${timeLabel}`,
+			isOpen: segment.isOpen,
+		};
+	});
 }
 
 function buildLocationColors(locations: AttendanceLocation[]): LocationColorLookup {
@@ -206,15 +243,13 @@ function findLocationColor(
 
 function teamStatusAbsenceLabel(
 	absence: AttendanceAbsence,
-	text: Pick<AttendanceText, 'absenceKindLeave' | 'absenceKindBusinessTrip' | 'absenceKindOther'>
+	text: Pick<AttendanceText, 'absenceKindLeave' | 'absenceKindOther'>
 ): string {
 	if (absence.kind === 'leave') return text.absenceKindLeave;
-	if (absence.kind === 'business_trip') return text.absenceKindBusinessTrip;
 	return text.absenceKindOther;
 }
 
 function absenceTone(kind: AttendanceAbsence['kind']): TeamStatusAbsenceTone {
-	if (kind === 'business_trip') return 'work';
 	if (kind === 'other') return 'other';
 	return 'leave';
 }

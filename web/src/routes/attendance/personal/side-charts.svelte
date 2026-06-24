@@ -6,6 +6,11 @@
 	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-day-events';
 	import { attendanceText } from '../text';
 
+	type Props = {
+		compact?: boolean;
+	};
+
+	let { compact = false }: Props = $props();
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
@@ -40,16 +45,16 @@
 	}
 </script>
 
-<div class="flex flex-col gap-3">
+<div class={compact ? 'flex flex-col gap-2' : 'flex flex-col gap-3'}>
 	{#if stats}
 		<Card.Root>
-			<Card.Header><Card.Title class="text-sm">{text.attendanceRate}</Card.Title></Card.Header>
+			<Card.Header class={compact ? 'pb-2' : undefined}><Card.Title class="text-sm">{text.attendanceRate}</Card.Title></Card.Header>
 			<Card.Content class="flex flex-col items-center">
 				<div
-					class="flex h-20 w-20 items-center justify-center rounded-full"
+					class={compact ? 'flex h-16 w-16 items-center justify-center rounded-full' : 'flex h-20 w-20 items-center justify-center rounded-full'}
 					style={`background: conic-gradient(#22c55e 0deg ${ringDeg}deg, #e5e7eb ${ringDeg}deg 360deg)`}
 				>
-					<div class="flex h-14 w-14 flex-col items-center justify-center rounded-full bg-background">
+					<div class={compact ? 'flex h-11 w-11 flex-col items-center justify-center rounded-full bg-background' : 'flex h-14 w-14 flex-col items-center justify-center rounded-full bg-background'}>
 						<span class="text-sm font-semibold">{stats.weekdayCount ? Math.round((stats.workedDays / stats.weekdayCount) * 100) : 0}%</span>
 						<span class="text-[9px] text-muted-foreground">{stats.workedDays}/{stats.weekdayCount}</span>
 					</div>
@@ -59,8 +64,8 @@
 	{/if}
 
 	<Card.Root>
-		<Card.Header><Card.Title class="text-sm">{text.locationDistribution}</Card.Title></Card.Header>
-		<Card.Content class="space-y-1 text-xs">
+		<Card.Header class={compact ? 'pb-2' : undefined}><Card.Title class="text-sm">{text.locationDistribution}</Card.Title></Card.Header>
+		<Card.Content class={compact ? 'space-y-1 px-3 pb-3 text-xs' : 'space-y-1 text-xs'}>
 			{#each locationBreakdown as item (item.label)}
 				<div class="flex items-center justify-between">
 					<span>{item.label}</span>

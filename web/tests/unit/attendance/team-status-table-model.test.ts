@@ -20,7 +20,7 @@ describe('team status table model', () => {
 				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-16', 'clock_in', '09:00', 'lab-a', 'Lab A'),
 			],
 			[
-				attendanceAbsence('lee-1', 'lee@example.com', 'business_trip', '2026-06-17', {
+				attendanceAbsence('lee-1', 'lee@example.com', 'other', '2026-06-17', {
 					reason: 'client visit',
 					createdBy: 'admin@example.com',
 				}),
@@ -29,20 +29,37 @@ describe('team status table model', () => {
 			]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-20');
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17');
 		const kim = rows.find((row) => row.email === 'kim@example.com');
 		const lee = rows.find((row) => row.email === 'lee@example.com');
 		const park = rows.find((row) => row.email === 'park@example.com');
 
 		expect(kim?.days.length).toBe(30);
+		expect(kim).toMatchObject({
+			currentLocationName: '고객사',
+			currentLocationColor: '#f59e0b',
+		});
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '퇴근',
+			label: '2시간',
 			tone: 'finished',
-			detailLabel: '2h',
-			totalDurationLabel: '2h',
+			totalDurationLabel: '2시간',
 			segments: [
-				{ locationName: 'Lab A', locationColor: '#22c55e', timeLabel: '09:00-10:00', durationLabel: '1h' },
-				{ locationName: '고객사', locationColor: '#f59e0b', timeLabel: '11:00-12:00', durationLabel: '1h' },
+				{
+					locationName: 'Lab A',
+					locationColor: '#22c55e',
+					timeLabel: '09:00-10:00',
+					durationLabel: '1시간',
+					sharePercent: 50,
+					tooltipLabel: 'Lab A 09:00-10:00 · 1시간',
+				},
+				{
+					locationName: '고객사',
+					locationColor: '#f59e0b',
+					timeLabel: '11:00-12:00',
+					durationLabel: '1시간',
+					sharePercent: 50,
+					tooltipLabel: '고객사 11:00-12:00 · 1시간',
+				},
 			],
 		});
 		expect(kim?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
@@ -51,14 +68,24 @@ describe('team status table model', () => {
 			locationName: '고객사',
 			locationColor: '#f59e0b',
 			detailLabel: '13:00',
-			segments: [{ locationName: '고객사', locationColor: '#f59e0b', timeLabel: '13:00~', durationLabel: '진행 중', isOpen: true }],
+			segments: [
+				{
+					locationName: '고객사',
+					locationColor: '#f59e0b',
+					timeLabel: '13:00~',
+					durationLabel: '진행 중',
+					sharePercent: 100,
+					tooltipLabel: '고객사 13:00~ · 진행 중',
+					isOpen: true,
+				},
+			],
 		});
 		expect(lee?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '출장',
+			label: '기타',
 			tone: 'absence',
-			absenceTone: 'work',
+			absenceTone: 'other',
 			absenceDetail: {
-				label: '출장',
+				label: '기타',
 				periodLabel: '6/17',
 				reason: 'client visit',
 				createdBy: 'admin@example.com',
@@ -75,7 +102,7 @@ describe('team status table model', () => {
 			absenceTone: 'other',
 		});
 		expect(park?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '미출근',
+			label: '-',
 			tone: 'absent',
 		});
 	});
@@ -115,7 +142,7 @@ describe('team status table model', () => {
 				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-30', 'clock_in', '09:00'),
 			],
 			[
-				attendanceAbsence('lee-1', 'lee@example.com', 'business_trip', '2026-06-01'),
+				attendanceAbsence('lee-1', 'lee@example.com', 'other', '2026-06-01'),
 				attendanceAbsence('choi-1', 'choi@example.com', 'leave', '2026-06-30'),
 			]
 		);
@@ -135,11 +162,11 @@ describe('team status table model', () => {
 		expect(kim?.days[0]?.date).toBe('2026-06-01');
 		expect(kim?.days[29]?.date).toBe('2026-06-30');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '퇴근',
+			label: '9시간',
 			tone: 'finished',
 		});
 		expect(lee?.days.find((day) => day.date === '2026-06-01')).toMatchObject({
-			label: '출장',
+			label: '기타',
 			tone: 'absence',
 		});
 		expect(choi?.days.find((day) => day.date === '2026-06-30')).toMatchObject({
@@ -166,11 +193,62 @@ describe('team status table model', () => {
 
 		expect(rows.map((row) => row.email)).toEqual(['kim@example.com']);
 	});
+
+	test('does not show absence labels on weekends', () => {
+		const summary = attendanceSummary(
+			[
+				attendanceEvent('kim-name', 'kim@example.com', '김철수', '2026-06-05', 'clock_in', '09:00'),
+			],
+			[
+				attendanceAbsence('kim-weekend-leave', 'kim@example.com', 'leave', '2026-06-06'),
+			]
+		);
+
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-06');
+		const kimWeekend = rows.find((row) => row.email === 'kim@example.com')?.days.find((day) => day.date === '2026-06-06');
+
+		expect(kimWeekend).toMatchObject({
+			label: '-',
+			tone: 'empty',
+		});
+	});
+
+	test('uses current month summary for the current location while viewing another month', () => {
+		const selectedSummary = attendanceSummaryForMonth('2026-05',
+			[
+				attendanceEvent('kim-may-name', 'kim@example.com', '김철수', '2026-05-20', 'clock_in', '09:00'),
+				attendanceEvent('kim-may-out', 'kim@example.com', '김철수', '2026-05-20', 'clock_out', '18:00'),
+			],
+			[]
+		);
+		const currentSummary = attendanceSummaryForMonth('2026-06',
+			[
+				attendanceEvent('kim-current-in', 'kim@example.com', '김철수', '2026-06-24', 'clock_in', '10:00', 'client-site', '고객사'),
+			],
+			[]
+		);
+
+		const rows = buildTeamStatusRows('2026-05', selectedSummary, attendanceText.ko, '2026-06-24', currentSummary);
+		const kim = rows.find((row) => row.email === 'kim@example.com');
+
+		expect(kim).toMatchObject({
+			currentLocationName: '고객사',
+			currentLocationColor: '#f59e0b',
+		});
+		expect(kim?.days.find((day) => day.date === '2026-05-20')).toMatchObject({
+			label: '9시간',
+			tone: 'finished',
+		});
+	});
 });
 
 function attendanceSummary(events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceSummary {
+	return attendanceSummaryForMonth('2026-06', events, absences);
+}
+
+function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceSummary {
 	return {
-		month: '2026-06',
+		month,
 		currentUserEmail: 'kim@example.com',
 		isAdmin: true,
 		timeZone: 'Asia/Seoul',
