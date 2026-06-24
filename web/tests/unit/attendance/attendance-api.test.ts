@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { createAttendanceAbsence, fetchAttendanceSummary } from '../../../src/routes/attendance/attendance-api';
+import {
+	createAttendanceAbsence,
+	deleteAttendanceAbsence,
+	fetchAttendanceSummary
+} from '../../../src/routes/attendance/attendance-api';
 import { createMockFetch } from '../test-fetch';
 
 describe('fetchAttendanceSummary', () => {
@@ -70,6 +74,29 @@ describe('createAttendanceAbsence', () => {
 				endDate: '2026-06-11',
 				reason: 'family'
 			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+});
+
+describe('deleteAttendanceAbsence', () => {
+	test('deletes the selected absence by id', async () => {
+		const originalFetch = globalThis.fetch;
+
+		let requestedURL = '';
+		let requestMethod = '';
+		try {
+			globalThis.fetch = createMockFetch(async (input, init) => {
+				requestedURL = String(input);
+				requestMethod = init?.method ?? '';
+				return Response.json({ ok: true });
+			});
+
+			await deleteAttendanceAbsence('absence 1');
+
+			expect(requestedURL).toBe('/attendance/api/absences/absence%201');
+			expect(requestMethod).toBe('DELETE');
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

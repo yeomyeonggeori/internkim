@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -140,6 +141,128 @@ func TestRepairFutureAttendanceEventsMovesEventToPreviousDay(t *testing.T) {
 	}
 }
 
+func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#3b82f6"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	event := service.createAttendanceEvent(
+		userRecord,
+		attendanceKindClockIn,
+		time.Date(2026, 6, 18, 13, 44, 0, 0, location).UTC(),
+		"team-1",
+		"attendance-channel",
+		"entry-post",
+		"result-post",
+		service.attendanceLocationByID("office"),
+	)
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/events/"+event.ID, strings.NewReader(`{"localDate":"2026-06-18","localTime":"14:05","locationID":"home","reason":"메시지 인식 수정"}`))
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	summaryRecorder := httptest.NewRecorder()
+	summaryRequest := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-06", nil)
+	summaryRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(summaryRecorder, summaryRequest)
+	if summaryRecorder.Code != http.StatusOK {
+		t.Fatalf("summary status = %d body = %s", summaryRecorder.Code, summaryRecorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(summaryRecorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(response.Events) != 1 {
+		t.Fatalf("events = %+v", response.Events)
+	}
+	editedEvent := response.Events[0]
+	if editedEvent.LocalTime != "14:05:00" || editedEvent.LocationID != "home" || editedEvent.LocationName != "재택" {
+		t.Fatalf("edited event = %+v", editedEvent)
+	}
+	if editedEvent.OriginalLocalTime != "13:44:00" || editedEvent.OriginalLocationID != "office" || editedEvent.OriginalLocationName != "사무실" {
+		t.Fatalf("original event fields = %+v", editedEvent)
+	}
+	if editedEvent.OverriddenBy != "staff@example.com" || editedEvent.OverriddenAt == "" || editedEvent.OverrideReason != "메시지 인식 수정" {
+		t.Fatalf("override metadata = %+v", editedEvent)
+	}
+	if len(editedEvent.OverrideHistory) != 1 || editedEvent.OverrideHistory[0].OriginalLocalTime != "13:44:00" || editedEvent.OverrideHistory[0].OverrideLocalTime != "14:05:00" {
+		t.Fatalf("override history = %+v", editedEvent.OverrideHistory)
+	}
+}
+
+func TestAttendanceEventOverrideRequiresOwnerOrAdmin(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#3b82f6"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	event := service.createAttendanceEvent(
+		userRecord,
+		attendanceKindClockIn,
+		time.Date(2026, 6, 18, 13, 44, 0, 0, location).UTC(),
+		"team-1",
+		"attendance-channel",
+		"entry-post",
+		"result-post",
+		service.attendanceLocationByID("office"),
+	)
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	staffRecorder := patchAttendanceEventOverrideForTest(service, event.ID, "other@example.com")
+	if staffRecorder.Code != http.StatusForbidden {
+		t.Fatalf("expected non-owner staff status 403, got %d: %s", staffRecorder.Code, staffRecorder.Body.String())
+	}
+
+	adminRecorder := patchAttendanceEventOverrideForTest(service, event.ID, "admin@example.com")
+	if adminRecorder.Code != http.StatusOK {
+		t.Fatalf("expected admin status 200, got %d: %s", adminRecorder.Code, adminRecorder.Body.String())
+	}
+}
+
 func insertAttendanceSummaryTestEvent(t *testing.T, service *Service, database *sql.DB, userRecord mattermostUserRecord, kind string, occurredAt time.Time) {
 	t.Helper()
 	event := service.createAttendanceEvent(
@@ -155,4 +278,13 @@ func insertAttendanceSummaryTestEvent(t *testing.T, service *Service, database *
 	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+}
+
+func patchAttendanceEventOverrideForTest(service *Service, eventID string, actorEmail string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/events/"+eventID, strings.NewReader(`{"localDate":"2026-06-18","localTime":"14:05","locationID":"home","reason":"메시지 인식 수정"}`))
+	request.RemoteAddr = "203.0.113.10:1234"
+	request.Header.Set("X-Forwarded-Email", actorEmail)
+	service.handleAttendance(recorder, request)
+	return recorder
 }

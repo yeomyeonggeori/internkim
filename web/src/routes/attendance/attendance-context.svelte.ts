@@ -2,17 +2,18 @@ import { getContext, setContext } from 'svelte';
 import {
 	createAttendanceAbsence,
 	type CreateAttendanceAbsenceRequest,
+	deleteAttendanceAbsence,
 	fetchAttendanceSummary,
 	toggleAttendanceOnServer,
-	updateAttendanceTeamViewVisibility
+	updateAttendanceEvent,
+	type UpdateAttendanceEventRequest
 } from './attendance-api';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
 import { currentMonthInTimeZone } from './shared/attendance-date';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
-export type AttendanceAbsenceKind = 'leave' | 'business_trip' | 'other';
+export type AttendanceAbsenceKind = 'leave' | 'other';
 export type ChartMode = 'day' | 'week' | 'month';
-export type AttendanceTab = 'team' | 'personal';
 export type AttendancePresence = 'online' | 'away' | 'offline' | 'dnd';
 
 export type AttendanceLocation = {
@@ -44,7 +45,32 @@ export type AttendanceEvent = {
 	parsedAs?: { kind?: AttendanceKind; locationID?: string };
 	overriddenBy?: string;
 	overriddenAt?: string;
+	overrideReason?: string;
+	originalOccurredAt?: string;
+	originalLocalDate?: string;
+	originalLocalTime?: string;
+	originalLocationID?: string;
+	originalLocationName?: string;
+	overrideHistory?: AttendanceEventOverride[];
 	manualEntry?: boolean;
+};
+
+export type AttendanceEventOverride = {
+	id: string;
+	eventID: string;
+	editedBy: string;
+	editedAt: string;
+	reason: string;
+	originalOccurredAt: string;
+	originalLocalDate: string;
+	originalLocalTime: string;
+	originalLocationID: string;
+	originalLocationName: string;
+	overrideOccurredAt: string;
+	overrideLocalDate: string;
+	overrideLocalTime: string;
+	overrideLocationID: string;
+	overrideLocationName: string;
 };
 
 export type AttendanceAbsence = {
@@ -85,13 +111,11 @@ export class AttendanceState {
 	currentMonthSummary = $state<AttendanceSummary | null>(null);
 	selectedMonth = $state<string>('');
 	chartMode = $state<ChartMode>('day');
-	tab = $state<AttendanceTab>('team');
 	selectedDate = $state<string>('');
 	isLoading = $state<boolean>(false);
 	errorMessage = $state<string>('');
 
 	private loadFailedMessage: string;
-	private tabExplicitlySet = false;
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
@@ -107,11 +131,6 @@ export class AttendanceState {
 		});
 	}
 
-	setTab(value: AttendanceTab) {
-		this.tab = value;
-		this.tabExplicitlySet = true;
-	}
-
 	async load() {
 		this.isLoading = true;
 		this.errorMessage = '';
@@ -119,13 +138,6 @@ export class AttendanceState {
 			const next = await this.fetchSummaryForMonth(this.selectedMonth);
 			this.summary = next;
 			this.selectedMonth = next.month;
-			const personalOnly = !next.isAdmin && next.teamViewBlocked;
-			if (!this.tabExplicitlySet) {
-				this.tab = next.isAdmin ? 'team' : 'personal';
-			}
-			if (personalOnly && this.tab === 'team') {
-				this.tab = 'personal';
-			}
 			await this.refreshCurrentMonthSnapshot(next);
 		} catch (error) {
 			this.errorMessage = error instanceof Error ? error.message : this.loadFailedMessage;
@@ -153,77 +165,6 @@ export class AttendanceState {
 		}
 	}
 
-	overrideLocation(eventID: string, newLocationID: string) {
-		if (!this.summary) return;
-		const overriddenAt = new Date().toISOString();
-		const overriddenBy = this.summary.currentUserEmail;
-		this.applyOverride(this.summary, eventID, newLocationID, overriddenAt, overriddenBy);
-		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyOverride(this.currentMonthSummary, eventID, newLocationID, overriddenAt, overriddenBy);
-		}
-	}
-
-	private applyOverride(target: AttendanceSummary, eventID: string, newLocationID: string, overriddenAt: string, overriddenBy: string) {
-		const location = target.locations.find((l) => l.id === newLocationID);
-		target.events = target.events.map((event) =>
-			event.id === eventID
-				? {
-						...event,
-						parsedAs: event.parsedAs ?? { kind: event.kind, locationID: event.locationID },
-						locationID: newLocationID,
-						locationName: location?.name ?? event.locationName,
-						overriddenBy,
-						overriddenAt,
-					}
-				: event
-		);
-	}
-
-	dismissEvent(eventID: string, reason: string) {
-		if (!this.summary) return;
-		const canceledAt = new Date().toISOString();
-		this.applyDismiss(this.summary, eventID, canceledAt, reason);
-		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyDismiss(this.currentMonthSummary, eventID, canceledAt, reason);
-		}
-	}
-
-	private applyDismiss(target: AttendanceSummary, eventID: string, canceledAt: string, reason: string) {
-		target.events = target.events.map((event) =>
-			event.id === eventID
-				? { ...event, canceledAt, cancelReason: reason }
-				: event
-		);
-	}
-
-	confirmClassification(eventID: string) {
-		if (!this.summary) return;
-		const overriddenAt = new Date().toISOString();
-		const overriddenBy = this.summary.currentUserEmail;
-		this.applyConfirm(this.summary, eventID, overriddenAt, overriddenBy);
-		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyConfirm(this.currentMonthSummary, eventID, overriddenAt, overriddenBy);
-		}
-	}
-
-	private applyConfirm(target: AttendanceSummary, eventID: string, overriddenAt: string, overriddenBy: string) {
-		target.events = target.events.map((event) =>
-			event.id === eventID
-				? {
-						...event,
-						parsedAs: event.parsedAs ?? { kind: event.kind, locationID: event.locationID },
-						overriddenBy,
-						overriddenAt,
-					}
-				: event
-		);
-	}
-
-	async updateTeamViewVisibility(visible: boolean) {
-		await updateAttendanceTeamViewVisibility(visible);
-		await this.load();
-	}
-
 	async toggleAttendance(kind?: AttendanceKind, locationID?: string) {
 		await toggleAttendanceOnServer(kind, locationID);
 		await this.load();
@@ -233,6 +174,16 @@ export class AttendanceState {
 		const absences = await createAttendanceAbsence(request);
 		await this.load();
 		return absences;
+	}
+
+	async deleteAbsence(absenceID: string) {
+		await deleteAttendanceAbsence(absenceID);
+		await this.load();
+	}
+
+	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {
+		await updateAttendanceEvent(eventID, request);
+		await this.load();
 	}
 }
 
