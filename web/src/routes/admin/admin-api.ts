@@ -8,6 +8,7 @@ import type {
 	CircleRecord,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
+	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
 	UserRecord,
@@ -148,6 +149,26 @@ export async function saveUsers(adminBaseURL: string, users: UserSaveRequest[], 
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ users })
+	});
+	return readJSON<UsersResponse>(response, fallbackMessage);
+}
+
+export async function saveOrgProfiles(adminBaseURL: string, profiles: OrgProfileUpdate[], fallbackMessage: string): Promise<UsersResponse> {
+	const response = await fetch(`${adminBaseURL}/users/org-profiles?includePolicy=true`, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ profiles })
+	});
+	return readJSON<UsersResponse>(response, fallbackMessage);
+}
+
+export async function saveOrgGroups(adminBaseURL: string, groups: OrgGroup[], fallbackMessage: string): Promise<UsersResponse> {
+	const response = await fetch(`${adminBaseURL}/org-groups?includePolicy=true`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ groups })
 	});
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
@@ -294,9 +315,14 @@ export type UserSaveRequest = Pick<UserRecord, 'userID' | 'handle' | 'email' | '
 	hireDate: string;
 	role: UserRole;
 	circles: string[];
-	jobTitle?: string;
-	primaryCircle?: string;
-	supervisorID?: string;
+};
+
+export type OrgProfileUpdate = {
+	userID: string;
+	email: string;
+	jobTitle: string;
+	group: string;
+	supervisorID: string;
 };
 
 export type RestoreCompletionRequest = {
