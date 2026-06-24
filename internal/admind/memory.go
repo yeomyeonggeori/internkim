@@ -2,6 +2,8 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -65,6 +67,18 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.updateUserMemorySchedule(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodPost && path == "/episodes/delete" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/episodes/delete")
+		return
+	}
+	if request.Method == http.MethodPost && path == "/pinned/update" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/pinned/update")
+		return
+	}
+	if request.Method == http.MethodPost && path == "/pinned/delete" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/pinned/delete")
+		return
+	}
 	if request.Method == http.MethodGet && path == "/identity-migration" {
 		service.writeMemoryIdentityMigrationMap(responseWriter, request)
 		return
@@ -105,6 +119,39 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 		return
 	}
 	service.writeJSON(responseWriter, graph)
+}
+
+func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string) {
+	actorEmail := service.memoryActorEmail(request)
+	if actorEmail == "" {
+		http.Error(responseWriter, "memory access required", http.StatusForbidden)
+		return
+	}
+	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
+	if errorValue != nil {
+		log.Printf("memory mutation identity resolution failed: %v", errorValue)
+		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
+		return
+	}
+	if personID == "" {
+		http.Error(responseWriter, "memory person not found", http.StatusNotFound)
+		return
+	}
+
+	body := map[string]any{}
+	if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil && errorValue != io.EOF {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	body["readerPersonID"] = personID
+
+	var response map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, upstreamPath, body, &response); errorValue != nil {
+		log.Printf("memory mutation upstream failed: %v", errorValue)
+		http.Error(responseWriter, "memory mutation unavailable", http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, response)
 }
 
 func (service *Service) memoryActorEmail(request *http.Request) string {

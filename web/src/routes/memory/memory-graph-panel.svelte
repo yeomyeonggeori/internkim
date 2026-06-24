@@ -3,19 +3,27 @@
 	import MemoryNetwork from '$lib/components/memory-network.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 	import {
+		deleteMemoryEpisode,
+		deletePinnedMemory,
 		fetchMemoryGraph,
+		savePinnedMemory,
 		type MemoryGraphResponse,
 		type MemoryGraphNode,
 		type MemoryGraphEdge,
-		type MemoryGraphFact,
 		type MemoryGraphEpisode
 	} from './memory-graph-api';
+	import { factsForMemoryGraphSelection, isPersonalScope, mergedPersonalNodeID } from './memory-graph-selection';
 	import type { MemoryText } from './text';
 
 	let { text }: { text: MemoryText } = $props();
@@ -23,44 +31,40 @@
 	let memoryGraph = $state<MemoryGraphResponse | null>(null);
 	let memoryGraphQuery = $state('');
 	let errorMessage = $state('');
+	let actionErrorMessage = $state('');
 	let isLoading = $state(false);
+	let isSavingMemory = $state(false);
+	let isEditingPinnedMemory = $state(false);
+	let pinnedMemoryDraft = $state('');
 	let selectedNode = $state<MemoryGraphNode | null>(null);
-
-	const mergedPersonalNodeID = 'namespace:personal';
 
 	const namespaces = () => memoryGraph?.namespaces ?? [];
 	const facts = () => memoryGraph?.facts ?? [];
 	const graphTopology = $derived(mergePersonalNamespaceNodes(memoryGraph?.nodes ?? [], memoryGraph?.edges ?? []));
 	const nodes = () => graphTopology.nodes;
 	const edges = () => graphTopology.edges;
-	const visibleFacts = () => factsForSelection(facts(), selectedNode);
 	const selectedEpisode = (): MemoryGraphEpisode | null => {
 		if (selectedNode?.kind !== 'episode') return null;
 		return (memoryGraph?.episodes ?? []).find((episode) => `episode:${episode.episodeID}` === selectedNode?.nodeID) ?? null;
 	};
+	const visibleFacts = () => factsForMemoryGraphSelection(facts(), selectedNode, selectedEpisode());
+	const pinnedMemoryFact = () => visibleFacts().find((fact) => fact.sourceKind === 'pinned');
+	const canEditPinnedMemory = () =>
+		selectedNode?.kind === 'namespace' &&
+		(selectedNode.nodeID === mergedPersonalNodeID || isPersonalScope(selectedNode.scopeType ?? ''));
 
 	function selectNode(nodeID: string): void {
 		selectedNode = nodes().find((node) => node.nodeID === nodeID) ?? null;
+		actionErrorMessage = '';
+		isEditingPinnedMemory = false;
 	}
 
 	function clearSelection(): void {
 		selectedNode = null;
+		actionErrorMessage = '';
+		isEditingPinnedMemory = false;
 	}
 
-	function factsForSelection(allFacts: MemoryGraphFact[], node: MemoryGraphNode | null): MemoryGraphFact[] {
-		if (!node) return allFacts;
-		if (node.kind === 'fact') {
-			return allFacts.filter((fact) => `fact:${fact.namespaceID}:${fact.factID}` === node.nodeID);
-		}
-		if (node.kind === 'namespace') {
-			if (node.nodeID === mergedPersonalNodeID) {
-				return allFacts.filter((fact) => isPersonalScope(fact.scopeType));
-			}
-			const namespaceID = node.nodeID.slice('namespace:'.length);
-			return allFacts.filter((fact) => fact.namespaceID === namespaceID);
-		}
-		return [];
-	}
 	const episodes = () => memoryGraph?.episodes ?? [];
 	const hasMemoryGraph = () => Boolean(memoryGraph);
 	const hasMemoryHealth = () => Boolean(memoryGraph?.health);
@@ -70,10 +74,6 @@
 	function factScoreText(score: number | null | undefined): string {
 		if (typeof score !== 'number' || !Number.isFinite(score)) return text.scoreUnavailable;
 		return `${text.score} ${Math.round(score * 100)}%`;
-	}
-
-	function isPersonalScope(scopeType: string): boolean {
-		return scopeType === 'user' || scopeType === 'private';
 	}
 
 	function scopeDisplayName(scopeType: string, namespaceID: string): string {
@@ -122,7 +122,9 @@
 	async function loadMemoryGraph(): Promise<void> {
 		isLoading = true;
 		errorMessage = '';
+		actionErrorMessage = '';
 		selectedNode = null;
+		isEditingPinnedMemory = false;
 		try {
 			memoryGraph = await fetchMemoryGraph(memoryGraphQuery);
 		} catch {
@@ -147,6 +149,70 @@
 		const health = memoryGraph?.health;
 		if (health?.hasGraphFailure || health?.hasSearchFailure || health?.hasIngestionFailure) return 'destructive';
 		return health?.reachable ? 'secondary' : 'outline';
+	}
+
+	function startPinnedMemoryEdit(): void {
+		pinnedMemoryDraft = pinnedMemoryFact()?.content ?? '# Memory\n';
+		actionErrorMessage = '';
+		isEditingPinnedMemory = true;
+	}
+
+	async function savePinnedMemoryDraft(): Promise<void> {
+		isSavingMemory = true;
+		actionErrorMessage = '';
+		try {
+			await savePinnedMemory(pinnedMemoryDraft);
+			isEditingPinnedMemory = false;
+			await loadMemoryGraph();
+		} catch {
+			actionErrorMessage = text.memorySaveFailed;
+		} finally {
+			isSavingMemory = false;
+		}
+	}
+
+	function confirmDeletePinnedMemory(): void {
+		confirmDelete({
+			title: text.memoryDeleteTitle,
+			description: text.pinnedMemoryDeleteDescription,
+			confirm: { text: text.memoryDeleteAction },
+			cancel: { text: text.cancel },
+			onConfirm: async () => {
+				await deleteSelectedPinnedMemory();
+			}
+		});
+	}
+
+	async function deleteSelectedPinnedMemory(): Promise<void> {
+		actionErrorMessage = '';
+		try {
+			await deletePinnedMemory();
+			await loadMemoryGraph();
+		} catch {
+			actionErrorMessage = text.memoryDeleteFailed;
+		}
+	}
+
+	function confirmDeleteEpisode(episode: MemoryGraphEpisode): void {
+		confirmDelete({
+			title: text.memoryDeleteTitle,
+			description: text.episodeDeleteDescription,
+			confirm: { text: text.memoryDeleteAction },
+			cancel: { text: text.cancel },
+			onConfirm: async () => {
+				await deleteSelectedEpisode(episode);
+			}
+		});
+	}
+
+	async function deleteSelectedEpisode(episode: MemoryGraphEpisode): Promise<void> {
+		actionErrorMessage = '';
+		try {
+			await deleteMemoryEpisode(episode.episodeID, episode.namespaceIDs ?? []);
+			await loadMemoryGraph();
+		} catch {
+			actionErrorMessage = text.memoryDeleteFailed;
+		}
 	}
 </script>
 
@@ -224,6 +290,38 @@
 				{/if}
 			</div>
 			<div class="min-h-0 overflow-y-auto">
+				{#if actionErrorMessage}
+					<p class="m-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
+				{/if}
+				{#if canEditPinnedMemory()}
+					<article class="grid gap-2 border-b px-3 py-3">
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<Badge variant="outline">MEMORY.md</Badge>
+							<div class="ml-auto flex items-center gap-1">
+								<Button type="button" variant="ghost" size="icon-sm" onclick={startPinnedMemoryEdit} aria-label={text.memoryEdit} title={text.memoryEdit}>
+									<PencilIcon class="size-4" />
+								</Button>
+								<Button type="button" variant="ghost" size="icon-sm" onclick={confirmDeletePinnedMemory} aria-label={text.memoryDelete} title={text.memoryDelete} disabled={!pinnedMemoryFact()}>
+									<TrashIcon class="size-4" />
+								</Button>
+							</div>
+						</div>
+						{#if isEditingPinnedMemory}
+							<Textarea bind:value={pinnedMemoryDraft} class="min-h-52 resize-y font-mono text-sm" />
+							<div class="flex justify-end gap-2">
+								<Button type="button" variant="outline" size="sm" onclick={() => (isEditingPinnedMemory = false)} disabled={isSavingMemory}>{text.cancel}</Button>
+								<Button type="button" size="sm" onclick={() => void savePinnedMemoryDraft()} disabled={isSavingMemory} class="gap-2">
+									{#if isSavingMemory}
+										<LoaderIcon class="size-4 animate-spin" />
+									{:else}
+										<SaveIcon class="size-4" />
+									{/if}
+									{text.save}
+								</Button>
+							</div>
+						{/if}
+					</article>
+				{/if}
 				{#if selectedEpisode()}
 					{@const episode = selectedEpisode()}
 					<article class="grid gap-2 border-b px-3 py-3">
@@ -232,11 +330,26 @@
 								{episode?.ingestionStatus ?? text.episodes}
 							</Badge>
 							<span class="truncate text-xs text-muted-foreground">{episode?.platform}</span>
+							<Button type="button" variant="ghost" size="icon-sm" onclick={() => episode && confirmDeleteEpisode(episode)} aria-label={text.memoryDelete} title={text.memoryDelete}>
+								<TrashIcon class="size-4" />
+							</Button>
 							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{(episode?.occurredAt ?? '').slice(0, 16).replace('T', ' ')}</span>
 						</div>
 						{#if episode?.ingestionError}
 							<p class="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs break-words text-destructive">
 								{episode.ingestionError}
+							</p>
+						{/if}
+						{#if episode?.prompt}
+							<div class="grid gap-1 rounded-md border bg-muted/20 px-2 py-2">
+								<p class="text-xs font-medium text-muted-foreground">{text.sourceMessage}</p>
+								<div class="memory-markdown text-sm leading-5">
+									<SvelteMarkdown source={episode.prompt} />
+								</div>
+							</div>
+						{:else}
+							<p class="rounded-md border bg-muted/20 px-2 py-2 text-xs leading-5 text-muted-foreground">
+								{text.sourceMessageUnavailable}
 							</p>
 						{/if}
 					</article>
@@ -249,8 +362,8 @@
 							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
 						</div>
 						<div class="memory-markdown text-sm leading-5">
-						<SvelteMarkdown source={fact.content} />
-					</div>
+							<SvelteMarkdown source={fact.content} />
+						</div>
 					</article>
 				{/each}
 				{#if visibleFacts().length === 0 && !selectedEpisode()}
