@@ -3,11 +3,14 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 )
+
+var errLastAdminDemotion = errors.New("cannot demote the last admin user")
 
 type localMattermostTeamMember struct {
 	UserID string `json:"user_id"`
@@ -15,28 +18,32 @@ type localMattermostTeamMember struct {
 }
 
 func (service *Service) localListUsers(responseWriter http.ResponseWriter, request *http.Request) {
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	response, errorValue := service.buildLocalUsersResponse(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	teamRecord, errorValue := service.ensureMattermostTeam(request.Context(), token)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	users, errorValue := service.teamMattermostUsers(request.Context(), token, teamRecord.ID)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	roleByUserID, errorValue := service.localMattermostTeamRoles(request.Context(), token, teamRecord.ID)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	response := pagesUsersResponse{Records: localAdminUserRecords(users, roleByUserID)}
 	service.writeLocalUsersResponse(responseWriter, request, response)
+}
+
+func (service *Service) buildLocalUsersResponse(ctx context.Context) (pagesUsersResponse, error) {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
+	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
+	}
+	users, errorValue := service.teamMattermostUsers(ctx, token, teamRecord.ID)
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
+	}
+	roleByUserID, errorValue := service.localMattermostTeamRoles(ctx, token, teamRecord.ID)
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
+	}
+	return pagesUsersResponse{Records: localAdminUserRecords(users, roleByUserID)}, nil
 }
 
 func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, request *http.Request) {
@@ -44,49 +51,10 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	if !isValid {
 		return
 	}
-	userID, errorValue := service.localBlueclawPersonIDByEmail(request.Context(), payload.Email)
+	payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
 		return
-	}
-	if strings.TrimSpace(payload.UserID) == "" {
-		payload.UserID = firstNonEmpty(userID, newInternKimUserID())
-	}
-	payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
-	if payload.Role != "admin" {
-		isLastAdmin, errorValue := service.localIsLastMattermostAdminByEmail(request.Context(), payload.Email)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		if isLastAdmin {
-			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
-			return
-		}
-	}
-	systemSafePayload := payload
-	systemSafePayload.Role = "member"
-	provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), systemSafePayload, "")
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	payload.MattermostUserID = provisionResult.UserID
-	payload.MattermostUsername = provisionResult.Username
-	payload.Handle = provisionResult.Username
-	payload.Status = provisionResult.Status
-	if errorValue := service.applyLocalMattermostTeamRole(request.Context(), provisionResult.UserID, payload.Role == "admin"); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	if errorValue := service.localSaveBlueclawPerson(request.Context(), payload, hasExplicitCircleMutation); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	if hasExplicitCircleMutation {
-		if errorValue := service.syncMattermostUserCircleMemberships(request.Context(), payload); errorValue != nil {
-			log.Printf("Mattermost circle membership sync failed: %v", errorValue)
-		}
 	}
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
@@ -100,6 +68,103 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	_, _ = responseWriter.Write(responseBody)
+}
+
+func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter, request *http.Request) {
+	var batchRequest struct {
+		Users []adminUserMutation `json:"users"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&batchRequest); errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(batchRequest.Users) == 0 {
+		http.Error(responseWriter, "users required", http.StatusBadRequest)
+		return
+	}
+	temporaryPassword := ""
+	temporaryPasswordEmail := ""
+	for _, rawPayload := range batchRequest.Users {
+		payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
+			return
+		}
+		if temporaryPassword == "" && provisionResult.TemporaryPassword != "" {
+			temporaryPassword = provisionResult.TemporaryPassword
+			temporaryPasswordEmail = payload.Email
+		}
+	}
+	service.triggerUsersSync(request.Context())
+	response, errorValue := service.buildLocalUsersResponse(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if temporaryPassword != "" {
+		responseBody = localUsersBodyWithTemporaryPassword(responseBody, temporaryPassword, temporaryPasswordEmail)
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	_, _ = responseWriter.Write(responseBody)
+}
+
+func (service *Service) applyLocalUserMutation(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) (adminUserMutation, mattermostProvisionResult, error) {
+	userID, errorValue := service.localBlueclawPersonIDByEmail(ctx, payload.Email)
+	if errorValue != nil {
+		return payload, mattermostProvisionResult{}, errorValue
+	}
+	if strings.TrimSpace(payload.UserID) == "" {
+		payload.UserID = firstNonEmpty(userID, newInternKimUserID())
+	}
+	payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
+	if payload.Role != "admin" {
+		isLastAdmin, errorValue := service.localIsLastMattermostAdminByEmail(ctx, payload.Email)
+		if errorValue != nil {
+			return payload, mattermostProvisionResult{}, errorValue
+		}
+		if isLastAdmin {
+			return payload, mattermostProvisionResult{}, errLastAdminDemotion
+		}
+	}
+	systemSafePayload := payload
+	systemSafePayload.Role = "member"
+	provisionResult, errorValue := service.provisionMattermostUserWithPassword(ctx, systemSafePayload, "")
+	if errorValue != nil {
+		return payload, mattermostProvisionResult{}, errorValue
+	}
+	payload.MattermostUserID = provisionResult.UserID
+	payload.MattermostUsername = provisionResult.Username
+	payload.Handle = provisionResult.Username
+	payload.Status = provisionResult.Status
+	if errorValue := service.applyLocalMattermostTeamRole(ctx, provisionResult.UserID, payload.Role == "admin"); errorValue != nil {
+		return payload, mattermostProvisionResult{}, errorValue
+	}
+	if errorValue := service.localSaveBlueclawPerson(ctx, payload, hasExplicitCircleMutation); errorValue != nil {
+		return payload, mattermostProvisionResult{}, errorValue
+	}
+	if hasExplicitCircleMutation {
+		if errorValue := service.syncMattermostUserCircleMemberships(ctx, payload); errorValue != nil {
+			log.Printf("Mattermost circle membership sync failed: %v", errorValue)
+		}
+	}
+	return payload, provisionResult, nil
+}
+
+func statusForUserMutationError(errorValue error) int {
+	if errors.Is(errorValue, errLastAdminDemotion) {
+		return http.StatusBadRequest
+	}
+	return http.StatusBadGateway
 }
 
 func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, request *http.Request, idOrEmail string) {
@@ -172,25 +237,32 @@ func (service *Service) localResetUserPassword(responseWriter http.ResponseWrite
 }
 
 func localAdminUserPayload(responseWriter http.ResponseWriter, request *http.Request) (adminUserMutation, bool, bool) {
-	var payload adminUserMutation
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+	var rawPayload adminUserMutation
+	if errorValue := json.NewDecoder(request.Body).Decode(&rawPayload); errorValue != nil {
 		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
 		return adminUserMutation{}, false, false
 	}
+	payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return adminUserMutation{}, false, false
+	}
+	return payload, hasExplicitCircleMutation, true
+}
+
+func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bool, error) {
 	hasExplicitCircleMutation := payload.Circles != nil
 	payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
 	if payload.Email == "" {
-		http.Error(responseWriter, "email required", http.StatusBadRequest)
-		return adminUserMutation{}, false, false
+		return adminUserMutation{}, false, errors.New("email required")
 	}
 	payload.Handle = normalizeMattermostHandle(firstNonEmpty(payload.Handle, mattermostUsernameBase(payload.Email)))
 	if !isValidMattermostHandle(payload.Handle) {
-		http.Error(responseWriter, "handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores", http.StatusBadRequest)
-		return adminUserMutation{}, false, false
+		return adminUserMutation{}, false, errors.New("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")
 	}
 	payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
 	payload.Role = normalizeAdminUserRole(payload.Role)
-	return payload, hasExplicitCircleMutation, true
+	return payload, hasExplicitCircleMutation, nil
 }
 
 func localAdminUserRecords(users []mattermostUserRecord, roleByUserID map[string]string) []adminUserMutation {

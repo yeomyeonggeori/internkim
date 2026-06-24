@@ -749,6 +749,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 			return
 		}
 		service.proxyUsers(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/users/batch":
+		if !service.hasDeviceAuth() {
+			service.localUpsertUsersBatch(responseWriter, request)
+			return
+		}
+		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		if !service.hasDeviceAuth() {
 			service.localUpsertUser(responseWriter, request)
