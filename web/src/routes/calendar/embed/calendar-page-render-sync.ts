@@ -3,6 +3,7 @@ import { ViewType } from '@dayflow/svelte';
 import {
 	scheduleCalendarAllDayLayoutSync,
 	scheduleCalendarMultiDayProxyLayoutSync,
+	scheduleTimelineBoundaryLabelSync,
 	scheduleTimelineEventLaneLayoutSync
 } from './calendar-embed-dom-sync';
 import type { CalendarEventLoader } from './calendar-event-loader';
@@ -50,6 +51,7 @@ export function createCalendarPageRenderSync(
 			context.getToolbarView(),
 			context.getCalendarEvents
 		);
+		scheduleTimelineBoundaryLabelSync(context.getStageElement());
 	}
 
 	async function syncRemoteCalendarAndRefresh(): Promise<void> {

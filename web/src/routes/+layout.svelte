@@ -87,6 +87,7 @@
 							variant="ghost"
 							languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
 							value={currentLocale.value}
+							ariaLabel={text.changeLanguage}
 							onChange={selectLocale}
 						/>
 						<LightSwitch variant="ghost" />

@@ -24,6 +24,20 @@ export async function expectWeekAllDayReferenceGrid(page: Page): Promise<void> {
 		const shell = document.querySelector('.df-week-all-day-shell');
 		const label = document.querySelector('.df-week-all-day-label, .df-all-day-label');
 		const contentWrap = document.querySelector('.df-week-all-day-content-wrap');
+		const headerCells = Array.from(document.querySelectorAll<HTMLElement>('.df-week-header > .df-week-day-cell')).filter((element) => {
+			const rectangle = element.getBoundingClientRect();
+			return rectangle.width > 0 && rectangle.height > 0;
+		});
+		const allDayCells = Array.from(
+			document.querySelectorAll<HTMLElement>('.df-week-all-day-row-content > .df-week-all-day-cell, .df-all-day-row > .df-all-day-cell')
+		).filter((element) => {
+			const rectangle = element.getBoundingClientRect();
+			return rectangle.width > 0 && rectangle.height > 0;
+		});
+		const timeCells = Array.from(document.querySelectorAll<HTMLElement>('.df-time-grid-row > .df-week-time-grid-cell')).filter((element) => {
+			const rectangle = element.getBoundingClientRect();
+			return rectangle.width > 0 && rectangle.height > 0;
+		});
 		const firstCell = document.querySelector('.df-week-all-day-row-content > .df-week-all-day-cell:first-child, .df-all-day-row > .df-all-day-cell:first-child');
 		const secondCell = document.querySelector('.df-week-all-day-row-content > .df-week-all-day-cell:nth-child(2), .df-all-day-row > .df-all-day-cell:nth-child(2)');
 		const firstTimeCell = document.querySelector('.df-time-grid-row > .df-week-time-grid-cell:first-child');
@@ -33,7 +47,10 @@ export async function expectWeekAllDayReferenceGrid(page: Page): Promise<void> {
 			!(contentWrap instanceof HTMLElement) ||
 			!(firstCell instanceof HTMLElement) ||
 			!(secondCell instanceof HTMLElement) ||
-			!(firstTimeCell instanceof HTMLElement)
+			!(firstTimeCell instanceof HTMLElement) ||
+			headerCells.length < 7 ||
+			allDayCells.length < 7 ||
+			timeCells.length < 7
 		) {
 			return null;
 		}
@@ -44,6 +61,13 @@ export async function expectWeekAllDayReferenceGrid(page: Page): Promise<void> {
 		const secondCellRectangle = secondCell.getBoundingClientRect();
 		const firstTimeCellRectangle = firstTimeCell.getBoundingClientRect();
 		const firstCellStyle = window.getComputedStyle(firstCell);
+		const contentWrapStyle = window.getComputedStyle(contentWrap);
+		const headerBorderWidths = headerCells.slice(0, 7).map((element) => window.getComputedStyle(element).borderRightWidth);
+		const allDayRightEdges = allDayCells.slice(0, 7).map((element) => element.getBoundingClientRect().right);
+		const headerRightEdges = headerCells.slice(0, 7).map((element) => element.getBoundingClientRect().right);
+		const timeRightEdges = timeCells.slice(0, 7).map((element) => element.getBoundingClientRect().right);
+		const maximumAllDayGridDelta = Math.max(...allDayRightEdges.map((rightEdge, index) => Math.abs(rightEdge - timeRightEdges[index])));
+		const maximumHeaderGridDelta = Math.max(...headerRightEdges.map((rightEdge, index) => Math.abs(rightEdge - timeRightEdges[index])));
 		return {
 			shellHeight: Math.round(shellRectangle.height),
 			labelHeight: Math.round(labelRectangle.height),
@@ -54,7 +78,11 @@ export async function expectWeekAllDayReferenceGrid(page: Page): Promise<void> {
 			secondCellLeft: Math.round(secondCellRectangle.left),
 			firstTimeCellRight: Math.round(firstTimeCellRectangle.right),
 			firstCellBorderRightColor: firstCellStyle.borderRightColor,
-			firstCellBorderRightWidth: firstCellStyle.borderRightWidth
+			firstCellBorderRightWidth: firstCellStyle.borderRightWidth,
+			contentScrollbarGutter: contentWrapStyle.scrollbarGutter,
+			headerBorderWidths,
+			maximumAllDayGridDelta: Math.round(maximumAllDayGridDelta * 100) / 100,
+			maximumHeaderGridDelta: Math.round(maximumHeaderGridDelta * 100) / 100
 		};
 	});
 	expect(measurements).not.toBeNull();
@@ -67,6 +95,10 @@ export async function expectWeekAllDayReferenceGrid(page: Page): Promise<void> {
 	expect(Math.abs((measurements?.firstDividerRight ?? 0) - (measurements?.firstTimeCellRight ?? 0))).toBeLessThanOrEqual(1);
 	expect(measurements?.firstCellBorderRightColor).toBe('rgb(225, 229, 235)');
 	expect(measurements?.firstCellBorderRightWidth).toBe('1px');
+	expect(measurements?.contentScrollbarGutter).toBe('auto');
+	expect(measurements?.headerBorderWidths).toEqual(['1px', '1px', '1px', '1px', '1px', '1px', '1px']);
+	expect(measurements?.maximumAllDayGridDelta).toBeLessThanOrEqual(1);
+	expect(measurements?.maximumHeaderGridDelta).toBeLessThanOrEqual(1);
 }
 
 export async function expectWeekAllDayEventsCompactAndLabelCentered(page: Page): Promise<void> {

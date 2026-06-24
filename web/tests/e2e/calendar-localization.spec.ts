@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { routeCalendarBackgroundAPI } from './calendar-embed-test-utils';
 
 test.describe('calendar localization', () => {
 	test('updates embedded calendar labels when language changes', async ({ page }) => {
@@ -33,10 +34,11 @@ test.describe('calendar localization', () => {
 		await page.route('**/calendar/api/account-status', async (route) => {
 			await route.fulfill({ json: { connected: false, needsReauth: false } });
 		});
+		await routeCalendarBackgroundAPI(page);
 
 		await page.goto('/calendar/');
 		await expect(page.getByRole('button', { name: '구독 설정' })).toBeVisible();
-		await page.getByRole('button', { name: 'Change language' }).click();
+		await page.getByRole('button', { name: '언어 변경' }).click();
 		await page.getByRole('menuitemradio', { name: 'English' }).click();
 
 		await expect(page.getByRole('button', { name: 'Subscription settings' })).toBeVisible();

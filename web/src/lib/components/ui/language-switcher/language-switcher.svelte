@@ -22,6 +22,8 @@
 		/** Called when the language changes */
 		onChange?: (code: string) => void;
 
+		ariaLabel?: string;
+
 		class?: string;
 	};
 </script>
@@ -38,25 +40,35 @@
 		align = 'end',
 		variant = 'outline',
 		onChange,
+		ariaLabel = 'Change language',
 		class: className
 	}: LanguageSwitcherProps = $props();
 
-	// set default code if there isn't one selected
-	if (value === '') {
-		value = languages[0].code;
+	let selectedValue = $state('');
+
+	$effect(() => {
+		const fallbackValue = languages[0]?.code ?? '';
+		const nextValue = value || fallbackValue;
+		if (selectedValue !== nextValue) selectedValue = nextValue;
+	});
+
+	function selectLanguage(code: string) {
+		selectedValue = code;
+		value = code;
+		onChange?.(code);
 	}
 </script>
 
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger
 		class={cn(buttonVariants({ variant, size: 'icon' }), className)}
-		aria-label="Change language"
+		aria-label={ariaLabel}
 	>
 		<GlobeIcon class="size-4" />
-		<span class="sr-only">Change language</span>
+		<span class="sr-only">{ariaLabel}</span>
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content {align}>
-		<DropdownMenu.RadioGroup bind:value onValueChange={onChange}>
+		<DropdownMenu.RadioGroup bind:value={selectedValue} onValueChange={selectLanguage}>
 			{#each languages as language (language.code)}
 				<DropdownMenu.RadioItem value={language.code}>
 					{language.label}

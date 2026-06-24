@@ -94,6 +94,19 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 	};
 }
 
+export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: DayFlowEvent): boolean {
+	const changes = draftPopoverChanges(popover);
+	return (
+		normalizedText(event.title) !== changes.title ||
+		normalizedText(event.description) !== changes.description ||
+		dateFromEventValue(event.start).getTime() !== changes.start.getTime() ||
+		dateFromEventValue(event.end).getTime() !== changes.end.getTime() ||
+		(event.allDay ?? false) !== changes.allDay ||
+		(event.calendarId ?? 'internkim') !== changes.calendarId ||
+		eventLocation(event) !== normalizedText(changes.meta.location)
+	);
+}
+
 export function isDraftPopoverValid(popover: DraftPopoverState): boolean {
 	if (!popover.title.trim()) return false;
 	const startTime = draftPopoverStartDate(popover).getTime();
@@ -116,6 +129,14 @@ export function dateKey(date: Date): string {
 
 function dateFromEventValue(value: DayFlowEvent['start']): Date {
 	return temporalToDate(value);
+}
+
+function eventLocation(event: DayFlowEvent): string {
+	return normalizedText(event.meta?.location);
+}
+
+function normalizedText(value: unknown): string {
+	return typeof value === 'string' ? value.trim() : '';
 }
 
 function draftPopoverDateTime(selectedDateKey: string, time: string): Date {

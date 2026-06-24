@@ -241,6 +241,10 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	if !hasCalendarEventUserEditableChanges(existingEvent, event) {
+		service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), existingEvent))
+		return
+	}
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
 	event.CreatedByName = existingEvent.CreatedByName
