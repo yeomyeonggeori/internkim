@@ -1,6 +1,10 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AttendanceAbsence, AttendanceAbsenceKind } from './src/routes/attendance/attendance-context.svelte';
+import type {
+	AttendanceAbsence,
+	AttendanceAbsenceKind,
+	AttendanceSummary
+} from './src/routes/attendance/attendance-context.svelte';
 import { isWeekday, todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceSummaryFixture } from './dev-attendance-summary-fixture';
 
@@ -13,6 +17,8 @@ type DevAttendanceMockState = {
 	userEmail: string;
 	locale: 'ko' | 'en';
 	createdAbsences: AttendanceAbsence[];
+	canceledAbsenceIDs: Set<string>;
+	eventOverrides: Record<string, DevAttendanceEventOverride[]>;
 	nextAbsenceID: number;
 };
 
@@ -33,6 +39,19 @@ type AbsencePayload = {
 	startDate: string;
 	endDate: string;
 	reason: string;
+};
+
+type EventOverridePayload = {
+	localDate: string;
+	localTime: string;
+	locationID: string;
+	reason: string;
+};
+
+type DevAttendanceEventOverride = EventOverridePayload & {
+	eventID: string;
+	editedAt: string;
+	editedBy: string;
 };
 
 export function devAttendanceMockPlugin(options: DevAttendanceMockPluginOptions): Plugin {
@@ -68,6 +87,8 @@ export function createDevAttendanceMockState(userEmail: string): DevAttendanceMo
 		userEmail,
 		locale: 'ko',
 		createdAbsences: [],
+		canceledAbsenceIDs: new Set(),
+		eventOverrides: {},
 		nextAbsenceID: 1
 	};
 }
@@ -101,14 +122,32 @@ export async function createDevAttendanceMockResponse(
 	if (request.method === 'GET' && request.pathname === '/attendance/api/summary') {
 		const month = request.searchParams.get('month') || currentMonth();
 		const summary = buildAttendanceSummaryFixture(month);
+		const events = summary.events.map((event) =>
+			projectEventOverrides(event, state.eventOverrides[event.id] ?? [], summary.locations)
+		);
 		return {
 			status: 200,
 			body: {
 				...summary,
 				currentUserEmail: state.userEmail,
-				absences: [...summary.absences, ...state.createdAbsences]
+				events,
+				absences: [...summary.absences, ...state.createdAbsences].filter(
+					(absence) => !state.canceledAbsenceIDs.has(absence.id)
+				)
 			}
 		};
+	}
+	if (request.method === 'PATCH' && request.pathname.startsWith('/attendance/api/events/')) {
+		const eventID = decodeURIComponent(request.pathname.replace('/attendance/api/events/', ''));
+		const payload = eventOverridePayloadFromBody(request.body);
+		const nextOverride = {
+			...payload,
+			eventID,
+			editedAt: new Date().toISOString(),
+			editedBy: state.userEmail
+		};
+		state.eventOverrides[eventID] = [...(state.eventOverrides[eventID] ?? []), nextOverride];
+		return { status: 200, body: { ok: true } };
 	}
 	if (request.method === 'POST' && request.pathname === '/attendance/api/absences') {
 		const payload = absencePayloadFromBody(request.body);
@@ -135,7 +174,89 @@ export async function createDevAttendanceMockResponse(
 		state.createdAbsences.push(...absences);
 		return { status: 200, body: { absences } };
 	}
+	if (request.method === 'DELETE' && request.pathname.startsWith('/attendance/api/absences/')) {
+		const absenceID = decodeURIComponent(request.pathname.replace('/attendance/api/absences/', ''));
+		const summary = buildAttendanceSummaryFixture(currentMonth());
+		const absence =
+			state.createdAbsences.find((candidate) => candidate.id === absenceID) ??
+			summary.absences.find((candidate) => candidate.id === absenceID);
+		if (!absence) return { status: 404, body: 'attendance absence not found' };
+		state.canceledAbsenceIDs.add(absenceID);
+		state.createdAbsences = state.createdAbsences.filter((candidate) => candidate.id !== absenceID);
+		return { status: 200, body: { ok: true } };
+	}
 	return undefined;
+}
+
+function projectEventOverrides(
+	event: AttendanceSummary['events'][number],
+	overrides: DevAttendanceEventOverride[],
+	locations: AttendanceSummary['locations']
+): AttendanceSummary['events'][number] {
+	if (overrides.length === 0) return event;
+	let updatedEvent = event;
+	const overrideHistory: NonNullable<AttendanceSummary['events'][number]['overrideHistory']> = [];
+	for (const [index, override] of overrides.entries()) {
+		const projection = projectSingleEventOverride(updatedEvent, override, locations, index);
+		updatedEvent = projection.event;
+		overrideHistory.unshift(projection.history);
+	}
+	const latestHistory = overrideHistory[0];
+	return {
+		...updatedEvent,
+		originalOccurredAt: latestHistory.originalOccurredAt,
+		originalLocalDate: latestHistory.originalLocalDate,
+		originalLocalTime: latestHistory.originalLocalTime,
+		originalLocationID: latestHistory.originalLocationID,
+		originalLocationName: latestHistory.originalLocationName,
+		overrideReason: latestHistory.reason,
+		overriddenBy: latestHistory.editedBy,
+		overriddenAt: latestHistory.editedAt,
+		overrideHistory
+	};
+}
+
+function projectSingleEventOverride(
+	event: AttendanceSummary['events'][number],
+	override: DevAttendanceEventOverride,
+	locations: AttendanceSummary['locations'],
+	index: number
+): {
+	event: AttendanceSummary['events'][number];
+	history: NonNullable<AttendanceSummary['events'][number]['overrideHistory']>[number];
+} {
+	const location = locations.find((candidate) => candidate.id === override.locationID);
+	const locationID = location?.id ?? event.locationID;
+	const locationName = location?.name ?? event.locationName;
+	const overrideLocalTime = normalizeLocalTime(override.localTime);
+	const overrideOccurredAt = `${override.localDate}T${overrideLocalTime}:00+09:00`;
+	return {
+		event: {
+			...event,
+			occurredAt: overrideOccurredAt,
+			localDate: override.localDate,
+			localTime: overrideLocalTime,
+			locationID,
+			locationName
+		},
+		history: {
+			id: `dev-override-${event.id}-${index}`,
+			eventID: event.id,
+			editedBy: override.editedBy,
+			editedAt: override.editedAt,
+			reason: override.reason,
+			originalOccurredAt: event.occurredAt,
+			originalLocalDate: event.localDate,
+			originalLocalTime: event.localTime,
+			originalLocationID: event.locationID ?? '',
+			originalLocationName: event.locationName ?? '',
+			overrideOccurredAt,
+			overrideLocalDate: override.localDate,
+			overrideLocalTime,
+			overrideLocationID: locationID ?? '',
+			overrideLocationName: locationName ?? ''
+		}
+	};
 }
 
 function absencePayloadFromBody(body: string | undefined): AbsencePayload {
@@ -145,6 +266,16 @@ function absencePayloadFromBody(body: string | undefined): AbsencePayload {
 	const endDate = dateFromValue(parsed.endDate) || startDate;
 	const reason = typeof parsed.reason === 'string' ? parsed.reason.trim() : '';
 	return { kind, startDate, endDate, reason };
+}
+
+function eventOverridePayloadFromBody(body: string | undefined): EventOverridePayload {
+	const parsed = parseJSONRecord(body);
+	return {
+		localDate: dateFromValue(parsed.localDate),
+		localTime: timeFromValue(parsed.localTime),
+		locationID: typeof parsed.locationID === 'string' ? parsed.locationID.trim() : '',
+		reason: typeof parsed.reason === 'string' ? parsed.reason.trim() : ''
+	};
 }
 
 function localeFromBody(body: string | undefined): 'ko' | 'en' {
@@ -166,7 +297,7 @@ function parseJSONRecord(body: string | undefined): Record<string, unknown> {
 }
 
 function absenceKindFromValue(value: unknown): AttendanceAbsenceKind {
-	if (value === 'business_trip' || value === 'other') return value;
+	if (value === 'other') return value;
 	return 'leave';
 }
 
@@ -174,6 +305,18 @@ function dateFromValue(value: unknown): string {
 	if (typeof value !== 'string') return todayDate();
 	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
 	return todayDate();
+}
+
+function timeFromValue(value: unknown): string {
+	if (typeof value !== 'string') return '09:00';
+	const trimmedValue = value.trim();
+	if (/^\d{2}:\d{2}$/.test(trimmedValue)) return trimmedValue;
+	if (/^\d{2}:\d{2}:\d{2}$/.test(trimmedValue)) return trimmedValue.slice(0, 5);
+	return '09:00';
+}
+
+function normalizeLocalTime(localTime: string): string {
+	return timeFromValue(localTime);
 }
 
 function datesBetween(startDate: string, endDate: string): string[] {
