@@ -319,11 +319,24 @@ if runtime_configuration != workspace_runtime_configuration:
     print("runtime-config-mirror-drift")
     raise SystemExit
 
-document = json.dumps(runtime_configuration)
-for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend", "defaultBudgetClass"):
-    if forbidden in document:
-        print("legacy-runtime-config")
-        raise SystemExit
+forbidden_keys = {"apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend", "defaultBudgetClass"}
+
+def contains_forbidden_key(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key in forbidden_keys or contains_forbidden_key(nested):
+                return True
+        return False
+    if isinstance(value, list):
+        for item in value:
+            if contains_forbidden_key(item):
+                return True
+        return False
+    return False
+
+if contains_forbidden_key(runtime_configuration):
+    print("legacy-runtime-config")
+    raise SystemExit
 
 agent = runtime_configuration.get("agent", {})
 if agent.get("defaultEffortLevel") != "standard":
