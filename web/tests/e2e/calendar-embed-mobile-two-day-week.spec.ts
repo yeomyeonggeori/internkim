@@ -13,11 +13,16 @@ type WeekGridMeasurements = {
 	allDayEventRects: EventRect[];
 	allDayLabelText: string;
 	allDayBottom: number;
+	allDayContentBackground: string;
 	allDayContentBackgroundImage: string;
 	allDayRightEdges: number[];
+	allDayShellBackground: string;
 	allDayShellOpacity: string;
+	compactHeaderBackground: string;
 	compactDateTexts: string[];
 	compactHeaderLabelColors: string[];
+	customHeaderBackgrounds: string[];
+	customHeaderBorderColors: string[];
 	customHeaderColors: string[];
 	customHeaderTexts: string[];
 	desktopHeaderLabels: string[];
@@ -26,6 +31,11 @@ type WeekGridMeasurements = {
 	highlightedDateTexts: string[];
 	isAllDayLabelPainted: boolean;
 	firstVisibleTimeLabel: string;
+	rangePillBackgrounds: string[];
+	rangePillColors: string[];
+	stageBackground: string;
+	timeCellBorderColors: string[];
+	timeScrollerBackground: string;
 	timeScrollerBackgroundImage: string;
 	timeCellRects: ElementRect[];
 	timedEventRects: EventRect[];
@@ -154,6 +164,30 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		expect(Math.abs(desktopMeasurements.allDayBottom - desktopMeasurements.timeTop)).toBeLessThanOrEqual(1);
 	});
 
+	test('keeps mobile two-day all-day row and grid colors consistent in dark mode', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-01');
+		await enableDarkMode(page);
+
+		const mobileMeasurements = await weekGridMeasurements(page);
+		expect(mobileMeasurements.stageBackground).toBe('rgb(9, 9, 11)');
+		expect(mobileMeasurements.compactHeaderBackground).toBe(mobileMeasurements.stageBackground);
+		expect(mobileMeasurements.allDayShellBackground).toBe(mobileMeasurements.stageBackground);
+		expect(mobileMeasurements.allDayContentBackground).toBe(mobileMeasurements.stageBackground);
+		expect(mobileMeasurements.timeScrollerBackground).toBe(mobileMeasurements.stageBackground);
+		expect(mobileMeasurements.customHeaderBackgrounds).toEqual([
+			mobileMeasurements.stageBackground,
+			mobileMeasurements.stageBackground
+		]);
+		expect(mobileMeasurements.customHeaderColors).toEqual(['rgb(161, 161, 170)', 'rgb(161, 161, 170)']);
+		expect(mobileMeasurements.customHeaderBorderColors).toEqual(['rgb(39, 39, 42)', 'rgb(39, 39, 42)']);
+		expect(mobileMeasurements.timeCellBorderColors).toEqual(['rgb(39, 39, 42)', 'rgb(39, 39, 42)']);
+		expect(new Set(mobileMeasurements.rangePillColors).size).toBe(1);
+		expect(mobileMeasurements.rangePillColors).not.toContain('rgb(30, 58, 138)');
+		expect(mobileMeasurements.rangePillBackgrounds).not.toContain('rgb(219, 234, 254)');
+	});
+
 	test('uses the DayFlow mobile editor while keeping the desktop draft popover', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openCalendarEmbed(page, '주');
@@ -260,6 +294,18 @@ async function renderedEventIDs(page: Page): Promise<string[]> {
 	);
 }
 
+async function enableDarkMode(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		document.documentElement.classList.add('dark');
+	});
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			})
+	);
+}
+
 async function routeCalendarEventCreates(page: Page): Promise<CalendarEventUpdatePayload[]> {
 	const createdEvents: CalendarEventUpdatePayload[] = [];
 	await page.route('**/calendar/api/events', async (route) => {
@@ -341,12 +387,15 @@ async function weekGridMeasurements(page: Page): Promise<WeekGridMeasurements> {
 		const compactHeader = document.querySelector<HTMLElement>('.df-compact-header');
 		const compactHeaderStyle = compactHeader ? window.getComputedStyle(compactHeader) : null;
 		const compactHeaderLabels = Array.from(document.querySelectorAll<HTMLElement>('.df-compact-header-label'));
+		const rangePills = visibleElements('.df-compact-header-date-button.calendar-mobile-two-day-week-range-date .df-compact-header-date-pill');
 		const allDayShell = document.querySelector<HTMLElement>('.df-week-all-day-shell');
 		const allDayShellStyle = allDayShell ? window.getComputedStyle(allDayShell) : null;
 		const allDayContentWrap = document.querySelector<HTMLElement>('.df-week-all-day-content-wrap');
 		const allDayContentWrapStyle = allDayContentWrap ? window.getComputedStyle(allDayContentWrap) : null;
 		const timeScroller = document.querySelector<HTMLElement>('.df-week-time-grid-scroller');
 		const timeScrollerStyle = timeScroller ? window.getComputedStyle(timeScroller) : null;
+		const stage = document.querySelector<HTMLElement>('.calendar-stage');
+		const stageStyle = stage ? window.getComputedStyle(stage) : null;
 		const allDayLabel = document.querySelector<HTMLElement>('.df-week-all-day-label, .df-all-day-label');
 		const allDayLabelRectangle = allDayLabel?.getBoundingClientRect();
 		const topElementAtAllDayLabel =
@@ -370,11 +419,20 @@ async function weekGridMeasurements(page: Page): Promise<WeekGridMeasurements> {
 			})),
 			allDayLabelText: allDayLabel?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
 			allDayBottom: Math.round((allDayShell?.getBoundingClientRect().bottom ?? 0) * 100) / 100,
+			allDayContentBackground: allDayContentWrapStyle?.backgroundColor ?? '',
 			allDayContentBackgroundImage: allDayContentWrapStyle?.backgroundImage ?? '',
 			allDayRightEdges: rightEdges(allDayCells),
+			allDayShellBackground: allDayShellStyle?.backgroundColor ?? '',
 			allDayShellOpacity: allDayShellStyle?.opacity ?? '',
+			compactHeaderBackground: compactHeaderStyle?.backgroundColor ?? '',
 			compactDateTexts: compactDateButtons.map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
 			compactHeaderLabelColors: compactHeaderLabels.map((element) => window.getComputedStyle(element).color),
+			customHeaderBackgrounds: visibleElements('.calendar-mobile-two-day-week-column-header-cell').map(
+				(element) => window.getComputedStyle(element.parentElement ?? element).backgroundColor
+			),
+			customHeaderBorderColors: visibleElements('.calendar-mobile-two-day-week-column-header-cell').map(
+				(element) => window.getComputedStyle(element).borderRightColor
+			),
 			customHeaderTexts: visibleElements('.calendar-mobile-two-day-week-column-header-cell').map(
 				(element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? ''
 			),
@@ -389,6 +447,11 @@ async function weekGridMeasurements(page: Page): Promise<WeekGridMeasurements> {
 			highlightedDateTexts: highlightedDateButtons.map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
 			isAllDayLabelPainted: Boolean(allDayLabel && topElementAtAllDayLabel && allDayLabel.contains(topElementAtAllDayLabel)),
 			firstVisibleTimeLabel: firstVisibleTimeLabel.replace(/\s+/g, ' ').trim(),
+			rangePillBackgrounds: rangePills.map((element) => window.getComputedStyle(element).backgroundColor),
+			rangePillColors: rangePills.map((element) => window.getComputedStyle(element).color),
+			stageBackground: stageStyle?.backgroundColor ?? '',
+			timeCellBorderColors: timeCells.map((element) => window.getComputedStyle(element).borderRightColor),
+			timeScrollerBackground: timeScrollerStyle?.backgroundColor ?? '',
 			timeScrollerBackgroundImage: timeScrollerStyle?.backgroundImage ?? '',
 			timeCellRects: timeCells.map(elementRect),
 			timedEventRects: timedEvents.map((element) => ({
