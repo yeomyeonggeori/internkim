@@ -33,9 +33,10 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 			"goalSatisfied":        json.RawMessage(`{"type":"boolean"}`),
 			"remainingWork":        json.RawMessage(`{"type":"string"}`),
 			"executionStateUpdate": json.RawMessage(`{"type":"object","properties":{}}`),
-			"nextStepPlan":         json.RawMessage(`{"type":"object","properties":{}}`),
+			"requestTools":         json.RawMessage(`{"type":"array","items":{"type":"string"}}`),
+			"requestSkills":        json.RawMessage(`{"type":"array","items":{"type":"string"}}`),
 		},
-		Required: []string{"action", "toolName", "toolInput", "executionStateUpdate", "nextStepPlan"},
+		Required: []string{"action", "toolName", "toolInput", "executionStateUpdate"},
 	}
 
 	parameters := mustToolActionParameters(t, variant)
@@ -56,20 +57,22 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 		"blueclawGoalSatisfied",
 		"blueclawRemainingWork",
 		"blueclawExecutionStateUpdate",
-		"blueclawNextStepPlan",
 	} {
 		if _, isFound := properties[fieldName]; isFound {
 			t.Fatalf("expected planning field %s to be omitted from per-tool continue schema, got %+v", fieldName, parameters)
+		}
+	}
+	for _, fieldName := range []string{"blueclawRequestTools", "blueclawRequestSkills"} {
+		if _, isFound := properties[fieldName]; !isFound {
+			t.Fatalf("expected kept planning field %s in per-tool continue schema, got %+v", fieldName, parameters)
 		}
 	}
 	required := parameters["required"].([]any)
 	if !requiredContains(required, "command") {
 		t.Fatalf("expected command to be required, got %+v", required)
 	}
-	for _, fieldName := range []string{"blueclawExecutionStateUpdate", "blueclawNextStepPlan"} {
-		if requiredContains(required, fieldName) {
-			t.Fatalf("expected %s not to be required (omitted), got %+v", fieldName, required)
-		}
+	if requiredContains(required, "blueclawExecutionStateUpdate") {
+		t.Fatalf("expected omitted blueclawExecutionStateUpdate not to be required, got %+v", required)
 	}
 }
 
@@ -79,7 +82,7 @@ func TestReconstructActionFromFlatArgumentsSplitsToolInputAndPlanningFields(t *t
 		"blueclawMessage":              json.RawMessage(`"running tests"`),
 		"blueclawReason":               json.RawMessage(`"verify the change"`),
 		"blueclawExecutionStateUpdate": json.RawMessage(`{}`),
-		"blueclawNextStepPlan":         json.RawMessage(`{"objective":"finish","expectedTools":[],"doneCriteria":[],"risk":"","workingSetReason":"tests"}`),
+		"blueclawRequestTools":         json.RawMessage(`["web.search"]`),
 		"blueclawGoalStatus":           json.RawMessage(`"in_progress"`),
 		"blueclawGoalSatisfied":        json.RawMessage(`false`),
 		"blueclawRemainingWork":        json.RawMessage(`"none"`),
@@ -99,8 +102,8 @@ func TestReconstructActionFromFlatArgumentsSplitsToolInputAndPlanningFields(t *t
 	if _, isFound := planningFields["executionStateUpdate"]; !isFound {
 		t.Fatalf("expected executionStateUpdate planning field, got %+v", planningFields)
 	}
-	if _, isFound := planningFields["nextStepPlan"]; !isFound {
-		t.Fatalf("expected nextStepPlan planning field, got %+v", planningFields)
+	if _, isFound := planningFields["requestTools"]; !isFound {
+		t.Fatalf("expected requestTools planning field, got %+v", planningFields)
 	}
 }
 
