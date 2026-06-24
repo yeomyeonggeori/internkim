@@ -17,7 +17,8 @@ var nativeBlueclawPlanningFields = []nativeBlueclawPlanningField{
 	{ActionFieldName: "goalSatisfied", ArgumentFieldName: "blueclawGoalSatisfied"},
 	{ActionFieldName: "remainingWork", ArgumentFieldName: "blueclawRemainingWork"},
 	{ActionFieldName: "executionStateUpdate", ArgumentFieldName: "blueclawExecutionStateUpdate"},
-	{ActionFieldName: "nextStepPlan", ArgumentFieldName: "blueclawNextStepPlan"},
+	{ActionFieldName: "requestTools", ArgumentFieldName: "blueclawRequestTools"},
+	{ActionFieldName: "requestSkills", ArgumentFieldName: "blueclawRequestSkills"},
 }
 
 type nativeBlueclawPlanningField struct {
@@ -269,12 +270,13 @@ func stringSliceContains(values []string, expected string) bool {
 }
 
 var nativeContinueKeptPlanningActionFieldNames = map[string]bool{
-	"message": true,
+	"message":       true,
+	"requestTools":  true,
+	"requestSkills": true,
 }
 
 var nativeOmittedPlanningActionFieldNames = map[string]bool{
 	"executionStateUpdate": true,
-	"nextStepPlan":         true,
 }
 
 func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
