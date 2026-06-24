@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import { apiErrorMessage, fetchUsers, saveUsers } from './admin-api';
-	import type { AdminPageText, CircleRecord, UserRecord, UsersResponse } from './admin-types';
+	import XIcon from '@lucide/svelte/icons/x';
+	import { apiErrorMessage, fetchUsers, saveOrgGroups, saveOrgProfiles } from './admin-api';
+	import type { AdminPageText, OrgGroup, UserRecord, UsersResponse } from './admin-types';
 
 	type OrgchartSectionProps = {
 		adminBaseURL: string;
@@ -24,7 +27,7 @@
 
 	type OrgProfile = {
 		jobTitle: string;
-		primaryCircle: string;
+		group: string;
 		supervisorID: string;
 	};
 
@@ -32,8 +35,9 @@
 
 	let loadedAdminBaseURL = $state('');
 	let userRecords = $state<UserRecord[]>([]);
-	let availableCircles = $state<CircleRecord[]>([]);
+	let groups = $state<OrgGroup[]>([]);
 	let originalProfiles = $state<Record<string, OrgProfile>>({});
+	let newGroupName = $state('');
 	let isEditing = $state(false);
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -42,7 +46,7 @@
 	function profileOf(record: UserRecord): OrgProfile {
 		return {
 			jobTitle: record.jobTitle?.trim() ?? '',
-			primaryCircle: record.primaryCircle ?? '',
+			group: record.group ?? '',
 			supervisorID: record.supervisorID ?? ''
 		};
 	}
@@ -51,11 +55,7 @@
 		const original = originalProfiles[record.userID];
 		if (!original) return false;
 		const current = profileOf(record);
-		return (
-			current.jobTitle !== original.jobTitle ||
-			current.primaryCircle !== original.primaryCircle ||
-			current.supervisorID !== original.supervisorID
-		);
+		return current.jobTitle !== original.jobTitle || current.group !== original.group || current.supervisorID !== original.supervisorID;
 	}
 
 	function changedRecords() {
@@ -69,12 +69,12 @@
 	});
 
 	function applyUsersResponse(response: UsersResponse) {
-		availableCircles = response.availableCircles ?? [];
+		groups = (response.availableGroups ?? []).map((group) => ({ ...group }));
 		userRecords = (response.records ?? []).map((record) => ({
 			...record,
 			name: record.name ?? '',
 			jobTitle: record.jobTitle ?? '',
-			primaryCircle: record.primaryCircle ?? '',
+			group: record.group ?? '',
 			supervisorID: record.supervisorID ?? ''
 		}));
 		originalProfiles = Object.fromEntries(userRecords.map((record) => [record.userID, profileOf(record)]));
@@ -93,12 +93,8 @@
 		}
 	}
 
-	function circleName(circleID: string) {
-		return availableCircles.find((circle) => circle.circleID === circleID)?.displayName || circleID;
-	}
-
-	function memberCircles(record: UserRecord) {
-		return (record.circles ?? []).filter((circle) => circle !== 'admin');
+	function groupName(groupID: string) {
+		return groups.find((group) => group.id === groupID)?.name ?? '';
 	}
 
 	function personLabel(record: UserRecord) {
@@ -139,29 +135,49 @@
 		return roots;
 	}
 
-	async function saveAll() {
+	async function persistGroups(nextGroups: OrgGroup[]) {
+		isSaving = true;
+		errorMessage = '';
+		try {
+			applyUsersResponse(await saveOrgGroups(adminBaseURL, nextGroups, text.messages.userSaveError));
+		} catch (error) {
+			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function addGroup() {
+		const name = newGroupName.trim();
+		if (!name) return;
+		newGroupName = '';
+		persistGroups([...groups, { id: crypto.randomUUID(), name }]);
+	}
+
+	function removeGroup(groupID: string) {
+		persistGroups(groups.filter((group) => group.id !== groupID));
+	}
+
+	function renameGroup() {
+		const named = groups.filter((group) => group.name.trim());
+		persistGroups(named.map((group) => ({ id: group.id, name: group.name.trim() })));
+	}
+
+	async function saveProfiles() {
 		if (!fleetID || !adminBaseURL) return;
 		const pending = changedRecords();
 		if (pending.length === 0) return;
 		isSaving = true;
 		errorMessage = '';
 		try {
-			const users = pending.map((record) => ({
+			const profiles = pending.map((record) => ({
 				userID: record.userID,
-				handle: record.handle,
-				name: record.name?.trim() ?? '',
-				hireDate: record.hireDate ?? '',
 				email: record.email,
-				role: record.role,
-				circles: record.circles ?? ['staff'],
-				mattermostUserID: record.mattermostUserID,
-				mattermostUsername: record.mattermostUsername,
-				status: record.status,
 				jobTitle: record.jobTitle?.trim() ?? '',
-				primaryCircle: record.primaryCircle ?? '',
+				group: record.group ?? '',
 				supervisorID: record.supervisorID ?? ''
 			}));
-			applyUsersResponse(await saveUsers(adminBaseURL, users, text.messages.userSaveError));
+			applyUsersResponse(await saveOrgProfiles(adminBaseURL, profiles, text.messages.userSaveError));
 		} catch (error) {
 			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
 		} finally {
@@ -178,7 +194,7 @@
 	{#if isDeviceContext && userRecords.length > 0}
 		<div class="flex items-center gap-3">
 			{#if isEditing}
-				<Button size="sm" disabled={isSaving || changedRecords().length === 0} onclick={saveAll} class="gap-2">
+				<Button size="sm" disabled={isSaving || changedRecords().length === 0} onclick={saveProfiles} class="gap-2">
 					{#if isSaving}
 						<RefreshCwIcon class="size-4 animate-spin" />
 					{/if}
@@ -200,6 +216,35 @@
 {/if}
 
 {#if isDeviceContext}
+	{#if isEditing}
+		<Card.Root>
+			<Card.Header class="gap-1">
+				<Card.Title class="text-sm">{text.orgchart.manageGroups}</Card.Title>
+			</Card.Header>
+			<Card.Content class="grid gap-3">
+				{#if groups.length > 0}
+					<div class="grid gap-2 sm:grid-cols-2">
+						{#each groups as group (group.id)}
+							<div class="flex items-center gap-2">
+								<Input bind:value={group.name} onchange={renameGroup} autocomplete="off" />
+								<Button variant="ghost" size="icon-sm" disabled={isSaving} onclick={() => removeGroup(group.id)} aria-label={text.users.remove}>
+									<XIcon class="size-4" />
+								</Button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				<form class="flex items-center gap-2" onsubmit={(event) => { event.preventDefault(); addGroup(); }}>
+					<Input bind:value={newGroupName} placeholder={text.orgchart.groupPlaceholder} autocomplete="off" />
+					<Button type="submit" size="sm" disabled={isSaving || !newGroupName.trim()} class="gap-2">
+						<PlusIcon class="size-4" />
+						{text.orgchart.addGroup}
+					</Button>
+				</form>
+			</Card.Content>
+		</Card.Root>
+	{/if}
+
 	{#if isLoading}
 		<p class="text-muted-foreground text-sm">{text.users.loading}</p>
 	{:else if userRecords.length === 0}
@@ -225,8 +270,8 @@
 						<span class="text-muted-foreground truncate text-xs">{record.jobTitle}</span>
 					{/if}
 				</div>
-				{#if record.primaryCircle}
-					<Badge variant="secondary" class="shrink-0">{circleName(record.primaryCircle)}</Badge>
+				{#if record.group && groupName(record.group)}
+					<Badge variant="secondary" class="shrink-0">{groupName(record.group)}</Badge>
 				{/if}
 			</div>
 
@@ -237,15 +282,15 @@
 						<Input bind:value={record.jobTitle} placeholder={text.orgchart.jobTitlePlaceholder} autocomplete="off" />
 					</label>
 					<label class="grid gap-1.5">
-						<Label class="text-xs">{text.orgchart.primaryCircle}</Label>
-						<Select.Root type="single" bind:value={record.primaryCircle}>
+						<Label class="text-xs">{text.orgchart.group}</Label>
+						<Select.Root type="single" bind:value={record.group}>
 							<Select.Trigger class="w-full">
-								{record.primaryCircle ? circleName(record.primaryCircle) : text.orgchart.none}
+								{record.group ? groupName(record.group) || text.orgchart.none : text.orgchart.none}
 							</Select.Trigger>
 							<Select.Content>
 								<Select.Item value="" label={text.orgchart.none}>{text.orgchart.none}</Select.Item>
-								{#each memberCircles(record) as circleID (circleID)}
-									<Select.Item value={circleID} label={circleName(circleID)}>{circleName(circleID)}</Select.Item>
+								{#each groups as group (group.id)}
+									<Select.Item value={group.id} label={group.name}>{group.name}</Select.Item>
 								{/each}
 							</Select.Content>
 						</Select.Root>

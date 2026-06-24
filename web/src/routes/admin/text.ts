@@ -215,10 +215,13 @@ export const adminText = {
 		},
 		orgchart: {
 			title: '조직도',
-			description: '상급자 기준 보고 체계를 한눈에 보여줍니다. 편집을 켜면 직책·대표 그룹·상급자를 바로 수정할 수 있습니다.',
+			description: '상급자 기준 보고 체계를 한눈에 보여줍니다. 편집을 켜면 그룹을 관리하고 직책·그룹·상급자를 바로 수정할 수 있습니다.',
 			jobTitle: '직책',
 			jobTitlePlaceholder: '백엔드 엔지니어',
-			primaryCircle: '대표 그룹',
+			group: '그룹',
+			groupPlaceholder: '엔지니어링',
+			manageGroups: '그룹 관리',
+			addGroup: '추가',
 			supervisor: '상급자',
 			editMode: '편집',
 			none: '없음'
@@ -443,7 +446,10 @@ export const adminText = {
 			description: 'See the reporting hierarchy at a glance. Turn on edit to change job titles, groups, and supervisors.',
 			jobTitle: 'Job title',
 			jobTitlePlaceholder: 'Backend engineer',
-			primaryCircle: 'Primary group',
+			group: 'Group',
+			groupPlaceholder: 'Engineering',
+			manageGroups: 'Manage groups',
+			addGroup: 'Add',
 			supervisor: 'Supervisor',
 			editMode: 'Edit',
 			none: 'None'
