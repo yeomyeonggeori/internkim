@@ -1,6 +1,9 @@
-import type { CalendarViewType, Event as DayFlowEvent } from '@dayflow/core';
-import { ViewType } from '@dayflow/svelte';
+import { ViewType, type CalendarViewType, type Event as DayFlowEvent } from '@dayflow/core';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
+import {
+	calendarTimelineDisplayDayCount,
+	calendarTimelineDisplayStartDate
+} from './calendar-mobile-two-day-week';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
 
 export type TimelineRangePreviewSegment = {
@@ -20,6 +23,7 @@ type TimelineRangePreviewContext = {
 	selection: TimelineRangeSelection | null;
 	currentView: CalendarViewType;
 	currentDate: Date;
+	isMobileTwoDayWeekView: boolean;
 	events: DayFlowEvent[];
 };
 
@@ -40,11 +44,15 @@ const defaultBoundaryTop = 12;
 
 export function timelineRangePreviewSegments(context: TimelineRangePreviewContext): TimelineRangePreviewSegment[] {
 	if (!context.stageElement || !context.selection?.hasMoved) return [];
-	const layout = timelineLayout(context.stageElement, context.currentView);
+	const layout = timelineLayout(context.stageElement, context.currentView, context.isMobileTwoDayWeekView);
 	if (!layout) return [];
 	const [startDate, endDate] = orderedTimelineRangeDates(context.selection.startDate, context.selection.currentDate);
-	const displayStartDate = context.currentView === ViewType.WEEK ? startOfWeek(context.currentDate) : startOfDay(context.currentDate);
-	const displayDays = context.currentView === ViewType.WEEK ? 7 : 1;
+	const displayStartDate = calendarTimelineDisplayStartDate(
+		context.currentDate,
+		context.currentView,
+		context.isMobileTwoDayWeekView
+	);
+	const displayDays = calendarTimelineDisplayDayCount(context.currentView, context.isMobileTwoDayWeekView);
 	const segments: TimelineRangePreviewSegment[] = [];
 	const cursorDate = startOfDay(startDate);
 	const endDay = startOfDay(endDate);
@@ -120,10 +128,14 @@ function timelineRangePreviewSegment(
 	};
 }
 
-function timelineLayout(stageElement: HTMLElement, view: CalendarViewType): TimelineLayout | null {
+function timelineLayout(
+	stageElement: HTMLElement,
+	view: CalendarViewType,
+	isMobileTwoDayWeekView: boolean
+): TimelineLayout | null {
 	const gridElement = timelineGridElement(stageElement, view);
 	if (!gridElement) return null;
-	const displayDays = view === ViewType.WEEK ? 7 : 1;
+	const displayDays = calendarTimelineDisplayDayCount(view, isMobileTwoDayWeekView);
 	const stageRectangle = stageElement.getBoundingClientRect();
 	const gridRectangle = gridElement.getBoundingClientRect();
 	const hourHeight = stageElement.querySelector<HTMLElement>('.df-time-slot')?.getBoundingClientRect().height || defaultHourHeight;
@@ -139,12 +151,6 @@ function timelineLayout(stageElement: HTMLElement, view: CalendarViewType): Time
 function timelineGridElement(stageElement: HTMLElement, view: CalendarViewType): HTMLElement | null {
 	const selector = view === ViewType.WEEK ? '.df-week-time-grid-grid' : '.df-day-content-grid-column';
 	return stageElement.querySelector<HTMLElement>(selector);
-}
-
-function startOfWeek(date: Date): Date {
-	const weekStart = startOfDay(date);
-	weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-	return weekStart;
 }
 
 function startOfDay(date: Date): Date {

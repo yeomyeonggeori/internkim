@@ -31,10 +31,12 @@
 		goToPrevious: () => void;
 		goToToday: () => void;
 		isSaving: boolean;
+		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		monthScrollOverlayLabels: VisibleMonthScrollLabel[];
+		navigateToDateKey: (dateKey: string) => void;
 		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		popover: DraftPopoverState | null;
@@ -51,6 +53,7 @@
 		text: CalendarLocaleText;
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
 		timelineRangePreviewTitle: string;
+		toolbarDate: Date;
 		toolbarView: ViewType;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
 		changeCalendarView: (view: ViewType) => void;
@@ -75,10 +78,12 @@
 		goToPrevious,
 		goToToday,
 		isSaving,
+		isMobileTwoDayWeekView,
 		localeCode,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		monthScrollOverlayLabels,
+		navigateToDateKey,
 		navigateToSearchResult,
 		openEvent,
 		popover,
@@ -94,6 +99,7 @@
 		text,
 		timelineRangePreviewSegments,
 		timelineRangePreviewTitle,
+		toolbarDate,
 		toolbarView,
 		updatePopover,
 		searchText = $bindable(''),
@@ -124,11 +130,14 @@
 		{clearSelectedEvent}
 		events={stageEvents}
 		{localeCode}
+		{isMobileTwoDayWeekView}
+		{text}
 		monthMoreText={{
 			ariaLabel: text.monthMoreAriaLabel,
 			button: text.monthMoreButton
 		}}
 		{toolbarView}
+		{toolbarDate}
 		selectedEventID={selectedEventID}
 		{openEvent}
 		{selectEvent}
@@ -140,6 +149,7 @@
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
 		{monthScrollOverlayLabels}
+		{navigateToDateKey}
 	/>
 	<CalendarPageDraftPopover
 		{popover}
