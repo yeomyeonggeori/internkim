@@ -2,6 +2,7 @@ import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
 	draftPopoverChanges,
+	hasDraftPopoverEventChanges,
 	isDraftPopoverValid,
 	type DraftPopoverState
 } from './calendar-draft-popover-state';
@@ -28,6 +29,10 @@ export function createCalendarDraftPopoverPersistence(
 		if (!popover || !isDraftPopoverValid(popover)) return;
 		const event = context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === popover.eventID);
 		if (!event) return;
+		if (popover.mode === 'edit' && !hasDraftPopoverEventChanges(popover, event)) {
+			context.setDraftPopover(null);
+			return;
+		}
 		const changes = draftPopoverChanges(popover);
 		const updatedEvent = createEvent({
 			id: event.id,

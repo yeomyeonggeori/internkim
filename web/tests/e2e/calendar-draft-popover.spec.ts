@@ -1,8 +1,11 @@
 import { expect, test } from '@playwright/test';
 import {
 	clickOutsideDraftPopover,
+	draftPopoverEvent,
 	dragBetweenCells,
 	routeCalendarAPI,
+	routeDraftPopoverEvents,
+	routeDraftPopoverEventUpdate,
 	waitForClientHydration
 } from './calendar-draft-popover-test-utils';
 
@@ -152,6 +155,53 @@ test.describe('calendar draft popover', () => {
 		}
 
 		await expect.poll(() => postedPayloads.length).toBe(3);
+	});
+
+	test('does not save an unchanged existing event when dismissing the edit popover', async ({ page }) => {
+		const existingEvent = draftPopoverEvent({ id: 'unchanged-edit-event', title: '그대로인 일정' });
+		await routeDraftPopoverEvents(page, [existingEvent]);
+		const updatedPayloads = await routeDraftPopoverEventUpdate(page, existingEvent);
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
+
+		await page.locator('.calendar-month-direct-event[data-event-id="unchanged-edit-event"]').dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		const unexpectedUpdate = page
+			.waitForRequest(
+				(request) => request.method() === 'PUT' && request.url().includes('/calendar/api/events/unchanged-edit-event'),
+				{ timeout: 500 }
+			)
+			.then(() => true, () => false);
+
+		await clickOutsideDraftPopover(page);
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(unexpectedUpdate).resolves.toBe(false);
+		expect(updatedPayloads).toHaveLength(0);
+	});
+
+	test('saves a changed existing event when dismissing the edit popover', async ({ page }) => {
+		const existingEvent = draftPopoverEvent({ id: 'changed-edit-event', title: '수정 전 일정' });
+		await routeDraftPopoverEvents(page, [existingEvent]);
+		const updatedPayloads = await routeDraftPopoverEventUpdate(page, existingEvent);
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
+
+		await page.locator('.calendar-month-direct-event[data-event-id="changed-edit-event"]').dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.getByLabel('제목').fill('수정 후 일정');
+		await page.getByLabel('장소').fill('회의실 B');
+
+		await clickOutsideDraftPopover(page);
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect.poll(() => updatedPayloads.length).toBe(1);
+		expect(updatedPayloads[0]).toMatchObject({
+			title: '수정 후 일정',
+			location: '회의실 B'
+		});
 	});
 
 	test('disables completion when a timed draft end is not after the start', async ({ page }) => {

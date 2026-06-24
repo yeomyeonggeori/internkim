@@ -169,6 +169,15 @@ func CompanionToolDescriptors() []Descriptor {
 		{Name: "filesystem.mount.truncate", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "filesystem.mount.chmod", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "filesystem.mount.watch", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
+		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserOpenInputSchema()},
+		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserSnapshotInputSchema()},
+		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserScreenshotInputSchema()},
+		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserHandoffInputSchema()},
+		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserTargetInputSchema()},
+		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserFillInputSchema()},
+		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserSelectInputSchema()},
+		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserPressInputSchema()},
+		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserWaitInputSchema()},
 	}
 }
 

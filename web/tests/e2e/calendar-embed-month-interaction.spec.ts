@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
+import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import {
 	expectMonthEventFullBlockFocused,
 	expectMonthOverlayAlignedWithMonthStartRow,
@@ -79,6 +79,7 @@ test.describe('embedded calendar month interactions', () => {
 
 	test('does not open a month event popover after a moved pointer gesture', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 720 });
+		await routeCalendarEventUpdates(page);
 		await routeCalendarEvents(page, [
 			{
 				id: 'scroll-touch-month-event',

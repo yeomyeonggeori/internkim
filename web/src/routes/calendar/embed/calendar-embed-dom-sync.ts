@@ -19,6 +19,7 @@ const dayFlowMiniCalendarScheduler = createBrowserCalendarDOMSyncScheduler();
 const allDayLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const multiDayProxyLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const timelineEventLaneLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
+const timelineBoundaryLabelScheduler = createBrowserCalendarDOMSyncScheduler();
 
 export function scheduleDayFlowMiniCalendarEnhancement(context: DayFlowMiniCalendarEnhancementContext): void {
 	dayFlowMiniCalendarScheduler(() => enhanceDayFlowMiniCalendar(context));
@@ -60,6 +61,10 @@ export function scheduleTimelineEventLaneLayoutSync(
 	);
 }
 
+export function scheduleTimelineBoundaryLabelSync(stageElement: HTMLElement | null): void {
+	timelineBoundaryLabelScheduler(() => syncTimelineBoundaryLabels(stageElement));
+}
+
 export function createCalendarDOMSyncScheduler(runtime: CalendarDOMSyncRuntime): CalendarDOMSyncScheduler {
 	let generation = 0;
 	return (task) => {
@@ -78,6 +83,17 @@ export function createCalendarDOMSyncScheduler(runtime: CalendarDOMSyncRuntime):
 			runtime.setTimeout(runLatestTask, delay);
 		}
 	};
+}
+
+function syncTimelineBoundaryLabels(stageElement: HTMLElement | null): void {
+	if (!stageElement) return;
+	for (const label of stageElement.querySelectorAll<HTMLElement>(
+		'.df-week-time-grid-boundary-tail > .df-time-label, .df-day-content-grid-boundary-bottom .df-midnight-label'
+	)) {
+		if (label.textContent?.trim() === '00:00') {
+			label.textContent = '24:00';
+		}
+	}
 }
 
 function createBrowserCalendarDOMSyncScheduler(): CalendarDOMSyncScheduler {

@@ -6,6 +6,11 @@ export {
 	expectTimelineScrollState
 } from './calendar-embed-timeline-layout-assertions';
 export {
+	expectDayRightPanelDividerContinuous,
+	expectDayTimelineRowsRightBorderHidden,
+	expectTimelineEndsAt24
+} from './calendar-embed-timeline-boundary-assertions';
+export {
 	expectCalendarEventSelectedBlue,
 	expectCalendarEventSelectedOnPointerDown,
 	expectCalendarEventTitleAndTime,
