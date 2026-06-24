@@ -8,12 +8,14 @@
 	import AppRailHeader from '$lib/components/app-rail-header.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
 	import type { AppRailItem } from '$lib/components/app-rail-types';
+	import AppMobileNavigation from '$lib/components/app-mobile-navigation.svelte';
+	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
-	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
-	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
+	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
@@ -43,6 +45,19 @@
 		{ href: '/admin/', label: text.admin, icon: CogIcon }
 	]);
 
+	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
+		{ href: '/mail/', label: text.mail, icon: MailIcon },
+		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
+		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon }
+	]);
+
+	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
+		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
+		{ href: '/files/', label: text.files, icon: FolderOpenIcon },
+		...workspace
+	]);
+
 	const contactItem = $derived<AppRailItem>({ href: feedbackFormURL, label: text.contact, icon: CircleHelpIcon });
 	const profileMenuLabels = $derived({
 		account: text.account,
@@ -53,6 +68,11 @@
 	});
 
 	onMount(loadUser);
+
+	function isActive(href: string) {
+		const base = href.replace(/\/$/, '');
+		return currentPath === base || currentPath.startsWith(`${base}/`);
+	}
 
 	async function loadUser() {
 		try {
@@ -113,5 +133,16 @@
 		{logOut}
 	/>
 </AppRailShell>
+
+<AppMobileNavigation
+	displayUserName={displayUserName}
+	{isActive}
+	{logOut}
+	moreItems={mobileMoreItems}
+	{openAPITokenSheet}
+	primaryItems={mobilePrimaryItems}
+	{text}
+	{userEmail}
+/>
 
 <AccountAPITokenSheet bind:open={isAPITokenSheetOpen} />

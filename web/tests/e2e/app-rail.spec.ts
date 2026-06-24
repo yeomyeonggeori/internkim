@@ -67,6 +67,16 @@ test.describe('app rail', () => {
 		await expect.poll(async () => railIconSize(appRail.getByRole('link', { name: '기억' }))).toBe(20);
 	});
 
+	test('uses bottom navigation instead of the rail on mobile', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.goto('/memory/');
+
+		await expect(page.locator(appRailSelector)).toBeHidden();
+		const bottomNavigation = mobileBottomNavigation(page);
+		await expect(bottomNavigation).toBeVisible();
+		await expect(bottomNavigation.getByRole('button', { name: '더보기', exact: true })).toBeVisible();
+	});
+
 	test('opens the contact form from the rail footer', async ({ page, context }) => {
 		await context.route('https://forms.gle/**', async (route) => {
 			await route.fulfill({ contentType: 'text/html', body: '<title>InternKim feedback</title>' });
@@ -146,4 +156,8 @@ async function railIconSize(linkElement: ReturnType<Page['getByRole']>): Promise
 	if (!iconBox) return 0;
 
 	return Math.round(Math.max(iconBox.width, iconBox.height));
+}
+
+function mobileBottomNavigation(page: Page): ReturnType<Page['locator']> {
+	return page.locator('nav[aria-label]').filter({ has: page.getByRole('button', { name: '더보기', exact: true }) });
 }
