@@ -83,6 +83,7 @@ var blueclawNativeToolNames = []string{
 	"skill.search",
 	"schedule.create",
 	"schedule.cancel",
+	"db.sql",
 }
 
 func BlueclawDefaultAllowedToolNames() []string {
