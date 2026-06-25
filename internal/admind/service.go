@@ -1180,16 +1180,6 @@ func normalizeAdminUserRole(role string) string {
 	return "member"
 }
 
-func shouldIncludeBlueclawPolicy(request *http.Request) bool {
-	return request.URL.Query().Get("includePolicy") == "true"
-}
-
-type pagesUsersResponse struct {
-	Records          []adminUserMutation `json:"records"`
-	AvailableCircles []adminCircleRecord `json:"availableCircles,omitempty"`
-	AvailableGroups  []orgGroupRecord    `json:"availableGroups,omitempty"`
-}
-
 func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {
 	var input adminCircleRecord
 	if errorValue := json.NewDecoder(request.Body).Decode(&input); errorValue != nil {
@@ -2255,48 +2245,12 @@ func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email s
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
 }
 
-type orgProfileUpdate struct {
-	UserID       string `json:"userID"`
-	Email        string `json:"email"`
-	JobTitle     string `json:"jobTitle"`
-	Group        string `json:"group"`
-	SupervisorID string `json:"supervisorID"`
-}
-
-type orgGroupRecord struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
 func (service *Service) localUpdateOrgProfiles(responseWriter http.ResponseWriter, request *http.Request) {
-	var profilesRequest struct {
-		Profiles []orgProfileUpdate `json:"profiles"`
-	}
-	if errorValue := json.NewDecoder(request.Body).Decode(&profilesRequest); errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.writeBlueclawOrgProfiles(request.Context(), profilesRequest.Profiles); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.triggerUsersSync(request.Context())
-	service.writeFullLocalUsersResponse(responseWriter, request)
+	service.handleOrgchartProfileUpdate(responseWriter, request)
 }
 
 func (service *Service) localSetOrgGroups(responseWriter http.ResponseWriter, request *http.Request) {
-	var groupsRequest struct {
-		Groups []orgGroupRecord `json:"groups"`
-	}
-	if errorValue := json.NewDecoder(request.Body).Decode(&groupsRequest); errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.writeBlueclawOrgGroups(request.Context(), groupsRequest.Groups); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.writeFullLocalUsersResponse(responseWriter, request)
+	service.handleOrgchartGroupsUpdate(responseWriter, request)
 }
 
 func (service *Service) writeFullLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request) {
@@ -2306,188 +2260,6 @@ func (service *Service) writeFullLocalUsersResponse(responseWriter http.Response
 		return
 	}
 	service.writeLocalUsersResponse(responseWriter, request, response)
-}
-
-func (service *Service) writeBlueclawOrgProfiles(ctx context.Context, profiles []orgProfileUpdate) error {
-	if len(profiles) == 0 {
-		return nil
-	}
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return errorValue
-	}
-	people, _ := policyDocument["people"].([]any)
-	for _, profile := range profiles {
-		for _, value := range people {
-			person, isPerson := value.(map[string]any)
-			if !isPerson || !personMatchesOrgProfile(person, profile) {
-				continue
-			}
-			person["jobTitle"] = strings.TrimSpace(profile.JobTitle)
-			person["group"] = strings.TrimSpace(profile.Group)
-			person["supervisorID"] = strings.TrimSpace(profile.SupervisorID)
-			break
-		}
-	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
-}
-
-func (service *Service) writeBlueclawOrgGroups(ctx context.Context, groups []orgGroupRecord) error {
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return errorValue
-	}
-	normalizedGroups := make([]map[string]string, 0, len(groups))
-	for _, group := range groups {
-		id := strings.TrimSpace(group.ID)
-		name := strings.TrimSpace(group.Name)
-		if id == "" || name == "" {
-			continue
-		}
-		normalizedGroups = append(normalizedGroups, map[string]string{"id": id, "name": name})
-	}
-	policyDocument["orgGroups"] = normalizedGroups
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
-}
-
-func personMatchesOrgProfile(person map[string]any, profile orgProfileUpdate) bool {
-	userID := strings.TrimSpace(profile.UserID)
-	if userID != "" && strings.TrimSpace(mattermostPolicyString(person["personID"])) == userID {
-		return true
-	}
-	return strings.TrimSpace(profile.Email) != "" && blueclawPersonHasEmail(person, profile.Email)
-}
-
-func blueclawPersonHasEmail(person map[string]any, email string) bool {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	emailValues, _ := person["emails"].([]any)
-	for _, value := range emailValues {
-		candidate, isString := value.(string)
-		if isString && strings.ToLower(strings.TrimSpace(candidate)) == normalizedEmail {
-			return true
-		}
-	}
-	return false
-}
-
-func (service *Service) withBlueclawCircles(ctx context.Context, responseBody []byte) ([]byte, error) {
-	var usersResponse pagesUsersResponse
-	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
-		return nil, errorValue
-	}
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return nil, errorValue
-	}
-	usersResponse.AvailableCircles = blueclawAvailableCircles(policyDocument)
-	usersResponse.AvailableGroups = blueclawAvailableGroups(policyDocument)
-	circlesByEmail := blueclawCirclesByEmail(policyDocument)
-	profilesByEmail := blueclawProfilesByEmail(policyDocument)
-	for index := range usersResponse.Records {
-		email := strings.ToLower(strings.TrimSpace(usersResponse.Records[index].Email))
-		usersResponse.Records[index].Circles = normalizeAdminUserCircles(circlesByEmail[email], usersResponse.Records[index].Role)
-		profile := profilesByEmail[email]
-		usersResponse.Records[index].UserID = firstNonEmpty(profile.PersonID, usersResponse.Records[index].UserID)
-		usersResponse.Records[index].JobTitle = profile.JobTitle
-		usersResponse.Records[index].Group = profile.Group
-		usersResponse.Records[index].SupervisorID = profile.SupervisorID
-	}
-	return json.Marshal(usersResponse)
-}
-
-func blueclawAvailableCircles(policyDocument map[string]any) []adminCircleRecord {
-	circleValues, _ := policyDocument["circles"].([]any)
-	circles := []adminCircleRecord{}
-	for _, value := range circleValues {
-		circle, isCircle := value.(map[string]any)
-		if !isCircle {
-			continue
-		}
-		circleID := strings.ToLower(strings.TrimSpace(mattermostPolicyString(circle["circleID"])))
-		if circleID == "" {
-			continue
-		}
-		displayName := strings.TrimSpace(mattermostPolicyString(circle["displayName"]))
-		if displayName == "" {
-			displayName = circleID
-		}
-		isMattermostManaged, _ := circle["isMattermostManaged"].(bool)
-		circles = append(circles, adminCircleRecord{CircleID: circleID, DisplayName: displayName, IsMattermostManaged: isMattermostManaged})
-	}
-	if len(circles) == 0 {
-		return []adminCircleRecord{{CircleID: "staff", DisplayName: "Staff"}}
-	}
-	return circles
-}
-
-func blueclawCirclesByEmail(policyDocument map[string]any) map[string][]string {
-	people, _ := policyDocument["people"].([]any)
-	circlesByEmail := map[string][]string{}
-	for _, value := range people {
-		person, isPerson := value.(map[string]any)
-		if !isPerson {
-			continue
-		}
-		circles := policyStringList(person["circles"])
-		emailValues, _ := person["emails"].([]any)
-		for _, emailValue := range emailValues {
-			email, isString := emailValue.(string)
-			if isString {
-				circlesByEmail[strings.ToLower(strings.TrimSpace(email))] = circles
-			}
-		}
-	}
-	return circlesByEmail
-}
-
-type blueclawPersonProfile struct {
-	PersonID     string
-	JobTitle     string
-	Group        string
-	SupervisorID string
-}
-
-func blueclawAvailableGroups(policyDocument map[string]any) []orgGroupRecord {
-	groupValues, _ := policyDocument["orgGroups"].([]any)
-	groups := []orgGroupRecord{}
-	for _, value := range groupValues {
-		group, isGroup := value.(map[string]any)
-		if !isGroup {
-			continue
-		}
-		id := strings.TrimSpace(mattermostPolicyString(group["id"]))
-		name := strings.TrimSpace(mattermostPolicyString(group["name"]))
-		if id == "" || name == "" {
-			continue
-		}
-		groups = append(groups, orgGroupRecord{ID: id, Name: name})
-	}
-	return groups
-}
-
-func blueclawProfilesByEmail(policyDocument map[string]any) map[string]blueclawPersonProfile {
-	people, _ := policyDocument["people"].([]any)
-	profilesByEmail := map[string]blueclawPersonProfile{}
-	for _, value := range people {
-		person, isPerson := value.(map[string]any)
-		if !isPerson {
-			continue
-		}
-		profile := blueclawPersonProfile{
-			PersonID:     strings.TrimSpace(mattermostPolicyString(person["personID"])),
-			JobTitle:     strings.TrimSpace(mattermostPolicyString(person["jobTitle"])),
-			Group:        strings.TrimSpace(mattermostPolicyString(person["group"])),
-			SupervisorID: strings.TrimSpace(mattermostPolicyString(person["supervisorID"])),
-		}
-		emailValues, _ := person["emails"].([]any)
-		for _, emailValue := range emailValues {
-			email, isString := emailValue.(string)
-			if isString {
-				profilesByEmail[strings.ToLower(strings.TrimSpace(email))] = profile
-			}
-		}
-	}
-	return profilesByEmail
 }
 
 func policyStringList(value any) []string {
