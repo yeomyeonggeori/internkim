@@ -10,6 +10,9 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleCalendarConnectAction).toBe('Connect Google Calendar');
 		expect(calendarText.en.googleCalendarReconnectAction).toBe('Reconnect Google Calendar');
 		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume remote calendar sync.');
+		expect(calendarText.en.googleCalendarUnavailableHint).toBe(
+			'Google Calendar integration is not ready yet.\nContact an administrator if you need access.'
+		);
 		expect(calendarText.ko.subscriptionSettings).toBe('구독 설정');
 		expect(calendarText.ko.subscriptionReady).toBe('CalDAV/ICS 구독 URL 준비됨');
 		expect(calendarText.ko.googleCalendarDisconnected).toBe('Google Calendar 미연결');
@@ -17,6 +20,9 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleCalendarConnectAction).toBe('Google Calendar 연결');
 		expect(calendarText.ko.googleCalendarReconnectAction).toBe('Google Calendar 다시 연결');
 		expect(calendarText.ko.googleCalendarReconnectHint).toBe('외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.');
+		expect(calendarText.ko.googleCalendarUnavailableHint).toBe(
+			'Google Calendar 연동은 아직 준비되지 않았습니다.\n사용이 필요하면 관리자에게 문의하세요.'
+		);
 	});
 
 	test('localizes event audit labels', () => {

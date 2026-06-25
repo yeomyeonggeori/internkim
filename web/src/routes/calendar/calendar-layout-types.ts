@@ -11,6 +11,7 @@ export type CalendarAccountStatusResponse = {
 	accountEmail?: string;
 	lastAuthError?: string;
 	needsReauth: boolean;
+	googleOAuthConfigured: boolean;
 };
 
 export type CalendarEvent = {

@@ -115,6 +115,11 @@ func (service *Service) loadGoogleOAuthClientSecret() (string, string, error) {
 	return "", "", errors.New("google oauth client file missing client_id")
 }
 
+func (service *Service) isGoogleOAuthConfigured() bool {
+	_, _, errorValue := service.loadGoogleOAuthClientSecret()
+	return errorValue == nil
+}
+
 func (service *Service) buildGoogleOAuthConfig(redirectURI string) (*oauth2.Config, error) {
 	clientID, clientSecret, errorValue := service.loadGoogleOAuthClientSecret()
 	if errorValue != nil {

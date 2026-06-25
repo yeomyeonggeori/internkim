@@ -23,6 +23,12 @@ export type CalendarEventUpdatePayload = {
 	color: string;
 };
 
+type CalendarTestAccountStatus = {
+	connected: boolean;
+	needsReauth: boolean;
+	googleOAuthConfigured: boolean;
+};
+
 export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLocale = 'ko'): Promise<void> {
 	await page.route('**/calendar/api/events?**', async (route) => {
 		await route.fulfill({
@@ -43,9 +49,16 @@ export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLo
 	await routeCalendarLocale(page, locale);
 }
 
-export async function routeCalendarBackgroundAPI(page: Page): Promise<void> {
+export async function routeCalendarBackgroundAPI(
+	page: Page,
+	accountStatus: CalendarTestAccountStatus = {
+		connected: false,
+		needsReauth: false,
+		googleOAuthConfigured: true
+	}
+): Promise<void> {
 	await page.route('**/calendar/api/account-status', async (route) => {
-		await route.fulfill({ json: { connected: false, needsReauth: false } });
+		await route.fulfill({ json: accountStatus });
 	});
 	await page.route('**/calendar/api/remote-sync', async (route) => {
 		await route.fulfill({ json: { synced: false } });
