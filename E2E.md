@@ -73,7 +73,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
 | 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `task.history`로 사유 설명) |
 | 17 | Mattermost DM 수신자 해석 | COVERED | `dm-recipient-resolve` (실 Mattermost 사용자 생성→정책 초대→인바운드 계정 링크→부분 이름으로 `/admin/api/identity/resolve-recipient` resolved 단언) |
-| 18 | Blueclaw 재시작 후 정책 사람 보존 | COVERED | `restart-policy-survival` (재시작 직전/직후 `/admin/api/policy` 사람 수 동일 단언; 서비스 재시작이 있어 predeploy-gate 제외) |
+| 18 | Blueclaw 재시작 후 정책 사람 보존 | COVERED | `restart-policy-survival` (재시작 직전/직후 `/admin/api/policy` 사람 수 동일 단언; 서비스 재시작이 있어 기본 `dev fleet run` 게이트 제외) |
 
 ## 운영 규칙
 
@@ -83,8 +83,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
   행을 더한다.
 - 시나리오는 사용자-가시 결과(회신 내용·이벤트·산출물)를 단언한다. 내부 구현
   세부는 단위 테스트에 둔다.
-- 실제 플랫폼 스모크는 가상 세션·컨테이너 게이트 통과 후에만, 테스트 정리 규칙과
-  함께 수행한다.
+- 실제 플랫폼 스모크는 가상 세션과 Mattermost 제외 Linux 게이트 통과 후에만,
+  테스트 정리 규칙과 함께 수행한다.
 
 ## 백로그
 
