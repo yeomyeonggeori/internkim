@@ -1,10 +1,15 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
-import type { UpdateAttendanceEventRequest } from '../../src/routes/attendance/attendance-api';
-import type {
-	AttendanceEvent,
-	AttendanceSummary
-} from '../../src/routes/attendance/attendance-context.svelte';
+import {
+	buildOpenOvernightAttendanceSummary,
+	buildOvernightAttendanceSummary,
+	buildWideTooltipSummary,
+	currentUserEvent,
+	parseUpdateAttendanceEventRequest,
+	replaceSummaryEvent,
+	selectKorean,
+	todayDateInSeoul,
+} from './attendance-test-helpers';
 
 test.describe('attendance', () => {
 	test.beforeEach(async ({ page }) => {
@@ -67,6 +72,49 @@ test.describe('attendance', () => {
 		await expect(page.getByText('진행 중')).toBeVisible();
 	});
 
+	test('sizes team status tooltip columns to fit long segment labels', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
+			await route.fulfill({ json: buildWideTooltipSummary(month, todayDateInSeoul()) });
+		});
+
+		const todayDate = todayDateInSeoul();
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).hover();
+
+		const tooltip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: '사무실본관회의실A' });
+		await expect(tooltip).toBeVisible();
+
+		const layout = await tooltip.evaluate((content) => {
+			const rows = Array.from(content.children).filter((child): child is HTMLElement => {
+				return child instanceof HTMLElement && child.querySelectorAll('span').length >= 4;
+			});
+			const overflowingCells = rows.flatMap((row) => {
+				return Array.from(row.querySelectorAll('span'))
+					.filter((span) => (span.textContent ?? '').trim().length > 0)
+					.filter((span) => span.scrollWidth > span.clientWidth + 1)
+					.map((span) => (span.textContent ?? '').trim());
+			});
+			const columnLefts = rows.map((row) => {
+				const spans = Array.from(row.querySelectorAll('span'));
+				return spans.slice(1, 4).map((span) => Math.round(span.getBoundingClientRect().left));
+			});
+			const maximumColumnDrift = columnLefts[0]
+				? Math.max(
+						...columnLefts.flatMap((lefts) =>
+							lefts.map((left, index) => Math.abs(left - (columnLefts[0]?.[index] ?? left)))
+						)
+					)
+				: 0;
+			return { overflowingCells, maximumColumnDrift };
+		});
+		expect(layout.overflowingCells).toEqual([]);
+		expect(layout.maximumColumnDrift).toBeLessThanOrEqual(1);
+	});
+
 	test('opens status day details from a team status cell', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
@@ -117,6 +165,50 @@ test.describe('attendance', () => {
 		await expect(eventLabels.nth(2)).toContainText('출근 10:45');
 		await expect(eventLabels.nth(3)).toContainText('퇴근 12:20');
 		await expect(eventLabels.nth(4)).toContainText('출근 12:45');
+	});
+
+	test('shows overnight work as split daily segments', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: buildOvernightAttendanceSummary('2026-06') });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		await page.getByTestId('personal-calendar-day-2026-06-01').click();
+		const firstDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(firstDayPanel.getByText('22:00:00~24:00:00')).toBeVisible();
+		await expect(firstDayPanel.getByText('진행 중')).toHaveCount(0);
+
+		await page.getByTestId('personal-calendar-day-2026-06-02').click();
+		const secondDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(secondDayPanel.getByText('00:00:00~02:00:00')).toBeVisible();
+		await expect(secondDayPanel.getByText('진행 중')).toHaveCount(0);
+	});
+
+	test('keeps overnight work in progress after midnight', async ({ page }) => {
+		const todayDate = '2026-06-02';
+		const previousDate = '2026-06-01';
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: buildOpenOvernightAttendanceSummary(todayDate, previousDate) });
+		});
+
+		await page.clock.setFixedTime(new Date('2026-06-02T01:00:00+09:00'));
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		await expect(page.getByRole('button', { name: '퇴근' })).toBeVisible();
+		await page.getByTestId(`personal-calendar-day-${previousDate}`).click();
+		const firstDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(firstDayPanel.getByText('22:00:00~24:00:00')).toBeVisible();
+		await expect(firstDayPanel.getByText('진행 중')).toHaveCount(0);
+
+		await page.getByTestId(`personal-calendar-day-${todayDate}`).click();
+		const secondDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(secondDayPanel.getByText('00:00:00~')).toBeVisible();
+		await expect(secondDayPanel.getByText('진행 중')).toBeVisible();
 	});
 
 	test('registers own absence without sending an email override', async ({ page }) => {
@@ -249,104 +341,3 @@ test.describe('attendance', () => {
 		await expect(detailPanel.getByText('휴가')).toHaveCount(0);
 	});
 });
-
-async function selectKorean(page: Page): Promise<void> {
-	await page.getByRole('button', { name: /Change language|언어 변경/ }).click();
-	await page.getByRole('menuitemradio', { name: '한국어' }).click();
-}
-
-function todayDateInSeoul(): string {
-	const parts = new Intl.DateTimeFormat('en-US', {
-		timeZone: 'Asia/Seoul',
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit'
-	}).formatToParts(new Date());
-	const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-	return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
-}
-
-function currentUserEvent(
-	summary: AttendanceSummary,
-	localDate: string,
-	kind: AttendanceEvent['kind']
-): AttendanceEvent | undefined {
-	return summary.events.find(
-		(event) => event.email === summary.currentUserEmail && event.localDate === localDate && event.kind === kind
-	);
-}
-
-function parseUpdateAttendanceEventRequest(payload: string | null): UpdateAttendanceEventRequest {
-	const parsed = JSON.parse(payload ?? '{}') as Partial<UpdateAttendanceEventRequest>;
-	if (
-		typeof parsed.localDate !== 'string' ||
-		typeof parsed.localTime !== 'string' ||
-		typeof parsed.locationID !== 'string' ||
-		typeof parsed.reason !== 'string'
-	) {
-		throw new Error('Invalid update attendance event request');
-	}
-	return {
-		localDate: parsed.localDate,
-		localTime: parsed.localTime,
-		locationID: parsed.locationID,
-		reason: parsed.reason
-	};
-}
-
-function replaceSummaryEvent(
-	summary: AttendanceSummary,
-	eventID: string,
-	request: UpdateAttendanceEventRequest
-): AttendanceSummary {
-	return {
-		...summary,
-		events: summary.events.map((event) => (event.id === eventID ? overrideEvent(summary, event, request) : event))
-	};
-}
-
-function overrideEvent(
-	summary: AttendanceSummary,
-	event: AttendanceEvent,
-	request: UpdateAttendanceEventRequest
-): AttendanceEvent {
-	const location = summary.locations.find((candidate) => candidate.id === request.locationID);
-	const locationName = location?.name ?? request.locationID;
-	const editedAt = `${request.localDate}T17:20:00+09:00`;
-	return {
-		...event,
-		occurredAt: `${request.localDate}T${request.localTime}:00+09:00`,
-		localDate: request.localDate,
-		localTime: request.localTime,
-		locationID: request.locationID,
-		locationName,
-		overriddenBy: summary.currentUserEmail,
-		overriddenAt: editedAt,
-		overrideReason: request.reason,
-		originalOccurredAt: event.occurredAt,
-		originalLocalDate: event.localDate,
-		originalLocalTime: event.localTime,
-		originalLocationID: event.locationID,
-		originalLocationName: event.locationName,
-		overrideHistory: [
-			{
-				id: `override-${event.id}`,
-				eventID: event.id,
-				editedBy: summary.currentUserEmail,
-				editedAt,
-				reason: request.reason,
-				originalOccurredAt: event.occurredAt,
-				originalLocalDate: event.localDate,
-				originalLocalTime: event.localTime,
-				originalLocationID: event.locationID ?? '',
-				originalLocationName: event.locationName ?? '',
-				overrideOccurredAt: `${request.localDate}T${request.localTime}:00+09:00`,
-				overrideLocalDate: request.localDate,
-				overrideLocalTime: request.localTime,
-				overrideLocationID: request.locationID,
-				overrideLocationName: locationName
-			},
-			...(event.overrideHistory ?? [])
-		]
-	};
-}
