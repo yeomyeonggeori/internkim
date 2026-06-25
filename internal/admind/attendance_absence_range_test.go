@@ -130,12 +130,12 @@ func TestAttendanceAbsenceCreateMergesAdjacentSameKindRange(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "business_trip",
+		"kind": "other",
 		"startDate": "2026-05-11",
 		"endDate": "2026-05-13"
 	}`)
 	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "business_trip",
+		"kind": "other",
 		"startDate": "2026-05-14",
 		"endDate": "2026-05-15"
 	}`)
@@ -202,13 +202,13 @@ func TestAttendanceAbsenceCreateAllowsSameDateForDifferentPeople(t *testing.T) {
 	}`)
 	createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
 		"email": "other@example.com",
-		"kind": "business_trip",
+		"kind": "other",
 		"startDate": "2026-05-13"
 	}`)
 
 	summaryResponse := readAttendanceSummaryForTest(t, service, "admin@example.com", "2026-05")
 	expected := []string{
-		"2026-05-13:business_trip",
+		"2026-05-13:other",
 		"2026-05-13:leave",
 	}
 	if attendanceAbsenceDateKinds(summaryResponse.Absences) != strings.Join(expected, ",") {
@@ -225,7 +225,7 @@ func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testin
 		"endDate": "2026-05-15"
 	}`)
 	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "business_trip",
+		"kind": "other",
 		"startDate": "2026-05-13",
 		"endDate": "2026-05-13"
 	}`)
@@ -234,7 +234,7 @@ func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testin
 	expected := []string{
 		"2026-05-11:leave",
 		"2026-05-12:leave",
-		"2026-05-13:business_trip",
+		"2026-05-13:other",
 		"2026-05-14:leave",
 		"2026-05-15:leave",
 	}
@@ -304,16 +304,16 @@ func TestAttendanceAbsenceSummaryIncludesVisibleMonthGridOverlap(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "business_trip",
+		"kind": "leave",
 		"startDate": "2026-05-29",
 		"endDate": "2026-06-02"
 	}`)
 
 	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
 	expected := []string{
-		"2026-05-29:business_trip",
-		"2026-06-01:business_trip",
-		"2026-06-02:business_trip",
+		"2026-05-29:leave",
+		"2026-06-01:leave",
+		"2026-06-02:leave",
 	}
 	if attendanceAbsenceDateKinds(summaryResponse.Absences) != strings.Join(expected, ",") {
 		t.Fatalf("expected visible grid overlap absences, got %+v", summaryResponse.Absences)

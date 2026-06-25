@@ -25,12 +25,6 @@ export function buildAttendanceAbsenceFixtures(options: BuildAttendanceAbsenceFi
 	const appendAbsenceRange = createAbsenceRangeAppender(month, lastDayInMonth, appendAbsence);
 
 	appendAbsence({
-		id: 'absence-team-business-trip',
-		email: 'lee@example.com',
-		kind: 'business_trip',
-		date: month === todayMonth ? todayDate : `${month}-01`,
-	});
-	appendAbsence({
 		id: 'absence-personal-leave',
 		email: 'kim@example.com',
 		kind: 'leave',
@@ -96,7 +90,6 @@ function createAbsenceRangeAppender(
 function defaultAbsenceRanges(): AbsenceFixtureRange[] {
 	return [
 		{ id: 'absence-park-vacation', email: 'park@example.com', kind: 'leave', startDay: 6, endDay: 8, reason: 'summer break' },
-		{ id: 'absence-choi-field-trip', email: 'choi@example.com', kind: 'business_trip', startDay: 12, endDay: 13, reason: 'client visit' },
 		{ id: 'absence-jung-other', email: 'jung@example.com', kind: 'other', startDay: 18 },
 		{ id: 'absence-kang-other', email: 'kang@example.com', kind: 'other', startDay: 22, endDay: 23, reason: 'personal schedule' },
 		{ id: 'absence-lee-short-leave', email: 'lee@example.com', kind: 'leave', startDay: 27, reason: 'family event' },
@@ -106,9 +99,7 @@ function defaultAbsenceRanges(): AbsenceFixtureRange[] {
 function juneAbsenceRanges(): AbsenceFixtureRange[] {
 	return [
 		{ id: 'absence-june-kim-leave', email: 'kim@example.com', kind: 'leave', startDay: 9, endDay: 11, reason: 'sample overlap leave' },
-		{ id: 'absence-june-lee-business-trip', email: 'lee@example.com', kind: 'business_trip', startDay: 10, endDay: 12, reason: 'sample client visit' },
 		{ id: 'absence-june-choi-other', email: 'choi@example.com', kind: 'other', startDay: 10, reason: 'sample personal schedule' },
-		{ id: 'absence-june-park-business-trip', email: 'park@example.com', kind: 'business_trip', startDay: 18, endDay: 30, reason: 'sample long business trip' },
 		{ id: 'absence-june-choi-leave', email: 'choi@example.com', kind: 'leave', startDay: 24, endDay: 26, reason: 'sample visible range' },
 		{ id: 'absence-june-lee-other', email: 'lee@example.com', kind: 'other', startDay: 24, endDay: 26, reason: 'sample overflow range' },
 	];

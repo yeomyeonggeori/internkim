@@ -22,8 +22,8 @@ const absences: AttendanceAbsence[] = [
 	{
 		id: 'absence-2',
 		email: 'lee@example.com',
-		kind: 'business_trip',
-		labelKey: 'business_trip',
+		kind: 'other',
+		labelKey: 'other',
 		date: '2026-06-10',
 		createdAt: '2026-06-01T09:00:00Z'
 	},
@@ -46,7 +46,7 @@ describe('attendance absence helpers', () => {
 
 	test('maps backend label keys through attendance localization text', () => {
 		expect(absenceLabelText(absences[0], attendanceText.ko)).toBe('휴가');
-		expect(absenceLabelText(absences[1], attendanceText.en)).toBe('Business trip');
+		expect(absenceLabelText(absences[1], attendanceText.en)).toBe('Other');
 	});
 
 	test('treats sanitized absence records as having no private details', () => {
