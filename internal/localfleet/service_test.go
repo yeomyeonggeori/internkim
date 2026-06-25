@@ -72,6 +72,7 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 	for _, expectedFragment := range []string{
 		"-L '127.0.0.1:18080:127.0.0.1:18080'",
 		"-L '127.0.0.1:8065:127.0.0.1:8065'",
+		"prepare-container-kernel",
 		"make build",
 		"setup --board lab",
 		"--admin-email local-fleet-admin@internkim.test",
@@ -94,6 +95,20 @@ func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	joinedPlans := joinedPlanArguments(plans)
 	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e") {
 		t.Fatalf("expected direct-message verify gate in plans:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web") {
+		t.Fatalf("expected test up plan to skip web:\n%s", joinedPlans)
+	}
+	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
+		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
 	}
 }
 

@@ -78,6 +78,14 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 	return service.runAction(contextValue, logger, request)
 }
 
+func (service Service) ConfigurationPath() string {
+	return service.configurationPath()
+}
+
+func (service Service) CleanupEphemeral(contextValue context.Context, logger Logger) error {
+	return service.runCleanupPlans(contextValue, logger, service.ephemeralCleanupPlans())
+}
+
 func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {
 	errorValue := service.runAction(contextValue, logger, request)
 	cleanupError := service.runCleanupPlans(contextValue, logger, service.ephemeralCleanupPlans())
@@ -93,7 +101,7 @@ func (service Service) runWithEphemeralCleanup(contextValue context.Context, log
 func (service Service) runAction(contextValue context.Context, logger Logger, request JobRequest) error {
 	switch request.Action {
 	case ActionUp:
-		return service.runPlans(contextValue, logger, service.upPlans())
+		return service.runPlans(contextValue, logger, service.upPlans(request.SkipWeb))
 	case ActionDown:
 		return service.runPlans(contextValue, logger, service.downPlans())
 	case ActionReset:

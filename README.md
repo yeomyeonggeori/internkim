@@ -382,6 +382,12 @@ make deps-sim
 # Mattermost 제외 Linux virtual-session
 ./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
 
+# 산출물 품질 확인: prompt를 Mattermost로 보내고 첨부 파일을 /tmp에 내려받아 macOS open
+./internkim test "저번 달 업무에 대한 보고서 워드 파일로 만들어줘"
+./internkim test "저번 달 업무에 대한 보고서 워드 파일로 만들어줘" -o /tmp/internkim-report.docx
+./internkim test "웹사이트 만들어줘"
+./internkim test "슬라이드 만들어줘" --reuse
+
 # "고쳤다" 검증: base 실패/current 성공을 강제
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 
@@ -399,6 +405,8 @@ make deploy-after-fleet
 실기기 배포 전에는 `./internkim dev fleet run`을 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. `./internkim sim gate`는 하위 호환을 위해 유지되지만 새 문서와 자동화는 Local Fleet 명령을 기준으로 작성합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
 Disposable Local Fleet는 `.local/local-fleet/runs/<run-id>` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다. 공유 VM을 직접 디버깅해야 할 때만 `./internkim dev fleet run --reuse ...`, `./internkim dev fleet up`, `./internkim dev fleet status`, `./internkim dev fleet reset`을 사용합니다.
+
+`./internkim test "<prompt>"`는 disposable Local Fleet를 올리고 실제 Mattermost DM으로 prompt를 보낸 뒤 task 완료를 기다립니다. 산출물 품질 확인용 경로라 웹 UI 빌드는 건너뛰고 Mattermost, Blueclaw, runtime 의존성만 준비합니다. Local Fleet setup은 현재 checkout의 Blueclaw 변경을 `INTERNKIM_BLUECLAW_USE_LOCAL=1`로 반영하므로 별도 환경변수 없이 새 agent/runtime 코드를 확인할 수 있습니다. 최종 봇 메시지는 터미널에 출력하고, 첨부 파일이 있으면 기본적으로 `/tmp/internkim-test-<timestamp>/`에 저장한 뒤 macOS `open`으로 엽니다. `-o <file>`은 C 컴파일러의 `-o`처럼 단일 첨부 파일을 정확히 그 파일 경로에 저장합니다. 첨부가 여러 개면 `-o`는 실패하므로 기본 디렉터리 저장을 쓰거나 prompt가 단일 파일만 첨부하게 해야 합니다. URL 산출물은 별도 후처리하지 않고 Mattermost 메시지에 포함된 텍스트 그대로 확인합니다. 반복 확인에는 `--reuse`, 파일을 열지 않을 때는 `--no-open`을 사용합니다.
 
 Mattermost gate는 초대된 테스트 사용자와 초대되지 않은 테스트 사용자를 만들고, 봇 응답과 초대 차단이 모두 동작하는지 확인한 뒤 테스트 메시지와 사용자를 정리합니다. self-hosted Mattermost의 비밀번호 정책이 강화되어도 통과하도록 검증 사용자는 충분히 긴 임시 비밀번호를 씁니다. cleanup 중 Mattermost system post 정리는 SSH 계정에 passwordless sudo가 없으면 건너뛰며, 사용자와 봇 reply 정리는 Mattermost API로 계속 수행합니다.
 

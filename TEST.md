@@ -30,7 +30,15 @@ Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는
 
 # Mattermost 제외 Linux virtual-session
 ./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
+
+# 모델 산출물 직접 확인
+./internkim test "저번 달 업무에 대한 보고서 워드 파일로 만들어줘"
+./internkim test "저번 달 업무에 대한 보고서 워드 파일로 만들어줘" -o /tmp/internkim-report.docx
+./internkim test "웹사이트 만들어줘"
+./internkim test "슬라이드 만들어줘" --reuse
 ```
+
+`./internkim test "<prompt>"`는 disposable Local Fleet에서 실제 Mattermost DM을 보내고 task 완료 후 마지막 봇 메시지를 출력합니다. 산출물 품질 확인용 경로라 웹 UI 빌드는 건너뛰고 Mattermost, Blueclaw, runtime 의존성만 준비합니다. 현재 checkout의 Blueclaw 변경은 Local Fleet setup에서 `INTERNKIM_BLUECLAW_USE_LOCAL=1`로 자동 반영합니다. 첨부 파일이 있으면 `/tmp/internkim-test-<timestamp>/`에 내려받아 macOS `open`으로 열며, `-o <file>`을 주면 단일 첨부 파일을 정확히 그 파일 경로에 씁니다. URL은 메시지 텍스트로 그대로 확인합니다. 첨부 파일 후처리만 수행하므로 웹사이트 URL처럼 파일이 없는 결과도 성공으로 취급합니다.
 
 ## 테스트 흔적 정리
 
