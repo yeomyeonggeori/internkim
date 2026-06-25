@@ -11,6 +11,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | Linux 실행 게이트 | `./internkim dev replay --target container --scenario <name>` | 동일 시나리오를 apple/container Linux VM에서 재생 | 실행 파일·POSIX 권한·terminal.run 경로 |
 | 로컬 플릿 | `./internkim dev fleet run --recipe predeploy-gate` | `internal/localfleet/plans.go` | admind API·Mattermost 연결·DM 수신자 해석·browser 스모크 |
 | 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 실제 커넥터 경유 메시징·재시작 후 정책 보존 |
+| 일회용 플릿 | `./internkim dev fleet run --ephemeral --scenario <name>` | `internal/localfleet` run-scoped VM/state/tunnel | 테스트 동안만 살아 있는 로컬 Linux+Mattermost+Kim 서버 |
+| Mattermost 제외 Linux | `./internkim dev fleet run --ephemeral --without-mattermost --scenario <name>` | Blueclaw virtual-session을 Linux VM 내부에서 실행 | Mattermost 서버 없이 Linux toolchain·agent 경로 검증 |
 
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
 스크립트 응답으로 결정성을 확보한다. CLI의 `--cassette`/`--record-cassette`
@@ -89,6 +91,10 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 
 - PARTIAL 잔여분: DM 상대 실수신 확인(3)과 일회성 예약 수정·삭제(7)는 실플랫폼
   스모크/기존 패턴 중복이라 가상 세션 추가 없이 유지.
+- 기존 한계: 가상 세션은 실제 Mattermost ingress/API/DM 수신을 증명하지 않고,
+  로컬 플릿은 기본적으로 고정 VM·고정 포트·공유 상태를 재사용한다. 일회용 플릿은
+  이 한계를 줄이지만, `--without-mattermost` 모드는 의도적으로 Mattermost 호환성을
+  보증하지 않는다.
 - `--cassette`/`--record-cassette`를 blueclaw-lab `virtual-session`에 실제
   배선하거나 CLI에서 플래그를 제거해 문서·현실 불일치 해소.
 - predeploy-gate에 가상 세션 시나리오 묶음 실행 추가 검토.

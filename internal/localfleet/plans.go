@@ -3,6 +3,7 @@ package localfleet
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,6 +22,19 @@ func (service Service) runPlans(contextValue context.Context, logger Logger, pla
 		}
 	}
 	service.writeLastResult("succeeded")
+	return nil
+}
+
+func (service Service) runCleanupPlans(contextValue context.Context, logger Logger, plans []CommandPlan) error {
+	var cleanupErrors []string
+	for _, plan := range plans {
+		if errorValue := service.runPlan(contextValue, logger, plan); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, errorValue.Error())
+		}
+	}
+	if len(cleanupErrors) > 0 {
+		return errors.New(strings.Join(cleanupErrors, "; "))
+	}
 	return nil
 }
 
@@ -70,6 +84,15 @@ func (service Service) upPlans() []CommandPlan {
 	}
 }
 
+func (service Service) withoutMattermostScenarioPlans(scenario string) []CommandPlan {
+	return []CommandPlan{
+		service.labCommand("vm-up"),
+		service.blueclawDevSessionPreparePlan(scenario),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
+		service.withoutMattermostVirtualSessionPlan(scenario),
+	}
+}
+
 func (service Service) downPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
@@ -80,6 +103,14 @@ func (service Service) downPlans() []CommandPlan {
 func (service Service) resetPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("reset local fleet", service.resetCommand()),
+	}
+}
+
+func (service Service) ephemeralCleanupPlans() []CommandPlan {
+	return []CommandPlan{
+		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
+		service.shellPlan("remove ephemeral VM", service.removeVirtualMachineCommand()),
+		service.shellPlan("remove ephemeral state", service.removeStateCommand()),
 	}
 }
 
@@ -100,8 +131,12 @@ func (service Service) mattermostScenarioPlans() []CommandPlan {
 	return append(service.upPlans(), service.labCommand("scenario-mattermost"))
 }
 
-func (service Service) mattermostDirectMessageScenarioPlans() []CommandPlan {
-	return append(service.upPlans(), service.shellPlan("verify direct message", service.verifyCommand("mattermost --direct-message-e2e")))
+func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) []CommandPlan {
+	verificationKind := "mattermost --direct-message-e2e"
+	if keepArtifacts {
+		verificationKind += " --keep"
+	}
+	return append(service.upPlans(), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
 }
 
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
@@ -172,11 +207,13 @@ func (service Service) startTunnelCommand() string {
 	sshpassPath := quoteShell(filepath.Join(service.options.RepositoryRootPath, "bin", "sshpass"))
 	pidPath := quoteShell(service.tunnelPIDPath())
 	logPath := quoteShell(service.tunnelLogPath())
+	adminForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:18080", service.options.AdminHostPort)
+	mattermostForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:8065", service.options.MattermostHostPort)
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi",
-		"for attempt in 1 2 3; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:8065:127.0.0.1:8065 admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
+		"for attempt in 1 2 3; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 
@@ -206,10 +243,66 @@ func (service Service) resetCommand() string {
 	}, " && ")
 }
 
+func (service Service) removeVirtualMachineCommand() string {
+	containerBinary := quoteShell("container")
+	containerName := quoteShell(service.options.VirtualMachineName)
+	return strings.Join([]string{
+		containerBinary + " stop " + containerName + " >/dev/null 2>&1 || true",
+		containerBinary + " rm " + containerName + " >/dev/null 2>&1 || true",
+	}, "; ")
+}
+
+func (service Service) removeStateCommand() string {
+	return "rm -rf " + quoteShell(service.options.StateRootPath)
+}
+
 func (service Service) blueclawLabScenarioScriptPlan(scenario string) CommandPlan {
 	workspacePath := "/mnt/shared/workspace"
 	scriptPath := workspacePath + "/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
 	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 "+workspacePath)
+}
+
+func (service Service) blueclawDevSessionPreparePlan(scenario string) CommandPlan {
+	workspacePath := "/mnt/shared/workspace"
+	scriptPath := workspacePath + "/lab/scripts/provision-blueclaw-dev-session.sh"
+	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin /mnt/shared "+quoteShell(virtualSessionNeedsBunValue(scenario)))
+}
+
+func (service Service) withoutMattermostVirtualSessionPlan(scenario string) CommandPlan {
+	command := strings.Join([]string{
+		"cd " + quoteShell("/mnt/shared/workspace/.dependency/blueclaw"),
+		quoteShellArguments([]string{
+			"go",
+			"run",
+			"./cmd/blueclaw-lab",
+			"virtual-session",
+			"--scenario",
+			scenario,
+			"--artifact-dir",
+			service.virtualSessionArtifactDirectoryPath(scenario),
+		}),
+	}, " && ")
+	return service.labCommand("vm-ssh", command)
+}
+
+func (service Service) virtualSessionArtifactDirectoryPath(scenario string) string {
+	runDirectoryName := firstNonEmpty(service.options.RunID, "default")
+	return "/mnt/shared/workspace/.artifacts/local-fleet/" + safeIdentifier(runDirectoryName) + "/" + safeIdentifier(scenario)
+}
+
+func (service Service) logEphemeralContext(logger Logger, request JobRequest) {
+	logger.Info("ephemeral run: " + service.options.RunID)
+	logger.Info("state: " + service.options.StateRootPath)
+	logger.Info("vm: " + service.options.VirtualMachineName)
+	logger.Info("admin URL: " + service.adminHostURL())
+	if !request.WithoutMattermost {
+		logger.Info("Mattermost URL: " + service.mattermostHostURL())
+	}
+	logger.Info("cleanup: " + service.manualCleanupCommand())
+}
+
+func (service Service) manualCleanupCommand() string {
+	return service.removeVirtualMachineCommand() + "; " + service.removeStateCommand()
 }
 
 func (service Service) configurationPath() string {
@@ -244,4 +337,45 @@ func quoteShell(value string) string {
 func safeName(value string) string {
 	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-")
 	return replacer.Replace(strings.TrimSpace(value))
+}
+
+func safeIdentifier(value string) string {
+	normalizedValue := strings.ToLower(strings.TrimSpace(value))
+	var builder strings.Builder
+	previousWasDash := false
+	for _, character := range normalizedValue {
+		isLetter := character >= 'a' && character <= 'z'
+		isDigit := character >= '0' && character <= '9'
+		if isLetter || isDigit {
+			builder.WriteRune(character)
+			previousWasDash = false
+			continue
+		}
+		if !previousWasDash {
+			builder.WriteByte('-')
+			previousWasDash = true
+		}
+	}
+	identifier := strings.Trim(builder.String(), "-")
+	if identifier == "" {
+		return "run"
+	}
+	return identifier
+}
+
+func virtualSessionNeedsBunValue(scenario string) string {
+	switch strings.ToLower(strings.TrimSpace(scenario)) {
+	case "slides", "slides_local_multiturn_success", "site", "site_prototype_acceptance", "site_edit_redeploy_acceptance":
+		return "1"
+	default:
+		return "0"
+	}
+}
+
+func quoteShellArguments(arguments []string) string {
+	quotedArguments := make([]string, 0, len(arguments))
+	for _, argument := range arguments {
+		quotedArguments = append(quotedArguments, quoteShell(argument))
+	}
+	return strings.Join(quotedArguments, " ")
 }

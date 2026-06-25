@@ -2,6 +2,8 @@ package localfleet
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,8 +33,8 @@ func NewService(options Options) (Service, error) {
 }
 
 func (service Service) Status(contextValue context.Context) Status {
-	adminURL := "http://127.0.0.1:18080"
-	mattermostURL := "http://127.0.0.1:8065"
+	adminURL := service.adminHostURL()
+	mattermostURL := service.mattermostHostURL()
 	if errorValue := service.EnsureConfiguration(); errorValue != nil {
 		return Status{
 			CheckedAt: time.Now(),
@@ -46,7 +48,7 @@ func (service Service) Status(contextValue context.Context) Status {
 			AdminURL:      adminURL,
 			MattermostURL: mattermostURL,
 			LastResult:    readTrimmedFile(service.lastResultPath()),
-			CleanupNeeded: fileExists(service.leasesPath()),
+			CleanupNeeded: service.cleanupNeeded(),
 			StatePath:     service.options.StateRootPath,
 		}
 	}
@@ -60,12 +62,35 @@ func (service Service) Status(contextValue context.Context) Status {
 		AdminURL:       adminURL,
 		MattermostURL:  mattermostURL,
 		LastResult:     readTrimmedFile(service.lastResultPath()),
-		CleanupNeeded:  fileExists(service.leasesPath()),
+		CleanupNeeded:  service.cleanupNeeded(),
 		StatePath:      service.options.StateRootPath,
 	}
 }
 
 func (service Service) Run(contextValue context.Context, logger Logger, request JobRequest) error {
+	if !service.options.IsEphemeral {
+		return service.runAction(contextValue, logger, request)
+	}
+	service.logEphemeralContext(logger, request)
+	if !request.KeepArtifacts {
+		return service.runWithEphemeralCleanup(contextValue, logger, request)
+	}
+	return service.runAction(contextValue, logger, request)
+}
+
+func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {
+	errorValue := service.runAction(contextValue, logger, request)
+	cleanupError := service.runCleanupPlans(contextValue, logger, service.ephemeralCleanupPlans())
+	if errorValue != nil {
+		if cleanupError != nil {
+			return fmt.Errorf("%w; cleanup failed: %v", errorValue, cleanupError)
+		}
+		return errorValue
+	}
+	return cleanupError
+}
+
+func (service Service) runAction(contextValue context.Context, logger Logger, request JobRequest) error {
 	switch request.Action {
 	case ActionUp:
 		return service.runPlans(contextValue, logger, service.upPlans())
@@ -74,10 +99,16 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 	case ActionReset:
 		return service.runPlans(contextValue, logger, service.resetPlans())
 	case ActionRunRecipe:
+		if request.WithoutMattermost {
+			return errors.New("without-mattermost mode requires --scenario")
+		}
 		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
-		return service.RunScenario(contextValue, logger, request.Scenario)
+		return service.RunScenario(contextValue, logger, request.Scenario, request.WithoutMattermost, request.KeepArtifacts)
 	case ActionVerifyRegression:
+		if request.WithoutMattermost {
+			return errors.New("without-mattermost regression is not supported")
+		}
 		return service.VerifyRegression(contextValue, logger, request.Base, request.Scenario)
 	default:
 		return fmt.Errorf("unsupported local fleet action: %s", request.Action)
@@ -93,10 +124,13 @@ func (service Service) RunRecipe(contextValue context.Context, logger Logger, re
 	}
 }
 
-func (service Service) RunScenario(contextValue context.Context, logger Logger, scenario string) error {
+func (service Service) RunScenario(contextValue context.Context, logger Logger, scenario string, withoutMattermost bool, keepArtifacts bool) error {
 	normalizedScenario := strings.TrimSpace(scenario)
 	if normalizedScenario == "" {
 		return errors.New("scenario is required")
+	}
+	if withoutMattermost {
+		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
 	}
 	switch normalizedScenario {
 	case "dm-recipient-resolve":
@@ -104,7 +138,7 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 	case "mattermost-bot-invited":
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
 	case "mattermost-direct-message-send":
-		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans())
+		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans(keepArtifacts))
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "web-backed-ui", "regression-proof":
@@ -125,7 +159,7 @@ func (service Service) VerifyRegression(contextValue context.Context, logger Log
 		return fmt.Errorf("scenario %s passed on %s; regression test is not proving the fix", normalizedScenario, normalizedBase)
 	}
 	logger.Info("base failed as expected")
-	return service.RunScenario(contextValue, logger, normalizedScenario)
+	return service.RunScenario(contextValue, logger, normalizedScenario, false, false)
 }
 
 func (service Service) EnsureConfiguration() error {
@@ -154,13 +188,75 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.ExecutablePath = executablePath
 	}
+	if options.IsEphemeral {
+		if strings.TrimSpace(options.RunID) == "" {
+			options.RunID = generateRunID()
+		}
+		options.RunID = safeIdentifier(options.RunID)
+	}
 	if strings.TrimSpace(options.StateRootPath) == "" {
-		options.StateRootPath = filepath.Join(options.RepositoryRootPath, ".local", "local-fleet")
+		options.StateRootPath = defaultStateRootPath(options)
 	}
 	if strings.TrimSpace(options.VirtualMachineName) == "" {
-		options.VirtualMachineName = DefaultVirtualMachineName
+		options.VirtualMachineName = defaultVirtualMachineName(options)
+	}
+	if options.AdminHostPort == 0 {
+		adminHostPort, errorValue := defaultHostPort(options.IsEphemeral, DefaultAdminHostPort)
+		if errorValue != nil {
+			return options, errorValue
+		}
+		options.AdminHostPort = adminHostPort
+	}
+	if options.MattermostHostPort == 0 {
+		mattermostHostPort, errorValue := defaultHostPort(options.IsEphemeral, DefaultMattermostHostPort)
+		if errorValue != nil {
+			return options, errorValue
+		}
+		options.MattermostHostPort = mattermostHostPort
 	}
 	return options, nil
+}
+
+func defaultStateRootPath(options Options) string {
+	if options.IsEphemeral {
+		return filepath.Join(options.RepositoryRootPath, ".local", "local-fleet", "runs", options.RunID)
+	}
+	return filepath.Join(options.RepositoryRootPath, ".local", "local-fleet")
+}
+
+func defaultVirtualMachineName(options Options) string {
+	if options.IsEphemeral {
+		return "internkim-e2e-" + options.RunID
+	}
+	return DefaultVirtualMachineName
+}
+
+func defaultHostPort(isEphemeral bool, fallback int) (int, error) {
+	if !isEphemeral {
+		return fallback, nil
+	}
+	return availableLoopbackPort()
+}
+
+func availableLoopbackPort() (int, error) {
+	listener, errorValue := net.Listen("tcp", "127.0.0.1:0")
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	defer listener.Close()
+	networkAddress, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return 0, errors.New("loopback listener did not return a TCP address")
+	}
+	return networkAddress.Port, nil
+}
+
+func generateRunID() string {
+	randomBytes := make([]byte, 4)
+	if _, errorValue := rand.Read(randomBytes); errorValue != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%s-%s", time.Now().UTC().Format("20060102T150405"), hex.EncodeToString(randomBytes))
 }
 
 func (service Service) configurationDocument() map[string]any {
@@ -181,6 +277,18 @@ func (service Service) configurationDocument() map[string]any {
 			"sshPassword":         "admin",
 		},
 	}
+}
+
+func (service Service) adminHostURL() string {
+	return fmt.Sprintf("http://127.0.0.1:%d", service.options.AdminHostPort)
+}
+
+func (service Service) mattermostHostURL() string {
+	return fmt.Sprintf("http://127.0.0.1:%d", service.options.MattermostHostPort)
+}
+
+func (service Service) cleanupNeeded() bool {
+	return service.options.IsEphemeral || fileExists(service.leasesPath())
 }
 
 func (service Service) readCommandState(contextValue context.Context, plan CommandPlan) EndpointStatus {

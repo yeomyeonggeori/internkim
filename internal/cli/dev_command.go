@@ -77,27 +77,47 @@ func (logger standardLocalFleetLogger) Info(message string) {
 }
 
 func runDevFleetArguments(arguments []string) error {
-	service, errorValue := newLocalFleetService()
-	if errorValue != nil {
-		return errorValue
-	}
 	if len(arguments) == 0 {
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return printLocalFleetStatus(service)
 	}
 	subcommand := arguments[0]
 	commandArguments := arguments[1:]
 	switch subcommand {
 	case "up":
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionUp})
 	case "down":
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionDown})
 	case "status":
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return printLocalFleetStatus(service)
 	case "reset":
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
 	case "run":
-		return runDevFleetRunArguments(service, commandArguments)
+		return runDevFleetRunArguments(commandArguments)
 	case "verify-regression":
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
 		return runDevFleetVerifyRegressionArguments(service, commandArguments)
 	case "help":
 		printDevFleetUsage()
@@ -107,17 +127,58 @@ func runDevFleetArguments(arguments []string) error {
 	}
 }
 
-func runDevFleetRunArguments(service localfleet.Service, arguments []string) error {
+type devFleetRunConfiguration struct {
+	ServiceOptions localfleet.Options
+	Request        localfleet.JobRequest
+}
+
+func runDevFleetRunArguments(arguments []string) error {
+	configuration, errorValue := parseDevFleetRunArguments(arguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	service, errorValue := newLocalFleetServiceWithOptions(configuration.ServiceOptions)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.Run(context.Background(), standardLocalFleetLogger{}, configuration.Request)
+}
+
+func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, error) {
 	flagSet := flag.NewFlagSet("dev fleet run", flag.ContinueOnError)
 	recipe := flagSet.String("recipe", "", "Local fleet recipe to run")
 	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
+	ephemeral := flagSet.Bool("ephemeral", false, "Create a disposable local fleet run and clean it up by default")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM, logs, state, and Mattermost test artifacts")
+	withoutMattermost := flagSet.Bool("without-mattermost", false, "Run the scenario inside Linux without starting or using Mattermost")
+	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
+	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
+	mattermostHostPort := flagSet.Int("mattermost-port", 0, "Host port for the local Mattermost tunnel")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
-		return errorValue
+		return devFleetRunConfiguration{}, errorValue
 	}
-	if strings.TrimSpace(*scenario) != "" {
-		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionRunScenario, Scenario: *scenario})
+	trimmedScenario := strings.TrimSpace(*scenario)
+	if *withoutMattermost && trimmedScenario == "" {
+		return devFleetRunConfiguration{}, errors.New("without-mattermost mode requires --scenario")
 	}
-	return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionRunRecipe, Recipe: firstNonEmptyLocalFleetValue(*recipe, localfleet.DefaultRecipe)})
+	serviceOptions := localfleet.Options{
+		IsEphemeral:        *ephemeral || strings.TrimSpace(*runID) != "",
+		RunID:              strings.TrimSpace(*runID),
+		AdminHostPort:      *adminHostPort,
+		MattermostHostPort: *mattermostHostPort,
+	}
+	request := localfleet.JobRequest{
+		KeepArtifacts:     *keepArtifacts,
+		WithoutMattermost: *withoutMattermost,
+	}
+	if trimmedScenario != "" {
+		request.Action = localfleet.ActionRunScenario
+		request.Scenario = trimmedScenario
+	} else {
+		request.Action = localfleet.ActionRunRecipe
+		request.Recipe = firstNonEmptyLocalFleetValue(*recipe, localfleet.DefaultRecipe)
+	}
+	return devFleetRunConfiguration{ServiceOptions: serviceOptions, Request: request}, nil
 }
 
 func runDevFleetVerifyRegressionArguments(service localfleet.Service, arguments []string) error {
@@ -131,6 +192,10 @@ func runDevFleetVerifyRegressionArguments(service localfleet.Service, arguments 
 }
 
 func newLocalFleetService() (localfleet.Service, error) {
+	return newLocalFleetServiceWithOptions(localfleet.Options{})
+}
+
+func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Service, error) {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return localfleet.Service{}, errorValue
@@ -139,9 +204,17 @@ func newLocalFleetService() (localfleet.Service, error) {
 	if errorValue != nil {
 		return localfleet.Service{}, errorValue
 	}
+	options.RepositoryRootPath = repositoryRootPath
+	options.ExecutablePath = executablePath
 	return localfleet.NewService(localfleet.Options{
-		RepositoryRootPath: repositoryRootPath,
-		ExecutablePath:     executablePath,
+		RepositoryRootPath: options.RepositoryRootPath,
+		ExecutablePath:     options.ExecutablePath,
+		StateRootPath:      options.StateRootPath,
+		VirtualMachineName: options.VirtualMachineName,
+		RunID:              options.RunID,
+		AdminHostPort:      options.AdminHostPort,
+		MattermostHostPort: options.MattermostHostPort,
+		IsEphemeral:        options.IsEphemeral,
 	})
 }
 
@@ -438,6 +511,8 @@ func printDevUsage() {
 	fmt.Println("Usage: internkim dev <simulate|replay|fleet> [options]")
 	fmt.Println("  internkim dev fleet up")
 	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
@@ -446,6 +521,8 @@ func printDevUsage() {
 func printDevFleetUsage() {
 	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|verify-regression>")
 	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 }
