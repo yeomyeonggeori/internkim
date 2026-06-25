@@ -156,7 +156,7 @@ go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAccep
 ./internkim verify mattermost --prompt '웹사이트 하나 만들어서 배포해봐' --expect-tool site.app.create --expect-tool site.app.publish
 ```
 
-Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 container lab에서 별도 smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
+Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 Local Fleet VM 또는 저수준 lab smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
 
 ```bash
 lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-lab
@@ -180,7 +180,7 @@ macOS + apple/container 기반 disposable Local Fleet E2E.
 
 ### Phase B
 
-Raspberry Pi 하드웨어 검증.
+Jetson 하드웨어 검증.
 
 - Local Fleet에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
 - 하드웨어 검증은 후속 단계이며, 현재 문서는 소프트웨어 E2E까지만 다룹니다.
