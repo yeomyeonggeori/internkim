@@ -94,10 +94,10 @@ setup-sim: build
 	./internkim setup --sim
 
 sim-gate: build
-	./internkim sim gate
+	./internkim dev fleet run
 
 deploy-after-sim: build
-	./internkim sim gate
+	./internkim dev fleet run
 	./internkim deploy
 
 verify-api: build

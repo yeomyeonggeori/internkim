@@ -39,7 +39,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   decisions with `--live-llm --record-cassette <path>`, then replay the same
   cassette instead of relying on seed stability alone.
 - After local simulation passes, verify executable and Linux permission behavior
-  with `./internkim dev replay --target container --scenario <name> --cassette <path>`.
+  with `./internkim dev fleet run --without-mattermost --scenario <name>`.
 - Treat the apple/container lab as the required pre-deploy Linux/runtime gate for agent execution
   that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
@@ -51,14 +51,15 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   explicitly asks for a different executor model.
 - For web, admind, capabilityd, Mattermost connector, or cross-service behavior
   changes, verify the current checkout through the local fleet with
-  `./internkim dev fleet run --recipe predeploy-gate` or a narrower
+  `./internkim dev fleet run` or a narrower
   `./internkim dev fleet run --scenario <name>`.
 - When claiming a user-visible fix, prefer
   `./internkim dev fleet verify-regression --base main --scenario <name>` so the
   same scenario fails on the base revision and passes on the current checkout.
-- Run real Mattermost smoke only after the virtual-session and container replay
-  gates pass; keep platform cleanup requirements from Runtime Test Hygiene and
-  use `./internkim dev fleet reset` after local fleet Mattermost tests.
+- Run real Mattermost smoke only after the virtual-session and Mattermost-free
+  Linux gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
+  Disposable local fleet runs clean themselves up by default; use
+  `./internkim dev fleet reset` after `--reuse` runs.
 
 ## Web Test Hygiene
 
