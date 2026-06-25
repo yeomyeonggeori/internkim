@@ -57,6 +57,39 @@ describe('attendance work segments', () => {
 		expect(day.workedMinutes).toBe(120);
 	});
 
+	test('splits overnight work at midnight for each display date', () => {
+		const events = [
+			attendanceEvent('night-in', 'clock_in', '2026-06-01T22:00:00+09:00', '22:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('night-out', 'clock_out', '2026-06-02T02:00:00+09:00', '02:00:00', 'office', '사무실', {
+				localDate: '2026-06-02',
+			}),
+		];
+
+		const firstDay = computeDayEvents('2026-06-01', events);
+		const secondDay = computeDayEvents('2026-06-02', events);
+
+		expect(firstDay.inProgress).toBe(false);
+		expect(firstDay.workedMinutes).toBe(120);
+		expect(firstDay.segments.length).toBe(1);
+		expect(firstDay.segments[0]).toMatchObject({
+			startTime: '22:00:00',
+			endTime: '24:00:00',
+			workedMinutes: 120,
+			isOpen: false,
+		});
+		expect(secondDay.inProgress).toBe(false);
+		expect(secondDay.workedMinutes).toBe(120);
+		expect(secondDay.segments.length).toBe(1);
+		expect(secondDay.segments[0]).toMatchObject({
+			startTime: '00:00:00',
+			endTime: '02:00:00',
+			workedMinutes: 120,
+			isOpen: false,
+		});
+	});
+
 	test('ignores canceled events when building segments', () => {
 		const events = [
 			attendanceEvent('home-in', 'clock_in', '2026-06-17T01:30:00.000Z', '10:30:00', 'home', '재택', {

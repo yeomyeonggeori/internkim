@@ -38,8 +38,7 @@
 		)
 	);
 
-	const todayMyEvents = $derived(myEvents.filter((event) => event.localDate === today));
-	const todayDay = $derived(computeDayEvents(today, todayMyEvents));
+	const todayDay = $derived(computeDayEvents(today, myEvents));
 	const status = $derived(statusForDay(today, myEvents, myAbsences));
 
 	const elapsedMinutes = $derived.by(() => {

@@ -19,6 +19,11 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
+	const allDayEvents = $derived(
+		attendance.summary && attendance.selectedDate
+			? attendance.summary.events.filter((event) => event.email === attendance.summary?.currentUserEmail)
+			: []
+	);
 	const dayEvents = $derived(
 		attendance.summary && attendance.selectedDate
 			? attendance.summary.events.filter(
@@ -29,7 +34,7 @@
 			: []
 	);
 	const day = $derived(
-		attendance.selectedDate ? computeDayEvents(attendance.selectedDate, dayEvents) : undefined
+		attendance.selectedDate ? computeDayEvents(attendance.selectedDate, allDayEvents) : undefined
 	);
 
 	const locations = $derived(attendance.summary?.locations ?? []);

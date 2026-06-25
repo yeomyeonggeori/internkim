@@ -9,7 +9,7 @@
 	import MonthCalendar from './personal/month-calendar.svelte';
 	import QuickActions from './quick-actions.svelte';
 	import { eachDayOfMonth } from './shared/attendance-date';
-	import { computeDayEvents, groupEventsByDay } from './shared/attendance-day-events';
+	import { computeDayEvents } from './shared/attendance-day-events';
 	import { formatHoursMinutes } from './shared/attendance-format';
 	import WorkTimeChart from './shared/work-time-chart.svelte';
 	import { attendanceText } from './text';
@@ -25,9 +25,8 @@
 
 	function buildDailyValues(month: string, eventList: typeof chartEvents) {
 		if (!month) return [];
-		const grouped = groupEventsByDay(eventList);
 		return eachDayOfMonth(month).map((date) => {
-			const day = computeDayEvents(date, grouped.get(date) ?? []);
+			const day = computeDayEvents(date, eventList);
 			return { date, value: day.workedMinutes };
 		});
 	}
