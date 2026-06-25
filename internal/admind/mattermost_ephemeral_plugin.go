@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const mattermostEphemeralPluginID = "com.internkim.ephemeral"
@@ -256,7 +258,11 @@ func (service *Service) patchMattermostEphemeralPluginSecret(ctx context.Context
 	body := map[string]any{
 		"PluginSettings": map[string]any{
 			"Plugins": map[string]any{
-				mattermostEphemeralPluginID: map[string]string{"secret": secret},
+				mattermostEphemeralPluginID: map[string]string{
+					"secret":           secret,
+					"runtimeHealthURL": blueclaw.BlueclawHealthCheckURL(),
+					"botUsername":      "internkim",
+				},
 			},
 		},
 	}

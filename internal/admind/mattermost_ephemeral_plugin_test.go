@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testing.T) {
@@ -43,8 +45,14 @@ func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testin
 			return jsonResponse(http.StatusOK, `{"PluginSettings":{"Enable":true,"EnableUploads":true}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostBearerToken(t, request, "admin-token")
-			secret := mattermostEphemeralPluginPatchSecret(t, request)
-			secretValues <- secret
+			settings := mattermostEphemeralPluginPatchSettings(t, request)
+			if settings["runtimeHealthURL"] != blueclaw.BlueclawHealthCheckURL() {
+				t.Fatalf("runtime health URL = %q", settings["runtimeHealthURL"])
+			}
+			if settings["botUsername"] != "internkim" {
+				t.Fatalf("bot username = %q", settings["botUsername"])
+			}
+			secretValues <- settings["secret"]
 			patchedSecret = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/plugins" && request.Method == http.MethodGet:
@@ -137,7 +145,7 @@ func readMultipartPart(t *testing.T, part *multipart.Part) string {
 	return string(document)
 }
 
-func mattermostEphemeralPluginPatchSecret(t *testing.T, request *http.Request) string {
+func mattermostEphemeralPluginPatchSettings(t *testing.T, request *http.Request) map[string]string {
 	t.Helper()
 	var payload struct {
 		PluginSettings struct {
@@ -151,5 +159,5 @@ func mattermostEphemeralPluginPatchSecret(t *testing.T, request *http.Request) s
 	if pluginSettings == nil {
 		t.Fatalf("missing plugin settings: %+v", payload)
 	}
-	return pluginSettings["secret"]
+	return pluginSettings
 }
