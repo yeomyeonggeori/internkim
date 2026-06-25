@@ -348,6 +348,27 @@ func TestServeCalendarAccountStatusReportsDisconnected(t *testing.T) {
 	if body.NeedsReauth {
 		t.Error("NeedsReauth should be false when disconnected")
 	}
+	if body.GoogleOAuthConfigured {
+		t.Error("GoogleOAuthConfigured should be false without client configuration")
+	}
+}
+
+func TestServeCalendarAccountStatusReportsGoogleOAuthConfigured(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	recorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: %d", recorder.Code)
+	}
+	var body calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatalf("decode: %v", errorValue)
+	}
+	if !body.GoogleOAuthConfigured {
+		t.Error("GoogleOAuthConfigured should be true with valid client configuration")
+	}
 }
 
 func TestServeCalendarAccountStatusReportsConnectedHealthy(t *testing.T) {

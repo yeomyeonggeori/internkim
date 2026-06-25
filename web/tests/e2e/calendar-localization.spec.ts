@@ -31,10 +31,7 @@ test.describe('calendar localization', () => {
 				}
 			});
 		});
-		await page.route('**/calendar/api/account-status', async (route) => {
-			await route.fulfill({ json: { connected: false, needsReauth: false } });
-		});
-		await routeCalendarBackgroundAPI(page);
+		await routeCalendarBackgroundAPI(page, { connected: false, needsReauth: false, googleOAuthConfigured: false });
 
 		await page.goto('/calendar/');
 		await expect(page.getByRole('button', { name: '구독 설정' })).toBeVisible();
@@ -45,6 +42,9 @@ test.describe('calendar localization', () => {
 		await page.getByRole('button', { name: 'Subscription settings' }).click();
 		await expect(page.getByText('External calendar account', { exact: true })).toBeVisible();
 		await expect(page.getByText('Google Calendar not connected')).toBeVisible();
+		await expect(page.getByText('Google Calendar integration is not ready yet.')).toBeVisible();
+		await expect(page.getByText('Contact an administrator if you need access.')).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Connect Google Calendar' })).toBeHidden();
 		await expect(page.getByText('CalDAV/ICS subscription ready')).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(page.getByText('External calendar account', { exact: true })).toBeHidden();

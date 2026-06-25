@@ -20,6 +20,7 @@
 		googleCalendarConnectAction: string;
 		googleCalendarReconnectAction: string;
 		googleCalendarReconnectHint: string;
+		googleCalendarUnavailableHint: string;
 		saveError: string;
 		syncTitle: string;
 		syncDescription: string;
@@ -67,7 +68,14 @@
 
 	function shouldShowGoogleOAuthAction() {
 		if (isLoadingAccountStatus || accountStatusError) return false;
-		return !accountStatus?.connected || accountStatus.needsReauth;
+		if (accountStatus?.googleOAuthConfigured !== true) return false;
+		return !accountStatus.connected || accountStatus.needsReauth;
+	}
+
+	function shouldShowGoogleOAuthUnavailableHint() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (accountStatus?.googleOAuthConfigured !== false) return false;
+		return !accountStatus.connected || accountStatus.needsReauth;
 	}
 
 	function googleOAuthActionLabel() {
@@ -100,8 +108,11 @@
 					<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
 					<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
 				</div>
-				{#if accountStatus?.needsReauth}
+				{#if accountStatus?.needsReauth && accountStatus.googleOAuthConfigured}
 					<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
+				{/if}
+				{#if shouldShowGoogleOAuthUnavailableHint()}
+					<p class="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{text.googleCalendarUnavailableHint}</p>
 				{/if}
 				{#if shouldShowGoogleOAuthAction()}
 					<Button href="/calendar/oauth/google/start" variant="outline" class="w-full justify-center gap-2">
