@@ -42,6 +42,12 @@ func (service *Service) proxyScopedTaskList(responseWriter http.ResponseWriter, 
 	if includeTotal := strings.TrimSpace(request.URL.Query().Get("includeTotal")); includeTotal != "" {
 		query.Set("includeTotal", includeTotal)
 	}
+	if includeCost := strings.TrimSpace(request.URL.Query().Get("includeCost")); includeCost != "" {
+		query.Set("includeCost", includeCost)
+	}
+	if dailyCostTaskRunLimit := strings.TrimSpace(request.URL.Query().Get("dailyCostTaskRunLimit")); dailyCostTaskRunLimit != "" {
+		query.Set("dailyCostTaskRunLimit", dailyCostTaskRunLimit)
+	}
 	query.Set("viewerEmail", viewerEmail)
 	query.Set("viewerIsAdmin", strconv.FormatBool(isViewerAdmin))
 	var taskRunResponse any

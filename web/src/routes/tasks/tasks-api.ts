@@ -8,6 +8,8 @@ export type TaskRunSummary = {
 	prompt?: string;
 	result?: string;
 	failureReason?: string;
+	llmCostUSD?: number;
+	llmCallCount?: number;
 	createdAt?: string;
 	updatedAt?: string;
 };
@@ -23,23 +25,49 @@ export type TaskDetail = {
 	taskEvents: TaskEvent[];
 };
 
+export type TaskDetailShareOptions = {
+	events?: TaskEvent[];
+	includeEvents?: boolean;
+	title?: string;
+};
+
 export type TaskRunsRequest = {
 	status?: string;
 	limit?: number;
 	offset?: number;
 	includeTotal?: boolean;
+	includeCost?: boolean;
+	dailyCostTaskRunLimit?: number;
 };
 
 export type TaskRunsResponse = {
 	taskRuns: TaskRunSummary[];
 	totalCount?: number;
+	dailyCostSummaries?: DailyCostSummary[];
+	dailyCostScope?: DailyCostScope;
+};
+
+export type DailyCostSummary = {
+	date: string;
+	costUSD: number;
+	taskRunCount: number;
+	llmCallCount: number;
+};
+
+export type DailyCostScope = {
+	taskRunLimit: number;
+	taskRunCount: number;
+	totalTaskRunCount: number;
+	isTruncated: boolean;
 };
 
 export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
 	const query = new URLSearchParams();
 	setPositiveIntegerQuery(query, 'limit', request.limit);
 	setPositiveIntegerQuery(query, 'offset', request.offset);
+	setPositiveIntegerQuery(query, 'dailyCostTaskRunLimit', request.dailyCostTaskRunLimit);
 	if (request.includeTotal) query.set('includeTotal', 'true');
+	if (request.includeCost) query.set('includeCost', 'true');
 	if (request.status) query.set('status', request.status);
 	const queryString = query.toString();
 	return queryString ? `/tasks/api/runs?${queryString}` : '/tasks/api/runs';
@@ -62,7 +90,9 @@ function readTaskRunsResponse(document: unknown): TaskRunsResponse {
 	if (!record || !Array.isArray(record.taskRuns)) return { taskRuns: [] };
 	return {
 		taskRuns: readTaskRunSummaries(record.taskRuns),
-		totalCount: typeof record.totalCount === 'number' && record.totalCount >= 0 ? Math.floor(record.totalCount) : undefined
+		totalCount: typeof record.totalCount === 'number' && record.totalCount >= 0 ? Math.floor(record.totalCount) : undefined,
+		dailyCostSummaries: Array.isArray(record.dailyCostSummaries) ? readDailyCostSummaries(record.dailyCostSummaries) : undefined,
+		dailyCostScope: readDailyCostScope(record.dailyCostScope)
 	};
 }
 
@@ -76,6 +106,32 @@ function readTaskRunSummaries(entries: unknown[]): TaskRunSummary[] {
 function setPositiveIntegerQuery(query: URLSearchParams, key: string, value: number | undefined): void {
 	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return;
 	query.set(key, String(Math.floor(value)));
+}
+
+function readDailyCostSummaries(entries: unknown[]): DailyCostSummary[] {
+	return entries.flatMap((entry) => {
+		const record = readRecord(entry);
+		if (!record || typeof record.date !== 'string') return [];
+		return [
+			{
+				date: record.date,
+				costUSD: readNonNegativeNumber(record.costUSD),
+				taskRunCount: Math.floor(readNonNegativeNumber(record.taskRunCount)),
+				llmCallCount: Math.floor(readNonNegativeNumber(record.llmCallCount))
+			}
+		];
+	});
+}
+
+function readDailyCostScope(entry: unknown): DailyCostScope | undefined {
+	const record = readRecord(entry);
+	if (!record) return undefined;
+	return {
+		taskRunLimit: Math.floor(readNonNegativeNumber(record.taskRunLimit)),
+		taskRunCount: Math.floor(readNonNegativeNumber(record.taskRunCount)),
+		totalTaskRunCount: Math.floor(readNonNegativeNumber(record.totalTaskRunCount)),
+		isTruncated: record.isTruncated === true
+	};
 }
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
@@ -177,6 +233,61 @@ export function formatEventBody(body: string): string {
 	return JSON.stringify(parsed, undefined, 2);
 }
 
+export function taskDetailShareText(detail: TaskDetail, options: TaskDetailShareOptions = {}): string {
+	const taskRun = detail.taskRun;
+	const selectedEvents = options.events ?? detail.taskEvents;
+	const includeEvents = options.includeEvents ?? true;
+	const sections = [
+		`# ${options.title ?? 'Task Run'} ${taskRun.taskRunID}`,
+		[
+			shareLine('status', taskRun.status),
+			shareLine('createdAt', taskRun.createdAt),
+			shareLine('updatedAt', taskRun.updatedAt),
+			shareLine('requester', taskRun.requesterDisplayName || taskRun.requesterPersonID),
+			shareLine('prompt', taskRun.prompt),
+			shareLine('result', taskRun.result),
+			shareLine('failureReason', taskRun.failureReason),
+			shareLine('eventCount', String(detail.taskEvents.length))
+		]
+			.filter(Boolean)
+			.join('\n')
+	];
+	if (includeEvents && selectedEvents.length > 0) {
+		sections.push(['## Events', selectedEvents.map((taskEvent, index) => taskEventShareText(taskEvent, index + 1)).join('\n\n')].join('\n\n'));
+	}
+	return sections.filter(Boolean).join('\n\n');
+}
+
+export function taskEventShareText(taskEvent: TaskEvent, eventNumber?: number): string {
+	const heading = eventNumber ? `### Event ${eventNumber}: ${taskEvent.name}` : `### ${taskEvent.name}`;
+	const formattedBody = formatEventBody(taskEvent.body);
+	const bodyLanguage = parseEventBody(taskEvent.body) === undefined ? 'text' : 'json';
+	return [
+		heading,
+		taskEvent.createdAt ? shareLine('createdAt', taskEvent.createdAt) : '',
+		'',
+		`${markdownFence(formattedBody)}${bodyLanguage}`,
+		formattedBody,
+		markdownFence(formattedBody)
+	]
+		.filter((line) => line !== '')
+		.join('\n');
+}
+
+function shareLine(label: string, value: string | undefined): string {
+	const trimmedValue = value?.trim();
+	if (!trimmedValue) return '';
+	return `- ${label}: ${trimmedValue}`;
+}
+
+function markdownFence(content: string): string {
+	let fenceLength = 3;
+	for (const match of content.matchAll(/`+/g)) {
+		fenceLength = Math.max(fenceLength, match[0].length + 1);
+	}
+	return '`'.repeat(fenceLength);
+}
+
 export type ServiceLogsResponse = { service: string; taskRunID?: string; count: number; lines: string[] };
 
 export async function fetchServiceLogs(service: string, taskRunID: string, limit = 200): Promise<ServiceLogsResponse> {
@@ -211,9 +322,16 @@ function readTaskRunSummary(entry: unknown): TaskRunSummary | undefined {
 		prompt: typeof record.prompt === 'string' ? record.prompt : undefined,
 		result: typeof record.result === 'string' ? record.result : undefined,
 		failureReason: typeof record.failureReason === 'string' ? record.failureReason : undefined,
+		llmCostUSD: typeof record.llmCostUSD === 'number' && record.llmCostUSD >= 0 ? record.llmCostUSD : undefined,
+		llmCallCount: typeof record.llmCallCount === 'number' && record.llmCallCount >= 0 ? Math.floor(record.llmCallCount) : undefined,
 		createdAt: typeof record.createdAt === 'string' ? record.createdAt : undefined,
 		updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined
 	};
+}
+
+function readNonNegativeNumber(value: unknown): number {
+	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return 0;
+	return value;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {
