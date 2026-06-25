@@ -22,8 +22,8 @@ if [ ! -e /dev/kvm ]; then
   exit 1
 fi
 
-if [ -n "$mount_directory_path" ] && ! mount | grep -q " on $mount_directory_path "; then
-  echo "shared workspace is not mounted at $mount_directory_path"
+if [ -n "$mount_directory_path" ] && [ ! -d "$mount_directory_path/workspace" ] && ! mount | grep -Fq " on $mount_directory_path "; then
+  echo "shared workspace is not available at $mount_directory_path or $mount_directory_path/workspace"
   exit 1
 fi
 

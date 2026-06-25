@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -236,6 +237,25 @@ func TestProvisionUbuntuUsesRemoteScriptExecution(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(commandRunner.runCommands[3].Arguments, " "), "internkim-write-check") {
 		t.Fatalf("expected writable root check after provisioning, got %v", commandRunner.runCommands[3].Arguments)
+	}
+}
+
+func TestProvisionScriptsAcceptBindMountedWorkspace(t *testing.T) {
+	relativeScriptPaths := []string{
+		"lab/scripts/provision-ubuntu.sh",
+		"lab/scripts/provision-blueclaw-dev-session.sh",
+		"lab/scripts/provision-blueclaw-runtime-builder.sh",
+		"lab/scripts/check-blueclaw-runtime-builder.sh",
+		".dependency/blueclaw/lab/scripts/provision-ubuntu.sh",
+	}
+	for _, relativeScriptPath := range relativeScriptPaths {
+		scriptContent := readRepositoryScript(t, relativeScriptPath)
+		if !strings.Contains(scriptContent, `"$mount_directory_path/workspace"`) {
+			t.Fatalf("expected %s to accept bind-mounted workspace", relativeScriptPath)
+		}
+		if strings.Contains(scriptContent, "mount | grep -q") {
+			t.Fatalf("expected %s to use fixed-string mount checks", relativeScriptPath)
+		}
 	}
 }
 
@@ -478,6 +498,16 @@ func TestPrintSimulationPlanDoesNotCreateOrStartMissingVirtualMachine(t *testing
 	if len(commandRunner.startCommands) != 0 {
 		t.Fatalf("expected dry run to skip vm start commands, got %d", len(commandRunner.startCommands))
 	}
+}
+
+func readRepositoryScript(t *testing.T, relativeScriptPath string) string {
+	t.Helper()
+	scriptPath := filepath.Join("..", "..", relativeScriptPath)
+	documentBytes, errorValue := os.ReadFile(scriptPath)
+	if errorValue != nil {
+		t.Fatalf("read %s: %v", relativeScriptPath, errorValue)
+	}
+	return string(documentBytes)
 }
 
 func buildTestConfiguration() Configuration {
