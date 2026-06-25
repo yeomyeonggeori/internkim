@@ -27,6 +27,7 @@ type CalendarPageNavigationContext = {
 	refreshSelectedMonthDateCellAfterRender: () => void;
 	selectCalendarEvent: (eventID: string) => void;
 	broadcastCalendarView: (view: CalendarViewValue) => void;
+	isMobileTwoDayWeekView: () => boolean;
 };
 
 export type CalendarPageNavigation = {
@@ -58,11 +59,31 @@ export function createCalendarPageNavigation(context: CalendarPageNavigationCont
 			context.calendar.goToToday();
 		},
 		goToPrevious: () => {
-			context.setVisibleDate(shiftedCalendarToolbarDate(context.getToolbarDate(), context.getToolbarView(), -1));
+			const visibleDate = shiftedCalendarToolbarDate(
+				context.getToolbarDate(),
+				context.getToolbarView(),
+				-1,
+				context.isMobileTwoDayWeekView()
+			);
+			if (context.isMobileTwoDayWeekView()) {
+				selectCalendarDate(visibleDate);
+				return;
+			}
+			context.setVisibleDate(visibleDate);
 			context.calendar.goToPrevious();
 		},
 		goToNext: () => {
-			context.setVisibleDate(shiftedCalendarToolbarDate(context.getToolbarDate(), context.getToolbarView(), 1));
+			const visibleDate = shiftedCalendarToolbarDate(
+				context.getToolbarDate(),
+				context.getToolbarView(),
+				1,
+				context.isMobileTwoDayWeekView()
+			);
+			if (context.isMobileTwoDayWeekView()) {
+				selectCalendarDate(visibleDate);
+				return;
+			}
+			context.setVisibleDate(visibleDate);
 			context.calendar.goToNext();
 		},
 		navigateToDateKey: (dateKey) => {

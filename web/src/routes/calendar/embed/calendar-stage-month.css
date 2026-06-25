@@ -53,6 +53,11 @@
 		--df-color-card-foreground: #f4f4f5;
 		--df-color-muted: #18181b;
 		--df-color-muted-foreground: #a1a1aa;
+		--calendar-grid-line: #27272a;
+		--calendar-grid-line-strong: #3f3f46;
+		--calendar-grid-line-soft: #18181b;
+		--calendar-grid-label: #a1a1aa;
+		--calendar-weekend-background: #111113;
 		background: #09090b;
 		color-scheme: dark;
 	}

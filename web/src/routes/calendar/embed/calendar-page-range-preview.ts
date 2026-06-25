@@ -16,6 +16,7 @@ import {
 type CalendarPageRangePreviewContext = {
 	getMonthRangeSelection: () => MonthRangeSelection | null;
 	getStageElement: () => HTMLElement | null;
+	getIsMobileTwoDayWeekView: () => boolean;
 	getTimelineRangeSelection: () => TimelineRangeSelection | null;
 	getToolbarDate: () => Date;
 	getToolbarView: () => ViewType;
@@ -58,6 +59,7 @@ export function createCalendarPageRangePreview(
 				selection: context.getTimelineRangeSelection(),
 				currentView: context.getToolbarView(),
 				currentDate: context.getToolbarDate(),
+				isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView(),
 				events: context.getVisibleEvents()
 			})
 		);

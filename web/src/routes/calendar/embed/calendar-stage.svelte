@@ -1,12 +1,22 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { Event as DayFlowEvent } from '@dayflow/core';
+	import type { CalendarLocaleText } from '../text';
 	import CalendarEventContent from './calendar-event-content.svelte';
+	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
 	import CalendarMonthScrollOverlay from './calendar-month-scroll-overlay.svelte';
+	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
+	import {
+		mobileEventEditorLocaleContextKey,
+		mobileEventEditorPersistenceContextKey,
+		type MobileEventEditorLocaleContext,
+		type MobileEventEditorPersistenceContext
+	} from './calendar-mobile-event-editor-types';
 	import CalendarTimelineRangePreview from './calendar-timeline-range-preview.svelte';
 	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
 
@@ -22,7 +32,9 @@
 		calendar: ReturnType<typeof useCalendarApp>;
 		clearSelectedEvent: () => void;
 		events: DayFlowEvent[];
+		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
+		text: CalendarLocaleText;
 		monthMoreText: {
 			ariaLabel: string;
 			button: string;
@@ -30,6 +42,7 @@
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		monthScrollOverlayLabels: MonthScrollOverlayLabel[];
+		navigateToDateKey: (dateKey: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		selectEvent: (eventID: string) => void;
@@ -38,6 +51,7 @@
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
 		timelineRangePreviewTitle: string;
 		toolbarView: ViewType;
+		toolbarDate: Date;
 		stageElement?: HTMLElement | null;
 	};
 
@@ -45,11 +59,14 @@
 		calendar,
 		clearSelectedEvent,
 		events,
+		isMobileTwoDayWeekView,
 		localeCode,
+		text,
 		monthMoreText,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		monthScrollOverlayLabels,
+		navigateToDateKey,
 		openEvent,
 		saveMovedEvent,
 		selectEvent,
@@ -58,8 +75,37 @@
 		timelineRangePreviewSegments,
 		timelineRangePreviewTitle,
 		toolbarView,
+		toolbarDate,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarStageProps = $props();
+
+	setContext<MobileEventEditorPersistenceContext>(mobileEventEditorPersistenceContextKey, {
+		saveEvent: (event) => saveMovedEvent(event)
+	});
+	setContext<MobileEventEditorLocaleContext>(mobileEventEditorLocaleContextKey, {
+		getText: () => text
+	});
+
+	function handleMobileTwoDayWeekDateClick(event: MouseEvent): void {
+		if (!isMobileTwoDayWeekView || !stageElement) return;
+		if (!(event.target instanceof HTMLElement)) return;
+		const dateButton = event.target.closest<HTMLElement>('.df-compact-header-date-button');
+		if (!dateButton || !stageElement.contains(dateButton)) return;
+		const dateButtons = Array.from(stageElement.querySelectorAll<HTMLElement>('.df-compact-header-date-button'));
+		const columnIndex = dateButtons.indexOf(dateButton);
+		if (columnIndex < 0) return;
+		navigateToDateKey(calendarMobileTwoDayWeekDateKeyForColumn(toolbarDate, columnIndex));
+	}
+
+	$effect(() => {
+		const currentStageElement = stageElement;
+		if (!currentStageElement) return;
+		currentStageElement.addEventListener('click', handleMobileTwoDayWeekDateClick, true);
+		return () => {
+			currentStageElement.removeEventListener('click', handleMobileTwoDayWeekDateClick, true);
+		};
+	});
+
 	import './calendar-stage.css';
 </script>
 
@@ -69,6 +115,7 @@
 	class:calendar-stage-day={toolbarView === ViewType.DAY}
 	class:calendar-stage-week={toolbarView === ViewType.WEEK}
 	class:calendar-stage-month={toolbarView === ViewType.MONTH}
+	class:calendar-stage-mobile-two-day-week={isMobileTwoDayWeekView}
 >
 	<DayFlowCalendar
 		{calendar}
@@ -78,6 +125,7 @@
 		eventContentAllDayDay={CalendarEventContent}
 		eventContentAllDayWeek={CalendarEventContent}
 		eventContentAllDayMonth={CalendarEventContent}
+		mobileEventDetail={CalendarMobileEventEditor}
 	/>
 
 	<CalendarMonthEventLayer

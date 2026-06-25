@@ -21,9 +21,11 @@ export type TimelineRangeActionOptions = {
 	stageElement: HTMLElement;
 	currentView: () => CalendarViewType;
 	currentDate: () => Date;
+	isMobileTwoDayWeekView: () => boolean;
 	getSelection: () => TimelineRangeSelection | null;
 	setSelection: (selection: TimelineRangeSelection | null) => void;
 	createSingleEvent: (startDate: Date, anchor: DraftPopoverAnchor) => void;
+	createMobileSingleEvent: (startDate: Date) => void;
 	createRangeEvent: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
 };
 
@@ -95,6 +97,10 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+		if (options.isMobileTwoDayWeekView()) {
+			options.createMobileSingleEvent(startDate);
+			return;
+		}
 		options.createSingleEvent(startDate, timelineAnchorFromPointerEvent(event));
 	};
 
