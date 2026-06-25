@@ -5,6 +5,7 @@
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { absenceLabelText, absencesForDate, hasAbsenceDetails } from '../shared/attendance-absence';
+	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { computeDayEvents } from '../shared/attendance-day-events';
 	import { formatHoursMinutes } from '../shared/attendance-format';
 	import type { AttendanceWorkSegment } from '../shared/attendance-work-segments';
@@ -19,6 +20,11 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
+	const allDayEvents = $derived(
+		attendance.summary && attendance.selectedDate
+			? attendance.summary.events.filter((event) => event.email === attendance.summary?.currentUserEmail)
+			: []
+	);
 	const dayEvents = $derived(
 		attendance.summary && attendance.selectedDate
 			? attendance.summary.events.filter(
@@ -28,8 +34,9 @@
 				).sort((first, second) => first.occurredAt.localeCompare(second.occurredAt))
 			: []
 	);
+	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 	const day = $derived(
-		attendance.selectedDate ? computeDayEvents(attendance.selectedDate, dayEvents) : undefined
+		attendance.selectedDate ? computeDayEvents(attendance.selectedDate, allDayEvents, { currentDate: today }) : undefined
 	);
 
 	const locations = $derived(attendance.summary?.locations ?? []);

@@ -1,6 +1,6 @@
 import type { AttendanceEvent } from '../attendance-context.svelte';
-import { isoWeekStart } from './attendance-date';
-import { computeDayEvents, groupEventsByDay } from './attendance-day-events';
+import { addDays, isoWeekStart } from './attendance-date';
+import { computeDayEvents } from './attendance-day-events';
 
 export type RangeMinutes = {
 	minutes: number;
@@ -9,15 +9,15 @@ export type RangeMinutes = {
 };
 
 export function todayMinutes(events: AttendanceEvent[], todayDate: string): RangeMinutes {
-	return rangeMinutes(events, todayDate, todayDate);
+	return rangeMinutes(events, todayDate, todayDate, todayDate);
 }
 
 export function thisWeekMinutes(events: AttendanceEvent[], todayDate: string): RangeMinutes {
-	return rangeMinutes(events, isoWeekStart(todayDate), todayDate);
+	return rangeMinutes(events, isoWeekStart(todayDate), todayDate, todayDate);
 }
 
 export function thisMonthMinutes(events: AttendanceEvent[], todayDate: string): RangeMinutes {
-	return rangeMinutes(events, `${todayDate.slice(0, 7)}-01`, todayDate);
+	return rangeMinutes(events, `${todayDate.slice(0, 7)}-01`, todayDate, todayDate);
 }
 
 export type TeamRangeAggregate = {
@@ -28,42 +28,35 @@ export type TeamRangeAggregate = {
 };
 
 export function teamTodayAggregate(events: AttendanceEvent[], todayDate: string): TeamRangeAggregate {
-	return teamRangeAggregate(events, todayDate, todayDate);
+	return teamRangeAggregate(events, todayDate, todayDate, todayDate);
 }
 
 export function teamThisWeekAggregate(events: AttendanceEvent[], todayDate: string): TeamRangeAggregate {
-	return teamRangeAggregate(events, isoWeekStart(todayDate), todayDate);
+	return teamRangeAggregate(events, isoWeekStart(todayDate), todayDate, todayDate);
 }
 
 export function teamThisMonthAggregate(events: AttendanceEvent[], todayDate: string): TeamRangeAggregate {
-	return teamRangeAggregate(events, `${todayDate.slice(0, 7)}-01`, todayDate);
+	return teamRangeAggregate(events, `${todayDate.slice(0, 7)}-01`, todayDate, todayDate);
 }
 
-function rangeMinutes(events: AttendanceEvent[], start: string, end: string): RangeMinutes {
-	const inRange = events.filter((event) => {
-		if (event.canceledAt) return false;
-		return event.localDate >= start && event.localDate <= end;
-	});
-	const byDay = groupEventsByDay(inRange);
+function rangeMinutes(events: AttendanceEvent[], start: string, end: string, currentDate: string): RangeMinutes {
+	const activeEvents = events.filter((event) => !event.canceledAt);
 	let minutes = 0;
 	let workedDays = 0;
 	let inProgress = false;
-	for (const [date, dayEvents] of byDay) {
-		const day = computeDayEvents(date, dayEvents);
-		if (day.clockIn) workedDays += 1;
+	for (const date of eachDateInRange(start, end)) {
+		const day = computeDayEvents(date, activeEvents, { currentDate });
+		if (day.segments.length > 0) workedDays += 1;
 		if (day.inProgress) inProgress = true;
 		minutes += day.workedMinutes;
 	}
 	return { minutes, workedDays, inProgress };
 }
 
-function teamRangeAggregate(events: AttendanceEvent[], start: string, end: string): TeamRangeAggregate {
-	const inRange = events.filter((event) => {
-		if (event.canceledAt) return false;
-		return event.localDate >= start && event.localDate <= end;
-	});
+function teamRangeAggregate(events: AttendanceEvent[], start: string, end: string, currentDate: string): TeamRangeAggregate {
 	const byEmail = new Map<string, AttendanceEvent[]>();
-	for (const event of inRange) {
+	for (const event of events) {
+		if (event.canceledAt) continue;
 		const list = byEmail.get(event.email) ?? [];
 		list.push(event);
 		byEmail.set(event.email, list);
@@ -73,10 +66,9 @@ function teamRangeAggregate(events: AttendanceEvent[], start: string, end: strin
 	let workingNow = 0;
 	const workedPeople = new Set<string>();
 	for (const [email, personEvents] of byEmail) {
-		const byDay = groupEventsByDay(personEvents);
-		for (const [date, dayEvents] of byDay) {
-			const day = computeDayEvents(date, dayEvents);
-			if (day.clockIn) {
+		for (const date of eachDateInRange(start, end)) {
+			const day = computeDayEvents(date, personEvents, { currentDate });
+			if (day.segments.length > 0) {
 				workedDays += 1;
 				workedPeople.add(email);
 			}
@@ -85,4 +77,12 @@ function teamRangeAggregate(events: AttendanceEvent[], start: string, end: strin
 		}
 	}
 	return { minutes, workedPeople: workedPeople.size, workedDays, workingNow };
+}
+
+function eachDateInRange(start: string, end: string): string[] {
+	const dates: string[] = [];
+	for (let date = start; date <= end; date = addDays(date, 1)) {
+		dates.push(date);
+	}
+	return dates;
 }

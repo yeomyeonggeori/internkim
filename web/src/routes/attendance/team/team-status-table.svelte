@@ -225,16 +225,16 @@
 									{/snippet}
 								</Tooltip.Trigger>
 								{#if day.segments.length > 0}
-									<Tooltip.Content side="top" sideOffset={6} class="block space-y-1.5">
+									<Tooltip.Content side="top" sideOffset={6} class="grid w-max max-w-[calc(100vw-2rem)] grid-cols-[0.375rem_max-content_max-content_max-content] gap-x-2 gap-y-1.5 overflow-x-auto">
 										{#each day.segments as segment (segment.id)}
-											<div class="grid grid-cols-[0.375rem_2.75rem_5.75rem_3.25rem] items-center gap-0.5 whitespace-nowrap text-left tabular-nums">
+											<div class="contents text-left tabular-nums">
 												<span
 													class="size-1.5 shrink-0 rounded-full"
 													style:background-color={segmentBarColor(segment)}
 												></span>
-												<span class="truncate text-left">{segment.locationName}</span>
-												<span class="text-left">{tooltipTimeLabel(segment)}</span>
-												<span class="text-left">{segment.durationLabel ?? ''}</span>
+												<span class="whitespace-nowrap text-left">{segment.locationName}</span>
+												<span class="whitespace-nowrap text-left">{tooltipTimeLabel(segment)}</span>
+												<span class="whitespace-nowrap text-left">{segment.durationLabel ?? ''}</span>
 											</div>
 										{/each}
 									</Tooltip.Content>

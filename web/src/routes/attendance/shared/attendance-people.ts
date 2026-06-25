@@ -59,7 +59,6 @@ export function computePeopleToday(
 	const people = uniquePeople(events, activeAbsences);
 	const byPerson = new Map<string, AttendanceEvent[]>();
 	for (const event of events) {
-		if (event.localDate !== date) continue;
 		if (event.canceledAt) continue;
 		const list = byPerson.get(event.email) ?? [];
 		list.push(event);
@@ -71,11 +70,11 @@ export function computePeopleToday(
 			? 'upcoming'
 			: 'absent';
 	return people.map((person) => {
-		const day = computeDayEvents(date, byPerson.get(person.email) ?? []);
+		const day = computeDayEvents(date, byPerson.get(person.email) ?? [], { currentDate: today });
 		const absence = absencesForDate(activeAbsences, date, person.email)[0];
 		let status: PersonStatus = fallbackStatus;
 		if (day.inProgress) status = 'working';
-		else if (day.clockIn && day.clockOut) status = 'finished';
+		else if (day.segments.length > 0) status = 'finished';
 		else if (day.clockIn) status = 'working';
 		else if (absence) status = 'absence';
 		return {
@@ -97,11 +96,12 @@ export function computePeopleToday(
 export function statusForDay(
 	date: string,
 	events: AttendanceEvent[],
-	absences: AttendanceAbsence[] = []
+	absences: AttendanceAbsence[] = [],
+	today: string = todayDateInTimeZone()
 ): PersonStatus {
-	const day = computeDayEvents(date, events.filter((event) => event.localDate === date));
+	const day = computeDayEvents(date, events, { currentDate: today });
 	if (day.inProgress) return 'working';
-	if (day.clockIn && day.clockOut) return 'finished';
+	if (day.segments.length > 0) return 'finished';
 	if (!isWeekend(date) && absences.some((absence) => absence.date === date && !absence.canceledAt)) return 'absence';
 	return 'absent';
 }
