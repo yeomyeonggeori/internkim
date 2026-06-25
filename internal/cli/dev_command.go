@@ -92,13 +92,17 @@ func runDevFleetArguments(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionUp})
+		contextValue, stop := interruptContext()
+		defer stop()
+		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionUp})
 	case "down":
 		service, errorValue := newLocalFleetService()
 		if errorValue != nil {
 			return errorValue
 		}
-		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionDown})
+		contextValue, stop := interruptContext()
+		defer stop()
+		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionDown})
 	case "status":
 		service, errorValue := newLocalFleetService()
 		if errorValue != nil {
@@ -110,7 +114,9 @@ func runDevFleetArguments(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
+		contextValue, stop := interruptContext()
+		defer stop()
+		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
 	case "run":
 		return runDevFleetRunArguments(commandArguments)
 	case "verify-regression":
@@ -141,7 +147,9 @@ func runDevFleetRunArguments(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.Run(context.Background(), standardLocalFleetLogger{}, configuration.Request)
+	contextValue, stop := interruptContext()
+	defer stop()
+	return service.Run(contextValue, standardLocalFleetLogger{}, configuration.Request)
 }
 
 func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, error) {
@@ -195,7 +203,9 @@ func runDevFleetVerifyRegressionArguments(service localfleet.Service, arguments 
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
-	return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionVerifyRegression, Base: *base, Scenario: *scenario})
+	contextValue, stop := interruptContext()
+	defer stop()
+	return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionVerifyRegression, Base: *base, Scenario: *scenario})
 }
 
 func newLocalFleetService() (localfleet.Service, error) {

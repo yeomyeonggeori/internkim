@@ -37,7 +37,9 @@ func runTestArguments(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	return runTestConfiguration(context.Background(), configuration)
+	contextValue, stop := interruptContext()
+	defer stop()
+	return runTestConfiguration(contextValue, configuration)
 }
 
 func parseTestArguments(arguments []string, now time.Time) (testCommandConfiguration, error) {

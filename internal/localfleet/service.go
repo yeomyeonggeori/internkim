@@ -83,12 +83,14 @@ func (service Service) ConfigurationPath() string {
 }
 
 func (service Service) CleanupEphemeral(contextValue context.Context, logger Logger) error {
-	return service.runCleanupPlans(contextValue, logger, service.ephemeralCleanupPlans())
+	cleanupContext, cancel := newEphemeralCleanupContext(contextValue)
+	defer cancel()
+	return service.runCleanupPlans(cleanupContext, logger, service.ephemeralCleanupPlans())
 }
 
 func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {
 	errorValue := service.runAction(contextValue, logger, request)
-	cleanupError := service.runCleanupPlans(contextValue, logger, service.ephemeralCleanupPlans())
+	cleanupError := service.CleanupEphemeral(contextValue, logger)
 	if errorValue != nil {
 		if cleanupError != nil {
 			return fmt.Errorf("%w; cleanup failed: %v", errorValue, cleanupError)
@@ -96,6 +98,13 @@ func (service Service) runWithEphemeralCleanup(contextValue context.Context, log
 		return errorValue
 	}
 	return cleanupError
+}
+
+func newEphemeralCleanupContext(contextValue context.Context) (context.Context, context.CancelFunc) {
+	if contextValue.Err() == nil {
+		return context.WithTimeout(contextValue, 5*time.Minute)
+	}
+	return context.WithTimeout(context.Background(), 5*time.Minute)
 }
 
 func (service Service) runAction(contextValue context.Context, logger Logger, request JobRequest) error {
