@@ -119,6 +119,26 @@ test.describe('attendance', () => {
 		await expect(eventLabels.nth(4)).toContainText('출근 12:45');
 	});
 
+	test('shows overnight work as split daily segments', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: buildOvernightAttendanceSummary('2026-06') });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		await page.getByTestId('personal-calendar-day-2026-06-01').click();
+		const firstDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(firstDayPanel.getByText('22:00:00~24:00:00')).toBeVisible();
+		await expect(firstDayPanel.getByText('진행 중')).toHaveCount(0);
+
+		await page.getByTestId('personal-calendar-day-2026-06-02').click();
+		const secondDayPanel = page.getByTestId('personal-day-detail-panel');
+		await expect(secondDayPanel.getByText('00:00:00~02:00:00')).toBeVisible();
+		await expect(secondDayPanel.getByText('진행 중')).toHaveCount(0);
+	});
+
 	test('registers own absence without sending an email override', async ({ page }) => {
 		let requestBody: Record<string, unknown> = {};
 		await page.route('**/attendance/api/absences', async (route) => {
@@ -274,6 +294,52 @@ function currentUserEvent(
 	return summary.events.find(
 		(event) => event.email === summary.currentUserEmail && event.localDate === localDate && event.kind === kind
 	);
+}
+
+function buildOvernightAttendanceSummary(month: string): AttendanceSummary {
+	const summary = buildAttendanceSummaryFixture(month);
+	return {
+		...summary,
+		events: [
+			attendanceEvent(summary, {
+				id: 'overnight-in',
+				kind: 'clock_in',
+				occurredAt: '2026-06-01T22:00:00+09:00',
+				localDate: '2026-06-01',
+				localTime: '22:00:00',
+			}),
+			attendanceEvent(summary, {
+				id: 'overnight-out',
+				kind: 'clock_out',
+				occurredAt: '2026-06-02T02:00:00+09:00',
+				localDate: '2026-06-02',
+				localTime: '02:00:00',
+			}),
+		],
+		absences: []
+	};
+}
+
+function attendanceEvent(
+	summary: AttendanceSummary,
+	overrides: Pick<AttendanceEvent, 'id' | 'kind' | 'occurredAt' | 'localDate' | 'localTime'>
+): AttendanceEvent {
+	return {
+		id: overrides.id,
+		mattermostUserID: 'kim',
+		mattermostUsername: 'kim',
+		email: summary.currentUserEmail,
+		displayName: '김철수',
+		kind: overrides.kind,
+		occurredAt: overrides.occurredAt,
+		localDate: overrides.localDate,
+		localTime: overrides.localTime,
+		timeZoneAtEvent: summary.timeZone,
+		source: 'test',
+		resultPostID: `${overrides.id}-post`,
+		locationID: 'office',
+		locationName: '사무실'
+	};
 }
 
 function parseUpdateAttendanceEventRequest(payload: string | null): UpdateAttendanceEventRequest {

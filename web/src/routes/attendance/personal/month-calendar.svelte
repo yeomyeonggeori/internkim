@@ -3,7 +3,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
-	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-aggregation';
+	import { computeDayEvents, type DayEvents } from '../shared/attendance-aggregation';
 	import { absenceLabelText, absencesForDate } from '../shared/attendance-absence';
 	import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
@@ -24,7 +24,6 @@
 		attendance.summary ? attendance.summary.absences.filter((absence) => absence.email === targetEmail) : []
 	);
 	const calendarMonth = $derived(attendance.summary?.month ?? attendance.selectedMonth);
-	const byDay = $derived(groupEventsByDay(personalEvents));
 	const days = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
 	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 
@@ -54,6 +53,14 @@
 
 	function calendarTime(localTime: string | undefined): string {
 		return localTime ? localTime.slice(0, 5) : '-';
+	}
+
+	function calendarClockInTime(day: DayEvents): string | undefined {
+		return day.segments[0]?.startTime ?? day.clockIn?.localTime;
+	}
+
+	function calendarClockOutTime(day: DayEvents): string | undefined {
+		return day.segments.at(-1)?.endTime ?? day.clockOut?.localTime;
 	}
 
 	function segmentCountLabel(count: number): string {
@@ -96,7 +103,7 @@
 				<div></div>
 			{/each}
 			{#each days as date (date)}
-				{@const day = computeDayEvents(date, byDay.get(date) ?? [])}
+				{@const day = computeDayEvents(date, personalEvents)}
 				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
 				{@const visibleAbsence = isWeekend(date) ? undefined : dayAbsence}
 				<button
@@ -113,7 +120,7 @@
 								class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-0.5 sm:gap-x-1"
 							>
 								<span class="text-muted-foreground max-[420px]:hidden">{text.clockInShort}</span>
-								<span class="min-w-0 truncate">{calendarTime(day.clockIn.localTime)}</span>
+								<span class="min-w-0 truncate">{calendarTime(calendarClockInTime(day))}</span>
 							</div>
 							<div
 								data-testid="personal-calendar-time-line"
@@ -123,7 +130,7 @@
 								{#if day.inProgress}
 									<span class="min-w-0 truncate text-emerald-600 dark:text-emerald-400">{text.inProgress}</span>
 								{:else}
-									<span class="min-w-0 truncate">{calendarTime(day.clockOut?.localTime)}</span>
+									<span class="min-w-0 truncate">{calendarTime(calendarClockOutTime(day))}</span>
 								{/if}
 							</div>
 							{#if day.segments.length > 1}
