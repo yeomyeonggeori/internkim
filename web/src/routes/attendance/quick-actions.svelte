@@ -38,8 +38,8 @@
 		)
 	);
 
-	const todayDay = $derived(computeDayEvents(today, myEvents));
-	const status = $derived(statusForDay(today, myEvents, myAbsences));
+	const todayDay = $derived(computeDayEvents(today, myEvents, { currentDate: today }));
+	const status = $derived(statusForDay(today, myEvents, myAbsences, today));
 
 	const elapsedMinutes = $derived.by(() => {
 		if (todayDay.activeSegment) {
