@@ -3,7 +3,8 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { computePersonalStats } from '../shared/attendance-aggregation';
-	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-day-events';
+	import { eachDayOfMonth } from '../shared/attendance-date';
+	import { computeDayEvents } from '../shared/attendance-day-events';
 	import { attendanceText } from '../text';
 
 	type Props = {
@@ -21,14 +22,14 @@
 	const stats = $derived(
 		attendance.summary ? computePersonalStats(attendance.summary.month, events) : null
 	);
-	const locationBreakdown = $derived(buildLocationBreakdown(events));
+	const locationBreakdown = $derived(buildLocationBreakdown(attendance.summary?.month ?? '', events));
 	const ringDeg = $derived(stats && stats.weekdayCount ? Math.round((stats.workedDays / stats.weekdayCount) * 360) : 0);
 
-	function buildLocationBreakdown(eventList: AttendanceEvent[]) {
+	function buildLocationBreakdown(month: string, eventList: AttendanceEvent[]) {
 		const count = new Map<string, number>();
 		let total = 0;
-		for (const [date, events] of groupEventsByDay(eventList)) {
-			const day = computeDayEvents(date, events);
+		for (const date of eachDayOfMonth(month)) {
+			const day = computeDayEvents(date, eventList);
 			for (const segment of day.segments) {
 				const label = segment.locationName ?? '-';
 				count.set(label, (count.get(label) ?? 0) + 1);

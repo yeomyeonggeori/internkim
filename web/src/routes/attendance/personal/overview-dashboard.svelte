@@ -10,7 +10,6 @@
 	import WorkTimeChart from '../shared/work-time-chart.svelte';
 	import {
 		computeDayEvents,
-		groupEventsByDay,
 		statusForDay,
 		thisMonthMinutes,
 		thisWeekMinutes,
@@ -89,9 +88,8 @@
 
 	function buildDailyValues(month: string, eventList: typeof chartEvents) {
 		if (!month) return [];
-		const grouped = groupEventsByDay(eventList);
 		return eachDayOfMonth(month).map((date) => {
-			const day = computeDayEvents(date, grouped.get(date) ?? []);
+			const day = computeDayEvents(date, eventList);
 			return { date, value: day.workedMinutes };
 		});
 	}
