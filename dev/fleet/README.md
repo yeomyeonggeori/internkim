@@ -7,22 +7,23 @@ InternKim fleet. They are for localhost-only validation, not deployment.
 
 ```bash
 ./internkim dev fleet up
-./internkim dev fleet run --recipe predeploy-gate
-./internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send
-./internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance
-./internkim dev fleet run --scenario mattermost-bot-invited
+./internkim dev fleet run
 ./internkim dev fleet run --scenario mattermost-direct-message-send
+./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
+./internkim dev fleet run --reuse --recipe predeploy-gate
+./internkim dev fleet run --scenario mattermost-bot-invited
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 ./internkim dev fleet reset
 ```
 
-`./internkim sim gate` is a compatibility alias for the `predeploy-gate` recipe.
-New automation should call `./internkim dev fleet ...` directly.
+`./internkim sim gate` is a compatibility alias for `./internkim dev fleet run`.
+New automation should call `./internkim dev fleet run` directly.
 
-Use `--ephemeral` for one-off E2E runs. It creates a run-scoped VM, state
-directory, and localhost tunnel ports, then removes them after the scenario.
-Pass `--keep` to leave the VM, logs, Mattermost posts/users, and state for
-debugging. The command output prints the cleanup command.
+`run` creates a run-scoped VM, state directory, and localhost tunnel ports by
+default, then removes them after the recipe or scenario. Pass `--keep` to leave
+the VM, logs, Mattermost posts/users, and state for debugging. The command
+output prints the cleanup command. Pass `--reuse` only when you need the shared
+local fleet for manual debugging.
 
 Use `--without-mattermost` with a virtual-session scenario when Mattermost itself
 is not under test. This still runs inside the Linux VM and uses the checkout's

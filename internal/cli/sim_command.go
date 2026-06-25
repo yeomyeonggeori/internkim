@@ -22,6 +22,7 @@ var runSimSetup = runSetupSimulationArguments
 var runSimLabTarget = runLabArgumentsForTarget
 var resolveSimulationVirtualMachineIPAddress = resolveLabVirtualMachineIPAddress
 var runSimLocalFleet = runLocalFleetRequest
+var runSimDisposableLocalFleet = runDisposableLocalFleetRequest
 var printSimLocalFleetStatus = printLocalFleetStatus
 
 func runSimArguments(arguments []string) error {
@@ -65,10 +66,10 @@ func runSimGateArguments(arguments []string) error {
 		return nil
 	}
 	if hasCommandArgument(arguments, "--plan") {
-		fmt.Println("sim gate is a legacy alias for `internkim dev fleet run --recipe predeploy-gate`")
+		fmt.Println("sim gate is a legacy alias for `internkim dev fleet run`")
 		return nil
 	}
-	return runSimLocalFleet(localfleet.JobRequest{Action: localfleet.ActionRunRecipe, Recipe: localfleet.DefaultRecipe})
+	return runSimDisposableLocalFleet(localfleet.JobRequest{Action: localfleet.ActionRunRecipe, Recipe: localfleet.DefaultRecipe})
 }
 
 func runSimCleanupArguments(arguments []string) error {
@@ -98,6 +99,14 @@ func runSimCleanupArguments(arguments []string) error {
 
 func runLocalFleetRequest(request localfleet.JobRequest) error {
 	service, errorValue := newLocalFleetService()
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.Run(context.Background(), standardLocalFleetLogger{}, request)
+}
+
+func runDisposableLocalFleetRequest(request localfleet.JobRequest) error {
+	service, errorValue := newLocalFleetServiceWithOptions(localfleet.Options{IsEphemeral: true})
 	if errorValue != nil {
 		return errorValue
 	}
