@@ -18,6 +18,7 @@ describe('team status table model', () => {
 				attendanceEvent('kim-client-out', 'kim@example.com', '김철수', '2026-06-16', 'clock_out', '12:00', 'client-site', '고객사'),
 				attendanceEvent('kim-working-in', 'kim@example.com', '김철수', '2026-06-17', 'clock_in', '13:00', 'client-site', '고객사'),
 				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-16', 'clock_in', '09:00', 'lab-a', 'Lab A'),
+				attendanceEvent('park-out', 'park@example.com', '박지민', '2026-06-16', 'clock_out', '10:00', 'lab-a', 'Lab A'),
 			],
 			[
 				attendanceAbsence('lee-1', 'lee@example.com', 'other', '2026-06-17', {
@@ -116,7 +117,7 @@ describe('team status table model', () => {
 			[]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-20');
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-16');
 		const choiDay = rows.find((row) => row.email === 'choi@example.com')?.days.find((day) => day.date === '2026-06-16');
 		const jungDay = rows.find((row) => row.email === 'jung@example.com')?.days.find((day) => day.date === '2026-06-16');
 
@@ -198,6 +199,7 @@ describe('team status table model', () => {
 		const summary = attendanceSummary(
 			[
 				attendanceEvent('kim-name', 'kim@example.com', '김철수', '2026-06-05', 'clock_in', '09:00'),
+				attendanceEvent('kim-out', 'kim@example.com', '김철수', '2026-06-05', 'clock_out', '18:00'),
 			],
 			[
 				attendanceAbsence('kim-weekend-leave', 'kim@example.com', 'leave', '2026-06-06'),
