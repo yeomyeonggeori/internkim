@@ -1,6 +1,9 @@
 <script lang="ts">
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -8,13 +11,16 @@
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
-	import { fetchTaskRuns, type TaskRunSummary } from './tasks-api';
+	import { fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './tasks-api';
 	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
 	const taskPageSize = 15;
+	const dailyCostTaskRunLimit = 500;
 	let taskRuns = $state<TaskRunSummary[]>([]);
+	let dailyCostSummaries = $state<DailyCostSummary[]>([]);
+	let dailyCostScope = $state<DailyCostScope | undefined>(undefined);
 	let taskPageIndex = $state(0);
 	let totalTaskRunCount = $state(0);
 	let statusFilter = $state('');
@@ -39,7 +45,9 @@
 				status: statusFilter || undefined,
 				limit: taskPageSize,
 				offset: pageIndex * taskPageSize,
-				includeTotal: true
+				includeTotal: true,
+				includeCost: true,
+				dailyCostTaskRunLimit
 			});
 			const minimumTotalCount = pageIndex * taskPageSize + response.taskRuns.length;
 			const loadedTotalCount = Math.max(response.totalCount ?? minimumTotalCount, minimumTotalCount);
@@ -49,6 +57,8 @@
 				return;
 			}
 			taskRuns = response.taskRuns;
+			dailyCostSummaries = response.dailyCostSummaries ?? [];
+			dailyCostScope = response.dailyCostScope;
 			totalTaskRunCount = loadedTotalCount;
 			taskPageIndex = pageIndex;
 		} catch {
@@ -74,6 +84,23 @@
 		void loadTaskRuns(taskPageIndex + 1);
 	}
 
+	function formatCostDate(date: string): string {
+		const parsed = new Date(`${date}T00:00:00`);
+		if (Number.isNaN(parsed.getTime())) return date;
+		return parsed.toLocaleDateString();
+	}
+
+	function dailyCostMeta(summary: DailyCostSummary): string {
+		return text.dailyCostMeta
+			.replace('{tasks}', summary.taskRunCount.toLocaleString())
+			.replace('{calls}', summary.llmCallCount.toLocaleString());
+	}
+
+	function dailyCostScopeLabel(scope: DailyCostScope | undefined): string {
+		if (!scope?.isTruncated) return text.dailyCostScopeAll;
+		return text.dailyCostScopeLimited.replace('{count}', scope.taskRunCount.toLocaleString());
+	}
+
 	async function loadViewerRole() {
 		try {
 			const response = await fetch('/auth/session', { credentials: 'include' });
@@ -96,23 +123,51 @@
 </svelte:head>
 
 <main class="grid min-h-[calc(100svh-48px)] w-full flex-1 content-start gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-	<section class="flex min-w-0 flex-wrap items-start justify-between gap-3">
-		<div class="min-w-0">
-			<h1 class="flex items-center gap-2 text-xl font-semibold">
-				<ActivityIcon class="size-5 text-teal-700" />
-				{text.title}
-			</h1>
-			<p class="mt-1 max-w-full text-sm text-muted-foreground">{text.description}</p>
-		</div>
-		<button
-			type="button"
-			class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
-			onclick={() => void loadTaskRuns(taskPageIndex)}
-		>
-			<RefreshCwIcon class="size-3.5 {isLoading ? 'animate-spin' : ''}" />
-			{text.refresh}
-		</button>
-	</section>
+	<Card.Root>
+		<Card.Header>
+			<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
+				<div class="min-w-0">
+					<Card.Title class="flex items-center gap-2 text-xl">
+						<ActivityIcon data-icon="inline-start" class="text-primary" />
+						{text.title}
+					</Card.Title>
+					<Card.Description>{text.description}</Card.Description>
+				</div>
+				<Button variant="outline" size="sm" onclick={() => void loadTaskRuns(taskPageIndex)} disabled={isLoading}>
+					<RefreshCwIcon data-icon="inline-start" class={isLoading ? 'animate-spin' : ''} />
+					{text.refresh}
+				</Button>
+			</div>
+		</Card.Header>
+		<Card.Content>
+			<div class="flex flex-col gap-4">
+				<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+					<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>
+					<span>{text.paginationSummary
+						.replace('{total}', String(totalTaskRunCount))
+						.replace('{from}', totalTaskRunCount === 0 ? '0' : String(taskPageIndex * taskPageSize + 1))
+						.replace('{to}', String(Math.min(totalTaskRunCount, (taskPageIndex + 1) * taskPageSize)))}</span>
+				</div>
+				{#if dailyCostSummaries.length > 0}
+					<div class="flex flex-col gap-2 border-t pt-4">
+						<div class="flex items-center justify-between gap-3">
+							<h2 class="text-sm font-medium">{text.dailyCostTitle}</h2>
+							<span class="text-xs text-muted-foreground">{dailyCostScopeLabel(dailyCostScope)}</span>
+						</div>
+						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+							{#each dailyCostSummaries.slice(0, 4) as summary (summary.date)}
+								<div class="flex flex-col gap-1 rounded-lg border px-3 py-2">
+									<span class="text-xs text-muted-foreground">{formatCostDate(summary.date)}</span>
+									<strong class="text-base font-semibold">{formatCostUSD(summary.costUSD)}</strong>
+									<span class="text-xs text-muted-foreground">{dailyCostMeta(summary)}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+		</Card.Content>
+	</Card.Root>
 
 	<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
 		<UnderlineTabs.List>
@@ -123,54 +178,78 @@
 	</UnderlineTabs.Root>
 
 	{#if loadError}
-		<p class="text-sm text-red-600">{loadError}</p>
+		<Card.Root size="sm" class="border-destructive/30">
+			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
+		</Card.Root>
+	{:else if isLoading && taskRuns.length === 0}
+		<Card.Root>
+			<Card.Content class="flex flex-col gap-2">
+				<Skeleton class="h-10 w-full" />
+				<Skeleton class="h-10 w-full" />
+				<Skeleton class="h-10 w-full" />
+			</Card.Content>
+		</Card.Root>
 	{:else if taskRuns.length === 0 && !isLoading}
-		<p class="text-sm text-muted-foreground">{text.empty}</p>
+		<Card.Root size="sm">
+			<Card.Content class="text-sm text-muted-foreground">{text.empty}</Card.Content>
+		</Card.Root>
 	{:else}
-		<section class="min-w-0 overflow-x-auto rounded-lg border">
-			<Table.Root>
-				<Table.Header>
-					<Table.Row>
-						{#if isAdmin}
-							<Table.Head class="w-40">{text.columnRequester}</Table.Head>
-						{/if}
-						<Table.Head>{text.columnRequest}</Table.Head>
-						<Table.Head class="w-28">{text.columnStatus}</Table.Head>
-						<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each taskRuns as taskRun (taskRun.taskRunID)}
-						<Table.Row
-							class="cursor-pointer"
-							onclick={() => void goto(`/tasks/${taskRun.taskRunID}`)}
-						>
-							{#if isAdmin}
-								<Table.Cell class="text-sm whitespace-nowrap">
-									{taskRun.requesterDisplayName || taskRun.requesterPersonID || '—'}
-								</Table.Cell>
-							{/if}
-							<Table.Cell class="max-w-0">
-								<p class="truncate text-sm">{taskRun.prompt || '—'}</p>
-								{#if taskRun.failureReason}
-									<p class="truncate text-xs text-destructive">{taskRun.failureReason}</p>
+		<Card.Root class="min-w-0">
+			<Card.Content class="px-0">
+				<div class="min-w-0 overflow-x-auto">
+					<Table.Root>
+						<Table.Header>
+							<Table.Row>
+								{#if isAdmin}
+									<Table.Head class="w-44">{text.columnRequester}</Table.Head>
 								{/if}
-							</Table.Cell>
-							<Table.Cell>
-								{@const StatusIcon = taskStatusIcon(taskRun.status)}
-								<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
-									<StatusIcon />
-									{taskStatusLabel(taskRun.status, text)}
-								</Badge>
-							</Table.Cell>
-							<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
-								{formatTaskTimestamp(taskRun.updatedAt)}
-							</Table.Cell>
-						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
-		</section>
+								<Table.Head>{text.columnRequest}</Table.Head>
+								<Table.Head class="w-32">{text.columnStatus}</Table.Head>
+								<Table.Head class="w-28 text-right">{text.columnCost}</Table.Head>
+								<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each taskRuns as taskRun (taskRun.taskRunID)}
+								<Table.Row
+									class="cursor-pointer hover:bg-muted/50"
+									onclick={() => void goto(`/tasks/${taskRun.taskRunID}`)}
+								>
+									{#if isAdmin}
+										<Table.Cell class="text-sm whitespace-nowrap">
+											{taskRun.requesterDisplayName || taskRun.requesterPersonID || '—'}
+										</Table.Cell>
+									{/if}
+									<Table.Cell class="max-w-0">
+										<div class="flex min-w-0 flex-col gap-1">
+											<p class="truncate text-sm font-medium">{taskRun.prompt || '—'}</p>
+											{#if taskRun.failureReason}
+												<p class="truncate text-xs text-destructive">{taskRun.failureReason}</p>
+											{:else if taskRun.result}
+												<p class="truncate text-xs text-muted-foreground">{taskRun.result}</p>
+											{/if}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										{@const StatusIcon = taskStatusIcon(taskRun.status)}
+										<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
+											<StatusIcon />
+											{taskStatusLabel(taskRun.status, text)}
+										</Badge>
+									</Table.Cell>
+									<Table.Cell class="text-right text-xs whitespace-nowrap">
+										{taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—'}
+									</Table.Cell>
+									<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
+										{formatTaskTimestamp(taskRun.updatedAt)}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</div>
+			</Card.Content>
+		</Card.Root>
 		<ListPaginationFooter
 			totalItems={totalTaskRunCount}
 			pageIndex={taskPageIndex}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatCostUSD, summarizeTimeline, type TaskEvent } from '../../../src/routes/tasks/tasks-api';
+import { formatCostUSD, summarizeTimeline, taskDetailShareText, taskEventShareText, type TaskDetail, type TaskEvent } from '../../../src/routes/tasks/tasks-api';
 
 function llmCallEvent(body: Record<string, unknown>): TaskEvent {
 	return { name: 'llm.call', body: JSON.stringify(body) };
@@ -47,5 +47,41 @@ describe('formatCostUSD', () => {
 		expect(formatCostUSD(0)).toBe('$0');
 		expect(formatCostUSD(0.0155)).toBe('$0.0155');
 		expect(formatCostUSD(1.239)).toBe('$1.24');
+	});
+});
+
+describe('task detail share text', () => {
+	test('formats task run and events for copying into another AI', () => {
+		const detail: TaskDetail = {
+			taskRun: {
+				taskRunID: 'task-1',
+				status: 'completed',
+				prompt: '요청',
+				result: '완료',
+				createdAt: '2026-06-25T01:00:00Z',
+				updatedAt: '2026-06-25T01:01:00Z'
+			},
+			taskEvents: [
+				{
+					name: 'llm.call',
+					body: JSON.stringify({ model: 'test-model', totalTokens: 12 }),
+					createdAt: '2026-06-25T01:00:30Z'
+				}
+			]
+		};
+
+		const shareText = taskDetailShareText(detail);
+
+		expect(shareText.includes('# Task Run task-1')).toBe(true);
+		expect(shareText.includes('- prompt: 요청')).toBe(true);
+		expect(shareText.includes('### Event 1: llm.call')).toBe(true);
+		expect(shareText.includes('"totalTokens": 12')).toBe(true);
+	});
+
+	test('uses a longer markdown fence when event body contains backticks', () => {
+		const shareText = taskEventShareText({ name: 'agent.action', body: '```nested```' });
+
+		expect(shareText.includes('````text')).toBe(true);
+		expect(shareText.trim().endsWith('````')).toBe(true);
 	});
 });
