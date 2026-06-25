@@ -80,6 +80,62 @@ func TestDevReplayRejectsRemovedTartTarget(t *testing.T) {
 	}
 }
 
+func TestParseDevFleetRunEphemeralMattermostScenario(t *testing.T) {
+	configuration, errorValue := parseDevFleetRunArguments([]string{
+		"--ephemeral",
+		"--keep",
+		"--run-id", "dm-smoke",
+		"--admin-port", "19080",
+		"--mattermost-port", "19065",
+		"--scenario", "mattermost-direct-message-send",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if !configuration.ServiceOptions.IsEphemeral || configuration.ServiceOptions.RunID != "dm-smoke" {
+		t.Fatalf("service options = %+v", configuration.ServiceOptions)
+	}
+	if configuration.ServiceOptions.AdminHostPort != 19080 || configuration.ServiceOptions.MattermostHostPort != 19065 {
+		t.Fatalf("ports = %+v", configuration.ServiceOptions)
+	}
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "mattermost-direct-message-send" {
+		t.Fatalf("request = %+v", configuration.Request)
+	}
+	if !configuration.Request.KeepArtifacts {
+		t.Fatalf("expected keep artifacts request: %+v", configuration.Request)
+	}
+}
+
+func TestParseDevFleetRunWithoutMattermostRequiresScenario(t *testing.T) {
+	_, errorValue := parseDevFleetRunArguments([]string{
+		"--ephemeral",
+		"--without-mattermost",
+	})
+	if errorValue == nil {
+		t.Fatal("expected without-mattermost recipe to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "--scenario") {
+		t.Fatalf("expected scenario guidance, got %q", errorValue.Error())
+	}
+}
+
+func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
+	configuration, errorValue := parseDevFleetRunArguments([]string{
+		"--ephemeral",
+		"--without-mattermost",
+		"--scenario", "dm_send_confirm_acceptance",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if !configuration.ServiceOptions.IsEphemeral {
+		t.Fatalf("expected ephemeral service options: %+v", configuration.ServiceOptions)
+	}
+	if !configuration.Request.WithoutMattermost || configuration.Request.Scenario != "dm_send_confirm_acceptance" {
+		t.Fatalf("request = %+v", configuration.Request)
+	}
+}
+
 func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
 		ScenarioName:          "slides",

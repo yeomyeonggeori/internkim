@@ -8,6 +8,8 @@ InternKim fleet. They are for localhost-only validation, not deployment.
 ```bash
 ./internkim dev fleet up
 ./internkim dev fleet run --recipe predeploy-gate
+./internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send
+./internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance
 ./internkim dev fleet run --scenario mattermost-bot-invited
 ./internkim dev fleet run --scenario mattermost-direct-message-send
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
@@ -16,6 +18,15 @@ InternKim fleet. They are for localhost-only validation, not deployment.
 
 `./internkim sim gate` is a compatibility alias for the `predeploy-gate` recipe.
 New automation should call `./internkim dev fleet ...` directly.
+
+Use `--ephemeral` for one-off E2E runs. It creates a run-scoped VM, state
+directory, and localhost tunnel ports, then removes them after the scenario.
+Pass `--keep` to leave the VM, logs, Mattermost posts/users, and state for
+debugging. The command output prints the cleanup command.
+
+Use `--without-mattermost` with a virtual-session scenario when Mattermost itself
+is not under test. This still runs inside the Linux VM and uses the checkout's
+Linux toolchain, but it does not start Kim services or rely on Mattermost ingress.
 
 ## Scenario Rules
 
@@ -32,5 +43,7 @@ New automation should call `./internkim dev fleet ...` directly.
 - `mattermost-bot-invited`: verifies real Mattermost ingress and bot replies.
 - `mattermost-direct-message-send`: verifies real Mattermost DM recipient
   resolution, approval, platform.message.send, and recipient DM delivery.
+- `--without-mattermost --scenario <virtual-session>`: verifies Blueclaw's Linux
+  execution path without a Mattermost server.
 - `web-backed-ui`: verifies UI behavior against local fleet admind.
 - `regression-proof`: verifies base-fails/current-passes regression plumbing.
