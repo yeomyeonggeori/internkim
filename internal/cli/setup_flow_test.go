@@ -94,6 +94,14 @@ func TestSetupContextSkipsStepParsesSkipSelection(t *testing.T) {
 	}
 }
 
+func TestParseGitWorktreePaths(t *testing.T) {
+	output := "worktree /repo/main\nHEAD abc123\nbranch refs/heads/main\n\nworktree /repo/wt1\nHEAD def456\ndetached\n"
+	paths := parseGitWorktreePaths(output)
+	if strings.Join(paths, ",") != "/repo/main,/repo/wt1" {
+		t.Fatalf("unexpected worktree paths: %v", paths)
+	}
+}
+
 func TestBlueclawWorkspaceManifestCommandReadsPayloadManifestInsideImage(t *testing.T) {
 	command := blueclawWorkspaceManifestCommand()
 	for _, expectedText := range []string{

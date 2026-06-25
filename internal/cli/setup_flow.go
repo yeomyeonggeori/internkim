@@ -1588,6 +1588,15 @@ func (state *setupFlowState) ensureBlueclawRuntimeBaseArtifact() (string, error)
 	if errorValue == nil {
 		return artifactDirectoryPath, nil
 	}
+	if reuseError := state.reuseBlueclawRuntimeBaseArtifact(artifactDirectoryPath); reuseError == nil {
+		manifest, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
+		if errorValue == nil {
+			errorValue = blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest)
+		}
+		if errorValue == nil {
+			return artifactDirectoryPath, nil
+		}
+	}
 	if makeError := state.runMakeTarget("prepare-blueclaw-runtime-base"); makeError != nil {
 		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
 	}
@@ -1599,6 +1608,53 @@ func (state *setupFlowState) ensureBlueclawRuntimeBaseArtifact() (string, error)
 		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact source invalid after automatic preparation: %w", errorValue)
 	}
 	return artifactDirectoryPath, nil
+}
+
+func (state *setupFlowState) reuseBlueclawRuntimeBaseArtifact(artifactDirectoryPath string) error {
+	currentArtifactDirectoryPath, _ := filepath.Abs(artifactDirectoryPath)
+	for _, worktreePath := range gitWorktreePaths(state.scriptDir) {
+		candidateArtifactDirectoryPath := filepath.Join(worktreePath, blueclaw.BlueclawRuntimeArtifactPath)
+		absoluteCandidateArtifactDirectoryPath, _ := filepath.Abs(candidateArtifactDirectoryPath)
+		if absoluteCandidateArtifactDirectoryPath == currentArtifactDirectoryPath {
+			continue
+		}
+		manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(candidateArtifactDirectoryPath)
+		if errorValue != nil {
+			continue
+		}
+		if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+			continue
+		}
+		if errorValue := os.RemoveAll(artifactDirectoryPath); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := copyDirectoryContents(candidateArtifactDirectoryPath, artifactDirectoryPath); errorValue != nil {
+			return errorValue
+		}
+		fmt.Println("  Blueclaw runtime artifact reused from " + candidateArtifactDirectoryPath)
+		return nil
+	}
+	return errors.New("no reusable Blueclaw runtime artifact found")
+}
+
+func gitWorktreePaths(repositoryRootPath string) []string {
+	command := exec.Command("git", "-C", repositoryRootPath, "worktree", "list", "--porcelain")
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return nil
+	}
+	return parseGitWorktreePaths(string(output))
+}
+
+func parseGitWorktreePaths(output string) []string {
+	paths := []string{}
+	for _, line := range strings.Split(output, "\n") {
+		worktreePath, found := strings.CutPrefix(line, "worktree ")
+		if found && strings.TrimSpace(worktreePath) != "" {
+			paths = append(paths, strings.TrimSpace(worktreePath))
+		}
+	}
+	return paths
 }
 
 func (state *setupFlowState) ensureBlueclawPayloadArtifact() (string, error) {

@@ -34,6 +34,7 @@ type JobRequest struct {
 	Base              string `json:"base,omitempty"`
 	KeepArtifacts     bool   `json:"keepArtifacts,omitempty"`
 	WithoutMattermost bool   `json:"withoutMattermost,omitempty"`
+	SkipWeb           bool   `json:"skipWeb,omitempty"`
 }
 
 type Status struct {

@@ -74,23 +74,29 @@ func scanPlanOutput(pipe interface{ Read([]byte) (int, error) }, logger Logger, 
 	}
 }
 
-func (service Service) upPlans() []CommandPlan {
+func (service Service) upPlans(skipWeb bool) []CommandPlan {
 	return []CommandPlan{
+		service.prepareContainerKernelPlan(),
 		service.labCommand("vm-up"),
-		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
+		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
 		service.command("make", "build"),
-		service.shellPlan("setup local fleet", service.setupCommand()),
+		service.shellPlan("setup local fleet", service.setupCommand(skipWeb)),
 	}
 }
 
 func (service Service) withoutMattermostScenarioPlans(scenario string) []CommandPlan {
 	return []CommandPlan{
+		service.prepareContainerKernelPlan(),
 		service.labCommand("vm-up"),
 		service.blueclawDevSessionPreparePlan(scenario),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.withoutMattermostVirtualSessionPlan(scenario),
 	}
+}
+
+func (service Service) prepareContainerKernelPlan() CommandPlan {
+	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-container-kernel"))
 }
 
 func (service Service) downPlans() []CommandPlan {
@@ -115,7 +121,7 @@ func (service Service) ephemeralCleanupPlans() []CommandPlan {
 }
 
 func (service Service) predeployGatePlans() []CommandPlan {
-	return append(service.upPlans(),
+	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
 		service.shellPlan("verify mattermost", service.verifyCommand("mattermost")),
 		service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"),
@@ -124,11 +130,11 @@ func (service Service) predeployGatePlans() []CommandPlan {
 }
 
 func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
-	return append(service.upPlans(), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
+	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
 }
 
 func (service Service) mattermostScenarioPlans() []CommandPlan {
-	return append(service.upPlans(), service.labCommand("scenario-mattermost"))
+	return append(service.upPlans(false), service.labCommand("scenario-mattermost"))
 }
 
 func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) []CommandPlan {
@@ -136,15 +142,15 @@ func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) 
 	if keepArtifacts {
 		verificationKind += " --keep"
 	}
-	return append(service.upPlans(), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
+	return append(service.upPlans(false), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
 }
 
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
-	return append(service.upPlans(), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
+	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
 
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
-	return append(service.upPlans(), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
+	return append(service.upPlans(false), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
 }
 
 func (service Service) baseRegressionPlans(base string, scenario string) []CommandPlan {
@@ -190,15 +196,20 @@ func (service Service) shellPlan(label string, command string) CommandPlan {
 }
 
 func (service Service) checkSharedWorkspaceCommand() string {
-	return quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("test -d /mnt/shared/workspace")
+	command := quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("test -d /mnt/shared/workspace")
+	return "for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do " + command + " && exit 0; sleep 2; done; " + command
 }
 
-func (service Service) setupCommand() string {
+func (service Service) setupCommand(skipWeb bool) string {
 	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
+	skippedSteps := []string{"wifi", "local-llm", "cloudflare-access", "tunnel", "google", "slack"}
+	if skipWeb {
+		skippedSteps = append(skippedSteps, "web")
+	}
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1 INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip " + strings.Join(skippedSteps, ","),
 	}, " && ")
 }
 
@@ -213,7 +224,7 @@ func (service Service) startTunnelCommand() string {
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi",
-		"for attempt in 1 2 3; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
+		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 
