@@ -365,7 +365,7 @@ Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한�
 
 ### Local Fleet Verification
 
-실제 보드에 올리기 전에 macOS + apple/container ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 Local Fleet recipe/scenario이며, 기존 `sim gate`는 같은 predeploy recipe를 호출하는 legacy alias입니다.
+실제 보드에 올리기 전에 macOS + apple/container ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 disposable Local Fleet이며, 기존 `sim gate`는 같은 기본 게이트를 호출하는 legacy alias입니다.
 
 ```bash
 make deps-sim
@@ -373,23 +373,26 @@ make deps-sim
 # 최초 1회 컨테이너 이미지 준비
 ./internkim lab image-build
 
-# Local Fleet 시작과 상태 확인
+# 공유 Local Fleet 디버깅이 필요할 때만 직접 시작과 상태 확인
 ./internkim dev fleet up
 ./internkim dev fleet status
 
-# predeploy 전체 게이트: 빌드, VM setup, API/Mattermost, 브라우저 smoke
-./internkim dev fleet run --recipe predeploy-gate
+# predeploy 전체 게이트: 일회용 VM, 빌드, API/Mattermost, 브라우저 smoke
+./internkim dev fleet run
 
 # 특정 실제 서비스 경계 scenario
 ./internkim dev fleet run --scenario mattermost-bot-invited
 
+# Mattermost 제외 Linux virtual-session
+./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
+
 # "고쳤다" 검증: base 실패/current 성공을 강제
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 
-# Mattermost 테스트 사용자, 메시지, Blueclaw 테스트 상태 정리
+# 공유 플릿 디버깅 뒤 Mattermost 테스트 사용자, 메시지, Blueclaw 테스트 상태 정리
 ./internkim dev fleet reset
 
-# sim gate 성공 후 OTA로 실기기 배포
+# disposable fleet gate 성공 후 OTA로 실기기 배포
 ./internkim deploy
 
 # Makefile alias
@@ -404,9 +407,9 @@ make deploy-after-sim
 ./internkim sim cleanup
 ```
 
-실기기 배포 전에는 `./internkim dev fleet run --recipe predeploy-gate`를 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. `./internkim sim gate`는 하위 호환을 위해 유지되지만 새 문서와 자동화는 Local Fleet 명령을 기준으로 작성합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
+실기기 배포 전에는 `./internkim dev fleet run`을 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. `./internkim sim gate`는 하위 호환을 위해 유지되지만 새 문서와 자동화는 Local Fleet 명령을 기준으로 작성합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
-Local Fleet는 `.local/local-fleet` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다.
+Disposable Local Fleet는 `.local/local-fleet/runs/<run-id>` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다. 공유 VM을 직접 디버깅해야 할 때만 `./internkim dev fleet run --reuse ...`를 사용합니다.
 
 Mattermost gate는 초대된 테스트 사용자와 초대되지 않은 테스트 사용자를 만들고, 봇 응답과 초대 차단이 모두 동작하는지 확인한 뒤 테스트 메시지와 사용자를 정리합니다. self-hosted Mattermost의 비밀번호 정책이 강화되어도 통과하도록 검증 사용자는 충분히 긴 임시 비밀번호를 씁니다. cleanup 중 Mattermost system post 정리는 SSH 계정에 passwordless sudo가 없으면 건너뛰며, 사용자와 봇 reply 정리는 Mattermost API로 계속 수행합니다.
 

@@ -11,6 +11,7 @@ import (
 func TestSimGatePlanPrintsAliasWithoutRunningFleet(t *testing.T) {
 	withIsolatedInternkimHome(t)
 	requests := captureSimLocalFleet(t, nil)
+	disposableRequests := captureSimDisposableLocalFleet(t, nil)
 
 	errorValue := runSimArguments([]string{"gate", "--plan"})
 
@@ -20,11 +21,14 @@ func TestSimGatePlanPrintsAliasWithoutRunningFleet(t *testing.T) {
 	if len(*requests) != 0 {
 		t.Fatalf("local fleet requests = %+v", *requests)
 	}
+	if len(*disposableRequests) != 0 {
+		t.Fatalf("disposable local fleet requests = %+v", *disposableRequests)
+	}
 }
 
 func TestSimGateRunsPredeployRecipe(t *testing.T) {
 	withIsolatedInternkimHome(t)
-	requests := captureSimLocalFleet(t, nil)
+	requests := captureSimDisposableLocalFleet(t, nil)
 
 	errorValue := runSimArguments([]string{"gate"})
 
@@ -40,7 +44,7 @@ func TestSimGateUsesLocalFleetInsteadOfLegacySimulationState(t *testing.T) {
 	withIsolatedInternkimHome(t)
 	commandCalls := captureSimCommandCalls(t)
 	captureSimSetup(t, nil)
-	requests := captureSimLocalFleet(t, nil)
+	requests := captureSimDisposableLocalFleet(t, nil)
 	saveState(simulationStateDirectoryPath(), "fleet_id", "shared-fleet")
 	saveState(physicalStateDirectoryPath(), "fleet_id", "shared-fleet")
 
@@ -88,6 +92,20 @@ func captureSimLocalFleet(t *testing.T, errorValue error) *[]localfleet.JobReque
 	}
 	t.Cleanup(func() {
 		runSimLocalFleet = previousRunner
+	})
+	return &requests
+}
+
+func captureSimDisposableLocalFleet(t *testing.T, errorValue error) *[]localfleet.JobRequest {
+	t.Helper()
+	previousRunner := runSimDisposableLocalFleet
+	var requests []localfleet.JobRequest
+	runSimDisposableLocalFleet = func(request localfleet.JobRequest) error {
+		requests = append(requests, request)
+		return errorValue
+	}
+	t.Cleanup(func() {
+		runSimDisposableLocalFleet = previousRunner
 	})
 	return &requests
 }

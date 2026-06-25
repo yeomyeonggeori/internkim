@@ -75,14 +75,26 @@ func TestDevReplayRejectsRemovedTartTarget(t *testing.T) {
 	if errorValue == nil {
 		t.Fatal("expected tart target to be rejected")
 	}
-	if !strings.Contains(errorValue.Error(), "--target container") {
-		t.Fatalf("expected guidance toward container target, got %q", errorValue.Error())
+	if !strings.Contains(errorValue.Error(), "without-mattermost") {
+		t.Fatalf("expected guidance toward fleet Linux target, got %q", errorValue.Error())
 	}
 }
 
-func TestParseDevFleetRunEphemeralMattermostScenario(t *testing.T) {
+func TestParseDevFleetRunDefaultsToDisposablePredeploy(t *testing.T) {
+	configuration, errorValue := parseDevFleetRunArguments(nil)
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if !configuration.ServiceOptions.IsEphemeral {
+		t.Fatalf("expected disposable service options: %+v", configuration.ServiceOptions)
+	}
+	if configuration.Request.Action != "runRecipe" || configuration.Request.Recipe != "predeploy-gate" {
+		t.Fatalf("request = %+v", configuration.Request)
+	}
+}
+
+func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--ephemeral",
 		"--keep",
 		"--run-id", "dm-smoke",
 		"--admin-port", "19080",
@@ -106,9 +118,52 @@ func TestParseDevFleetRunEphemeralMattermostScenario(t *testing.T) {
 	}
 }
 
-func TestParseDevFleetRunWithoutMattermostRequiresScenario(t *testing.T) {
+func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
+	configuration, errorValue := parseDevFleetRunArguments([]string{
+		"--reuse",
+		"--scenario", "mattermost-direct-message-send",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if configuration.ServiceOptions.IsEphemeral {
+		t.Fatalf("expected reusable service options: %+v", configuration.ServiceOptions)
+	}
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "mattermost-direct-message-send" {
+		t.Fatalf("request = %+v", configuration.Request)
+	}
+}
+
+func TestParseDevFleetRunRejectsConflictingFleetModes(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
 		"--ephemeral",
+		"--reuse",
+		"--scenario", "mattermost-direct-message-send",
+	})
+	if errorValue == nil {
+		t.Fatal("expected conflicting fleet modes to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "--reuse") {
+		t.Fatalf("expected reuse guidance, got %q", errorValue.Error())
+	}
+}
+
+func TestParseDevFleetRunRejectsRunIDWithReusableFleet(t *testing.T) {
+	_, errorValue := parseDevFleetRunArguments([]string{
+		"--reuse",
+		"--run-id", "debug",
+		"--scenario", "mattermost-direct-message-send",
+	})
+	if errorValue == nil {
+		t.Fatal("expected run id with reusable fleet to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "--run-id") {
+		t.Fatalf("expected run id guidance, got %q", errorValue.Error())
+	}
+}
+
+func TestParseDevFleetRunWithoutMattermostRequiresScenario(t *testing.T) {
+	_, errorValue := parseDevFleetRunArguments([]string{
 		"--without-mattermost",
 	})
 	if errorValue == nil {
@@ -121,7 +176,6 @@ func TestParseDevFleetRunWithoutMattermostRequiresScenario(t *testing.T) {
 
 func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--ephemeral",
 		"--without-mattermost",
 		"--scenario", "dm_send_confirm_acceptance",
 	})

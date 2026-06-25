@@ -148,7 +148,8 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	flagSet := flag.NewFlagSet("dev fleet run", flag.ContinueOnError)
 	recipe := flagSet.String("recipe", "", "Local fleet recipe to run")
 	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
-	ephemeral := flagSet.Bool("ephemeral", false, "Create a disposable local fleet run and clean it up by default")
+	ephemeral := flagSet.Bool("ephemeral", false, "Deprecated; disposable local fleet runs are now the default")
+	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared local fleet instead of creating a disposable run")
 	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM, logs, state, and Mattermost test artifacts")
 	withoutMattermost := flagSet.Bool("without-mattermost", false, "Run the scenario inside Linux without starting or using Mattermost")
 	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
@@ -161,8 +162,14 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	if *withoutMattermost && trimmedScenario == "" {
 		return devFleetRunConfiguration{}, errors.New("without-mattermost mode requires --scenario")
 	}
+	if *ephemeral && *reuseFleet {
+		return devFleetRunConfiguration{}, errors.New("use either --ephemeral or --reuse, not both")
+	}
+	if *reuseFleet && strings.TrimSpace(*runID) != "" {
+		return devFleetRunConfiguration{}, errors.New("--run-id requires a disposable run; remove --reuse")
+	}
 	serviceOptions := localfleet.Options{
-		IsEphemeral:        *ephemeral || strings.TrimSpace(*runID) != "",
+		IsEphemeral:        !*reuseFleet,
 		RunID:              strings.TrimSpace(*runID),
 		AdminHostPort:      *adminHostPort,
 		MattermostHostPort: *mattermostHostPort,
@@ -251,7 +258,7 @@ func runDevSimulateArguments(arguments []string) error {
 		return errorValue
 	}
 	if sessionArguments.TargetName != "local" {
-		return errors.New("dev simulate only supports --target local; use dev replay --target container for Linux permission checks")
+		return errors.New("dev simulate only supports --target local; use dev fleet run --without-mattermost --scenario <name> for Linux permission checks")
 	}
 	return runDevLocalVirtualSession(sessionArguments)
 }
@@ -267,7 +274,7 @@ func runDevReplayArguments(arguments []string) error {
 	case "container":
 		return runDevContainerVirtualSession(sessionArguments)
 	case "tart":
-		return errors.New("the tart target was removed; use --target container")
+		return errors.New("the tart target was removed; use dev fleet run --without-mattermost --scenario <name>")
 	default:
 		return fmt.Errorf("unsupported dev replay target: %s", sessionArguments.TargetName)
 	}
@@ -508,23 +515,23 @@ func quoteDevShellArgument(argument string) string {
 }
 
 func printDevUsage() {
-	fmt.Println("Usage: internkim dev <simulate|replay|fleet> [options]")
-	fmt.Println("  internkim dev fleet up")
-	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
-	fmt.Println("  internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send")
-	fmt.Println("  internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance")
-	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
+	fmt.Println("Usage: internkim dev <simulate|fleet> [options]")
+	fmt.Println("  internkim dev simulate --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
 }
 
 func printDevFleetUsage() {
 	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|verify-regression>")
-	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
-	fmt.Println("  internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send")
-	fmt.Println("  internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance")
-	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
+	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 }
 
 type repeatedDevStringFlag struct {
