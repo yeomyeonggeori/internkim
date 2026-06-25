@@ -6,8 +6,7 @@ export async function openCalendarEmbed(page: Page, viewLabel: '일' | '주' | '
 		window.localStorage.setItem('internkim.calendar.view', view);
 	}, calendarViewStorageValue(viewLabel));
 	await page.reload();
-	const button = page.locator('.calendar-view-switcher').getByRole('button', { name: viewLabel, exact: true });
-	await expect(button).toHaveClass(/active-view/);
+	await expect(page.locator('.calendar-stage')).toHaveClass(new RegExp(`calendar-stage-${calendarViewStorageValue(viewLabel)}`));
 }
 
 export async function navigateEmbeddedCalendar(page: Page, dateKey: string): Promise<void> {

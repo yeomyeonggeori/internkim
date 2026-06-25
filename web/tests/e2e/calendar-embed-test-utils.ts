@@ -133,6 +133,36 @@ export async function routeCalendarEventUpdates(page: Page): Promise<CalendarEve
 	return updatedEvents;
 }
 
+export async function routeCalendarEventCreates(page: Page): Promise<CalendarEventUpdatePayload[]> {
+	const createdEvents: CalendarEventUpdatePayload[] = [];
+	await page.route('**/calendar/api/events', async (route) => {
+		if (route.request().method() !== 'POST') {
+			await route.fallback();
+			return;
+		}
+		const payload = calendarEventUpdatePayloadFromRequestData(route.request().postData());
+		createdEvents.push(payload);
+		await route.fulfill({
+			json: {
+				id: payload.eventID,
+				uid: payload.eventID,
+				title: payload.title,
+				description: payload.description,
+				location: payload.location,
+				startISO: payload.startISO,
+				endISO: payload.endISO,
+				timeZone: payload.timeZone,
+				isAllDay: payload.isAllDay,
+				color: payload.color,
+				createdByEmail: 'test@example.com',
+				createdByName: 'Test User',
+				updatedAt: '2026-06-08T00:00:00Z'
+			}
+		});
+	});
+	return createdEvents;
+}
+
 export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
 	const deletedEventIDs: string[] = [];
 	await page.route('**/calendar/api/events/*', async (route) => {

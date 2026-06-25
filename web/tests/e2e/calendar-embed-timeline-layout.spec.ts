@@ -35,6 +35,51 @@ test.describe('embedded calendar timeline layout', () => {
 		await routeDefaultCalendarAPI(page);
 	});
 
+	test('insets mobile day view events from the timeline cell edges', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await routeCalendarEvents(page, [
+			{
+				id: 'mobile-day-all-day-event',
+				title: '종일',
+				startISO: '2026-06-08T00:00:00+09:00',
+				endISO: '2026-06-09T00:00:00+09:00',
+				isAllDay: true
+			},
+			{
+				id: 'mobile-day-timed-event',
+				title: '시간',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+
+		const measurements = await page.evaluate(() => {
+			const eventRect = (selector: string) => {
+				const eventElement = document.querySelector<HTMLElement>(selector);
+				const parentElement = eventElement?.parentElement;
+				if (!eventElement || !parentElement) return null;
+				const eventRectangle = eventElement.getBoundingClientRect();
+				const parentRectangle = parentElement.getBoundingClientRect();
+				return {
+					leftInset: Math.round(eventRectangle.left - parentRectangle.left),
+					rightInset: Math.round(parentRectangle.right - eventRectangle.right)
+				};
+			};
+			return {
+				allDayEvent: eventRect('.df-day-content-all-day-lane [data-event-id="mobile-day-all-day-event"]'),
+				timedEvent: eventRect(
+					'.df-day-event.df-event-timed[data-event-id="mobile-day-timed-event"]:not(.df-right-panel-event-card)'
+				)
+			};
+		});
+
+		expect(measurements.allDayEvent).toEqual({ leftInset: 4, rightInset: 4 });
+		expect(measurements.timedEvent).toEqual({ leftInset: 4, rightInset: 4 });
+	});
+
 	test('starts day and week timelines below the all-day row at 01:00', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
 		await expectFirstVisibleTimeLabel(page, '01:00');
