@@ -25,6 +25,7 @@ export type CalendarLocaleText = {
 	googleCalendarConnectAction: string;
 	googleCalendarReconnectAction: string;
 	googleCalendarReconnectHint: string;
+	googleCalendarUnavailableHint: string;
 	shared: string;
 	refresh: string;
 	syncTitle: string;
@@ -122,6 +123,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnectAction: 'Google Calendar 연결',
 		googleCalendarReconnectAction: 'Google Calendar 다시 연결',
 		googleCalendarReconnectHint: '외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.',
+		googleCalendarUnavailableHint: 'Google Calendar 연동은 아직 준비되지 않았습니다.\n사용이 필요하면 관리자에게 문의하세요.',
 		shared: '공유',
 		refresh: '새로고침',
 		syncTitle: '연동',
@@ -228,6 +230,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnectAction: 'Connect Google Calendar',
 		googleCalendarReconnectAction: 'Reconnect Google Calendar',
 		googleCalendarReconnectHint: 'Reconnect the account to resume remote calendar sync.',
+		googleCalendarUnavailableHint: 'Google Calendar integration is not ready yet.\nContact an administrator if you need access.',
 		shared: 'Shared',
 		refresh: 'Refresh',
 		syncTitle: 'Sync',
