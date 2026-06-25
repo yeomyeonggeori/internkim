@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
-import { dispatchElementScroll, doubleClickCalendarEvent, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { dispatchElementScroll, doubleClickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 import {
 	duplicateDayAnchorTimelineEventSelector,
 	routeDuplicateDayAnchorEvent
@@ -72,6 +72,61 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(unexpectedUpdate).resolves.toBe(false);
 		expect(updatedEvents).toHaveLength(0);
+	});
+
+	test('dismisses unchanged week edit popovers on calendar scroll without saving or dismissing internal popover scroll', async ({ page }) => {
+		const updatedEvents = await routeCalendarEventUpdates(page);
+		await routeCalendarEvents(page, [
+			{
+				id: 'week-scroll-dismiss-event',
+				title: 'Week Scroll Dismiss Event',
+				startISO: '2026-06-16T09:00:00+09:00',
+				endISO: '2026-06-16T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-16');
+		const eventSelector = '.calendar-stage [data-event-id="week-scroll-dismiss-event"].df-week-event.df-event-timed';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await doubleClickCalendarEvent(page, eventSelector);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+
+		await dispatchElementScroll(page, '.draft-popover-body', 24);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+
+		const unexpectedUpdate = page
+			.waitForRequest((request) => request.method() === 'PUT' && request.url().includes('/calendar/api/events/'), {
+				timeout: 500
+			})
+			.then(() => true, () => false);
+		await dispatchElementScroll(page, '.df-week-time-grid-scroller', 120);
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(unexpectedUpdate).resolves.toBe(false);
+		expect(updatedEvents).toHaveLength(0);
+	});
+
+	test('does not open a week all-day event popover after a moved pointer gesture', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'moved-pointer-week-all-day-event',
+				title: 'Moved Pointer Week All Day Event',
+				startISO: '2026-06-17T00:00:00+09:00',
+				endISO: '2026-06-18T00:00:00+09:00',
+				isAllDay: true
+			}
+		]);
+
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-16');
+		const eventSelector = '.calendar-stage .df-week-all-day-event-layer [data-event-id="moved-pointer-week-all-day-event"]';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector, { pointerType: 'touch' });
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 });
 

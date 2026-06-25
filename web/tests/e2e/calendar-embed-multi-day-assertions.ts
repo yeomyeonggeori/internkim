@@ -1,11 +1,11 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function expectMultiDayTimedProxy(page: Page, eventID: string, title: string, startTime: string, endTime: string): Promise<void> {
+export async function expectMultiDayTimedProxy(page: Page, eventID: string, title: string, startTime: string): Promise<void> {
 	const proxy = page.locator(`.calendar-multi-day-all-day-proxy[data-event-id="${eventID}::multi-day-proxy"]`);
 	await expect(proxy).toHaveCount(1);
 	await expect(proxy).toContainText(title);
 	await expect(proxy.locator('.calendar-multi-day-all-day-proxy-start')).toHaveText(`${title} ${startTime}`);
-	await expect(proxy.locator('.calendar-multi-day-all-day-proxy-end')).toHaveText(endTime);
+	await expect(proxy.locator('.calendar-multi-day-all-day-proxy-end')).toHaveCount(0);
 	await expect
 		.poll(async () =>
 			page.evaluate((targetEventID) => {
