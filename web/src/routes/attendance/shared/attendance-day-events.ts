@@ -1,5 +1,9 @@
 import type { AttendanceEvent } from '../attendance-context.svelte';
-import { buildAttendanceWorkSegments, type AttendanceWorkSegment } from './attendance-work-segments';
+import {
+	buildAttendanceWorkSegments,
+	type AttendanceWorkSegment,
+	type AttendanceWorkSegmentOptions,
+} from './attendance-work-segments';
 
 export type DayEvents = {
 	date: string;
@@ -11,6 +15,8 @@ export type DayEvents = {
 	workedMinutes: number;
 	inProgress: boolean;
 };
+
+export type DayEventsOptions = AttendanceWorkSegmentOptions;
 
 export function groupEventsByDay(events: AttendanceEvent[]): Map<string, AttendanceEvent[]> {
 	const map = new Map<string, AttendanceEvent[]>();
@@ -26,11 +32,11 @@ export function groupEventsByDay(events: AttendanceEvent[]): Map<string, Attenda
 	return map;
 }
 
-export function computeDayEvents(date: string, events: AttendanceEvent[]): DayEvents {
+export function computeDayEvents(date: string, events: AttendanceEvent[], options: DayEventsOptions = {}): DayEvents {
 	const sorted = events
 		.filter((event) => !event.canceledAt)
 		.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-	const segments = buildAttendanceWorkSegments(date, sorted);
+	const segments = buildAttendanceWorkSegments(date, sorted, options);
 	const activeSegment = [...segments].reverse().find((segment) => segment.isOpen);
 	const clockIn = [...segments].reverse().find((segment) => segment.clockIn)?.clockIn;
 	const clockOut = [...segments].reverse().find((segment) => segment.clockOut)?.clockOut;

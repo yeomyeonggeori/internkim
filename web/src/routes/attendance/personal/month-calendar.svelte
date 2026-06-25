@@ -103,7 +103,7 @@
 				<div></div>
 			{/each}
 			{#each days as date (date)}
-				{@const day = computeDayEvents(date, personalEvents)}
+					{@const day = computeDayEvents(date, personalEvents, { currentDate: today })}
 				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
 				{@const visibleAbsence = isWeekend(date) ? undefined : dayAbsence}
 				<button

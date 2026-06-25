@@ -3,7 +3,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { computePersonalStats } from '../shared/attendance-aggregation';
-	import { eachDayOfMonth } from '../shared/attendance-date';
+	import { eachDayOfMonth, todayDateInTimeZone } from '../shared/attendance-date';
 	import { computeDayEvents } from '../shared/attendance-day-events';
 	import { attendanceText } from '../text';
 
@@ -19,8 +19,9 @@
 	const events = $derived(
 		attendance.summary ? attendance.summary.events.filter((e) => e.email === targetEmail) : []
 	);
+	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 	const stats = $derived(
-		attendance.summary ? computePersonalStats(attendance.summary.month, events) : null
+		attendance.summary ? computePersonalStats(attendance.summary.month, events, { currentDate: today }) : null
 	);
 	const locationBreakdown = $derived(buildLocationBreakdown(attendance.summary?.month ?? '', events));
 	const ringDeg = $derived(stats && stats.weekdayCount ? Math.round((stats.workedDays / stats.weekdayCount) * 360) : 0);
@@ -29,7 +30,7 @@
 		const count = new Map<string, number>();
 		let total = 0;
 		for (const date of eachDayOfMonth(month)) {
-			const day = computeDayEvents(date, eventList);
+			const day = computeDayEvents(date, eventList, { currentDate: today });
 			for (const segment of day.segments) {
 				const label = segment.locationName ?? '-';
 				count.set(label, (count.get(label) ?? 0) + 1);

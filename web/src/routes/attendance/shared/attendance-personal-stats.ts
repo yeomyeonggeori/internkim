@@ -1,6 +1,6 @@
 import type { AttendanceEvent } from '../attendance-context.svelte';
 import { eachDayOfMonth, isWeekday } from './attendance-date';
-import { computeDayEvents } from './attendance-day-events';
+import { computeDayEvents, type DayEventsOptions } from './attendance-day-events';
 import { formatTimeOfDay } from './attendance-format';
 
 export type PersonalSummaryStats = {
@@ -12,17 +12,24 @@ export type PersonalSummaryStats = {
 	topLocationPercent: number;
 };
 
-export function computePersonalStats(month: string, events: AttendanceEvent[]): PersonalSummaryStats {
+export type PersonalSummaryStatsOptions = DayEventsOptions;
+
+export function computePersonalStats(
+	month: string,
+	events: AttendanceEvent[],
+	options: PersonalSummaryStatsOptions = {}
+): PersonalSummaryStats {
 	let workedDays = 0;
 	let totalMinutes = 0;
 	const clockInMinutes: number[] = [];
 	const locationCount = new Map<string, number>();
 	for (const date of eachDayOfMonth(month)) {
-		const day = computeDayEvents(date, events);
+		const day = computeDayEvents(date, events, options);
 		if (day.segments.length > 0) {
 			workedDays += 1;
 			totalMinutes += day.workedMinutes;
-			clockInMinutes.push(clockInLocalMinutes(day.segments[0]?.startTime));
+			const clockInTime = originalClockInTimeForDate(day.segments, date);
+			if (clockInTime) clockInMinutes.push(clockInLocalMinutes(clockInTime));
 			for (const segment of day.segments) {
 				const label = segment.locationName ?? 'Unknown';
 				locationCount.set(label, (locationCount.get(label) ?? 0) + 1);
@@ -44,6 +51,13 @@ export function computePersonalStats(month: string, events: AttendanceEvent[]): 
 	const segmentCount = [...locationCount.values()].reduce((total, count) => total + count, 0);
 	const topLocationPercent = segmentCount ? Math.round((topLocationCount / segmentCount) * 100) : 0;
 	return { workedDays, weekdayCount, totalMinutes, averageClockInTime, topLocationLabel, topLocationPercent };
+}
+
+function originalClockInTimeForDate(
+	segments: { clockIn: AttendanceEvent }[],
+	date: string
+): string | undefined {
+	return segments.find((segment) => segment.clockIn.localDate === date)?.clockIn.localTime;
 }
 
 function clockInLocalMinutes(localTime: string | undefined): number {
