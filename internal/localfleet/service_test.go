@@ -62,6 +62,18 @@ func TestEphemeralServiceUsesRunScopedStateAndPorts(t *testing.T) {
 	}
 }
 
+func TestEphemeralCleanupContextSurvivesCanceledRun(t *testing.T) {
+	runContext, cancelRun := context.WithCancel(context.Background())
+	cancelRun()
+
+	cleanupContext, cancelCleanup := newEphemeralCleanupContext(runContext)
+	defer cancelCleanup()
+
+	if cleanupContext.Err() != nil {
+		t.Fatalf("cleanup context should survive canceled run context: %v", cleanupContext.Err())
+	}
+}
+
 func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
