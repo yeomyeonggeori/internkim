@@ -16,7 +16,8 @@ printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-
   golang-go \
   jq \
   make \
-  python3
+  python3 \
+  unzip
 
 if [ "$needs_bun" = "1" ] && ! command -v bun >/dev/null 2>&1; then
   printf '%s\n' "$sudo_password" | sudo -S env BUN_INSTALL=/usr/local bash -c 'curl -fsSL https://bun.sh/install | bash'
