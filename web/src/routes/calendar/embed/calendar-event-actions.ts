@@ -40,7 +40,9 @@ export type CalendarEventActionsContext = {
 };
 
 export type CalendarEventActions = {
+	createAllDaySingleEvent: (dateKey: string) => DayFlowEvent | null;
 	createQuickEvent: () => DayFlowEvent;
+	openAllDaySingleEventMobileEditor: (dateKey: string) => void;
 	openQuickEventMobileEditor: () => void;
 	openTimelineSingleEventMobileEditor: (startDate: Date) => void;
 	openEventMobileEditor: (eventID: string) => void;
@@ -111,6 +113,12 @@ export function createCalendarEventActions(
 		context.openMobileEventEditor(event);
 	}
 
+	function openAllDaySingleEventMobileEditor(dateKey: string): void {
+		const event = draftAction.createAllDaySingleEvent(dateKey);
+		if (!event) return;
+		context.openMobileEventEditor(event);
+	}
+
 	function openEventMobileEditor(eventID: string): void {
 		const event = context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === eventID);
 		if (!event) return;
@@ -148,6 +156,8 @@ export function createCalendarEventActions(
 
 	return {
 		createQuickEvent: draftAction.createQuickEvent,
+		createAllDaySingleEvent: draftAction.createAllDaySingleEvent,
+		openAllDaySingleEventMobileEditor,
 		openQuickEventMobileEditor,
 		openTimelineSingleEventMobileEditor,
 		openEventMobileEditor,

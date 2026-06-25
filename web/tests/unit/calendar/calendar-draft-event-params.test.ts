@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 
 import {
+	allDaySingleDraftEventParams,
+	isDraftEventID,
 	timelineRangeDraftEventParams,
 	timelineSingleDraftEventParams
 } from '../../../src/routes/calendar/embed/calendar-draft-event-params';
@@ -15,6 +17,15 @@ test('creates a one-hour timeline draft from a single slot', () => {
 	expect(params.end).toEqual(new Date(2026, 5, 8, 15, 15, 0, 0));
 	expect(params.allDay).toBe(false);
 	expect(params.calendarId).toBe('internkim');
+});
+
+test('recognizes generated local draft event IDs', () => {
+	const allDayParams = allDaySingleDraftEventParams('2026-06-08');
+	const timelineParams = timelineSingleDraftEventParams(new Date(2026, 5, 8, 14, 15, 0, 0));
+
+	expect(isDraftEventID(allDayParams.id)).toBe(true);
+	expect(isDraftEventID(timelineParams.id)).toBe(true);
+	expect(isDraftEventID('persisted-calendar-event')).toBe(false);
 });
 
 test('orders timeline range dates and keeps at least thirty minutes', () => {

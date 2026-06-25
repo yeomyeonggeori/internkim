@@ -1,7 +1,5 @@
 import type { CalendarViewType, Event as DayFlowEvent } from '@dayflow/core';
 import { ViewType } from '@dayflow/svelte';
-import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
-import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
 import {
 	dayFlowSelector,
 	dayFlowTimedEventElements,
@@ -14,7 +12,6 @@ type CalendarMultiDayProxyLayoutContext = {
 	currentView: CalendarViewType;
 	currentDate: Date;
 	events: DayFlowEvent[];
-	openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 };
 
 type ProxySegment = {
@@ -26,7 +23,6 @@ type ProxySegment = {
 
 const proxyClass = 'calendar-multi-day-all-day-proxy';
 const proxyStartClass = 'calendar-multi-day-all-day-proxy-start';
-const proxyEndClass = 'calendar-multi-day-all-day-proxy-end';
 const hiddenRegularClass = 'calendar-multi-day-regular-hidden';
 const proxyTop = 2;
 const proxyHeight = 16;
@@ -78,7 +74,7 @@ function syncWeekMultiDayProxyLayout(context: CalendarMultiDayProxyLayoutContext
 		const lastCellRectangle = lastCell.getBoundingClientRect();
 		const left = firstCellRectangle.left - layerRectangle.left + proxyInset;
 		const width = lastCellRectangle.right - firstCellRectangle.left - proxyInset * 2;
-		layerElement.appendChild(createProxyElement(segment, left, width, context.openEvent));
+		layerElement.appendChild(createProxyElement(segment, left, width));
 	}
 	context.stageElement?.style.setProperty('--calendar-multi-day-all-day-rows', String(segments.length));
 }
@@ -93,7 +89,7 @@ function syncDayMultiDayProxyLayout(context: CalendarMultiDayProxyLayoutContext)
 	for (const segment of segments) {
 		const left = proxyInset;
 		const width = layerRectangle.width - proxyInset * 2;
-		layerElement.appendChild(createProxyElement(segment, left, width, context.openEvent));
+		layerElement.appendChild(createProxyElement(segment, left, width));
 	}
 	context.stageElement?.style.setProperty('--calendar-multi-day-all-day-rows', String(segments.length));
 }
@@ -125,8 +121,7 @@ function hideRegularMultiDaySegments(stageElement: HTMLElement | null, segments:
 function createProxyElement(
 	segment: ProxySegment,
 	left: number,
-	width: number,
-	openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void
+	width: number
 ): HTMLElement {
 	const proxyElement = document.createElement('button');
 	proxyElement.type = 'button';
@@ -137,12 +132,6 @@ function createProxyElement(
 	proxyElement.style.width = `${Math.max(28, Math.round(width))}px`;
 	proxyElement.style.height = `${proxyHeight}px`;
 	proxyElement.appendChild(createProxyStartElement(segment));
-	proxyElement.appendChild(createProxyEndElement(segment));
-	proxyElement.addEventListener('click', (event) => {
-		event.preventDefault();
-		event.stopPropagation();
-		openEvent(segment.event.id, calendarEventAnchorFromElement(proxyElement));
-	});
 	return proxyElement;
 }
 
@@ -151,13 +140,6 @@ function createProxyStartElement(segment: ProxySegment): HTMLElement {
 	startElement.className = proxyStartClass;
 	startElement.textContent = `${segment.event.title} ${formatEventTime(eventStartDate(segment.event))}`;
 	return startElement;
-}
-
-function createProxyEndElement(segment: ProxySegment): HTMLElement {
-	const endElement = document.createElement('span');
-	endElement.className = proxyEndClass;
-	endElement.textContent = formatEventTime(eventEndDate(segment.event));
-	return endElement;
 }
 
 function isMultiDayTimedEvent(event: DayFlowEvent): boolean {
