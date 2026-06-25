@@ -8,7 +8,7 @@
 	import DayDetailPanel from './personal/day-detail-panel.svelte';
 	import MonthCalendar from './personal/month-calendar.svelte';
 	import QuickActions from './quick-actions.svelte';
-	import { eachDayOfMonth } from './shared/attendance-date';
+	import { eachDayOfMonth, todayDateInTimeZone } from './shared/attendance-date';
 	import { computeDayEvents } from './shared/attendance-day-events';
 	import { formatHoursMinutes } from './shared/attendance-format';
 	import WorkTimeChart from './shared/work-time-chart.svelte';
@@ -21,12 +21,13 @@
 	const chartEvents = $derived(
 		(attendance.summary?.events ?? []).filter((event) => event.email === targetEmail)
 	);
+	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 	const dailyValues = $derived(buildDailyValues(attendance.summary?.month ?? '', chartEvents));
 
 	function buildDailyValues(month: string, eventList: typeof chartEvents) {
 		if (!month) return [];
 		return eachDayOfMonth(month).map((date) => {
-			const day = computeDayEvents(date, eventList);
+			const day = computeDayEvents(date, eventList, { currentDate: today });
 			return { date, value: day.workedMinutes };
 		});
 	}

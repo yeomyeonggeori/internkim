@@ -38,7 +38,7 @@
 	const today = $derived(todayDateInTimeZone(attendance.currentMonthSummary?.timeZone));
 
 	const statusLabel = $derived.by(() => {
-		const status = statusForDay(today, realtimeEvents, realtimeAbsences);
+		const status = statusForDay(today, realtimeEvents, realtimeAbsences, today);
 		if (status === 'working') return text.working;
 		if (status === 'finished') return text.finished;
 		if (status === 'absence') return text.absence;
@@ -46,7 +46,7 @@
 	});
 
 	const statusIconClass = $derived.by(() => {
-		const status = statusForDay(today, realtimeEvents, realtimeAbsences);
+		const status = statusForDay(today, realtimeEvents, realtimeAbsences, today);
 		if (status === 'working') return 'text-success';
 		if (status === 'absence') return 'text-info';
 		if (status === 'finished') return 'text-muted-foreground';
@@ -89,7 +89,7 @@
 	function buildDailyValues(month: string, eventList: typeof chartEvents) {
 		if (!month) return [];
 		return eachDayOfMonth(month).map((date) => {
-			const day = computeDayEvents(date, eventList);
+			const day = computeDayEvents(date, eventList, { currentDate: today });
 			return { date, value: day.workedMinutes };
 		});
 	}

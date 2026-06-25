@@ -15,7 +15,15 @@ export type AttendanceWorkSegment = {
 	isOpen: boolean;
 };
 
-export function buildAttendanceWorkSegments(date: string, events: AttendanceEvent[]): AttendanceWorkSegment[] {
+export type AttendanceWorkSegmentOptions = {
+	currentDate?: string;
+};
+
+export function buildAttendanceWorkSegments(
+	date: string,
+	events: AttendanceEvent[],
+	options: AttendanceWorkSegmentOptions = {}
+): AttendanceWorkSegment[] {
 	const sortedEvents = events
 		.filter((event) => !event.canceledAt)
 		.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
@@ -39,7 +47,7 @@ export function buildAttendanceWorkSegments(date: string, events: AttendanceEven
 	}
 	if (openClockIn) {
 		const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn);
-		const splitSegment = splitAttendanceWorkSegmentForDate(date, segment);
+		const splitSegment = splitAttendanceWorkSegmentForDate(date, segment, options.currentDate);
 		if (splitSegment) segments.push(splitSegment);
 	}
 	return segments;
@@ -70,9 +78,10 @@ function createAttendanceWorkSegment(
 
 function splitAttendanceWorkSegmentForDate(
 	date: string,
-	segment: AttendanceWorkSegment
+	segment: AttendanceWorkSegment,
+	currentDate?: string
 ): AttendanceWorkSegment | undefined {
-	if (!segment.endEvent) return splitOpenAttendanceWorkSegmentForDate(date, segment);
+	if (!segment.endEvent) return splitOpenAttendanceWorkSegmentForDate(date, segment, currentDate);
 	const startDate = segment.clockIn.localDate;
 	const endDate = segment.endEvent.localDate;
 	if (date < startDate || date > endDate) return undefined;
@@ -93,11 +102,28 @@ function splitAttendanceWorkSegmentForDate(
 
 function splitOpenAttendanceWorkSegmentForDate(
 	date: string,
-	segment: AttendanceWorkSegment
+	segment: AttendanceWorkSegment,
+	currentDate?: string
 ): AttendanceWorkSegment | undefined {
 	const startDate = segment.clockIn.localDate;
-	if (date !== startDate) return undefined;
-	return { ...segment, id: `${segment.id}-${date}`, date, startTime: segment.clockIn.localTime };
+	if (date < startDate) return undefined;
+	if (!currentDate && date !== startDate) return undefined;
+	if (currentDate && date > currentDate) return undefined;
+	const startTime = date === startDate ? segment.clockIn.localTime : '00:00:00';
+	if (currentDate && date < currentDate) {
+		const workedMinutes = minutesBetweenLocalTimes(startTime, '24:00:00');
+		if (workedMinutes <= 0) return undefined;
+		return {
+			...segment,
+			id: `${segment.id}-${date}`,
+			date,
+			startTime,
+			endTime: '24:00:00',
+			workedMinutes,
+			isOpen: false,
+		};
+	}
+	return { ...segment, id: `${segment.id}-${date}`, date, startTime, endTime: undefined, workedMinutes: 0, isOpen: true };
 }
 
 function minutesBetweenLocalTimes(startTime: string, endTime: string): number {

@@ -3,9 +3,9 @@ export {
 	groupEventsByDay,
 	minutesBetween,
 } from './attendance-day-events';
-export type { DayEvents } from './attendance-day-events';
+export type { DayEvents, DayEventsOptions } from './attendance-day-events';
 export { buildAttendanceWorkSegments } from './attendance-work-segments';
-export type { AttendanceWorkSegment } from './attendance-work-segments';
+export type { AttendanceWorkSegment, AttendanceWorkSegmentOptions } from './attendance-work-segments';
 export { computeHeatmap } from './attendance-heatmap';
 export type { DayHeatCell } from './attendance-heatmap';
 export {
@@ -15,7 +15,7 @@ export {
 } from './attendance-people';
 export type { PersonStatus, PersonToday } from './attendance-people';
 export { computePersonalStats } from './attendance-personal-stats';
-export type { PersonalSummaryStats } from './attendance-personal-stats';
+export type { PersonalSummaryStats, PersonalSummaryStatsOptions } from './attendance-personal-stats';
 export {
 	teamThisMonthAggregate,
 	teamThisWeekAggregate,
