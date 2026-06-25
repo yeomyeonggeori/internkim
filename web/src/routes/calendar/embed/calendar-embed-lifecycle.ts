@@ -1,4 +1,6 @@
 import type { ViewType } from '@dayflow/svelte';
+import { installCalendarAllDayCellAction } from './calendar-all-day-cell-action';
+import type { CalendarAllDayCellActionOptions } from './calendar-all-day-cell-action';
 import { clearCalendarAllDayLayout } from './calendar-all-day-layout';
 import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dismiss';
 import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
@@ -44,6 +46,7 @@ export type CalendarEmbedLifecycleOptions = {
 	refreshSelectedMonthDateCellAfterRender: () => void;
 	clearMonthScrollOverlays: () => void;
 	monthRangeAction: Omit<MonthRangeActionOptions, 'stageElement'>;
+	allDayCellAction: Omit<CalendarAllDayCellActionOptions, 'stageElement'>;
 	timelineRangeAction: Omit<TimelineRangeActionOptions, 'stageElement'>;
 	wheelNavigation: Omit<CalendarWheelNavigationOptions, 'stageElement'>;
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
@@ -128,6 +131,7 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 	if (!options.stageElement) return () => {};
 	const stageElement = options.stageElement;
 	const stopMonthRangeCreate = installCalendarMonthRangeAction({ stageElement, ...options.monthRangeAction });
+	const stopAllDayCellCreate = installCalendarAllDayCellAction({ stageElement, ...options.allDayCellAction });
 	const stopTimelineRangeCreate = installCalendarTimelineRangeAction({ stageElement, ...options.timelineRangeAction });
 	const stopWheelNavigation = installCalendarWheelNavigation({ stageElement, ...options.wheelNavigation });
 	const stopTimelineScrollState = installCalendarTimelineScrollState(stageElement);
@@ -137,6 +141,7 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 	const stopEventAnchorCapture = installCalendarEventAnchorCapture(stageElement);
 	return () => {
 		stopMonthRangeCreate();
+		stopAllDayCellCreate();
 		stopTimelineRangeCreate();
 		stopWheelNavigation();
 		stopTimelineScrollState();

@@ -73,6 +73,7 @@ export function createCalendarPageLifecycleOptions(
 		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
 		clearMonthScrollOverlays: context.scrollOverlays.clearMonthScrollOverlays,
 		monthRangeAction: monthRangeAction(context),
+		allDayCellAction: allDayCellAction(context),
 		timelineRangeAction: timelineRangeAction(context),
 		wheelNavigation: wheelNavigation(context),
 		draftPopoverDismiss: draftPopoverDismiss(context),
@@ -94,6 +95,16 @@ export function createCalendarPageLifecycleOptions(
 		keyboardDelete: keyboardDelete(context),
 		miniCalendarMonthPicker: miniCalendarMonthPicker(context),
 		navigateToDateKey: context.pageNavigation.navigateToDateKey
+	};
+}
+
+function allDayCellAction(context: CalendarPageLifecycleOptionsContext): CalendarEmbedLifecycleOptions['allDayCellAction'] {
+	return {
+		currentView: context.getCurrentView,
+		currentDate: context.getToolbarDate,
+		createAllDayEvent: context.draftPopoverActions.openAllDaySingleDraftPopover,
+		createMobileAllDayEvent: context.eventActions.openAllDaySingleEventMobileEditor,
+		isMobileEventEditor: context.getIsMobileTwoDayWeekView
 	};
 }
 
