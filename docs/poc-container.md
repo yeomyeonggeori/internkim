@@ -1,9 +1,13 @@
-# PoC 컨테이너 운영 (M1 Mac, Firecracker 없는 멀티테넌트)
+# PoC 컨테이너 운영 (legacy 공유 인프라 모델)
 
-중첩 가상화를 지원하지 않는 Apple Silicon(M1/M2)에서 김인턴 테넌트를 가볍게
-여러 개 띄우기 위한 모델이다. 각 테넌트는 Blueclaw를 **direct/native 모드**로
-실행하는 컨테이너 하나이며(Firecracker·supervisor·systemd 없음), 하나의
-Postgres와 하나의 Mattermost를 공유한다.
+현재 Mac-Studio PoC 운영과 배포는 Apple Container 기반 `poc/` 경로와
+[docs/poc-host.md](poc-host.md)를 기준으로 한다. 일반 운영자는 `.local/ops/targets.json`에
+`kind: poc-container` target을 등록하고 fleet-aware `deploy`를 사용한다.
+
+이 문서는 `internkim tenant container ...`로 공유 Postgres와 공유 Mattermost 위에
+테넌트를 여러 개 띄우던 legacy Docker/Colima 실험 모델의 기록이다. 각 테넌트는
+Blueclaw를 **direct/native 모드**로 실행하는 컨테이너 하나이며
+(Firecracker·supervisor·systemd 없음), 하나의 Postgres와 하나의 Mattermost를 공유한다.
 
 [docs/poc-host.md](poc-host.md)의 nspawn 호스트 모델과 비교하면, 그쪽은 테넌트마다
 독립 Mattermost를 가진 강력한 단일 호스트용이고(테넌트당 ~1GB), 이쪽은 공유 인프라로
@@ -57,10 +61,19 @@ Postgres와 하나의 Mattermost를 공유한다.
 데이터 격리나 상호 불신 고객이 필요한 단계에서는 테넌트별 독립 Mattermost(하드 경계,
 테넌트당 ~+440MB)로 승격한다. 데이터·에이전트·봇토큰 분리는 두 모델 모두 동일하다.
 
-## 최초 1회: 호스트 준비
+## 현재 PoC 기준
+
+- Mac host scripts: `poc/README.md`
+- 호스트 멀티테넌트 운영: [docs/poc-host.md](poc-host.md)
+- fleet 배포: `.local/ops/targets.json` target `kind: poc-container`
+- 배포 명령: `INTERNKIM_POC_SSH_PASSWORD=<pw> ./internkim deploy --components admind,capabilityd,blueclaw,web --fleet <poc-id>`
+
+손으로 build/scp/docker compose/container restart를 조합하지 않고 `deploy`를 사용한다.
+
+## Legacy 최초 1회: 호스트 준비
 
 ```bash
-# 1. 컨테이너 런타임 (램 가벼운 colima)
+# 1. legacy 컨테이너 런타임 (램 가벼운 colima)
 brew install colima docker docker-compose
 colima start --cpu 6 --memory 20 --disk 60
 
@@ -73,7 +86,7 @@ colima start --cpu 6 --memory 20 --disk 60
 #    <workdir>/secrets/openrouter-key
 ```
 
-## 인프라와 테넌트 기동
+## Legacy 인프라와 테넌트 기동
 
 ```bash
 # 공유 인프라(Postgres + Mattermost) 기동 후 헬스 대기
@@ -86,7 +99,7 @@ internkim tenant container up --workdir <DIR> --count 10
 internkim tenant container status --workdir <DIR>
 ```
 
-## 테넌트 추가 / 제거 / 리셋
+## Legacy 테넌트 추가 / 제거 / 리셋
 
 ```bash
 # 하나 추가: DB + Mattermost 팀·에이전트·토큰 + 설정 + 컨테이너

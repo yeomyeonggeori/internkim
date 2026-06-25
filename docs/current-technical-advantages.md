@@ -61,7 +61,7 @@ Workspace 경로도 사용자에게 concrete POSIX path를 직접 노출하지 �
 대표적인 분리는 다음과 같다.
 
 - OpenRouter API key는 `internkim-capabilityd`가 읽고, Blueclaw는 LLM 요청 capability만 호출한다.
-- 현재 운영 채널인 Mattermost token은 `internkim-capabilityd`가 보유하고, Blueclaw는 platform reply/send 같은 typed capability를 호출한다. Slack과 Signal은 같은 경계로 붙일 예정 채널이다.
+- 현재 운영 채널인 Mattermost token은 `internkim-capabilityd`가 보유하고, Blueclaw는 platform reply/send 같은 typed capability를 호출한다. Slack Socket Mode와 Signal JSON-RPC sidecar도 같은 product-layer 경계로 붙는 선택 채널이다.
 - Google service account와 Apps Script webhook은 `gws`, `gws-bot`, helper 경로가 사용하고, agent runtime은 Google 비밀값 자체를 보지 않는다.
 - Companion signing private key는 device state JSON에 두지 않고 사용자 컴퓨터의 secure storage에 둔다.
 - 사용자 로컬 파일 선택은 Companion이 처리하고, 김인턴에는 device-local temporary path와 TTL만 전달된다.
@@ -71,7 +71,7 @@ Workspace 경로도 사용자에게 concrete POSIX path를 직접 노출하지 �
 
 ## 4. Agent runtime과 제품 appliance 경계가 분리됨
 
-Blueclaw는 정책, task, ACL, prompt, skill 선택, memory, scheduler 같은 agent runtime을 담당하고, InternKim product layer는 device provisioning, Cloudflare, Mattermost, Google, OpenRouter, admin UI, fleet, packaging을 담당한다. Slack과 Signal 같은 외부 채널은 같은 product layer 경계로 확장할 계획이다.
+Blueclaw는 정책, task, ACL, prompt, skill 선택, memory, scheduler 같은 agent runtime을 담당하고, InternKim product layer는 device provisioning, Cloudflare, Mattermost, Google, OpenRouter, admin UI, fleet, packaging을 담당한다. Slack과 Signal 같은 외부 채널은 선택 connector로 같은 product layer 경계에 붙는다.
 
 이 분리는 기술적으로 중요하다.
 
@@ -128,7 +128,7 @@ flowchart LR
 
 이 설계의 장점은 외부 계정 인증이 없어도 기본 업무를 시작할 수 있고, 외부 공유나 발송 같은 irreversible action은 capability 단위 승인 정책으로 묶을 수 있다는 점이다. 특히 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이 실행하지 않는 방향으로 정리되어 있다.
 
-따라서 김인턴의 업무 기능은 흩어진 SaaS를 단순히 대신 호출하는 것이 아니라, Mattermost, Blueclaw task/event model, capability provider를 같은 권한/승인/기록 구조로 묶는 방식에 가깝다. Slack, Signal, Google Chat 같은 채널은 현재 지원이 아니라 같은 경계 위에 붙일 예정 채널이다.
+따라서 김인턴의 업무 기능은 흩어진 SaaS를 단순히 대신 호출하는 것이 아니라, Mattermost, Blueclaw task/event model, capability provider를 같은 권한/승인/기록 구조로 묶는 방식에 가깝다. Slack과 Signal connector 경로도 같은 경계 위에 있으며, 고객 검증의 기본 surface는 Mattermost다.
 
 ## 7. 직원 PC를 통째로 열지 않고 연결하는 Companion 구조
 

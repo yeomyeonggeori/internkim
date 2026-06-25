@@ -40,11 +40,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   cassette instead of relying on seed stability alone.
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
-- Treat the apple/container lab as the required pre-deploy Linux/runtime gate for agent execution
-  that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
+- Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
+  agent execution that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
 - Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
-  until the relevant container replay produces the intended result. If container replay
+  until the relevant Local Fleet run produces the intended result. If Local Fleet verification
   fails, fix the behavior or explicitly report the unresolved failure instead of
   proceeding to deployment.
 - Do not replace this gate with Docker or another executor unless the task
@@ -97,8 +97,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
   without it). Embedding: embeddinggemma-300M QAT on CPU (`-ngl 0`, frees GPU for
   generation). gemma-4-E4B does not fit the 8GB Jetson alongside firecracker; use E2B.
-  Build the `llama-server`/`litert_lm_main` binary in a local `linux/arm64` container and
-  deploy only the artifact — Bazel/CUDA builds OOM the 8GB Jetson.
+  Build the `llama-server` bundle in a local `linux/arm64` container and deploy only that
+  artifact. `litert_lm_main` is a legacy fallback path, not the default generation backend;
+  Bazel/CUDA builds OOM the 8GB Jetson.
 - Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
 - For Admin/Flow web UI-only changes, use

@@ -111,8 +111,8 @@ flowchart LR
 | `/root/.internkim/models/*` | `internkim-capabilityd`, local model wrapper | local model runtime |
 | `/root/.internkim/secrets/google-sa.json` | `gws`, `gws-bot`, Apps Script helper | Google Workspace 연동 |
 | `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper | Apps Script bridge 호출 |
-| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | planned Slack Socket Mode와 reply |
-| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | planned Signal JSON-RPC poll/reply |
+| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | optional Slack Socket Mode와 reply |
+| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | optional Signal JSON-RPC poll/reply |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
 
 Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽지 않습니다. Companion signing private key는 device state JSON에 저장하지 않고 사용자 컴퓨터의 secure storage에 둡니다.
@@ -198,7 +198,7 @@ sudo systemctl restart internkim-pilot-tunnel.service
 | **Go CLI** (`cmd/internkim/main.go`) | 운영 CLI: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `tenant`/`host`, `llm`, `users`/`task`/`invite`. `sim`은 Local Fleet의 legacy alias |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
 | **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack Socket Mode와 Signal JSON-RPC sidecar도 같은 경계에서 선택적으로 기동 |
-| **local model** | 생성·임베딩 모두 상주 `llama-server`(llama.cpp): 생성 gemma-4-E2B QAT + MTP(`--chat-template gemma`), 임베딩 embeddinggemma-300M(CPU `-ngl 0`). `internkim-local-llm-runner`(LiteRT)는 레거시 fallback |
+| **local model** | 생성·임베딩 모두 상주 `llama-server`(llama.cpp): 생성 gemma-4-E2B QAT + MTP(`--chat-template gemma`), 임베딩 embeddinggemma-300M(CPU `-ngl 0`). `internkim-local-llm-runner`(LiteRT)는 optional legacy fallback이며 기본 생성/임베딩 경로가 아님 |
 | **Blueclaw** | Firecracker guest 안의 agent runtime. host는 `blueclaw-supervisor`로 guest를 띄우고, guest는 `/workspace/.blueclaw/config/*.json`와 `/workspace/.blueclaw/runtime/current/bin/blueclaw` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
@@ -567,7 +567,7 @@ internkim/
 │   ├── internkim-llm-gateway/
 │   │                         OpenRouter 호환 tenant LLM gateway (Cloudflare Worker용)
 │   ├── internkim-local-llm-runner/
-│   │                         LiteRT runner (legacy; 생성·임베딩은 llama.cpp llama-server)
+│   │                         LiteRT runner (optional legacy fallback; 기본 생성·임베딩은 llama.cpp)
 │   └── download/            기기 헬퍼 바이너리
 ├── internal/
 │   ├── admind/              admin UI proxy, backup/restore, companion broker
@@ -600,7 +600,7 @@ internkim/
 │   ├── skill-orchestration-design.md
 │   ├── flows/              사용자 플로우 문서
 │   └── schema/             task/staff schema 문서
-├── lab/config.example.json   container lab 설정 예시
+├── lab/config.example.json   저수준 VM lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
 ├── tools/                   개발/준비용 helper script
 ├── build/                   기기 바이너리와 정적 웹 출력 [gitignored]
