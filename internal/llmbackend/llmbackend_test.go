@@ -267,16 +267,22 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	}
 }
 
-func TestOpenRouterBackendRejectsActionContentWhenToolCallIsMissing(t *testing.T) {
+func TestOpenRouterBackendFallsBackToJSONSchemaWhenActionToolCallIsMissing(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	requestDocuments := []map[string]any{}
 	backend := OpenRouterBackend{
 		KeyPath:   secretPath,
 		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
 		ModelName: "configured-model",
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var requestDocument map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			requestDocuments = append(requestDocuments, requestDocument)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"finishMessage\":\"할 수 있는 일을 설명드릴게요.\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
@@ -290,8 +296,130 @@ func TestOpenRouterBackendRejectsActionContentWhenToolCallIsMissing(t *testing.T
 		StructuredOutputSchema: testAgentActionSchema(),
 	})
 
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "did not include tool_calls") {
-		t.Fatalf("expected missing tool_calls error, got response=%+v error=%v", response, errorValue)
+	if errorValue != nil {
+		t.Fatalf("expected JSON schema fallback response, got response=%+v error=%v", response, errorValue)
+	}
+	if response.ConstraintMode != ConstraintModeOpenAIJSONSchema {
+		t.Fatalf("expected JSON schema fallback mode, got %q", response.ConstraintMode)
+	}
+	if len(requestDocuments) != 2 {
+		t.Fatalf("expected native request then JSON schema fallback, got %d requests", len(requestDocuments))
+	}
+	if _, isFound := requestDocuments[0]["tools"]; !isFound {
+		t.Fatalf("expected first request to use native tools, got %+v", requestDocuments[0])
+	}
+	if _, isFound := requestDocuments[1]["response_format"]; !isFound {
+		t.Fatalf("expected second request to use JSON schema, got %+v", requestDocuments[1])
+	}
+	if strings.TrimSpace(response.Content) == "" {
+		t.Fatal("expected fallback response content")
+	}
+}
+
+func TestOpenRouterBackendFallsBackToJSONSchemaWhenProviderRejectsNativeActionTools(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestDocuments := []map[string]any{}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var requestDocument map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			requestDocuments = append(requestDocuments, requestDocument)
+			if len(requestDocuments) == 1 {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"Provider returned error (400)"}}`)),
+					Header:     make(http.Header),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"action\":\"finish\",\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected fallback after provider 400: %v", errorValue)
+	}
+	if response.ConstraintMode != ConstraintModeOpenAIJSONSchema {
+		t.Fatalf("expected JSON schema fallback mode, got %q", response.ConstraintMode)
+	}
+	if len(requestDocuments) != 2 {
+		t.Fatalf("expected native request then JSON schema fallback, got %d requests", len(requestDocuments))
+	}
+	if _, isFound := requestDocuments[0]["tools"]; !isFound {
+		t.Fatalf("expected first request to use native tools, got %+v", requestDocuments[0])
+	}
+	if _, isFound := requestDocuments[1]["response_format"]; !isFound {
+		t.Fatalf("expected second request to use JSON schema, got %+v", requestDocuments[1])
+	}
+}
+
+func TestOpenRouterBackendRetriesNativeActionWithFallbackModel(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestDocuments := []map[string]any{}
+	backend := OpenRouterBackend{
+		KeyPath:            secretPath,
+		BaseURL:            "https://openrouter.ai/api/v1/chat/completions",
+		ModelName:          "primary-model",
+		FallbackModelNames: []string{"fallback-model"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var requestDocument map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			requestDocuments = append(requestDocuments, requestDocument)
+			if requestDocument["model"] == "primary-model" {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"Provider returned error (400)"}}`)),
+					Header:     make(http.Header),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"finish","arguments":"{\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected fallback model native action response: %v", errorValue)
+	}
+	if response.Model != "fallback-model" {
+		t.Fatalf("expected fallback model response, got %q", response.Model)
+	}
+	if response.ConstraintMode != ConstraintModeNativeToolCall {
+		t.Fatalf("expected native tool call on fallback model, got %q", response.ConstraintMode)
+	}
+	if len(requestDocuments) != 2 {
+		t.Fatalf("expected two native model attempts, got %d requests", len(requestDocuments))
+	}
+	if _, isFound := requestDocuments[1]["tools"]; !isFound {
+		t.Fatalf("expected second request to remain native tool-call, got %+v", requestDocuments[1])
 	}
 }
 
@@ -669,6 +797,50 @@ func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	}
 	if receivedDocument["tool_choice"] != "required" {
 		t.Fatalf("expected required tool choice, got %+v", receivedDocument)
+	}
+}
+
+func TestLlamaCppBackendFallsBackToJSONSchemaWhenActionToolCallIsMissing(t *testing.T) {
+	requestDocuments := []map[string]any{}
+	backend := LlamaCppBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "default",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/v1/chat/completions" {
+				t.Fatalf("unexpected path: %s", request.URL.Path)
+			}
+			var requestDocument map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			requestDocuments = append(requestDocuments, requestDocument)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected JSON schema fallback response: %v", errorValue)
+	}
+	if response.ConstraintMode != ConstraintModeLlamaJSONSchema {
+		t.Fatalf("expected llama JSON schema fallback mode, got %q", response.ConstraintMode)
+	}
+	if len(requestDocuments) != 2 {
+		t.Fatalf("expected native request then JSON schema fallback, got %d requests", len(requestDocuments))
+	}
+	if _, isFound := requestDocuments[0]["tools"]; !isFound {
+		t.Fatalf("expected first request to use native tools, got %+v", requestDocuments[0])
+	}
+	if _, isFound := requestDocuments[1]["response_format"]; !isFound {
+		t.Fatalf("expected second request to use JSON schema, got %+v", requestDocuments[1])
 	}
 }
 

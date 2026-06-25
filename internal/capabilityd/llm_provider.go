@@ -147,6 +147,7 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 		KeyPath:             service.Configuration.OpenRouterKeyPath,
 		BaseURL:             service.Configuration.OpenRouterBaseURL,
 		ModelName:           firstNonEmpty(service.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel),
+		FallbackModelNames:  llmbackend.DefaultOpenRouterActionFallbackModels,
 		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
 		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
 		HTTPClient:          service.httpClient(),
