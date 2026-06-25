@@ -201,16 +201,16 @@
 							</button>
 						{/snippet}
 					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={6} class="block space-y-1.5">
+					<Tooltip.Content side="top" sideOffset={6} class="grid w-max max-w-[calc(100vw-2rem)] grid-cols-[0.375rem_max-content_max-content_max-content] gap-x-2 gap-y-1.5 overflow-x-auto">
 						{#each todaySegmentBars as segment (segment.id)}
-							<div class="grid grid-cols-[0.375rem_2.5rem_4.5rem_3.5rem] items-center gap-1 whitespace-nowrap text-left tabular-nums">
+							<div class="contents text-left tabular-nums">
 								<span
 									class="size-1.5 shrink-0 rounded-full"
 									style:background-color={segment.color}
 								></span>
-								<span class="truncate text-left">{segment.locationName}</span>
-								<span class="text-left">{segment.timeLabel}</span>
-								<span class="text-left">{segment.durationLabel}</span>
+								<span class="whitespace-nowrap text-left">{segment.locationName}</span>
+								<span class="whitespace-nowrap text-left">{segment.timeLabel}</span>
+								<span class="whitespace-nowrap text-left">{segment.durationLabel}</span>
 							</div>
 						{/each}
 					</Tooltip.Content>

@@ -67,6 +67,49 @@ test.describe('attendance', () => {
 		await expect(page.getByText('진행 중')).toBeVisible();
 	});
 
+	test('sizes team status tooltip columns to fit long segment labels', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
+			await route.fulfill({ json: buildWideTooltipSummary(month, todayDateInSeoul()) });
+		});
+
+		const todayDate = todayDateInSeoul();
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).hover();
+
+		const tooltip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: '사무실본관회의실A' });
+		await expect(tooltip).toBeVisible();
+
+		const layout = await tooltip.evaluate((content) => {
+			const rows = Array.from(content.children).filter((child): child is HTMLElement => {
+				return child instanceof HTMLElement && child.querySelectorAll('span').length >= 4;
+			});
+			const overflowingCells = rows.flatMap((row) => {
+				return Array.from(row.querySelectorAll('span'))
+					.filter((span) => (span.textContent ?? '').trim().length > 0)
+					.filter((span) => span.scrollWidth > span.clientWidth + 1)
+					.map((span) => (span.textContent ?? '').trim());
+			});
+			const columnLefts = rows.map((row) => {
+				const spans = Array.from(row.querySelectorAll('span'));
+				return spans.slice(1, 4).map((span) => Math.round(span.getBoundingClientRect().left));
+			});
+			const maximumColumnDrift = columnLefts[0]
+				? Math.max(
+						...columnLefts.flatMap((lefts) =>
+							lefts.map((left, index) => Math.abs(left - (columnLefts[0]?.[index] ?? left)))
+						)
+					)
+				: 0;
+			return { overflowingCells, maximumColumnDrift };
+		});
+		expect(layout.overflowingCells).toEqual([]);
+		expect(layout.maximumColumnDrift).toBeLessThanOrEqual(1);
+	});
+
 	test('opens status day details from a team status cell', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
@@ -339,6 +382,32 @@ function attendanceEvent(
 		resultPostID: `${overrides.id}-post`,
 		locationID: 'office',
 		locationName: '사무실'
+	};
+}
+
+function buildWideTooltipSummary(month: string, todayDate: string): AttendanceSummary {
+	const summary = buildAttendanceSummaryFixture(month);
+	if (month !== todayDate.slice(0, 7)) return summary;
+	const times = ['09:46:54', '10:46:54', '10:46:54', '19:35:48', '19:36:00'];
+	let index = 0;
+	return {
+		...summary,
+		locations: summary.locations.map((location) => {
+			if (location.id !== 'office') return location;
+			return { ...location, name: '사무실본관회의실A' };
+		}),
+		events: summary.events.map((event) => {
+			if (event.email !== 'kim@example.com' || event.localDate !== todayDate) return event;
+			const localTime = times[index] ?? event.localTime;
+			index += 1;
+			return {
+				...event,
+				occurredAt: `${todayDate}T${localTime}+09:00`,
+				localTime,
+				locationID: 'office',
+				locationName: '사무실본관회의실A'
+			};
+		})
 	};
 }
 
