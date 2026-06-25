@@ -5,6 +5,8 @@ import "time"
 const (
 	DefaultVirtualMachineName = "internkim-local-fleet"
 	DefaultRecipe             = "predeploy-gate"
+	DefaultAdminHostPort      = 18080
+	DefaultMattermostHostPort = 8065
 
 	ActionUp               = "up"
 	ActionDown             = "down"
@@ -19,13 +21,19 @@ type Options struct {
 	ExecutablePath     string
 	StateRootPath      string
 	VirtualMachineName string
+	RunID              string
+	AdminHostPort      int
+	MattermostHostPort int
+	IsEphemeral        bool
 }
 
 type JobRequest struct {
-	Action   string `json:"action"`
-	Recipe   string `json:"recipe,omitempty"`
-	Scenario string `json:"scenario,omitempty"`
-	Base     string `json:"base,omitempty"`
+	Action            string `json:"action"`
+	Recipe            string `json:"recipe,omitempty"`
+	Scenario          string `json:"scenario,omitempty"`
+	Base              string `json:"base,omitempty"`
+	KeepArtifacts     bool   `json:"keepArtifacts,omitempty"`
+	WithoutMattermost bool   `json:"withoutMattermost,omitempty"`
 }
 
 type Status struct {

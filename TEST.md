@@ -83,6 +83,17 @@ Slack과 Signal은 외부 플랫폼이므로 reset 명령이 원격 서비스의
 ./internkim lab scenario-e2e
 ```
 
+테스트 동안만 살아 있는 로컬 Linux 환경이 필요하면 local fleet의 일회용 실행을
+사용합니다. 성공/실패 뒤 기본적으로 VM, 터널, 상태 디렉터리를 정리합니다.
+
+```bash
+./internkim dev fleet run --ephemeral --scenario mattermost-direct-message-send
+./internkim dev fleet run --ephemeral --without-mattermost --scenario dm_send_confirm_acceptance
+```
+
+디버깅용으로 남겨야 하면 `--keep`을 붙입니다. 이 경우 출력된 cleanup 명령으로
+VM과 상태를 직접 지웁니다.
+
 기본 설정 파일을 바꾸려면:
 
 ```bash
