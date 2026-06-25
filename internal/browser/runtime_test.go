@@ -63,7 +63,7 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	}
 	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url"}
-	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
+	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "-i", "--compact", "--json"}
 	if len(runner.calls) != 3 {
 		t.Fatalf("expected 3 command calls (open + url check + snapshot), got %d: %+v", len(runner.calls), runner.calls)
 	}
@@ -94,7 +94,7 @@ func TestAgentBrowserRuntimeAcceptsLoginRedirect(t *testing.T) {
 	if result.URL != "https://accounts.google.com/signin/v2/identifier" {
 		t.Fatalf("unexpected redirect result: %+v", result)
 	}
-	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
+	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "-i", "--compact", "--json"}
 	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
 		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
 	}
@@ -122,6 +122,29 @@ func TestAgentBrowserRuntimeAcceptsOpenSettleTimeoutWithCurrentURL(t *testing.T)
 	}
 	if len(runner.calls) != 3 {
 		t.Fatalf("expected open, url, snapshot calls, got %+v", runner.calls)
+	}
+}
+
+func TestAgentBrowserRuntimeNavigateUsesSnapshotURLWhenCurrentURLIsStale(t *testing.T) {
+	runner := &sequenceCommandRunner{results: []commandResult{
+		{output: []byte("ok\n")},
+		{output: []byte("about:blank\n")},
+		{output: []byte(`{"url":"https://example.com/dashboard","title":"Dashboard","snapshotText":"ready","nodes":[{"ref":"e1"}]}`)},
+	}}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+	}
+
+	result, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com/dashboard"})
+
+	if errorValue != nil {
+		t.Fatalf("expected snapshot URL to recover stale current URL: %v", errorValue)
+	}
+	if result.URL != "https://example.com/dashboard" || result.SnapshotText != "ready" || !containsString(result.InteractiveRefs, "@e1") {
+		t.Fatalf("unexpected recovered navigation result: %+v", result)
 	}
 }
 
@@ -390,7 +413,7 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 func TestDeviceReadinessShellScriptChecksLightpandaSnapshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine lightpanda", "--executable-path \"$browserExecutablePath\"", "snapshot", DeviceBrowserExecutablePath} {
+	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine lightpanda", "--executable-path \"$browserExecutablePath\"", "snapshot -i --compact --json", DeviceBrowserExecutablePath} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}

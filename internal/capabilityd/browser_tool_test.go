@@ -47,7 +47,8 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if calls[1].arguments[len(calls[1].arguments)-2] != "get" || calls[1].arguments[len(calls[1].arguments)-1] != "url" {
 		t.Fatalf("expected second call to be url check, got %+v", calls[1].arguments)
 	}
-	if calls[2].arguments[len(calls[2].arguments)-3] != "snapshot" {
+	if calls[2].arguments[len(calls[2].arguments)-4] != "snapshot" ||
+		calls[2].arguments[len(calls[2].arguments)-3] != "-i" {
 		t.Fatalf("expected third call to be snapshot, got %+v", calls[2].arguments)
 	}
 }
