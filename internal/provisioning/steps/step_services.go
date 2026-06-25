@@ -100,12 +100,8 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
   grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi`)
 
-		if deviceURL := context.Callbacks.LoadState("device_url"); deviceURL != "" {
-			connection.Run(fmt.Sprintf(`
-if [ -f /opt/mattermost/config/config.json ]; then
-  sed -i 's|"SiteURL": "[^"]*"|"SiteURL": "%s"|' /opt/mattermost/config/config.json
-  systemctl restart mattermost 2>/dev/null || true
-fi`, deviceURL))
+		if deviceURL := context.Callbacks.LoadState("device_url"); deviceURL != "" && shouldReconcileMattermostSiteURL(context) {
+			connection.Run(mattermostSiteURLReconcileCommand(deviceURL))
 			fmt.Printf("  %s: %s\n", context.T("Mattermost URL 설정", "Mattermost URL"), deviceURL)
 			if trimmedRun(context, `curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"'`) != "" {
 				fmt.Println("  " + context.T("Mattermost 응답 확인", "Mattermost responded"))
@@ -127,6 +123,26 @@ command -v ip >/dev/null
 command -v iptables >/dev/null
 command -v sysctl >/dev/null
 command -v jq >/dev/null`
+}
+
+func shouldReconcileMattermostSiteURL(context *Context) bool {
+	return context != nil && context.PlannedSteps["mattermost"]
+}
+
+func mattermostSiteURLReconcileCommand(deviceURL string) string {
+	quotedDeviceURL := shellQuote(deviceURL)
+	return `set -e
+configuration_path=/opt/mattermost/config/config.json
+if [ -f "$configuration_path" ]; then
+  current_url="$(jq -r '.ServiceSettings.SiteURL // .SiteURL // ""' "$configuration_path" 2>/dev/null || true)"
+  if [ "$current_url" != ` + quotedDeviceURL + ` ]; then
+    temporary_path="$(mktemp)"
+    jq --arg siteURL ` + quotedDeviceURL + ` '.ServiceSettings = ((.ServiceSettings // {}) + {"SiteURL": $siteURL})' "$configuration_path" > "$temporary_path"
+    cat "$temporary_path" > "$configuration_path"
+    rm -f "$temporary_path"
+    systemctl restart mattermost 2>/dev/null || true
+  fi
+fi`
 }
 
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {

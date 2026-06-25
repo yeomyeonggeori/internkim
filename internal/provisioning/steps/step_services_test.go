@@ -175,6 +175,29 @@ func TestBlueclawHostNetworkDependencyInstallCommandInstallsTapNATTools(t *testi
 	}
 }
 
+func TestServicesReconcileMattermostSiteURLOnlyWhenMattermostIsPlanned(t *testing.T) {
+	if shouldReconcileMattermostSiteURL(&Context{PlannedSteps: map[string]bool{"local-llm": true}}) {
+		t.Fatal("expected non-Mattermost service plan to skip Mattermost SiteURL reconciliation")
+	}
+	if !shouldReconcileMattermostSiteURL(&Context{PlannedSteps: map[string]bool{"mattermost": true}}) {
+		t.Fatal("expected Mattermost plan to reconcile Mattermost SiteURL")
+	}
+}
+
+func TestMattermostSiteURLReconcileCommandRestartsOnlyWhenURLChanges(t *testing.T) {
+	command := mattermostSiteURLReconcileCommand("https://device.example")
+	for _, expectedValue := range []string{
+		`current_url="$(jq -r '.ServiceSettings.SiteURL // .SiteURL // ""'`,
+		`if [ "$current_url" != 'https://device.example' ]; then`,
+		`jq --arg siteURL 'https://device.example'`,
+		"systemctl restart mattermost",
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected Mattermost SiteURL command to contain %q, got:\n%s", expectedValue, command)
+		}
+	}
+}
+
 func TestJetsonServicesDoNotInstallLlamaCppUnitsByDefault(t *testing.T) {
 	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
 
