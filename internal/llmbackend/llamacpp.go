@@ -20,8 +20,19 @@ func (backend LlamaCppBackend) Ping(ctx context.Context) error {
 
 func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
 	if response, isHandled, errorValue := backend.completeNativeAction(ctx, request); isHandled {
-		return response, errorValue
+		if errorValue == nil {
+			return response, nil
+		}
+		fallbackResponse, fallbackError := backend.completeJSONSchema(ctx, request)
+		if fallbackError == nil {
+			return fallbackResponse, nil
+		}
+		return Response{}, nativeActionFallbackError(errorValue, fallbackError)
 	}
+	return backend.completeJSONSchema(ctx, request)
+}
+
+func (backend LlamaCppBackend) completeJSONSchema(ctx context.Context, request StructuredRequest) (Response, error) {
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema, generationOptionsValue(request.GenerationOptions))
 	content, usage, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
