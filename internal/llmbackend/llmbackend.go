@@ -277,6 +277,44 @@ func providerFailure(provider Provider, errorValue error) string {
 	return errorValue.Error()
 }
 
+func nativeActionFallbackError(nativeError error, fallbackError error) error {
+	if nativeError == nil {
+		return fallbackError
+	}
+	if fallbackError == nil {
+		return nativeError
+	}
+	return errors.New("native action tool call failed: " + nativeError.Error() + "; json schema fallback failed: " + fallbackError.Error())
+}
+
+func nativeActionModelFallbackError(nativeErrors []error, fallbackErrors []error) error {
+	return errors.New("native action tool-call attempts failed: " + joinedErrors(nativeErrors) + "; json schema fallback attempts failed: " + joinedErrors(fallbackErrors))
+}
+
+func modelAttemptError(modelName string, errorValue error) error {
+	if errorValue == nil {
+		return nil
+	}
+	normalizedModelName := strings.TrimSpace(modelName)
+	if normalizedModelName == "" {
+		return errorValue
+	}
+	return errors.New(normalizedModelName + ": " + errorValue.Error())
+}
+
+func joinedErrors(errorValues []error) string {
+	values := []string{}
+	for _, errorValue := range errorValues {
+		if errorValue != nil {
+			values = append(values, errorValue.Error())
+		}
+	}
+	if len(values) == 0 {
+		return "none"
+	}
+	return strings.Join(values, "; ")
+}
+
 func logFallback(provider Provider, errorValue error, requestTrace string) {
 	if errorValue != nil {
 		if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {

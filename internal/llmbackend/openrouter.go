@@ -17,9 +17,17 @@ type OpenRouterBackend struct {
 	KeyPath             string
 	BaseURL             string
 	ModelName           string
+	FallbackModelNames  []string
 	GatewaySecretPath   string
 	GatewaySecretHeader string
 	HTTPClient          *http.Client
+}
+
+var DefaultOpenRouterActionFallbackModels = []string{
+	"google/gemini-3.5-flash",
+	"x-ai/grok-4.3",
+	"google/gemini-3.1-flash-lite",
+	"z-ai/glm-5.2",
 }
 
 func (backend OpenRouterBackend) Name() string { return "openrouter" }
@@ -41,25 +49,33 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 		return Response{}, errorValue
 	}
 	modelName := backend.resolveModelName(request.Model)
-	if response, isHandled, errorValue := backend.completeNativeAction(ctx, apiKey, request, modelName); isHandled {
-		return response, errorValue
+	if isActionTurnStructuredRequest(request) {
+		return backend.completeActionStructured(ctx, apiKey, request, backend.actionModelNames(modelName))
 	}
-	requestDocument, errorValue := buildOpenRouterStructuredRequest(request, modelName)
-	if errorValue != nil {
-		return Response{}, errorValue
+	return backend.completeJSONSchema(ctx, apiKey, request, modelName)
+}
+
+func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, apiKey string, request StructuredRequest, modelNames []string) (Response, error) {
+	nativeErrors := []error{}
+	for _, modelName := range modelNames {
+		response, isHandled, errorValue := backend.completeNativeAction(ctx, apiKey, request, modelName)
+		if !isHandled {
+			return backend.completeJSONSchema(ctx, apiKey, request, modelName)
+		}
+		if errorValue == nil {
+			return response, nil
+		}
+		nativeErrors = append(nativeErrors, modelAttemptError(modelName, errorValue))
 	}
-	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
-	if errorValue != nil {
-		return Response{}, errorValue
+	fallbackErrors := []error{}
+	for _, modelName := range modelNames {
+		response, errorValue := backend.completeJSONSchema(ctx, apiKey, request, modelName)
+		if errorValue == nil {
+			return response, nil
+		}
+		fallbackErrors = append(fallbackErrors, modelAttemptError(modelName, errorValue))
 	}
-	return Response{
-		Provider:        "openrouter",
-		Model:           modelName,
-		Content:         content,
-		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
-		Usage:           usage,
-	}, nil
+	return Response{}, nativeActionModelFallbackError(nativeErrors, fallbackErrors)
 }
 
 func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, bool, error) {
@@ -83,6 +99,25 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 		ConstraintMode:  ConstraintModeNativeToolCall,
 		Usage:           usage,
 	}, true, nil
+}
+
+func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
+	requestDocument, errorValue := buildOpenRouterStructuredRequest(request, modelName)
+	if errorValue != nil {
+		return Response{}, errorValue
+	}
+	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
+	if errorValue != nil {
+		return Response{}, errorValue
+	}
+	return Response{
+		Provider:        "openrouter",
+		Model:           modelName,
+		Content:         content,
+		SelectedBackend: capabilities.LLMBackendRemote,
+		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
+		Usage:           usage,
+	}, nil
 }
 
 func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
@@ -142,6 +177,30 @@ func (backend OpenRouterBackend) resolveModelName(requestedModel string) string 
 		return strings.TrimSpace(backend.ModelName)
 	}
 	return normalized
+}
+
+func (backend OpenRouterBackend) actionModelNames(primaryModelName string) []string {
+	candidates := []string{primaryModelName}
+	candidates = append(candidates, backend.FallbackModelNames...)
+	modelNames := uniqueModelNames(candidates)
+	if len(modelNames) == 0 {
+		return []string{strings.TrimSpace(primaryModelName)}
+	}
+	return modelNames
+}
+
+func uniqueModelNames(modelNames []string) []string {
+	seen := map[string]bool{}
+	result := []string{}
+	for _, modelName := range modelNames {
+		normalized := strings.TrimSpace(modelName)
+		if normalized == "" || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (string, Usage, error) {
