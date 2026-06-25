@@ -31,7 +31,7 @@ export async function routeCalendarAPI(page: Page): Promise<void> {
 		});
 	});
 	await page.route('**/calendar/api/account-status', async (route) => {
-		await route.fulfill({ json: { connected: false, needsReauth: false } });
+		await route.fulfill({ json: { connected: false, needsReauth: false, googleOAuthConfigured: true } });
 	});
 	await page.route('**/calendar/api/remote-sync', async (route) => {
 		await route.fulfill({ json: { synced: false } });
