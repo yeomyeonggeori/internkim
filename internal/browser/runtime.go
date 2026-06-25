@@ -262,7 +262,7 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 		return SessionStartResult{}, openError
 	}
 	if exposedURL != "" && !isSuccessfulNavigationURL(firstNonEmpty(observation.URL, exposedURL)) {
-		return SessionStartResult{}, errors.New("companion browser did not navigate to requested URL")
+		return SessionStartResult{}, errors.New(runtime.browserRuntimeLabel() + " did not navigate to requested URL")
 	}
 	return SessionStartResult{
 		SessionID:       runtime.sessionName(),
@@ -373,22 +373,23 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	openArguments := runtime.sessionStartArguments()
 	openArguments = append(openArguments, "open", trimmedURL)
 	openError := runtime.runOpenCommand(ctx, openArguments)
-	actualURL, errorValue := runtime.currentURL(ctx)
-	if openError != nil && errorValue != nil {
+	actualURL, currentURLError := runtime.currentURL(ctx)
+	observation, observationError := runtime.observeCurrentPage(ctx)
+	if openError != nil && currentURLError != nil && observationError != nil {
 		return NavigateResult{}, openError
 	}
 	if openError != nil && !isOpenSettleTimeout(openError) {
 		return NavigateResult{}, openError
 	}
-	if errorValue != nil {
-		return NavigateResult{}, errorValue
+	navigationURL := firstNonEmpty(observation.URL, actualURL)
+	if navigationURL == "" && currentURLError != nil && observationError != nil {
+		return NavigateResult{}, currentURLError
 	}
-	if !isSuccessfulNavigationURL(actualURL) {
-		return NavigateResult{}, errors.New("companion browser did not navigate to requested URL")
+	if !isSuccessfulNavigationURL(navigationURL) {
+		return NavigateResult{}, errors.New(runtime.browserRuntimeLabel() + " did not navigate to requested URL")
 	}
-	observation, _ := runtime.observeCurrentPage(ctx)
 	return NavigateResult{
-		URL:             firstNonEmpty(observation.URL, actualURL),
+		URL:             navigationURL,
 		RequestedURL:    trimmedURL,
 		Title:           observation.Title,
 		SnapshotText:    observation.SnapshotText,
@@ -457,7 +458,7 @@ func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveR
 
 func (runtime AgentBrowserRuntime) observeCurrentPage(ctx context.Context) (ObserveResult, error) {
 	capturedAt := runtime.now().UTC().Format(time.RFC3339)
-	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "--compact", "--json")...)
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "-i", "--compact", "--json")...)
 	if errorValue != nil {
 		return ObserveResult{}, errorValue
 	}
@@ -629,7 +630,7 @@ stop_agent_browser_daemons() {
 stop_agent_browser_daemons
 timeout 15s agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1 || true
 timeout 45s agent-browser --session internkim-device-smoke --engine lightpanda --executable-path "$browserExecutablePath" --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-lightpanda-open.log 2>&1
-timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot -i --compact --json >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
 stop_agent_browser_daemons
 `
 }
@@ -767,6 +768,13 @@ func (runtime AgentBrowserRuntime) sleep(ctx context.Context, delay time.Duratio
 
 func (runtime AgentBrowserRuntime) commandPath() string {
 	return firstNonEmpty(runtime.CommandPath, "agent-browser")
+}
+
+func (runtime AgentBrowserRuntime) browserRuntimeLabel() string {
+	if runtime.browserEngine() == BrowserEngineLightpanda {
+		return "device browser"
+	}
+	return "companion browser"
 }
 
 func (runtime NativeHandoffRuntime) openCommand(targetURL string) (string, []string, error) {
