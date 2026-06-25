@@ -70,7 +70,32 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	)`); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_event_overrides (
+		id TEXT PRIMARY KEY,
+		event_id TEXT NOT NULL,
+		edited_by TEXT NOT NULL,
+		edited_at TEXT NOT NULL,
+		reason TEXT NOT NULL,
+		original_occurred_at TEXT NOT NULL,
+		original_local_date TEXT NOT NULL,
+		original_local_time TEXT NOT NULL,
+		original_location_id TEXT NOT NULL,
+		original_location_name TEXT NOT NULL,
+		override_occurred_at TEXT NOT NULL,
+		override_local_date TEXT NOT NULL,
+		override_local_time TEXT NOT NULL,
+		override_location_id TEXT NOT NULL,
+		override_location_name TEXT NOT NULL
+	)`); errorValue != nil {
+		return errorValue
+	}
 	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_event_overrides_event_edited ON attendance_event_overrides(event_id, edited_at)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_event_overrides_date ON attendance_event_overrides(override_local_date)"); errorValue != nil {
 		return errorValue
 	}
 	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_absence_ranges_active_dates ON attendance_absence_ranges(canceled_at, start_date, end_date)"); errorValue != nil {

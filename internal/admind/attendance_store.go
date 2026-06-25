@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 )
@@ -146,8 +147,12 @@ func (service *Service) readAttendanceEvents(ctx context.Context, month string, 
 	endDate := attendanceNextMonth(month) + "-01"
 	query := `SELECT ` + attendanceEventSelectColumns + `
 FROM attendance_events
-WHERE local_date >= ? AND local_date < ?`
-	arguments := []any{startDate, endDate}
+WHERE (local_date >= ? AND local_date < ? OR id IN (
+	SELECT event_id
+	FROM attendance_event_overrides
+	WHERE override_local_date >= ? AND override_local_date < ?
+))`
+	arguments := []any{startDate, endDate, startDate, endDate}
 	if strings.TrimSpace(email) != "" {
 		query += " AND email = ?"
 		arguments = append(arguments, strings.ToLower(strings.TrimSpace(email)))
@@ -166,7 +171,23 @@ WHERE local_date >= ? AND local_date < ?`
 		}
 		events = append(events, event)
 	}
-	return events, rows.Err()
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	events, errorValue = service.applyAttendanceEventOverrides(ctx, database, events)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	filteredEvents := make([]attendanceEvent, 0, len(events))
+	for _, event := range events {
+		if event.LocalDate >= startDate && event.LocalDate < endDate {
+			filteredEvents = append(filteredEvents, event)
+		}
+	}
+	sort.SliceStable(filteredEvents, func(firstIndex int, secondIndex int) bool {
+		return filteredEvents[firstIndex].OccurredAt > filteredEvents[secondIndex].OccurredAt
+	})
+	return filteredEvents, nil
 }
 
 func (service *Service) repairFutureAttendanceEvents(ctx context.Context, now time.Time) error {

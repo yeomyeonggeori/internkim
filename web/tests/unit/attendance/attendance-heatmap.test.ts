@@ -24,8 +24,8 @@ describe('attendance heatmap', () => {
 			{
 				id: 'absence-next-month',
 				email: 'lee@example.com',
-				kind: 'business_trip',
-				labelKey: 'business_trip',
+				kind: 'other',
+				labelKey: 'other',
 				date: '2026-06-01',
 				createdAt: '2026-05-01T09:00:00+09:00',
 			},

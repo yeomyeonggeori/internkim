@@ -6,9 +6,14 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import { getAttendanceState, type AttendanceAbsenceKind } from './attendance-context.svelte';
-	import { todayDateInTimeZone } from './shared/attendance-date';
+	import { addDays, todayDateInTimeZone } from './shared/attendance-date';
 	import { attendanceText } from './text';
 
+	type Props = {
+		compact?: boolean;
+	};
+
+	let { compact = false }: Props = $props();
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
@@ -21,17 +26,18 @@
 	let statusMessage = $state('');
 	let errorMessage = $state('');
 	let hasEditedDateRange = $state(false);
+	let dateRangeDurationDays = $state(0);
 
 	$effect(() => {
 		const defaultDate = attendance.selectedDate || today;
 		if (hasEditedDateRange) return;
 		startDate = defaultDate;
 		endDate = defaultDate;
+		dateRangeDurationDays = 0;
 	});
 
 	const kindOptions = $derived([
 		{ value: 'leave' as const, label: text.absenceKindLeave },
-		{ value: 'business_trip' as const, label: text.absenceKindBusinessTrip },
 		{ value: 'other' as const, label: text.absenceKindOther }
 	]);
 
@@ -56,15 +62,39 @@
 			isSubmitting = false;
 		}
 	}
+
+	function handleStartDateInput(event: Event) {
+		const nextStartDate = event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : startDate;
+		const shouldMoveEndDate = nextStartDate > startDate;
+		startDate = nextStartDate;
+		if (shouldMoveEndDate) {
+			endDate = addDays(nextStartDate, dateRangeDurationDays);
+		}
+		hasEditedDateRange = true;
+	}
+
+	function handleEndDateInput(event: Event) {
+		const nextEndDate = event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : endDate;
+		endDate = nextEndDate;
+		dateRangeDurationDays = dateDifferenceInDays(startDate, nextEndDate);
+		hasEditedDateRange = true;
+	}
+
+	function dateDifferenceInDays(start: string, end: string): number {
+		const startTime = Date.parse(`${start}T00:00:00Z`);
+		const endTime = Date.parse(`${end}T00:00:00Z`);
+		if (Number.isNaN(startTime) || Number.isNaN(endTime)) return 0;
+		return Math.max(0, Math.round((endTime - startTime) / 86400000));
+	}
 </script>
 
-<Card.Root>
-	<Card.Header>
-		<Card.Title class="text-base">{text.absenceFormTitle}</Card.Title>
+<Card.Root class={compact ? 'gap-1.5' : undefined}>
+	<Card.Header class={compact ? 'pb-0' : undefined}>
+		<Card.Title class={compact ? 'text-sm' : 'text-base'}>{text.absenceFormTitle}</Card.Title>
 	</Card.Header>
-	<Card.Content>
+	<Card.Content class={compact ? 'px-3 pb-3 pt-0' : undefined}>
 		<form
-			class="grid gap-3 sm:grid-cols-2"
+			class={compact ? 'grid grid-cols-1 gap-2' : 'grid gap-3 sm:grid-cols-2'}
 			onsubmit={(event) => {
 				event.preventDefault();
 				submitAbsence();
@@ -82,43 +112,40 @@
 					{/each}
 				</select>
 			</label>
-			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
+			<label class={compact ? 'grid gap-1 text-xs font-medium text-muted-foreground' : 'grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2'}>
 				<span>{text.absenceStartDate}</span>
 				<Input
 					type="date"
-					bind:value={startDate}
-					max={endDate || undefined}
+					value={startDate}
+					class="w-full min-w-0"
 					disabled={isSubmitting}
 					required
-					oninput={() => {
-						hasEditedDateRange = true;
-					}}
+					oninput={handleStartDateInput}
 				/>
 			</label>
-			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
+			<label class={compact ? 'grid gap-1 text-xs font-medium text-muted-foreground' : 'grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2'}>
 				<span>{text.absenceEndDate}</span>
 				<Input
 					type="date"
-					bind:value={endDate}
+					value={endDate}
 					min={startDate || undefined}
+					class="w-full min-w-0"
 					disabled={isSubmitting}
 					required
-					oninput={() => {
-						hasEditedDateRange = true;
-					}}
+					oninput={handleEndDateInput}
 				/>
 			</label>
-			<label class="grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2">
+			<label class={compact ? 'grid gap-1 text-xs font-medium text-muted-foreground' : 'grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2'}>
 				<span>{text.absenceReason}</span>
 				<Textarea
-					class="min-h-20 resize-none text-sm"
+					class={compact ? 'min-h-16 resize-none text-sm' : 'min-h-20 resize-none text-sm'}
 					bind:value={reason}
 					placeholder={text.absenceReasonPlaceholder}
 					disabled={isSubmitting}
 				/>
 			</label>
-			<div class="flex flex-col gap-2 sm:col-span-2">
-				<Button type="submit" class="w-full sm:w-fit" disabled={isSubmitting || !startDate || !endDate}>
+			<div class={compact ? 'flex flex-col gap-2' : 'flex flex-col gap-2 sm:col-span-2'}>
+				<Button type="submit" class={compact ? 'w-full' : 'w-full sm:w-fit'} disabled={isSubmitting || !startDate || !endDate}>
 					{#if isSubmitting}
 						<LoaderIcon class="size-3.5 animate-spin" />
 					{/if}

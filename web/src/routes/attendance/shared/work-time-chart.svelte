@@ -1,32 +1,19 @@
-<script lang="ts" module>
-	let instanceCounter = 0;
-</script>
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Chart from '$lib/components/ui/chart';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import { LineChart } from 'layerchart';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
-	import {
-		baselineY,
-		buildAreaPath,
-		buildSeries,
-		PADDING_TOP,
-		PADDING_X,
-		plotPoints,
-		type DailyValue,
-		VIEW_HEIGHT,
-		VIEW_WIDTH
-	} from './work-time-chart-model';
-
-	instanceCounter += 1;
-	const gradientId = `work-time-chart-fill-${instanceCounter}`;
+	import { buildSeries, type DailyValue } from './work-time-chart-model';
 
 	type Props = {
 		title: string;
 		dailyValues: DailyValue[];
 		formatValue: (value: number) => string;
+		compact?: boolean;
 	};
 
 	type ChartModeOption = {
@@ -38,6 +25,7 @@
 		title,
 		dailyValues,
 		formatValue,
+		compact = false,
 	}: Props = $props();
 
 	const attendance = getAttendanceState();
@@ -51,56 +39,60 @@
 	const series = $derived(
 		buildSeries(attendance.summary?.month ?? '', dailyValues, attendance.chartMode, {
 			weekLabelTemplate: text.weekLabelTemplate,
-			total: text.total
+			monthLabelTemplate: text.monthLabelTemplate,
+			total: text.total,
+			weekdaySunday: text.weekdaySunday,
+			weekdayMonday: text.weekdayMonday,
+			weekdayTuesday: text.weekdayTuesday,
+			weekdayWednesday: text.weekdayWednesday,
+			weekdayThursday: text.weekdayThursday,
+			weekdayFriday: text.weekdayFriday,
+			weekdaySaturday: text.weekdaySaturday,
 		})
 	);
 
-	const maxValue = $derived(Math.max(1, ...series.map((seriesPoint) => seriesPoint.value)));
-
-	const plotted = $derived(plotPoints(series, maxValue));
-
-	const linePath = $derived(
-		plotted
-			.map(
-				(plottedPoint, index) =>
-					`${index === 0 ? 'M' : 'L'} ${plottedPoint.x.toFixed(1)} ${plottedPoint.y.toFixed(1)}`
-			)
-			.join(' ')
+	const chartData = $derived(series.map((point, index) => ({ ...point, index })));
+	const chartConfig = $derived({
+		value: {
+			label: title,
+			color: 'var(--color-primary)',
+		},
+	} satisfies Chart.ChartConfig);
+	const tooltipLabelByIndex = $derived(new Map(chartData.map((point) => [point.index, point.tooltipLabel])));
+	const axisLabelIndexes = $derived(createAxisLabelIndexes(attendance.chartMode, chartData.length));
+	const axisLabelIndexSet = $derived(new Set(axisLabelIndexes));
+	const axisTickLabelProps = $derived(chartData.length === 1 ? { textAnchor: 'start' as const } : undefined);
+	const maxValue = $derived(Math.max(1, ...chartData.map((point) => point.value)));
+	const visiblePointData = $derived(
+		attendance.chartMode === 'month' ? chartData.filter((point) => point.value > 0) : chartData
 	);
 
-	const areaPath = $derived(buildAreaPath(plotted));
-
-	const labelEvery = $derived(attendance.chartMode === 'day' && plotted.length > 16 ? 2 : 1);
-
-	let hoveredIndex = $state<number | null>(null);
-	let svgElement = $state<SVGSVGElement | null>(null);
-
-	const hoveredPoint = $derived(hoveredIndex !== null ? plotted[hoveredIndex] : null);
-
-	function handleMouseMove(event: MouseEvent) {
-		if (!svgElement || plotted.length === 0) return;
-		const rectangle = svgElement.getBoundingClientRect();
-		const ratio = (event.clientX - rectangle.left) / rectangle.width;
-		const viewX = ratio * VIEW_WIDTH;
-		let nearestIndex = 0;
-		let nearestDistance = Infinity;
-		for (let i = 0; i < plotted.length; i += 1) {
-			const distance = Math.abs(plotted[i].x - viewX);
-			if (distance < nearestDistance) {
-				nearestDistance = distance;
-				nearestIndex = i;
-			}
+	function createAxisLabelIndexes(mode: ChartMode, count: number): number[] {
+		if (mode === 'month') return [0, 3, 6, 9, 11].filter((index) => index < count);
+		const maximumLabelCount = mode === 'week' ? 6 : 5;
+		if (count <= maximumLabelCount) {
+			return Array.from({ length: count }, (_, index) => index);
 		}
-		hoveredIndex = nearestIndex;
+		const lastIndex = count - 1;
+		return Array.from({ length: maximumLabelCount }, (_, index) =>
+			Math.round((index * lastIndex) / (maximumLabelCount - 1))
+		);
 	}
 
-	function handleMouseLeave() {
-		hoveredIndex = null;
+	function tooltipLabelFormatter(value: unknown): string {
+		const index = typeof value === 'number' ? value : Number(value);
+		return tooltipLabelByIndex.get(index) ?? String(value);
+	}
+
+	function axisLabelFormatter(value: unknown): string {
+		const index = typeof value === 'number' ? value : Number(value);
+		if (!axisLabelIndexSet.has(index)) return '';
+		return chartData[index]?.label ?? '';
 	}
 </script>
 
-<Card.Root>
-	<Card.Header class="flex flex-row items-center justify-between space-y-0">
+<Card.Root class={compact ? 'gap-2' : undefined}>
+	<Card.Header class={compact ? 'flex flex-col items-start gap-1 space-y-0 pb-0' : 'flex flex-row items-center justify-between space-y-0'}>
 		<Card.Title class="flex items-center gap-1.5 text-sm">
 			<ClockIcon class="size-3.5 text-muted-foreground" />
 			{title}
@@ -110,7 +102,7 @@
 				<Button
 					variant={attendance.chartMode === mode.value ? 'secondary' : 'ghost'}
 					size="sm"
-					class="h-7 px-3 text-xs"
+					class={compact ? 'h-6 px-2 text-[10px]' : 'h-7 px-3 text-xs'}
 					onclick={() => (attendance.chartMode = mode.value)}
 				>
 					{mode.label}
@@ -118,98 +110,80 @@
 			{/each}
 		</div>
 	</Card.Header>
-	<Card.Content>
-		<div class="relative">
-			<svg
-				bind:this={svgElement}
-				viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-				class="text-primary aspect-[3/1] max-h-72 w-full"
-				preserveAspectRatio="none"
-				role="img"
-				aria-label={title}
-				onmousemove={handleMouseMove}
-				onmouseleave={handleMouseLeave}
+	<Card.Content class={compact ? 'px-3 pb-3 pt-0' : undefined}>
+		<Chart.Container
+			config={chartConfig}
+			class={compact
+				? 'h-24 w-full [&_.lc-axis-tick-label]:text-[9px] [&_.lc-spline-path]:stroke-[2.5px]'
+				: 'h-72 w-full'}
+			aria-label={title}
+		>
+			<LineChart
+				data={chartData}
+				x="index"
+				y="value"
+				yDomain={[0, maxValue]}
+				axis="x"
+				grid
+				points={attendance.chartMode === 'month'}
+				rule={false}
+				highlight={{
+					points: {
+						r: compact ? 3.5 : 4,
+						stroke: 'var(--background)',
+						strokeWidth: compact ? 2.5 : 3,
+					},
+					lines: true,
+				}}
+				series={[
+					{
+						key: 'value',
+						label: title,
+						value: 'value',
+						color: 'var(--color-value)',
+					},
+				]}
+				props={{
+					grid: { class: 'stroke-border/60' },
+					points: {
+						data: visiblePointData,
+						r: compact ? 3.5 : 4,
+						stroke: 'var(--background)',
+						strokeWidth: compact ? 2.5 : 3,
+					},
+					xAxis: {
+						ticks: axisLabelIndexes,
+						format: axisLabelFormatter,
+						tickLabelProps: axisTickLabelProps,
+					},
+					spline: {
+						stroke: 'var(--color-value)',
+					},
+				}}
 			>
-				<defs>
-					<linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-						<stop offset="0%" stop-color="currentColor" stop-opacity="0.25" />
-						<stop offset="100%" stop-color="currentColor" stop-opacity="0.02" />
-					</linearGradient>
-				</defs>
-
-				<line
-					x1={PADDING_X}
-					x2={VIEW_WIDTH - PADDING_X}
-					y1={baselineY}
-					y2={baselineY}
-					class="text-foreground"
-					stroke="currentColor"
-					stroke-opacity="0.15"
-					stroke-width="1"
-				/>
-
-				{#if plotted.length === 1}
-					<circle cx={plotted[0].x} cy={plotted[0].y} r="6" fill="currentColor" />
-				{:else}
-					<path d={areaPath} fill={`url(#${gradientId})`} />
-					<path
-						d={linePath}
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linejoin="round"
-						stroke-linecap="round"
-					/>
-					{#each plotted as plottedPoint, index (plottedPoint.point.key)}
-						<circle
-							cx={plottedPoint.x}
-							cy={plottedPoint.y}
-							r={hoveredIndex === index ? 5 : 3}
-							fill="currentColor"
-						/>
-					{/each}
-				{/if}
-
-				{#if hoveredPoint}
-					<line
-						x1={hoveredPoint.x}
-						x2={hoveredPoint.x}
-						y1={PADDING_TOP}
-						y2={baselineY}
-						class="text-foreground"
-						stroke="currentColor"
-						stroke-opacity="0.2"
-						stroke-width="1"
-						stroke-dasharray="3 3"
-						pointer-events="none"
-					/>
-				{/if}
-
-				<g class="text-foreground">
-					{#each plotted as plottedPoint, index (plottedPoint.point.key)}
-						{#if index % labelEvery === 0}
-							<text
-								x={plottedPoint.x}
-								y={VIEW_HEIGHT - 8}
-								text-anchor="middle"
-								font-size="11"
-								fill="currentColor"
-								opacity="0.55"
-							>{plottedPoint.point.label}</text>
-						{/if}
-					{/each}
-				</g>
-			</svg>
-
-			{#if hoveredPoint}
-				<div
-					class="border-border bg-popover text-popover-foreground pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border px-2 py-1 text-xs shadow-md"
-					style={`left: ${(hoveredPoint.x / VIEW_WIDTH) * 100}%; top: ${(hoveredPoint.y / VIEW_HEIGHT) * 100}%; margin-top: -8px;`}
-				>
-					<div class="text-muted-foreground text-[10px] font-medium">{hoveredPoint.point.label}</div>
-					<div class="font-semibold tabular-nums">{formatValue(hoveredPoint.point.value)}</div>
-				</div>
-			{/if}
-		</div>
+				{#snippet tooltip()}
+					<Chart.Tooltip
+						anchor="bottom"
+						contained={false}
+						indicator="dot"
+						labelFormatter={tooltipLabelFormatter}
+						class="min-w-28"
+						motion="none"
+						x="data"
+						y="data"
+						yOffset={8}
+					>
+						{#snippet formatter({ value, name })}
+							<div class="flex flex-1 items-center justify-between gap-3 leading-none">
+								<span class="text-muted-foreground">{name}</span>
+								<span class="text-foreground font-mono font-medium tabular-nums">
+									{typeof value === 'number' ? formatValue(value) : String(value)}
+								</span>
+							</div>
+						{/snippet}
+					</Chart.Tooltip>
+				{/snippet}
+			</LineChart>
+		</Chart.Container>
 	</Card.Content>
 </Card.Root>

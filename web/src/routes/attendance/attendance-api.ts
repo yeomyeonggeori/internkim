@@ -16,6 +16,13 @@ export type CreateAttendanceAbsenceRequest = {
 	reason: string;
 };
 
+export type UpdateAttendanceEventRequest = {
+	localDate: string;
+	localTime: string;
+	locationID: string;
+	reason: string;
+};
+
 export async function fetchAttendanceSummary(request: AttendanceSummaryRequest): Promise<AttendanceSummary> {
 	const path = attendanceSummaryPath(request);
 	const response = await fetch(path, { credentials: 'include' });
@@ -33,6 +40,24 @@ export async function createAttendanceAbsence(request: CreateAttendanceAbsenceRe
 	if (!response.ok) throw new Error(await response.text());
 	const payload = (await response.json()) as { absences: AttendanceAbsence[] };
 	return payload.absences;
+}
+
+export async function deleteAttendanceAbsence(absenceID: string): Promise<void> {
+	const response = await fetch(`/attendance/api/absences/${encodeURIComponent(absenceID)}`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+	if (!response.ok) throw new Error(await response.text());
+}
+
+export async function updateAttendanceEvent(eventID: string, request: UpdateAttendanceEventRequest): Promise<void> {
+	const response = await fetch(`/attendance/api/events/${encodeURIComponent(eventID)}`, {
+		method: 'PATCH',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(request)
+	});
+	if (!response.ok) throw new Error(await response.text());
 }
 
 export async function updateAttendanceTeamViewVisibility(visible: boolean): Promise<void> {

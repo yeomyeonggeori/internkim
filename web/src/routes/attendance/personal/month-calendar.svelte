@@ -8,6 +8,11 @@
 	import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 
+	type Props = {
+		compact?: boolean;
+	};
+
+	let { compact = false }: Props = $props();
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
@@ -68,22 +73,22 @@
 	}
 </script>
 
-<Card.Root>
-	<Card.Header class="flex min-w-0 flex-col items-stretch gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between">
+<Card.Root class={compact ? 'gap-2' : undefined}>
+	<Card.Header class={compact ? 'flex min-w-0 flex-col items-stretch gap-1 pb-0' : 'flex min-w-0 flex-col items-stretch gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between'}>
 		<div class="min-w-0">
-			<Card.Title class="min-w-0 truncate pt-1 text-base">
+			<Card.Title class={compact ? 'min-w-0 truncate text-sm' : 'min-w-0 truncate pt-1 text-base'}>
 				{text.calendarTitleTemplate.replace('{month}', calendarMonth)}
 			</Card.Title>
-			{#if targetEmail}
+			{#if targetEmail && !compact}
 				<p class="mt-1 truncate text-xs text-muted-foreground">{targetEmail}</p>
 			{/if}
 		</div>
-		<div class="flex w-full shrink-0 justify-center sm:w-auto sm:justify-end">
+		<div class={compact ? 'flex w-full shrink-0 justify-start' : 'flex w-full shrink-0 justify-center sm:w-auto sm:justify-end'}>
 			<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
 		</div>
 	</Card.Header>
-	<Card.Content>
-		<div data-testid="personal-month-calendar-grid" class="grid min-w-0 grid-cols-7 gap-1 text-xs sm:gap-1.5">
+	<Card.Content class={compact ? 'px-3 pb-3 pt-0' : undefined}>
+		<div data-testid="personal-month-calendar-grid" class={compact ? 'grid min-w-0 grid-cols-7 gap-0.5 text-[10px]' : 'grid min-w-0 grid-cols-7 gap-1 text-xs sm:gap-1.5'}>
 			{#each weekdayLabels() as label}
 				<div class="pb-1 text-center text-[11px] font-medium text-muted-foreground">{label}</div>
 			{/each}
@@ -93,14 +98,15 @@
 			{#each days as date (date)}
 				{@const day = computeDayEvents(date, byDay.get(date) ?? [])}
 				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
+				{@const visibleAbsence = isWeekend(date) ? undefined : dayAbsence}
 				<button
 					type="button"
 					data-testid={`personal-calendar-day-${date}`}
-					class={`flex min-h-[4.75rem] min-w-0 flex-col justify-between overflow-hidden rounded-md p-0.5 text-left transition sm:aspect-[1.05] sm:min-h-0 sm:p-1.5 ${cellClass(date, !!day.clockIn, !!dayAbsence)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
+					class={`${compact ? 'flex aspect-square min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm p-0.5 text-center transition' : 'flex min-h-[4.75rem] min-w-0 flex-col justify-between overflow-hidden rounded-md p-0.5 text-left transition sm:aspect-[1.05] sm:min-h-0 sm:p-1.5'} ${cellClass(date, !!day.clockIn, !!visibleAbsence)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
 					onclick={() => selectDate(date)}
 				>
-					<span class="text-sm font-semibold leading-none">{Number(date.slice(-2))}</span>
-					{#if day.clockIn}
+					<span class={compact ? 'text-[11px] font-semibold leading-none' : 'text-sm font-semibold leading-none'}>{Number(date.slice(-2))}</span>
+					{#if !compact && day.clockIn}
 						<div class="min-w-0 space-y-0.5 text-[9px] font-normal leading-tight tabular-nums sm:text-[11px] sm:font-semibold">
 							<div
 								data-testid="personal-calendar-time-line"
@@ -126,11 +132,11 @@
 								</span>
 							{/if}
 						</div>
-					{:else if dayAbsence}
+					{:else if !compact && visibleAbsence}
 						<span class="text-[11px] font-semibold leading-tight text-info">
-							{absenceLabelText(dayAbsence, text)}
+							{absenceLabelText(visibleAbsence, text)}
 						</span>
-					{:else if date < today && !isWeekend(date)}
+					{:else if !compact && date < today && !isWeekend(date)}
 						<span class="text-[11px] font-semibold leading-tight text-rose-600 dark:text-rose-400">{text.absent}</span>
 					{/if}
 				</button>
