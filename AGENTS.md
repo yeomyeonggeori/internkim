@@ -16,6 +16,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   reported as skipped. Use `--copy` before the path only when symlinks are not
   appropriate.
 - Do not revert user or generated changes unless explicitly asked.
+- Before commit, push, or deploy, check the current branch, upstream status,
+  and working tree state.
+- Do not include unrelated dirty changes in commits or deployments.
+- If a clean checkout or worktree is used to avoid unrelated changes, report it
+  and clean it up or say why it remains.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
 
