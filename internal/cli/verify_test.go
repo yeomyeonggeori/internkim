@@ -64,7 +64,7 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false)
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false, false)
 	requiredFragments := []string{
 		"delete_stale_probe_users",
 		"probe-mattermost-",
@@ -82,7 +82,7 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 }
 
 func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false)
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false, false)
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
@@ -101,7 +101,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -129,7 +129,7 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -142,7 +142,7 @@ func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
-	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true)
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true, false)
 	requiredFragments := []string{
 		"download_files=true",
 		"download_bot_files",
@@ -156,6 +156,46 @@ func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost prompt attachment download to include %q", fragment)
 		}
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanWaitForCompletion(t *testing.T) {
+	script := verifyMattermostPromptScript("보고서 워드 파일로 만들어줘.", false, 90, false, false, nil, nil, true, true)
+	requiredFragments := []string{
+		"wait_for_completion=true",
+		"find_probe_task_run_id",
+		"should_wait_for_task=true",
+		"expected a task for probe prompt before waiting for completion",
+		`[ "$should_wait_for_task" = "true" ]`,
+		`[ "$task_status" != "completed" ]`,
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt completion wait to include %q", fragment)
+		}
+	}
+}
+
+func TestWriteDownloadedMattermostFilesCanAllowNoAttachments(t *testing.T) {
+	downloadedFilePaths, errorValue := writeDownloadedMattermostFilesAllowEmpty(`{"downloadedFiles":[]}`, t.TempDir())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(downloadedFilePaths) != 0 {
+		t.Fatalf("expected no downloaded files, got %v", downloadedFilePaths)
+	}
+}
+
+func TestParseMattermostVerificationOutputAllowsTrailingCleanupLogs(t *testing.T) {
+	output := `{"ok":true,"botMessage":"done","downloadedFiles":[],"fileIDs":[]}` + "\n" +
+		"curl: (22) The requested URL returned error: 401\n" +
+		"jq: parse error: Invalid numeric literal at line 1, column 9\n"
+	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if verificationOutput.BotMessage != "done" {
+		t.Fatalf("unexpected bot message: %q", verificationOutput.BotMessage)
 	}
 }
 

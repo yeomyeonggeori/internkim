@@ -118,6 +118,10 @@ func checkAgentBrowser(context *Context, failedChecks *[]string) {
 func checkAdminHealth(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/api/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
 	if check == "ok" {
+		if !isPlannedStep(context, "web") {
+			fmt.Println("  admind: ok")
+			return
+		}
 		adminPage := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/ 2>/dev/null | grep -o '<script' | head -1 || true`))
 		adminAssets := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("version", ""))' 2>/dev/null || true`))
 		if adminPage == "<script" && adminAssets != "" {

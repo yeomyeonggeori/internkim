@@ -249,6 +249,8 @@ func Main() {
 			runDoctor()
 		case "verify":
 			runVerify()
+		case "test":
+			runTest()
 		case "llm":
 			runLLM()
 		case "ops":
@@ -292,6 +294,7 @@ func printUsage() {
 	fmt.Println("  deploy   Build and apply a signed release over Admin HTTPS")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
+	fmt.Println("  test     Run a prompt through disposable Local Fleet; use -o <file> for one returned attachment")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
 	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
@@ -1431,10 +1434,26 @@ func installMattermost(m *msg, ssh *sshClient, force bool) error {
 
 	fmt.Printf("  %s\n", m.t("PostgreSQL 설치 중...", "Installing PostgreSQL..."))
 	out := ssh.run(jetsonUbuntuAptSourcesRepairScript() + `
+wait_for_apt_lock() {
+  for attempt in $(seq 1 120); do
+    if fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+      sleep 2
+    else
+      return 0
+    fi
+  done
+  return 1
+}
+wait_for_apt_lock || echo apt_lock_timeout
 which pg_isready 2>/dev/null && echo already || {
+  wait_for_apt_lock || echo apt_lock_timeout
   apt-get update -qq
+  wait_for_apt_lock || echo apt_lock_timeout
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib python3 || echo apt_install_failed
 }`)
+	if strings.Contains(out, "apt_lock_timeout") {
+		return fmt.Errorf("PostgreSQL package installation timed out waiting for apt lock: %s", strings.TrimSpace(out))
+	}
 	if strings.Contains(out, "apt_install_failed") {
 		return fmt.Errorf("PostgreSQL package installation failed: %s", strings.TrimSpace(out))
 	}
@@ -1522,7 +1541,13 @@ chmod -R g+w /opt/mattermost "$(dirname "$persistent_data")"
 
 # Write config
 cd /opt/mattermost
-cp config/config.defaults.json config/config.json 2>/dev/null && echo "defaults_used" || echo "defaults_missing"
+if [ -s config/config.defaults.json ]; then
+  cp config/config.defaults.json config/config.json && echo "defaults_used"
+elif [ -s config/config.json ]; then
+  echo "defaults_missing"
+else
+  printf '{}\n' > config/config.json && echo "defaults_created"
+fi
 DB_PASS="%s"
 MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" MATTERMOST_MANAGED_RESOURCE_PATHS="%s" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
 import json
@@ -4151,6 +4176,9 @@ func (s *sshClient) sshArgs(extra ...string) []string {
 		"-o", "LogLevel=ERROR",
 		"-p", s.port,
 	}
+	if s.pass != "" {
+		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
+	}
 	if s.proxyCommand != "" {
 		base = append(base, "-o", "ProxyCommand="+s.proxyCommand)
 	}
@@ -4197,7 +4225,7 @@ func runSSHCommandWithRetry(commandName string, arguments []string, timeout time
 	var output []byte
 	var errorValue error
 	errorValue = retryOperation(retryOptions{
-		AttemptCount: 3,
+		AttemptCount: 8,
 		DelayForAttempt: func(attemptIndex int) time.Duration {
 			return time.Duration(attemptIndex+1) * time.Second
 		},
@@ -4253,6 +4281,9 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 		"-o", "ConnectTimeout=10",
 		"-o", "LogLevel=ERROR",
 		"-P", s.port,
+	}
+	if s.pass != "" {
+		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
 	}
 	if s.proxyCommand != "" {
 		base = append(base, "-o", "ProxyCommand="+s.proxyCommand)
@@ -4395,6 +4426,25 @@ func (s *sshClient) uploadDirectoryArchive(localDir string, temporaryRemoteDirec
 }
 
 func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (string, error) {
+	var output string
+	var errorValue error
+	errorValue = retryOperation(retryOptions{
+		AttemptCount: 8,
+		DelayForAttempt: func(attemptIndex int) time.Duration {
+			return time.Duration(attemptIndex+1) * time.Second
+		},
+		ShouldRetry: func(errorValue error) bool {
+			return errorValue != nil && isRetryableSSHFailure(output)
+		},
+		SleepAfterFinalAttempt: true,
+	}, func(attemptIndex int) error {
+		output, errorValue = s.runTarToRemoteOnce(localDir, remoteCommand)
+		return errorValue
+	})
+	return output, errorValue
+}
+
+func (s *sshClient) runTarToRemoteOnce(localDir string, remoteCommand string) (string, error) {
 	tarCommand := exec.Command("tar", "-czf", "-", "-C", localDir, ".")
 	tarCommand.Env = append(os.Environ(), "COPYFILE_DISABLE=1")
 	tarOutput, errorValue := tarCommand.StdoutPipe()
