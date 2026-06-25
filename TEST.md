@@ -1,8 +1,8 @@
-# Testing with the container Lab
+# Testing with Local Fleet
 
 Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는 [E2E.md](E2E.md)에서 관리합니다.
 
-`internkim`의 macOS 소프트웨어 테스트 환경은 이제 apple/container 기반입니다. 목표는 Blueclaw lab과 비슷한 토폴로지로, macOS host 위에 apple/container ARM Linux VM을 올리고 그 VM 안에서 `blueclaw`, `mattermost`, `cloudflared`, Google 연동을 실제처럼 검증하는 것입니다.
+`internkim`의 macOS 소프트웨어 테스트 환경은 disposable Local Fleet입니다. macOS host 위에 apple/container ARM Linux VM을 올리고, 테스트 동안만 살아 있는 `blueclaw`, `mattermost`, `cloudflared`, Google 연동 경계를 검증한 뒤 기본적으로 정리합니다.
 
 ## 요구사항
 
@@ -14,28 +14,22 @@ Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는
   - Cloudflare 관련 환경변수
   - Google 설정에 필요한 계정/자격증명
 
-기본 설정은 [lab/config.example.json](/Users/lee/Developer/work/internkim/lab/config.example.json)에 있습니다.
+기본 설정은 [lab/config.example.json](lab/config.example.json)에 있습니다.
 
 ## 기본 흐름
 
 ```bash
-# 빌드
-make build
-
-# 컨테이너 이미지 준비
+# 최초 1회 컨테이너 이미지 준비
 ./internkim lab image-build
 
-# VM 부팅
-./internkim lab vm-up
+# 전체 predeploy gate: 일회용 Linux+Mattermost+Kim 서버
+./internkim dev fleet run
 
-# Ubuntu provision + internkim setup
-./internkim lab setup
+# 실제 DM E2E
+./internkim dev fleet run --scenario mattermost-direct-message-send
 
-# 전체 acceptance
-./internkim lab scenario-e2e
-
-# 또는 전체 시뮬레이션을 한 번에
-./internkim setup --sim
+# Mattermost 제외 Linux virtual-session
+./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
 ```
 
 ## 테스트 흔적 정리
@@ -57,18 +51,18 @@ make build
 
 Slack과 Signal은 외부 플랫폼이므로 reset 명령이 원격 서비스의 전체 메시지 기록을 보장해서 지우지는 않습니다. 테스트가 만든 Slack/Signal 메시지는 connector별 삭제 권한이 있는 범위에서 즉시 삭제하고, 삭제 실패 시 남은 artifact를 출력해야 합니다.
 
-`scenario-e2e`는 다음을 순서대로 확인합니다.
+`./internkim dev fleet run`은 다음을 순서대로 확인합니다.
 
 - VM 기동 및 SSH 가능 여부
-- Ubuntu provisioning 스크립트 실행
-- `internkim setup --ssh --host <vm-ip>` 실행
+- Ubuntu provisioning과 `internkim setup` 실행
 - `blueclaw.service`, `mattermost`, `cloudflared` 활성 상태
 - `/root/.blueclaw/config/runtime.json`, `/root/.blueclaw/config/policy.json`
-- Google 연동 시나리오
-- Mattermost bot/channel 시나리오
-- Cloudflare URL 도달 가능 여부
+- API health, Mattermost ingress, DM 수신자 해석, browser smoke
 
-## 개별 명령
+## 저수준 Lab 디버깅 명령
+
+일반 테스트에서는 `dev fleet run`을 사용합니다. 아래 명령은 VM을 직접 붙잡고
+문제를 확인해야 할 때만 사용합니다.
 
 ```bash
 ./internkim lab image-build
@@ -83,7 +77,7 @@ Slack과 Signal은 외부 플랫폼이므로 reset 명령이 원격 서비스의
 ./internkim lab scenario-e2e
 ```
 
-테스트 동안만 살아 있는 로컬 Linux 환경이 필요하면 local fleet을 사용합니다.
+테스트 동안만 살아 있는 로컬 Linux 환경이 필요하면 Local Fleet을 사용합니다.
 성공/실패 뒤 기본적으로 VM, 터널, 상태 디렉터리를 정리합니다.
 
 ```bash
@@ -91,11 +85,10 @@ Slack과 Signal은 외부 플랫폼이므로 reset 명령이 원격 서비스의
 ./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
 ```
 
-공유 VM을 직접 붙잡고 디버깅해야 할 때만 `--reuse`를 붙입니다. 디버깅용으로
-일회용 VM을 남겨야 하면 `--keep`을 붙이고, 출력된 cleanup 명령으로 VM과 상태를
-직접 지웁니다.
+공유 VM을 직접 붙잡고 디버깅해야 할 때만 `--reuse`를 붙입니다. 일회용 VM을
+남겨야 하면 `--keep`을 붙이고, 출력된 cleanup 명령으로 VM과 상태를 직접 지웁니다.
 
-기본 설정 파일을 바꾸려면:
+저수준 lab 시나리오의 기본 설정 파일을 바꾸려면:
 
 ```bash
 ./internkim lab scenario-e2e --config /path/to/lab.json
@@ -171,23 +164,25 @@ lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-lab
 
 배포 전 기능별 확인:
 
-- 스케줄링: Mattermost prompt smoke, `schedule.create`, `schedule.created`, due-run delivery
-- 웹사이트: Mattermost prompt smoke, `site.app.create`, `site.app.publish`, public URL 200
+- 스케줄링: `./internkim dev fleet run --without-mattermost --scenario schedule_lifecycle_acceptance`
+- 웹사이트: `./internkim dev fleet run --without-mattermost --scenario site_prototype_acceptance`
+- Mattermost DM: `./internkim dev fleet run --scenario mattermost-direct-message-send`
 
 ## 단계별 검증 모델
 
 ### Phase A
 
-macOS + apple/container 기반 소프트웨어 E2E.
+macOS + apple/container 기반 disposable Local Fleet E2E.
 
 - 모든 로컬 개발자는 먼저 이 경로를 통과시킵니다.
-- Google, Mattermost, Cloudflare는 실제 자격증명 기준으로 검증합니다.
+- Mattermost가 필요한 경로는 실제 로컬 Mattermost 서버로 검증합니다.
+- Mattermost가 필요 없는 agent 경로는 `--without-mattermost`로 Linux VM 안에서 검증합니다.
 
 ### Phase B
 
 Raspberry Pi 하드웨어 검증.
 
-- container lab에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
+- Local Fleet에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
 - 하드웨어 검증은 후속 단계이며, 현재 문서는 소프트웨어 E2E까지만 다룹니다.
 
 ## 정리
@@ -196,4 +191,4 @@ Raspberry Pi 하드웨어 검증.
 ./internkim lab vm-down
 ```
 
-기존 `internkim sim ...` 경로는 deprecated alias이며, 새 테스트 문서와 운영 가이드는 모두 `internkim lab ...` 기준입니다.
+기존 `internkim sim ...` 경로는 deprecated alias이며, 새 테스트 문서와 운영 가이드는 모두 `internkim dev fleet ...` 기준입니다. `internkim lab ...`은 저수준 VM 디버깅 명령으로만 사용합니다.

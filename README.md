@@ -195,7 +195,7 @@ sudo systemctl restart internkim-pilot-tunnel.service
 
 | 구성 | 설명 |
 |------|------|
-| **Go CLI** (`cmd/internkim/main.go`) | 운영 CLI: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `tenant`/`host`, `llm`, `users`/`task`/`invite`. `sim`은 Local Fleet의 하위호환 alias |
+| **Go CLI** (`cmd/internkim/main.go`) | 운영 CLI: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `tenant`/`host`, `llm`, `users`/`task`/`invite`. `sim`은 Local Fleet의 legacy alias |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
 | **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack Socket Mode와 Signal JSON-RPC sidecar도 같은 경계에서 선택적으로 기동 |
 | **local model** | 생성·임베딩 모두 상주 `llama-server`(llama.cpp): 생성 gemma-4-E2B QAT + MTP(`--chat-template gemma`), 임베딩 embeddinggemma-300M(CPU `-ngl 0`). `internkim-local-llm-runner`(LiteRT)는 레거시 fallback |
@@ -365,17 +365,13 @@ Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한�
 
 ### Local Fleet Verification
 
-실제 보드에 올리기 전에 macOS + apple/container ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 disposable Local Fleet이며, 기존 `sim gate`는 같은 기본 게이트를 호출하는 legacy alias입니다.
+실제 보드에 올리기 전에 macOS + apple/container ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 disposable Local Fleet입니다.
 
 ```bash
 make deps-sim
 
 # 최초 1회 컨테이너 이미지 준비
 ./internkim lab image-build
-
-# 공유 Local Fleet 디버깅이 필요할 때만 직접 시작과 상태 확인
-./internkim dev fleet up
-./internkim dev fleet status
 
 # predeploy 전체 게이트: 일회용 VM, 빌드, API/Mattermost, 브라우저 smoke
 ./internkim dev fleet run
@@ -395,21 +391,14 @@ make deps-sim
 # disposable fleet gate 성공 후 OTA로 실기기 배포
 ./internkim deploy
 
-# Makefile alias
-make sim-gate
-make deploy-after-sim
-
-# legacy alias
-./internkim sim gate
-./internkim sim status
-./internkim sim ssh
-./internkim sim stop
-./internkim sim cleanup
+# Makefile wrapper
+make fleet-gate
+make deploy-after-fleet
 ```
 
 실기기 배포 전에는 `./internkim dev fleet run`을 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. `./internkim sim gate`는 하위 호환을 위해 유지되지만 새 문서와 자동화는 Local Fleet 명령을 기준으로 작성합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
-Disposable Local Fleet는 `.local/local-fleet/runs/<run-id>` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다. 공유 VM을 직접 디버깅해야 할 때만 `./internkim dev fleet run --reuse ...`를 사용합니다.
+Disposable Local Fleet는 `.local/local-fleet/runs/<run-id>` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다. 공유 VM을 직접 디버깅해야 할 때만 `./internkim dev fleet run --reuse ...`, `./internkim dev fleet up`, `./internkim dev fleet status`, `./internkim dev fleet reset`을 사용합니다.
 
 Mattermost gate는 초대된 테스트 사용자와 초대되지 않은 테스트 사용자를 만들고, 봇 응답과 초대 차단이 모두 동작하는지 확인한 뒤 테스트 메시지와 사용자를 정리합니다. self-hosted Mattermost의 비밀번호 정책이 강화되어도 통과하도록 검증 사용자는 충분히 긴 임시 비밀번호를 씁니다. cleanup 중 Mattermost system post 정리는 SSH 계정에 passwordless sudo가 없으면 건너뛰며, 사용자와 봇 reply 정리는 Mattermost API로 계속 수행합니다.
 
@@ -419,7 +408,7 @@ Ops 콘솔에서도 같은 Local Fleet engine을 실행할 수 있습니다:
 ./internkim ops serve
 ```
 
-`http://127.0.0.1:8789/ops`에서 Local Fleet 카드의 `Up`, `Predeploy gate`, `Mattermost smoke`, `Verify regression`, `Reset`, `Down` 버튼을 사용할 수 있습니다. CLI와 Ops UI는 모두 `internal/localfleet`를 호출하므로 검증 순서가 갈라지지 않습니다.
+`http://127.0.0.1:8789/ops`에서 Local Fleet 카드의 `Up`, `Predeploy gate`, `Mattermost smoke`, `Verify regression`, `Reset`, `Down` 버튼을 사용할 수 있습니다. `Predeploy gate`는 `./internkim dev fleet run`과 같은 기본 게이트입니다. CLI와 Ops UI는 모두 `internal/localfleet`를 호출하므로 검증 순서가 갈라지지 않습니다.
 
 실기기 배포 후 빠른 확인은 다음 순서로 합니다:
 
@@ -431,13 +420,13 @@ Ops 콘솔에서도 같은 Local Fleet engine을 실행할 수 있습니다:
 
 `verify api`는 실기기에서 local model(llama.cpp `llama-server`)까지 포함합니다. 모델 런타임이 실패하면 Mattermost/Blueclaw 서비스가 정상이어도 `verify api`는 실패합니다. 이 경우 `journalctl`과 `internkim-llamacpp`(생성)·`internkim-llamacpp-embedding`(임베딩) 서비스 오류를 별도로 확인하고, 필요하면 local model runtime만 좁게 복구합니다.
 
-기존 저수준 lab 명령도 유지됩니다:
+공유 VM을 붙잡고 확인해야 할 때만 reusable Local Fleet를 직접 조작합니다:
 
 ```bash
-./internkim lab vm-up
-./internkim lab setup
-./internkim lab scenario-e2e
-./internkim setup --sim --verify-browser
+./internkim dev fleet up
+./internkim dev fleet status
+./internkim dev fleet run --reuse --scenario mattermost-bot-invited
+./internkim dev fleet reset
 ```
 
 ### 로컬 Graphiti Smoke
