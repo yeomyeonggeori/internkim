@@ -4,6 +4,10 @@ import {
 	enhanceDayFlowMiniCalendar,
 	type DayFlowMiniCalendarEnhancementContext
 } from './calendar-dayflow-mini-calendar-enhancement';
+import {
+	syncCalendarMobileTwoDayWeekLayout,
+	type CalendarMobileTwoDayWeekLayoutContext
+} from './calendar-mobile-two-day-week';
 import { syncCalendarMultiDayProxyLayout } from './calendar-multi-day-proxy-layout';
 import { syncTimelineEventLaneLayout } from './calendar-timeline-event-lanes';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
@@ -20,6 +24,7 @@ const allDayLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const multiDayProxyLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const timelineEventLaneLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 const timelineBoundaryLabelScheduler = createBrowserCalendarDOMSyncScheduler();
+const mobileTwoDayWeekLayoutScheduler = createBrowserCalendarDOMSyncScheduler();
 
 export function scheduleDayFlowMiniCalendarEnhancement(context: DayFlowMiniCalendarEnhancementContext): void {
 	dayFlowMiniCalendarScheduler(() => enhanceDayFlowMiniCalendar(context));
@@ -63,6 +68,10 @@ export function scheduleTimelineEventLaneLayoutSync(
 
 export function scheduleTimelineBoundaryLabelSync(stageElement: HTMLElement | null): void {
 	timelineBoundaryLabelScheduler(() => syncTimelineBoundaryLabels(stageElement));
+}
+
+export function scheduleCalendarMobileTwoDayWeekLayoutSync(context: CalendarMobileTwoDayWeekLayoutContext): void {
+	mobileTwoDayWeekLayoutScheduler(() => syncCalendarMobileTwoDayWeekLayout(context));
 }
 
 export function createCalendarDOMSyncScheduler(runtime: CalendarDOMSyncRuntime): CalendarDOMSyncScheduler {

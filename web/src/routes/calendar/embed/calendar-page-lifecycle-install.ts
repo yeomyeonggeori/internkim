@@ -31,6 +31,7 @@ type CalendarPageLifecycleInstallContext = {
 	getCurrentView: () => ViewType;
 	getDraftPopover: () => DraftPopoverState | null;
 	getLocaleCode: () => string;
+	getIsMobileTwoDayWeekView: () => boolean;
 	getMonthRangeSelection: () => MonthRangeSelection | null;
 	getSelectedAuditEventID: () => string | null;
 	getStageElement: () => HTMLElement | null;
