@@ -68,19 +68,19 @@
 		{
 			icon: TimerIcon,
 			label: text.today,
-			value: formatHoursMinutes(todayBucket.minutes),
+			value: formatHoursMinutes(todayBucket.minutes, text),
 			sublabel: todayBucket.inProgress ? text.inProgress : undefined,
 		},
 		{
 			icon: TrendingUpIcon,
 			label: text.thisWeek,
-			value: formatHoursMinutes(weekBucket.minutes),
+			value: formatHoursMinutes(weekBucket.minutes, text),
 			sublabel: weekBucket.workedDays ? text.workedDayTemplate.replace('{count}', String(weekBucket.workedDays)) : undefined,
 		},
 		{
 			icon: CalendarIcon,
 			label: text.thisMonth,
-			value: formatHoursMinutes(monthBucket.minutes),
+			value: formatHoursMinutes(monthBucket.minutes, text),
 			sublabel: monthBucket.workedDays ? text.workedDayTemplate.replace('{count}', String(monthBucket.workedDays)) : undefined,
 		},
 	]);
@@ -99,5 +99,5 @@
 
 <div class="flex flex-col gap-4">
 	<KpiCardGrid {items} columns="wide" />
-	<WorkTimeChart title={text.myWorkTime} {dailyValues} formatValue={formatHoursMinutes} />
+	<WorkTimeChart title={text.myWorkTime} {dailyValues} formatValue={(value) => formatHoursMinutes(value, text)} />
 </div>

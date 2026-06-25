@@ -66,7 +66,7 @@
 												style:background-color={segment.locationColor}
 											></span>
 										{/if}
-										<span class="min-w-0 truncate" style:color={segment.locationColor}>{segment.locationName}</span>
+										<span class="min-w-0 truncate text-foreground">{segment.locationName}</span>
 									</div>
 									<div class="mt-0.5 text-xs tabular-nums text-muted-foreground">{segment.timeLabel}</div>
 								</div>

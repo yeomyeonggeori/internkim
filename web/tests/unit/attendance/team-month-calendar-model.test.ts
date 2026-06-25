@@ -36,19 +36,19 @@ describe('team month calendar model', () => {
 				attendanceEvent('kim-name', 'kim@example.com', '김철수', '2026-06-01', 'clock_in', '09:00'),
 			],
 			[
-				attendanceAbsence('lee-1', 'lee@example.com', 'business_trip', '2026-06-02'),
-				attendanceAbsence('lee-2', 'lee@example.com', 'business_trip', '2026-06-03'),
+				attendanceAbsence('lee-1', 'lee@example.com', 'other', '2026-06-02'),
+				attendanceAbsence('lee-2', 'lee@example.com', 'other', '2026-06-03'),
 				attendanceAbsence('kim-1', 'kim@example.com', 'leave', '2026-06-02'),
 			]
 		);
 
 		const absencesByDate = buildTeamAbsenceByDate(summary, attendanceText.ko);
-		const leeFirstDay = absencesByDate.get('2026-06-02')?.find((absence) => absence.label === '이영희 출장');
-		const leeSecondDay = absencesByDate.get('2026-06-03')?.find((absence) => absence.label === '이영희 출장');
+		const leeFirstDay = absencesByDate.get('2026-06-02')?.find((absence) => absence.label === '이영희 기타');
+		const leeSecondDay = absencesByDate.get('2026-06-03')?.find((absence) => absence.label === '이영희 기타');
 		const kimDay = absencesByDate.get('2026-06-02')?.find((absence) => absence.label === '김철수 휴가');
 
-		expect(leeFirstDay).toMatchObject({ tone: 'work', periodLabel: '6/2', starts: true, ends: false });
-		expect(leeSecondDay).toMatchObject({ tone: 'work', periodLabel: '6/3', starts: false, ends: true });
+		expect(leeFirstDay).toMatchObject({ tone: 'other', periodLabel: '6/2', starts: true, ends: false });
+		expect(leeSecondDay).toMatchObject({ tone: 'other', periodLabel: '6/3', starts: false, ends: true });
 		expect(kimDay).toMatchObject({ tone: 'leave', periodLabel: '6/2', starts: true, ends: true });
 	});
 
@@ -60,20 +60,20 @@ describe('team month calendar model', () => {
 				attendanceEvent('kim-name', 'kim@example.com', '김철수', '2026-06-01', 'clock_in', '09:00'),
 			],
 			[
-				attendanceAbsence('park-1', 'park@example.com', 'business_trip', '2026-06-09', {
-					rangeID: 'park-trip',
+				attendanceAbsence('park-1', 'park@example.com', 'other', '2026-06-09', {
+					rangeID: 'park-other',
 					startDate: '2026-06-09',
 					endDate: '2026-06-11',
 					createdAt: '2026-06-01T09:00:00+09:00',
 				}),
-				attendanceAbsence('park-2', 'park@example.com', 'business_trip', '2026-06-10', {
-					rangeID: 'park-trip',
+				attendanceAbsence('park-2', 'park@example.com', 'other', '2026-06-10', {
+					rangeID: 'park-other',
 					startDate: '2026-06-09',
 					endDate: '2026-06-11',
 					createdAt: '2026-06-01T09:00:00+09:00',
 				}),
-				attendanceAbsence('park-3', 'park@example.com', 'business_trip', '2026-06-11', {
-					rangeID: 'park-trip',
+				attendanceAbsence('park-3', 'park@example.com', 'other', '2026-06-11', {
+					rangeID: 'park-other',
 					startDate: '2026-06-09',
 					endDate: '2026-06-11',
 					createdAt: '2026-06-01T09:00:00+09:00',
@@ -81,7 +81,7 @@ describe('team month calendar model', () => {
 				attendanceAbsence('kim-1', 'kim@example.com', 'leave', '2026-06-10', {
 					createdAt: '2026-06-02T09:00:00+09:00',
 				}),
-				attendanceAbsence('lee-1', 'lee@example.com', 'business_trip', '2026-06-10', {
+				attendanceAbsence('lee-1', 'lee@example.com', 'other', '2026-06-10', {
 					createdAt: '2026-06-01T10:00:00+09:00',
 				}),
 			]
@@ -91,12 +91,12 @@ describe('team month calendar model', () => {
 		const labels = absencesByDate.get('2026-06-10')?.map((absence) => absence.label);
 		const lanes = absencesByDate.get('2026-06-10')?.map((absence) => absence.lane);
 		const visibility = absencesByDate.get('2026-06-10')?.map((absence) => absence.isVisible);
-		const parkTrip = absencesByDate.get('2026-06-10')?.find((absence) => absence.label === '박지민 출장');
+		const parkOther = absencesByDate.get('2026-06-10')?.find((absence) => absence.label === '박지민 기타');
 
-		expect(labels).toEqual(['박지민 출장', '이영희 출장', '김철수 휴가']);
+		expect(labels).toEqual(['박지민 기타', '이영희 기타', '김철수 휴가']);
 		expect(lanes).toEqual([0, 1, 2]);
 		expect(visibility).toEqual([true, true, false]);
-		expect(parkTrip?.periodLabel).toBe('6/9~6/11');
+		expect(parkOther?.periodLabel).toBe('6/9~6/11');
 	});
 
 	test('keeps schedule lanes stable and hides overflow ranges across all visible days', () => {
@@ -107,10 +107,10 @@ describe('team month calendar model', () => {
 				attendanceEvent('lee-name', 'lee@example.com', '이영희', '2026-06-01', 'clock_in', '09:00'),
 			],
 			[
-				rangeAbsence('park-18', 'park@example.com', 'business_trip', 'park-trip', '2026-06-18', '2026-06-18', '2026-06-23'),
-				rangeAbsence('park-19', 'park@example.com', 'business_trip', 'park-trip', '2026-06-19', '2026-06-18', '2026-06-23'),
-				rangeAbsence('park-22', 'park@example.com', 'business_trip', 'park-trip', '2026-06-22', '2026-06-18', '2026-06-23'),
-				rangeAbsence('park-23', 'park@example.com', 'business_trip', 'park-trip', '2026-06-23', '2026-06-18', '2026-06-23'),
+				rangeAbsence('park-18', 'park@example.com', 'other', 'park-other', '2026-06-18', '2026-06-18', '2026-06-23'),
+				rangeAbsence('park-19', 'park@example.com', 'other', 'park-other', '2026-06-19', '2026-06-18', '2026-06-23'),
+				rangeAbsence('park-22', 'park@example.com', 'other', 'park-other', '2026-06-22', '2026-06-18', '2026-06-23'),
+				rangeAbsence('park-23', 'park@example.com', 'other', 'park-other', '2026-06-23', '2026-06-18', '2026-06-23'),
 				rangeAbsence('kim-18', 'kim@example.com', 'leave', 'kim-leave', '2026-06-18', '2026-06-18', '2026-06-23', {
 					createdAt: '2026-06-01T10:00:00+09:00',
 				}),
@@ -130,8 +130,8 @@ describe('team month calendar model', () => {
 		);
 
 		const absencesByDate = buildTeamAbsenceByDate(summary, attendanceText.ko);
-		const parkFirstChunk = absencesByDate.get('2026-06-18')?.find((absence) => absence.label === '박지민 출장');
-		const parkSecondChunk = absencesByDate.get('2026-06-22')?.find((absence) => absence.label === '박지민 출장');
+		const parkFirstChunk = absencesByDate.get('2026-06-18')?.find((absence) => absence.label === '박지민 기타');
+		const parkSecondChunk = absencesByDate.get('2026-06-22')?.find((absence) => absence.label === '박지민 기타');
 		const leeHiddenDays = ['2026-06-22', '2026-06-23', '2026-06-24'].map((date) =>
 			absencesByDate.get(date)?.find((absence) => absence.label === '이영희 기타')
 		);

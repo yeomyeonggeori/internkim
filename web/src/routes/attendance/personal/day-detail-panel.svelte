@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
@@ -10,6 +11,11 @@
 	import { attendanceText } from '../text';
 	import DayEventRow from './day-event-row.svelte';
 
+	type Props = {
+		compact?: boolean;
+	};
+
+	let { compact = false }: Props = $props();
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
@@ -36,27 +42,15 @@
 				)
 			: []
 	);
+	const cancelableAbsence = $derived(dayAbsences[0]);
 
 	let expanded = $state<Record<string, boolean>>({});
+	let deletingAbsenceID = $state('');
+	let absenceErrorID = $state('');
+	let absenceErrorMessage = $state('');
 
 	function toggle(eventID: string) {
 		expanded[eventID] = !expanded[eventID];
-	}
-
-	function pickLocation(eventID: string, currentLocationID: string | undefined, newLocationID: string) {
-		if (newLocationID === currentLocationID) {
-			attendance.confirmClassification(eventID);
-		} else {
-			attendance.overrideLocation(eventID, newLocationID);
-		}
-	}
-
-	function skipEvent(eventID: string) {
-		attendance.dismissEvent(eventID, 'classification_dismissed');
-	}
-
-	function confirmClockOut(eventID: string) {
-		attendance.confirmClassification(eventID);
 	}
 
 	function segmentCountLabel(count: number): string {
@@ -72,15 +66,43 @@
 		if (segment.isOpen) return 'text-success';
 		return 'text-foreground';
 	}
+
+	async function deleteAbsence(absenceID: string) {
+		if (deletingAbsenceID) return;
+		deletingAbsenceID = absenceID;
+		absenceErrorID = '';
+		absenceErrorMessage = '';
+		try {
+			await attendance.deleteAbsence(absenceID);
+		} catch (error) {
+			absenceErrorID = absenceID;
+			absenceErrorMessage = error instanceof Error ? error.message : text.processingFailed;
+		} finally {
+			deletingAbsenceID = '';
+		}
+	}
 </script>
 
 {#if attendance.selectedDate}
 	<div data-testid="personal-day-detail-panel">
 		<Card.Root>
-			<Card.Header>
-				<Card.Title class="text-sm">{attendance.selectedDate}</Card.Title>
+			<Card.Header class={compact ? 'pb-2' : undefined}>
+				<div class="flex items-center justify-between gap-3">
+					<Card.Title class="text-sm">{attendance.selectedDate}</Card.Title>
+					{#if cancelableAbsence}
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!!deletingAbsenceID}
+							onclick={() => deleteAbsence(cancelableAbsence.id)}
+						>
+							{text.cancel}
+						</Button>
+					{/if}
+				</div>
 			</Card.Header>
-			<Card.Content class="space-y-2 text-xs">
+			<Card.Content class={compact ? 'space-y-2 px-3 pb-3 text-xs' : 'space-y-2 text-xs'}>
 				{#each dayAbsences as absence (absence.id)}
 					<div class="rounded-md border border-info/30 bg-info/10 p-3">
 						<p class="font-medium text-info">{absenceLabelText(absence, text)}</p>
@@ -94,6 +116,9 @@
 								{/if}
 							</div>
 						{/if}
+						{#if absenceErrorMessage && absenceErrorID === absence.id}
+							<p class="mt-2 text-destructive">{absenceErrorMessage}</p>
+						{/if}
 					</div>
 				{/each}
 				{#if day && day.segments.length > 0}
@@ -106,19 +131,19 @@
 						</div>
 						<div class="space-y-1.5">
 							{#each day.segments as segment (segment.id)}
-								<div class={`flex items-center justify-between gap-3 rounded border px-2 py-1.5 ${segmentRowClass(segment)}`}>
-									<div class="min-w-0">
+								<div class={`grid gap-1 rounded border px-2 py-1.5 ${segmentRowClass(segment)}`}>
+									<div class="flex min-w-0 items-center justify-between gap-3">
 										<p class={`flex min-w-0 items-center gap-1.5 font-medium ${segmentLocationClass(segment)}`}>
 											<MapPinIcon class="h-3 w-3 shrink-0" />
 											<span class="truncate">{segment.locationName ?? segment.locationID ?? text.location}</span>
 										</p>
-										<p class="tabular-nums text-muted-foreground">
-											{segment.startTime}{segment.endTime ? `-${segment.endTime}` : '~'}
-										</p>
+										<span class={segment.isOpen ? 'shrink-0 text-success' : 'shrink-0 text-muted-foreground'}>
+											{segment.isOpen ? text.inProgress : formatHoursMinutes(segment.workedMinutes, text)}
+										</span>
 									</div>
-									<span class={segment.isOpen ? 'shrink-0 text-success' : 'shrink-0 text-muted-foreground'}>
-										{segment.isOpen ? text.inProgress : formatHoursMinutes(segment.workedMinutes)}
-									</span>
+									<p class="whitespace-nowrap tabular-nums text-muted-foreground">
+										{segment.startTime}{segment.endTime ? `~${segment.endTime}` : '~'}
+									</p>
 								</div>
 							{/each}
 						</div>
@@ -130,9 +155,7 @@
 						{locations}
 						isExpanded={!!expanded[event.id]}
 						onToggle={toggle}
-						onPickLocation={pickLocation}
-						onConfirmClockOut={confirmClockOut}
-						onSkip={skipEvent}
+						onSaveOverride={(eventID, request) => attendance.updateEvent(eventID, request)}
 					/>
 				{/each}
 				{#if dayEvents.length === 0 && dayAbsences.length === 0}

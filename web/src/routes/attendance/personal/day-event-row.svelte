@@ -1,7 +1,11 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import type { UpdateAttendanceEventRequest } from '../attendance-api';
 	import type { AttendanceEvent, AttendanceLocation } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
 
@@ -10,13 +14,7 @@
 		locations: AttendanceLocation[];
 		isExpanded: boolean;
 		onToggle: (eventID: string) => void;
-		onPickLocation: (
-			eventID: string,
-			currentLocationID: string | undefined,
-			newLocationID: string
-		) => void;
-		onConfirmClockOut: (eventID: string) => void;
-		onSkip: (eventID: string) => void;
+		onSaveOverride: (eventID: string, request: UpdateAttendanceEventRequest) => Promise<void>;
 	};
 
 	let {
@@ -24,15 +22,33 @@
 		locations,
 		isExpanded,
 		onToggle,
-		onPickLocation,
-		onConfirmClockOut,
-		onSkip
+		onSaveOverride
 	}: Props = $props();
 
 	const text = createPageText(attendanceText);
 	const parsedMismatch = $derived(
 		!!event.parsedAs?.locationID && event.parsedAs.locationID !== event.locationID
 	);
+	const firstLocationID = $derived(locations[0]?.id ?? '');
+	const eventLocationID = $derived(event.locationID || firstLocationID);
+	const sortedOverrideHistory = $derived(
+		[...(event.overrideHistory ?? [])].sort((first, second) => second.editedAt.localeCompare(first.editedAt))
+	);
+
+	let isEditing = $state(false);
+	let draftLocalTime = $state('');
+	let draftLocationID = $state('');
+	let draftReason = $state('');
+	let isSaving = $state(false);
+	let errorMessage = $state('');
+
+	$effect(() => {
+		if (isEditing) return;
+		draftLocalTime = shortTime(event.localTime);
+		draftLocationID = eventLocationID;
+		draftReason = '';
+		errorMessage = '';
+	});
 
 	function formatOverriddenAt(isoTimestamp: string): string {
 		return new Date(isoTimestamp).toLocaleString(text.dateLocale, { dateStyle: 'short', timeStyle: 'short' });
@@ -55,8 +71,57 @@
 		return text.editedAtTemplate.replace('{user}', user).replace('{time}', time);
 	}
 
+	function formatOverridePoint(localTime: string, locationName: string): string {
+		if (!locationName) return localTime;
+		return `${localTime} · ${locationName}`;
+	}
+
 	function formatCancelReason(reason: string): string {
 		return text.cancelReasonTemplate.replace('{reason}', cancelReasonLabel(reason));
+	}
+
+	function shortTime(localTime: string): string {
+		return localTime.slice(0, 5);
+	}
+
+	function openEditor() {
+		isEditing = true;
+		draftLocalTime = shortTime(event.localTime);
+		draftLocationID = eventLocationID;
+		draftReason = '';
+		errorMessage = '';
+	}
+
+	function closeEditor() {
+		if (isSaving) return;
+		isEditing = false;
+		errorMessage = '';
+	}
+
+	async function saveOverride() {
+		if (isSaving) return;
+		isSaving = true;
+		errorMessage = '';
+		try {
+			await onSaveOverride(event.id, {
+				localDate: event.localDate,
+				localTime: draftLocalTime,
+				locationID: draftLocationID,
+				reason: draftReason.trim()
+			});
+			isEditing = false;
+			draftReason = '';
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.processingFailed;
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function handleDraftTimeInput(inputEvent: Event) {
+		if (inputEvent.currentTarget instanceof HTMLInputElement) {
+			draftLocalTime = inputEvent.currentTarget.value;
+		}
 	}
 
 	function cancelReasonLabel(reason: string): string {
@@ -113,9 +178,36 @@
 				</div>
 			{/if}
 
-			{#if event.overriddenBy && event.overriddenAt}
-				<div class="text-muted-foreground">
-					{formatEditedAt(event.overriddenBy, formatOverriddenAt(event.overriddenAt))}
+			{#if sortedOverrideHistory.length > 0}
+				<div class="space-y-1">
+					{#each sortedOverrideHistory as override (override.id)}
+						<div class="space-y-0.5 rounded bg-muted/30 px-2 py-1.5 text-muted-foreground">
+							<div>{formatEditedAt(override.editedBy, formatOverriddenAt(override.editedAt))}</div>
+							<div>
+								{text.beforeEdit}: <span class="text-foreground">{formatOverridePoint(override.originalLocalTime, override.originalLocationName)}</span>
+							</div>
+							<div>
+								{text.afterEdit}: <span class="text-foreground">{formatOverridePoint(override.overrideLocalTime, override.overrideLocationName)}</span>
+							</div>
+							<div>
+								{text.editReason}: <span class="text-foreground">{override.reason}</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else if event.overriddenBy && event.overriddenAt}
+				<div class="space-y-0.5 text-muted-foreground">
+					<div>{formatEditedAt(event.overriddenBy, formatOverriddenAt(event.overriddenAt))}</div>
+					{#if event.originalLocalTime || event.originalLocationName}
+						<div>
+							{text.beforeEdit}: <span class="text-foreground">{formatOverridePoint(event.originalLocalTime ?? '', event.originalLocationName ?? '')}</span>
+						</div>
+					{/if}
+					{#if event.overrideReason}
+						<div>
+							{text.editReason}: <span class="text-foreground">{event.overrideReason}</span>
+						</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -124,41 +216,64 @@
 			{/if}
 
 			{#if !event.canceledAt && locations.length > 0}
-				<div>
-					<div class="text-[10px] uppercase tracking-wide text-muted-foreground">{text.classification}</div>
-					<div class="mt-1 flex flex-wrap items-center gap-1">
-						{#if event.kind === 'clock_in'}
-							{#each locations as location (location.id)}
-								<button
-									type="button"
-									class={`rounded border px-2 py-1 transition ${
-										event.locationID === location.id
-											? 'border-foreground/60 bg-foreground/5 font-medium'
-											: 'border-border/40 hover:bg-accent/40'
-									}`}
-									onclick={() => onPickLocation(event.id, event.locationID, location.id)}
-								>
-									{location.name}
-								</button>
-							{/each}
-						{:else}
-							<button
-								type="button"
-								class="rounded border border-foreground/60 bg-foreground/5 px-2 py-1 font-medium"
-								onclick={() => onConfirmClockOut(event.id)}
+				{#if isEditing}
+					<form
+						class="grid gap-2 rounded border border-border/50 bg-muted/20 p-2"
+						onsubmit={(submitEvent) => {
+							submitEvent.preventDefault();
+							saveOverride();
+						}}
+					>
+						<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
+							<span>{text.eventTime}</span>
+							<Input
+								type="time"
+								value={draftLocalTime}
+								disabled={isSaving}
+								oninput={handleDraftTimeInput}
+								class="w-full"
+							/>
+						</label>
+						<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
+							<span>{text.location}</span>
+							<select
+								class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm text-foreground"
+								bind:value={draftLocationID}
+								disabled={isSaving}
 							>
-								{text.confirmClockOut}
-							</button>
+								{#each locations as location (location.id)}
+									<option value={location.id}>{location.name}</option>
+								{/each}
+							</select>
+						</label>
+						<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
+							<span>{text.editReason}</span>
+							<Textarea
+								bind:value={draftReason}
+								placeholder={text.editReasonPlaceholder}
+								disabled={isSaving}
+								class="min-h-16 text-sm"
+							/>
+						</label>
+						{#if errorMessage}
+							<p class="text-destructive">{errorMessage}</p>
 						{/if}
-						<button
-							type="button"
-							class="ml-1 rounded border border-border/40 bg-background px-2 py-1 text-muted-foreground hover:bg-muted/40"
-							onclick={() => onSkip(event.id)}
-						>
-							{text.skip}
-						</button>
+						<div class="flex justify-end gap-1">
+							<Button type="button" variant="outline" size="sm" disabled={isSaving} onclick={closeEditor}>
+								{text.cancel}
+							</Button>
+							<Button type="submit" size="sm" disabled={isSaving || !draftReason.trim()}>
+								{text.save}
+							</Button>
+						</div>
+					</form>
+				{:else}
+					<div class="flex justify-end">
+						<Button type="button" variant="outline" size="sm" onclick={openEditor}>
+							{text.edit}
+						</Button>
 					</div>
-				</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}

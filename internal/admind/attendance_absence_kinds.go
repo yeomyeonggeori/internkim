@@ -8,7 +8,6 @@ import (
 
 const (
 	attendanceAbsenceLeave           = "leave"
-	attendanceAbsenceBusinessTrip    = "business_trip"
 	attendanceAbsenceDayOff          = "day_off"
 	attendanceAbsenceOther           = "other"
 	attendanceAbsenceLocalAdminActor = "local_admin"
@@ -16,9 +15,8 @@ const (
 )
 
 var attendanceAbsenceKinds = map[string]struct{}{
-	attendanceAbsenceLeave:        {},
-	attendanceAbsenceBusinessTrip: {},
-	attendanceAbsenceOther:        {},
+	attendanceAbsenceLeave: {},
+	attendanceAbsenceOther: {},
 }
 
 func normalizeAttendanceAbsenceKind(value string) (string, error) {

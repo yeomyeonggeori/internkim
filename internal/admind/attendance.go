@@ -58,6 +58,8 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 		service.writeAttendanceAbsences(responseWriter, request)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/absences/"):
 		service.deleteAttendanceAbsence(responseWriter, request, strings.TrimPrefix(path, "/absences/"))
+	case request.Method == http.MethodPatch && strings.HasPrefix(path, "/events/"):
+		service.writeAttendanceEventOverride(responseWriter, request, strings.TrimPrefix(path, "/events/"))
 	default:
 		http.NotFound(responseWriter, request)
 	}
