@@ -27,6 +27,7 @@ type CalendarTestAccountStatus = {
 	connected: boolean;
 	needsReauth: boolean;
 	googleOAuthConfigured: boolean;
+	canManageGoogleOAuth: boolean;
 };
 
 export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLocale = 'ko'): Promise<void> {
@@ -54,7 +55,8 @@ export async function routeCalendarBackgroundAPI(
 	accountStatus: CalendarTestAccountStatus = {
 		connected: false,
 		needsReauth: false,
-		googleOAuthConfigured: true
+		googleOAuthConfigured: true,
+		canManageGoogleOAuth: false
 	}
 ): Promise<void> {
 	await page.route('**/calendar/api/account-status', async (route) => {
