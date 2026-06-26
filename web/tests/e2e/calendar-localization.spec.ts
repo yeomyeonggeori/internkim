@@ -31,7 +31,12 @@ test.describe('calendar localization', () => {
 				}
 			});
 		});
-		await routeCalendarBackgroundAPI(page, { connected: false, needsReauth: false, googleOAuthConfigured: false });
+		await routeCalendarBackgroundAPI(page, {
+			connected: false,
+			needsReauth: false,
+			googleOAuthConfigured: false,
+			canManageGoogleOAuth: false
+		});
 
 		await page.goto('/calendar/');
 		await expect(page.getByRole('button', { name: '구독 설정' })).toBeVisible();
