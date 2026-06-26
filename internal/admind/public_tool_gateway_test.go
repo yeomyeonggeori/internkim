@@ -66,10 +66,10 @@ func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayRequiresExplicitConnectScope(t *testing.T) {
+func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -144,6 +144,26 @@ func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/flow.task.delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "ok", Result: json.RawMessage(`{"ok":true}`)}
+	})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"external_send"}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/flow.task.add/invoke", strings.NewReader(`{"input":{"prompt":"업무 추가"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -232,24 +252,20 @@ func TestPublicToolScopeForDescriptorClosedByDefault(t *testing.T) {
 		"read":             "",
 		"workspace_write":  publicAPIScopeWrite,
 		"workspace_task":   publicAPIScopeWrite,
-		"external_write":   publicAPIScopeExternalWrite,
-		"external_send":    publicAPIScopeExternalSend,
-		"external_publish": publicAPIScopePublish,
-		"site_publish":     publicAPIScopePublish,
-		"connect":          publicAPIScopeConnect,
+		"external_write":   publicAPIScopeWrite,
+		"external_send":    publicAPIScopeWrite,
+		"external_publish": publicAPIScopeWrite,
+		"site_publish":     publicAPIScopeWrite,
+		"connect":          publicAPIScopeWrite,
+		"browser_write":    publicAPIScopeWrite,
 		"destructive":      publicAPIScopeDestructive,
-		"browser_write":    publicAPIScopeCompanion,
-		"mystery_class":    publicAPIScopeAdmin,
+		"mystery_class":    publicAPIScopeDestructive,
 	}
 	for sideEffectClass, expectedScope := range cases {
 		scope := publicToolScopeForDescriptor(capabilities.Descriptor{SideEffectClass: sideEffectClass})
 		if scope != expectedScope {
 			t.Fatalf("%s: scope = %q, want %q", sideEffectClass, scope, expectedScope)
 		}
-	}
-	userBrowserScope := publicToolScopeForDescriptor(capabilities.Descriptor{SideEffectClass: "read", PrivacyClass: "user_browser"})
-	if userBrowserScope != publicAPIScopeCompanion {
-		t.Fatalf("user-local tool scope = %q, want %q", userBrowserScope, publicAPIScopeCompanion)
 	}
 }
 
