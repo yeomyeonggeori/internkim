@@ -154,6 +154,8 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.serveCalendarAccountStatus(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/connection/start":
 		service.startCalendarConnection(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/google-oauth-client":
+		service.uploadGoogleOAuthClient(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/conflicts":
 		service.serveCalendarConflicts(responseWriter, request)
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/conflicts/") && strings.HasSuffix(path, "/dismiss"):

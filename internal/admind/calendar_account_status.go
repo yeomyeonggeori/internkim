@@ -16,6 +16,7 @@ type calendarAccountStatusResponse struct {
 	LastAuthErrorAt       string `json:"lastAuthErrorAt,omitempty"`
 	NeedsReauth           bool   `json:"needsReauth"`
 	GoogleOAuthConfigured bool   `json:"googleOAuthConfigured"`
+	CanManageGoogleOAuth  bool   `json:"canManageGoogleOAuth"`
 }
 
 func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, request *http.Request) {
@@ -28,6 +29,7 @@ func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, r
 	response := calendarAccountStatusResponse{
 		Connected:             found,
 		GoogleOAuthConfigured: service.isGoogleOAuthConfigured(),
+		CanManageGoogleOAuth:  service.isAuthorized(request),
 	}
 	if found {
 		response.Provider = account.Provider

@@ -102,17 +102,32 @@ func (service *Service) loadGoogleOAuthClientSecret() (string, string, error) {
 	if errorValue != nil {
 		return "", "", fmt.Errorf("read google oauth client file %s: %w", path, errorValue)
 	}
+	credentials, errorValue := parseGoogleOAuthClientDocument(payload)
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	return credentials.ClientID, credentials.ClientSecret, nil
+}
+
+func parseGoogleOAuthClientDocument(document []byte) (googleOAuthClientCredentials, error) {
 	var parsed googleOAuthClientFile
-	if errorValue := json.Unmarshal(payload, &parsed); errorValue != nil {
-		return "", "", fmt.Errorf("parse google oauth client file: %w", errorValue)
+	if errorValue := json.Unmarshal(document, &parsed); errorValue != nil {
+		return googleOAuthClientCredentials{}, fmt.Errorf("parse google oauth client file: %w", errorValue)
 	}
-	if parsed.Installed != nil && strings.TrimSpace(parsed.Installed.ClientID) != "" {
-		return parsed.Installed.ClientID, parsed.Installed.ClientSecret, nil
+	credentials := parsed.Installed
+	if credentials == nil || strings.TrimSpace(credentials.ClientID) == "" {
+		credentials = parsed.Web
 	}
-	if parsed.Web != nil && strings.TrimSpace(parsed.Web.ClientID) != "" {
-		return parsed.Web.ClientID, parsed.Web.ClientSecret, nil
+	if credentials == nil || strings.TrimSpace(credentials.ClientID) == "" {
+		return googleOAuthClientCredentials{}, errors.New("google oauth client file missing client_id")
 	}
-	return "", "", errors.New("google oauth client file missing client_id")
+	if strings.TrimSpace(credentials.ClientSecret) == "" {
+		return googleOAuthClientCredentials{}, errors.New("google oauth client file missing client_secret")
+	}
+	return googleOAuthClientCredentials{
+		ClientID:     strings.TrimSpace(credentials.ClientID),
+		ClientSecret: strings.TrimSpace(credentials.ClientSecret),
+	}, nil
 }
 
 func (service *Service) isGoogleOAuthConfigured() bool {
