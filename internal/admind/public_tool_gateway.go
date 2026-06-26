@@ -384,41 +384,42 @@ func (service *Service) publicToolDescriptor(ctx context.Context, toolName strin
 
 func publicToolAllowedForActor(descriptor capabilities.Descriptor, actor publicToolGatewayActor) bool {
 	requiredScope := publicToolScopeForDescriptor(descriptor)
-	return requiredScope == "" || slices.Contains(actor.Actor.Scopes, requiredScope)
+	return actorScopeRank(actor) >= publicAPIScopeRank(requiredScope)
+}
+
+func actorScopeRank(actor publicToolGatewayActor) int {
+	highestRank := 0
+	for _, scope := range actor.Actor.Scopes {
+		if rank := publicAPIScopeRank(scope); rank > highestRank {
+			highestRank = rank
+		}
+	}
+	return highestRank
+}
+
+func publicAPIScopeRank(scope string) int {
+	switch scope {
+	case "", publicAPIScopeRead:
+		return 1
+	case publicAPIScopeDestructive, publicAPIScopeAdmin:
+		return 3
+	default:
+		return 2
+	}
 }
 
 func publicToolScopeForDescriptor(descriptor capabilities.Descriptor) string {
-	if isUserLocalPrivacyClass(descriptor.PrivacyClass) {
-		return publicAPIScopeCompanion
-	}
 	switch descriptor.SideEffectClass {
 	case "read":
 		return ""
-	case "workspace_write", "workspace_calendar", "workspace_task":
-		return publicAPIScopeWrite
-	case "external_write":
-		return publicAPIScopeExternalWrite
-	case "external_send":
-		return publicAPIScopeExternalSend
-	case "external_publish", "site_publish":
-		return publicAPIScopePublish
-	case "connect":
-		return publicAPIScopeConnect
 	case "destructive":
 		return publicAPIScopeDestructive
-	case "browser", "browser_write", "handoff", "local_file", "approval":
-		return publicAPIScopeCompanion
+	case "workspace_write", "workspace_calendar", "workspace_task",
+		"external_write", "external_send", "external_publish", "site_publish",
+		"connect", "browser", "browser_write", "handoff", "local_file", "approval":
+		return publicAPIScopeWrite
 	default:
-		return publicAPIScopeAdmin
-	}
-}
-
-func isUserLocalPrivacyClass(privacyClass string) bool {
-	switch privacyClass {
-	case "user_browser", "user_input", "local_file":
-		return true
-	default:
-		return false
+		return publicAPIScopeDestructive
 	}
 }
 
