@@ -24,6 +24,8 @@ func TestSSHRecoveryRestartUsesSignedAllowlistedAction(t *testing.T) {
 			return []byte("inactive\n"), nil
 		case "systemctl is-active cloudflared":
 			return []byte("active\n"), nil
+		case "systemctl is-active blueclaw":
+			return []byte("active\n"), nil
 		case "systemctl restart cloudflared-node-ssh":
 			return []byte("restarted\n"), nil
 		case "journalctl -u ssh -u cloudflared-node-ssh -n 80 --no-pager":
