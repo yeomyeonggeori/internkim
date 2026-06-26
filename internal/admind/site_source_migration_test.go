@@ -78,6 +78,7 @@ func assertMissingSiteSourceCanonicalized(t *testing.T, service *Service, worksp
 	t.Helper()
 	site := service.sites[siteID]
 	aliasName := siteWorkspaceAliasName(siteID, site.Slug)
+	assertStaffCircleSiteStorageMode(t, workspaceRoot, siteID)
 	aliasPath := filepath.Join(workspaceRoot, "circles", "staff", "sites", aliasName)
 	aliasInformation, errorValue := os.Lstat(aliasPath)
 	if errorValue != nil {
@@ -106,6 +107,8 @@ func assertSiteSourceMigrated(t *testing.T, service *Service, workspaceRoot stri
 	t.Helper()
 	site := service.sites[siteID]
 	aliasName := siteWorkspaceAliasName(siteID, site.Slug)
+	assertStaffCircleSiteStorageMode(t, workspaceRoot, siteID)
+	assertStaffCircleDirectoryMode(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", ".ids", siteID, "draft"))
 	migratedFilePath := filepath.Join(workspaceRoot, "circles", "staff", "sites", ".ids", siteID, "draft", "app", "src", "App.tsx")
 	content, errorValue := os.ReadFile(migratedFilePath)
 	if errorValue != nil {
@@ -132,4 +135,12 @@ func assertSiteSourceMigrated(t *testing.T, service *Service, workspaceRoot stri
 	if site.AppWorkspacePath != expectedDraft+"/app" {
 		t.Fatalf("expected canonical app path for %s, got %q", siteID, site.AppWorkspacePath)
 	}
+}
+
+func assertStaffCircleSiteStorageMode(t *testing.T, workspaceRoot string, siteID string) {
+	t.Helper()
+	staffSitesPath := filepath.Join(workspaceRoot, "circles", "staff", "sites")
+	assertStaffCircleDirectoryMode(t, staffSitesPath)
+	assertStaffCircleDirectoryMode(t, filepath.Join(staffSitesPath, ".ids"))
+	assertStaffCircleDirectoryMode(t, filepath.Join(staffSitesPath, ".ids", siteID))
 }

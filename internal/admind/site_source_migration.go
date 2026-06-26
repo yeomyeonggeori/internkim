@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 const staffCircleGroupName = "bc_circle_staff"
@@ -29,6 +28,9 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 	workspaceRoot := service.Configuration.BlueclawWorkspacePath
 	targetProjectHostPath := service.siteProjectStorageHostPath(siteID)
 	targetDraftHostPath := filepath.Join(targetProjectHostPath, "draft")
+	if errorValue := service.ensureSiteWorkspaceStoragePath(siteID); errorValue != nil {
+		return errorValue
+	}
 
 	workspaceSourceHostPath := locateSiteSourceHostPath(workspaceRoot, site, targetDraftHostPath)
 	if workspaceSourceHostPath != "" {
@@ -146,17 +148,14 @@ func (service *Service) recordStaffCircleSitePaths(site *SiteRecord, siteID stri
 
 func healStaffCirclePermissions(rootPath string) {
 	groupID, errorValue := lookupStaffCircleGroupID()
-	if errorValue != nil {
-		return
-	}
-	if directoryHasGroup(rootPath, groupID) {
-		return
-	}
+	hasStaffCircleGroup := errorValue == nil
 	walkError := filepath.WalkDir(rootPath, func(path string, entry fs.DirEntry, iterationError error) error {
 		if iterationError != nil {
 			return nil
 		}
-		_ = os.Lchown(path, -1, groupID)
+		if hasStaffCircleGroup {
+			_ = os.Lchown(path, -1, groupID)
+		}
 		if entry.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
@@ -172,24 +171,27 @@ func healStaffCirclePermissions(rootPath string) {
 	}
 }
 
+func ensureStaffCircleDirectory(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if errorValue := os.MkdirAll(path, 0o770); errorValue != nil {
+		return errorValue
+	}
+	if groupID, errorValue := lookupStaffCircleGroupID(); errorValue == nil {
+		if errorValue := os.Lchown(path, -1, groupID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return os.Chmod(path, os.ModeSetgid|0o770)
+}
+
 func lookupStaffCircleGroupID() (int, error) {
 	group, errorValue := user.LookupGroup(staffCircleGroupName)
 	if errorValue != nil {
 		return -1, errorValue
 	}
 	return strconv.Atoi(group.Gid)
-}
-
-func directoryHasGroup(path string, groupID int) bool {
-	information, errorValue := os.Stat(path)
-	if errorValue != nil {
-		return false
-	}
-	systemInformation, isStat := information.Sys().(*syscall.Stat_t)
-	if !isStat {
-		return false
-	}
-	return int(systemInformation.Gid) == groupID
 }
 
 func isExistingDirectory(path string) bool {
