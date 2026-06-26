@@ -371,6 +371,56 @@ func TestServeCalendarAccountStatusReportsGoogleOAuthConfigured(t *testing.T) {
 	}
 }
 
+func TestServeCalendarAccountStatusRejectsIncompleteGoogleOAuthClient(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1"}}`)
+	request := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	recorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: %d", recorder.Code)
+	}
+	var body calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatalf("decode: %v", errorValue)
+	}
+	if body.GoogleOAuthConfigured {
+		t.Error("GoogleOAuthConfigured should be false without client_secret")
+	}
+}
+
+func TestServeCalendarAccountStatusReportsGoogleOAuthManagePermission(t *testing.T) {
+	service := newCalendarTestService(t)
+	adminRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/calendar/api/account-status", nil)
+	adminRequest.RemoteAddr = "127.0.0.1:34567"
+	adminRecorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(adminRecorder, adminRequest)
+	if adminRecorder.Code != http.StatusOK {
+		t.Fatalf("admin status: %d", adminRecorder.Code)
+	}
+	var adminBody calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(adminRecorder.Body.Bytes(), &adminBody); errorValue != nil {
+		t.Fatalf("decode admin: %v", errorValue)
+	}
+	if !adminBody.CanManageGoogleOAuth {
+		t.Error("CanManageGoogleOAuth should be true for admin requests")
+	}
+
+	staffRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	staffRecorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(staffRecorder, staffRequest)
+	if staffRecorder.Code != http.StatusOK {
+		t.Fatalf("staff status: %d", staffRecorder.Code)
+	}
+	var staffBody calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(staffRecorder.Body.Bytes(), &staffBody); errorValue != nil {
+		t.Fatalf("decode staff: %v", errorValue)
+	}
+	if staffBody.CanManageGoogleOAuth {
+		t.Error("CanManageGoogleOAuth should be false for non-admin requests")
+	}
+}
+
 func TestServeCalendarAccountStatusReportsConnectedHealthy(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
