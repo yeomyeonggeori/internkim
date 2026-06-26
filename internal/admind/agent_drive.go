@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 )
 
@@ -23,8 +22,8 @@ type agentInboundEvent struct {
 }
 
 func (service *Service) handleAgentMessage(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
-	if !slices.Contains(actor.Actor.Scopes, publicAPIScopeAgentRun) {
-		http.Error(responseWriter, "agent.run scope required", http.StatusForbidden)
+	if actorScopeRank(actor) < publicAPIScopeRank(publicAPIScopeWrite) {
+		http.Error(responseWriter, "write scope required", http.StatusForbidden)
 		return
 	}
 	var payload agentMessageRequest
@@ -61,8 +60,8 @@ func (service *Service) handleAgentMessage(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) handleAgentReplies(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
-	if !slices.Contains(actor.Actor.Scopes, publicAPIScopeAgentRun) {
-		http.Error(responseWriter, "agent.run scope required", http.StatusForbidden)
+	if actorScopeRank(actor) < publicAPIScopeRank(publicAPIScopeWrite) {
+		http.Error(responseWriter, "write scope required", http.StatusForbidden)
 		return
 	}
 	conversationID := strings.TrimSpace(request.URL.Query().Get("conversationID"))

@@ -8,7 +8,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 
-	type PublicAPITokenScope = 'read' | 'write' | 'connect' | 'external_send' | 'destructive';
+	type PublicAPITokenScope = 'read' | 'write' | 'destructive';
 
 	type PublicAPITokenCreateResponse = {
 		token: string;
@@ -33,8 +33,6 @@
 	const tokenScopeOptions = (): { value: PublicAPITokenScope; label: string; description: string }[] => [
 		{ value: 'read', label: text.apiTokenSheet.scopes.read, description: text.apiTokenSheet.scopeDescriptions.read },
 		{ value: 'write', label: text.apiTokenSheet.scopes.write, description: text.apiTokenSheet.scopeDescriptions.write },
-		{ value: 'connect', label: text.apiTokenSheet.scopes.connect, description: text.apiTokenSheet.scopeDescriptions.connect },
-		{ value: 'external_send', label: text.apiTokenSheet.scopes.externalSend, description: text.apiTokenSheet.scopeDescriptions.externalSend },
 		{ value: 'destructive', label: text.apiTokenSheet.scopes.destructive, description: text.apiTokenSheet.scopeDescriptions.destructive }
 	];
 

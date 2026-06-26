@@ -41,16 +41,12 @@ export const appShellText = {
 			scopes: {
 				read: '읽기',
 				write: '쓰기',
-				connect: '연결',
-				externalSend: '외부 전송',
 				destructive: '삭제'
 			},
 			scopeDescriptions: {
 				read: '업무, 일정, 메일, 메시지를 조회합니다.',
-				write: '업무와 일정을 만들거나 수정합니다.',
-				connect: '캘린더나 메일 연결을 시작합니다.',
-				externalSend: 'DM, 메일, 채널 메시지를 전송합니다.',
-				destructive: '삭제 같은 되돌리기 어려운 작업을 허용합니다.'
+				write: '업무·일정 생성/수정, DM·메일·메시지 전송, 김인턴에게 DM까지 허용합니다.',
+				destructive: '쓰기 권한에 더해 삭제 같은 되돌리기 어려운 작업까지 허용합니다.'
 			}
 		}
 	},
@@ -96,16 +92,12 @@ export const appShellText = {
 			scopes: {
 				read: 'Read',
 				write: 'Write',
-				connect: 'Connect',
-				externalSend: 'External send',
 				destructive: 'Delete'
 			},
 			scopeDescriptions: {
 				read: 'Read tasks, events, mail, and messages.',
-				write: 'Create or update tasks and events.',
-				connect: 'Start calendar or mail connection flows.',
-				externalSend: 'Send DMs, mail, and channel messages.',
-				destructive: 'Allow irreversible operations such as delete.'
+				write: 'Create/update tasks and events, send DMs, mail, and messages, and message InternKim.',
+				destructive: 'Everything in Write plus irreversible operations such as delete.'
 			}
 		}
 	}
