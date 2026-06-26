@@ -589,6 +589,23 @@ func TestSiteCreateUsesRequesterTimestampSlug(t *testing.T) {
 	}
 }
 
+func TestSiteCreateIgnoresStaleStaffCircleSourceWorkspacePath(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:                "current-site",
+		SourceWorkspacePath: "/workspace/circles/staff/sites/other-site/draft",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.SourceWorkspacePath != "/workspace/circles/staff/sites/current-site/draft" {
+		t.Fatalf("expected source workspace path to use current site alias, got %q", site.SourceWorkspacePath)
+	}
+	if site.WorkspacePath != "/workspace/circles/staff/sites/current-site" {
+		t.Fatalf("expected workspace path to use current site alias, got %q", site.WorkspacePath)
+	}
+}
+
 func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
@@ -1064,14 +1081,34 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+	if site.SourceWorkspacePath != "/workspace/circles/staff/sites/terminal-writable/draft" {
 		t.Fatalf("expected staff-circle draft workspace, got %q", site.SourceWorkspacePath)
 	}
-	if !strings.HasPrefix(site.WorkspacePath, "/workspace/circles/staff/sites/") || strings.HasSuffix(site.WorkspacePath, "/draft") {
+	if site.WorkspacePath != "/workspace/circles/staff/sites/terminal-writable" {
 		t.Fatalf("workspace path should point at project root: %+v", site)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("app workspace path should point at app source: %+v", site)
+	}
+	storagePath := service.siteProjectStorageHostPath(site.SiteID)
+	if information, errorValue := os.Stat(storagePath); errorValue != nil || !information.IsDir() {
+		t.Fatalf("expected hidden siteID storage directory at %s: %v", storagePath, errorValue)
+	}
+	aliasPath := service.siteProjectAliasHostPath(site)
+	aliasInformation, errorValue := os.Lstat(aliasPath)
+	if errorValue != nil {
+		t.Fatalf("expected slug alias at %s: %v", aliasPath, errorValue)
+	}
+	if aliasInformation.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected slug alias to be symlink, got mode %v", aliasInformation.Mode())
+	}
+	targetPath, errorValue := os.Readlink(aliasPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	resolvedTargetPath := filepath.Clean(filepath.Join(filepath.Dir(aliasPath), targetPath))
+	if resolvedTargetPath != filepath.Clean(storagePath) {
+		t.Fatalf("alias target = %q, want %q", resolvedTargetPath, storagePath)
 	}
 }
 
