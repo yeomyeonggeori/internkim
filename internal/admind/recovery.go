@@ -111,12 +111,12 @@ systemctl restart %s
 restart_status=$?
 printf 'systemctl restart %s exit=%%s\n' "$restart_status"
 health_status=failed
-for attempt in $(seq 1 90); do
+for attempt in $(seq 1 15); do
 	if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/tmp/internkim-blueclaw-health.json 2>/dev/null; then
     health_status=ok
     break
   fi
-  sleep 2
+  sleep 1
 done
 printf 'blueclaw health %%s\n' "$health_status"
 printf '\n== blueclaw status ==\n'
@@ -225,6 +225,7 @@ func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string
 		"ssh":                  service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "ssh"),
 		"cloudflared-node-ssh": service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "cloudflared-node-ssh"),
 		"cloudflared":          service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "cloudflared"),
+		"blueclaw":             service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BlueclawServiceName),
 	}
 }
 
