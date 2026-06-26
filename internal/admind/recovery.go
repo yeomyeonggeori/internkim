@@ -57,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw":
 		return true
 	default:
 		return false
@@ -96,10 +96,44 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
 	case "limit-blueclaw":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw Firecracker", "sh", "-lc", blueclawResourceLimitCommand()))
+	case "restart-blueclaw":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart Blueclaw", "sh", "-lc", blueclawRestartDiagnosticCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
 	return response
+}
+
+func blueclawRestartDiagnosticCommand() string {
+	return strings.TrimSpace(fmt.Sprintf(`
+set +e
+systemctl restart %s
+restart_status=$?
+printf 'systemctl restart %s exit=%%s\n' "$restart_status"
+health_status=failed
+for attempt in $(seq 1 90); do
+	if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/tmp/internkim-blueclaw-health.json 2>/dev/null; then
+    health_status=ok
+    break
+  fi
+  sleep 2
+done
+printf 'blueclaw health %%s\n' "$health_status"
+printf '\n== blueclaw status ==\n'
+systemctl status %s --no-pager -l 2>/dev/null | tail -100 || true
+printf '\n== blueclaw processes ==\n'
+ps -eo pid,stat,comm | grep -E 'blueclaw|firecracker|jailer' || true
+printf '\n== blueclaw ports ==\n'
+ss -ltnp 2>/dev/null | grep ':8080' || true
+printf '\n== blueclaw journal ==\n'
+journalctl -u %s -n 180 --no-pager 2>/dev/null || true
+[ "$health_status" = ok ]
+	`,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+	))
 }
 
 func blueclawResourceLimitCommand() string {
