@@ -18,11 +18,19 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 
 Skill은 절차와 판단 기준이다. Tool은 실행 가능한 런타임 API다. Skill은 tool을 사용할 수 있지만 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
-Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Tool 관련 frontmatter는 `allowed-tools`만 사용한다. `requiredTools`, `required-tools`, custom dependency field는 쓰지 않는다.
+Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Tool 권한/노출 관련 frontmatter는 `allowed-tools`만 사용한다. `requiredTools`, `required-tools`, custom dependency field는 쓰지 않는다.
 
 `allowed-tools`는 skill이 쓸 수 있는 도구 목록이자 Blueclaw skill selection의 runtime gate다. 목록에 있는 도구가 현재 profile, policy, ToolSet에 없으면 해당 skill은 선택되지 않는다.
 
 Tool의 설명, input schema, output schema, policy resource, side-effect class, approval requirement는 turn-scoped ToolSet과 capability/MCP descriptor가 소유한다. Prompt의 "Available tools", structured output schema, runtime invocation은 같은 ToolSet에서 나온다.
+
+WorkflowContract는 반복되는 업무 흐름의 공통 계약이다. WorkKind, step working set tool group, intent별 evidence tool 선택을 한 곳에서 정의한다. Intake, skill selection, outcome contract, turn runner는 이 계약을 소비한다. 새 업무 흐름이 생기면 completion gate나 skill prompt에 예외를 추가하지 않고 WorkflowContract와 Tool descriptor를 갱신한다.
+
+완료 판단은 Skill이 아니라 OutcomeContract와 tool observation이 소유한다. Skill은 사용 절차를 설명하고 allowed tool 범위를 제한할 수 있지만, operation별 hard gate를 소유하지 않는다. 업무 등록은 `flow.task.add`, 업무 목록은 `flow.task.list`, 업무 수정/완료는 `flow.task.update`처럼 WorkflowContract가 현재 intent에 맞는 evidence tool을 고르고, 그 tool의 성공 observation이 있어야 완료다.
+
+CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.SideEffectClass` 또는 `ToolRecoveryCard.SideEffect`를 통해 상태 변경이 필요한 evidence requirement인지 판단한다. 상태 변경 tool은 성공 observation 없이 완료할 수 없고, read/computation tool은 답변 대체가 가능한 경우에만 fallback으로 완료할 수 있다.
+
+`no_tool_fallback`은 순수 계산, 설명, 조회처럼 답변으로 대체 가능한 실패에만 허용한다. 메시지 전송, 업무 변경, 일정 변경, 스킬 변경처럼 외부 상태가 바뀌어야 하는 작업은 fallback 문장으로 완료 처리하지 않는다.
 
 ## Canonical 실행 경로
 
