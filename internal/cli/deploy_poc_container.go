@@ -176,9 +176,15 @@ func pocContainerRecreateCommand(target deployops.Target) string {
 		"rm -f " + quoteShellValue(overlayPath),
 		pocContainerTagExistingImageCommand(target),
 		pocContainerBuildImageCommand(target, overlayPath),
-		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " python3 start-poc.py",
+		pocContainerTenantCountCommand(),
+		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " python3 start-poc.py \"$tenant_count\"",
 		"[ ! -f cf.env ] || python3 restart-tunnel.py",
 	}, "\n")
+}
+
+func pocContainerTenantCountCommand() string {
+	return "tenant_count=\"$(find config -type d -name 'tenant_[0-9][0-9]*' -prune 2>/dev/null | sed 's#.*/tenant_0*##' | sort -n | tail -1)\"\n" +
+		"if [ -z \"$tenant_count\" ]; then tenant_count=10; fi"
 }
 
 func pocContainerTagExistingImageCommand(target deployops.Target) string {

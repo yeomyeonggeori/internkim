@@ -11,7 +11,7 @@ for number in $(seq 1 10); do
   index="$(printf '%02d' "${number}")"
   email="admin${index}@example.test"
   username="admin${index}"
-  password="InternKim${index}!$(openssl rand -hex 3)"
+  password="$(openssl rand -hex 18)"
   team="tenant${index}"
 
   ./internkim tenant container add --workdir /Users/dawn/internkim-poc --tenant "${team}" --admin-email "${email}" >/dev/null 2>&1

@@ -2,7 +2,7 @@
 """Start/restart PoC tenant containers via Apple Container.
 
 Usage:
-  python3 start-poc.py              # start tenants 1-TENANT_COUNT (default 10)
+  python3 start-poc.py              # start tenants 1-TENANT_COUNT or current config count
   python3 start-poc.py 15           # start tenants 1-15 (add new tenants)
 
 Infra containers (poc-postgres, poc-mattermost) must already be running.
@@ -14,7 +14,7 @@ CONTAINER = '/opt/homebrew/bin/container'
 BASE = os.path.expanduser('~/internkim-poc')
 NETWORK = 'internkim-poc'
 TENANT_IMAGE = os.environ.get('TENANT_IMAGE', 'internkim-poc-tenant:flow')
-DEFAULT_TENANT_COUNT = int(os.environ.get('TENANT_COUNT', '10'))
+FALLBACK_TENANT_COUNT = 10
 
 
 def run(cmd, check=True):
@@ -74,8 +74,22 @@ def start_tenant(n, pg_ip, mm_ip):
     run(cmd)
 
 
+def default_tenant_count():
+    configured_count = os.environ.get('TENANT_COUNT')
+    if configured_count:
+        return int(configured_count)
+    indices = []
+    for config_path in glob.glob(os.path.join(BASE, 'config', 'tenant_*')):
+        match = re.match(r'^tenant_([0-9]+)$', os.path.basename(config_path))
+        if match:
+            indices.append(int(match.group(1)))
+    if indices:
+        return max(indices)
+    return FALLBACK_TENANT_COUNT
+
+
 if __name__ == '__main__':
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_TENANT_COUNT
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else default_tenant_count()
     pg_ip = container_ip('poc-postgres')
     mm_ip = container_ip('poc-mattermost')
     print(f'Postgres: {pg_ip}, Mattermost: {mm_ip}')
