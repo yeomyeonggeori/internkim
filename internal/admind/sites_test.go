@@ -1116,6 +1116,57 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	}
 }
 
+func TestWriteSiteRepairsBrokenSlugAliasDirectory(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "read-repairs-alias"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	breakSiteAliasDirectory(t, service, site, "read repaired")
+
+	response := writeSiteResponse(service, site.SiteID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("response status = %d body = %q", response.Code, response.Body.String())
+	}
+
+	assertSiteAliasSymlinkTarget(t, service, site)
+	migratedFilePath := filepath.Join(service.siteProjectStorageHostPath(site.SiteID), "draft", "app", "src", "App.tsx")
+	content, errorValue := os.ReadFile(migratedFilePath)
+	if errorValue != nil {
+		t.Fatalf("expected migrated source: %v", errorValue)
+	}
+	if string(content) != "read repaired" {
+		t.Fatalf("migrated source = %q", string(content))
+	}
+	if !strings.Contains(response.Body.String(), "/workspace/circles/staff/sites/read-repairs-alias/draft") {
+		t.Fatalf("response should keep slug workspace path: %s", response.Body.String())
+	}
+}
+
+func TestSiteListRepairsBrokenSlugAliasDirectory(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "list-repairs-alias"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	breakSiteAliasDirectory(t, service, site, "list repaired")
+
+	response := writeSiteListResponse(service)
+	if response.Code != http.StatusOK {
+		t.Fatalf("response status = %d body = %q", response.Code, response.Body.String())
+	}
+
+	assertSiteAliasSymlinkTarget(t, service, site)
+	migratedFilePath := filepath.Join(service.siteProjectStorageHostPath(site.SiteID), "draft", "app", "src", "App.tsx")
+	content, errorValue := os.ReadFile(migratedFilePath)
+	if errorValue != nil {
+		t.Fatalf("expected migrated source: %v", errorValue)
+	}
+	if string(content) != "list repaired" {
+		t.Fatalf("migrated source = %q", string(content))
+	}
+}
+
 func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "publish-repairs-permissions"})
@@ -1327,6 +1378,42 @@ func writeSiteListResponse(service *Service) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/sites", nil)
 	service.listSites(response, request)
 	return response
+}
+
+func breakSiteAliasDirectory(t *testing.T, service *Service, site *SiteRecord, content string) {
+	t.Helper()
+	aliasPath := service.siteProjectAliasHostPath(site)
+	if errorValue := os.Remove(aliasPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeSiteSourceFile(t, filepath.Join(aliasPath, "draft", "app", "src", "App.tsx"), content)
+	if errorValue := os.Chmod(aliasPath, 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(aliasPath, os.ModeSetgid|0o770)
+	})
+}
+
+func assertSiteAliasSymlinkTarget(t *testing.T, service *Service, site *SiteRecord) {
+	t.Helper()
+	storagePath := service.siteProjectStorageHostPath(site.SiteID)
+	aliasPath := service.siteProjectAliasHostPath(site)
+	aliasInformation, errorValue := os.Lstat(aliasPath)
+	if errorValue != nil {
+		t.Fatalf("expected slug alias at %s: %v", aliasPath, errorValue)
+	}
+	if aliasInformation.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected slug alias to be symlink, got mode %v", aliasInformation.Mode())
+	}
+	targetPath, errorValue := os.Readlink(aliasPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	resolvedTargetPath := filepath.Clean(filepath.Join(filepath.Dir(aliasPath), targetPath))
+	if resolvedTargetPath != filepath.Clean(storagePath) {
+		t.Fatalf("alias target = %q, want %q", resolvedTargetPath, storagePath)
+	}
 }
 
 func publishSiteResponse(t *testing.T, service *Service, site *SiteRecord) *httptest.ResponseRecorder {
