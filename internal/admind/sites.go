@@ -472,7 +472,12 @@ func (service *Service) writeSite(responseWriter http.ResponseWriter, siteID str
 		http.NotFound(responseWriter, nil)
 		return
 	}
-	service.writeSiteRecord(responseWriter, service.siteWithRevisionMetadata(site))
+	preparedSite, errorValue := service.prepareSiteWorkspaceForResponse(site)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeSiteRecord(responseWriter, service.siteWithRevisionMetadata(preparedSite))
 }
 
 func (service *Service) writeSiteHistory(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -2228,7 +2233,12 @@ func (service *Service) siteListResponse(ctx context.Context, checkLive bool) []
 	sites := service.siteList()
 	probeCount := 0
 	for index, site := range sites {
-		responseSite := siteAPIResponse(site)
+		preparedSite, errorValue := service.prepareSiteWorkspaceForResponse(site)
+		if errorValue != nil {
+			log.Printf("site response workspace repair failed for %s: %v", site.SiteID, errorValue)
+			preparedSite = site
+		}
+		responseSite := siteAPIResponse(preparedSite)
 		if checkLive && responseSite.Status == SiteStatusPublished && probeCount < 20 {
 			responseSite.LiveHTTPStatus = service.probePublishedSiteHTTPStatus(ctx, responseSite)
 			probeCount++
@@ -2287,6 +2297,20 @@ func (service *Service) findSiteBySlug(slug string) *SiteRecord {
 		}
 	}
 	return nil
+}
+
+func (service *Service) prepareSiteWorkspaceForResponse(site *SiteRecord) (*SiteRecord, error) {
+	if site == nil {
+		return nil, nil
+	}
+	if errorValue := service.migrateSiteSourceToStaffCircle(site); errorValue != nil {
+		return nil, errorValue
+	}
+	refreshedSite := service.findSiteByID(site.SiteID)
+	if refreshedSite != nil {
+		return refreshedSite, nil
+	}
+	return site, nil
 }
 
 func (service *Service) storeSite(site *SiteRecord) error {
@@ -2573,6 +2597,8 @@ func (service *Service) ensureSiteWorkspaceStoragePath(siteID string) error {
 }
 
 func replaceSiteWorkspaceAliasDirectory(aliasPath string, storagePath string) error {
+	_ = os.Chmod(aliasPath, os.ModeSetgid|0o770)
+	healStaffCirclePermissions(aliasPath)
 	if directoryHasEntries(aliasPath) {
 		if errorValue := copyDirectory(aliasPath, storagePath); errorValue != nil {
 			return errorValue
