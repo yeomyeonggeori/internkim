@@ -1,0 +1,276 @@
+<script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import UploadIcon from '@lucide/svelte/icons/upload';
+	import type { CalendarAccountStatusResponse } from './calendar-layout-types';
+
+	type CalendarGoogleAccountCardText = {
+		accountStatusLoading: string;
+		accountStatusLoadFailed: string;
+		googleCalendarDisconnected: string;
+		googleCalendarConnected: string;
+		googleCalendarConnectedTemplate: string;
+		googleCalendarReauthRequired: string;
+		googleCalendarConnectAction: string;
+		googleCalendarReconnectAction: string;
+		googleCalendarReconnectHint: string;
+		googleCalendarReadyHint: string;
+		googleCalendarUnavailableHint: string;
+		googleOAuthClientUploadTitle: string;
+		googleOAuthClientUploadHint: string;
+		googleOAuthClientUploadAction: string;
+		googleOAuthClientUploading: string;
+		googleOAuthClientFileLabel: string;
+		googleOAuthClientChooseFile: string;
+		googleOAuthClientReplaceTitle: string;
+		googleOAuthClientReplaceHint: string;
+		googleOAuthClientGuide: {
+			title: string;
+			intro: string;
+			checklistTitle: string;
+			checks: string[];
+			stepsTitle: string;
+			steps: Array<{
+				title: string;
+				body: string;
+				action?: {
+					label: string;
+					url: string;
+				};
+			}>;
+			redirectURI: string;
+			javascriptOrigin: string;
+		};
+		externalCalendarAccount: string;
+	};
+
+	let {
+		text,
+		accountStatus,
+		accountStatusError,
+		isLoadingAccountStatus,
+		isUploadingGoogleOAuthClient,
+		uploadGoogleOAuthClient
+	}: {
+		text: CalendarGoogleAccountCardText;
+		accountStatus: CalendarAccountStatusResponse | null;
+		accountStatusError: boolean;
+		isLoadingAccountStatus: boolean;
+		isUploadingGoogleOAuthClient: boolean;
+		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
+	} = $props();
+
+	let selectedGoogleOAuthClientFile = $state<File | null>(null);
+	let isGoogleOAuthClientDropActive = $state(false);
+	const googleOAuthJavascriptOrigin = 'https://{본인 서버 URL}';
+	const googleOAuthRedirectURI = `${googleOAuthJavascriptOrigin}/calendar/oauth/google/callback`;
+
+	function accountStatusLabel() {
+		if (isLoadingAccountStatus) return text.accountStatusLoading;
+		if (accountStatusError) return text.accountStatusLoadFailed;
+		if (!accountStatus?.connected) return text.googleCalendarDisconnected;
+		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
+		if (accountStatus.accountEmail) {
+			return text.googleCalendarConnectedTemplate.replace('{email}', accountStatus.accountEmail);
+		}
+		return text.googleCalendarConnected;
+	}
+
+	function shouldShowGoogleOAuthAction() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (accountStatus?.googleOAuthConfigured !== true) return false;
+		return !accountStatus.connected || accountStatus.needsReauth;
+	}
+
+	function shouldShowGoogleOAuthUnavailableHint() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (accountStatus?.googleOAuthConfigured !== false) return false;
+		return !accountStatus.connected || accountStatus.needsReauth;
+	}
+
+	function shouldShowGoogleOAuthReadyHint() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (accountStatus?.googleOAuthConfigured !== true) return false;
+		return !accountStatus.connected && !accountStatus.needsReauth;
+	}
+
+	function canManageGoogleOAuth() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		return accountStatus?.canManageGoogleOAuth === true;
+	}
+
+	function shouldShowGoogleOAuthInitialUpload() {
+		if (!canManageGoogleOAuth()) return false;
+		return accountStatus?.googleOAuthConfigured === false;
+	}
+
+	function shouldShowGoogleOAuthReplacementUpload() {
+		if (!canManageGoogleOAuth()) return false;
+		return accountStatus?.googleOAuthConfigured === true;
+	}
+
+	function googleOAuthActionLabel() {
+		if (accountStatus?.needsReauth) return text.googleCalendarReconnectAction;
+		return text.googleCalendarConnectAction;
+	}
+
+	function accountStatusDotClass() {
+		if (accountStatusError || accountStatus?.needsReauth) return 'bg-warning';
+		if (accountStatus?.connected) return 'bg-success';
+		return 'bg-muted-foreground/50';
+	}
+
+	function selectGoogleOAuthClientFile(fileList: FileList | null) {
+		selectedGoogleOAuthClientFile = fileList?.[0] ?? null;
+	}
+
+	function handleGoogleOAuthClientDrop(event: DragEvent) {
+		event.preventDefault();
+		isGoogleOAuthClientDropActive = false;
+		selectGoogleOAuthClientFile(event.dataTransfer?.files ?? null);
+	}
+
+	function handleGoogleOAuthClientDragOver(event: DragEvent) {
+		event.preventDefault();
+		isGoogleOAuthClientDropActive = true;
+	}
+
+	function handleGoogleOAuthClientDragLeave() {
+		isGoogleOAuthClientDropActive = false;
+	}
+
+	async function submitGoogleOAuthClientFile() {
+		if (!selectedGoogleOAuthClientFile || isUploadingGoogleOAuthClient) return;
+		const didUploadGoogleOAuthClient = await uploadGoogleOAuthClient(selectedGoogleOAuthClientFile);
+		if (didUploadGoogleOAuthClient) {
+			selectedGoogleOAuthClientFile = null;
+		}
+	}
+</script>
+
+{#snippet googleOAuthClientUploadPanel()}
+	<div
+		role="group"
+		aria-label={text.googleOAuthClientUploadTitle}
+		class={`grid min-w-0 gap-3 rounded-md border border-dashed px-3 py-3 ${isGoogleOAuthClientDropActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'}`}
+		ondrop={handleGoogleOAuthClientDrop}
+		ondragover={handleGoogleOAuthClientDragOver}
+		ondragleave={handleGoogleOAuthClientDragLeave}
+	>
+		<div class="flex min-w-0 items-start gap-2">
+			<UploadIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+			<div class="min-w-0 space-y-1">
+				<p class="text-sm font-medium">{text.googleOAuthClientUploadTitle}</p>
+				<p class="text-xs leading-relaxed text-muted-foreground">{text.googleOAuthClientUploadHint}</p>
+				{#if selectedGoogleOAuthClientFile}
+					<p class="truncate text-xs text-foreground">{selectedGoogleOAuthClientFile.name}</p>
+				{/if}
+			</div>
+		</div>
+		<div class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
+			<label
+				for="google-oauth-client-file"
+				class="flex h-9 min-w-0 cursor-pointer items-center justify-center rounded-md border bg-background px-3 text-sm font-medium hover:bg-muted"
+			>
+				<span class="block min-w-0 truncate">
+					{selectedGoogleOAuthClientFile?.name ?? text.googleOAuthClientChooseFile}
+				</span>
+			</label>
+			<input
+				id="google-oauth-client-file"
+				aria-label={text.googleOAuthClientFileLabel}
+				accept="application/json,.json"
+				type="file"
+				class="sr-only"
+				onchange={(event) => selectGoogleOAuthClientFile(event.currentTarget.files)}
+			/>
+			<Button
+				variant="outline"
+				class="justify-center gap-2"
+				disabled={!selectedGoogleOAuthClientFile || isUploadingGoogleOAuthClient}
+				onclick={submitGoogleOAuthClientFile}
+			>
+				<UploadIcon class={isUploadingGoogleOAuthClient ? 'size-4 animate-pulse' : 'size-4'} />
+				<span>{isUploadingGoogleOAuthClient ? text.googleOAuthClientUploading : text.googleOAuthClientUploadAction}</span>
+			</Button>
+		</div>
+		<details class="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+			<summary class="cursor-pointer text-sm font-medium text-foreground">{text.googleOAuthClientGuide.title}</summary>
+			<div class="mt-3 space-y-3">
+				<p class="leading-relaxed">{text.googleOAuthClientGuide.intro}</p>
+				<div class="space-y-1">
+					<p class="font-medium text-foreground">{text.googleOAuthClientGuide.checklistTitle}</p>
+					<ul class="list-disc space-y-1 pl-4">
+						{#each text.googleOAuthClientGuide.checks as check}
+							<li>{check}</li>
+						{/each}
+					</ul>
+				</div>
+				<div class="space-y-2">
+					<p class="font-medium text-foreground">{text.googleOAuthClientGuide.stepsTitle}</p>
+					<ol class="list-decimal space-y-2 pl-4">
+						{#each text.googleOAuthClientGuide.steps as step}
+							<li>
+								<p class="font-medium text-foreground">{step.title}</p>
+								<p class="mt-0.5 leading-relaxed">{step.body}</p>
+								{#if step.action}
+									<a
+										href={step.action.url}
+										target="_blank"
+										rel="noreferrer"
+										class="mt-1 inline-flex text-xs font-medium text-primary underline-offset-4 hover:underline"
+									>
+										{step.action.label}
+									</a>
+								{/if}
+							</li>
+						{/each}
+					</ol>
+				</div>
+				<div class="space-y-1">
+					<p class="font-medium text-foreground">{text.googleOAuthClientGuide.redirectURI}</p>
+					<code class="block rounded-md bg-muted px-2 py-1.5 font-mono text-[11px] break-all text-foreground">{googleOAuthRedirectURI}</code>
+				</div>
+				<div class="space-y-1">
+					<p class="font-medium text-foreground">{text.googleOAuthClientGuide.javascriptOrigin}</p>
+					<code class="block rounded-md bg-muted px-2 py-1.5 font-mono text-[11px] break-all text-foreground">{googleOAuthJavascriptOrigin}</code>
+				</div>
+			</div>
+		</details>
+	</div>
+{/snippet}
+
+<div class="space-y-2 rounded-md border p-3">
+	<p class="text-xs font-medium uppercase text-muted-foreground">{text.externalCalendarAccount}</p>
+	<div class="flex items-center gap-2 text-sm">
+		<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
+		<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
+	</div>
+	{#if accountStatus?.needsReauth && accountStatus.googleOAuthConfigured}
+		<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
+	{/if}
+	{#if shouldShowGoogleOAuthReadyHint()}
+		<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReadyHint}</p>
+	{/if}
+	{#if shouldShowGoogleOAuthUnavailableHint()}
+		<p class="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{text.googleCalendarUnavailableHint}</p>
+	{/if}
+	{#if shouldShowGoogleOAuthInitialUpload()}
+		{@render googleOAuthClientUploadPanel()}
+	{/if}
+	{#if shouldShowGoogleOAuthAction()}
+		<Button href="/calendar/oauth/google/start" variant="outline" class="w-full justify-center gap-2">
+			<RefreshCwIcon class="size-4" />
+			<span>{googleOAuthActionLabel()}</span>
+		</Button>
+	{/if}
+	{#if shouldShowGoogleOAuthReplacementUpload()}
+		<details class="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+			<summary class="cursor-pointer text-sm font-medium text-foreground">{text.googleOAuthClientReplaceTitle}</summary>
+			<p class="mt-2 leading-relaxed">{text.googleOAuthClientReplaceHint}</p>
+			<div class="mt-3">
+				{@render googleOAuthClientUploadPanel()}
+			</div>
+		</details>
+	{/if}
+</div>

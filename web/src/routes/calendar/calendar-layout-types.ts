@@ -12,6 +12,7 @@ export type CalendarAccountStatusResponse = {
 	lastAuthError?: string;
 	needsReauth: boolean;
 	googleOAuthConfigured: boolean;
+	canManageGoogleOAuth: boolean;
 };
 
 export type CalendarEvent = {
