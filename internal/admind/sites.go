@@ -1095,6 +1095,9 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 	if site.AppWorkspacePath == "" {
 		site.AppWorkspacePath = filepath.ToSlash(filepath.Join(site.SourceWorkspacePath, "app"))
 	}
+	if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
+		return errorValue
+	}
 	return service.storeSite(site)
 }
 
@@ -2527,13 +2530,10 @@ func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
 	if storagePath == "" || aliasPath == "" || storagePath == aliasPath {
 		return nil
 	}
-	if errorValue := os.MkdirAll(storagePath, 0o770); errorValue != nil {
+	if errorValue := service.ensureSiteWorkspaceStoragePath(site.SiteID); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.Chmod(storagePath, os.ModeSetgid|0o770); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.MkdirAll(filepath.Dir(aliasPath), 0o770); errorValue != nil {
+	if errorValue := ensureStaffCircleDirectory(filepath.Dir(aliasPath)); errorValue != nil {
 		return errorValue
 	}
 	if targetPath, errorValue := os.Readlink(aliasPath); errorValue == nil {
@@ -2556,6 +2556,20 @@ func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
 		return errorValue
 	}
 	return os.Symlink(relativeTargetPath, aliasPath)
+}
+
+func (service *Service) ensureSiteWorkspaceStoragePath(siteID string) error {
+	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
+	for _, directoryPath := range []string{
+		staffSitesPath,
+		filepath.Join(staffSitesPath, siteIDStorageDirectoryName),
+		service.siteProjectStorageHostPath(siteID),
+	} {
+		if errorValue := ensureStaffCircleDirectory(directoryPath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func replaceSiteWorkspaceAliasDirectory(aliasPath string, storagePath string) error {

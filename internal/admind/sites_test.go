@@ -1094,6 +1094,10 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if information, errorValue := os.Stat(storagePath); errorValue != nil || !information.IsDir() {
 		t.Fatalf("expected hidden siteID storage directory at %s: %v", storagePath, errorValue)
 	}
+	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
+	assertStaffCircleDirectoryMode(t, staffSitesPath)
+	assertStaffCircleDirectoryMode(t, filepath.Join(staffSitesPath, siteIDStorageDirectoryName))
+	assertStaffCircleDirectoryMode(t, storagePath)
 	aliasPath := service.siteProjectAliasHostPath(site)
 	aliasInformation, errorValue := os.Lstat(aliasPath)
 	if errorValue != nil {
@@ -1110,6 +1114,36 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if resolvedTargetPath != filepath.Clean(storagePath) {
 		t.Fatalf("alias target = %q, want %q", resolvedTargetPath, storagePath)
 	}
+}
+
+func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "publish-repairs-permissions"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
+	storageRootPath := filepath.Join(staffSitesPath, siteIDStorageDirectoryName)
+	storagePath := service.siteProjectStorageHostPath(site.SiteID)
+	for _, path := range []string{staffSitesPath, storageRootPath, storagePath} {
+		if errorValue := os.Chmod(path, 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	writeTestWorkspaceBuild(t, site, "published after permission repair")
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertStaffCircleDirectoryMode(t, staffSitesPath)
+	assertStaffCircleDirectoryMode(t, storageRootPath)
+	assertStaffCircleDirectoryMode(t, storagePath)
 }
 
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
@@ -1272,6 +1306,20 @@ func writeSiteResponse(service *Service, siteID string) *httptest.ResponseRecord
 	response := httptest.NewRecorder()
 	service.writeSite(response, siteID)
 	return response
+}
+
+func assertStaffCircleDirectoryMode(t *testing.T, path string) {
+	t.Helper()
+	information, errorValue := os.Stat(path)
+	if errorValue != nil {
+		t.Fatalf("expected staff-circle directory at %s: %v", path, errorValue)
+	}
+	if !information.IsDir() {
+		t.Fatalf("expected staff-circle path to be a directory: %s", path)
+	}
+	if information.Mode().Perm() != 0o770 || information.Mode()&os.ModeSetgid == 0 {
+		t.Fatalf("staff-circle directory mode at %s = %v, want setgid 0770", path, information.Mode())
+	}
 }
 
 func writeSiteListResponse(service *Service) *httptest.ResponseRecorder {
