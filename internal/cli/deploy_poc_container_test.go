@@ -33,7 +33,8 @@ func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {
 	command := pocContainerRecreateCommand(target)
 	requiredFragments := []string{
 		"container build --platform linux/arm64",
-		"python3 start-poc.py",
+		"tenant_count=\"$(find config -type d -name 'tenant_[0-9][0-9]*'",
+		"python3 start-poc.py \"$tenant_count\"",
 		"python3 restart-tunnel.py",
 		"TENANT_IMAGE='internkim-poc-tenant:flow'",
 		"base-before-deploy",

@@ -3,8 +3,24 @@ set -euo pipefail
 
 scriptDirectory="$(cd "$(dirname "$0")" && pwd)"
 tenantCount="${TENANT_COUNT:-10}"
-adminPassword="${ADMIN_PASSWORD:-InternKimPoc1!}"
+adminPassword="${ADMIN_PASSWORD:-}"
 infraCompose="${scriptDirectory}/infra/docker-compose.yml"
+adminPasswordPath="${scriptDirectory}/secrets/mm-admin-pass"
+
+generatePassword() {
+  openssl rand -hex 18
+}
+
+if [ -z "${adminPassword}" ]; then
+  if [ -s "${adminPasswordPath}" ]; then
+    adminPassword="$(cat "${adminPasswordPath}")"
+  else
+    adminPassword="$(generatePassword)"
+    mkdir -p "$(dirname "${adminPasswordPath}")"
+    printf '%s' "${adminPassword}" > "${adminPasswordPath}"
+    chmod 600 "${adminPasswordPath}"
+  fi
+fi
 
 mmctl() {
   docker compose -f "${infraCompose}" exec -T mattermost mmctl --local "$@"
@@ -24,7 +40,8 @@ for number in $(seq 1 "${tenantCount}"); do
     || echo "[provision]   team exists"
   mmctl team users add "${teamName}" admin 2>/dev/null || true
 
-  mmctl user create --email "${agentName}@intern.kim" --username "${agentName}" --password "InternKimBot${number}!" 2>/dev/null \
+  agentPassword="$(generatePassword)"
+  mmctl user create --email "${agentName}@intern.kim" --username "${agentName}" --password "${agentPassword}" 2>/dev/null \
     || echo "[provision]   agent user exists"
   mmctl team users add "${teamName}" "${agentName}" 2>/dev/null || true
 

@@ -938,6 +938,10 @@ func (database containerTenantPostgresDatabase) ExecutePostgres(ctx context.Cont
 
 func (runtime ContainerRuntime) ensureTenantMattermost(options ContainerTenantAddOptions, tenant ContainerTenant, operatorAdminPassword containerStoredPassword, companyAdminPassword containerStoredPassword) (string, error) {
 	adminUsername := containerCompanyAdminUsername(tenant)
+	agentPassword, errorValue := generateTenantLoginPassword()
+	if errorValue != nil {
+		return "", errorValue
+	}
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", "admin@intern.kim", "--username", "admin", "--password", operatorAdminPassword.Value, "--system-admin"})
 	if operatorAdminPassword.IsNew {
 		_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "change-password", "admin", "--password", operatorAdminPassword.Value})
@@ -947,7 +951,7 @@ func (runtime ContainerRuntime) ensureTenantMattermost(options ContainerTenantAd
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"config", "set", "LocalizationSettings.DefaultServerLocale", containerMattermostDefaultLocale})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "create", "--name", tenant.TeamName, "--display-name", tenant.DisplayName})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "users", "add", tenant.TeamName, "admin"})
-	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", tenant.AgentUsername + "@intern.kim", "--username", tenant.AgentUsername, "--password", containerMattermostAgentPassword(tenant)})
+	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", tenant.AgentUsername + "@intern.kim", "--username", tenant.AgentUsername, "--password", agentPassword})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "users", "add", tenant.TeamName, tenant.AgentUsername})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", options.AdminEmail, "--username", adminUsername, "--password", companyAdminPassword.Value})
 	if companyAdminPassword.IsNew {
@@ -981,10 +985,6 @@ func (runtime ContainerRuntime) ensureTenantMattermost(options ContainerTenantAd
 		return "", fmt.Errorf("Mattermost token generation failed for %s: %w", tenant.AgentUsername, errorValue)
 	}
 	return ParseMattermostToken(output)
-}
-
-func containerMattermostAgentPassword(tenant ContainerTenant) string {
-	return "InternKimBot" + strconv.Itoa(tenant.Index) + "!"
 }
 
 func containerCompanyAdminUsername(tenant ContainerTenant) string {

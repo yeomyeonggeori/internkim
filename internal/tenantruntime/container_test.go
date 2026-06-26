@@ -201,6 +201,10 @@ func TestContainerAddOrdersDockerAndMattermostSteps(t *testing.T) {
 	if status.ContainerState != "running" || !status.MattermostTeamPresent {
 		t.Fatalf("unexpected status: %+v", status)
 	}
+	agentPassword := mattermostCreatePasswordForUsername(t, executor.runs, "internkim01")
+	if strings.HasPrefix(agentPassword, "InternKim") || len(agentPassword) < 32 {
+		t.Fatalf("predictable agent password generated: %q", agentPassword)
+	}
 	expectedRunArguments := [][]string{
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", "internkim", "-d", "postgres"},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "user", "create", "--email", "admin@intern.kim", "--username", "admin", "--password", readContainerTestFileTrimmed(t, containerMattermostAdminPasswordPath(workDirectoryPath)), "--system-admin"},
@@ -210,7 +214,7 @@ func TestContainerAddOrdersDockerAndMattermostSteps(t *testing.T) {
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "config", "set", "LocalizationSettings.DefaultServerLocale", "ko"},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "team", "create", "--name", "tenant01", "--display-name", "Tenant 01"},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "team", "users", "add", "tenant01", "admin"},
-		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "user", "create", "--email", "internkim01@intern.kim", "--username", "internkim01", "--password", "InternKimBot1!"},
+		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "user", "create", "--email", "internkim01@intern.kim", "--username", "internkim01", "--password", agentPassword},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "team", "users", "add", "tenant01", "internkim01"},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "user", "create", "--email", "admin01@intern.kim", "--username", "admin01", "--password", readContainerTestFileTrimmed(t, tenantCompanyAdminPasswordPath(workDirectoryPath, mustContainerTenant(t, 1)))},
 		{"compose", "-f", filepath.Join(workDirectoryPath, "infra", "docker-compose.yml"), "exec", "-T", "mattermost", "mmctl", "--local", "user", "change-password", "admin01", "--password", readContainerTestFileTrimmed(t, tenantCompanyAdminPasswordPath(workDirectoryPath, mustContainerTenant(t, 1)))},
@@ -392,6 +396,50 @@ func readContainerTestFile(t *testing.T, path string) string {
 func readContainerTestFileTrimmed(t *testing.T, path string) string {
 	t.Helper()
 	return strings.TrimSpace(readContainerTestFile(t, path))
+}
+
+func mattermostCreatePasswordForUsername(t *testing.T, runs []ContainerCommandInvocation, username string) string {
+	t.Helper()
+	for _, invocation := range runs {
+		arguments := invocation.Arguments
+		if len(arguments) == 0 {
+			continue
+		}
+		if !containsContainerArgumentSequence(arguments, []string{"user", "create"}) {
+			continue
+		}
+		if !containsContainerArgumentSequence(arguments, []string{"--username", username}) {
+			continue
+		}
+		for index, argument := range arguments {
+			if argument == "--password" && index+1 < len(arguments) {
+				return arguments[index+1]
+			}
+		}
+	}
+	t.Fatalf("Mattermost create password not found for %s", username)
+	return ""
+}
+
+func containsContainerArgumentSequence(arguments []string, sequence []string) bool {
+	for index := 0; index+len(sequence) <= len(arguments); index++ {
+		if slicesEqual(arguments[index:index+len(sequence)], sequence) {
+			return true
+		}
+	}
+	return false
+}
+
+func slicesEqual(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index, value := range left {
+		if value != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func installContainerRuntimeHTTPTransport(t *testing.T) {

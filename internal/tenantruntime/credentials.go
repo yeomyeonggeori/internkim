@@ -6,7 +6,10 @@ import (
 	"errors"
 )
 
-const TenantInitialAdminUsername = "admin"
+const (
+	TenantInitialAdminUsername = "admin"
+	tenantPasswordByteCount    = 27
+)
 
 type TenantCredentials struct {
 	OpenRouterAPIKey           string `json:"openRouterAPIKey"`
@@ -22,7 +25,7 @@ func GenerateTenantCredentials() (TenantCredentials, error) {
 	if errorValue != nil {
 		return TenantCredentials{}, errorValue
 	}
-	adminPassword, errorValue := randomSecret("", 24)
+	adminPassword, errorValue := generateTenantLoginPassword()
 	if errorValue != nil {
 		return TenantCredentials{}, errorValue
 	}
@@ -31,6 +34,10 @@ func GenerateTenantCredentials() (TenantCredentials, error) {
 		AdminUsername:    TenantInitialAdminUsername,
 		AdminPassword:    adminPassword,
 	}, nil
+}
+
+func generateTenantLoginPassword() (string, error) {
+	return randomSecret("", tenantPasswordByteCount)
 }
 
 func randomSecret(prefix string, byteCount int) (string, error) {
