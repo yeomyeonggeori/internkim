@@ -27,9 +27,10 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 		return nil
 	}
 	workspaceRoot := service.Configuration.BlueclawWorkspacePath
-	targetDraftHostPath := filepath.Join(workspaceRoot, "circles", "staff", "sites", siteID, "draft")
+	targetProjectHostPath := service.siteProjectStorageHostPath(siteID)
+	targetDraftHostPath := filepath.Join(targetProjectHostPath, "draft")
 
-	workspaceSourceHostPath := locateSiteSourceHostPath(workspaceRoot, siteID, targetDraftHostPath)
+	workspaceSourceHostPath := locateSiteSourceHostPath(workspaceRoot, site, targetDraftHostPath)
 	if workspaceSourceHostPath != "" {
 		if workspaceSourceHostPath != targetDraftHostPath {
 			if errorValue := relocateDirectory(workspaceSourceHostPath, targetDraftHostPath); errorValue != nil {
@@ -38,12 +39,18 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 			_ = os.Remove(filepath.Dir(workspaceSourceHostPath))
 		}
 		healStaffCirclePermissions(targetDraftHostPath)
+		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
+			return errorValue
+		}
 		return service.recordStaffCircleSitePaths(site, siteID)
 	}
 
 	ledgerSourceHostPath := service.siteSourceLedgerPath(siteID)
 	if !directoryHasEntries(ledgerSourceHostPath) {
-		return nil
+		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
+			return errorValue
+		}
+		return service.recordStaffCircleSitePaths(site, siteID)
 	}
 	if !isExistingDirectory(targetDraftHostPath) {
 		if errorValue := copyDirectoryIntoStaffCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
@@ -51,6 +58,9 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 		}
 	}
 	healStaffCirclePermissions(targetDraftHostPath)
+	if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
+		return errorValue
+	}
 	return service.recordStaffCircleSitePaths(site, siteID)
 }
 
@@ -66,11 +76,22 @@ func directoryHasEntries(path string) bool {
 	return errorValue == nil && len(entries) > 0
 }
 
-func locateSiteSourceHostPath(workspaceRoot string, siteID string, targetDraftHostPath string) string {
+func locateSiteSourceHostPath(workspaceRoot string, site *SiteRecord, targetDraftHostPath string) string {
+	siteID := ""
+	slug := ""
+	if site != nil {
+		siteID = strings.TrimSpace(site.SiteID)
+		slug = site.Slug
+	}
 	candidates := []string{
 		targetDraftHostPath,
+		filepath.Join(workspaceRoot, "circles", "staff", "sites", siteWorkspaceAliasName(siteID, slug), "draft"),
 		filepath.Join(workspaceRoot, "sites", siteID, "draft"),
 		filepath.Join(workspaceRoot, "sites", siteID),
+		filepath.Join(workspaceRoot, "circles", "staff", "sites", siteID, "draft"),
+	}
+	if staffSiteRoot := staffSiteDraftRootHostPath(workspaceRoot, siteID); staffSiteRoot != "" {
+		candidates = append(candidates, staffSiteRoot)
 	}
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID, "draft"))...)
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID))...)
@@ -80,6 +101,20 @@ func locateSiteSourceHostPath(workspaceRoot string, siteID string, targetDraftHo
 		}
 	}
 	return ""
+}
+
+func staffSiteDraftRootHostPath(workspaceRoot string, siteID string) string {
+	siteRoot := filepath.Join(workspaceRoot, "circles", "staff", "sites", strings.TrimSpace(siteID))
+	if !looksLikeSiteDraftDirectory(siteRoot) {
+		return ""
+	}
+	return siteRoot
+}
+
+func looksLikeSiteDraftDirectory(path string) bool {
+	return isExistingDirectory(filepath.Join(path, "app")) ||
+		isExistingDirectory(filepath.Join(path, ".internkim")) ||
+		isRegularFile(filepath.Join(path, "DESIGN.md"))
 }
 
 func relocateDirectory(sourcePath string, targetPath string) error {
@@ -96,8 +131,8 @@ func relocateDirectory(sourcePath string, targetPath string) error {
 }
 
 func (service *Service) recordStaffCircleSitePaths(site *SiteRecord, siteID string) error {
-	draftPath := siteDraftWorkspacePath(siteID, "")
-	projectPath := siteProjectWorkspacePath(siteID)
+	draftPath := siteDraftWorkspacePath(siteID, site.Slug, "")
+	projectPath := siteProjectAliasWorkspacePath(siteID, site.Slug)
 	appPath := filepath.ToSlash(filepath.Join(draftPath, "app"))
 	if site.WorkspacePath == projectPath && site.SourceWorkspacePath == draftPath && site.DraftPath == draftPath && site.AppWorkspacePath == appPath {
 		return nil
