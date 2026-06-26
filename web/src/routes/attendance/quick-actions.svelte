@@ -167,7 +167,7 @@
 							<LogInIcon class="size-3" />
 							{todayDay.clockIn.localTime}
 						</span>
-						{#if todayDay.clockOut}
+						{#if todayDay.clockOut && status !== 'working'}
 							<span class="flex items-center gap-1">
 								<LogOutIcon class="size-3" />
 								{todayDay.clockOut.localTime}
