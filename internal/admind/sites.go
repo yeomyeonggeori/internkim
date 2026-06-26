@@ -42,7 +42,10 @@ const (
 	sitePortEnd   = 19999
 )
 
-const staffCircleSitesWorkspacePath = "/workspace/circles/staff/sites"
+const (
+	staffCircleSitesWorkspacePath = "/workspace/circles/staff/sites"
+	siteIDStorageDirectoryName    = ".ids"
+)
 
 var sitePersistenceMutex sync.Mutex
 
@@ -673,10 +676,10 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		TLSStatus:           service.siteTLSStatus(),
 		Platform:            strings.TrimSpace(payload.Platform),
 		ConversationID:      strings.TrimSpace(payload.ConversationID),
-		WorkspacePath:       siteProjectWorkspacePath(siteID),
-		SourceWorkspacePath: siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath),
-		AppWorkspacePath:    filepath.ToSlash(filepath.Join(siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath), "app")),
-		DraftPath:           siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath),
+		WorkspacePath:       siteProjectAliasWorkspacePath(siteID, slug),
+		SourceWorkspacePath: siteDraftWorkspacePath(siteID, slug, payload.SourceWorkspacePath),
+		AppWorkspacePath:    filepath.ToSlash(filepath.Join(siteDraftWorkspacePath(siteID, slug, payload.SourceWorkspacePath), "app")),
+		DraftPath:           siteDraftWorkspacePath(siteID, slug, payload.SourceWorkspacePath),
 		HostSourcePath:      service.siteSourceLedgerPath(siteID),
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -1081,10 +1084,10 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
 	}
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, site.Slug, "")
 	}
 	if site.WorkspacePath == "" {
-		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
+		site.WorkspacePath = siteProjectAliasWorkspacePath(site.SiteID, site.Slug)
 	}
 	if site.DraftPath == "" {
 		site.DraftPath = site.SourceWorkspacePath
@@ -1769,6 +1772,8 @@ func (service *Service) deleteSite(ctx context.Context, siteID string, payload s
 	_, _ = service.runCommand(ctx, "systemctl", "disable", "--now", siteServiceName(site.SiteID))
 	_ = os.RemoveAll(service.sitePath(site.SiteID))
 	_ = os.RemoveAll(service.siteOwnerProjectPath(site))
+	_ = os.RemoveAll(service.siteProjectAliasHostPath(site))
+	_ = os.RemoveAll(service.siteProjectStorageHostPath(site.SiteID))
 	_ = os.RemoveAll(site.HostSourcePath)
 	_ = os.RemoveAll(filepath.Dir(service.siteSecretPath(site.SiteID)))
 	now := time.Now().UTC()
@@ -2288,10 +2293,10 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	site.PublishedURL = service.sitePublishedURL(site.Slug)
 	site.TLSStatus = service.siteTLSStatus()
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, site.Slug, "")
 	}
 	if site.WorkspacePath == "" {
-		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
+		site.WorkspacePath = siteProjectAliasWorkspacePath(site.SiteID, site.Slug)
 	}
 	if site.HostSourcePath == "" {
 		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
@@ -2314,20 +2319,23 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	if siteIdentityEmpty(site.CreatedBy) {
 		site.CreatedBy = site.OwnerIdentity
 	}
-	if strings.TrimSpace(site.WorkspacePath) == "" {
-		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
+	if strings.TrimSpace(site.WorkspacePath) == "" || isLegacySiteWorkspacePath(site.WorkspacePath, site.SiteID) {
+		site.WorkspacePath = siteProjectAliasWorkspacePath(site.SiteID, site.Slug)
 	}
-	if strings.TrimSpace(site.SourceWorkspacePath) == "" || strings.HasPrefix(strings.TrimSpace(site.SourceWorkspacePath), "/workspace/sites/") {
-		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
+	if strings.TrimSpace(site.SourceWorkspacePath) == "" || isLegacySiteDraftWorkspacePath(site.SourceWorkspacePath, site.SiteID) {
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, site.Slug, "")
 	}
-	if strings.TrimSpace(site.DraftPath) == "" {
+	if strings.TrimSpace(site.DraftPath) == "" || isLegacySiteDraftWorkspacePath(site.DraftPath, site.SiteID) {
 		site.DraftPath = site.SourceWorkspacePath
 	}
-	if strings.TrimSpace(site.AppWorkspacePath) == "" || strings.HasPrefix(strings.TrimSpace(site.AppWorkspacePath), "/workspace/sites/") {
+	if strings.TrimSpace(site.AppWorkspacePath) == "" || isLegacySiteAppWorkspacePath(site.AppWorkspacePath, site.SiteID) {
 		site.AppWorkspacePath = filepath.ToSlash(filepath.Join(site.SourceWorkspacePath, "app"))
 	}
 	if strings.TrimSpace(site.HostSourcePath) == "" || strings.HasPrefix(strings.TrimSpace(site.HostSourcePath), service.Configuration.BlueclawWorkspacePath) {
 		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
+	}
+	if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
+		return errorValue
 	}
 	service.mutex.Lock()
 	copiedSite := *site
@@ -2492,6 +2500,74 @@ func (service *Service) siteOwnerProjectPath(site *SiteRecord) string {
 	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "sites", "unknown")
 }
 
+func (service *Service) siteProjectStorageHostPath(siteID string) string {
+	if strings.TrimSpace(siteID) == "" {
+		return ""
+	}
+	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites", siteIDStorageDirectoryName, strings.TrimSpace(siteID))
+}
+
+func (service *Service) siteProjectAliasHostPath(site *SiteRecord) string {
+	if site == nil {
+		return ""
+	}
+	aliasName := siteWorkspaceAliasName(site.SiteID, site.Slug)
+	if aliasName == "" {
+		return ""
+	}
+	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites", aliasName)
+}
+
+func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
+	if site == nil || strings.TrimSpace(site.SiteID) == "" {
+		return nil
+	}
+	storagePath := service.siteProjectStorageHostPath(site.SiteID)
+	aliasPath := service.siteProjectAliasHostPath(site)
+	if storagePath == "" || aliasPath == "" || storagePath == aliasPath {
+		return nil
+	}
+	if errorValue := os.MkdirAll(storagePath, 0o770); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.Chmod(storagePath, os.ModeSetgid|0o770); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(aliasPath), 0o770); errorValue != nil {
+		return errorValue
+	}
+	if targetPath, errorValue := os.Readlink(aliasPath); errorValue == nil {
+		if filepath.Clean(filepath.Join(filepath.Dir(aliasPath), targetPath)) == filepath.Clean(storagePath) || filepath.Clean(targetPath) == filepath.Clean(storagePath) {
+			return nil
+		}
+		return fmt.Errorf("site workspace alias already points elsewhere: %s", aliasPath)
+	}
+	if information, errorValue := os.Lstat(aliasPath); errorValue == nil {
+		if information.IsDir() {
+			if errorValue := replaceSiteWorkspaceAliasDirectory(aliasPath, storagePath); errorValue != nil {
+				return errorValue
+			}
+		} else {
+			return fmt.Errorf("site workspace alias path already exists: %s", aliasPath)
+		}
+	}
+	relativeTargetPath, errorValue := filepath.Rel(filepath.Dir(aliasPath), storagePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	return os.Symlink(relativeTargetPath, aliasPath)
+}
+
+func replaceSiteWorkspaceAliasDirectory(aliasPath string, storagePath string) error {
+	if directoryHasEntries(aliasPath) {
+		if errorValue := copyDirectory(aliasPath, storagePath); errorValue != nil {
+			return errorValue
+		}
+		return os.RemoveAll(aliasPath)
+	}
+	return os.Remove(aliasPath)
+}
+
 func (service *Service) sitePublishedRootPath(site *SiteRecord) string {
 	return service.sitePath(site.SiteID)
 }
@@ -2630,20 +2706,57 @@ func siteOperationalFileName(name string) bool {
 	}
 }
 
-func siteProjectWorkspacePath(siteID string) string {
+func siteProjectStorageWorkspacePath(siteID string) string {
 	if strings.TrimSpace(siteID) == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID)))
+	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, siteIDStorageDirectoryName, strings.TrimSpace(siteID)))
 }
 
-func siteDraftWorkspacePath(siteID string, requestedPath string) string {
-	canonicalPath := filepath.ToSlash(filepath.Join(siteProjectWorkspacePath(siteID), "draft"))
+func siteProjectAliasWorkspacePath(siteID string, slug string) string {
+	aliasName := siteWorkspaceAliasName(siteID, slug)
+	if aliasName == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, aliasName))
+}
+
+func siteDraftWorkspacePath(siteID string, slug string, requestedPath string) string {
+	canonicalPath := filepath.ToSlash(filepath.Join(siteProjectAliasWorkspacePath(siteID, slug), "draft"))
 	cleanRequestedPath := filepath.ToSlash(strings.TrimSpace(requestedPath))
-	if strings.HasPrefix(cleanRequestedPath, staffCircleSitesWorkspacePath+"/") && strings.HasSuffix(cleanRequestedPath, "/draft") {
+	if cleanRequestedPath == canonicalPath {
 		return cleanRequestedPath
 	}
 	return canonicalPath
+}
+
+func siteWorkspaceAliasName(siteID string, slug string) string {
+	aliasName := normalizeSiteSlug(slug)
+	if aliasName != "" {
+		return aliasName
+	}
+	return strings.TrimSpace(siteID)
+}
+
+func isLegacySiteWorkspacePath(path string, siteID string) bool {
+	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
+	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
+		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID))) ||
+		cleanPath == siteProjectStorageWorkspacePath(siteID)
+}
+
+func isLegacySiteDraftWorkspacePath(path string, siteID string) bool {
+	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
+	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
+		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft")) ||
+		cleanPath == filepath.ToSlash(filepath.Join(siteProjectStorageWorkspacePath(siteID), "draft"))
+}
+
+func isLegacySiteAppWorkspacePath(path string, siteID string) bool {
+	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
+	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
+		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft", "app")) ||
+		cleanPath == filepath.ToSlash(filepath.Join(siteProjectStorageWorkspacePath(siteID), "draft", "app"))
 }
 
 func (service *Service) siteSourceLedgerPath(siteID string) string {
