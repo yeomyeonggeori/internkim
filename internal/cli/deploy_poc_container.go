@@ -13,7 +13,6 @@ import (
 )
 
 const pocContainerLinuxGoCachePath = "/tmp/internkim-go-cache-linux-arm64"
-const pocContainerDarwinGoModuleCachePath = "/tmp/internkim-go-mod-cache-darwin-arm64"
 const pocContainerRemoteEnvironmentPrefix = "export PATH=\"/opt/homebrew/bin:$PATH\"; "
 
 func deployPocContainer(target deployops.Target, components []string) error {
@@ -21,6 +20,7 @@ func deployPocContainer(target deployops.Target, components []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	loadEnvironmentFile(filepath.Join(repositoryRootPath, ".env"))
 	if errorValue := validatePocContainerTarget(target, components); errorValue != nil {
 		return errorValue
 	}
@@ -108,7 +108,6 @@ func linuxBuildEnvironment(isStatic bool) []string {
 	environment := append([]string{}, os.Environ()...)
 	environment = append(environment, "GOOS=linux", "GOARCH=arm64")
 	environment = append(environment, "GOCACHE="+pocContainerLinuxGoCachePath)
-	environment = append(environment, "GOMODCACHE="+pocContainerDarwinGoModuleCachePath)
 	if isStatic {
 		environment = append(environment, "CGO_ENABLED=0")
 	}
@@ -329,4 +328,31 @@ func pocContainerRepositoryRootPath() string {
 		return "."
 	}
 	return repositoryRootPath
+}
+
+func loadEnvironmentFile(filePath string) {
+	document, errorValue := os.ReadFile(filePath)
+	if errorValue != nil {
+		return
+	}
+	for _, line := range strings.Split(string(document), "\n") {
+		key, value, found := parseEnvironmentLine(line)
+		if found && os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
+}
+
+func parseEnvironmentLine(line string) (string, string, bool) {
+	trimmedLine := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "export "))
+	if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
+		return "", "", false
+	}
+	separatorIndex := strings.Index(trimmedLine, "=")
+	if separatorIndex <= 0 {
+		return "", "", false
+	}
+	key := strings.TrimSpace(trimmedLine[:separatorIndex])
+	value := strings.Trim(strings.TrimSpace(trimmedLine[separatorIndex+1:]), "\"'")
+	return key, value, true
 }
