@@ -23,7 +23,7 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 
 ## Workflow
 
-1. Clarify only missing requirements that change the document structure, such as audience, title, language, required sections, or source file.
+1. Clarify only when the document cannot be created safely without user input, such as a missing source file for an edit/extraction task, an unknown recipient for a legal/business letter, or a required approval. For open-ended new reports, guides, memos, or templates, choose the title, audience framing, sections, and structure yourself from the user's intent. Treat requests such as "use your judgment", "알아서 해", "파일만 줘", or "잘 만들어줘" as permission to proceed, not as a reason to ask for title or section choices.
 2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing file, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Create work under `tmp/<document-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 4. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.

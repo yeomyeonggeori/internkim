@@ -696,9 +696,6 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
-	if errorValue == nil {
-		errorValue = service.sendMattermostAskEphemeral(ctx, handle, request)
-	}
 	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
 }
 
@@ -758,7 +755,7 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 }
 
 func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
-	return request.Interaction != nil && request.mattermostAskEphemeralUserID() == ""
+	return request.Interaction != nil
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
@@ -783,39 +780,7 @@ func (service Service) sendMattermostEphemeralText(ctx context.Context, handle p
 	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
 }
 
-func (service Service) sendMattermostAskEphemeral(ctx context.Context, handle platformHandle, request replyRequest) error {
-	targetUserID := request.mattermostAskEphemeralUserID()
-	if request.Interaction == nil || targetUserID == "" {
-		return nil
-	}
-	attachment := service.mattermostAskAttachment(request, handle)
-	if attachment == nil {
-		return nil
-	}
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"message":    "",
-		"props": map[string]any{
-			"attachments":             []any{attachment},
-			"internkim_raw_event_id":  request.RawEventID,
-			"internkim_outbox_id":     request.OutboxID,
-			"internkim_ephemeral_ask": true,
-		},
-	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
-	}
-	body := map[string]any{
-		"user_id": targetUserID,
-		"post":    post,
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
-		return errorValue
-	}
-	return nil
-}
-
-func (request replyRequest) mattermostAskEphemeralUserID() string {
+func (request replyRequest) mattermostAskTargetUserID() string {
 	if request.Interaction == nil {
 		return ""
 	}
@@ -949,7 +914,7 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 		ChoiceKey:        choiceKey,
 		ChoiceLabel:      choiceLabel,
 		ResponseLanguage: request.Interaction.ResponseLanguage,
-		TargetUserID:     request.mattermostAskEphemeralUserID(),
+		TargetUserID:     request.mattermostAskTargetUserID(),
 		Token:            service.ensureMattermostInteractiveActionToken(),
 	}
 }
