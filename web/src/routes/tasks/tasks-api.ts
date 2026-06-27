@@ -82,6 +82,15 @@ export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<Task
 	return readTaskRunsResponse(document);
 }
 
+export async function deleteTaskRun(taskRunID: string): Promise<void> {
+	const response = await adminApiFetch(`/tasks/api/runs/${encodeURIComponent(taskRunID)}`, {
+		method: 'DELETE'
+	});
+	if (!response.ok) {
+		throw new Error(`Task delete request returned ${response.status}`);
+	}
+}
+
 function readTaskRunsResponse(document: unknown): TaskRunsResponse {
 	if (Array.isArray(document)) {
 		return { taskRuns: readTaskRunSummaries(document) };
