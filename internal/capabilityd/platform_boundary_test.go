@@ -1319,7 +1319,7 @@ func TestMattermostReplyFallsBackWhenThreadRootIsInvalid(t *testing.T) {
 	}
 }
 
-func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
+func TestMattermostReplyRendersAskChoiceInlineControl(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1394,23 +1394,6 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected props, got %+v", payload)
 		}
-		if _, hasAttachments := props["attachments"]; hasAttachments {
-			t.Fatalf("expected question post without interactive attachment, got %+v", props)
-		}
-	default:
-		t.Fatal("expected question post request")
-	}
-
-	select {
-	case payload := <-ephemeralRequests:
-		if payload["user_id"] != "user-1" {
-			t.Fatalf("expected requester-only ephemeral control, got %+v", payload)
-		}
-		post := payload["post"].(map[string]any)
-		if post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
-			t.Fatalf("expected ephemeral control in original thread, got %+v", post)
-		}
-		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 1 {
 			t.Fatalf("expected one interactive attachment, got %+v", props)
@@ -1433,11 +1416,17 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:
-		t.Fatal("expected ephemeral control request")
+		t.Fatal("expected question post request")
+	}
+
+	select {
+	case payload := <-ephemeralRequests:
+		t.Fatalf("expected no ephemeral control request, got %+v", payload)
+	default:
 	}
 }
 
-func TestMattermostReplySendsAskAttachmentAsEphemeralForRequester(t *testing.T) {
+func TestMattermostReplySendsAskAttachmentInlineForRequester(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1502,28 +1491,9 @@ func TestMattermostReplySendsAskAttachmentAsEphemeralForRequester(t *testing.T) 
 		if !isMap {
 			t.Fatalf("expected post props, got %+v", payload)
 		}
-		if _, hasAttachments := props["attachments"]; hasAttachments {
-			t.Fatalf("expected public post without ask attachments, got %+v", payload)
-		}
-	default:
-		t.Fatal("expected public post request")
-	}
-	select {
-	case payload := <-ephemeralRequests:
-		if payload["user_id"] != "requester-1" {
-			t.Fatalf("expected requester-only ephemeral post, got %+v", payload)
-		}
-		post := payload["post"].(map[string]any)
-		if post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
-			t.Fatalf("expected ephemeral post in original thread, got %+v", post)
-		}
-		if post["message"] != "" {
-			t.Fatalf("expected attachment-only ephemeral post, got %+v", post)
-		}
-		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 1 {
-			t.Fatalf("expected ephemeral ask attachment, got %+v", payload)
+			t.Fatalf("expected public ask attachment, got %+v", payload)
 		}
 		attachment := attachments[0].(map[string]any)
 		actions := attachment["actions"].([]any)
@@ -1537,7 +1507,12 @@ func TestMattermostReplySendsAskAttachmentAsEphemeralForRequester(t *testing.T) 
 			t.Fatalf("expected action context without message copy, got %+v", contextDocument)
 		}
 	default:
-		t.Fatal("expected ephemeral request")
+		t.Fatal("expected public post request")
+	}
+	select {
+	case payload := <-ephemeralRequests:
+		t.Fatalf("expected no ephemeral request, got %+v", payload)
+	default:
 	}
 }
 
