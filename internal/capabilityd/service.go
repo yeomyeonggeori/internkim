@@ -113,6 +113,30 @@ type replyRequest struct {
 	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
 }
 
+type platformReplyResult struct {
+	Platform              string   `json:"platform"`
+	DispatchID            string   `json:"dispatchID"`
+	Visibility            string   `json:"visibility"`
+	MessageDelivered      bool     `json:"messageDelivered"`
+	NativeAttachmentCount int      `json:"nativeAttachmentCount"`
+	NativeAttachmentIDs   []string `json:"nativeAttachmentIDs,omitempty"`
+}
+
+func newPlatformReplyResult(platform string, dispatchID string, visibility string, message string, nativeAttachmentIDs []string) platformReplyResult {
+	return newPlatformReplyResultWithAttachmentCount(platform, dispatchID, visibility, message, len(nativeAttachmentIDs), nativeAttachmentIDs)
+}
+
+func newPlatformReplyResultWithAttachmentCount(platform string, dispatchID string, visibility string, message string, nativeAttachmentCount int, nativeAttachmentIDs []string) platformReplyResult {
+	return platformReplyResult{
+		Platform:              platform,
+		DispatchID:            strings.TrimSpace(dispatchID),
+		Visibility:            strings.TrimSpace(visibility),
+		MessageDelivered:      strings.TrimSpace(message) != "",
+		NativeAttachmentCount: nativeAttachmentCount,
+		NativeAttachmentIDs:   nativeAttachmentIDs,
+	}
+}
+
 type interactionResolveRequest struct {
 	DispatchID string `json:"dispatchID"`
 }
@@ -638,6 +662,9 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		return nil, errorValue
 	}
 	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
+		if len(request.Attachments) > 0 {
+			return nil, errors.New("mattermost ephemeral reply cannot send native file attachments")
+		}
 		service.stopMattermostProgress(request.ReplyTargetID)
 		return service.sendMattermostEphemeralText(ctx, handle, request, message)
 	}
@@ -672,7 +699,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue == nil {
 		errorValue = service.sendMattermostAskEphemeral(ctx, handle, request)
 	}
-	return map[string]string{"dispatchID": response.ID}, errorValue
+	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
 }
 
 func (service Service) mattermostInteractionResolve(ctx context.Context, reader io.Reader) (any, error) {
@@ -753,7 +780,7 @@ func (service Service) sendMattermostEphemeralText(ctx context.Context, handle p
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
 		return nil, errorValue
 	}
-	return map[string]string{"dispatchID": ""}, nil
+	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
 }
 
 func (service Service) sendMattermostAskEphemeral(ctx context.Context, handle platformHandle, request replyRequest) error {
@@ -1190,7 +1217,7 @@ func (service Service) slackReply(ctx context.Context, payload json.RawMessage) 
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		return map[string]string{"dispatchID": dispatchID}, nil
+		return newPlatformReplyResultWithAttachmentCount("slack", dispatchID, "public", request.Message, len(request.Attachments), nil), nil
 	}
 	body := map[string]string{
 		"channel": handle.ChannelID,
@@ -1211,7 +1238,7 @@ func (service Service) slackReply(ctx context.Context, payload json.RawMessage) 
 	if !response.IsOK {
 		return nil, errors.New("slack reply failed: " + response.Error)
 	}
-	return map[string]string{"dispatchID": response.TS}, nil
+	return newPlatformReplyResult("slack", response.TS, "public", request.Message, nil), nil
 }
 
 func (service Service) slackHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {

@@ -189,6 +189,7 @@ func (service Service) signalReplyFromRequest(ctx context.Context, reader io.Rea
 		"account": service.Configuration.SignalAccount,
 		"message": request.Message,
 	}
+	attachmentCount := 0
 	if len(request.Attachments) > 0 {
 		files, errorValue := service.validatePlatformFiles(request.Attachments)
 		if errorValue != nil {
@@ -198,6 +199,7 @@ func (service Service) signalReplyFromRequest(ctx context.Context, reader io.Rea
 		for _, file := range files {
 			attachments = append(attachments, file.DevicePath)
 		}
+		attachmentCount = len(attachments)
 		params["attachments"] = attachments
 	}
 	if strings.TrimSpace(handle.SignalGroupID) != "" {
@@ -209,7 +211,7 @@ func (service Service) signalReplyFromRequest(ctx context.Context, reader io.Rea
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return map[string]string{"dispatchID": strings.TrimSpace(string(result))}, nil
+	return newPlatformReplyResultWithAttachmentCount("signal", strings.TrimSpace(string(result)), "public", request.Message, attachmentCount, nil), nil
 }
 
 func (service Service) signalHistoryFromRequest(_ context.Context, reader io.Reader) (any, error) {

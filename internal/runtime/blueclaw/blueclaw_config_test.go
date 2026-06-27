@@ -158,6 +158,32 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
 	}
+	completion := agent["completion"].(map[string]any)
+	contractInference := completion["contractInference"].(map[string]any)
+	if contractInference["enabled"] != true || contractInference["useUserIntent"] != true || contractInference["useSkillMetadata"] != true || contractInference["useToolDescriptors"] != true {
+		t.Fatalf("expected completion contract inference from intent, skills, and descriptors, got %+v", contractInference)
+	}
+	if contractInference["missingEvidencePolicy"] != "continue_or_report_actual_failure" {
+		t.Fatalf("expected actual-failure missing evidence policy, got %+v", contractInference)
+	}
+	effectKinds := contractInference["effectKinds"].([]any)
+	for _, expectedEffectKind := range []string{"artifact_delivery", "external_message", "calendar_write", "site_publish", "workspace_write"} {
+		if !containsStringValue(effectKinds, expectedEffectKind) {
+			t.Fatalf("expected completion effect kind %q, got %+v", expectedEffectKind, effectKinds)
+		}
+	}
+	evidenceLedger := completion["evidenceLedger"].(map[string]any)
+	if evidenceLedger["enabled"] != true || evidenceLedger["requireSuccessfulToolResult"] != true || evidenceLedger["recordPlatformReplyVisibility"] != true || evidenceLedger["recordNativeAttachmentEvidence"] != true {
+		t.Fatalf("expected enabled completion evidence ledger, got %+v", evidenceLedger)
+	}
+	finalizationGate := completion["finalizationGate"].(map[string]any)
+	if finalizationGate["enabled"] != true || finalizationGate["returnToPlannerWhenRequiredEvidenceMissing"] != true || finalizationGate["includeFinalizationContextForLLM"] != true || finalizationGate["allowOnlyActualFailureReportsWhenBlocked"] != true {
+		t.Fatalf("expected completion finalization gate, got %+v", finalizationGate)
+	}
+	platformReplies := completion["platformReplies"].(map[string]any)
+	if platformReplies["progressVisibility"] != "ephemeral_or_status" || platformReplies["publicFinalRequiresSatisfiedContract"] != true {
+		t.Fatalf("expected platform reply visibility contract, got %+v", platformReplies)
+	}
 	database := runtimeConfiguration["database"].(map[string]any)
 	if database["connectionString"] != BlueclawGuestDatabaseConnectionString {
 		t.Fatalf("expected keyword-value Unix socket database connection string, got %q", database["connectionString"])

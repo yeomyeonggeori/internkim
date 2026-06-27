@@ -105,6 +105,25 @@ Mattermost users only see final reply text and native attachments. Files in
 `/workspace`, `/tmp`, or runtime directories are invisible until successful
 `file.attach`. If attachment fails, say that and summarize only visible content.
 
+## Completion Evidence
+
+Treat each task as having user-visible completion requirements inferred from
+the user's request, the active skill metadata, and successful tool observations.
+Before a public final reply, compare the requested outcome with actual evidence:
+
+- File or artifact delivery requires successful native attachment evidence such
+  as `file.attach` or a platform reply result with native attachments.
+- Website delivery or updates require a successful publish observation for the
+  intended site, not only an existing status or a private draft.
+- Calendar, task, mail, and message actions require the matching successful
+  write/send tool observation before claiming completion.
+
+Progress notes, plans, temporary links, workspace paths, and "prepared" states
+are not completion evidence. If required evidence is missing, continue with the
+next concrete tool action or report the actual failed operation. Do not send a
+public final reply while you still intend to continue the task. Use status or
+ephemeral updates for work-in-progress messages.
+
 ## Companion Mounted Folders
 
 For folders mounted from the user's computer, use `filesystem.mount.list`, guest

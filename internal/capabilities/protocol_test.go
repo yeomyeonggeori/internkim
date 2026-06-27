@@ -255,6 +255,7 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
+	assertDescriptorCompletionEvidence(t, DeviceDescriptors(), "platform.reply", "success", "send_reply", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.event.add", "success", "write_calendar", "calendar")
