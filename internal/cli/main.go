@@ -774,6 +774,10 @@ func runDeployLegacySSH() {
 	sshpassBin := filepath.Join(binDir, "sshpass")
 	boardBinDir := filepath.Join(scriptDir, "build", "board-bin")
 	arguments := commandControlArguments(os.Args[2:])
+	setupStepNames, hasSelectedSetupSteps, errorValue := legacySSHDeploySetupStepNames(arguments)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
 
 	targets := []commandTarget{resolveCommandTarget(arguments)}
 	if hasCommandArgument(arguments, "--all-active") {
@@ -794,9 +798,89 @@ func runDeployLegacySSH() {
 		target.host = ssh.host
 		target.useRemoteSSH = isRemote
 		printCommandTargetEvidence(target)
-		runDeployToBoard(scriptDir, boardBinDir, ssh)
+		if hasSelectedSetupSteps {
+			runLegacySSHSetupDeploy(configuration, scriptDir, target, ssh, setupStepNames)
+		} else {
+			runDeployToBoard(scriptDir, boardBinDir, ssh)
+		}
 	}
 	fmt.Println("Deploy complete.")
+}
+
+func legacySSHDeploySetupStepNames(arguments []string) ([]string, bool, error) {
+	selectedComponentNames, errorValue := selectedReleaseComponentNames(arguments)
+	if errorValue != nil {
+		return nil, false, errorValue
+	}
+	if len(selectedComponentNames) == 0 {
+		return nil, false, nil
+	}
+
+	componentMappings := []struct {
+		componentName string
+		stepName      string
+	}{
+		{componentName: "web", stepName: "web"},
+		{componentName: "admind", stepName: "admind"},
+		{componentName: "capabilityd", stepName: "capabilityd"},
+		{componentName: "skills", stepName: "skills"},
+		{componentName: "blueclawPayload", stepName: "blueclaw-payload-direct"},
+	}
+	mappedComponentNames := map[string]bool{}
+	stepNames := []string{}
+	for _, mapping := range componentMappings {
+		if !selectedComponentNames[mapping.componentName] {
+			continue
+		}
+		mappedComponentNames[mapping.componentName] = true
+		stepNames = append(stepNames, mapping.stepName)
+	}
+
+	unsupportedComponentNames := []string{}
+	for componentName := range selectedComponentNames {
+		if !mappedComponentNames[componentName] {
+			unsupportedComponentNames = append(unsupportedComponentNames, componentName)
+		}
+	}
+	if len(unsupportedComponentNames) > 0 {
+		sort.Strings(unsupportedComponentNames)
+		return nil, true, fmt.Errorf("legacy SSH deploy does not support component(s): %s", strings.Join(unsupportedComponentNames, ", "))
+	}
+	return stepNames, true, nil
+}
+
+func runLegacySSHSetupDeploy(configuration config, scriptDir string, target commandTarget, ssh *sshClient, stepNames []string) {
+	messenger := newMsg("ko")
+	flowState := newSetupFlowState(
+		messenger,
+		configuration,
+		collectSetupParameterValues(),
+		target.stateDir,
+		scriptDir,
+		currentExecutableFingerprint(),
+		ssh,
+		false,
+	)
+	pipelineContext := &setup.Context{
+		Backend:      setup.BackendSSH,
+		Language:     messenger.lang,
+		StateDir:     target.stateDir,
+		ScriptDir:    scriptDir,
+		BoardType:    target.boardType,
+		BoardIP:      ssh.host,
+		PublicURL:    target.deviceURL,
+		SetupCommand: commandLineForSetupLock(os.Args[2:]),
+		SetupSteps:   strings.Join(stepNames, ","),
+		SetupLockID:  randomHexString(12),
+		Force:        true,
+		HTTP:         &http.Client{Timeout: 30 * time.Second},
+		Callbacks:    flowState.callbacks(),
+		SSH:          sshBoardConnection{client: ssh},
+	}
+	selector := setup.Selector{Only: stepNames, Force: true}
+	if errorValue := setupRegistryForBoard(target.boardType).Run(pipelineContext, selector); errorValue != nil {
+		fatal(errorValue.Error())
+	}
 }
 
 func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {

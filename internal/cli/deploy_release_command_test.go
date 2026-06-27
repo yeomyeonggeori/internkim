@@ -38,6 +38,45 @@ func TestSelectedReleaseComponentNamesAllowsAllByDefault(t *testing.T) {
 	}
 }
 
+func TestLegacySSHDeploySetupStepNamesMapsPayloadDirectly(t *testing.T) {
+	stepNames, hasSelectedSteps, errorValue := legacySSHDeploySetupStepNames([]string{"--components", "blueclawPayload"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !hasSelectedSteps {
+		t.Fatal("expected selected setup steps")
+	}
+	if strings.Join(stepNames, ",") != "blueclaw-payload-direct" {
+		t.Fatalf("stepNames = %v", stepNames)
+	}
+}
+
+func TestLegacySSHDeploySetupStepNamesKeepsStableOrder(t *testing.T) {
+	stepNames, hasSelectedSteps, errorValue := legacySSHDeploySetupStepNames([]string{"--components", "blueclawPayload,web,skills"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !hasSelectedSteps {
+		t.Fatal("expected selected setup steps")
+	}
+	if strings.Join(stepNames, ",") != "web,skills,blueclaw-payload-direct" {
+		t.Fatalf("stepNames = %v", stepNames)
+	}
+}
+
+func TestLegacySSHDeploySetupStepNamesRejectsUnsupportedComponents(t *testing.T) {
+	_, hasSelectedSteps, errorValue := legacySSHDeploySetupStepNames([]string{"--components", "internkim"})
+	if errorValue == nil {
+		t.Fatal("expected unsupported component error")
+	}
+	if !hasSelectedSteps {
+		t.Fatal("expected selected setup steps")
+	}
+	if !strings.Contains(errorValue.Error(), "internkim") {
+		t.Fatalf("error = %v", errorValue)
+	}
+}
+
 func TestDeployUsageTextContainsComponentNames(t *testing.T) {
 	usage := deployUsageText()
 	for _, componentName := range []string{"admind", "blueclawPayload", "capabilityd", "internkim", "mattermostPlugins", "skills", "web"} {
