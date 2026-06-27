@@ -8,10 +8,6 @@ import (
 )
 
 func (service *Service) handleTasks(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		http.NotFound(responseWriter, request)
-		return
-	}
 	viewerEmail := service.webStaffActorEmail(request)
 	if viewerEmail == "" {
 		http.Error(responseWriter, "authentication required", http.StatusUnauthorized)
@@ -24,11 +20,19 @@ func (service *Service) handleTasks(responseWriter http.ResponseWriter, request 
 	case "/tasks/api/run-detail":
 		service.proxyScopedTaskDetail(responseWriter, request, viewerEmail, isViewerAdmin)
 	default:
+		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/tasks/api/runs/") {
+			service.proxyScopedTaskDelete(responseWriter, request, viewerEmail, isViewerAdmin)
+			return
+		}
 		http.NotFound(responseWriter, request)
 	}
 }
 
 func (service *Service) proxyScopedTaskList(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
+	if request.Method != http.MethodGet {
+		http.NotFound(responseWriter, request)
+		return
+	}
 	query := url.Values{}
 	if status := strings.TrimSpace(request.URL.Query().Get("status")); status != "" {
 		query.Set("status", status)
@@ -59,6 +63,10 @@ func (service *Service) proxyScopedTaskList(responseWriter http.ResponseWriter, 
 }
 
 func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
+	if request.Method != http.MethodGet {
+		http.NotFound(responseWriter, request)
+		return
+	}
 	taskRunID := strings.TrimSpace(request.URL.Query().Get("taskRunID"))
 	if taskRunID == "" {
 		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
@@ -74,4 +82,29 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 		return
 	}
 	service.writeJSON(responseWriter, detail)
+}
+
+func (service *Service) proxyScopedTaskDelete(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
+	taskRunID := strings.TrimSpace(strings.TrimPrefix(request.URL.Path, "/tasks/api/runs/"))
+	if taskRunID == "" {
+		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
+		return
+	}
+	blueclawRequest := map[string]any{
+		"taskRunID":     taskRunID,
+		"viewerEmail":   viewerEmail,
+		"viewerIsAdmin": isViewerAdmin,
+	}
+	var deleteResponse any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task/delete", blueclawRequest, &deleteResponse); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	if deleteResponse == nil {
+		deleteResponse = map[string]any{
+			"status":    "deleted",
+			"taskRunID": taskRunID,
+		}
+	}
+	service.writeJSON(responseWriter, deleteResponse)
 }

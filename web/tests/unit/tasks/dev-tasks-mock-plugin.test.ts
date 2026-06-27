@@ -66,6 +66,25 @@ describe('dev tasks mock plugin', () => {
 		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'tool.site.app.publish.result')).toBe(true);
 	});
 
+	test('deletes terminal task runs from the mock list', async () => {
+		const state = createDevTasksMockState('admin@example.com');
+		const deleteResponse = await createDevTasksMockResponse(state, {
+			method: 'DELETE',
+			pathname: '/tasks/api/runs/dev-task-run-001',
+			searchParams: new URLSearchParams()
+		});
+		const listResponse = await createDevTasksMockResponse(state, {
+			method: 'GET',
+			pathname: '/tasks/api/runs',
+			searchParams: new URLSearchParams('limit=15&offset=0&includeTotal=true')
+		});
+
+		expect(deleteResponse?.status).toBe(200);
+		const body = listResponse?.body as TaskRunsResponse;
+		expect(body.totalCount).toBe(59);
+		expect(body.taskRuns.some((taskRun) => taskRun.taskRunID === 'dev-task-run-001')).toBe(false);
+	});
+
 	test('returns correlated service logs', async () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const response = await createDevTasksMockResponse(state, {
