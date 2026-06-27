@@ -146,6 +146,9 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
 		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
 	}
+	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force") {
+		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
+	}
 }
 
 func TestScenarioPlanPassesConfigBeforeRemoteCommand(t *testing.T) {

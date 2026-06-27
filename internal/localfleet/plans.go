@@ -226,7 +226,7 @@ func (service Service) setupCommand(skipWeb bool) string {
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1 INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip " + strings.Join(skippedSteps, ","),
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1 INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force --skip " + strings.Join(skippedSteps, ","),
 	}, " && ")
 }
 
