@@ -242,32 +242,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			},
 			"defaultEffortLevel": "standard",
 			"toolResultMaxBytes": 32768,
-			"completion": map[string]any{
-				"contractInference": map[string]any{
-					"enabled":               true,
-					"useUserIntent":         true,
-					"useSkillMetadata":      true,
-					"useToolDescriptors":    true,
-					"effectKinds":           []string{"artifact_delivery", "external_message", "calendar_write", "site_publish", "workspace_write"},
-					"missingEvidencePolicy": "continue_or_report_actual_failure",
-				},
-				"evidenceLedger": map[string]any{
-					"enabled":                        true,
-					"requireSuccessfulToolResult":    true,
-					"recordPlatformReplyVisibility":  true,
-					"recordNativeAttachmentEvidence": true,
-				},
-				"finalizationGate": map[string]any{
-					"enabled": true,
-					"returnToPlannerWhenRequiredEvidenceMissing": true,
-					"includeFinalizationContextForLLM":           true,
-					"allowOnlyActualFailureReportsWhenBlocked":   true,
-				},
-				"platformReplies": map[string]any{
-					"progressVisibility":                   "ephemeral_or_status",
-					"publicFinalRequiresSatisfiedContract": true,
-				},
-			},
 			"failureRecovery": map[string]any{
 				"failureDebtFinalizationGate": true,
 				"attemptFingerprint":          "tool_input_error_code",
