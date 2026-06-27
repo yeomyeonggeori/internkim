@@ -156,6 +156,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
 	case "mattermost-direct-message-send":
 		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans(keepArtifacts))
+	case "mattermost-docx-attachment":
+		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "web-backed-ui", "regression-proof":

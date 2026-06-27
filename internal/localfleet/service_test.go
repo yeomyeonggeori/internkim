@@ -110,6 +110,30 @@ func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	}
 }
 
+func TestMattermostDocxAttachmentScenarioUsesPromptDownloadGate(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		StateRootPath:      "/repo/.local/local-fleet/runs/docx",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.mattermostDocxAttachmentScenarioPlans(false)
+	joinedPlans := joinedPlanArguments(plans)
+	for _, expectedFragment := range []string{
+		"verify mattermost --prompt",
+		"Local Fleet DOCX Attachment Test",
+		"--expect-tool file.attach",
+		"--download-files-to '/repo/.local/local-fleet/runs/docx/downloads/mattermost-docx-attachment'",
+		"--wait-for-completion",
+	} {
+		if !strings.Contains(joinedPlans, expectedFragment) {
+			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
+		}
+	}
+}
+
 func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {

@@ -145,6 +145,23 @@ func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) 
 	return append(service.upPlans(false), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
 }
 
+func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool) []CommandPlan {
+	prompt := "간단한 테스트 보고서를 워드 파일(.docx)로 만들어서 첨부파일로 줘. 제목은 Local Fleet DOCX Attachment Test."
+	downloadDirectory := filepath.Join(service.options.StateRootPath, "downloads", "mattermost-docx-attachment")
+	verificationKind := strings.Join([]string{
+		"mattermost",
+		"--prompt " + quoteShell(prompt),
+		"--expect-tool file.attach",
+		"--download-files-to " + quoteShell(downloadDirectory),
+		"--wait-for-completion",
+		"--timeout 480",
+	}, " ")
+	if keepArtifacts {
+		verificationKind += " --keep"
+	}
+	return append(service.upPlans(false), service.shellPlan("verify docx attachment", service.verifyCommand(verificationKind)))
+}
+
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
