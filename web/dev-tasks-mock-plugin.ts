@@ -23,6 +23,7 @@ type DevTasksMockState = DevAdminMockState & {
 const taskRunStatuses = ['completed', 'completed', 'completed', 'failed', 'running', 'waiting_approval', 'blocked'] as const;
 const defaultDailyCostTaskRunLimit = 500;
 const maxDailyCostTaskRunLimit = 1000;
+const deletableTaskRunStatuses = new Set(['completed', 'failed', 'cancelled', 'blocked']);
 
 export function devTasksMockPlugin(options: DevTasksMockPluginOptions): Plugin {
 	const state = createDevTasksMockState(options.userEmail);
@@ -74,6 +75,9 @@ export function createDevTasksMockResponse(
 	if (request.method === 'GET' && request.pathname === '/tasks/api/run-detail') {
 		return taskDetailResponse(state, request.searchParams);
 	}
+	if (request.method === 'DELETE' && request.pathname.startsWith('/tasks/api/runs/')) {
+		return deleteTaskRunResponse(state, request.pathname);
+	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/diagnostics/tasks') {
 		return { status: 200, body: paginatedTaskRuns(state.taskRuns, request.searchParams) };
 	}
@@ -86,6 +90,7 @@ export function createDevTasksMockResponse(
 function shouldHandleDevTasksMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/tasks/api/runs') return true;
 	if (method === 'GET' && pathname === '/tasks/api/run-detail') return true;
+	if (method === 'DELETE' && pathname.startsWith('/tasks/api/runs/')) return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/tasks') return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/service-logs') return true;
 	return shouldHandleDevAdminMockRequest(method, pathname);
@@ -115,6 +120,17 @@ function taskDetailResponse(state: DevTasksMockState, searchParams: URLSearchPar
 	const taskRun = state.taskRuns.find((candidate) => candidate.taskRunID === taskRunID);
 	if (!taskRun) return { status: 404, body: { error: 'task_run_not_found' } };
 	return { status: 200, body: createDevTaskDetail(taskRun) };
+}
+
+function deleteTaskRunResponse(state: DevTasksMockState, pathname: string): DevMockResponse {
+	const taskRunID = decodeURIComponent(pathname.slice('/tasks/api/runs/'.length));
+	const taskRun = state.taskRuns.find((candidate) => candidate.taskRunID === taskRunID);
+	if (!taskRun) return { status: 404, body: { error: 'task_run_not_found' } };
+	if (!deletableTaskRunStatuses.has(taskRun.status)) {
+		return { status: 409, body: { error: 'task_run_not_deletable' } };
+	}
+	state.taskRuns = state.taskRuns.filter((candidate) => candidate.taskRunID !== taskRunID);
+	return { status: 200, body: { status: 'deleted', taskRunID } };
 }
 
 function createDevTaskDetail(taskRun: TaskRunSummary): TaskDetail {

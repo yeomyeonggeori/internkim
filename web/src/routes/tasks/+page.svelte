@@ -3,6 +3,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
@@ -10,14 +11,16 @@
 	import { goto } from '$app/navigation';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
-	import { fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './tasks-api';
+	import { deleteTaskRun, fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './tasks-api';
 	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
 	const taskPageSize = 15;
 	const dailyCostTaskRunLimit = 500;
+	const deletableTaskStatuses = new Set(['completed', 'failed', 'cancelled', 'blocked']);
 	let taskRuns = $state<TaskRunSummary[]>([]);
 	let dailyCostSummaries = $state<DailyCostSummary[]>([]);
 	let dailyCostScope = $state<DailyCostScope | undefined>(undefined);
@@ -25,8 +28,10 @@
 	let totalTaskRunCount = $state(0);
 	let statusFilter = $state('');
 	let loadError = $state('');
+	let actionError = $state('');
 	let isLoading = $state(false);
 	let isAdmin = $state(false);
+	let deletingTaskRunIDs = $state<Set<string>>(new Set());
 	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
 	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
 
@@ -40,6 +45,7 @@
 	async function loadTaskRuns(pageIndex: number = taskPageIndex) {
 		isLoading = true;
 		loadError = '';
+		actionError = '';
 		try {
 			const response = await fetchTaskRuns({
 				status: statusFilter || undefined,
@@ -84,6 +90,46 @@
 		void loadTaskRuns(taskPageIndex + 1);
 	}
 
+	function canDeleteTaskRun(taskRun: TaskRunSummary): boolean {
+		return deletableTaskStatuses.has(taskRun.status) && !deletingTaskRunIDs.has(taskRun.taskRunID);
+	}
+
+	function setTaskRunDeleting(taskRunID: string, isDeleting: boolean) {
+		const nextTaskRunIDs = new Set(deletingTaskRunIDs);
+		if (isDeleting) {
+			nextTaskRunIDs.add(taskRunID);
+		} else {
+			nextTaskRunIDs.delete(taskRunID);
+		}
+		deletingTaskRunIDs = nextTaskRunIDs;
+	}
+
+	function confirmTaskRunDelete(event: MouseEvent, taskRun: TaskRunSummary) {
+		event.stopPropagation();
+		if (!canDeleteTaskRun(taskRun)) return;
+		confirmDelete({
+			title: text.deleteTaskTitle,
+			description: text.deleteTaskDescription.replace('{id}', taskRun.taskRunID),
+			confirm: { text: text.deleteTask },
+			cancel: { text: text.cancelDelete },
+			onConfirm: () => deleteSelectedTaskRun(taskRun.taskRunID)
+		});
+	}
+
+	async function deleteSelectedTaskRun(taskRunID: string) {
+		setTaskRunDeleting(taskRunID, true);
+		actionError = '';
+		try {
+			await deleteTaskRun(taskRunID);
+			const nextPageIndex = taskRuns.length === 1 && taskPageIndex > 0 ? taskPageIndex - 1 : taskPageIndex;
+			await loadTaskRuns(nextPageIndex);
+		} catch {
+			actionError = text.deleteError;
+		} finally {
+			setTaskRunDeleting(taskRunID, false);
+		}
+	}
+
 	function formatCostDate(date: string): string {
 		const parsed = new Date(`${date}T00:00:00`);
 		if (Number.isNaN(parsed.getTime())) return date;
@@ -122,7 +168,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="grid min-h-[calc(100svh-48px)] w-full flex-1 content-start gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+<main class="grid min-h-[calc(100svh-48px)] w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<Card.Root>
 		<Card.Header>
 			<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -177,6 +223,12 @@
 		</UnderlineTabs.List>
 	</UnderlineTabs.Root>
 
+	{#if actionError}
+		<Card.Root size="sm" class="border-destructive/30">
+			<Card.Content class="text-sm text-destructive">{actionError}</Card.Content>
+		</Card.Root>
+	{/if}
+
 	{#if loadError}
 		<Card.Root size="sm" class="border-destructive/30">
 			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
@@ -207,6 +259,7 @@
 								<Table.Head class="w-32">{text.columnStatus}</Table.Head>
 								<Table.Head class="w-28 text-right">{text.columnCost}</Table.Head>
 								<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
+								<Table.Head class="w-16 text-right">{text.columnActions}</Table.Head>
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
@@ -243,6 +296,20 @@
 									<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
 										{formatTaskTimestamp(taskRun.updatedAt)}
 									</Table.Cell>
+									<Table.Cell class="text-right">
+										{#if deletableTaskStatuses.has(taskRun.status)}
+											<Button
+												variant="ghost"
+												size="icon-xs"
+												aria-label={text.deleteTaskAction}
+												title={text.deleteTaskAction}
+												disabled={deletingTaskRunIDs.has(taskRun.taskRunID)}
+												onclick={(event) => confirmTaskRunDelete(event, taskRun)}
+											>
+												<Trash2Icon />
+											</Button>
+										{/if}
+									</Table.Cell>
 								</Table.Row>
 							{/each}
 						</Table.Body>
@@ -266,3 +333,5 @@
 		/>
 	{/if}
 </main>
+
+<ConfirmDeleteDialog />
