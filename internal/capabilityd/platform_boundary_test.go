@@ -103,7 +103,6 @@ func TestMattermostNormalizePreservesInputAttachmentFileIDs(t *testing.T) {
 	}
 }
 
-
 func TestMattermostCompanionRecoverySendsChannelInstructionByDM(t *testing.T) {
 	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
 		Platform:       "mattermost",
@@ -1209,9 +1208,13 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 		t.Fatal("expected typing request")
 	}
 
-	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done","rawEventID":"raw-event-1","outboxID":"outbox-1"}`))
+	reply, errorValue := service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done","rawEventID":"raw-event-1","outboxID":"outbox-1"}`))
 	if errorValue != nil {
 		t.Fatalf("expected reply to succeed: %v", errorValue)
+	}
+	replyResult, isReplyResult := reply.(platformReplyResult)
+	if !isReplyResult || replyResult.Platform != "mattermost" || replyResult.Visibility != "public" || !replyResult.MessageDelivered || replyResult.NativeAttachmentCount != 0 {
+		t.Fatalf("expected public reply evidence without attachments, got %+v", reply)
 	}
 
 	select {
@@ -1246,6 +1249,26 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done"}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "connector outbox metadata") {
 		t.Fatalf("expected connector metadata error, got %v", errorValue)
+	}
+}
+
+func TestMattermostEphemeralReplyRejectsNativeAttachments(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", RootID: "root-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	service := Service{Configuration: DefaultConfiguration()}
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+		ReplyTargetID:   replyTargetID,
+		Message:         "private update",
+		RawEventID:      "raw-event-1",
+		OutboxID:        "outbox-1",
+		EphemeralUserID: "user-1",
+		Attachments:     []platformFileSpec{{DevicePath: "/workspace/report.docx", Filename: "report.docx"}},
+	}))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "ephemeral reply cannot send native file attachments") {
+		t.Fatalf("expected ephemeral native attachment rejection, got %v", errorValue)
 	}
 }
 
@@ -1811,7 +1834,7 @@ func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
 	configuration.CompanionFileDirectory = companionDirectory
 	service := Service{Configuration: configuration, HTTPClient: httpClient}
 
-	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+	reply, errorValue := service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
 		ReplyTargetID: replyTargetID,
 		Message:       "captured",
 		RawEventID:    "raw-event-1",
@@ -1820,6 +1843,10 @@ func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
 	}))
 	if errorValue != nil {
 		t.Fatalf("expected reply with attachment: %v", errorValue)
+	}
+	replyResult, isReplyResult := reply.(platformReplyResult)
+	if !isReplyResult || replyResult.Platform != "mattermost" || replyResult.Visibility != "public" || replyResult.NativeAttachmentCount != 1 || len(replyResult.NativeAttachmentIDs) != 1 || replyResult.NativeAttachmentIDs[0] != "file-1" {
+		t.Fatalf("expected Mattermost reply attachment evidence, got %+v", reply)
 	}
 
 	select {
@@ -1884,7 +1911,7 @@ func TestMattermostReplyUploadsInlineAttachmentsFromBlueclawWorkspace(t *testing
 	configuration.CompanionFileDirectory = companionDirectory
 	service := Service{Configuration: configuration, HTTPClient: httpClient}
 
-	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+	reply, errorValue := service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
 		ReplyTargetID: replyTargetID,
 		Message:       "deck",
 		RawEventID:    "raw-event-1",
@@ -1899,6 +1926,10 @@ func TestMattermostReplyUploadsInlineAttachmentsFromBlueclawWorkspace(t *testing
 	}))
 	if errorValue != nil {
 		t.Fatalf("expected inline attachment upload: %v", errorValue)
+	}
+	replyResult, isReplyResult := reply.(platformReplyResult)
+	if !isReplyResult || replyResult.NativeAttachmentCount != 1 || len(replyResult.NativeAttachmentIDs) != 1 || replyResult.NativeAttachmentIDs[0] != "file-1" {
+		t.Fatalf("expected inline attachment delivery evidence, got %+v", reply)
 	}
 
 	select {

@@ -55,7 +55,7 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.text", Description: "Generate free-form text using the device LLM. Internal capability used by Blueclaw's LLM backend; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "llm.structured", Description: "Generate structured JSON output using the device LLM. Internal capability used by Blueclaw's LLM backend for structured extraction; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Description: "Generate vector embeddings for text using the device embedding model. Internal capability used for semantic search and memory retrieval; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "platform.reply", Description: "Send a reply in the current Mattermost conversation context. Internal shorthand used by the platform reply path; use platform.message.send for explicit delivery targeting.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "platform.reply", Description: "Send a reply in the current platform conversation context and return delivery evidence such as visibility and native attachment count. Internal shorthand used by the platform reply path; use platform.message.send for explicit delivery targeting.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, SideEffectClass: "platform_reply", CompletionEvidence: completionEvidence("success", "send_reply", "message")},
 	}
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
@@ -455,7 +455,7 @@ func siteAppCreateInputSchema() json.RawMessage {
 		jsonschema.Field("title", jsonschema.String().WithDescription("Human-readable site name shown in the dashboard, e.g. 'Team Dashboard'.")),
 		jsonschema.Field("prompt", jsonschema.String().WithDescription("Natural-language description of what to build, e.g. 'A status page that shows on-call rotation and incident history'. The more specific, the better the generated output.")),
 		jsonschema.Field("designBrief", jsonschema.String().WithDescription("Visual style or layout guidance for the site, e.g. 'minimal dark theme, data-dense tables, no sidebars'.")),
-		jsonschema.Field("prototypeScope", jsonschema.String().WithDescription("Scope limit for the initial prototype, e.g. 'single page, no backend, static data only'.")),
+		jsonschema.Field("prototypeScope", jsonschema.String().WithDescription("Scope limit for the initial prototype, e.g. 'single page, static data only, no server logic'.")),
 		jsonschema.Field("description", jsonschema.String().WithDescription("Short public-facing description of the site's purpose.")),
 		jsonschema.Field("idea", jsonschema.String().WithDescription("Core concept or value proposition, e.g. 'make sprint progress visible to the whole company'.")),
 		jsonschema.Field("purpose", jsonschema.String().WithDescription("Why this site exists and who it serves, e.g. 'internal tool for the ops team to track vendor SLAs'.")),
