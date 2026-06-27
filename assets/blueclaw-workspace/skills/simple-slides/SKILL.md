@@ -12,6 +12,10 @@ allowed-tools:
   - file.promote
   - file.attach
   - artifact.review
+completion:
+  requiredEvidenceTools:
+    - file.promote
+    - file.attach
 ---
 
 # Simple Slides

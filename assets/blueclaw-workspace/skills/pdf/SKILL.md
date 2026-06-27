@@ -14,6 +14,10 @@ allowed-tools:
   - file.patch
   - file.promote
   - file.attach
+completion:
+  requiredEvidenceTools:
+    - file.promote
+    - file.attach
 ---
 
 # Generating PDFs with fpdf2
