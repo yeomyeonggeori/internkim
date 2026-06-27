@@ -12,6 +12,7 @@ InternKim fleet. They are for localhost-only validation, not deployment.
 ./internkim dev fleet run --scenario mattermost-bot-invited
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 ./internkim dev fleet run --keep --scenario mattermost-direct-message-send
+./internkim dev fleet run --keep --scenario mattermost-docx-attachment
 ./internkim dev fleet run --reuse --scenario mattermost-direct-message-send
 ```
 
@@ -29,6 +30,14 @@ Use `--without-mattermost` with a virtual-session scenario when Mattermost itsel
 is not under test. This still runs inside the Linux VM and uses the checkout's
 Linux toolchain, but it does not start Kim services or rely on Mattermost ingress.
 
+Use `--keep` for user-visible Mattermost regressions that need screenshot proof.
+After the scenario passes, open the preserved Mattermost URL, log in to the
+preserved test account or an admin account, and capture the DM or thread showing
+the original prompt, Kim's final reply, and the native attachment card or public
+URL. Save screenshots and downloaded files under `.local/local-fleet/runs/<run-id>/`.
+These files are local evidence only; do not commit them. Clean the kept VM and
+Mattermost artifacts after review.
+
 ## Scenario Rules
 
 - Keep scenarios deterministic by default.
@@ -44,6 +53,8 @@ Linux toolchain, but it does not start Kim services or rely on Mattermost ingres
 - `mattermost-bot-invited`: verifies real Mattermost ingress and bot replies.
 - `mattermost-direct-message-send`: verifies real Mattermost DM recipient
   resolution, approval, platform.message.send, and recipient DM delivery.
+- `mattermost-docx-attachment`: verifies a real Mattermost prompt, DOCX
+  generation, native `file.attach` delivery, and local attachment download.
 - `--without-mattermost --scenario <virtual-session>`: verifies Blueclaw's Linux
   execution path without a Mattermost server.
 - `web-backed-ui`: verifies UI behavior against local fleet admind.

@@ -28,6 +28,9 @@ Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는
 # 실제 DM E2E
 ./internkim dev fleet run --scenario mattermost-direct-message-send
 
+# 실제 Mattermost 첨부 전달 + 화면 증거 보존
+./internkim dev fleet run --scenario mattermost-docx-attachment --keep
+
 # Mattermost 제외 Linux virtual-session
 ./internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance
 
@@ -39,6 +42,32 @@ Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는
 ```
 
 `./internkim test "<prompt>"`는 disposable Local Fleet에서 실제 Mattermost DM을 보내고 task 완료 후 마지막 봇 메시지를 출력합니다. 산출물 품질 확인용 경로라 웹 UI 빌드는 건너뛰고 Mattermost, Blueclaw, runtime 의존성만 준비합니다. 현재 checkout의 Blueclaw 변경은 Local Fleet setup에서 `INTERNKIM_BLUECLAW_USE_LOCAL=1`로 자동 반영합니다. 첨부 파일이 있으면 `/tmp/internkim-test-<timestamp>/`에 내려받아 macOS `open`으로 열며, `-o <file>`을 주면 단일 첨부 파일을 정확히 그 파일 경로에 씁니다. URL은 메시지 텍스트로 그대로 확인합니다. 첨부 파일 후처리만 수행하므로 웹사이트 URL처럼 파일이 없는 결과도 성공으로 취급합니다.
+
+## Mattermost 화면 증거
+
+사용자에게 보이는 전달 결과가 문제인 회귀는 터미널 성공만으로 끝내지 않습니다. 실제 Mattermost DM 화면에서 사용자 요청, 김인턴 최종 답변, native attachment 카드나 공개 URL이 함께 보이는 스크린샷을 남깁니다.
+
+```bash
+./internkim dev fleet run --scenario mattermost-docx-attachment --keep
+```
+
+`--keep`은 VM, Mattermost posts/users, 다운로드 파일, run state를 남기므로 화면 확인이 필요한 경우에만 사용합니다. 명령 출력의 Mattermost URL로 접속해 보존된 테스트 사용자 또는 관리자 계정으로 로그인하고, 필요한 DM/thread를 연 뒤 브라우저 도구로 스크린샷을 저장합니다. 파일 산출물 회귀라면 `--download-files-to`가 저장한 첨부 파일도 같이 확인합니다.
+
+증거 파일은 `.local/local-fleet/runs/<run-id>/` 아래에 둡니다. 예:
+
+```text
+.local/local-fleet/runs/<run-id>/mattermost-docx-attachment-proof.png
+.local/local-fleet/runs/<run-id>/downloads/mattermost-docx-attachment/<filename>.docx
+```
+
+스크린샷에는 최소한 다음이 보여야 합니다.
+
+- 사용자가 Mattermost에서 보낸 원 요청
+- 김인턴의 최종 사용자-facing 답변
+- 첨부 파일 카드, 다운로드 가능한 파일명, 또는 공개 URL
+- thread 안에서 완료된 작업이라면 thread reply 영역
+
+화면 증거는 로컬 디버깅 artifact입니다. git에 넣지 말고, 최종 보고에는 절대경로를 남깁니다. 증거 검토가 끝나면 출력된 cleanup 명령이나 `./internkim dev fleet reset`/`down`으로 보존 VM과 Mattermost 테스트 흔적을 정리합니다.
 
 ## 테스트 흔적 정리
 
