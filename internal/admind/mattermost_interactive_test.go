@@ -174,6 +174,6 @@ func assertMattermostAskAcknowledged(t *testing.T, response mattermostInteractiv
 		t.Fatalf("expected acknowledged ask, got error %+v", response.Error)
 	}
 	if response.Update != nil {
-		t.Fatalf("expected no post update for ephemeral ask, got %+v", response.Update)
+		t.Fatalf("expected no immediate post update for ask acknowledgement, got %+v", response.Update)
 	}
 }
