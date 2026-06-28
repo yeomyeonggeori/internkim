@@ -151,12 +151,24 @@ def install_requirements(python_path, requirements_path):
 
 def uv_environment():
     environment = os.environ.copy()
-    dependency_cache = Path("/workspace/shared/cache/dependencies/uv")
-    if dependency_cache.parent.exists():
-        dependency_cache.mkdir(parents=True, exist_ok=True)
-        environment["UV_CACHE_DIR"] = str(dependency_cache)
-        environment["UV_LINK_MODE"] = "copy"
+    dependency_cache = uv_cache_path(environment)
+    dependency_cache.mkdir(parents=True, exist_ok=True)
+    environment["UV_CACHE_DIR"] = str(dependency_cache)
+    environment["UV_LINK_MODE"] = "copy"
     return environment
+
+
+def uv_cache_path(environment):
+    configured_cache = environment.get("UV_CACHE_DIR")
+    if configured_cache is not None and configured_cache.strip() != "":
+        return Path(configured_cache)
+    workspace_cache = Path("/workspace/shared/cache/dependencies/uv")
+    if workspace_cache.parent.exists():
+        return workspace_cache
+    root = environment.get("BLUECLAW_REQUESTER_TMP")
+    if root is None or root.strip() == "":
+        root = environment.get("TMPDIR", "/tmp")
+    return Path(root) / "internkim-skill-cache" / "uv"
 
 
 def dependency_environment_path(skill_name):

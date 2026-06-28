@@ -143,12 +143,12 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
+	for _, expectedText := range []string{"dependency-free TypeScript + CSS", "offline-first", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "dependency-free HTML + CSS + JavaScript", "Do not use React", "warm limestone", "green secondary accents", "amber tertiary"} {
+	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "warm limestone", "green secondary accents", "amber tertiary"} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("site-prototype must not document stale site workspace pattern %q", forbiddenText)
 		}
@@ -163,12 +163,12 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"react"`, `"vite"`, `"@radix-ui/react-dialog"`, `"tailwindcss"`} {
+	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"preview": "bun scripts/preview.ts"`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"latest", `"dependencies": {}`, "@google/design.md", `": "^`} {
+	for _, forbiddenText := range []string{"latest", `"dependencies"`, `"devDependencies"`, `"react"`, `"vite"`, "@google/design.md", `": "^`} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("vendored site scaffold package manifest must not require network dependency %q", forbiddenText)
 		}
@@ -226,6 +226,90 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		}
 		if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
 			t.Fatalf("%s runtime script must compare Python paths without resolving venv symlinks", skillName)
+		}
+	}
+}
+
+func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	for _, skillName := range []string{"docx", "xlsx", "pdf", "site-prototype"} {
+		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
+		document, errorValue := os.ReadFile(skillPath)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		content := string(document)
+		if !strings.Contains(content, "source of truth") {
+			t.Fatalf("%s skill must preserve supplied data as source of truth", skillName)
+		}
+	}
+
+	docxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "scripts", "create_docx.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"eastAsia", "set_table_borders", "columnWidthsInches"} {
+		if !strings.Contains(string(docxCreateScript), expectedText) {
+			t.Fatalf("docx create script must include %q", expectedText)
+		}
+	}
+
+	xlsxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "create_xlsx.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"default_freeze_panes", "auto_filter_reference", "create_thin_border", "heading"} {
+		if !strings.Contains(string(xlsxCreateScript), expectedText) {
+			t.Fatalf("xlsx create script must include %q", expectedText)
+		}
+	}
+
+	for _, validationScriptPath := range []string{
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "scripts", "validate_docx.py"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "validate_xlsx.py"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "scripts", "validate_pdf.py"),
+	} {
+		document, errorValue := os.ReadFile(validationScriptPath)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if !strings.Contains(string(document), "warningCount") {
+			t.Fatalf("%s must report warningCount", validationScriptPath)
+		}
+	}
+
+	xlsxValidationScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "validate_xlsx.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"offRowFormulaCount", "headerRow", "titleRowDetected"} {
+		if !strings.Contains(string(xlsxValidationScript), expectedText) {
+			t.Fatalf("xlsx validation script must include %q", expectedText)
+		}
+	}
+
+	pdfSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"validate_pdf.py", "extractable PDF text", "computed total equals"} {
+		if !strings.Contains(string(pdfSkillDocument), expectedText) {
+			t.Fatalf("pdf skill must include %q", expectedText)
+		}
+	}
+	for _, fileName := range []string{"skill_runtime.py", "requirements.txt", "validate_pdf.py"} {
+		if _, errorValue := os.Stat(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "scripts", fileName)); errorValue != nil {
+			t.Fatalf("pdf skill must bundle scripts/%s: %v", fileName, errorValue)
+		}
+	}
+
+	siteSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"must-show source content", "rendered text", "source checklist"} {
+		if !strings.Contains(string(siteSkillDocument), expectedText) {
+			t.Fatalf("site-prototype skill must include %q", expectedText)
 		}
 	}
 }

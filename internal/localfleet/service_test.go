@@ -135,7 +135,7 @@ func TestMattermostDocxAttachmentScenarioUsesPromptDownloadGate(t *testing.T) {
 }
 
 func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -148,6 +148,42 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	}
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanSkipsRuntimeBaseForReusableFleet(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if !strings.Contains(joinedPlans, "--force") {
+		t.Fatalf("expected reusable fleet setup to force small changed components:\n%s", joinedPlans)
+	}
+	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
+		t.Fatalf("expected reusable fleet setup to skip runtime base reinstall:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanPassGenerationOptionsToSetup(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath:    "/repo",
+		ExecutablePath:        "/repo/internkim",
+		GenerationSeed:        "41",
+		GenerationTemperature: "0",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	for _, expectedFragment := range []string{
+		"INTERNKIM_TEST_GENERATION_SEED='41'",
+		"INTERNKIM_TEST_GENERATION_TEMPERATURE='0'",
+		"INTERNKIM_TEST_GENERATION_TEMPERATURE='0' '/repo/internkim' setup --board lab",
+	} {
+		if !strings.Contains(joinedPlans, expectedFragment) {
+			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
+		}
 	}
 }
 

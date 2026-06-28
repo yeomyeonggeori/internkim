@@ -44,13 +44,15 @@ Use this skill when a user asks InternKim to create, publish, update, take down,
 
 Create prototypes for non-developers to validate ideas quickly. Do not present the result as production-ready software. Do not add production claims, SLA language, compliance guarantees, payment processing, real customer data workflows, or paid hosted services unless the user explicitly requests that path and confirms the cost or account requirement.
 
+When the user provides source data, treat it as the source of truth. Preserve source-provided company names, product names, people, dates, prices, menu items, locations, and policies exactly unless the user asks for translation or normalization. Do not invent missing customers, reviews, discounts, delivery options, payment methods, addresses, phone numbers, integrations, or availability. The source-provided brand, dates, options, prices, and confirmation states must appear in the rendered UI, not only in `prototype-data.ts` or the final reply. When a useful value is missing, show the user's-language equivalent of "Not provided" instead of filling a plausible value.
+
 ## Stack
 
-- Use the managed React + Vite + TypeScript + Tailwind + shadcn/ui scaffold for the frontend.
+- Use the managed dependency-free TypeScript + CSS scaffold for the frontend.
 - Use PocketBase files and migrations only when the prototype needs local data, auth, files, realtime, or migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes unless the user explicitly asks for that stack.
-- The managed build may run `bun install` inside `app/` on first build. Do not add extra dependencies unless the request truly needs them.
-- Use system fonts by default. If the site embeds a custom or local font, use WOFF2 assets, declare them with `@font-face` and `format("woff2")`, and keep the CSS in `app/src/index.css` or app-owned styles. Do not embed TTF/OTF files, paste base64 fonts into React components, or rely on CDN-only fonts for a finished artifact.
+- The managed build is offline-first and does not run `bun install`. Do not add npm dependencies unless the user explicitly asks for a stack change and accepts the reliability cost.
+- Use system fonts by default. If the site embeds a custom or local font, use WOFF2 assets, declare them with `@font-face` and `format("woff2")`, and keep the CSS in `app/src/index.css` or app-owned styles. Do not embed TTF/OTF files, paste base64 fonts into TypeScript source, or rely on CDN-only fonts for a finished artifact.
 - `site.app.create` initializes the editable website project scaffold, not a finished website.
 - Use the returned `sourceWorkspacePath` exactly as the canonical virtual workspace path for all follow-up source writes. Do not rewrite it into a concrete private POSIX path.
 - Use the returned `appWorkspacePath` exactly as the build working directory.
@@ -69,12 +71,12 @@ Start by resolving the existing site for the current conversation or slug with `
 6. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
 7. Use `sourceManifest` from `site.app.status` to decide which workspace-local control files exist. Read `<sourceWorkspacePath>/.internkim/site.json`, `<sourceWorkspacePath>/.internkim/idea.md`, `<sourceWorkspacePath>/.internkim/artifact-brief.md`, and `<sourceWorkspacePath>/.internkim/review-log.json` only when the manifest marks them present. Missing optional control files are normal; create or update them under `sourceWorkspacePath` before source edits when they are relevant.
 8. Write or update `<sourceWorkspacePath>/.internkim/idea.md` when the user changes the core idea, audience, purpose, or positioning. Keep implementation notes out of `<sourceWorkspacePath>/DESIGN.md`.
-9. Write or update `<sourceWorkspacePath>/.internkim/artifact-brief.md` before source edits. Keep it short and natural-language: request intent, audience, archetype, service mode if relevant, main workflow, visual direction, must-show content, and what would be too shallow.
-10. Write or update Stitch-compatible `<sourceWorkspacePath>/DESIGN.md`, then create `<sourceWorkspacePath>/app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
+9. Write or update `<sourceWorkspacePath>/.internkim/artifact-brief.md` before source edits. Keep it short and natural-language: request intent, audience, archetype, service mode if relevant, main workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
+10. Write or update Stitch-compatible `<sourceWorkspacePath>/DESIGN.md`, then create `<sourceWorkspacePath>/app/src/prototype-data.ts` with the supplied source data or clearly fake workflow state before editing UI. Keep source-backed facts in this data module so labels, prices, dates, menus, and policies can be checked instead of scattered through the UI.
 11. Replace the starter `<sourceWorkspacePath>/app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
-12. Use `file.write`, `file.edit`, or `file.patch` to update `<sourceWorkspacePath>/app/src/App.tsx`, `<sourceWorkspacePath>/app/src/index.css`, app-owned components, and app-owned data/source files according to `<sourceWorkspacePath>/DESIGN.md` and `<sourceWorkspacePath>/.internkim/artifact-brief.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+12. Use `file.write`, `file.edit`, or `file.patch` to update `<sourceWorkspacePath>/app/src/App.tsx`, `<sourceWorkspacePath>/app/src/main.tsx` only when needed, `<sourceWorkspacePath>/app/src/index.css`, and app-owned data/source files according to `<sourceWorkspacePath>/DESIGN.md` and `<sourceWorkspacePath>/.internkim/artifact-brief.md`. Do not import React, React DOM, lucide-react, Radix, Tailwind packages, class-variance-authority, tailwind-merge, clsx, or any other package. Use semantic HTML, DOM APIs, CSS classes, inline SVG icons, and local data. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
 13. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
-14. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, artifact brief, source summary, archetype, and rubric.
+14. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, and inspect the rendered text for the source checklist before publishing. Then call `artifact.review` with the screenshots, artifact brief, source summary, archetype, and rubric.
 15. Write `.internkim/review-log.json` with `attempts`, `reviewedArtifacts`, `issues`, `changesMade`, `remainingNotes`, and either screenshot paths or `visualReviewUnavailable: true`. Revise and rebuild when the rendered images or review notes show useful improvements and the improvement budget remains; repeat at most three times.
 16. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but visual or quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
 17. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
@@ -123,7 +125,7 @@ After terminal build success:
 
 - call `site.app.preview` for a temporary draft URL, or start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
 - use browser tools to inspect `http://127.0.0.1:<port>` at desktop and mobile widths when available
-- check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing shadcn token usage
+- check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing app-owned control styles
 - call `artifact.review` with desktop and mobile screenshots when screenshots are available; include `<sourceWorkspacePath>/.internkim/artifact-brief.md`, the source summary, and the archetype so the LLM judges the rendered result against the intended artifact
 - if browser tools or screenshots are unavailable, write `<sourceWorkspacePath>/.internkim/review-log.json` with `visualReviewUnavailable: true` and rely on build and code inspection rather than pretending visual QA ran
 - call `site.app.publish` with `siteID` and a human-readable `message`
@@ -140,7 +142,9 @@ If the user requests an external integration, explain that it may require a paid
 
 Use fake data, local PocketBase collections, and simple local workflows whenever possible.
 
-The default scaffold already includes React, Vite, Tailwind, shadcn-style local components, lucide icons, and the DESIGN.md linter. Avoid adding analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, or SaaS clients unless explicitly requested and confirmed.
+When the user supplied concrete source data, use that data instead of generic fake content. Fake workflow state is acceptable only for values the source does not provide and should be visibly marked as fake or "Not provided" when it could be mistaken for a fact.
+
+The default scaffold already includes dependency-free TypeScript, CSS, an offline Bun build, a static preview server, and the DESIGN.md linter. Avoid adding analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, package dependencies, or SaaS clients unless explicitly requested and confirmed.
 
 ## Auth Defaults
 
@@ -164,13 +168,15 @@ Write `DESIGN.md` in the Stitch canonical format only:
 
 Do not add Kim Intern-specific implementation sections such as Product, Audience, Prototype Scope, Workflows, Implemented Now, Next Iterations, or Acceptance Criteria. Work those decisions into the canonical sections or keep them in your own execution notes.
 
-The `components` tokens should describe shadcn-style primitives such as `button-primary`, `button-primary-hover`, `card`, `input`, `tabs`, `dialog`, `table`, and `badge`.
+The `components` tokens should describe semantic control classes such as `button-primary`, `button-primary-hover`, `card`, `input`, `tabs`, `dialog`, `table`, and `badge`.
 
 If the user does not specify a design direction, default the visual system to black-on-white minimal: white background, near-black text, quiet gray borders, restrained monochrome controls, and no dark navy shell. Infer structure from the domain and audience, but do not invent a blue, slate, purple, or gradient theme unless the request clearly calls for it. A restaurant, portfolio, operations dashboard, campaign site, internal tool, game, and marketplace should not share the same visual structure. The first screen must be the actual usable experience or requested landing page, not generic feature cards.
 
 For long or broad requests, publish a coherent first version instead of a shallow explanation page. Keep deferred work out of `DESIGN.md`; summarize it only in the final reply if useful.
 
-Use familiar controls and lucide icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, dark-mode-by-default pages, navy/slate dominance, and a single default palette across unrelated sites.
+Use familiar controls and simple inline SVG or CSS icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, dark-mode-by-default pages, navy/slate dominance, and a single default palette across unrelated sites.
+
+Use a restrained responsive type scale: body text should stay readable on mobile, labels and values should align without clipping, and headings inside panels should be compact rather than hero-sized. Keep vertical rhythm consistent between Korean and English labels. Check desktop and mobile screenshots for lopsided whitespace, crowded control clusters, text touching card edges, and important actions pushed below the first viewport.
 
 ## UI Archetypes
 
@@ -191,6 +197,8 @@ Infer the archetype from the domain and user goal when unspecified. App requests
 Never publish a generic feature-card page, empty hero, meaningless gradient, or workflow-free app. The first screen must be the requested experience or a meaningful landing page for the requested offer. Use realistic fake data where it helps the user understand the workflow.
 
 Use a simple LLM-led artifact quality loop: artifact brief first, deterministic build-quality second, rendered desktop/mobile screenshot review third, and same-URL publish after improvement attempts. Compile failures, missing dist, stale dist, permission failures, and starter scaffold leakage are hard blockers. Aesthetic, density, information-architecture, and workflow-completeness findings are soft review notes: fix them when useful and budget remains, otherwise publish the usable artifact and report the top remaining notes with the URL.
+
+For booking, reservation, checkout, calculator, dashboard, or admin-tool prompts, the first viewport should expose the actual workflow controls and current state. Do not hide the requested workflow below a large brand hero. Verify desktop and mobile screenshots show usable controls, a source-backed summary, and the requested confirmation or status state without horizontal scrolling or overlapping text.
 
 For service-capable prototypes, keep the same loop. If the request needs login, saved records, files, realtime, reservations, admin state, or CRUD, use PocketBase as the default local backend unless the user explicitly asks for another backend. Let the LLM design the collections, rules, seed data, and test account from the artifact brief. Runtime safety should preserve project data across publish, unpublish, restore, and rollback; do not treat every site as a database app by default.
 

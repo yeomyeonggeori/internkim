@@ -29,8 +29,17 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
 1. Create new PDF work under `tmp/<pdf-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing PDF or image, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Keep drafts, downloaded fonts, and generated previews in the task temporary directory while iterating.
-4. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `file.promote` unless the user requested a circle or shared destination.
-5. Attach the promoted PDF. Attach intermediate files only if the user asks.
+4. For straightforward proposals, estimates, reports, invoices, and short source-backed documents, write a JSON spec and run `scripts/create_pdf.py` through `scripts/skill_runtime.py`; use custom Python only when the layout needs features the JSON helper does not support.
+5. Run custom PDF generation scripts through `scripts/skill_runtime.py python <file.py>` so `fpdf2` and `pypdf` resolve from the bundled dependency environment.
+6. Validate the final PDF with `scripts/skill_runtime.py python scripts/validate_pdf.py` or an equivalent `pypdf` check for page count, extractable text, required source facts, forbidden unsupported facts, encryption, embedded fonts, and Korean-capable font names. Pass source-provided names, dates, totals, and key labels as repeated `--required-text` arguments. Pass likely invented or explicitly disallowed claims as repeated `--forbidden-text` arguments.
+7. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+8. Attach the promoted PDF. Attach intermediate files only if the user asks.
+
+Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. Do not run `pip install` directly. Do not use bare `python3 create_pdf.py` for fpdf2 or pypdf work; it may use a Python environment without the PDF libraries.
+
+Use `timeoutSecond` of at least 300 for PDF generation and validation terminal runs. First-run dependency checks and font embedding can exceed 120 seconds. If generation prints the output PDF path or the PDF file exists but validation times out, do not discard the file and do not repeat the identical command. Run validation as a separate terminal step with a longer timeout, or inspect/promote the existing PDF if the separate validation passes.
+
+Treat supplied files and pasted source data as the source of truth. Preserve source-provided company names, product names, people, dates, amounts, IDs, and units exactly unless the user asks for translation or normalization. Do not invent missing vendors, prices, discounts, totals, dates, contact details, warranties, or external background. Put the source-provided client/project name, proposal date, schedule dates, quote items, and totals in extractable PDF text, not only in image-like decorations or the final reply. When a useful field is missing, write the user's-language equivalent of "Not provided" instead of filling a plausible value.
 
 ## CRITICAL REQUIREMENTS
 
@@ -47,6 +56,43 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
   Black Han Sans, Gugi, Jua, Gaegu, Stylish
   CJK fonts included: Noto Sans JP, Noto Sans SC, Noto Sans TC
 
+## Helper Script
+
+For standard short PDFs, create a spec file:
+
+```json
+{
+  "title": "Cafe Suyu 간판 교체 제안서",
+  "subtitle": "제안일 2026-07-02",
+  "pageNumbers": true,
+  "sections": [
+    {
+      "title": "제안 개요",
+      "paragraphs": ["제공된 소스 데이터만 바탕으로 작성한 제안서입니다."]
+    },
+    {
+      "title": "견적",
+      "table": {
+        "headers": ["항목", "금액", "비고"],
+        "rows": [["제작", "350000", "소스 금액 그대로 표기"]]
+      }
+    }
+  ]
+}
+```
+
+Run:
+
+```json
+{
+  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/create_pdf.py proposal.json output.pdf && python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/validate_pdf.py output.pdf --min-pages 1 --max-pages 2 --minimum-text-length 200 --required-text \"<source name>\" --required-text \"<source total>\" --forbidden-text \"<unsupported claim>\"",
+  "timeoutSecond": 300,
+  "workingDirectoryPath": "tmp/<pdf-slug>"
+}
+```
+
+The helper chooses a Korean-capable font when one is installed and fails clearly when non-Latin text has no usable font. If validation warns about missing required text, unsupported text, too many pages, no text layer, or font problems, revise the spec before attaching.
+
 ## Basic Example
 
 ```python
@@ -61,9 +107,28 @@ pdf.multi_cell(0, 8, "Body text wraps automatically across lines.")
 pdf.output("output.pdf")
 ```
 
+Run task-local generation code through the bundled runtime:
+
+```json
+{
+  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python create_pdf.py",
+  "workingDirectoryPath": "tmp/<pdf-slug>"
+}
+```
+
+Run validation through the same runtime and revise when the JSON contains real warnings:
+
+```json
+{
+  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/validate_pdf.py output.pdf --min-pages 1 --minimum-text-length 200 --required-text \"<source name>\" --required-text \"<source date>\" --forbidden-text \"<unsupported claim>\"",
+  "timeoutSecond": 300,
+  "workingDirectoryPath": "tmp/<pdf-slug>"
+}
+```
+
 ## Korean / CJK Fonts
 
-Always use a TTF font for Korean. Find the URL in `references/google-fonts.txt`, download it, then register:
+Always use a TTF font for Korean. Prefer an installed Korean-capable TTF/TTC when available; if none is available, find the URL in `references/google-fonts.txt`, download it into the task temporary directory, verify the file is a real font, then register:
 
 ```bash
 # Find URL
@@ -137,6 +202,10 @@ for row in rows:
 
 pdf.output("table.pdf")
 ```
+
+For Korean proposals, estimates, invoices, and operational reports, prefer bordered tables with short wrapped labels over paragraph lists of numbers. Use `multi_cell()` for long text, keep column widths within `pdf.epw`, and put page numbers in a footer when the user asks for a formal document.
+
+Use a compact print type scale: body text around 9.5-11.5 pt, table text around 8.5-10.5 pt, section headings around 12-16 pt, and enough leading that Korean and English mixed lines do not touch. Keep A4 margins around 15-22 mm unless the document has a specific print requirement. Avoid one huge title area, tiny dense tables, edge-hugging text, and excessive empty whitespace.
 
 ## Headers and Footers (every page)
 
@@ -224,4 +293,20 @@ file fonts/MyFont.ttf  # must show "TrueType Font data"
 2. Use `multi_cell()` for body text — handles line wrapping automatically
 3. Define column widths that sum to ≤ `pdf.epw` (effective page width, default ~170mm for A4)
 4. For Korean/CJK, always register TTF via `add_font()` before `set_font()`
-5. Call `pdf.output()` last
+5. Compute totals from source numbers in code and assert the computed total equals the source-provided total before writing the final PDF
+6. Open or render the PDF and check for missing glyphs, clipped text, broken tables, uneven margins, oversized title blocks, tiny body text, and page numbers before attaching
+7. Run `scripts/skill_runtime.py python scripts/validate_pdf.py` before attaching; revise when it reports missing required text, forbidden unsupported text, no extractable text layer, encryption, or too many pages
+8. Call `pdf.output()` last
+
+## Validation
+
+For source-backed proposals, estimates, reports, and invoices, validate the saved PDF before promoting it:
+
+```json
+{
+  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/validate_pdf.py output.pdf --max-pages 2 --required-text Cafe Suyu --required-text 3220000 --forbidden-text warranty --forbidden-text discount",
+  "workingDirectoryPath": "tmp/<pdf-slug>"
+}
+```
+
+Use the actual required and forbidden values from the user-provided source. Treat validation warnings as revision input rather than explaining them away in the final reply.

@@ -2,7 +2,11 @@ package blueclaw
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
+	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -14,6 +18,8 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
+	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
+	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 )
 
 type defaultCircleDefinition struct {
@@ -50,6 +56,8 @@ type RuntimeConfigOptions struct {
 	OutboundGuestAddressCIDR string
 	OutboundGuestGateway     string
 	BridgeListenAddress      string
+	GenerationSeed           *int64
+	GenerationTemperature    *float64
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -107,6 +115,21 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	return BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{ModelName: modelName})
 }
 
+func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error) {
+	seed, errorValue := optionalInt64Environment(BlueclawTestGenerationSeedEnvironment)
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
+	temperature, errorValue := optionalFloat64Environment(BlueclawTestGenerationTemperatureEnvironment)
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
+	return RuntimeConfigOptions{
+		GenerationSeed:        seed,
+		GenerationTemperature: temperature,
+	}, nil
+}
+
 func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
 	languageModelExecutionMode := "auto"
 	terminalMode := "firecrackerGuest"
@@ -161,6 +184,35 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	outboundGuestAddressCIDR := firstNonEmptyString(options.OutboundGuestAddressCIDR, "172.31.0.2/30")
 	outboundGuestGateway := firstNonEmptyString(options.OutboundGuestGateway, "172.31.0.1")
 	bridgeListenAddress := firstNonEmptyString(options.BridgeListenAddress, BlueclawBridgeListenAddress)
+	agentConfiguration := map[string]any{
+		"adminTaskLinkBaseURL": strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
+		"intake": map[string]any{
+			"enabled":       true,
+			"executionMode": "auto",
+		},
+		"defaultEffortLevel": "standard",
+		"toolResultMaxBytes": 32768,
+		"failureRecovery": map[string]any{
+			"failureDebtFinalizationGate": true,
+			"attemptFingerprint":          "tool_input_error_code",
+			"recoveryBudget": map[string]any{
+				"correctedRetry": 1,
+				"alternateRoute": 1,
+				"adjacentTool":   2,
+				"noToolFallback": 1,
+			},
+		},
+	}
+	generationOptions := map[string]any{}
+	if options.GenerationSeed != nil {
+		generationOptions["seed"] = *options.GenerationSeed
+	}
+	if options.GenerationTemperature != nil {
+		generationOptions["temperature"] = *options.GenerationTemperature
+	}
+	if len(generationOptions) > 0 {
+		agentConfiguration["generationOptions"] = generationOptions
+	}
 
 	document := map[string]any{
 		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
@@ -234,25 +286,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"pinnedMemoryCompressionTargetCharacterCount": BlueclawPinnedMemoryCompressionTargetCharacterCount,
 			"timeoutSecond":                               60,
 		},
-		"agent": map[string]any{
-			"adminTaskLinkBaseURL": strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
-			"intake": map[string]any{
-				"enabled":       true,
-				"executionMode": "auto",
-			},
-			"defaultEffortLevel": "standard",
-			"toolResultMaxBytes": 32768,
-			"failureRecovery": map[string]any{
-				"failureDebtFinalizationGate": true,
-				"attemptFingerprint":          "tool_input_error_code",
-				"recoveryBudget": map[string]any{
-					"correctedRetry": 1,
-					"alternateRoute": 1,
-					"adjacentTool":   2,
-					"noToolFallback": 1,
-				},
-			},
-		},
+		"agent": agentConfiguration,
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
 				"baseURL": mattermostBaseURL,
@@ -321,6 +355,33 @@ func firstPositiveInt(values ...int) int {
 		}
 	}
 	return 0
+}
+
+func optionalInt64Environment(name string) (*int64, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+	parsedValue, errorValue := strconv.ParseInt(value, 10, 64)
+	if errorValue != nil {
+		return nil, fmt.Errorf("%s must be an int64: %w", name, errorValue)
+	}
+	return &parsedValue, nil
+}
+
+func optionalFloat64Environment(name string) (*float64, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+	parsedValue, errorValue := strconv.ParseFloat(value, 64)
+	if errorValue != nil {
+		return nil, fmt.Errorf("%s must be a float64: %w", name, errorValue)
+	}
+	if math.IsNaN(parsedValue) || math.IsInf(parsedValue, 0) || parsedValue < 0 {
+		return nil, fmt.Errorf("%s must be 0 or greater", name)
+	}
+	return &parsedValue, nil
 }
 
 func uniqueStringList(values []string) []string {

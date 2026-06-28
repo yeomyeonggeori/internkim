@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+import argparse
+import json
+from pathlib import Path
+
+from skill_runtime import ensure_requirements
+
+
+def load_specification(specification_path):
+    with open(specification_path, "r", encoding="utf-8") as specification_file:
+        specification = json.load(specification_file)
+    if not isinstance(specification, dict):
+        raise ValueError("PDF specification must be an object")
+    return specification
+
+
+def require_text(value, field_name):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value.strip()
+
+
+def optional_text(value):
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("text fields must be strings")
+    return value.strip()
+
+
+def create_pdf(specification):
+    if not ensure_requirements("pdf"):
+        raise RuntimeError("pdf dependencies are unavailable after bootstrap")
+
+    from fpdf import FPDF
+
+    class DocumentPDF(FPDF):
+        def footer(self):
+            if not specification.get("pageNumbers", True):
+                return
+            self.set_y(-14)
+            self.set_font(active_font_name, size=8)
+            self.set_text_color(92, 99, 112)
+            self.cell(0, 8, f"{self.page_no()}", align="C")
+
+    active_font_name, font_path = resolve_font(specification)
+    validate_font_availability(specification, font_path)
+
+    pdf = DocumentPDF(orientation="P", unit="mm", format=specification.get("format", "A4"))
+    margin = float(specification.get("marginMillimeters", 18))
+    pdf.set_margins(margin, margin, margin)
+    pdf.set_auto_page_break(auto=True, margin=16)
+    if font_path:
+        pdf.add_font(active_font_name, fname=str(font_path))
+    pdf.add_page()
+    pdf.set_font(active_font_name, size=11)
+    pdf.set_text_color(31, 41, 55)
+
+    add_title(pdf, specification, active_font_name)
+    for section in specification.get("sections", []):
+        add_section(pdf, section, active_font_name)
+    return pdf
+
+
+def add_title(pdf, specification, font_name):
+    title = optional_text(specification.get("title"))
+    if not title:
+        return
+    pdf.set_font(font_name, size=18)
+    pdf.set_text_color(17, 24, 39)
+    write_multiline(pdf, 0, 9, title, align="L")
+    subtitle = optional_text(specification.get("subtitle"))
+    if subtitle:
+        pdf.set_font(font_name, size=10)
+        pdf.set_text_color(75, 85, 99)
+        write_multiline(pdf, 0, 6, subtitle)
+    pdf.set_draw_color(203, 213, 225)
+    pdf.ln(2)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+    pdf.ln(7)
+
+
+def add_section(pdf, section, font_name):
+    if not isinstance(section, dict):
+        raise ValueError("each section must be an object")
+    title = optional_text(section.get("title"))
+    if title:
+        pdf.set_font(font_name, size=13)
+        pdf.set_text_color(17, 24, 39)
+        write_multiline(pdf, 0, 7, title)
+        pdf.ln(1)
+    pdf.set_font(font_name, size=10.5)
+    pdf.set_text_color(31, 41, 55)
+    for paragraph in section.get("paragraphs", []):
+        write_multiline(pdf, 0, 6.2, require_text(paragraph, "paragraph"))
+        pdf.ln(1.5)
+    for item in section.get("bullets", []):
+        write_multiline(pdf, 0, 6.2, "• " + require_text(item, "bullet"))
+    table = section.get("table")
+    if table:
+        add_table(pdf, table, font_name)
+    pdf.ln(4)
+
+
+def add_table(pdf, table, font_name):
+    if not isinstance(table, dict):
+        raise ValueError("table must be an object")
+    headers = table.get("headers", [])
+    rows = table.get("rows", [])
+    if not isinstance(headers, list) or not headers:
+        raise ValueError("table.headers must be a non-empty array")
+    if not isinstance(rows, list):
+        raise ValueError("table.rows must be an array")
+    pdf.set_font(font_name, size=9.5)
+    add_table_line(pdf, headers, is_header=True)
+    for row in rows:
+        if not isinstance(row, list):
+            raise ValueError("table rows must be arrays")
+        add_table_line(pdf, row, is_header=False)
+
+
+def add_table_line(pdf, values, is_header):
+    text = "  |  ".join("" if value is None else str(value) for value in values)
+    if is_header:
+        pdf.set_fill_color(235, 241, 247)
+        pdf.set_text_color(17, 24, 39)
+        write_multiline(pdf, 0, 6.5, text, border=1, fill=True)
+        return
+    pdf.set_fill_color(255, 255, 255)
+    pdf.set_text_color(31, 41, 55)
+    write_multiline(pdf, 0, 6.3, text, border=1)
+
+
+def write_multiline(pdf, width, height, text, **options):
+    pdf.multi_cell(width, height, text, new_x="LMARGIN", new_y="NEXT", **options)
+
+
+def resolve_font(specification):
+    configured_font = optional_text(specification.get("fontPath"))
+    font_name = optional_text(specification.get("fontName")) or "ArtifactFont"
+    if configured_font:
+        return font_name, Path(configured_font)
+    for candidate in candidate_font_paths():
+        if candidate.exists():
+            return font_name, candidate
+    return "Helvetica", None
+
+
+def validate_font_availability(specification, font_path):
+    if font_path and font_path.exists():
+        return
+    text = json.dumps(specification, ensure_ascii=False)
+    if contains_non_latin_text(text):
+        raise ValueError("non-Latin PDF text requires fontPath or an installed Korean-capable font")
+
+
+def candidate_font_paths():
+    return [
+        Path("/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf"),
+        Path("/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/System/Library/Fonts/Supplemental/AppleGothic.ttf"),
+        Path("/System/Library/Fonts/AppleSDGothicNeo.ttc"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    ]
+
+
+def contains_non_latin_text(text):
+    return any(ord(character) > 127 for character in text)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Create a source-grounded PDF from a JSON specification.")
+    parser.add_argument("specification_path")
+    parser.add_argument("output_path")
+    return parser.parse_args()
+
+
+def main():
+    arguments = parse_arguments()
+    specification = load_specification(arguments.specification_path)
+    pdf = create_pdf(specification)
+    output_path = Path(arguments.output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pdf.output(str(output_path))
+    print(output_path)
+
+
+if __name__ == "__main__":
+    main()

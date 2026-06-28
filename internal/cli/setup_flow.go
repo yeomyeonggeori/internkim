@@ -2598,7 +2598,11 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		}
 	}
 
-	runtimeConfiguration, err := blueclaw.BlueclawRuntimeConfigDocument("")
+	runtimeConfigurationOptions, err := blueclaw.BlueclawRuntimeConfigOptionsFromEnvironment()
+	if err != nil {
+		return err
+	}
+	runtimeConfiguration, err := blueclaw.BlueclawRuntimeConfigDocumentWithOptions(runtimeConfigurationOptions)
 	if err != nil {
 		return err
 	}

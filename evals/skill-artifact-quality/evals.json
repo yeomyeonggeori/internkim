@@ -1,0 +1,169 @@
+{
+  "version": 5,
+  "scorecardInstructions": [
+    "KimIntern is the artifact generator, not the evaluator.",
+    "Judge the generated artifact separately from the generation path.",
+    "Source fidelity is the primary quality dimension.",
+    "If the artifact adds a non-source company, person, customer, date, metric, price, menu item, feature, warranty, address, phone number, or external claim as fact, score sourceFidelity at 20 or below.",
+    "If the artifact fabricates or changes a total, KPI, price, date, or required option, score sourceFidelity at 15 or below.",
+    "If the artifact contains multiple unsupported factual additions, the scenario total score must not exceed 60 even when the artifact looks polished.",
+    "If the requested artifact is not produced or cannot be opened, score formatReliability as 0.",
+    "For DOCX, PDF, and websites, include font family suitability, Korean/English readability, margin scale, line spacing, font-size hierarchy, visual balance, clipping, and first-viewport density in visualUsability."
+  ],
+  "scoringCriteria": [
+    {
+      "id": "sourceFidelity",
+      "label": "Source Fidelity",
+      "maxScore": 35,
+      "description": "The artifact uses only the supplied source data, preserves names, dates, numbers, totals, and constraints, and clearly marks missing information instead of inventing it."
+    },
+    {
+      "id": "instructionFit",
+      "label": "Instruction Fit",
+      "maxScore": 20,
+      "description": "The artifact follows the fixed user request, includes required sections and workflows, and avoids unrelated output."
+    },
+    {
+      "id": "formatReliability",
+      "label": "Format Reliability",
+      "maxScore": 15,
+      "description": "The file or published site opens cleanly, uses the requested format, and avoids broken rendering, missing assets, stale builds, or attachment mistakes."
+    },
+    {
+      "id": "sourceGroundedUsefulness",
+      "label": "Source Grounded Usefulness",
+      "maxScore": 15,
+      "description": "The artifact synthesizes the supplied data into useful decisions, summaries, labels, or flows without adding unsupported facts."
+    },
+    {
+      "id": "visualUsability",
+      "label": "Visual And Usability Quality",
+      "maxScore": 15,
+      "description": "The artifact is readable, polished, navigable, responsive where relevant, uses suitable fonts, margins, Korean/English line spacing, font sizes, and visual balance, and avoids contrast, clipping, overflow, table, spacing, or interaction issues."
+    }
+  ],
+  "evaluations": [
+    {
+      "id": "docx-business-review",
+      "skillName": "docx",
+      "artifactKind": "docx",
+      "outputFileName": "han-river-ops-q2-review.docx",
+      "sourceFile": "fixtures/docx-business-review.md",
+      "requiredText": [
+        "Han River Ops",
+        "2026년 2분기",
+        "1,436",
+        "1,392",
+        "2.6",
+        "18.7",
+        "93%",
+        "17",
+        "Maya Chen",
+        "Omar Diaz",
+        "Priya Nair",
+        "Daniel Park",
+        "2026-07-31",
+        "제공된 자료 없음"
+      ],
+      "forbiddenText": [
+        "$",
+        "ARR",
+        "MRR",
+        "Acme",
+        "Slack",
+        "Salesforce"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 2026년 2분기 운영 리뷰 문서를 워드(.docx)로 만들어줘. 대상 독자는 Han River Ops의 12명 규모 B2B SaaS 운영팀 리더야. 4페이지 이하로 작성하고, 반드시 제목, 짧은 요약, 핵심 지표 표, 리스크와 대응, 다음 30일 액션을 포함해. 표는 읽기 좋게 만들고, 최종 워드 파일만 첨부해."
+    },
+    {
+      "id": "pdf-korean-proposal",
+      "skillName": "pdf",
+      "artifactKind": "pdf",
+      "outputFileName": "seoul-cafe-signage-proposal.pdf",
+      "sourceFile": "fixtures/pdf-korean-proposal.md",
+      "requiredText": [
+        "Cafe Suyu",
+        "2026-07-02",
+        "2026-08-19",
+        "2026-08-21",
+        "350000",
+        "1850000",
+        "420000",
+        "3220000"
+      ],
+      "forbiddenText": [
+        "warranty",
+        "discount",
+        "phone",
+        "010-",
+        "VAT included"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 서울 성수동 카페의 매장 간판 교체 제안서를 PDF로 만들어줘. 2페이지 이내, 한국어 본문으로 작성하고, 제안 개요, 일정, 견적 표, 포함/제외 사항, 다음 단계가 있어야 해. 견적 표에는 소스 데이터의 견적 항목과 합계 금액을 정확히 넣고, 페이지 번호가 보이게 해. 최종 PDF 파일만 첨부해."
+    },
+    {
+      "id": "site-mealkit-reservation",
+      "skillName": "site-prototype",
+      "artifactKind": "website",
+      "outputFileName": null,
+      "sourceFile": "fixtures/site-mealkit-reservation.md",
+      "expectedTools": [
+        "site.app.create",
+        "site.app.build",
+        "site.app.publish"
+      ],
+      "requiredText": [
+        "Banchan Table",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-25",
+        "Soy Bulgogi Set",
+        "Doenjang Stew Kit",
+        "Spicy Pork Rice Bowl Kit",
+        "Mushroom Jeon Plate",
+        "Reservation held - pay at pickup"
+      ],
+      "forbiddenText": [
+        "delivery",
+        "review",
+        "discount",
+        "credit card",
+        "phone"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 소규모 한식 밀키트 예약 웹사이트 프로토타입을 만들고 게시해줘. 첫 화면에서 실제 예약 흐름이 바로 보이게 하고, 메뉴 선택, 수령 날짜 선택, 주문 요약, 확인 상태가 있어야 해. 모바일과 데스크톱 모두에서 텍스트가 겹치지 않게 만들어. 일반적인 SaaS 소개 페이지가 아니라 사용 가능한 예약 경험이어야 해."
+    },
+    {
+      "id": "xlsx-popup-budget",
+      "skillName": "xlsx",
+      "artifactKind": "xlsx",
+      "outputFileName": "jamsil-studio-popup-budget.xlsx",
+      "sourceFile": "fixtures/xlsx-popup-budget.md",
+      "requiredText": [
+        "Jamsil Studio Pop-up",
+        "2026-09-02",
+        "2026-09-05",
+        "2026-09-06",
+        "2026-09-07",
+        "3982000",
+        "5670000",
+        "1688000",
+        "Mina Kwon",
+        "Jae Lee",
+        "Sana Park",
+        "제공된 자료 없음",
+        "요약",
+        "비용",
+        "일정"
+      ],
+      "forbiddenText": [
+        "sponsor",
+        "discount",
+        "delivery",
+        "VAT",
+        "010-",
+        "Shopify",
+        "Stripe"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 Jamsil Studio Pop-up의 내부 검토용 엑셀(.xlsx) 예산 워크북을 만들어줘. 한국어 시트명과 머리글을 사용하고, 반드시 요약, 비용, 일정 시트를 포함해. 비용 시트에는 항목별 수량, 단가, 금액, 담당자가 있어야 하고 금액과 총계는 워크북 수식으로 남겨. 요약 시트에는 총비용, 예상 매출, 예상 순액을 소스 데이터 기준으로 보여줘. 누락된 벤더 연락처는 제공된 자료 없음으로 표시해. 머리글 고정, 자동 필터, 읽기 좋은 열 너비, 숫자 서식을 적용하고 최종 엑셀 파일만 첨부해."
+    }
+  ]
+}
