@@ -548,11 +548,17 @@ type downloadedMattermostFile struct {
 }
 
 type mattermostVerificationOutput struct {
-	DownloadedFiles []downloadedMattermostFile `json:"downloadedFiles"`
-	BotMessage      string                     `json:"botMessage"`
-	FileIDs         []string                   `json:"fileIDs"`
-	TaskRunID       string                     `json:"taskRunID"`
-	TaskStatus      *string                    `json:"taskStatus"`
+	DownloadedFiles           []downloadedMattermostFile `json:"downloadedFiles"`
+	SiteScreenshots           []downloadedMattermostFile `json:"siteScreenshots"`
+	BotMessage                string                     `json:"botMessage"`
+	FileIDs                   []string                   `json:"fileIDs"`
+	TaskRunID                 string                     `json:"taskRunID"`
+	TaskStatus                *string                    `json:"taskStatus"`
+	SitePublicURL             string                     `json:"sitePublicURL"`
+	SiteHTMLText              string                     `json:"siteHTMLText"`
+	SiteStyleMetrics          map[string]any             `json:"siteStyleMetrics"`
+	SiteScreenshotFiles       []string                   `json:"siteScreenshotFiles"`
+	IsSiteScreenshotsVerified bool                       `json:"siteScreenshotsVerified"`
 }
 
 func parseMattermostVerificationOutput(output string) (mattermostVerificationOutput, error) {
@@ -645,11 +651,21 @@ func redactDownloadedMattermostFiles(output string) string {
 	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		return output
 	}
-	downloadedFiles, isArray := payload["downloadedFiles"].([]any)
-	if !isArray {
+	redactBase64Attachments(payload, "downloadedFiles")
+	redactBase64Attachments(payload, "siteScreenshots")
+	redactedDocument, errorValue := json.Marshal(payload)
+	if errorValue != nil {
 		return output
 	}
-	for _, value := range downloadedFiles {
+	return replaceLastJSONDocument(output, string(redactedDocument))
+}
+
+func redactBase64Attachments(payload map[string]any, fieldName string) {
+	files, isArray := payload[fieldName].([]any)
+	if !isArray {
+		return
+	}
+	for _, value := range files {
 		fileDocument, isDocument := value.(map[string]any)
 		if !isDocument {
 			continue
@@ -659,11 +675,6 @@ func redactDownloadedMattermostFiles(output string) string {
 			fileDocument["contentBase64"] = fmt.Sprintf("<redacted %d base64 chars>", len(contentBase64))
 		}
 	}
-	redactedDocument, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		return output
-	}
-	return replaceLastJSONDocument(output, string(redactedDocument))
 }
 
 func parseLastJSONDocument(output string) ([]byte, bool) {
@@ -1536,8 +1547,189 @@ capture_site_screenshots() {
     --screenshot="$desktop_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-desktop.log 2>&1
   timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=390,900 \
     --screenshot="$mobile_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-mobile.log 2>&1
+  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --window-size=1440,1000 \
+    --dump-dom "$public_url" > "$site_dom_file" 2>/tmp/internkim-site-dom.log
+  python3 - "$site_dom_file" > "$site_text_file" <<'PY'
+from html.parser import HTMLParser
+from pathlib import Path
+import re
+import sys
+
+class TextParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+        self.is_hidden = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style", "svg"}:
+            self.is_hidden = True
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style", "svg"}:
+            self.is_hidden = False
+
+    def handle_data(self, data):
+        if not self.is_hidden and data.strip():
+            self.parts.append(data.strip())
+
+parser = TextParser()
+parser.feed(Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace"))
+print(re.sub(r"\s+", " ", " ".join(parser.parts)).strip()[:50000])
+PY
+  if ! python3 - "$site_dom_file" "$public_url" > "$site_style_metrics_file" <<'PY'
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urljoin
+from urllib.request import urlopen
+import json
+import re
+import statistics
+import sys
+
+class StyleParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+        self.styles = []
+        self.is_style = False
+
+    def handle_starttag(self, tag, attrs):
+        attributes = {name.lower(): value or "" for name, value in attrs}
+        if tag == "style":
+            self.is_style = True
+        if tag == "link" and "stylesheet" in attributes.get("rel", "").lower() and attributes.get("href"):
+            self.links.append(attributes["href"])
+
+    def handle_endtag(self, tag):
+        if tag == "style":
+            self.is_style = False
+
+    def handle_data(self, data):
+        if self.is_style:
+            self.styles.append(data)
+
+def css_number_values(source, property_names):
+    values = []
+    property_pattern = "|".join(re.escape(name) for name in property_names)
+    for match in re.finditer(r"(?:" + property_pattern + r")\s*:\s*([^;}{]+)", source, re.IGNORECASE):
+        declaration = match.group(1)
+        for number, unit in re.findall(r"(-?\d+(?:\.\d+)?)\s*(px|rem|em)?", declaration, re.IGNORECASE):
+            value = float(number)
+            normalized_unit = unit.lower()
+            if normalized_unit in {"rem", "em"}:
+                value *= 16
+            values.append(value)
+    return values
+
+def unitless_line_height_values(source):
+    values = []
+    for match in re.finditer(r"line-height\s*:\s*([^;}{]+)", source, re.IGNORECASE):
+        declaration = match.group(1)
+        if re.search(r"px|rem|em|calc|clamp", declaration, re.IGNORECASE):
+            continue
+        for number in re.findall(r"-?\d+(?:\.\d+)?", declaration):
+            values.append(float(number))
+    return values
+
+def summarize(values):
+    if not values:
+        return {"count": 0}
+    ordered = sorted(values)
+    return {
+        "count": len(ordered),
+        "min": round(ordered[0], 3),
+        "median": round(statistics.median(ordered), 3),
+        "max": round(ordered[-1], 3),
+    }
+
+def score_metrics(font_sizes, line_heights_px, line_heights_unitless, spacing_values, has_korean_font, has_system_font):
+    checks = []
+    if font_sizes:
+        median_font_size = statistics.median(font_sizes)
+        checks.append(1.0 if 13 <= median_font_size <= 18 else 0.5)
+        checks.append(1.0 if max(font_sizes) <= 72 else 0.65)
+    else:
+        checks.append(0.55)
+    if line_heights_unitless:
+        median_line_height = statistics.median(line_heights_unitless)
+        checks.append(1.0 if 1.25 <= median_line_height <= 1.8 else 0.55)
+    elif line_heights_px:
+        median_line_height = statistics.median(line_heights_px)
+        checks.append(1.0 if 18 <= median_line_height <= 32 else 0.55)
+    else:
+        checks.append(0.65)
+    if spacing_values:
+        median_spacing = statistics.median(spacing_values)
+        checks.append(1.0 if 8 <= median_spacing <= 80 and max(spacing_values) <= 260 else 0.6)
+    else:
+        checks.append(0.6)
+    checks.append(1.0 if has_korean_font or has_system_font else 0.6)
+    return round(sum(checks) / len(checks), 3)
+
+def fetch_stylesheet(url):
+    try:
+        with urlopen(url, timeout=8) as response:
+            return response.read(200000).decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+document = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+public_url = sys.argv[2]
+parser = StyleParser()
+parser.feed(document)
+linked_css = [fetch_stylesheet(urljoin(public_url, href)) for href in parser.links[:8]]
+css = "\n".join(parser.styles + linked_css)
+font_families = sorted(set(re.findall(r"font-family\s*:\s*([^;}{]+)", css, re.IGNORECASE)))[:20]
+korean_font_pattern = re.compile(r"Apple SD Gothic|Malgun|Noto Sans KR|Pretendard|Paperlogy|Nanum|Spoqa", re.IGNORECASE)
+system_font_pattern = re.compile(r"system-ui|-apple-system|BlinkMacSystemFont|sans-serif", re.IGNORECASE)
+font_sizes = css_number_values(css, ["font-size"])
+line_heights_px = css_number_values(css, ["line-height"])
+line_heights_unitless = unitless_line_height_values(css)
+spacing_values = css_number_values(css, ["margin", "margin-top", "margin-right", "margin-bottom", "margin-left", "padding", "padding-top", "padding-right", "padding-bottom", "padding-left", "gap", "row-gap", "column-gap"])
+has_korean_font = any(korean_font_pattern.search(value) for value in font_families)
+has_system_font = any(system_font_pattern.search(value) for value in font_families)
+print(json.dumps({
+    "cssBytes": len(css.encode("utf-8")),
+    "stylesheetCount": len([value for value in linked_css if value.strip()]),
+    "inlineStyleBlockCount": len(parser.styles),
+    "fontFamilies": font_families,
+    "hasKoreanFont": has_korean_font,
+    "hasSystemFont": has_system_font,
+    "fontSizePixels": summarize(font_sizes),
+    "lineHeightPixels": summarize(line_heights_px),
+    "lineHeightUnitless": summarize(line_heights_unitless),
+    "spacingPixels": summarize(spacing_values),
+    "typographyScore": score_metrics(font_sizes, line_heights_px, line_heights_unitless, spacing_values, has_korean_font, has_system_font),
+}, ensure_ascii=False))
+PY
+  then
+    printf '{}' > "$site_style_metrics_file"
+  fi
   test -s "$desktop_screenshot_file"
   test -s "$mobile_screenshot_file"
+  test -s "$site_text_file"
+}
+
+write_site_screenshots_json() {
+  printf '[]' > "$site_screenshots_file"
+  if [ "$site_screenshots_verified" != "true" ]; then
+    return 0
+  fi
+  local desktop_base64_file
+  local mobile_base64_file
+  desktop_base64_file="$(mktemp)"
+  mobile_base64_file="$(mktemp)"
+  base64 -w 0 "$desktop_screenshot_file" > "$desktop_base64_file" 2>/dev/null || base64 "$desktop_screenshot_file" | tr -d '\n' > "$desktop_base64_file"
+  base64 -w 0 "$mobile_screenshot_file" > "$mobile_base64_file" 2>/dev/null || base64 "$mobile_screenshot_file" | tr -d '\n' > "$mobile_base64_file"
+  jq -cn \
+    --rawfile desktop_content "$desktop_base64_file" \
+    --rawfile mobile_content "$mobile_base64_file" \
+    '[
+      {fileID:"site-desktop", filename:"site-desktop.png", contentType:"image/png", contentBase64:$desktop_content},
+      {fileID:"site-mobile", filename:"site-mobile.png", contentType:"image/png", contentBase64:$mobile_content}
+    ]' > "$site_screenshots_file"
+  rm -f "$desktop_base64_file" "$mobile_base64_file"
 }
 
 login_headers="$(mktemp)"
@@ -1720,6 +1912,13 @@ browser_open_verified=false
 desktop_screenshot_file=""
 mobile_screenshot_file=""
 site_screenshots_verified=false
+public_url=""
+site_dom_file="$(mktemp)"
+site_text_file="$(mktemp)"
+site_style_metrics_file="$(mktemp)"
+site_screenshots_file="$(mktemp)"
+printf '{}' > "$site_style_metrics_file"
+printf '[]' > "$site_screenshots_file"
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
     echo "expected successful browser.open result, but no task was created for probe prompt" >&2
@@ -1770,7 +1969,6 @@ fetch_latest_bot_post
 download_bot_files
 
 if [ "$expect_public_url" = "true" ]; then
-  public_url=""
   public_url_verified=false
   public_html_file="$(mktemp)"
   for _ in $(seq 1 "$timeout_seconds"); do
@@ -1811,6 +2009,7 @@ if [ "$expect_public_url" = "true" ]; then
   fi
   if capture_site_screenshots "$public_url"; then
     site_screenshots_verified=true
+    write_site_screenshots_json
   else
     echo "site public URL could not be verified with browser screenshots: $public_url" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | .[-10:] | map({name, body})' "$task_detail_file" >&2 || true
@@ -1831,13 +2030,17 @@ jq -cn \
   --arg user_post_id "$user_post_id" \
   --arg bot_post_id "$bot_post_id" \
   --arg task_run_id "$task_run_id" \
+  --arg site_public_url "$public_url" \
   --arg desktop_screenshot_file "$desktop_screenshot_file" \
   --arg mobile_screenshot_file "$mobile_screenshot_file" \
   --argjson keep "$keep_artifacts" \
   --argjson browser_open_verified "$browser_open_verified" \
   --argjson site_screenshots_verified "$site_screenshots_verified" \
+  --rawfile site_html_text "$site_text_file" \
   --slurpfile bot_post "$bot_post_file" \
   --slurpfile downloaded_files "$downloaded_files_file" \
+  --slurpfile site_screenshots "$site_screenshots_file" \
+  --slurpfile site_style_metrics "$site_style_metrics_file" \
   --slurpfile task_detail "$task_detail_file" \
   '{
     ok: true,
@@ -1848,10 +2051,14 @@ jq -cn \
     taskRunID: $task_run_id,
     browserOpenVerified: $browser_open_verified,
     siteScreenshotsVerified: $site_screenshots_verified,
+    sitePublicURL: $site_public_url,
+    siteHTMLText: $site_html_text,
+    siteStyleMetrics: ($site_style_metrics[0] // {}),
     siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
     botMessage: $bot_post[0].message,
     fileIDs: ($bot_post[0].file_ids // []),
     downloadedFiles: ($downloaded_files[0] // []),
+    siteScreenshots: ($site_screenshots[0] // []),
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'

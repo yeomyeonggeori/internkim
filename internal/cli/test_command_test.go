@@ -39,8 +39,17 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 		"--no-open",
 		"-o",
 		"/tmp/custom.docx",
+		"--result-json",
+		"/tmp/result.json",
 		"--timeout",
 		"120",
+		"--seed",
+		"7",
+		"--temperature",
+		"0.2",
+		"--expect-public-url",
+		"--expect-tool",
+		"site.app.publish",
 	}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -51,8 +60,24 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if !configuration.ShouldReuseFleet || !configuration.ShouldKeepArtifacts || configuration.ShouldOpenFiles {
 		t.Fatalf("unexpected boolean flags: %+v", configuration)
 	}
-	if configuration.OutputFilePath != "/tmp/custom.docx" || configuration.TimeoutSeconds != 120 {
+	if configuration.OutputFilePath != "/tmp/custom.docx" || configuration.ResultJSONPath != "/tmp/result.json" || configuration.TimeoutSeconds != 120 {
 		t.Fatalf("unexpected value flags: %+v", configuration)
+	}
+	if configuration.GenerationSeed != 7 || configuration.GenerationTemperature != 0.2 {
+		t.Fatalf("unexpected generation flags: %+v", configuration)
+	}
+	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.app.publish" {
+		t.Fatalf("unexpected site verification flags: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsDefaultsToFixedGenerationOptions(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{"보고서 만들어줘"}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.GenerationSeed != 41 || configuration.GenerationTemperature != 0 {
+		t.Fatalf("unexpected default generation options: %+v", configuration)
 	}
 }
 
@@ -108,5 +133,32 @@ func TestWriteTestDownloadedMattermostFilesRejectsOutputPathForMultipleAttachmen
 	_, errorValue := writeTestDownloadedMattermostFiles(output, filepath.Join(t.TempDir(), "result.txt"), filepath.Join(t.TempDir(), "downloads"))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "-o can only write one Mattermost attachment") {
 		t.Fatalf("expected multiple attachment output path error, got %v", errorValue)
+	}
+}
+
+func TestWriteTestResultJSONIncludesDownloadedFilePaths(t *testing.T) {
+	resultJSONPath := filepath.Join(t.TempDir(), "result.json")
+	verificationOutput := mattermostVerificationOutput{
+		BotMessage:    "done",
+		SitePublicURL: "https://example.intern.kim",
+		SiteHTMLText:  "Banchan Table",
+		SiteStyleMetrics: map[string]any{
+			"typographyScore": 0.91,
+		},
+		DownloadedFiles: []downloadedMattermostFile{{FileID: "file-1", Filename: "report.pdf", ContentBase64: "cGRm"}},
+	}
+	errorValue := writeTestResultJSON(resultJSONPath, verificationOutput, []string{"/tmp/report.pdf"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content, errorValue := os.ReadFile(resultJSONPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document := string(content)
+	for _, expectedText := range []string{"Banchan Table", "https://example.intern.kim", "/tmp/report.pdf", "typographyScore"} {
+		if !strings.Contains(document, expectedText) {
+			t.Fatalf("result JSON missing %q: %s", expectedText, document)
+		}
 	}
 }

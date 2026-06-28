@@ -223,11 +223,29 @@ func (service Service) setupCommand(skipWeb bool) string {
 	if skipWeb {
 		skippedSteps = append(skippedSteps, "web")
 	}
+	if !service.options.IsEphemeral {
+		skippedSteps = append(skippedSteps, "blueclaw-runtime-base")
+	}
+	setupCommandParts := append(service.setupEnvironmentAssignments(), quoteShell(service.options.ExecutablePath))
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1 INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force --skip " + strings.Join(skippedSteps, ","),
+		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force --skip " + strings.Join(skippedSteps, ","),
 	}, " && ")
+}
+
+func (service Service) setupEnvironmentAssignments() []string {
+	assignments := []string{
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
+	}
+	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
+		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))
+	}
+	if generationTemperature := strings.TrimSpace(service.options.GenerationTemperature); generationTemperature != "" {
+		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_TEMPERATURE="+quoteShell(generationTemperature))
+	}
+	return assignments
 }
 
 func (service Service) startTunnelCommand() string {

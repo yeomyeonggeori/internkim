@@ -224,14 +224,16 @@ func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Ser
 	options.RepositoryRootPath = repositoryRootPath
 	options.ExecutablePath = executablePath
 	return localfleet.NewService(localfleet.Options{
-		RepositoryRootPath: options.RepositoryRootPath,
-		ExecutablePath:     options.ExecutablePath,
-		StateRootPath:      options.StateRootPath,
-		VirtualMachineName: options.VirtualMachineName,
-		RunID:              options.RunID,
-		AdminHostPort:      options.AdminHostPort,
-		MattermostHostPort: options.MattermostHostPort,
-		IsEphemeral:        options.IsEphemeral,
+		RepositoryRootPath:    options.RepositoryRootPath,
+		ExecutablePath:        options.ExecutablePath,
+		StateRootPath:         options.StateRootPath,
+		VirtualMachineName:    options.VirtualMachineName,
+		RunID:                 options.RunID,
+		AdminHostPort:         options.AdminHostPort,
+		MattermostHostPort:    options.MattermostHostPort,
+		GenerationSeed:        options.GenerationSeed,
+		GenerationTemperature: options.GenerationTemperature,
+		IsEphemeral:           options.IsEphemeral,
 	})
 }
 
