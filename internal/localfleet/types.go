@@ -17,14 +17,16 @@ const (
 )
 
 type Options struct {
-	RepositoryRootPath string
-	ExecutablePath     string
-	StateRootPath      string
-	VirtualMachineName string
-	RunID              string
-	AdminHostPort      int
-	MattermostHostPort int
-	IsEphemeral        bool
+	RepositoryRootPath    string
+	ExecutablePath        string
+	StateRootPath         string
+	VirtualMachineName    string
+	RunID                 string
+	AdminHostPort         int
+	MattermostHostPort    int
+	GenerationSeed        string
+	GenerationTemperature string
+	IsEphemeral           bool
 }
 
 type JobRequest struct {

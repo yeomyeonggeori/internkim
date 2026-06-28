@@ -1,0 +1,2151 @@
+#!/usr/bin/env python3
+
+import argparse
+import base64
+import datetime
+import hashlib
+import os
+import json
+import re
+import statistics
+import urllib.error
+import urllib.request
+import shutil
+import subprocess
+import sys
+import zipfile
+import xml.etree.ElementTree as ElementTree
+from pathlib import Path
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+EVALUATIONS_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "evals.json"
+SCORES_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "scores.json"
+ARTIFACTS_ROOT = REPOSITORY_ROOT / ".artifacts" / "skill-artifact-evals"
+DEFAULT_GENERATION_SEED = 41
+DEFAULT_GENERATION_TEMPERATURE = 0.0
+DEFAULT_TEST_TIMEOUT_SECONDS = 900
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 1260
+ARTIFACT_FILE_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".pptx", ".html", ".htm", ".csv", ".tsv", ".zip"}
+COMMON_SOURCE_RULES = """자료 사용 규칙:
+- 아래 소스 데이터만 사용해.
+- 소스 데이터에 없는 회사, 사람, 고객, 날짜, 금액, 수치, 메뉴, 기능, 보증, 주소, 연락처, 외부 배경 지식을 만들지 마.
+- 계산이 필요하면 소스 데이터의 숫자로만 계산해.
+- 필요한 값이 소스 데이터에 없으면 요청 언어에 맞춰 "제공된 자료 없음" 또는 "Not provided"라고 표시해.
+- 보기 좋게 요약하고 재구성할 수 있지만, 사실을 추가하지 마."""
+
+DOCUMENT_QUALITY_RULES = """문서 품질 규칙:
+- 본문, 섹션 제목, 표 머리글은 사용자가 요청한 언어를 우선 사용해. 고유명사와 소스의 제품명은 그대로 둘 수 있어.
+- 날짜, 기간, 금액, 수량, 퍼센트는 소스 데이터의 표현과 요청 언어에 맞춰 일관되게 표기해.
+- 표는 렌더링했을 때 읽기 쉬워야 해. 머리글 구분, 충분한 열 너비, 줄바꿈, 셀 여백, 경계선이나 음영을 사용해서 텍스트가 겹치거나 과하게 압축되지 않게 해.
+- 최종 결과물만 제공하고, 별도 설명문으로 부족한 품질을 보완하지 마."""
+
+WEBSITE_QUALITY_RULES = """웹사이트 품질 규칙:
+- 본문, 섹션 제목, 표 머리글, 버튼, 상태 문구는 사용자가 요청한 언어를 우선 사용해. 고유명사와 소스의 제품명은 그대로 둘 수 있어.
+- 날짜, 기간, 금액, 수량, 퍼센트는 소스 데이터의 표현과 요청 언어에 맞춰 일관되게 표기해.
+- 첫 화면에서 실제 사용 흐름이 보이고, 모바일과 데스크톱에서 텍스트와 컨트롤이 겹치지 않아야 해.
+- 표나 그리드가 있다면 머리글 구분, 충분한 열 너비, 줄바꿈, 셀 여백, 경계선이나 음영을 사용해서 읽기 쉽게 만들어.
+- 최종 결과물만 제공하고, 별도 설명문으로 부족한 품질을 보완하지 마."""
+
+SPREADSHEET_QUALITY_RULES = """스프레드시트 품질 규칙:
+- 본문, 시트명, 표 머리글은 사용자가 요청한 언어를 우선 사용해. 고유명사와 소스의 제품명은 그대로 둘 수 있어.
+- 날짜, 기간, 금액, 수량, 퍼센트는 소스 데이터의 표현과 요청 언어에 맞춰 일관되게 표기해.
+- 요약 시트와 원천 데이터 또는 상세 시트를 분리하고, 필요한 계산은 워크북 안의 수식으로 남겨.
+- 머리글 고정, 자동 필터, 읽기 좋은 열 너비, 숫자 서식, 명확한 시트명을 사용해 다시 열었을 때 바로 검토할 수 있게 만들어.
+- 최종 엑셀 파일만 제공하고, 별도 설명문으로 부족한 품질을 보완하지 마."""
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    if arguments.command == "list":
+        return list_evaluations()
+    if arguments.command == "run":
+        return run_evaluations(arguments)
+    if arguments.command == "audit":
+        return audit_run(arguments)
+    if arguments.command == "judge":
+        return judge_run(arguments)
+    if arguments.command == "record":
+        return record_scores(arguments)
+    return 1
+
+
+def parse_arguments() -> argparse.Namespace:
+    argumentParser = argparse.ArgumentParser(description="Run fixed skill artifact quality evals.")
+    subcommands = argumentParser.add_subparsers(dest="command", required=True)
+
+    subcommands.add_parser("list", help="List available evaluations.")
+
+    runParser = subcommands.add_parser("run", help="Run fixed evaluations and save timestamped artifacts.")
+    runParser.add_argument("--evaluation", action="append", default=[], help="Evaluation ID to run. Repeatable.")
+    runParser.add_argument("--dry-run", action="store_true", help="Write run files without executing InternKim.")
+    runParser.add_argument("--reuse", action="store_true", help="Reuse the shared Local Fleet while still sending prompts through Mattermost.")
+    runParser.add_argument("--seed", type=int, default=DEFAULT_GENERATION_SEED, help="Fixed generation seed passed through internkim test.")
+    runParser.add_argument("--temperature", type=float, default=DEFAULT_GENERATION_TEMPERATURE, help="Fixed generation temperature passed through internkim test.")
+    runParser.add_argument("--timeout", type=int, default=DEFAULT_TEST_TIMEOUT_SECONDS, help="Seconds passed to internkim test --timeout.")
+    runParser.add_argument("--command-timeout", type=int, default=DEFAULT_COMMAND_TIMEOUT_SECONDS, help="Outer Python subprocess timeout in seconds.")
+
+    auditParser = subcommands.add_parser("audit", help="Audit artifacts in an existing run directory.")
+    auditParser.add_argument("run_directory", help="Run directory containing generated artifacts.")
+
+    judgeParser = subcommands.add_parser("judge", help="Score a generated run with a separate evaluator.")
+    judgeParser.add_argument("run_directory", help="Run directory containing generated artifacts.")
+    judgeParser.add_argument("--mode", choices=["heuristic", "openrouter"], default="heuristic", help="Evaluator mode. Heuristic is local and deterministic; openrouter calls a separate judge model.")
+    judgeParser.add_argument("--model", default="", help="OpenRouter model name for --mode openrouter. Required for openrouter mode unless SKILL_ARTIFACT_EVAL_JUDGE_MODEL is set.")
+    judgeParser.add_argument("--api-key-env", default="OPENROUTER_API_KEY", help="Environment variable containing the OpenRouter API key.")
+
+    recordParser = subcommands.add_parser("record", help="Record a completed scorecard in the tracked score ledger.")
+    recordParser.add_argument("run_directory", help="Run directory containing scorecard.json.")
+
+    return argumentParser.parse_args()
+
+
+def list_evaluations() -> int:
+    configuration = load_evaluations()
+    for evaluation in configuration["evaluations"]:
+        print(f"{evaluation['id']}\t{evaluation['skillName']}\t{evaluation['artifactKind']}")
+    return 0
+
+
+def run_evaluations(arguments: argparse.Namespace) -> int:
+    configuration = load_evaluations()
+    selectedEvaluations = select_evaluations(configuration, arguments.evaluation)
+    runID = current_timestamp()
+    runDirectory = ARTIFACTS_ROOT / runID
+    runDirectory.mkdir(parents=True, exist_ok=False)
+
+    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, arguments.command_timeout)
+    write_json(runDirectory / "manifest.json", manifest)
+
+    for evaluation in selectedEvaluations:
+        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, arguments.command_timeout)
+
+    update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
+    manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
+    manifest["completedAt"] = current_datetime()
+    write_json(runDirectory / "manifest.json", manifest)
+    print(relative_path(runDirectory))
+    return 0
+
+
+def record_scores(arguments: argparse.Namespace) -> int:
+    runDirectory = resolve_run_directory(arguments.run_directory)
+    if not (runDirectory / "scorecard.json").exists():
+        raise SystemExit("no evaluable artifacts to record")
+    scorecard = read_json(runDirectory / "scorecard.json")
+    if len(scorecard.get("scenarios", [])) == 0:
+        raise SystemExit("no evaluable artifacts to record")
+    manifest = read_json(runDirectory / "manifest.json")
+    scoreEntry = create_score_entry(runDirectory, manifest, scorecard)
+    scoresLedger = read_json(SCORES_PATH)
+    scoresLedger["runs"] = upsert_score_entry(scoresLedger["runs"], scoreEntry)
+    write_json(SCORES_PATH, scoresLedger)
+    print(f"recorded {scoreEntry['runID']}")
+    return 0
+
+
+def audit_run(arguments: argparse.Namespace) -> int:
+    runDirectory = resolve_run_directory(arguments.run_directory)
+    audit_run_directory(runDirectory)
+    print(f"audited {relative_path(runDirectory)}")
+    return 0
+
+
+def audit_run_directory(runDirectory: Path) -> None:
+    configuration = load_evaluations()
+    evaluationsByID = {evaluation["id"]: evaluation for evaluation in configuration["evaluations"]}
+    manifest = read_json(runDirectory / "manifest.json")
+    selectedEvaluations = []
+    for evaluationID in manifest["evaluationIDs"]:
+        evaluation = evaluationsByID[evaluationID]
+        selectedEvaluations.append(evaluation)
+        resultDirectory = existing_result_directory(runDirectory, evaluationID)
+        diagnosticDirectory = existing_diagnostic_directory(runDirectory, evaluationID)
+        commandResultPath = diagnosticDirectory / "command-result.json"
+        commandResult = read_json(commandResultPath) if commandResultPath.exists() else {"exitCode": None}
+        audit = audit_evaluation_output(resultDirectory, diagnosticDirectory, evaluation, commandResult.get("exitCode"))
+        write_json(resultDirectory / "audit.json", audit)
+        write_result_summary(resultDirectory, evaluation, audit)
+    update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
+    manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
+    write_json(runDirectory / "manifest.json", manifest)
+
+
+def judge_run(arguments: argparse.Namespace) -> int:
+    runDirectory = resolve_run_directory(arguments.run_directory)
+    audit_run_directory(runDirectory)
+    configuration = load_evaluations()
+    manifest = read_json(runDirectory / "manifest.json")
+    if not (runDirectory / "scorecard.json").exists():
+        print(f"skipped judge for {relative_path(runDirectory)}: no evaluable artifacts")
+        return 0
+    scorecard = read_json(runDirectory / "scorecard.json")
+    if len(scorecard.get("scenarios", [])) == 0:
+        print(f"skipped judge for {relative_path(runDirectory)}: no evaluable artifacts")
+        return 0
+    judgeMetadata = create_judge_metadata(arguments)
+    judgments = []
+    for scenario in scorecard["scenarios"]:
+        evaluation = evaluation_by_id(configuration, scenario["evaluationID"])
+        judgment = judge_evaluation(runDirectory, evaluation, scenario, judgeMetadata, arguments)
+        apply_judgment_to_scenario(scenario, judgment)
+        write_judgment(runDirectory, evaluation["id"], judgment)
+        judgments.append(judgment)
+    scorecard["judge"] = judgeMetadata
+    write_json(runDirectory / "scorecard.json", scorecard)
+    manifest["evaluationPath"] = "separate-" + judgeMetadata["mode"] + "-judge"
+    manifest["judge"] = judgeMetadata
+    manifest["judgedAt"] = current_datetime()
+    write_json(runDirectory / "manifest.json", manifest)
+    write_json(runDirectory / "judgments" / "summary.json", {"judge": judgeMetadata, "judgments": judgments})
+    print(f"judged {relative_path(runDirectory)} with {judgeMetadata['mode']}")
+    return 0
+
+
+def create_judge_metadata(arguments: argparse.Namespace) -> dict:
+    model = first_non_empty_string(arguments.model, os.environ.get("SKILL_ARTIFACT_EVAL_JUDGE_MODEL", ""))
+    metadata = {
+        "mode": arguments.mode,
+        "judgedAt": current_datetime(),
+        "isSeparateFromGeneration": True,
+    }
+    if arguments.mode == "openrouter":
+        if not model:
+            raise SystemExit("--model or SKILL_ARTIFACT_EVAL_JUDGE_MODEL is required for --mode openrouter")
+        metadata["provider"] = "openrouter"
+        metadata["model"] = model
+    return metadata
+
+
+def evaluation_by_id(configuration: dict, evaluationID: str) -> dict:
+    for evaluation in configuration["evaluations"]:
+        if evaluation["id"] == evaluationID:
+            return evaluation
+    raise SystemExit(f"unknown evaluation ID in scorecard: {evaluationID}")
+
+
+def judge_evaluation(runDirectory: Path, evaluation: dict, scenario: dict, judgeMetadata: dict, arguments: argparse.Namespace) -> dict:
+    if judgeMetadata["mode"] == "openrouter":
+        return openrouter_judgment(runDirectory, evaluation, scenario, judgeMetadata, arguments)
+    return heuristic_judgment(runDirectory, evaluation, scenario, judgeMetadata)
+
+
+def write_judgment(runDirectory: Path, evaluationID: str, judgment: dict) -> None:
+    directory = runDirectory / "judgments" / evaluationID
+    directory.mkdir(parents=True, exist_ok=True)
+    write_json(directory / "judgment.json", judgment)
+
+
+def apply_judgment_to_scenario(scenario: dict, judgment: dict) -> None:
+    scoresByID = {score["criterionID"]: score for score in judgment["scores"]}
+    for criterion in scenario["scores"]:
+        judgedCriterion = scoresByID.get(criterion["criterionID"])
+        if judgedCriterion:
+            criterion["score"] = judgedCriterion["score"]
+            criterion["evidence"] = judgedCriterion["evidence"]
+    scenario["notes"] = judgment.get("notes", "")
+
+
+def heuristic_judgment(runDirectory: Path, evaluation: dict, scenario: dict, judgeMetadata: dict) -> dict:
+    resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
+    audit = read_json(resultDirectory / "audit.json")
+    formatChecks = audit.get("formatChecks", {})
+    renderChecks = audit.get("renderChecks", {})
+    requiredMissing = audit.get("requiredText", {}).get("missing", [])
+    requiredPresent = audit.get("requiredText", {}).get("present", [])
+    forbiddenPresent = audit.get("forbiddenText", {}).get("present", [])
+    artifactExists = bool(audit.get("artifactExists"))
+    if not artifactExists:
+        raise SystemExit(f"{evaluation['id']} is not evaluable because the requested artifact was not produced")
+    requiredTotal = len(requiredMissing) + len(requiredPresent)
+    requiredCoverage = ratio(len(requiredPresent), requiredTotal)
+    scores = []
+    for criterion in scenario["scores"]:
+        scores.append(score_criterion(evaluation, criterion, requiredCoverage, requiredMissing, forbiddenPresent, formatChecks, renderChecks))
+    return {
+        "evaluationID": evaluation["id"],
+        "judge": judgeMetadata,
+        "scores": scores,
+        "notes": heuristic_notes(artifactExists, requiredMissing, forbiddenPresent, formatChecks, renderChecks),
+        "auditSummary": audit_summary(audit),
+    }
+
+
+def score_criterion(evaluation: dict, criterion: dict, requiredCoverage: float, requiredMissing: list[str], forbiddenPresent: list[str], formatChecks: dict, renderChecks: dict) -> dict:
+    criterionID = criterion["criterionID"]
+    maxScore = criterion["maxScore"]
+    if criterionID == "sourceFidelity":
+        score = maxScore * requiredCoverage
+        score -= min(len(forbiddenPresent) * 12, maxScore)
+        score -= min(len(requiredMissing) * 2, maxScore)
+        return judged_criterion(criterionID, maxScore, score, fidelity_evidence(requiredMissing, forbiddenPresent, requiredCoverage))
+    if criterionID == "instructionFit":
+        score = maxScore * instruction_fit_ratio(evaluation, formatChecks, requiredCoverage)
+        return judged_criterion(criterionID, maxScore, score, instruction_evidence(evaluation, formatChecks))
+    if criterionID == "formatReliability":
+        score = maxScore * format_reliability_ratio(evaluation, formatChecks, renderChecks)
+        return judged_criterion(criterionID, maxScore, score, format_evidence(formatChecks, renderChecks))
+    if criterionID == "sourceGroundedUsefulness":
+        score = maxScore * source_grounded_usefulness_ratio(evaluation, formatChecks, requiredCoverage, forbiddenPresent)
+        return judged_criterion(criterionID, maxScore, score, usefulness_evidence(requiredCoverage, formatChecks))
+    if criterionID == "visualUsability":
+        score = maxScore * visual_usability_ratio(evaluation, formatChecks, renderChecks)
+        return judged_criterion(criterionID, maxScore, score, visual_evidence(formatChecks, renderChecks))
+    return judged_criterion(criterionID, maxScore, maxScore * requiredCoverage, "Generic score based on required evidence coverage.")
+
+
+def judged_criterion(criterionID: str, maxScore: int | float, score: int | float, evidence: str) -> dict:
+    boundedScore = max(0, min(float(maxScore), score))
+    return {
+        "criterionID": criterionID,
+        "maxScore": maxScore,
+        "score": round(boundedScore, 2),
+        "evidence": evidence,
+    }
+
+
+def instruction_fit_ratio(evaluation: dict, formatChecks: dict, requiredCoverage: float) -> float:
+    artifactKind = evaluation["artifactKind"]
+    if artifactKind == "docx":
+        return average([requiredCoverage, positive_ratio(formatChecks.get("headingCount", 0)), positive_ratio(formatChecks.get("tableCount", 0)), 1.0 if formatChecks.get("hasDocumentXML") else 0.0])
+    if artifactKind == "xlsx":
+        sheetNames = set(formatChecks.get("sheetNames", []))
+        requestedSheets = {"요약", "비용", "일정"}
+        return average([requiredCoverage, ratio(len(sheetNames & requestedSheets), len(requestedSheets)), positive_ratio(formatChecks.get("formulaCount", 0)), xlsx_formula_quality_ratio(formatChecks)])
+    if artifactKind == "website":
+        return average([requiredCoverage, 1.0 if formatChecks.get("hasRenderedText") else 0.0, ratio(formatChecks.get("screenshotCount", 0), 2)])
+    if artifactKind == "pdf":
+        return average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0, pdf_page_limit_ratio(formatChecks, 2)])
+    return requiredCoverage
+
+
+def format_reliability_ratio(evaluation: dict, formatChecks: dict, renderChecks: dict) -> float:
+    artifactKind = evaluation["artifactKind"]
+    if artifactKind == "website":
+        return 1.0 if renderChecks.get("passed") else 0.0
+    if artifactKind == "docx":
+        return average([1.0 if formatChecks.get("isZip") else 0.0, 1.0 if formatChecks.get("hasDocumentXML") else 0.0, docx_table_quality_ratio(formatChecks), render_ratio(renderChecks)])
+    if artifactKind == "xlsx":
+        return average([1.0 if formatChecks.get("isZip") else 0.0, 1.0 if formatChecks.get("hasWorkbookXML") else 0.0, positive_ratio(formatChecks.get("sheetCount", 0)), render_ratio(renderChecks)])
+    if artifactKind == "pdf":
+        return average([1.0 if formatChecks.get("isPDF") else 0.0, positive_ratio(formatChecks.get("pageCount", 0)), 1.0 if formatChecks.get("hasTextLayer") else 0.0, render_ratio(renderChecks)])
+    return render_ratio(renderChecks)
+
+
+def source_grounded_usefulness_ratio(evaluation: dict, formatChecks: dict, requiredCoverage: float, forbiddenPresent: list[str]) -> float:
+    penalty = 0.0 if not forbiddenPresent else min(0.6, len(forbiddenPresent) * 0.2)
+    artifactKind = evaluation["artifactKind"]
+    if artifactKind == "xlsx":
+        structure = average([positive_ratio(formatChecks.get("formulaCount", 0)), positive_ratio(formatChecks.get("sheetCount", 0)), xlsx_formula_quality_ratio(formatChecks)])
+        return max(0.0, average([requiredCoverage, structure]) - penalty)
+    if artifactKind == "docx":
+        return max(0.0, average([requiredCoverage, positive_ratio(formatChecks.get("tableCount", 0)), docx_table_quality_ratio(formatChecks)]) - penalty)
+    if artifactKind == "pdf":
+        return max(0.0, average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0, pdf_page_limit_ratio(formatChecks, 2)]) - penalty)
+    if artifactKind == "website":
+        return max(0.0, average([requiredCoverage, 1.0 if formatChecks.get("hasRenderedText") else 0.0]) - penalty)
+    return max(0.0, requiredCoverage - penalty)
+
+
+def visual_usability_ratio(evaluation: dict, formatChecks: dict, renderChecks: dict) -> float:
+    artifactKind = evaluation["artifactKind"]
+    if artifactKind == "xlsx":
+        return average([render_ratio(renderChecks), 1.0 if formatChecks.get("hasFrozenPanes") else 0.0, 1.0 if formatChecks.get("hasAutoFilter") else 0.0, xlsx_formula_quality_ratio(formatChecks)])
+    if artifactKind == "docx":
+        return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), positive_ratio(formatChecks.get("tableCount", 0)), docx_table_quality_ratio(formatChecks), typography_quality_ratio(formatChecks)])
+    if artifactKind == "pdf":
+        return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), pdf_page_limit_ratio(formatChecks, 2), 1.0 if formatChecks.get("hasTextLayer") else 0.0, typography_quality_ratio(formatChecks)])
+    if artifactKind == "website":
+        return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), typography_quality_ratio(formatChecks), 1.0 if formatChecks.get("hasRenderedText") else 0.0, ratio(formatChecks.get("screenshotCount", 0), 2)])
+    return render_ratio(renderChecks)
+
+
+def render_ratio(renderChecks: dict) -> float:
+    if not renderChecks.get("attempted"):
+        return 0.5
+    return 1.0 if renderChecks.get("passed") else 0.0
+
+
+def render_visual_balance_ratio(renderChecks: dict) -> float:
+    screenshots = renderChecks.get("screenshots", [])
+    if not isinstance(screenshots, list) or not screenshots:
+        return 0.5
+    scores = []
+    for screenshot in screenshots:
+        if not isinstance(screenshot, dict):
+            continue
+        visualMetrics = screenshot.get("visualMetrics", {})
+        score = visualMetrics.get("visualBalanceScore") if isinstance(visualMetrics, dict) else None
+        if isinstance(score, (int, float)):
+            scores.append(float(score))
+    if not scores:
+        return 0.5
+    return average(scores)
+
+
+def xlsx_formula_quality_ratio(formatChecks: dict) -> float:
+    offRowFormulaCount = formatChecks.get("offRowFormulaCount", 0)
+    if not isinstance(offRowFormulaCount, (int, float)):
+        return 0.0
+    return 1.0 if offRowFormulaCount == 0 else 0.0
+
+
+def docx_table_quality_ratio(formatChecks: dict) -> float:
+    penalties = 0.0
+    penalties += min(0.35, float(formatChecks.get("wideTableCount", 0) or 0) * 0.15)
+    penalties += min(0.35, float(formatChecks.get("emptyTableCellCount", 0) or 0) * 0.03)
+    penalties += min(0.35, float(formatChecks.get("denseTableCellCount", 0) or 0) * 0.08)
+    return max(0.0, 1.0 - penalties)
+
+
+def typography_quality_ratio(formatChecks: dict) -> float:
+    typography = formatChecks.get("typography", {})
+    if not isinstance(typography, dict):
+        return 0.5
+    score = typography.get("typographyScore")
+    if isinstance(score, (int, float)):
+        return ratio(score, 1)
+    return 0.5
+
+
+def pdf_page_limit_ratio(formatChecks: dict, maxPages: int) -> float:
+    pageCount = formatChecks.get("pageCount", 0)
+    if not isinstance(pageCount, (int, float)) or pageCount <= 0:
+        return 0.0
+    if pageCount <= maxPages:
+        return 1.0
+    return max(0.0, 1.0 - ((pageCount - maxPages) * 0.25))
+
+
+def positive_ratio(value) -> float:
+    return 1.0 if isinstance(value, (int, float)) and value > 0 else 0.0
+
+
+def ratio(numerator: int | float, denominator: int | float) -> float:
+    try:
+        denominatorValue = float(denominator)
+        numeratorValue = float(numerator)
+    except (TypeError, ValueError):
+        return 0.0
+    if denominatorValue <= 0:
+        return 1.0
+    return max(0.0, min(1.0, numeratorValue / denominatorValue))
+
+
+def average(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def summarize_numeric_values(values: list[float]) -> dict:
+    if not values:
+        return {"count": 0}
+    return {
+        "count": len(values),
+        "min": round(min(values), 3),
+        "median": round(statistics.median(values), 3),
+        "max": round(max(values), 3),
+    }
+
+
+def fidelity_evidence(requiredMissing: list[str], forbiddenPresent: list[str], requiredCoverage: float) -> str:
+    parts = [f"Required evidence coverage {requiredCoverage:.0%}."]
+    if requiredMissing:
+        parts.append("Missing required source facts: " + ", ".join(requiredMissing[:8]) + ".")
+    if forbiddenPresent:
+        parts.append("Forbidden unsupported facts present: " + ", ".join(forbiddenPresent[:8]) + ".")
+    return " ".join(parts)
+
+
+def instruction_evidence(evaluation: dict, formatChecks: dict) -> str:
+    artifactKind = evaluation["artifactKind"]
+    if artifactKind == "xlsx":
+        return "Workbook sheets: " + ", ".join(formatChecks.get("sheetNames", [])) + f"; formulaCount={formatChecks.get('formulaCount', 0)}."
+    if artifactKind == "docx":
+        return f"DOCX tableCount={formatChecks.get('tableCount', 0)}."
+    return "Instruction fit scored from required evidence and artifact audit."
+
+
+def format_evidence(formatChecks: dict, renderChecks: dict) -> str:
+    return "Format checks: " + json.dumps(formatChecks, ensure_ascii=False, sort_keys=True) + "; render: " + json.dumps(renderChecks, ensure_ascii=False, sort_keys=True)
+
+
+def usefulness_evidence(requiredCoverage: float, formatChecks: dict) -> str:
+    return f"Usefulness scored from source coverage {requiredCoverage:.0%} and structure checks {json.dumps(formatChecks, ensure_ascii=False, sort_keys=True)}."
+
+
+def visual_evidence(formatChecks: dict, renderChecks: dict) -> str:
+    return "Visual usability scored from render output and layout affordances: " + json.dumps({"format": formatChecks, "render": renderChecks}, ensure_ascii=False, sort_keys=True)
+
+
+def heuristic_notes(artifactExists: bool, requiredMissing: list[str], forbiddenPresent: list[str], formatChecks: dict, renderChecks: dict) -> str:
+    notes = []
+    if not artifactExists:
+        notes.append("Artifact was missing.")
+    if requiredMissing:
+        notes.append("Missing required source facts: " + ", ".join(requiredMissing[:8]) + ".")
+    if forbiddenPresent:
+        notes.append("Unsupported forbidden facts were present: " + ", ".join(forbiddenPresent[:8]) + ".")
+    if renderChecks.get("attempted") and not renderChecks.get("passed"):
+        notes.append("Render check failed.")
+    offRowFormulaCount = formatChecks.get("offRowFormulaCount", 0)
+    if isinstance(offRowFormulaCount, (int, float)) and offRowFormulaCount > 0:
+        notes.append(f"{int(offRowFormulaCount)} row-level formulas reference a different row.")
+    if formatChecks.get("hasTextLayer") is False:
+        notes.append("PDF text layer was missing or unreadable.")
+    pageCount = formatChecks.get("pageCount", 0)
+    if isinstance(pageCount, (int, float)) and pageCount > 2:
+        notes.append(f"PDF has {int(pageCount)} pages, above the expected compact proposal length.")
+    wideTableCount = formatChecks.get("wideTableCount", 0)
+    if isinstance(wideTableCount, (int, float)) and wideTableCount > 0:
+        notes.append(f"{int(wideTableCount)} DOCX tables may be too wide.")
+    denseTableCellCount = formatChecks.get("denseTableCellCount", 0)
+    if isinstance(denseTableCellCount, (int, float)) and denseTableCellCount > 0:
+        notes.append(f"{int(denseTableCellCount)} DOCX table cells are dense.")
+    if formatChecks.get("hasRenderedText") is False:
+        notes.append("Website rendered text was missing from the captured browser DOM.")
+    if formatChecks.get("siteScreenshotsVerified") is False:
+        notes.append("Website screenshot verification was missing or failed.")
+    typographyScore = typography_quality_ratio(formatChecks)
+    if isinstance(formatChecks.get("typography"), dict) and typographyScore < 0.75:
+        notes.append(f"Typography/layout score was low ({typographyScore:.2f}).")
+    balanceScore = render_visual_balance_ratio(renderChecks)
+    if isinstance(renderChecks.get("screenshots"), list) and renderChecks.get("screenshots") and balanceScore < 0.75:
+        notes.append(f"Rendered visual balance score was low ({balanceScore:.2f}).")
+    if not notes:
+        notes.append("Heuristic judge found no required-text, forbidden-text, or format blocker.")
+    return " ".join(notes)
+
+
+def openrouter_judgment(runDirectory: Path, evaluation: dict, scenario: dict, judgeMetadata: dict, arguments: argparse.Namespace) -> dict:
+    apiKey = os.environ.get(arguments.api_key_env, "")
+    if not apiKey:
+        raise SystemExit(f"{arguments.api_key_env} is required for --mode openrouter")
+    resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
+    audit = read_json(resultDirectory / "audit.json")
+    prompt = openrouter_judge_prompt(runDirectory, evaluation, scenario, audit)
+    content = call_openrouter_judge(apiKey, judgeMetadata["model"], prompt)
+    judgment = parse_openrouter_judgment(content)
+    judgment["evaluationID"] = evaluation["id"]
+    judgment["judge"] = judgeMetadata
+    judgment["auditSummary"] = audit_summary(audit)
+    return judgment
+
+
+def openrouter_judge_prompt(runDirectory: Path, evaluation: dict, scenario: dict, audit: dict) -> str:
+    sourceData = read_source_data(evaluation)
+    resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
+    diagnosticDirectory = existing_diagnostic_directory(runDirectory, evaluation["id"])
+    artifactText = extract_evaluation_text(artifact_path(resultDirectory, evaluation), diagnosticDirectory, evaluation["artifactKind"])
+    return "\n\n".join([
+        "You are an independent evaluator. KimIntern generated the artifact; do not treat KimIntern as the judge.",
+        "Score only from the fixed instruction, source data, extracted artifact text, and audit metadata. Penalize unsupported invention heavily.",
+        "Return only JSON with keys scores and notes. scores must be an array of {criterionID,maxScore,score,evidence}.",
+        "Criteria:\n" + json.dumps(scenario["scores"], ensure_ascii=False, indent=2),
+        "Fixed instruction:\n" + evaluation["fixedInstruction"],
+        "Source data:\n" + sourceData,
+        "Extracted artifact text:\n" + artifactText[:20000],
+        "Audit metadata:\n" + json.dumps(audit_summary(audit), ensure_ascii=False, indent=2),
+    ])
+
+
+def call_openrouter_judge(apiKey: str, model: str, prompt: str) -> str:
+    requestDocument = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a strict artifact quality evaluator. Output valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+    }
+    request = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(requestDocument).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + apiKey,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://internkim.local/skill-artifact-evals",
+            "X-Title": "InternKim Skill Artifact Evals",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            responseDocument = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as errorValue:
+        body = errorValue.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"OpenRouter judge failed: HTTP {errorValue.code}: {body}") from errorValue
+    choices = responseDocument.get("choices", [])
+    if not choices:
+        raise SystemExit("OpenRouter judge returned no choices")
+    return choices[0].get("message", {}).get("content", "")
+
+
+def parse_openrouter_judgment(content: str) -> dict:
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        stripped = strip_fenced_json(stripped)
+    try:
+        judgment = json.loads(stripped)
+    except json.JSONDecodeError as errorValue:
+        raise SystemExit("OpenRouter judge returned invalid JSON: " + content[:1000]) from errorValue
+    if not isinstance(judgment.get("scores"), list):
+        raise SystemExit("OpenRouter judge JSON must include scores array")
+    judgment["notes"] = str(judgment.get("notes", ""))
+    return judgment
+
+
+def strip_fenced_json(value: str) -> str:
+    lines = value.splitlines()
+    if len(lines) >= 3 and lines[0].startswith("```") and lines[-1].startswith("```"):
+        return "\n".join(lines[1:-1]).strip()
+    return value
+
+
+def load_evaluations() -> dict:
+    return read_json(EVALUATIONS_PATH)
+
+
+def select_evaluations(configuration: dict, selectedIDs: list[str]) -> list[dict]:
+    evaluationsByID = {evaluation["id"]: evaluation for evaluation in configuration["evaluations"]}
+    if not selectedIDs:
+        return list(evaluationsByID.values())
+
+    missingIDs = [selectedID for selectedID in selectedIDs if selectedID not in evaluationsByID]
+    if missingIDs:
+        raise SystemExit(f"unknown evaluation ID: {', '.join(missingIDs)}")
+
+    return [evaluationsByID[selectedID] for selectedID in selectedIDs]
+
+
+def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
+    return {
+        "runID": runID,
+        "startedAt": current_datetime(),
+        "completedAt": None,
+        "gitRevision": git_revision(),
+        "isDryRun": isDryRun,
+        "generationPath": "internkim-test-mattermost-dm",
+        "evaluationPath": None,
+        "executionPath": "internkim-test-mattermost-dm-generation-only",
+        "shouldReuseFleet": shouldReuseFleet,
+        "generationOptions": {
+            "requestedSeed": seed,
+            "requestedTemperature": temperature,
+            "effectiveSeed": seed,
+            "effectiveTemperature": temperature,
+            "testTimeoutSeconds": testTimeoutSeconds,
+            "commandTimeoutSeconds": commandTimeoutSeconds,
+            "applicationPath": "blueclaw agent.generationOptions via internkim test"
+        },
+        "evaluationIDs": [evaluation["id"] for evaluation in selectedEvaluations]
+    }
+
+
+def write_scorecard(runDirectory: Path, runID: str, configuration: dict, selectedEvaluations: list[dict], judgeMetadata: dict | None) -> None:
+    scorecard = {
+        "runID": runID,
+        "scoringVersion": configuration["version"],
+        "judge": judgeMetadata,
+        "scoringInstructions": configuration["scorecardInstructions"],
+        "scenarios": [create_scorecard_scenario(evaluation, configuration["scoringCriteria"]) for evaluation in selectedEvaluations]
+    }
+    write_json(runDirectory / "scorecard.json", scorecard)
+
+
+def update_scorecard_for_evaluable_outputs(runDirectory: Path, configuration: dict, selectedEvaluations: list[dict], judgeMetadata: dict | None) -> None:
+    evaluableEvaluations = [evaluation for evaluation in selectedEvaluations if is_evaluation_evaluable(runDirectory, evaluation)]
+    scorecardPath = runDirectory / "scorecard.json"
+    if not evaluableEvaluations:
+        if scorecardPath.exists():
+            scorecardPath.unlink()
+        return
+    write_scorecard(runDirectory, runDirectory.name, configuration, evaluableEvaluations, judgeMetadata)
+
+
+def update_manifest_evaluability(runDirectory: Path, manifest: dict, selectedEvaluations: list[dict]) -> dict:
+    evaluableIDs = []
+    nonEvaluable = []
+    for evaluation in selectedEvaluations:
+        audit = read_evaluation_audit(runDirectory, evaluation)
+        if audit and is_audit_evaluable(evaluation, audit):
+            evaluableIDs.append(evaluation["id"])
+            continue
+        nonEvaluable.append({
+            "evaluationID": evaluation["id"],
+            "reason": non_evaluable_reason(evaluation, audit),
+        })
+    manifest["evaluableEvaluationIDs"] = evaluableIDs
+    manifest["nonEvaluableEvaluations"] = nonEvaluable
+    if not evaluableIDs:
+        manifest["evaluationPath"] = None
+        manifest.pop("judge", None)
+        manifest.pop("judgedAt", None)
+    return manifest
+
+
+def is_evaluation_evaluable(runDirectory: Path, evaluation: dict) -> bool:
+    audit = read_evaluation_audit(runDirectory, evaluation)
+    return bool(audit and is_audit_evaluable(evaluation, audit))
+
+
+def read_evaluation_audit(runDirectory: Path, evaluation: dict) -> dict | None:
+    auditPath = existing_result_directory(runDirectory, evaluation["id"]) / "audit.json"
+    if not auditPath.exists():
+        return None
+    return read_json(auditPath)
+
+
+def is_audit_evaluable(evaluation: dict, audit: dict) -> bool:
+    if evaluation["artifactKind"] == "website":
+        formatChecks = audit.get("formatChecks", {})
+        renderChecks = audit.get("renderChecks", {})
+        return bool(formatChecks.get("hasPublicURL") or renderChecks.get("publicURL"))
+    return bool(audit.get("artifactExists"))
+
+
+def non_evaluable_reason(evaluation: dict, audit: dict | None) -> str:
+    if audit is None:
+        return "No audit was produced because generation was skipped, interrupted, or failed before result collection."
+    if evaluation["artifactKind"] == "website":
+        return "No published website URL was produced, so there is no website artifact to evaluate."
+    if audit.get("exitCode") is None:
+        return "Generation was skipped, dry-run, or interrupted before producing an artifact."
+    if audit.get("exitCode") != 0:
+        return "Generation command failed before producing the requested artifact."
+    return "The requested artifact was not found at the expected output path."
+
+
+def create_scorecard_scenario(evaluation: dict, scoringCriteria: list[dict]) -> dict:
+    return {
+        "evaluationID": evaluation["id"],
+        "skillName": evaluation["skillName"],
+        "artifactKind": evaluation["artifactKind"],
+        "scores": [create_scorecard_criterion(criterion) for criterion in scoringCriteria],
+        "notes": ""
+    }
+
+
+def create_scorecard_criterion(criterion: dict) -> dict:
+    return {
+        "criterionID": criterion["id"],
+        "label": criterion["label"],
+        "maxScore": criterion["maxScore"],
+        "score": None,
+        "evidence": ""
+    }
+
+
+def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> None:
+    resultDirectory = result_directory(runDirectory, evaluation["id"])
+    diagnosticDirectory = diagnostic_directory(runDirectory, evaluation["id"])
+    resultDirectory.mkdir(parents=True)
+    diagnosticDirectory.mkdir(parents=True)
+    if evaluation["outputFileName"]:
+        files_directory(resultDirectory).mkdir()
+    prompt = build_prompt(evaluation)
+    (diagnosticDirectory / "prompt.txt").write_text(prompt + "\n", encoding="utf-8")
+    write_json(diagnosticDirectory / "evaluation.json", enrich_evaluation(evaluation, prompt))
+    command = build_evaluation_command(evaluation, resultDirectory, diagnosticDirectory, prompt, shouldReuseFleet, seed, temperature, testTimeoutSeconds)
+    write_json(diagnosticDirectory / "command.json", {"command": command})
+    runMetadata = {"startedAt": current_datetime(), "finishedAt": None}
+    write_json(diagnosticDirectory / "run.json", runMetadata)
+
+    if isDryRun:
+        write_json(diagnosticDirectory / "command-result.json", {"exitCode": None, "skipped": True})
+        runMetadata["finishedAt"] = current_datetime()
+        write_json(diagnosticDirectory / "run.json", runMetadata)
+        write_result_summary(resultDirectory, evaluation, None)
+        return
+
+    try:
+        completedProcess = subprocess.run(command, cwd=REPOSITORY_ROOT, text=True, capture_output=True, timeout=commandTimeoutSeconds)
+        stdoutText = completedProcess.stdout
+        stderrText = completedProcess.stderr
+        exitCode = completedProcess.returncode
+        commandResult = {"exitCode": exitCode, "skipped": False, "timedOut": False}
+    except subprocess.TimeoutExpired as errorValue:
+        stdoutText = subprocess_output_text(errorValue.stdout)
+        stderrText = subprocess_output_text(errorValue.stderr)
+        exitCode = -1
+        commandResult = {"exitCode": exitCode, "skipped": False, "timedOut": True, "timeoutSeconds": commandTimeoutSeconds}
+    (diagnosticDirectory / "stdout.txt").write_text(stdoutText, encoding="utf-8")
+    (diagnosticDirectory / "stderr.txt").write_text(stderrText, encoding="utf-8")
+    write_json(diagnosticDirectory / "command-result.json", commandResult)
+    audit = audit_evaluation_output(resultDirectory, diagnosticDirectory, evaluation, exitCode)
+    write_json(resultDirectory / "audit.json", audit)
+    write_result_summary(resultDirectory, evaluation, audit)
+    runMetadata["finishedAt"] = current_datetime()
+    write_json(diagnosticDirectory / "run.json", runMetadata)
+
+
+def subprocess_output_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def result_directory(runDirectory: Path, evaluationID: str) -> Path:
+    return runDirectory / "results" / evaluationID
+
+
+def diagnostic_directory(runDirectory: Path, evaluationID: str) -> Path:
+    return runDirectory / "diagnostics" / evaluationID
+
+
+def files_directory(resultDirectory: Path) -> Path:
+    return resultDirectory / "files"
+
+
+def screenshots_directory(resultDirectory: Path) -> Path:
+    return resultDirectory / "screenshots"
+
+
+def legacy_evaluation_directory(runDirectory: Path, evaluationID: str) -> Path:
+    return runDirectory / evaluationID
+
+
+def existing_result_directory(runDirectory: Path, evaluationID: str) -> Path:
+    directory = result_directory(runDirectory, evaluationID)
+    if directory.exists():
+        return directory
+    return legacy_evaluation_directory(runDirectory, evaluationID)
+
+
+def existing_diagnostic_directory(runDirectory: Path, evaluationID: str) -> Path:
+    directory = diagnostic_directory(runDirectory, evaluationID)
+    if directory.exists():
+        return directory
+    return legacy_evaluation_directory(runDirectory, evaluationID)
+
+
+def build_prompt(evaluation: dict) -> str:
+    sourceData = read_source_data(evaluation)
+    return "\n\n".join([
+        evaluation["fixedInstruction"].strip(),
+        COMMON_SOURCE_RULES,
+        quality_rules(evaluation),
+        "소스 데이터:",
+        sourceData.strip()
+    ])
+
+
+def quality_rules(evaluation: dict) -> str:
+    if evaluation["artifactKind"] == "website":
+        return WEBSITE_QUALITY_RULES
+    if evaluation["artifactKind"] == "xlsx":
+        return SPREADSHEET_QUALITY_RULES
+    return DOCUMENT_QUALITY_RULES
+
+
+def enrich_evaluation(evaluation: dict, prompt: str) -> dict:
+    enrichedEvaluation = dict(evaluation)
+    sourcePath = EVALUATIONS_PATH.parent / evaluation["sourceFile"]
+    enrichedEvaluation["sourceSHA256"] = sha256_text(sourcePath.read_text(encoding="utf-8"))
+    enrichedEvaluation["promptSHA256"] = sha256_text(prompt)
+    return enrichedEvaluation
+
+
+def read_source_data(evaluation: dict) -> str:
+    sourcePath = EVALUATIONS_PATH.parent / evaluation["sourceFile"]
+    return sourcePath.read_text(encoding="utf-8")
+
+
+def build_evaluation_command(evaluation: dict, resultDirectory: Path, diagnosticDirectory: Path, prompt: str, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int) -> list[str]:
+    command = [
+        str(REPOSITORY_ROOT / "internkim"),
+        "test",
+        prompt,
+        "--no-open",
+        "--seed",
+        str(seed),
+        "--temperature",
+        format_float(temperature),
+        "--timeout",
+        str(testTimeoutSeconds),
+        "--result-json",
+        str(diagnosticDirectory / "test-result.json"),
+    ]
+    if shouldReuseFleet:
+        command.append("--reuse")
+    if evaluation["artifactKind"] == "website":
+        command.append("--expect-public-url")
+    for expectedTool in evaluation.get("expectedTools", []):
+        command.extend(["--expect-tool", expectedTool])
+    if evaluation["outputFileName"]:
+        command.extend(["-o", str(files_directory(resultDirectory) / evaluation["outputFileName"])])
+    return command
+
+
+def create_score_entry(runDirectory: Path, manifest: dict, scorecard: dict) -> dict:
+    scenarios = [create_score_scenario(scenario) for scenario in scorecard["scenarios"]]
+    return {
+        "runID": scorecard["runID"],
+        "startedAt": manifest["startedAt"],
+        "completedAt": manifest["completedAt"],
+        "recordedAt": current_datetime(),
+        "gitRevision": manifest["gitRevision"],
+        "runDirectory": relative_path(runDirectory),
+        "generationOptions": manifest.get("generationOptions"),
+        "judge": scorecard.get("judge"),
+        "scores": scenarios,
+        "outputs": collect_outputs(runDirectory, scenarios),
+        "audits": collect_audit_summaries(runDirectory, scenarios)
+    }
+
+
+def create_score_scenario(scenario: dict) -> dict:
+    criteria = [validate_criterion_score(criterion) for criterion in scenario["scores"]]
+    return {
+        "evaluationID": scenario["evaluationID"],
+        "skillName": scenario["skillName"],
+        "artifactKind": scenario["artifactKind"],
+        "totalScore": sum(criterion["score"] for criterion in criteria),
+        "maxScore": sum(criterion["maxScore"] for criterion in criteria),
+        "criteria": criteria,
+        "notes": scenario.get("notes", "")
+    }
+
+
+def validate_criterion_score(criterion: dict) -> dict:
+    score = criterion.get("score")
+    maxScore = criterion["maxScore"]
+    if not isinstance(score, (int, float)):
+        raise SystemExit(f"{criterion['criterionID']} score is missing")
+    if score < 0 or score > maxScore:
+        raise SystemExit(f"{criterion['criterionID']} score must be between 0 and {maxScore}")
+    return criterion
+
+
+def upsert_score_entry(scoreEntries: list[dict], scoreEntry: dict) -> list[dict]:
+    remainingEntries = [entry for entry in scoreEntries if entry["runID"] != scoreEntry["runID"]]
+    return remainingEntries + [scoreEntry]
+
+
+def audit_evaluation_output(resultDirectory: Path, diagnosticDirectory: Path, evaluation: dict, exitCode) -> dict:
+    artifactPath = artifact_path(resultDirectory, evaluation)
+    extractedText = extract_evaluation_text(artifactPath, diagnosticDirectory, evaluation["artifactKind"])
+    formatChecks = audit_format(artifactPath, diagnosticDirectory, evaluation["artifactKind"])
+    renderChecks = audit_render(resultDirectory, diagnosticDirectory, artifactPath, evaluation["artifactKind"], exitCode)
+    artifactExists = evaluation_artifact_exists(artifactPath, evaluation["artifactKind"], formatChecks)
+    return {
+        "evaluationID": evaluation["id"],
+        "artifactKind": evaluation["artifactKind"],
+        "exitCode": exitCode,
+        "artifactPath": relative_path(artifactPath) if artifactPath else None,
+        "artifactExists": artifactExists,
+        "artifactBytes": artifactPath.stat().st_size if artifactPath and artifactPath.exists() else 0,
+        "extractedTextLength": len(extractedText),
+        "requiredText": check_text_presence(extractedText, evaluation.get("requiredText", [])),
+        "forbiddenText": check_text_presence(extractedText, evaluation.get("forbiddenText", [])),
+        "formatChecks": formatChecks,
+        "renderChecks": renderChecks
+    }
+
+
+def evaluation_artifact_exists(artifactPath: Path | None, artifactKind: str, formatChecks: dict) -> bool:
+    if artifactKind == "website":
+        return bool(formatChecks.get("hasPublicURL"))
+    return bool(artifactPath and artifactPath.exists())
+
+
+def artifact_path(resultDirectory: Path, evaluation: dict):
+    outputFileName = evaluation.get("outputFileName")
+    if not outputFileName:
+        return None
+    outputPath = files_directory(resultDirectory) / outputFileName
+    if outputPath.exists():
+        return outputPath
+    return resultDirectory / outputFileName
+
+
+def extract_evaluation_text(artifactPath, diagnosticDirectory: Path, artifactKind: str) -> str:
+    if artifactKind == "website":
+        return extract_website_text(diagnosticDirectory)
+    return extract_artifact_text(artifactPath, artifactKind)
+
+
+def extract_artifact_text(artifactPath, artifactKind: str) -> str:
+    if not artifactPath or not artifactPath.exists():
+        return ""
+    if artifactKind == "docx":
+        return extract_docx_text(artifactPath)
+    if artifactKind == "xlsx":
+        return extract_xlsx_text(artifactPath)
+    if artifactKind == "pdf":
+        return extract_pdf_text(artifactPath)
+    return ""
+
+
+def extract_docx_text(artifactPath: Path) -> str:
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            document = ElementTree.fromstring(archive.read("word/document.xml"))
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return ""
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    paragraphs = []
+    for paragraph in document.findall(".//w:p", namespace):
+        text = "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace)).strip()
+        if text:
+            paragraphs.append(text)
+    return "\n".join(paragraphs)
+
+
+def extract_xlsx_text(artifactPath: Path) -> str:
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            sharedStrings = read_xlsx_shared_strings(archive)
+            workbookText = read_xlsx_workbook_text(archive)
+            worksheetText = read_xlsx_worksheet_text(archive, sharedStrings)
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return ""
+    return "\n".join(workbookText + worksheetText)
+
+
+def extract_pdf_text(artifactPath: Path) -> str:
+    pdftotextPath = shutil.which("pdftotext")
+    if not pdftotextPath:
+        return ""
+    completedProcess = subprocess.run(
+        [pdftotextPath, "-layout", str(artifactPath), "-"],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if completedProcess.returncode != 0:
+        return ""
+    return completedProcess.stdout
+
+
+def extract_website_text(diagnosticDirectory: Path) -> str:
+    testResult = read_test_result(diagnosticDirectory)
+    if testResult:
+        return "\n".join([
+            str(testResult.get("botMessage", "")),
+            str(testResult.get("sitePublicURL", "")),
+            str(testResult.get("siteHTMLText", "")),
+        ])
+    return ""
+
+
+def read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    strings = []
+    for item in root.findall("main:si", namespace):
+        strings.append("".join(text.text or "" for text in item.findall(".//main:t", namespace)))
+    return strings
+
+
+def read_xlsx_workbook_text(archive: zipfile.ZipFile) -> list[str]:
+    root = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    return [
+        sheet.get("name", "")
+        for sheet in root.findall(".//main:sheet", namespace)
+        if sheet.get("name")
+    ]
+
+
+def read_xlsx_worksheet_text(archive: zipfile.ZipFile, sharedStrings: list[str]) -> list[str]:
+    values = []
+    for worksheetPath in sorted(path for path in archive.namelist() if path.startswith("xl/worksheets/") and path.endswith(".xml")):
+        root = ElementTree.fromstring(archive.read(worksheetPath))
+        values.extend(read_xlsx_cells(root, sharedStrings))
+    return values
+
+
+def read_xlsx_cells(root: ElementTree.Element, sharedStrings: list[str]) -> list[str]:
+    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    values = []
+    for cell in root.findall(".//main:c", namespace):
+        values.extend(read_xlsx_cell_values(cell, sharedStrings, namespace))
+    return values
+
+
+def read_xlsx_cell_values(cell: ElementTree.Element, sharedStrings: list[str], namespace: dict[str, str]) -> list[str]:
+    values = []
+    formula = cell.find("main:f", namespace)
+    if formula is not None and formula.text:
+        values.append("=" + formula.text)
+    cellType = cell.get("t")
+    if cellType == "inlineStr":
+        inlineText = "".join(text.text or "" for text in cell.findall(".//main:is/main:t", namespace))
+        if inlineText:
+            values.append(inlineText)
+        return values
+    valueElement = cell.find("main:v", namespace)
+    if valueElement is None or valueElement.text is None:
+        return values
+    if cellType == "s":
+        values.append(resolve_shared_string(valueElement.text, sharedStrings))
+    else:
+        values.append(valueElement.text)
+    return [value for value in values if value]
+
+
+def resolve_shared_string(indexText: str, sharedStrings: list[str]) -> str:
+    try:
+        index = int(indexText)
+    except ValueError:
+        return indexText
+    if 0 <= index < len(sharedStrings):
+        return sharedStrings[index]
+    return indexText
+
+
+def check_text_presence(extractedText: str, values: list[str]) -> dict:
+    return {
+        "present": [value for value in values if value in extractedText],
+        "missing": [value for value in values if value not in extractedText]
+    }
+
+
+def audit_format(artifactPath: Path | None, diagnosticDirectory: Path, artifactKind: str) -> dict:
+    if artifactKind == "docx":
+        return audit_docx_format(artifactPath)
+    if artifactKind == "xlsx":
+        return audit_xlsx_format(artifactPath)
+    if artifactKind == "pdf":
+        return audit_pdf_format(artifactPath)
+    if artifactKind == "website":
+        return audit_website_format(diagnosticDirectory)
+    return {}
+
+
+def audit_render(resultDirectory: Path, diagnosticDirectory: Path, artifactPath: Path | None, artifactKind: str, exitCode) -> dict:
+    if artifactKind == "website":
+        return audit_website_render(resultDirectory, diagnosticDirectory, exitCode)
+    if artifactKind not in {"docx", "pdf", "xlsx"}:
+        return {"attempted": False, "reason": "artifact kind is not renderable by local file thumbnail audit"}
+    if not artifactPath or not artifactPath.exists():
+        return {"attempted": False, "reason": "artifact file is missing"}
+
+    if artifactKind == "pdf":
+        pdfRender = render_pdf_with_pdftoppm(resultDirectory, artifactPath)
+        if pdfRender.get("passed"):
+            return pdfRender
+
+    qlmanagePath = shutil.which("qlmanage")
+    if not qlmanagePath:
+        return fallback_render(resultDirectory, artifactPath, artifactKind, "qlmanage was not found")
+
+    renderDirectory = screenshots_directory(resultDirectory)
+    renderDirectory.mkdir(exist_ok=True)
+    temporaryRenderDirectory = renderDirectory / ".render-tmp"
+    clear_directory(temporaryRenderDirectory)
+    temporaryRenderDirectory.mkdir(exist_ok=True)
+    completedProcess = subprocess.run(
+        [qlmanagePath, "-t", "-s", "1600", "-o", str(temporaryRenderDirectory), str(artifactPath)],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    temporaryImagePaths = normalize_render_screenshots(temporaryRenderDirectory)
+    hasNewImages = completedProcess.returncode == 0 and any(path.stat().st_size > 0 for path in temporaryImagePaths)
+    if hasNewImages:
+        clear_render_directory(renderDirectory)
+        imagePaths = move_render_screenshots(temporaryImagePaths, renderDirectory)
+    else:
+        imagePaths = sorted(path for path in renderDirectory.glob("*.png") if path.is_file())
+    images = [inspect_render_image(path) for path in imagePaths]
+    clear_directory(temporaryRenderDirectory)
+    usedExistingScreenshots = not hasNewImages and bool(images)
+    if not hasNewImages and not images:
+        return fallback_render(resultDirectory, artifactPath, artifactKind, qlmanage_failure_reason(completedProcess))
+    return {
+        "attempted": True,
+        "renderer": "qlmanage",
+        "exitCode": completedProcess.returncode,
+        "passed": hasNewImages or any(image["fileBytes"] > 0 for image in images),
+        "usedExistingScreenshots": usedExistingScreenshots,
+        "screenshots": images,
+    }
+
+
+def render_pdf_with_pdftoppm(resultDirectory: Path, artifactPath: Path) -> dict:
+    pdftoppmPath = shutil.which("pdftoppm")
+    if not pdftoppmPath:
+        return {"attempted": True, "renderer": "pdftoppm", "passed": False, "reason": "pdftoppm was not found", "screenshots": []}
+    renderDirectory = screenshots_directory(resultDirectory)
+    renderDirectory.mkdir(exist_ok=True)
+    temporaryRenderDirectory = renderDirectory / ".pdf-render-tmp"
+    clear_directory(temporaryRenderDirectory)
+    temporaryRenderDirectory.mkdir(exist_ok=True)
+    outputPrefix = temporaryRenderDirectory / "page"
+    completedProcess = subprocess.run(
+        [pdftoppmPath, "-png", "-r", "144", "-f", "1", "-singlefile", str(artifactPath), str(outputPrefix)],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    imagePaths = sorted(path for path in temporaryRenderDirectory.glob("*.png") if path.is_file())
+    hasNewImages = completedProcess.returncode == 0 and any(path.stat().st_size > 0 for path in imagePaths)
+    if not hasNewImages:
+        clear_directory(temporaryRenderDirectory)
+        return {
+            "attempted": True,
+            "renderer": "pdftoppm",
+            "exitCode": completedProcess.returncode,
+            "passed": False,
+            "reason": first_non_empty_string(completedProcess.stderr.strip(), completedProcess.stdout.strip(), "pdftoppm did not produce screenshots"),
+            "screenshots": [],
+        }
+    clear_render_directory(renderDirectory)
+    movedPaths = move_render_screenshots(imagePaths, renderDirectory)
+    images = [inspect_render_image(path) for path in movedPaths]
+    clear_directory(temporaryRenderDirectory)
+    return {
+        "attempted": True,
+        "renderer": "pdftoppm",
+        "exitCode": completedProcess.returncode,
+        "passed": True,
+        "screenshots": images,
+    }
+
+
+def fallback_render(resultDirectory: Path, artifactPath: Path, artifactKind: str, reason: str) -> dict:
+    renderDirectory = screenshots_directory(resultDirectory)
+    renderDirectory.mkdir(exist_ok=True)
+    clear_render_directory(renderDirectory)
+    imagePath = renderDirectory / "render-001.png"
+    isRendered = render_preview_image(artifactPath, artifactKind, imagePath)
+    images = [inspect_render_image(imagePath)] if isRendered else []
+    return {
+        "attempted": True,
+        "renderer": "python-pillow-preview",
+        "passed": isRendered,
+        "reason": reason,
+        "screenshots": images,
+    }
+
+
+def qlmanage_failure_reason(completedProcess: subprocess.CompletedProcess) -> str:
+    return first_non_empty_string(
+        completedProcess.stderr.strip(),
+        completedProcess.stdout.strip(),
+        f"qlmanage exited with {completedProcess.returncode}",
+    )
+
+
+def render_preview_image(artifactPath: Path, artifactKind: str, imagePath: Path) -> bool:
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return False
+    lines = preview_lines_for_artifact(artifactPath, artifactKind)
+    if not lines:
+        return False
+    width = 1240
+    height = 1600
+    margin = 72
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+    titleFont = preview_font(34)
+    bodyFont = preview_font(24)
+    smallFont = preview_font(18)
+    draw.rectangle((0, 0, width, 18), fill=(28, 57, 89))
+    y = margin
+    title = artifactPath.name
+    draw.text((margin, y), title, fill=(24, 33, 45), font=titleFont)
+    y += 58
+    draw.line((margin, y, width - margin, y), fill=(210, 218, 226), width=2)
+    y += 34
+    for line in wrapped_preview_lines(draw, lines, bodyFont, width - margin * 2):
+        if y > height - margin - 32:
+            draw.text((margin, height - margin), "…", fill=(96, 106, 116), font=smallFont)
+            break
+        draw.text((margin, y), line, fill=(35, 43, 52), font=bodyFont)
+        y += 35
+    image.save(imagePath)
+    return imagePath.exists() and imagePath.stat().st_size > 0
+
+
+def preview_lines_for_artifact(artifactPath: Path, artifactKind: str) -> list[str]:
+    if artifactKind == "xlsx":
+        return xlsx_preview_lines(artifactPath)
+    text = extract_artifact_text(artifactPath, artifactKind)
+    return [line.strip() for line in text.splitlines() if line.strip()][:70]
+
+
+def wrapped_preview_lines(draw, lines: list[str], font, maxWidth: int) -> list[str]:
+    wrappedLines = []
+    for line in lines:
+        words = line.split()
+        if not words:
+            wrappedLines.append("")
+            continue
+        currentLine = ""
+        for word in words:
+            candidate = word if not currentLine else currentLine + " " + word
+            if draw.textlength(candidate, font=font) <= maxWidth:
+                currentLine = candidate
+                continue
+            if currentLine:
+                wrappedLines.append(currentLine)
+            currentLine = word
+        if currentLine:
+            wrappedLines.append(currentLine)
+    return wrappedLines
+
+
+def preview_font(size: int):
+    from PIL import ImageFont
+    for path in preview_font_paths():
+        if Path(path).exists():
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+    return ImageFont.load_default()
+
+
+def preview_font_paths() -> list[str]:
+    return [
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ]
+
+
+def xlsx_preview_lines(artifactPath: Path) -> list[str]:
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            sharedStrings = read_xlsx_shared_strings(archive)
+            sheetNames = read_xlsx_workbook_text(archive)
+            worksheetPaths = sorted(path for path in archive.namelist() if path.startswith("xl/worksheets/") and path.endswith(".xml"))
+            lines = []
+            for index, worksheetPath in enumerate(worksheetPaths[:3]):
+                sheetName = sheetNames[index] if index < len(sheetNames) else Path(worksheetPath).stem
+                lines.append(f"[{sheetName}]")
+                root = ElementTree.fromstring(archive.read(worksheetPath))
+                rows = xlsx_preview_rows(root, sharedStrings)
+                lines.extend(rows[:12])
+                lines.append("")
+            return lines
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return []
+
+
+def xlsx_preview_rows(root: ElementTree.Element, sharedStrings: list[str]) -> list[str]:
+    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    rows = []
+    for row in root.findall(".//main:row", namespace):
+        values = []
+        for cell in row.findall("main:c", namespace)[:8]:
+            cellValues = read_xlsx_cell_values(cell, sharedStrings, namespace)
+            values.append(" ".join(cellValues) if cellValues else "")
+        if any(value.strip() for value in values):
+            rows.append(" | ".join(values))
+    return rows
+
+
+def audit_website_render(resultDirectory: Path, diagnosticDirectory: Path, exitCode) -> dict:
+    commandPath = diagnosticDirectory / "command.json"
+    command = read_json(commandPath).get("command", []) if commandPath.exists() else []
+    testResult = read_test_result(diagnosticDirectory)
+    screenshots = restore_site_screenshots(resultDirectory, testResult)
+    hasExpectedPublicURL = "--expect-public-url" in command
+    isPassed = exitCode == 0 and hasExpectedPublicURL
+    if testResult:
+        isPassed = isPassed and bool(testResult.get("siteScreenshotsVerified"))
+    return {
+        "attempted": hasExpectedPublicURL,
+        "renderer": "remote chromium via Mattermost public URL verification",
+        "passed": isPassed,
+        "expectedTools": expected_tools_from_command(command),
+        "publicURL": str(testResult.get("sitePublicURL", "")).strip() if testResult else "",
+        "screenshots": screenshots,
+    }
+
+
+def restore_site_screenshots(resultDirectory: Path, testResult: dict) -> list[dict]:
+    if not testResult:
+        return []
+    screenshots = testResult.get("siteScreenshots", [])
+    if not isinstance(screenshots, list):
+        return []
+    if not screenshots:
+        renderDirectory = screenshots_directory(resultDirectory)
+        if not renderDirectory.exists():
+            return []
+        return [inspect_render_image(path) for path in sorted(renderDirectory.glob("*.png")) if path.is_file()]
+    renderDirectory = screenshots_directory(resultDirectory)
+    renderDirectory.mkdir(exist_ok=True)
+    clear_render_directory(renderDirectory)
+    restoredScreenshots = []
+    for index, screenshot in enumerate(screenshots, start=1):
+        if not isinstance(screenshot, dict):
+            continue
+        contentBase64 = str(screenshot.get("contentBase64", ""))
+        if not contentBase64:
+            continue
+        filename = "site-desktop.png" if index == 1 else "site-mobile.png"
+        path = renderDirectory / filename
+        try:
+            path.write_bytes(base64.b64decode(contentBase64))
+        except (ValueError, OSError):
+            continue
+        restoredScreenshots.append(inspect_render_image(path))
+    return restoredScreenshots
+
+
+def expected_tools_from_command(command: list[str]) -> list[str]:
+    expectedTools = []
+    for index, argument in enumerate(command):
+        if argument == "--expect-tool" and index + 1 < len(command):
+            expectedTools.append(command[index + 1])
+    return expectedTools
+
+
+def clear_render_directory(renderDirectory: Path) -> None:
+    for path in renderDirectory.iterdir():
+        if path.is_file():
+            path.unlink()
+
+
+def clear_directory(directory: Path) -> None:
+    if directory.exists():
+        shutil.rmtree(directory)
+
+
+def move_render_screenshots(imagePaths: list[Path], renderDirectory: Path) -> list[Path]:
+    movedPaths = []
+    for index, imagePath in enumerate(imagePaths, start=1):
+        destinationPath = renderDirectory / f"render-{index:03d}.png"
+        imagePath.replace(destinationPath)
+        movedPaths.append(destinationPath)
+    return movedPaths
+
+
+def normalize_render_screenshots(renderDirectory: Path) -> list[Path]:
+    imagePaths = sorted(path for path in renderDirectory.glob("*.png") if path.is_file())
+    normalizedPaths = []
+    for index, imagePath in enumerate(imagePaths, start=1):
+        normalizedPath = renderDirectory / f"render-{index:03d}.png"
+        if imagePath != normalizedPath:
+            imagePath.replace(normalizedPath)
+        normalizedPaths.append(normalizedPath)
+    return normalizedPaths
+
+
+def inspect_render_image(path: Path) -> dict:
+    image = {
+        "path": relative_path(path),
+        "fileBytes": path.stat().st_size,
+    }
+    dimensions = render_image_dimensions(path)
+    if dimensions:
+        image["dimensions"] = dimensions
+    visualMetrics = render_image_visual_metrics(path)
+    if visualMetrics:
+        image["visualMetrics"] = visualMetrics
+    return image
+
+
+def render_image_visual_metrics(path: Path) -> dict:
+    try:
+        from PIL import Image
+    except ImportError:
+        return {}
+    try:
+        image = Image.open(path).convert("RGBA")
+    except OSError:
+        return {}
+    width, height = image.size
+    if width <= 0 or height <= 0:
+        return {}
+    step = max(1, int(max(width, height) / 600))
+    pixels = image.load()
+    contentPixels = []
+    sampledCount = 0
+    for y in range(0, height, step):
+        for x in range(0, width, step):
+            red, green, blue, alpha = pixels[x, y]
+            if alpha < 20:
+                continue
+            sampledCount += 1
+            if min(red, green, blue) < 245 or max(red, green, blue) - min(red, green, blue) > 12:
+                contentPixels.append((x, y))
+    if sampledCount == 0 or not contentPixels:
+        return {
+            "contentDensity": 0,
+            "visualBalanceScore": 0,
+            "reason": "no visible non-background content detected",
+        }
+    xValues = [point[0] for point in contentPixels]
+    yValues = [point[1] for point in contentPixels]
+    contentDensity = len(contentPixels) / sampledCount
+    bounds = {
+        "left": min(xValues),
+        "right": max(xValues),
+        "top": min(yValues),
+        "bottom": max(yValues),
+    }
+    centerOffsetX = abs(((bounds["left"] + bounds["right"]) / 2) - (width / 2)) / width
+    centerOffsetY = abs(((bounds["top"] + bounds["bottom"]) / 2) - (height / 2)) / height
+    marginRatios = {
+        "left": bounds["left"] / width,
+        "right": (width - bounds["right"]) / width,
+        "top": bounds["top"] / height,
+        "bottom": (height - bounds["bottom"]) / height,
+    }
+    visualBalanceScore = score_visual_balance(contentDensity, centerOffsetX, centerOffsetY, marginRatios)
+    return {
+        "contentDensity": round(contentDensity, 4),
+        "centerOffsetX": round(centerOffsetX, 4),
+        "centerOffsetY": round(centerOffsetY, 4),
+        "marginRatios": {key: round(value, 4) for key, value in marginRatios.items()},
+        "visualBalanceScore": round(visualBalanceScore, 3),
+    }
+
+
+def score_visual_balance(contentDensity: float, centerOffsetX: float, centerOffsetY: float, marginRatios: dict[str, float]) -> float:
+    densityPenalty = 0.0
+    if contentDensity < 0.015:
+        densityPenalty = 0.35
+    elif contentDensity > 0.75:
+        densityPenalty = 0.25
+    edgePenalty = min(0.35, sum(0.08 for value in marginRatios.values() if value < 0.015))
+    offsetPenalty = min(0.35, centerOffsetX * 1.4 + centerOffsetY * 0.7)
+    return max(0.0, 1.0 - densityPenalty - edgePenalty - offsetPenalty)
+
+
+def render_image_dimensions(path: Path) -> dict:
+    sipsPath = shutil.which("sips")
+    if not sipsPath:
+        return {}
+    completedProcess = subprocess.run(
+        [sipsPath, "-g", "pixelWidth", "-g", "pixelHeight", str(path)],
+        text=True,
+        capture_output=True,
+    )
+    if completedProcess.returncode != 0:
+        return {"inspectExitCode": completedProcess.returncode}
+    dimensions = {}
+    for line in completedProcess.stdout.splitlines():
+        key, _, value = line.strip().partition(":")
+        if key in {"pixelWidth", "pixelHeight"}:
+            dimensions[key] = int(value.strip())
+    return dimensions
+
+
+def audit_docx_format(artifactPath) -> dict:
+    if not artifactPath or not artifactPath.exists():
+        return {"isZip": False, "hasDocumentXML": False, "paragraphCount": 0, "tableCount": 0}
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            names = set(archive.namelist())
+            document = ElementTree.fromstring(archive.read("word/document.xml"))
+            typography = audit_docx_typography(document, names, archive)
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return {"isZip": False, "hasDocumentXML": False, "paragraphCount": 0, "tableCount": 0}
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    paragraphs = document.findall(".//w:p", namespace)
+    tables = document.findall(".//w:tbl", namespace)
+    tableSummaries = [summarize_docx_table(table, namespace) for table in tables]
+    return {
+        "isZip": True,
+        "hasDocumentXML": "word/document.xml" in names,
+        "hasStylesXML": "word/styles.xml" in names,
+        "paragraphCount": len([paragraph for paragraph in paragraphs if docx_paragraph_text(paragraph, namespace).strip()]),
+        "headingCount": count_docx_headings(paragraphs, namespace),
+        "pageBreakCount": len(document.findall(".//w:br[@w:type='page']", namespace)),
+        "tableCount": len(tables),
+        "wideTableCount": len([table for table in tableSummaries if table["columns"] > 5]),
+        "emptyTableCellCount": sum(table["emptyCellCount"] for table in tableSummaries),
+        "denseTableCellCount": sum(table["denseCellCount"] for table in tableSummaries),
+        "typography": typography,
+    }
+
+
+def summarize_docx_table(table: ElementTree.Element, namespace: dict[str, str]) -> dict:
+    rows = table.findall(".//w:tr", namespace)
+    columnCounts = []
+    emptyCellCount = 0
+    denseCellCount = 0
+    for row in rows:
+        cells = row.findall("w:tc", namespace)
+        columnCounts.append(len(cells))
+        for cell in cells:
+            text = "".join(node.text or "" for node in cell.findall(".//w:t", namespace)).strip()
+            if not text:
+                emptyCellCount += 1
+            if len(text) > 90:
+                denseCellCount += 1
+    return {
+        "rows": len(rows),
+        "columns": max(columnCounts) if columnCounts else 0,
+        "emptyCellCount": emptyCellCount,
+        "denseCellCount": denseCellCount,
+    }
+
+
+def docx_paragraph_text(paragraph: ElementTree.Element, namespace: dict[str, str]) -> str:
+    return "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
+
+
+def count_docx_headings(paragraphs: list[ElementTree.Element], namespace: dict[str, str]) -> int:
+    count = 0
+    styleAttribute = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val"
+    for paragraph in paragraphs:
+        style = paragraph.find(".//w:pStyle", namespace)
+        styleValue = style.get(styleAttribute, "") if style is not None else ""
+        if styleValue.startswith("Heading") or styleValue == "Title":
+            count += 1
+    return count
+
+
+def audit_docx_typography(document: ElementTree.Element, names: set[str], archive: zipfile.ZipFile) -> dict:
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    styles = read_docx_styles(archive, names)
+    fontSizes = collect_docx_font_sizes(document, namespace) + collect_docx_font_sizes(styles, namespace)
+    margins = read_docx_page_margins(document, namespace)
+    lineSpacingValues = collect_docx_line_spacing(document, namespace) + collect_docx_line_spacing(styles, namespace)
+    hasEastAsiaFont = docx_has_east_asia_font(document, namespace) or docx_has_east_asia_font(styles, namespace)
+    typographyScore = score_docx_typography(fontSizes, margins, lineSpacingValues, hasEastAsiaFont)
+    return {
+        "fontSizePoints": summarize_numeric_values(fontSizes),
+        "pageMarginsInches": margins,
+        "lineSpacingValues": summarize_numeric_values(lineSpacingValues),
+        "hasEastAsiaFont": hasEastAsiaFont,
+        "typographyScore": round(typographyScore, 3),
+    }
+
+
+def read_docx_styles(archive: zipfile.ZipFile, names: set[str]) -> ElementTree.Element | None:
+    if "word/styles.xml" not in names:
+        return None
+    try:
+        return ElementTree.fromstring(archive.read("word/styles.xml"))
+    except (KeyError, ElementTree.ParseError):
+        return None
+
+
+def collect_docx_font_sizes(root: ElementTree.Element | None, namespace: dict[str, str]) -> list[float]:
+    if root is None:
+        return []
+    values = []
+    valueAttribute = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val"
+    for sizeElement in root.findall(".//w:sz", namespace):
+        rawValue = sizeElement.get(valueAttribute)
+        if rawValue and rawValue.isdigit():
+            values.append(int(rawValue) / 2)
+    return values
+
+
+def collect_docx_line_spacing(root: ElementTree.Element | None, namespace: dict[str, str]) -> list[float]:
+    if root is None:
+        return []
+    values = []
+    lineAttribute = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}line"
+    for spacingElement in root.findall(".//w:spacing", namespace):
+        rawValue = spacingElement.get(lineAttribute)
+        if rawValue and rawValue.isdigit():
+            values.append(int(rawValue) / 240)
+    return values
+
+
+def read_docx_page_margins(document: ElementTree.Element, namespace: dict[str, str]) -> dict:
+    marginElement = document.find(".//w:sectPr/w:pgMar", namespace)
+    if marginElement is None:
+        return {}
+    attributes = {
+        "top": "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}top",
+        "right": "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}right",
+        "bottom": "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}bottom",
+        "left": "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}left",
+    }
+    margins = {}
+    for name, attribute in attributes.items():
+        value = marginElement.get(attribute)
+        if value and re.match(r"^-?[0-9]+$", value):
+            margins[name] = round(int(value) / 1440, 3)
+    return margins
+
+
+def docx_has_east_asia_font(root: ElementTree.Element | None, namespace: dict[str, str]) -> bool:
+    if root is None:
+        return False
+    eastAsiaAttribute = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia"
+    return any(bool(element.get(eastAsiaAttribute)) for element in root.findall(".//w:rFonts", namespace))
+
+
+def score_docx_typography(fontSizes: list[float], margins: dict, lineSpacingValues: list[float], hasEastAsiaFont: bool) -> float:
+    checks = []
+    if fontSizes:
+        medianFontSize = statistics.median(fontSizes)
+        checks.append(1.0 if 9 <= medianFontSize <= 12.5 else 0.45)
+        checks.append(1.0 if max(fontSizes) <= 24 else 0.65)
+    else:
+        checks.append(0.45)
+    if margins:
+        checks.append(average([1.0 if 0.45 <= margin <= 1.2 else 0.45 for margin in margins.values()]))
+    else:
+        checks.append(0.5)
+    if lineSpacingValues:
+        checks.append(average([1.0 if 1.0 <= value <= 1.35 else 0.55 for value in lineSpacingValues]))
+    else:
+        checks.append(0.7)
+    checks.append(1.0 if hasEastAsiaFont else 0.55)
+    return average(checks)
+
+
+def audit_pdf_format(artifactPath) -> dict:
+    if not artifactPath or not artifactPath.exists():
+        return {"isPDF": False, "pageCount": 0, "hasTextLayer": False}
+    text = extract_pdf_text(artifactPath)
+    fonts = pdf_fonts(artifactPath)
+    return {
+        "isPDF": artifactPath.read_bytes()[:4] == b"%PDF",
+        "pageCount": pdf_page_count(artifactPath),
+        "hasTextLayer": bool(text.strip()),
+        "extractedTextLength": len(text),
+        "fontCount": len(fonts),
+        "fonts": fonts[:20],
+        "typography": audit_pdf_typography(artifactPath),
+    }
+
+
+def pdf_page_count(artifactPath: Path) -> int:
+    pdfinfoPath = shutil.which("pdfinfo")
+    if not pdfinfoPath:
+        return 0
+    completedProcess = subprocess.run(
+        [pdfinfoPath, str(artifactPath)],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if completedProcess.returncode != 0:
+        return 0
+    for line in completedProcess.stdout.splitlines():
+        key, _, value = line.partition(":")
+        if key.strip() == "Pages":
+            try:
+                return int(value.strip())
+            except ValueError:
+                return 0
+    return 0
+
+
+def pdf_fonts(artifactPath: Path) -> list[str]:
+    pdffontsPath = shutil.which("pdffonts")
+    if not pdffontsPath:
+        return []
+    completedProcess = subprocess.run(
+        [pdffontsPath, str(artifactPath)],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if completedProcess.returncode != 0:
+        return []
+    fonts = []
+    for line in completedProcess.stdout.splitlines()[2:]:
+        name = line[:38].strip()
+        if name:
+            fonts.append(name)
+    return fonts
+
+
+def audit_pdf_typography(artifactPath: Path) -> dict:
+    pages = pdf_bbox_pages(artifactPath)
+    wordHeights = [word["height"] for page in pages for word in page["words"]]
+    margins = [page_margin_ratios(page) for page in pages if page["words"]]
+    typographyScore = score_pdf_typography(wordHeights, margins)
+    return {
+        "wordHeightPoints": summarize_numeric_values(wordHeights),
+        "pageMarginRatios": summarize_margin_ratios(margins),
+        "typographyScore": round(typographyScore, 3),
+    }
+
+
+def pdf_bbox_pages(artifactPath: Path) -> list[dict]:
+    pdftotextPath = shutil.which("pdftotext")
+    if not pdftotextPath:
+        return []
+    completedProcess = subprocess.run(
+        [pdftotextPath, "-bbox", str(artifactPath), "-"],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if completedProcess.returncode != 0:
+        return []
+    try:
+        root = ElementTree.fromstring(completedProcess.stdout)
+    except ElementTree.ParseError:
+        return []
+    namespace = {"html": "http://www.w3.org/1999/xhtml"}
+    pages = []
+    for page in root.findall(".//html:page", namespace):
+        width = float(page.get("width", "0") or 0)
+        height = float(page.get("height", "0") or 0)
+        words = []
+        for word in page.findall(".//html:word", namespace):
+            box = pdf_word_box(word)
+            if box:
+                words.append(box)
+        pages.append({"width": width, "height": height, "words": words})
+    return pages
+
+
+def pdf_word_box(word: ElementTree.Element) -> dict | None:
+    try:
+        xMin = float(word.get("xMin", ""))
+        yMin = float(word.get("yMin", ""))
+        xMax = float(word.get("xMax", ""))
+        yMax = float(word.get("yMax", ""))
+    except ValueError:
+        return None
+    return {
+        "xMin": xMin,
+        "xMax": xMax,
+        "yMin": yMin,
+        "yMax": yMax,
+        "height": max(0.0, yMax - yMin),
+    }
+
+
+def page_margin_ratios(page: dict) -> dict:
+    width = page.get("width", 0) or 1
+    height = page.get("height", 0) or 1
+    words = page.get("words", [])
+    left = min(word["xMin"] for word in words) / width
+    right = (width - max(word["xMax"] for word in words)) / width
+    top = min(word["yMin"] for word in words) / height
+    bottom = (height - max(word["yMax"] for word in words)) / height
+    return {"left": left, "right": right, "top": top, "bottom": bottom}
+
+
+def summarize_margin_ratios(margins: list[dict]) -> dict:
+    if not margins:
+        return {}
+    return {
+        edge: round(statistics.median([margin[edge] for margin in margins]), 4)
+        for edge in ["left", "right", "top", "bottom"]
+    }
+
+
+def score_pdf_typography(wordHeights: list[float], margins: list[dict]) -> float:
+    checks = []
+    if wordHeights:
+        medianHeight = statistics.median(wordHeights)
+        checks.append(1.0 if 6.5 <= medianHeight <= 14 else 0.45)
+        checks.append(1.0 if max(wordHeights) <= 28 else 0.7)
+    else:
+        checks.append(0.0)
+    if margins:
+        edgeScores = []
+        for margin in margins:
+            edgeScores.extend(1.0 if 0.04 <= value <= 0.22 else 0.5 for value in margin.values())
+        checks.append(average(edgeScores))
+    else:
+        checks.append(0.5)
+    return average(checks)
+
+
+def audit_website_format(diagnosticDirectory: Path) -> dict:
+    testResult = read_test_result(diagnosticDirectory)
+    if not testResult:
+        return {"hasPublicURL": False, "renderedTextLength": 0, "siteScreenshotsVerified": False, "typography": {}}
+    siteHTMLText = str(testResult.get("siteHTMLText", ""))
+    siteScreenshots = testResult.get("siteScreenshots", [])
+    siteStyleMetrics = testResult.get("siteStyleMetrics", {})
+    return {
+        "hasPublicURL": bool(str(testResult.get("sitePublicURL", "")).strip()),
+        "publicURL": str(testResult.get("sitePublicURL", "")).strip(),
+        "renderedTextLength": len(siteHTMLText.strip()),
+        "hasRenderedText": bool(siteHTMLText.strip()),
+        "siteScreenshotsVerified": bool(testResult.get("siteScreenshotsVerified")),
+        "screenshotCount": len(siteScreenshots) if isinstance(siteScreenshots, list) else 0,
+        "typography": siteStyleMetrics if isinstance(siteStyleMetrics, dict) else {},
+    }
+
+
+def audit_xlsx_format(artifactPath) -> dict:
+    if not artifactPath or not artifactPath.exists():
+        return {"isZip": False, "hasWorkbookXML": False, "sheetCount": 0, "formulaCount": 0}
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            names = set(archive.namelist())
+            workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+            worksheetRoots = [
+                ElementTree.fromstring(archive.read(path))
+                for path in sorted(names)
+                if path.startswith("xl/worksheets/") and path.endswith(".xml")
+            ]
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return {"isZip": False, "hasWorkbookXML": False, "sheetCount": 0, "formulaCount": 0}
+    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    return {
+        "isZip": True,
+        "hasWorkbookXML": "xl/workbook.xml" in names,
+        "sheetCount": len(workbook.findall(".//main:sheet", namespace)),
+        "sheetNames": [
+            sheet.get("name", "")
+            for sheet in workbook.findall(".//main:sheet", namespace)
+            if sheet.get("name")
+        ],
+        "formulaCount": sum(len(root.findall(".//main:f", namespace)) for root in worksheetRoots),
+        "offRowFormulaCount": count_off_row_formulas(worksheetRoots, namespace),
+        "hasFrozenPanes": any(root.find(".//main:pane[@state='frozen']", namespace) is not None for root in worksheetRoots),
+        "hasAutoFilter": any(root.find(".//main:autoFilter", namespace) is not None for root in worksheetRoots),
+        "nonEmptyCellCount": sum(len(root.findall(".//main:c", namespace)) for root in worksheetRoots),
+    }
+
+
+def count_off_row_formulas(worksheetRoots: list[ElementTree.Element], namespace: dict[str, str]) -> int:
+    count = 0
+    for root in worksheetRoots:
+        for cell in root.findall(".//main:c", namespace):
+            formula = cell.find("main:f", namespace)
+            if formula is not None and formula.text and formula_uses_different_row_reference(cell.get("r", ""), formula.text):
+                count += 1
+    return count
+
+
+def formula_uses_different_row_reference(cellReference: str, formulaText: str) -> bool:
+    cellRow = cell_reference_row(cellReference)
+    if cellRow is None:
+        return False
+    formula = formulaText.upper()
+    if "!" in formula:
+        return False
+    if any(functionName in formula for functionName in ["SUM(", "AVERAGE(", "COUNT(", "MIN(", "MAX("]):
+        return False
+    referencedRows = [int(match.group(2)) for match in re.finditer(r"(?<![A-Z])([A-Z]{1,3})([0-9]+)", formula)]
+    if not referencedRows:
+        return False
+    return any(rowNumber != cellRow for rowNumber in referencedRows)
+
+
+def cell_reference_row(cellReference: str) -> int | None:
+    match = re.search(r"([0-9]+)$", cellReference or "")
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def write_result_summary(resultDirectory: Path, evaluation: dict, audit: dict | None) -> None:
+    files = collect_files(resultDirectory)
+    screenshots = collect_screenshots(resultDirectory)
+    summary = {
+        "evaluationID": evaluation["id"],
+        "artifactKind": evaluation["artifactKind"],
+        "files": files,
+        "screenshots": screenshots,
+        "outputStatus": summarize_output_status(evaluation, audit, files, screenshots),
+        "audit": audit_summary(audit) if audit else None,
+    }
+    write_json(resultDirectory / "summary.json", summary)
+
+
+def summarize_output_status(evaluation: dict, audit: dict | None, files: list[dict], screenshots: list[dict]) -> dict:
+    if audit is None:
+        return {
+            "artifact": "not_audited",
+            "artifactReason": "Dry run or interrupted run did not audit generated output.",
+            "screenshots": "not_audited",
+            "screenshotReason": "Dry run or interrupted run did not run render checks.",
+        }
+    artifactStatus, artifactReason = summarize_artifact_status(evaluation, audit, files)
+    screenshotStatus, screenshotReason = summarize_screenshot_status(evaluation, audit, screenshots)
+    return {
+        "artifact": artifactStatus,
+        "artifactReason": artifactReason,
+        "screenshots": screenshotStatus,
+        "screenshotReason": screenshotReason,
+    }
+
+
+def summarize_artifact_status(evaluation: dict, audit: dict, files: list[dict]) -> tuple[str, str]:
+    if files:
+        return "saved", f"{len(files)} artifact file(s) saved under results/<evaluation>/files."
+    if audit.get("exitCode") is None:
+        return "not_run", "Generation command was skipped, dry-run, or interrupted before a command result was recorded."
+    if evaluation["artifactKind"] == "website" and not evaluation.get("outputFileName"):
+        publicURL = audit.get("formatChecks", {}).get("publicURL", "")
+        if publicURL:
+            return "not_file_artifact", "Website eval stores the public URL and screenshots instead of a file attachment."
+        if audit.get("exitCode") != 0:
+            return "missing", "Website generation command failed before a public URL or downloadable artifact was available."
+        return "not_file_artifact", "Website eval did not request a local file artifact."
+    if audit.get("artifactExists"):
+        return "missing_from_summary", "Audit found an artifact, but it was not listed under the files directory."
+    if audit.get("exitCode") != 0:
+        return "missing", "Generation command failed before the requested artifact was copied."
+    return "missing", "No artifact was found at the expected output path."
+
+
+def summarize_screenshot_status(evaluation: dict, audit: dict, screenshots: list[dict]) -> tuple[str, str]:
+    if screenshots:
+        return "saved", f"{len(screenshots)} screenshot(s) saved under results/<evaluation>/screenshots."
+    if audit.get("exitCode") is None:
+        return "not_run", "Generation command was skipped, dry-run, or interrupted before render checks could run."
+    renderChecks = audit.get("renderChecks", {})
+    if not renderChecks.get("attempted"):
+        return "not_attempted", renderChecks.get("reason", "Render check was not attempted.")
+    if renderChecks.get("passed"):
+        return "missing_from_summary", "Render check passed, but no screenshot files were listed."
+    renderer = renderChecks.get("renderer", "unknown renderer")
+    exitCode = renderChecks.get("exitCode")
+    if exitCode is not None:
+        return "missing", f"{renderer} render failed with exit code {exitCode}."
+    return "missing", f"{renderer} render did not produce screenshots."
+
+
+def collect_outputs(runDirectory: Path, scenarios: list[dict]) -> list[dict]:
+    outputs = []
+    for scenario in scenarios:
+        directory = existing_result_directory(runDirectory, scenario["evaluationID"])
+        summaryPath = directory / "summary.json"
+        if summaryPath.exists():
+            outputs.append(read_json(summaryPath))
+            continue
+        outputs.append({
+            "evaluationID": scenario["evaluationID"],
+            "artifactKind": scenario["artifactKind"],
+            "files": collect_files(directory),
+            "screenshots": collect_screenshots(directory),
+        })
+    return outputs
+
+
+def collect_files(resultDirectory: Path) -> list[dict]:
+    directory = files_directory(resultDirectory)
+    if not directory.exists():
+        directory = resultDirectory
+    return [file_entry(path) for path in sorted(directory.iterdir()) if path.is_file() and is_artifact_file(path)]
+
+
+def is_artifact_file(path: Path) -> bool:
+    return path.suffix.lower() in ARTIFACT_FILE_EXTENSIONS
+
+
+def collect_screenshots(resultDirectory: Path) -> list[dict]:
+    directory = screenshots_directory(resultDirectory)
+    if not directory.exists():
+        directory = resultDirectory / "render"
+    if not directory.exists():
+        return []
+    return [file_entry(path) for path in sorted(directory.glob("*.png")) if path.is_file()]
+
+
+def file_entry(path: Path) -> dict:
+    entry = {
+        "path": relative_path(path),
+        "fileBytes": path.stat().st_size,
+    }
+    dimensions = render_image_dimensions(path) if path.suffix.lower() == ".png" else {}
+    if dimensions:
+        entry["dimensions"] = dimensions
+    return entry
+
+
+def collect_audit_summaries(runDirectory: Path, scenarios: list[dict]) -> list[dict]:
+    audits = []
+    for scenario in scenarios:
+        auditPath = existing_result_directory(runDirectory, scenario["evaluationID"]) / "audit.json"
+        if auditPath.exists():
+            audits.append(audit_summary(read_json(auditPath)))
+    return audits
+
+
+def audit_summary(audit: dict) -> dict:
+    renderChecks = audit.get("renderChecks", {})
+    return {
+        "evaluationID": audit.get("evaluationID"),
+        "artifactKind": audit.get("artifactKind"),
+        "exitCode": audit.get("exitCode"),
+        "artifactPath": audit.get("artifactPath"),
+        "artifactExists": audit.get("artifactExists"),
+        "artifactBytes": audit.get("artifactBytes"),
+        "requiredMissing": audit.get("requiredText", {}).get("missing", []),
+        "forbiddenPresent": audit.get("forbiddenText", {}).get("present", []),
+        "formatChecks": audit.get("formatChecks", {}),
+        "render": {
+            "attempted": renderChecks.get("attempted", False),
+            "reason": renderChecks.get("reason", ""),
+            "renderer": renderChecks.get("renderer"),
+            "exitCode": renderChecks.get("exitCode"),
+            "passed": renderChecks.get("passed", False),
+            "usedExistingScreenshots": renderChecks.get("usedExistingScreenshots", False),
+            "screenshots": renderChecks.get("screenshots", renderChecks.get("images", [])),
+        },
+    }
+
+
+def resolve_run_directory(runDirectoryValue: str) -> Path:
+    runDirectory = Path(runDirectoryValue)
+    if not runDirectory.is_absolute():
+        runDirectory = REPOSITORY_ROOT / runDirectory
+    if not runDirectory.exists():
+        raise SystemExit(f"run directory does not exist: {runDirectoryValue}")
+    return runDirectory
+
+
+def current_timestamp() -> str:
+    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def current_datetime() -> str:
+    return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def git_revision() -> str:
+    completedProcess = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPOSITORY_ROOT, text=True, capture_output=True)
+    if completedProcess.returncode != 0:
+        return "unknown"
+    return completedProcess.stdout.strip()
+
+
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_test_result(diagnosticDirectory: Path) -> dict:
+    path = diagnosticDirectory / "test-result.json"
+    if not path.exists():
+        return {}
+    try:
+        document = read_json(path)
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return document if isinstance(document, dict) else {}
+
+
+def write_json(path: Path, value: dict) -> None:
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def relative_path(path: Path) -> str:
+    return path.relative_to(REPOSITORY_ROOT).as_posix()
+
+
+def format_float(value: float) -> str:
+    return f"{value:g}"
+
+
+def first_non_empty_string(*values) -> str:
+    for value in values:
+        trimmedValue = str(value or "").strip()
+        if trimmedValue:
+            return trimmedValue
+    return ""
+
+
+if __name__ == "__main__":
+    sys.exit(main())

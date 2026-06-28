@@ -3,6 +3,7 @@
 .playwright-mcp/
 .playwright-cli/
 .artifacts/
+.artifacts/skill-artifact-evals/
 .cache/
 .gocache/
 .agents/

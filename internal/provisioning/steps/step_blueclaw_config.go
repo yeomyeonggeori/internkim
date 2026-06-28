@@ -89,9 +89,12 @@ func remoteFileMatchesContent(context *Context, path string, content string) boo
 }
 
 func generatedBlueclawRuntimeConfiguration(context *Context) (string, error) {
-	return blueclaw.BlueclawRuntimeConfigDocumentWithOptions(blueclaw.RuntimeConfigOptions{
-		AdminTaskLinkBaseURL: loadDeviceURL(context),
-	})
+	options, errorValue := blueclaw.BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	options.AdminTaskLinkBaseURL = loadDeviceURL(context)
+	return blueclaw.BlueclawRuntimeConfigDocumentWithOptions(options)
 }
 
 func loadDeviceURL(context *Context) string {

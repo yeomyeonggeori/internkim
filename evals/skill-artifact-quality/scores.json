@@ -1,0 +1,1071 @@
+{
+  "version": 1,
+  "runs": [
+    {
+      "runID": "20260627T145601Z",
+      "startedAt": "2026-06-27T14:56:01Z",
+      "completedAt": "2026-06-27T15:02:25Z",
+      "recordedAt": "2026-06-27T15:25:35Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260627T145601Z",
+      "generationOptions": null,
+      "scores": [
+        {
+          "evaluationID": "docx-business-review",
+          "skillName": "docx",
+          "artifactKind": "docx",
+          "totalScore": 93,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 34,
+              "evidence": "Extracted DOCX text preserves company, period, owner names, dates, core metrics, targets, missing-value marker, and no obvious unsupported factual additions were found."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 19,
+              "evidence": "Generated a DOCX attachment with title, summary, core metrics table, risks/responses, and next 30 day actions within the requested scope."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 14,
+              "evidence": "Downloaded Mattermost attachment is valid Microsoft OOXML; audit confirms ZIP structure, word/document.xml, 38KB artifact, extracted text, 4 tables, and successful qlmanage render to a 1246x1600 PNG."
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 14,
+              "evidence": "The document synthesizes the supplied data into leadership summary, risk framing, and action plan without relying on external facts."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 12,
+              "evidence": "Rendered first-page preview is readable with no blank output or severe clipping. Table alignment is still rough and several dense rows lack strong grid/header treatment, so this is not a high-polish visual result."
+            }
+          ],
+          "notes": "Baseline run through ./internkim test Mattermost DM path. Retroactive audit confirms all required text present, no configured forbidden text present, valid DOCX ZIP, document.xml present, 4 tables, and qlmanage render pass."
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "docx-business-review",
+          "artifactKind": "docx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/han-river-ops-q2-review.docx",
+          "artifactExists": true,
+          "artifactBytes": 38261,
+          "extractedTextLength": 1130,
+          "requiredText": {
+            "present": [
+              "Han River Ops",
+              "2026년 2분기",
+              "1,436",
+              "1,392",
+              "2.6",
+              "18.7",
+              "93%",
+              "17",
+              "Maya Chen",
+              "Omar Diaz",
+              "Priya Nair",
+              "Daniel Park",
+              "2026-07-31",
+              "제공된 자료 없음"
+            ],
+            "missing": []
+          },
+          "forbiddenText": {
+            "present": [],
+            "missing": [
+              "$",
+              "ARR",
+              "MRR",
+              "Acme",
+              "Slack",
+              "Salesforce"
+            ]
+          },
+          "formatChecks": {
+            "isZip": true,
+            "hasDocumentXML": true,
+            "tableCount": 4
+          },
+          "renderChecks": {
+            "attempted": true,
+            "renderer": "qlmanage",
+            "exitCode": 0,
+            "passed": true,
+            "command": [
+              "/usr/bin/qlmanage",
+              "-t",
+              "-s",
+              "1600",
+              "-o",
+              ".artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/render",
+              ".artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/han-river-ops-q2-review.docx"
+            ],
+            "stdout": "Testing Quick Look thumbnails with files:\n\t/Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/han-river-ops-q2-review.docx\n* /Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/han-river-ops-q2-review.docx produced one thumbnail\nDone producing thumbnails\n",
+            "stderr": "",
+            "images": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260627T145601Z/docx-business-review/render/han-river-ops-q2-review.docx.png",
+                "fileBytes": 348409,
+                "dimensions": {
+                  "pixelWidth": 1246,
+                  "pixelHeight": 1600
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "runID": "20260627T155654Z",
+      "startedAt": "2026-06-27T15:56:54Z",
+      "completedAt": "2026-06-27T16:03:45Z",
+      "recordedAt": "2026-06-27T16:05:08Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260627T155654Z",
+      "generationOptions": {
+        "requestedSeed": 41,
+        "requestedTemperature": 0.0,
+        "effectiveSeed": 41,
+        "effectiveTemperature": 0.0,
+        "applicationPath": "blueclaw agent.generationOptions via internkim test"
+      },
+      "scores": [
+        {
+          "evaluationID": "docx-business-review",
+          "skillName": "docx",
+          "artifactKind": "docx",
+          "totalScore": 86,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 33,
+              "evidence": "DOCX text preserves the supplied company, owners, dates, core metrics, targets, and missing-value marker, with no configured forbidden terms or obvious unsupported facts. One required literal, 2026년 2분기, is missing because the artifact uses 2026 Q2 instead."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 18,
+              "evidence": "Generated the requested DOCX attachment with title, summary, core metrics, risks/responses, and next 30 day actions. It satisfies the main workflow, but the requested Korean period wording is not preserved and several labels remain in English."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 14,
+              "evidence": "Mattermost command exited 0. Audit confirms a 38KB valid DOCX ZIP with word/document.xml, 3 detected tables, extracted text, and successful qlmanage render to a 1246x1600 PNG."
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 13,
+              "evidence": "The artifact turns supplied metrics, risks, and 30 day actions into a usable leadership review without relying on external facts. The synthesis is useful but not especially polished for a Korean internal leadership document."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 8,
+              "evidence": "Rendered preview is readable and nonblank, but the tables have little grid/header treatment, narrow columns create cramped multi-line cells, and the first page looks more like raw tabular text than a polished operations review."
+            }
+          ],
+          "notes": "Seeded run through ./internkim test Mattermost DM path using seed 41 and temperature 0. Render audit passed with qlmanage, but visual table polish and Korean localization are the main score limiters."
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "docx-business-review",
+          "artifactKind": "docx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/han-river-ops-q2-review.docx",
+          "artifactExists": true,
+          "artifactBytes": 38279,
+          "extractedTextLength": 1818,
+          "requiredText": {
+            "present": [
+              "Han River Ops",
+              "1,436",
+              "1,392",
+              "2.6",
+              "18.7",
+              "93%",
+              "17",
+              "Maya Chen",
+              "Omar Diaz",
+              "Priya Nair",
+              "Daniel Park",
+              "2026-07-31",
+              "제공된 자료 없음"
+            ],
+            "missing": [
+              "2026년 2분기"
+            ]
+          },
+          "forbiddenText": {
+            "present": [],
+            "missing": [
+              "$",
+              "ARR",
+              "MRR",
+              "Acme",
+              "Slack",
+              "Salesforce"
+            ]
+          },
+          "formatChecks": {
+            "isZip": true,
+            "hasDocumentXML": true,
+            "tableCount": 3
+          },
+          "renderChecks": {
+            "attempted": true,
+            "renderer": "qlmanage",
+            "exitCode": 0,
+            "passed": true,
+            "command": [
+              "/usr/bin/qlmanage",
+              "-t",
+              "-s",
+              "1600",
+              "-o",
+              ".artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/render",
+              ".artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/han-river-ops-q2-review.docx"
+            ],
+            "stdout": "Testing Quick Look thumbnails with files:\n\t/Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/han-river-ops-q2-review.docx\n* /Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/han-river-ops-q2-review.docx produced one thumbnail\nDone producing thumbnails\n",
+            "stderr": "",
+            "images": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260627T155654Z/docx-business-review/render/han-river-ops-q2-review.docx.png",
+                "fileBytes": 328217,
+                "dimensions": {
+                  "pixelWidth": 1246,
+                  "pixelHeight": 1600
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "runID": "20260627T161640Z",
+      "startedAt": "2026-06-27T16:16:40Z",
+      "completedAt": "2026-06-27T16:23:04Z",
+      "recordedAt": "2026-06-27T16:24:00Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260627T161640Z",
+      "generationOptions": {
+        "requestedSeed": 41,
+        "requestedTemperature": 0.0,
+        "effectiveSeed": 41,
+        "effectiveTemperature": 0.0,
+        "applicationPath": "blueclaw agent.generationOptions via internkim test"
+      },
+      "scores": [
+        {
+          "evaluationID": "docx-business-review",
+          "skillName": "docx",
+          "artifactKind": "docx",
+          "totalScore": 85,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 32,
+              "evidence": "DOCX text preserves the supplied company, owners, dates, core metrics, targets, and missing-value marker, with no configured forbidden terms. It still misses the required literal 2026년 2분기 and translates the company name in one heading as 한강 Ops."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 18,
+              "evidence": "Generated the requested DOCX attachment with title, summary, core metrics, risks/responses, and next 30 day actions. The main workflow is satisfied, but Korean localization remains partial."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 14,
+              "evidence": "Mattermost command exited 0. Audit confirms a 38KB valid DOCX ZIP with word/document.xml, 3 detected tables, extracted text, and successful qlmanage render to a 1246x1600 PNG."
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 13,
+              "evidence": "The artifact turns supplied metrics, risks, and 30 day actions into a usable leadership review without relying on external facts. The synthesis is useful but not especially polished for a Korean internal leadership document."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 8,
+              "evidence": "Rendered preview is readable and nonblank, but the tables still have little grid/header treatment, narrow columns create cramped multi-line cells, and the first page looks more like raw tabular text than a polished operations review."
+            }
+          ],
+          "notes": "Seeded version 3 run through ./internkim test Mattermost DM path using seed 41 and temperature 0. Artifact-specific document quality rules fixed the v2 website outcome-contract regression, but did not materially improve DOCX visual polish."
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "docx-business-review",
+          "artifactKind": "docx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/han-river-ops-q2-review.docx",
+          "artifactExists": true,
+          "artifactBytes": 38262,
+          "extractedTextLength": 1802,
+          "requiredText": {
+            "present": [
+              "Han River Ops",
+              "1,436",
+              "1,392",
+              "2.6",
+              "18.7",
+              "93%",
+              "17",
+              "Maya Chen",
+              "Omar Diaz",
+              "Priya Nair",
+              "Daniel Park",
+              "2026-07-31",
+              "제공된 자료 없음"
+            ],
+            "missing": [
+              "2026년 2분기"
+            ]
+          },
+          "forbiddenText": {
+            "present": [],
+            "missing": [
+              "$",
+              "ARR",
+              "MRR",
+              "Acme",
+              "Slack",
+              "Salesforce"
+            ]
+          },
+          "formatChecks": {
+            "isZip": true,
+            "hasDocumentXML": true,
+            "tableCount": 3
+          },
+          "renderChecks": {
+            "attempted": true,
+            "renderer": "qlmanage",
+            "exitCode": 0,
+            "passed": true,
+            "command": [
+              "/usr/bin/qlmanage",
+              "-t",
+              "-s",
+              "1600",
+              "-o",
+              ".artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/render",
+              ".artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/han-river-ops-q2-review.docx"
+            ],
+            "stdout": "Testing Quick Look thumbnails with files:\n\t/Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/han-river-ops-q2-review.docx\n* /Users/lee/Developer/work/internkim-wt2/.artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/han-river-ops-q2-review.docx produced one thumbnail\nDone producing thumbnails\n",
+            "stderr": "",
+            "images": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260627T161640Z/docx-business-review/render/han-river-ops-q2-review.docx.png",
+                "fileBytes": 326003,
+                "dimensions": {
+                  "pixelWidth": 1246,
+                  "pixelHeight": 1600
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "runID": "20260627T173603Z",
+      "startedAt": "2026-06-27T17:36:03Z",
+      "completedAt": "2026-06-27T18:08:15Z",
+      "recordedAt": "2026-06-28T02:46:42Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260627T173603Z",
+      "generationOptions": {
+        "requestedSeed": 41,
+        "requestedTemperature": 0.0,
+        "effectiveSeed": 41,
+        "effectiveTemperature": 0.0,
+        "applicationPath": "blueclaw agent.generationOptions via internkim test"
+      },
+      "judge": {
+        "mode": "heuristic",
+        "judgedAt": "2026-06-28T02:46:29Z",
+        "isSeparateFromGeneration": true
+      },
+      "scores": [
+        {
+          "evaluationID": "docx-business-review",
+          "skillName": "docx",
+          "artifactKind": "docx",
+          "totalScore": 98.08,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 35.0,
+              "evidence": "Required evidence coverage 100%."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 20.0,
+              "evidence": "DOCX tableCount=4."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 14.7,
+              "evidence": "Format checks: {\"denseTableCellCount\": 1, \"emptyTableCellCount\": 0, \"hasDocumentXML\": true, \"hasStylesXML\": true, \"headingCount\": 7, \"isZip\": true, \"pageBreakCount\": 0, \"paragraphCount\": 106, \"tableCount\": 4, \"typography\": {\"fontSizePoints\": {\"count\": 28, \"max\": 26.0, \"median\": 11.5, \"min\": 8.0}, \"hasEastAsiaFont\": true, \"lineSpacingValues\": {\"count\": 176, \"max\": 2.0, \"median\": 1.0, \"min\": 1.0}, \"pageMarginsInches\": {\"bottom\": 0.7, \"left\": 0.7, \"right\": 0.7, \"top\": 0.7}, \"typographyScore\": 0.929}, \"wideTableCount\": 0}; render: {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1600, \"pixelWidth\": 1240}, \"fileBytes\": 136907, \"path\": \".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0008, \"centerOffsetY\": 0.0194, \"contentDensity\": 0.0414, \"marginRatios\": {\"bottom\": 0.0387, \"left\": 0.0, \"right\": 0.0016, \"top\": 0.0}, \"visualBalanceScore\": 0.745}}], \"usedExistingScreenshots\": true}"
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 14.6,
+              "evidence": "Usefulness scored from source coverage 100% and structure checks {\"denseTableCellCount\": 1, \"emptyTableCellCount\": 0, \"hasDocumentXML\": true, \"hasStylesXML\": true, \"headingCount\": 7, \"isZip\": true, \"pageBreakCount\": 0, \"paragraphCount\": 106, \"tableCount\": 4, \"typography\": {\"fontSizePoints\": {\"count\": 28, \"max\": 26.0, \"median\": 11.5, \"min\": 8.0}, \"hasEastAsiaFont\": true, \"lineSpacingValues\": {\"count\": 176, \"max\": 2.0, \"median\": 1.0, \"min\": 1.0}, \"pageMarginsInches\": {\"bottom\": 0.7, \"left\": 0.7, \"right\": 0.7, \"top\": 0.7}, \"typographyScore\": 0.929}, \"wideTableCount\": 0}."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 13.78,
+              "evidence": "Visual usability scored from render output and layout affordances: {\"format\": {\"denseTableCellCount\": 1, \"emptyTableCellCount\": 0, \"hasDocumentXML\": true, \"hasStylesXML\": true, \"headingCount\": 7, \"isZip\": true, \"pageBreakCount\": 0, \"paragraphCount\": 106, \"tableCount\": 4, \"typography\": {\"fontSizePoints\": {\"count\": 28, \"max\": 26.0, \"median\": 11.5, \"min\": 8.0}, \"hasEastAsiaFont\": true, \"lineSpacingValues\": {\"count\": 176, \"max\": 2.0, \"median\": 1.0, \"min\": 1.0}, \"pageMarginsInches\": {\"bottom\": 0.7, \"left\": 0.7, \"right\": 0.7, \"top\": 0.7}, \"typographyScore\": 0.929}, \"wideTableCount\": 0}, \"render\": {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1600, \"pixelWidth\": 1240}, \"fileBytes\": 136907, \"path\": \".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0008, \"centerOffsetY\": 0.0194, \"contentDensity\": 0.0414, \"marginRatios\": {\"bottom\": 0.0387, \"left\": 0.0, \"right\": 0.0016, \"top\": 0.0}, \"visualBalanceScore\": 0.745}}], \"usedExistingScreenshots\": true}}"
+            }
+          ],
+          "notes": "1 DOCX table cells are dense. Rendered visual balance score was low (0.74)."
+        }
+      ],
+      "outputs": [
+        {
+          "evaluationID": "docx-business-review",
+          "artifactKind": "docx",
+          "files": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/files/han-river-ops-q2-review.docx",
+              "fileBytes": 38919
+            }
+          ],
+          "screenshots": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/screenshots/render-001.png",
+              "fileBytes": 136907,
+              "dimensions": {
+                "pixelWidth": 1240,
+                "pixelHeight": 1600
+              }
+            }
+          ],
+          "outputStatus": {
+            "artifact": "saved",
+            "artifactReason": "1 artifact file(s) saved under results/<evaluation>/files.",
+            "screenshots": "saved",
+            "screenshotReason": "1 screenshot(s) saved under results/<evaluation>/screenshots."
+          },
+          "audit": {
+            "evaluationID": "docx-business-review",
+            "artifactKind": "docx",
+            "exitCode": 0,
+            "artifactPath": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/files/han-river-ops-q2-review.docx",
+            "artifactExists": true,
+            "artifactBytes": 38919,
+            "requiredMissing": [],
+            "forbiddenPresent": [],
+            "formatChecks": {
+              "isZip": true,
+              "hasDocumentXML": true,
+              "hasStylesXML": true,
+              "paragraphCount": 106,
+              "headingCount": 7,
+              "pageBreakCount": 0,
+              "tableCount": 4,
+              "wideTableCount": 0,
+              "emptyTableCellCount": 0,
+              "denseTableCellCount": 1,
+              "typography": {
+                "fontSizePoints": {
+                  "count": 28,
+                  "min": 8.0,
+                  "median": 11.5,
+                  "max": 26.0
+                },
+                "pageMarginsInches": {
+                  "top": 0.7,
+                  "right": 0.7,
+                  "bottom": 0.7,
+                  "left": 0.7
+                },
+                "lineSpacingValues": {
+                  "count": 176,
+                  "min": 1.0,
+                  "median": 1.0,
+                  "max": 2.0
+                },
+                "hasEastAsiaFont": true,
+                "typographyScore": 0.929
+              }
+            },
+            "render": {
+              "attempted": true,
+              "reason": "",
+              "renderer": "qlmanage",
+              "exitCode": 255,
+              "passed": true,
+              "usedExistingScreenshots": true,
+              "screenshots": [
+                {
+                  "path": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/screenshots/render-001.png",
+                  "fileBytes": 136907,
+                  "dimensions": {
+                    "pixelWidth": 1240,
+                    "pixelHeight": 1600
+                  },
+                  "visualMetrics": {
+                    "contentDensity": 0.0414,
+                    "centerOffsetX": 0.0008,
+                    "centerOffsetY": 0.0194,
+                    "marginRatios": {
+                      "left": 0.0,
+                      "right": 0.0016,
+                      "top": 0.0,
+                      "bottom": 0.0387
+                    },
+                    "visualBalanceScore": 0.745
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "docx-business-review",
+          "artifactKind": "docx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/files/han-river-ops-q2-review.docx",
+          "artifactExists": true,
+          "artifactBytes": 38919,
+          "requiredMissing": [],
+          "forbiddenPresent": [],
+          "formatChecks": {
+            "isZip": true,
+            "hasDocumentXML": true,
+            "hasStylesXML": true,
+            "paragraphCount": 106,
+            "headingCount": 7,
+            "pageBreakCount": 0,
+            "tableCount": 4,
+            "wideTableCount": 0,
+            "emptyTableCellCount": 0,
+            "denseTableCellCount": 1,
+            "typography": {
+              "fontSizePoints": {
+                "count": 28,
+                "min": 8.0,
+                "median": 11.5,
+                "max": 26.0
+              },
+              "pageMarginsInches": {
+                "top": 0.7,
+                "right": 0.7,
+                "bottom": 0.7,
+                "left": 0.7
+              },
+              "lineSpacingValues": {
+                "count": 176,
+                "min": 1.0,
+                "median": 1.0,
+                "max": 2.0
+              },
+              "hasEastAsiaFont": true,
+              "typographyScore": 0.929
+            }
+          },
+          "render": {
+            "attempted": true,
+            "reason": "",
+            "renderer": "qlmanage",
+            "exitCode": 255,
+            "passed": true,
+            "usedExistingScreenshots": true,
+            "screenshots": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260627T173603Z/results/docx-business-review/screenshots/render-001.png",
+                "fileBytes": 136907,
+                "dimensions": {
+                  "pixelWidth": 1240,
+                  "pixelHeight": 1600
+                },
+                "visualMetrics": {
+                  "contentDensity": 0.0414,
+                  "centerOffsetX": 0.0008,
+                  "centerOffsetY": 0.0194,
+                  "marginRatios": {
+                    "left": 0.0,
+                    "right": 0.0016,
+                    "top": 0.0,
+                    "bottom": 0.0387
+                  },
+                  "visualBalanceScore": 0.745
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "runID": "20260627T171302Z",
+      "startedAt": "2026-06-27T17:13:02Z",
+      "completedAt": "2026-06-27T17:19:43Z",
+      "recordedAt": "2026-06-28T02:46:42Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260627T171302Z",
+      "generationOptions": {
+        "requestedSeed": 41,
+        "requestedTemperature": 0.0,
+        "effectiveSeed": 41,
+        "effectiveTemperature": 0.0,
+        "applicationPath": "blueclaw agent.generationOptions via internkim test"
+      },
+      "judge": {
+        "mode": "heuristic",
+        "judgedAt": "2026-06-28T02:46:29Z",
+        "isSeparateFromGeneration": true
+      },
+      "scores": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "skillName": "xlsx",
+          "artifactKind": "xlsx",
+          "totalScore": 83.59,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 30.67,
+              "evidence": "Required evidence coverage 93%. Missing required source facts: Jamsil Studio Pop-up."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 14.67,
+              "evidence": "Workbook sheets: 요약, 비용, 일정; formulaCount=7."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 15.0,
+              "evidence": "Format checks: {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 71, \"offRowFormulaCount\": 6, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}; render: {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1600, \"pixelWidth\": 1240}, \"fileBytes\": 132148, \"path\": \".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0008, \"centerOffsetY\": 0.2119, \"contentDensity\": 0.0421, \"marginRatios\": {\"bottom\": 0.4238, \"left\": 0.0, \"right\": 0.0016, \"top\": 0.0}, \"visualBalanceScore\": 0.611}}], \"usedExistingScreenshots\": true}"
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 12.0,
+              "evidence": "Usefulness scored from source coverage 93% and structure checks {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 71, \"offRowFormulaCount\": 6, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 11.25,
+              "evidence": "Visual usability scored from render output and layout affordances: {\"format\": {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 71, \"offRowFormulaCount\": 6, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}, \"render\": {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1600, \"pixelWidth\": 1240}, \"fileBytes\": 132148, \"path\": \".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0008, \"centerOffsetY\": 0.2119, \"contentDensity\": 0.0421, \"marginRatios\": {\"bottom\": 0.4238, \"left\": 0.0, \"right\": 0.0016, \"top\": 0.0}, \"visualBalanceScore\": 0.611}}], \"usedExistingScreenshots\": true}}"
+            }
+          ],
+          "notes": "Missing required source facts: Jamsil Studio Pop-up. 6 row-level formulas reference a different row. Rendered visual balance score was low (0.61)."
+        }
+      ],
+      "outputs": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "artifactKind": "xlsx",
+          "files": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+              "fileBytes": 7210
+            }
+          ],
+          "screenshots": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/screenshots/render-001.png",
+              "fileBytes": 132148,
+              "dimensions": {
+                "pixelWidth": 1240,
+                "pixelHeight": 1600
+              }
+            }
+          ],
+          "outputStatus": {
+            "artifact": "saved",
+            "artifactReason": "1 artifact file(s) saved under results/<evaluation>/files.",
+            "screenshots": "saved",
+            "screenshotReason": "1 screenshot(s) saved under results/<evaluation>/screenshots."
+          },
+          "audit": {
+            "evaluationID": "xlsx-popup-budget",
+            "artifactKind": "xlsx",
+            "exitCode": 0,
+            "artifactPath": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+            "artifactExists": true,
+            "artifactBytes": 7210,
+            "requiredMissing": [
+              "Jamsil Studio Pop-up"
+            ],
+            "forbiddenPresent": [],
+            "formatChecks": {
+              "isZip": true,
+              "hasWorkbookXML": true,
+              "sheetCount": 3,
+              "sheetNames": [
+                "요약",
+                "비용",
+                "일정"
+              ],
+              "formulaCount": 7,
+              "offRowFormulaCount": 6,
+              "hasFrozenPanes": true,
+              "hasAutoFilter": true,
+              "nonEmptyCellCount": 71
+            },
+            "render": {
+              "attempted": true,
+              "reason": "",
+              "renderer": "qlmanage",
+              "exitCode": 255,
+              "passed": true,
+              "usedExistingScreenshots": true,
+              "screenshots": [
+                {
+                  "path": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/screenshots/render-001.png",
+                  "fileBytes": 132148,
+                  "dimensions": {
+                    "pixelWidth": 1240,
+                    "pixelHeight": 1600
+                  },
+                  "visualMetrics": {
+                    "contentDensity": 0.0421,
+                    "centerOffsetX": 0.0008,
+                    "centerOffsetY": 0.2119,
+                    "marginRatios": {
+                      "left": 0.0,
+                      "right": 0.0016,
+                      "top": 0.0,
+                      "bottom": 0.4238
+                    },
+                    "visualBalanceScore": 0.611
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "artifactKind": "xlsx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+          "artifactExists": true,
+          "artifactBytes": 7210,
+          "requiredMissing": [
+            "Jamsil Studio Pop-up"
+          ],
+          "forbiddenPresent": [],
+          "formatChecks": {
+            "isZip": true,
+            "hasWorkbookXML": true,
+            "sheetCount": 3,
+            "sheetNames": [
+              "요약",
+              "비용",
+              "일정"
+            ],
+            "formulaCount": 7,
+            "offRowFormulaCount": 6,
+            "hasFrozenPanes": true,
+            "hasAutoFilter": true,
+            "nonEmptyCellCount": 71
+          },
+          "render": {
+            "attempted": true,
+            "reason": "",
+            "renderer": "qlmanage",
+            "exitCode": 255,
+            "passed": true,
+            "usedExistingScreenshots": true,
+            "screenshots": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260627T171302Z/results/xlsx-popup-budget/screenshots/render-001.png",
+                "fileBytes": 132148,
+                "dimensions": {
+                  "pixelWidth": 1240,
+                  "pixelHeight": 1600
+                },
+                "visualMetrics": {
+                  "contentDensity": 0.0421,
+                  "centerOffsetX": 0.0008,
+                  "centerOffsetY": 0.2119,
+                  "marginRatios": {
+                    "left": 0.0,
+                    "right": 0.0016,
+                    "top": 0.0,
+                    "bottom": 0.4238
+                  },
+                  "visualBalanceScore": 0.611
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "runID": "20260628T033219Z",
+      "startedAt": "2026-06-28T03:32:19Z",
+      "completedAt": "2026-06-28T03:38:45Z",
+      "recordedAt": "2026-06-28T03:39:15Z",
+      "gitRevision": "53abf7f6",
+      "runDirectory": ".artifacts/skill-artifact-evals/20260628T033219Z",
+      "generationOptions": {
+        "requestedSeed": 41,
+        "requestedTemperature": 0.0,
+        "effectiveSeed": 41,
+        "effectiveTemperature": 0.0,
+        "testTimeoutSeconds": 900,
+        "commandTimeoutSeconds": 1260,
+        "applicationPath": "blueclaw agent.generationOptions via internkim test"
+      },
+      "judge": {
+        "mode": "heuristic",
+        "judgedAt": "2026-06-28T03:39:03Z",
+        "isSeparateFromGeneration": true
+      },
+      "scores": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "skillName": "xlsx",
+          "artifactKind": "xlsx",
+          "totalScore": 100.0,
+          "maxScore": 100,
+          "criteria": [
+            {
+              "criterionID": "sourceFidelity",
+              "label": "Source Fidelity",
+              "maxScore": 35,
+              "score": 35.0,
+              "evidence": "Required evidence coverage 100%."
+            },
+            {
+              "criterionID": "instructionFit",
+              "label": "Instruction Fit",
+              "maxScore": 20,
+              "score": 20.0,
+              "evidence": "Workbook sheets: 요약, 비용, 일정; formulaCount=7."
+            },
+            {
+              "criterionID": "formatReliability",
+              "label": "Format Reliability",
+              "maxScore": 15,
+              "score": 15.0,
+              "evidence": "Format checks: {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 84, \"offRowFormulaCount\": 0, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}; render: {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1160, \"pixelWidth\": 1600}, \"fileBytes\": 175257, \"path\": \".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0256, \"centerOffsetY\": 0.0353, \"contentDensity\": 0.4926, \"marginRatios\": {\"bottom\": 0.0017, \"left\": 0.0525, \"right\": 0.0013, \"top\": 0.0724}, \"visualBalanceScore\": 0.779}}], \"usedExistingScreenshots\": true}"
+            },
+            {
+              "criterionID": "sourceGroundedUsefulness",
+              "label": "Source Grounded Usefulness",
+              "maxScore": 15,
+              "score": 15.0,
+              "evidence": "Usefulness scored from source coverage 100% and structure checks {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 84, \"offRowFormulaCount\": 0, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}."
+            },
+            {
+              "criterionID": "visualUsability",
+              "label": "Visual And Usability Quality",
+              "maxScore": 15,
+              "score": 15.0,
+              "evidence": "Visual usability scored from render output and layout affordances: {\"format\": {\"formulaCount\": 7, \"hasAutoFilter\": true, \"hasFrozenPanes\": true, \"hasWorkbookXML\": true, \"isZip\": true, \"nonEmptyCellCount\": 84, \"offRowFormulaCount\": 0, \"sheetCount\": 3, \"sheetNames\": [\"요약\", \"비용\", \"일정\"]}, \"render\": {\"attempted\": true, \"exitCode\": 255, \"passed\": true, \"renderer\": \"qlmanage\", \"screenshots\": [{\"dimensions\": {\"pixelHeight\": 1160, \"pixelWidth\": 1600}, \"fileBytes\": 175257, \"path\": \".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/screenshots/render-001.png\", \"visualMetrics\": {\"centerOffsetX\": 0.0256, \"centerOffsetY\": 0.0353, \"contentDensity\": 0.4926, \"marginRatios\": {\"bottom\": 0.0017, \"left\": 0.0525, \"right\": 0.0013, \"top\": 0.0724}, \"visualBalanceScore\": 0.779}}], \"usedExistingScreenshots\": true}}"
+            }
+          ],
+          "notes": "Heuristic judge found no required-text, forbidden-text, or format blocker."
+        }
+      ],
+      "outputs": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "artifactKind": "xlsx",
+          "files": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+              "fileBytes": 7470
+            }
+          ],
+          "screenshots": [
+            {
+              "path": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/screenshots/render-001.png",
+              "fileBytes": 175257,
+              "dimensions": {
+                "pixelWidth": 1600,
+                "pixelHeight": 1160
+              }
+            }
+          ],
+          "outputStatus": {
+            "artifact": "saved",
+            "artifactReason": "1 artifact file(s) saved under results/<evaluation>/files.",
+            "screenshots": "saved",
+            "screenshotReason": "1 screenshot(s) saved under results/<evaluation>/screenshots."
+          },
+          "audit": {
+            "evaluationID": "xlsx-popup-budget",
+            "artifactKind": "xlsx",
+            "exitCode": 0,
+            "artifactPath": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+            "artifactExists": true,
+            "artifactBytes": 7470,
+            "requiredMissing": [],
+            "forbiddenPresent": [],
+            "formatChecks": {
+              "isZip": true,
+              "hasWorkbookXML": true,
+              "sheetCount": 3,
+              "sheetNames": [
+                "요약",
+                "비용",
+                "일정"
+              ],
+              "formulaCount": 7,
+              "offRowFormulaCount": 0,
+              "hasFrozenPanes": true,
+              "hasAutoFilter": true,
+              "nonEmptyCellCount": 84
+            },
+            "render": {
+              "attempted": true,
+              "reason": "",
+              "renderer": "qlmanage",
+              "exitCode": 255,
+              "passed": true,
+              "usedExistingScreenshots": true,
+              "screenshots": [
+                {
+                  "path": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/screenshots/render-001.png",
+                  "fileBytes": 175257,
+                  "dimensions": {
+                    "pixelWidth": 1600,
+                    "pixelHeight": 1160
+                  },
+                  "visualMetrics": {
+                    "contentDensity": 0.4926,
+                    "centerOffsetX": 0.0256,
+                    "centerOffsetY": 0.0353,
+                    "marginRatios": {
+                      "left": 0.0525,
+                      "right": 0.0013,
+                      "top": 0.0724,
+                      "bottom": 0.0017
+                    },
+                    "visualBalanceScore": 0.779
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "audits": [
+        {
+          "evaluationID": "xlsx-popup-budget",
+          "artifactKind": "xlsx",
+          "exitCode": 0,
+          "artifactPath": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/files/jamsil-studio-popup-budget.xlsx",
+          "artifactExists": true,
+          "artifactBytes": 7470,
+          "requiredMissing": [],
+          "forbiddenPresent": [],
+          "formatChecks": {
+            "isZip": true,
+            "hasWorkbookXML": true,
+            "sheetCount": 3,
+            "sheetNames": [
+              "요약",
+              "비용",
+              "일정"
+            ],
+            "formulaCount": 7,
+            "offRowFormulaCount": 0,
+            "hasFrozenPanes": true,
+            "hasAutoFilter": true,
+            "nonEmptyCellCount": 84
+          },
+          "render": {
+            "attempted": true,
+            "reason": "",
+            "renderer": "qlmanage",
+            "exitCode": 255,
+            "passed": true,
+            "usedExistingScreenshots": true,
+            "screenshots": [
+              {
+                "path": ".artifacts/skill-artifact-evals/20260628T033219Z/results/xlsx-popup-budget/screenshots/render-001.png",
+                "fileBytes": 175257,
+                "dimensions": {
+                  "pixelWidth": 1600,
+                  "pixelHeight": 1160
+                },
+                "visualMetrics": {
+                  "contentDensity": 0.4926,
+                  "centerOffsetX": 0.0256,
+                  "centerOffsetY": 0.0353,
+                  "marginRatios": {
+                    "left": 0.0525,
+                    "right": 0.0013,
+                    "top": 0.0724,
+                    "bottom": 0.0017
+                  },
+                  "visualBalanceScore": 0.779
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

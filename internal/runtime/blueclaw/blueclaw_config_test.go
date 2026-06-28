@@ -116,6 +116,10 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
 		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, capabilityLanguageModel)
 	}
+	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
+	if _, isFound := agentConfiguration["generationOptions"]; isFound {
+		t.Fatal("expected generation options to be omitted by default")
+	}
 	if _, isFound := languageModel["openRouter"]; isFound {
 		t.Fatal("expected OpenRouter runtime details to be omitted")
 	}
@@ -263,6 +267,57 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		if strings.Contains(document, fragment) {
 			t.Fatalf("expected runtime config to omit raw limit field %q", fragment)
 		}
+	}
+}
+
+func TestBlueclawRuntimeConfigCanIncludeGenerationOptions(t *testing.T) {
+	seed := int64(41)
+	temperature := 0.0
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+		GenerationSeed:        &seed,
+		GenerationTemperature: &temperature,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
+	generationOptions := agentConfiguration["generationOptions"].(map[string]any)
+	if generationOptions["seed"] != float64(seed) {
+		t.Fatalf("expected generation seed %d, got %+v", seed, generationOptions)
+	}
+	if generationOptions["temperature"] != temperature {
+		t.Fatalf("expected generation temperature %v, got %+v", temperature, generationOptions)
+	}
+}
+
+func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
+	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
+
+	options, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if options.GenerationSeed == nil || *options.GenerationSeed != 41 {
+		t.Fatalf("expected seed from environment, got %+v", options)
+	}
+	if options.GenerationTemperature == nil || *options.GenerationTemperature != 0 {
+		t.Fatalf("expected temperature from environment, got %+v", options)
+	}
+}
+
+func TestBlueclawRuntimeConfigOptionsRejectInvalidGenerationEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestGenerationSeedEnvironment, "not-a-seed")
+
+	_, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue == nil || !strings.Contains(errorValue.Error(), BlueclawTestGenerationSeedEnvironment) {
+		t.Fatalf("expected seed environment error, got %v", errorValue)
 	}
 }
 

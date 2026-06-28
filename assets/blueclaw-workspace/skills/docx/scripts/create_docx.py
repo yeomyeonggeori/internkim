@@ -55,8 +55,7 @@ def create_document(specification):
 
     font_name = require_text(specification.get("fontName", "Arial"), "fontName")
     font_size = float(specification.get("fontSize", 10.5))
-    document.styles["Normal"].font.name = font_name
-    document.styles["Normal"].font.size = Pt(font_size)
+    set_document_font(document, font_name, font_size, Pt)
 
     title = optional_text(specification.get("title"))
     if title:
@@ -67,6 +66,28 @@ def create_document(specification):
         add_block(document, block)
 
     return document
+
+
+def set_document_font(document, font_name, font_size, point_class):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    for style_name in ["Normal", "Title", "Heading 1", "Heading 2", "Heading 3", "Heading 4"]:
+        if style_name not in document.styles:
+            continue
+        style = document.styles[style_name]
+        style.font.name = font_name
+        style.font.size = point_class(font_size if style_name == "Normal" else max(font_size + 1, 11))
+        style.paragraph_format.line_spacing = 1.08
+        style.paragraph_format.space_after = point_class(4)
+        run_properties = style.element.get_or_add_rPr()
+        run_fonts = run_properties.rFonts
+        if run_fonts is None:
+            run_fonts = OxmlElement("w:rFonts")
+            run_properties.append(run_fonts)
+        run_fonts.set(qn("w:ascii"), font_name)
+        run_fonts.set(qn("w:hAnsi"), font_name)
+        run_fonts.set(qn("w:eastAsia"), font_name)
 
 
 def read_blocks(specification):
@@ -117,20 +138,84 @@ def add_list(document, block, style_name):
 
 
 def add_table(document, block):
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
+
     rows = block.get("rows", [])
     if not isinstance(rows, list) or not rows:
         raise ValueError("table rows must be a non-empty array")
     width = len(rows[0])
     if width == 0:
         raise ValueError("table rows must contain at least one column")
+    column_widths = read_column_widths(block, width)
     table = document.add_table(rows=0, cols=width)
     table.style = optional_text(block.get("style")) or "Table Grid"
-    for row in rows:
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    for row_index, row in enumerate(rows):
         if not isinstance(row, list) or len(row) != width:
             raise ValueError("all table rows must have the same width")
         cells = table.add_row().cells
         for index, value in enumerate(row):
             cells[index].text = "" if value is None else str(value)
+            cells[index].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
+            set_cell_width(cells[index], column_widths[index])
+            format_cell_text(cells[index], row_index == 0)
+            if row_index == 0:
+                shade_cell(cells[index], "EAF1F8")
+    set_table_borders(table)
+
+
+def read_column_widths(block, width):
+    column_widths = block.get("columnWidthsInches")
+    if isinstance(column_widths, list) and len(column_widths) == width:
+        return [float(value) for value in column_widths]
+    default_width = 6.6 / width
+    return [default_width for _ in range(width)]
+
+
+def set_cell_width(cell, width_inches):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Inches
+
+    cell.width = Inches(width_inches)
+    cell_width = OxmlElement("w:tcW")
+    cell_width.set(qn("w:w"), str(int(width_inches * 1440)))
+    cell_width.set(qn("w:type"), "dxa")
+    cell._tc.get_or_add_tcPr().append(cell_width)
+
+
+def format_cell_text(cell, is_header):
+    from docx.shared import Pt
+
+    for paragraph in cell.paragraphs:
+        paragraph.paragraph_format.space_after = Pt(2)
+        for run in paragraph.runs:
+            run.bold = is_header
+
+
+def shade_cell(cell, color):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    shading = OxmlElement("w:shd")
+    shading.set(qn("w:fill"), color)
+    cell._tc.get_or_add_tcPr().append(shading)
+
+
+def set_table_borders(table):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    borders = OxmlElement("w:tblBorders")
+    for border_name in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+        border = OxmlElement(f"w:{border_name}")
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), "6")
+        border.set(qn("w:space"), "0")
+        border.set(qn("w:color"), "B7C3D0")
+        borders.append(border)
+    table._tbl.tblPr.append(borders)
 
 
 def parse_arguments():
