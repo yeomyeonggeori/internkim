@@ -294,8 +294,6 @@ print(json.dumps({
     "model": os.environ["MODEL"],
     "executionMode": "remote",
     "messages": [{"role": "user", "content": "Reply with ok."}],
-    "requireParameters": True,
-    "enableResponseHealing": True,
 }))
 PY
 )"
@@ -317,8 +315,6 @@ print(json.dumps({
     "executionMode": "remote",
     "messages": [{"role": "user", "content": "Return JSON only with reply set to ok."}],
     "structuredOutputSchema": {"name": "smoke_reply", "document": os.environ["SCHEMA"], "isStrictlyEnforced": True},
-    "requireParameters": True,
-    "enableResponseHealing": True,
 }))
 PY
 )"

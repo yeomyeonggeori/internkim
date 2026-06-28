@@ -32,6 +32,8 @@ type testCommandConfiguration struct {
 	ShouldReuseFleet      bool
 	ShouldKeepArtifacts   bool
 	ShouldOpenFiles       bool
+	ShouldUseRealModels   bool
+	ShouldAutoConfirm     bool
 }
 
 func runTest() {
@@ -55,6 +57,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
 	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM, messages, and users after the test")
 	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
+	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
+	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
@@ -68,6 +72,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"reuse":             true,
 		"keep":              true,
 		"no-open":           true,
+		"real":              true,
+		"auto-confirm":      true,
 		"expect-public-url": true,
 	}, map[string]bool{
 		"o":           true,
@@ -109,6 +115,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ShouldReuseFleet:      *reuseFleet,
 		ShouldKeepArtifacts:   *keepArtifacts,
 		ShouldOpenFiles:       !*noOpen,
+		ShouldUseRealModels:   *useRealModels,
+		ShouldAutoConfirm:     *autoConfirm,
 	}, nil
 }
 
@@ -127,6 +135,7 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		RunID:                 configuration.RunID,
 		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
 		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
+		ShouldUseRealModels:   configuration.ShouldUseRealModels,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
 	})
 	if errorValue != nil {
@@ -137,7 +146,7 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 	runError := service.Run(contextValue, logger, localfleet.JobRequest{
 		Action:        localfleet.ActionUp,
 		KeepArtifacts: true,
-		SkipWeb:       true,
+		SkipWeb:       !configuration.ShouldExpectPublicURL,
 	})
 	if runError == nil {
 		runError = runTestPrompt(contextValue, service, repositoryRootPath, executablePath, configuration)
@@ -161,7 +170,7 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	}
 	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
-	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, configuration.TimeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true)
+	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, configuration.TimeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
 	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptSSHTimeout(configuration.TimeoutSeconds))
 	if errorValue != nil {
 		if strings.TrimSpace(output) != "" {

@@ -27,6 +27,7 @@ type Options struct {
 	GenerationSeed        string
 	GenerationTemperature string
 	IsEphemeral           bool
+	ShouldUseRealModels   bool
 }
 
 type JobRequest struct {

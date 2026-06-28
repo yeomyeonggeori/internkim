@@ -47,6 +47,8 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 		"7",
 		"--temperature",
 		"0.2",
+		"--real",
+		"--auto-confirm",
 		"--expect-public-url",
 		"--expect-tool",
 		"site.app.publish",
@@ -66,6 +68,9 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if configuration.GenerationSeed != 7 || configuration.GenerationTemperature != 0.2 {
 		t.Fatalf("unexpected generation flags: %+v", configuration)
 	}
+	if !configuration.ShouldUseRealModels || !configuration.ShouldAutoConfirm {
+		t.Fatalf("expected real model and auto confirm options: %+v", configuration)
+	}
 	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.app.publish" {
 		t.Fatalf("unexpected site verification flags: %+v", configuration)
 	}
@@ -78,6 +83,9 @@ func TestParseTestArgumentsDefaultsToFixedGenerationOptions(t *testing.T) {
 	}
 	if configuration.GenerationSeed != 41 || configuration.GenerationTemperature != 0 {
 		t.Fatalf("unexpected default generation options: %+v", configuration)
+	}
+	if configuration.ShouldUseRealModels {
+		t.Fatalf("expected test model default: %+v", configuration)
 	}
 }
 

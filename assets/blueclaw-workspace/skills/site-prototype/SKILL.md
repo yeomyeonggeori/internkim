@@ -1,33 +1,7 @@
 ---
 name: site-prototype
-description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through InternKim site.app tools.
-when_to_use: Use when the user asks InternKim to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
-allowed-tools:
-  - file.write
-  - file.read
-  - file.edit
-  - terminal.run
-  - site.app.create
-  - site.app.build
-  - site.app.publish
-  - site.app.status
-  - file.patch
-  - site.app.preview
-  - site.app.repair
-  - file.preview
-  - terminal.session
-  - browser.open
-  - browser.snapshot
-  - browser.screenshot
-  - artifact.review
-  - site.app.history
-  - site.app.diff
-  - site.app.logs
-  - site.app.rollback
-  - site.app.unpublish
-  - site.app.restore
-  - site.app.delete
-  - user.confirm
+description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through site capability tools.
+when_to_use: Use when the user asks the assistant to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
 completion:
   requiredEvidenceTools:
     - site.app.status
@@ -38,7 +12,9 @@ completion:
 
 # Site Prototype
 
-Use this skill when a user asks InternKim to create, publish, update, take down, restore, or delete a website or web app prototype.
+Use this skill when a user asks the assistant to create, publish, update, take down, restore, or delete a website or web app prototype.
+
+Invoke all `site.app.*`, browser, and artifact review operations through `/workspace/tools/capability invoke <tool> '<json>'` unless the step is explicitly a local build command run with `terminal.run`.
 
 ## Purpose
 
@@ -66,7 +42,7 @@ Start by resolving the existing site for the current conversation or slug with `
 1. Call `site.app.status` with the known `siteID`, slug, or empty input for the current conversation.
 2. If `site.app.status` returns `ambiguous`, do not choose randomly. Show the candidate titles, descriptions, archetypes, owners, and URLs, then ask the user which site to update.
 3. If no site is resolved, call `site.app.create` with a short DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords, then call `site.app.status` for the new `siteID`.
-4. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned. Site source file paths must be rooted at the returned `sourceWorkspacePath`; never pass bare relative paths such as `app/src/App.tsx`, `DESIGN.md`, or `.internkim/artifact-brief.md` to file tools.
+4. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned. Site source file paths must be rooted at the returned `sourceWorkspacePath`; never pass bare relative paths such as `app/src/App.tsx`, `DESIGN.md`, or `.internkim/artifact-brief.md` to workspace scripts or capabilities.
 5. If `workspaceHealth` is `missing` or `permission_problem`, call `site.app.repair`, then call `site.app.status` again. If `workspaceHealth` is `stale_build`, continue to editing or build; do not repair.
 6. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
 7. Use `sourceManifest` from `site.app.status` to decide which workspace-local control files exist. Read `<sourceWorkspacePath>/.internkim/site.json`, `<sourceWorkspacePath>/.internkim/idea.md`, `<sourceWorkspacePath>/.internkim/artifact-brief.md`, and `<sourceWorkspacePath>/.internkim/review-log.json` only when the manifest marks them present. Missing optional control files are normal; create or update them under `sourceWorkspacePath` before source edits when they are relevant.
@@ -74,9 +50,9 @@ Start by resolving the existing site for the current conversation or slug with `
 9. Write or update `<sourceWorkspacePath>/.internkim/artifact-brief.md` before source edits. Keep it short and natural-language: request intent, audience, archetype, service mode if relevant, main workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
 10. Write or update Stitch-compatible `<sourceWorkspacePath>/DESIGN.md`, then create `<sourceWorkspacePath>/app/src/prototype-data.ts` with the supplied source data or clearly fake workflow state before editing UI. Keep source-backed facts in this data module so labels, prices, dates, menus, and policies can be checked instead of scattered through the UI.
 11. Replace the starter `<sourceWorkspacePath>/app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
-12. Use `file.write`, `file.edit`, or `file.patch` to update `<sourceWorkspacePath>/app/src/App.tsx`, `<sourceWorkspacePath>/app/src/main.tsx` only when needed, `<sourceWorkspacePath>/app/src/index.css`, and app-owned data/source files according to `<sourceWorkspacePath>/DESIGN.md` and `<sourceWorkspacePath>/.internkim/artifact-brief.md`. Do not import React, React DOM, lucide-react, Radix, Tailwind packages, class-variance-authority, tailwind-merge, clsx, or any other package. Use semantic HTML, DOM APIs, CSS classes, inline SVG icons, and local data. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+12. Use task-local scripts run through `terminal.run` to update `<sourceWorkspacePath>/app/src/App.tsx`, `<sourceWorkspacePath>/app/src/main.tsx` only when needed, `<sourceWorkspacePath>/app/src/index.css`, and app-owned data/source files according to `<sourceWorkspacePath>/DESIGN.md` and `<sourceWorkspacePath>/.internkim/artifact-brief.md`. Do not use shell heredocs or redirection for source writes. Do not import React, React DOM, lucide-react, Radix, Tailwind packages, class-variance-authority, tailwind-merge, clsx, or any other package. Use semantic HTML, DOM APIs, CSS classes, inline SVG icons, and local data. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
 13. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
-14. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, and inspect the rendered text for the source checklist before publishing. Then call `artifact.review` with the screenshots, artifact brief, source summary, archetype, and rubric.
+14. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.run mode=session_start` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, and inspect the rendered text for the source checklist before publishing. Then call `artifact.review` with the screenshots, artifact brief, source summary, archetype, and rubric.
 15. Write `.internkim/review-log.json` with `attempts`, `reviewedArtifacts`, `issues`, `changesMade`, `remainingNotes`, and either screenshot paths or `visualReviewUnavailable: true`. Revise and rebuild when the rendered images or review notes show useful improvements and the improvement budget remains; repeat at most three times.
 16. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but visual or quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
 17. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
@@ -92,9 +68,9 @@ When the user asks to check all requester-deployed sites, call `site.app.status`
 
 Treat each site as dead when `status` is `failed`, `workspaceHealth` is missing or not usable, or `liveHTTPStatus` is present and not `200`. For each dead site, run `site.app.repair`, then `site.app.build`, then `site.app.publish`. When a previous good published version exists, use `site.app.restore` instead. Report the outcome for each site.
 
-Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.preview`, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.preview`, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `ask.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
-Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use `user.confirm` for create, build, publish, status, logs, or restore.
+Use `ask.confirm` only for rollback, unpublish, or delete requests. Do not use `ask.confirm` for create, build, publish, status, logs, or restore.
 
 Never ask for publish approval in natural language. Chat replies such as "확인해 주세요", "승인해 주세요", "말씀해 주시면 게시하겠습니다", or "다시 명령해 주세요" do not create a runtime approval job and cannot resume automatically.
 
@@ -223,4 +199,4 @@ Do not use this successful publish reply format for draft sites. A draft site is
 - Use `site.app.history` when the user asks what changed or wants versions.
 - Use `site.app.diff` when the user asks for a revision comparison.
 - Use `site.app.rollback` when the user asks to return to the previous published version or a specific revision.
-- Use `site.app.delete` only after `user.confirm` succeeds. Pass `confirm: "DELETE"` and `userConfirmed: true`. Deletion is irreversible except from backups.
+- Use `site.app.delete` only after `ask.confirm` succeeds. Pass `confirm: "DELETE"` and `userConfirmed: true`. Deletion is irreversible except from backups.

@@ -64,7 +64,7 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false, false)
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false, false, false)
 	requiredFragments := []string{
 		"delete_stale_probe_users",
 		"probe-mattermost-",
@@ -82,7 +82,7 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 }
 
 func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false, false)
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false, false, false)
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
@@ -101,7 +101,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -129,7 +129,7 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -142,7 +142,7 @@ func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
-	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true, false)
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true, false, false)
 	requiredFragments := []string{
 		"download_files=true",
 		"download_bot_files",
@@ -160,7 +160,7 @@ func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanWaitForCompletion(t *testing.T) {
-	script := verifyMattermostPromptScript("보고서 워드 파일로 만들어줘.", false, 90, false, false, nil, nil, true, true)
+	script := verifyMattermostPromptScript("보고서 워드 파일로 만들어줘.", false, 90, false, false, nil, nil, true, true, false)
 	requiredFragments := []string{
 		"wait_for_completion=true",
 		"find_probe_task_run_id",
@@ -172,6 +172,24 @@ func TestVerifyMattermostPromptScriptCanWaitForCompletion(t *testing.T) {
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost prompt completion wait to include %q", fragment)
+		}
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanAutoConfirm(t *testing.T) {
+	script := verifyMattermostPromptScript("일정을 삭제해줘.", false, 90, false, false, nil, nil, true, true, true)
+	requiredFragments := []string{
+		"auto_confirm=true",
+		"approval_sent=false",
+		`[ "$auto_confirm" = "true" ]`,
+		"confirmation.requested",
+		"post probe approval",
+		`message:"해"`,
+		"autoConfirmationSent: $auto_confirmation_sent",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt auto confirmation to include %q", fragment)
 		}
 	}
 }

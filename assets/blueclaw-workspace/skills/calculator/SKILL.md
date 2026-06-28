@@ -2,8 +2,6 @@
 name: calculator
 description: Calculate explicit arithmetic expressions with math.calculate.
 when_to_use: Use when the user asks to calculate, asks a direct arithmetic question, or writes an expression with =, +, -, *, /, %, ^, or **.
-allowed-tools:
-  - math.calculate
 activation:
   keywords:
     - 계산

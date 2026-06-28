@@ -1,20 +1,12 @@
 ---
 name: calendar
-description: Read or write the InternKim Work calendar with typed calendar tools. Use this whenever the user asks to add, find, update, cancel, delete, or check meetings, schedules, 일정, 캘린더, 미팅, 회의, 약속, or reminders, even if they do not explicitly say "calendar."
+description: Read or write the workspace calendar with typed calendar tools. Use this whenever the user asks to add, find, update, cancel, delete, or check meetings, schedules, 일정, 캘린더, 미팅, 회의, 약속, or reminders, even if they do not explicitly say "calendar."
 when_to_use: Use when the user asks about calendar, schedule, meeting, 일정, 캘린더, 미팅, 회의, 약속, or reminders.
-allowed-tools:
-  - calendar.event.add
-  - calendar.event.list
-  - calendar.event.update
-  - calendar.event.delete
-  - flow.task.add
-  - flow.task.list
-  - flow.task.update
 ---
 
-# InternKim Work Calendar
+# Workspace Calendar
 
-Use the InternKim Work calendar tools for team schedule creation and lookup. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
+Use the workspace calendar capability tools for team schedule creation and lookup. Invoke all `calendar.event.*` and related `flow.task.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
 
 ## Tools
 

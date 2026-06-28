@@ -109,6 +109,41 @@ func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
 	}
 }
 
+func TestOpenRouterBackendNormalizesFencedStructuredJSON(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("{\"choices\":[{\"message\":{\"content\":\"```json\\n{\\\"reply\\\":\\\"ok\\\"}\\n```\"}}]}")),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "reply",
+			Document:           json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}`),
+			IsStrictlyEnforced: true,
+		},
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected structured response: %v", errorValue)
+	}
+	if response.Content != `{"reply":"ok"}` {
+		t.Fatalf("expected fenced JSON to normalize, got %s", response.Content)
+	}
+}
+
 func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	seed := int64(99)
 	temperature := 0.3
@@ -420,6 +455,108 @@ func TestOpenRouterBackendRetriesNativeActionWithFallbackModel(t *testing.T) {
 	}
 	if _, isFound := requestDocuments[1]["tools"]; !isFound {
 		t.Fatalf("expected second request to remain native tool-call, got %+v", requestDocuments[1])
+	}
+}
+
+func TestOpenRouterBackendFallsBackToPromptedJSONAfterEmptyStructuredContent(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestDocuments := []map[string]any{}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "single-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var requestDocument map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			requestDocuments = append(requestDocuments, requestDocument)
+			switch len(requestDocuments) {
+			case 1:
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":""}}]}`)),
+					Header:     make(http.Header),
+				}, nil
+			case 2:
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":""}}]}`)),
+					Header:     make(http.Header),
+				}, nil
+			default:
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+					Header:     make(http.Header),
+				}, nil
+			}
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected prompted JSON fallback response: %v", errorValue)
+	}
+	if response.Model != "single-model" {
+		t.Fatalf("expected same model response, got %q", response.Model)
+	}
+	if response.ConstraintMode != ConstraintModePromptedJSON {
+		t.Fatalf("expected prompted JSON mode, got %q", response.ConstraintMode)
+	}
+	if len(requestDocuments) != 3 {
+		t.Fatalf("expected native, JSON schema, and prompted JSON requests, got %d", len(requestDocuments))
+	}
+	if _, isFound := requestDocuments[2]["response_format"]; isFound {
+		t.Fatalf("expected prompted JSON request to omit response_format, got %+v", requestDocuments[2])
+	}
+}
+
+func TestOpenRouterBackendUsesPromptedJSONFirstForFreeModel(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var requestDocument map[string]any
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "google/gemma-4-31b-it:free",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected prompted JSON response: %v", errorValue)
+	}
+	if response.ConstraintMode != ConstraintModePromptedJSON {
+		t.Fatalf("expected prompted JSON mode, got %q", response.ConstraintMode)
+	}
+	if _, isFound := requestDocument["tools"]; isFound {
+		t.Fatalf("expected free model request to omit native tools, got %+v", requestDocument)
+	}
+	if _, isFound := requestDocument["response_format"]; isFound {
+		t.Fatalf("expected free model request to omit response_format, got %+v", requestDocument)
 	}
 }
 

@@ -2,14 +2,11 @@
 name: skill-management
 description: Create, add, update, or remove user-managed Blueclaw skills. Use for requests about making a new skill, writing SKILL.md, adding a skill, deleting a skill, removing a skill, or managing skills.
 when_to_use: Use when the user asks to create a skill, add a skill, update a skill, remove a skill, delete a skill, write SKILL.md, 스킬 만들기, 스킬 추가, 스킬 삭제, 스킬 제거, 스킬 관리, or /skill-management.
-allowed-tools:
-  - skill.add
-  - skill.remove
 ---
 
 # Skill Management
 
-Use `skill.add` to create or update user-managed skills. Use `skill.remove` to remove user-managed skills.
+Use `/workspace/tools/capability invoke skill.add '<json>'` to create or update user-managed skills. Use `/workspace/tools/capability invoke skill.remove '<json>'` to remove user-managed skills.
 
 Before writing a skill, capture the intent:
 
@@ -19,7 +16,7 @@ Before writing a skill, capture the intent:
 - Which runtime tools it needs.
 - Two or three realistic test prompts the user can try after creation.
 
-Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only standard frontmatter fields. Do not invent custom fields, summaries, tags, trigger hints, custom tool dependency fields, allowed profiles, generated indexes, or full-body embeddings. Prefer `name`, `description`, `when_to_use`, and `allowed-tools`.
+Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only standard frontmatter fields. Do not invent custom fields, summaries, tags, trigger hints, custom tool dependency fields, allowed profiles, generated indexes, or full-body embeddings. Prefer `name`, `description`, and `when_to_use`.
 
 Keep `SKILL.md` concise. Put essential workflow in the body. Put long domain knowledge in `references/`, deterministic repeated logic in `scripts/`, and output resources in `assets/`. When adding bundled resources, pass them through the `resources` argument to `skill.add` and mention each referenced resource from `SKILL.md`.
 
@@ -27,7 +24,7 @@ Scripts should be self-contained within the skill folder. Python helpers should 
 
 Do not put evals, benchmark metadata, test prompts, or generated summaries in frontmatter. Mention suggested test prompts to the user after the skill is created.
 
-Do not use `file.write`, `terminal.run`, or shell redirection to create, edit, or delete skill files. The skill tools derive the destination path from the skill name and enforce the runtime boundary.
+Do not use shell commands or shell redirection to create, edit, or delete skill files directly. The skill capability derives the destination path from the skill name and enforces the runtime boundary.
 
 User-managed skills live under `/workspace/.agents/skills/<name>`. Built-in skills are immutable and cannot be overwritten or removed.
 

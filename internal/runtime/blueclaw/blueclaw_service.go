@@ -2,6 +2,8 @@ package blueclaw
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
@@ -69,6 +71,9 @@ WantedBy=multi-user.target
 
 func capabilitydStartCommand(localInferenceMode string) string {
 	command := fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath)
+	if modelName := strings.TrimSpace(os.Getenv(BlueclawTestModelEnvironment)); modelName != "" {
+		command += " --openrouter-model " + modelName + " --force-openrouter-model"
+	}
 	if localInferenceMode != "" {
 		command += " --local-inference-mode " + localInferenceMode
 	}

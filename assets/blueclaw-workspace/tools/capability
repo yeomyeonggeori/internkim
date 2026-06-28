@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+def main():
+    command, arguments = parse_arguments(sys.argv[1:])
+    endpoint = bridge_endpoint()
+    if command == "catalog":
+        write_json(get_json(endpoint, "/v1/capabilities"))
+        return
+    if command == "list":
+        for descriptor in sorted(descriptors(endpoint), key=lambda item: item.get("name", "")):
+            name = str(descriptor.get("name", "")).strip()
+            if name:
+                print(name)
+        return
+    if command == "describe":
+        require_argument(arguments, "tool name")
+        descriptor = find_descriptor(endpoint, arguments[0])
+        if descriptor is None:
+            raise SystemExit("capability not found: " + arguments[0])
+        write_json(descriptor)
+        return
+    if command == "invoke":
+        require_argument(arguments, "tool name")
+        request = invoke_request(arguments[0], arguments[1:])
+        write_json(post_json(endpoint, "/v1/tools/" + urllib.parse.quote(arguments[0], safe="") + "/invoke", request))
+        return
+    if command == "render":
+        require_argument(arguments, "tool name")
+        request = invoke_request(arguments[0], arguments[1:])
+        request["render"] = True
+        write_json(post_json(endpoint, "/v1/tools/" + urllib.parse.quote(arguments[0], safe="") + "/invoke", request))
+        return
+    raise SystemExit("unknown command: " + command)
+
+
+def parse_arguments(arguments):
+    if not arguments:
+        raise SystemExit("usage: capability catalog|list|describe|invoke|render ...")
+    return arguments[0], arguments[1:]
+
+
+def bridge_endpoint():
+    endpoint = os.environ.get("CAPABILITY_BRIDGE_URL", "").strip().rstrip("/")
+    if not endpoint:
+        raise SystemExit("CAPABILITY_BRIDGE_URL is not set")
+    return endpoint
+
+
+def require_argument(arguments, label):
+    if not arguments or not arguments[0].strip():
+        raise SystemExit(label + " is required")
+
+
+def descriptors(endpoint):
+    document = get_json(endpoint, "/v1/capabilities")
+    values = []
+    for key in ("capabilities", "deviceCapabilities", "companionCapabilities"):
+        candidates = document.get(key)
+        if isinstance(candidates, list):
+            values.extend(item for item in candidates if isinstance(item, dict))
+    return values
+
+
+def find_descriptor(endpoint, tool_name):
+    requested_name = tool_name.strip()
+    for descriptor in descriptors(endpoint):
+        if str(descriptor.get("name", "")).strip() == requested_name:
+            return descriptor
+    return None
+
+
+def invoke_request(tool_name, arguments):
+    if not arguments:
+        input_document = {}
+    else:
+        input_document = parse_json_argument(" ".join(arguments))
+    if isinstance(input_document, dict) and ("input" in input_document or "context" in input_document or "toolName" in input_document):
+        request = dict(input_document)
+        request["toolName"] = request.get("toolName") or tool_name
+        return request
+    return {
+        "toolName": tool_name,
+        "input": input_document,
+    }
+
+
+def parse_json_argument(value):
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as error:
+        raise SystemExit("invalid JSON input: " + str(error)) from error
+
+
+def get_json(endpoint, path):
+    return request_json(endpoint + path, None)
+
+
+def post_json(endpoint, path, document):
+    return request_json(endpoint + path, document)
+
+
+def request_json(url, document):
+    data = None
+    headers = {"Accept": "application/json"}
+    if document is not None:
+        data = json.dumps(document, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        message = error.read().decode("utf-8", errors="replace").strip()
+        raise SystemExit("capability bridge returned " + str(error.code) + ": " + message) from error
+    except urllib.error.URLError as error:
+        raise SystemExit("capability bridge unavailable: " + str(error.reason)) from error
+
+
+def write_json(document):
+    print(json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

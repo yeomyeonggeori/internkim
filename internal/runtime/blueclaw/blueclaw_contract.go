@@ -167,7 +167,7 @@ func BlueclawHealthCheckURL() string {
 }
 
 func BlueclawHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
+	return "curl --max-time 15 -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
 }
 
 func CapabilitydHealthCheckCommand() string {

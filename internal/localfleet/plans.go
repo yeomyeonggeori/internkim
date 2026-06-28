@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func (service Service) runPlans(contextValue context.Context, logger Logger, plans []CommandPlan) error {
@@ -64,13 +66,19 @@ func (service Service) runPlan(contextValue context.Context, logger Logger, plan
 
 func scanPlanOutput(pipe interface{ Read([]byte) (int, error) }, logger Logger, done chan struct{}) {
 	defer func() { done <- struct{}{} }()
-	scanner := bufio.NewScanner(pipe)
-	buffer := make([]byte, 0, 1024*64)
-	scanner.Buffer(buffer, 1024*1024)
-	for scanner.Scan() {
-		if line := strings.TrimSpace(scanner.Text()); line != "" {
-			logger.Info(line)
+	reader := bufio.NewReaderSize(pipe, 1024*64)
+	for {
+		fragment, errorValue := reader.ReadSlice('\n')
+		if text := strings.TrimSpace(string(fragment)); text != "" {
+			logger.Info(text)
 		}
+		if errorValue == nil {
+			continue
+		}
+		if errors.Is(errorValue, bufio.ErrBufferFull) {
+			continue
+		}
+		return
 	}
 }
 
@@ -238,6 +246,9 @@ func (service Service) setupEnvironmentAssignments() []string {
 	assignments := []string{
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
+	}
+	if !service.options.ShouldUseRealModels {
+		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(blueclaw.BlueclawTestModelName))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))

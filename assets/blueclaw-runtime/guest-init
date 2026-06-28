@@ -90,6 +90,52 @@ check_blueclaw_posix_helper() {
   fi
 }
 
+run_postgres_sql() {
+  timeout 30s su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/postgres -p 5432 -U postgres -d template1 -tAc \"$1\""
+}
+
+wait_for_postgres_sql() {
+  for _ in $(seq 1 120); do
+    if run_postgres_sql "SELECT 1" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  log_guest_init "postgres SQL readiness timed out"
+  exit 1
+}
+
+wait_for_postgres_socket() {
+  for _ in $(seq 1 120); do
+    if timeout 5s "$postgres_bindir/pg_isready" -h /workspace/.blueclaw/postgres -p 5432 -U postgres -d template1 >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  log_guest_init "postgres socket readiness timed out"
+  exit 1
+}
+
+wait_for_graphiti_health() {
+  local graphiti_process_id="$1"
+  for attempt in $(seq 1 120); do
+    if ! kill -0 "$graphiti_process_id" >/dev/null 2>&1; then
+      log_guest_init "graphiti exited before health at attempt $attempt"
+      tail -n 80 /workspace/.blueclaw/logs/graphiti-memoryd.log >/dev/console 2>/dev/null || true
+      return 1
+    fi
+    if curl --silent --fail --max-time 5 http://127.0.0.1:7791/health >/dev/null 2>&1; then
+      log_guest_init "graphiti health ready"
+      return
+    fi
+    sleep 1
+  done
+  log_guest_init "graphiti health readiness timed out"
+  ps -ef | grep '[g]raphiti' >/dev/console 2>/dev/null || true
+  tail -n 80 /workspace/.blueclaw/logs/graphiti-memoryd.log >/dev/console 2>/dev/null || true
+  return 1
+}
+
 configure_outbound_network() {
   if ! ip link show eth0 >/dev/null 2>&1; then
     log_guest_init "outbound network disabled: eth0 is unavailable"
@@ -123,68 +169,82 @@ mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts
 mountpoint -q /run || mount -t tmpfs tmpfs /run
 mountpoint -q /tmp || mount -t tmpfs tmpfs /tmp
 mount -o remount,rw /
+log_guest_init "base mounts ready"
 
 ip link set lo up
+log_guest_init "loopback ready"
 configure_outbound_network
+log_guest_init "network configured"
 
 if ! mountpoint -q /workspace; then
+  log_guest_init "workspace mount starting"
   mount -t ext4 /dev/vdb /workspace
 fi
 
+log_guest_init "workspace mounted"
 ensure_blueclaw_account
+log_guest_init "blueclaw account ready"
 prepare_blueclaw_workspace
+log_guest_init "workspace prepared"
 sync_blueclaw_posix_policy
+log_guest_init "posix policy synchronized"
 check_blueclaw_posix_helper
+log_guest_init "posix helper ready"
 
 chown -R postgres:postgres /workspace/.blueclaw/postgres
 chown postgres:blueclaw /workspace/.blueclaw/postgres
 chmod 0770 /workspace/.blueclaw/postgres
 
 /usr/local/bin/blueclaw-guest-healthd -port 8082 >>/workspace/.blueclaw/logs/guest-healthd.log 2>&1 &
+log_guest_init "guest health started"
 
 postgres_bin="$(find /usr/lib/postgresql -path '*/bin/postgres' -type f | sort -V | tail -1)"
 postgres_bindir="$(dirname "$postgres_bin")"
+log_guest_init "postgres binary ready"
 
 if [ ! -s /workspace/.blueclaw/postgres/data/PG_VERSION ]; then
+  log_guest_init "postgres initdb starting"
   chown -R postgres:postgres /workspace/.blueclaw/postgres
   su -s /bin/bash postgres -c "$postgres_bindir/initdb -D /workspace/.blueclaw/postgres/data --encoding=UTF8 --locale=C.UTF-8" >>/workspace/.blueclaw/logs/postgres-init.log 2>&1
+  log_guest_init "postgres initdb ready"
 fi
 
+log_guest_init "postgres launch starting"
 su -s /bin/bash postgres -c "$postgres_bin -D /workspace/.blueclaw/postgres/data -k /workspace/.blueclaw/postgres -h 127.0.0.1 -p 5432" >>/workspace/.blueclaw/logs/postgres.log 2>&1 &
 postgres_process_id="$!"
+log_guest_init "postgres launched pid=$postgres_process_id"
 
-for _ in $(seq 1 120); do
-  if "$postgres_bindir/pg_isready" -h /workspace/.blueclaw/postgres -p 5432 >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
+wait_for_postgres_socket
+log_guest_init "postgres socket ready"
 
 chown postgres:blueclaw /workspace/.blueclaw/postgres
 chmod 0770 /workspace/.blueclaw/postgres
+wait_for_postgres_sql
+log_guest_init "postgres SQL ready"
 
-if ! su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/postgres -d postgres -tAc \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\"" | grep -qx 1; then
-  su -s /bin/bash postgres -c "$postgres_bindir/createuser -h /workspace/.blueclaw/postgres blueclaw"
+if ! run_postgres_sql "SELECT 1 FROM pg_roles WHERE rolname='blueclaw'" | grep -qx 1; then
+  run_postgres_sql "CREATE ROLE blueclaw LOGIN"
 fi
-if ! su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/postgres -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" | grep -qx 1; then
-  su -s /bin/bash postgres -c "$postgres_bindir/createdb -h /workspace/.blueclaw/postgres -O blueclaw blueclaw"
+log_guest_init "postgres role ready"
+if ! run_postgres_sql "SELECT 1 FROM pg_database WHERE datname='blueclaw'" | grep -qx 1; then
+  run_postgres_sql "CREATE DATABASE blueclaw OWNER blueclaw"
 fi
+log_guest_init "postgres database ready"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -listen 127.0.0.1:18081 -host-cid 2 -host-port 7000 >>/workspace/.blueclaw/logs/vsock-http-proxy.log 2>&1 &
 su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=http://127.0.0.1:18081 BLUECLAW_GRAPHITI_KUZU_PATH=/workspace/.blueclaw/graphiti/kuzu BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1 BLUECLAW_GRAPHITI_PORT=7791 /usr/local/bin/graphiti-memoryd' >>/workspace/.blueclaw/logs/graphiti-memoryd.log 2>&1 &
+graphiti_process_id="$!"
+log_guest_init "graphiti started pid=$graphiti_process_id"
 
-for _ in $(seq 1 120); do
-  if curl --silent --fail --max-time 1 http://127.0.0.1:7791/health >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
+wait_for_graphiti_health "$graphiti_process_id" &
 
 blueclaw_binary="$(blueclaw_binary_path)"
 su -s /bin/bash blueclaw -c "$blueclaw_binary -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
+log_guest_init "blueclaw started"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -mode vsock-to-tcp -listen-vsock-port 8081 -target-tcp 127.0.0.1:8080 >>/workspace/.blueclaw/logs/guest-http-proxy.log 2>&1 &
+log_guest_init "guest http proxy started"
 
-wait -n "$postgres_process_id" "$blueclaw_process_id"
+wait -n "$postgres_process_id" "$graphiti_process_id" "$blueclaw_process_id"
 shutdown_guest

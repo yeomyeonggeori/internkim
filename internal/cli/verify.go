@@ -114,7 +114,7 @@ func runVerifyMattermost(arguments []string) error {
 	}
 	if strings.TrimSpace(*prompt) != "" {
 		return verifyTarget.runMattermostPromptVerification(
-			verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values(), strings.TrimSpace(*downloadFilesTo) != "", *waitForCompletion),
+			verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values(), strings.TrimSpace(*downloadFilesTo) != "", *waitForCompletion, false),
 			mattermostPromptSSHTimeout(*timeoutSeconds),
 			strings.TrimSpace(*downloadFilesTo),
 		)
@@ -141,7 +141,7 @@ func runVerifySite(arguments []string) error {
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
 	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
-	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false), mattermostPromptSSHTimeout(*timeoutSeconds))
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptSSHTimeout(*timeoutSeconds))
 }
 
 func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
@@ -559,6 +559,7 @@ type mattermostVerificationOutput struct {
 	SiteStyleMetrics          map[string]any             `json:"siteStyleMetrics"`
 	SiteScreenshotFiles       []string                   `json:"siteScreenshotFiles"`
 	IsSiteScreenshotsVerified bool                       `json:"siteScreenshotsVerified"`
+	IsAutoConfirmationSent    bool                       `json:"autoConfirmationSent"`
 }
 
 func parseMattermostVerificationOutput(output string) (mattermostVerificationOutput, error) {
@@ -1367,7 +1368,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string, downloadFiles bool, waitForCompletion bool) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string, downloadFiles bool, waitForCompletion bool, autoConfirm bool) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -1396,6 +1397,10 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 	if waitForCompletion {
 		waitForCompletionValue = "true"
 	}
+	autoConfirmValue := "false"
+	if autoConfirm {
+		autoConfirmValue = "true"
+	}
 	return fmt.Sprintf(`set -euo pipefail
 
 timestamp="$(date +%%s)"
@@ -1411,6 +1416,7 @@ expect_browser_open=%s
 expect_public_url=%s
 download_files=%s
 wait_for_completion=%s
+auto_confirm=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -1523,7 +1529,7 @@ download_bot_files() {
 
 wait_for_blueclaw_health() {
   for _ in $(seq 1 "$timeout_seconds"); do
-    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+    if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
     fi
@@ -1761,7 +1767,14 @@ cleanup() {
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
   if [ -n "${channel_id:-}" ]; then
-    for site_id in $(curl --silent --show-error http://127.0.0.1:8080/admin/api/sites | jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID'); do
+    site_list_file="$(mktemp)"
+    if curl --silent --show-error http://127.0.0.1:8080/admin/api/sites -o "$site_list_file"; then
+      site_ids="$(jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID' "$site_list_file" 2>/dev/null || true)"
+    else
+      site_ids=""
+    fi
+    rm -f "$site_list_file"
+    for site_id in $site_ids; do
       curl --silent --show-error -X DELETE -H "Content-Type: application/json" \
         -d '{"confirm":"DELETE","userConfirmed":true}' \
         "http://127.0.0.1:8080/admin/api/sites/$site_id" >/dev/null || true
@@ -1885,6 +1898,7 @@ if [ "$wait_for_completion" = "true" ] && [ -z "$task_run_id" ]; then
 fi
 task_detail_file="$(mktemp)"
 printf '{}' > "$task_detail_file"
+approval_sent=false
 if [ -n "$task_run_id" ]; then
   blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
 fi
@@ -1901,6 +1915,13 @@ fi
 if [ -n "$task_run_id" ] && [ "$should_wait_for_task" = "true" ]; then
   for _ in $(seq 1 "$timeout_seconds"); do
     blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    if [ "$auto_confirm" = "true" ] && [ "$approval_sent" = "false" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
+      approval_body="$(jq -cn --arg channel_id "$channel_id" --arg root_id "$user_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')"
+      api_request "post probe approval" POST http://localhost:8065/api/v4/posts "$user_token" "$approval_body" >/dev/null
+      approval_sent=true
+      sleep 1
+      continue
+    fi
     task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
     if [ "$task_status" = "completed" ] || [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
       break
@@ -2036,6 +2057,7 @@ jq -cn \
   --argjson keep "$keep_artifacts" \
   --argjson browser_open_verified "$browser_open_verified" \
   --argjson site_screenshots_verified "$site_screenshots_verified" \
+  --argjson auto_confirmation_sent "$approval_sent" \
   --rawfile site_html_text "$site_text_file" \
   --slurpfile bot_post "$bot_post_file" \
   --slurpfile downloaded_files "$downloaded_files_file" \
@@ -2051,6 +2073,7 @@ jq -cn \
     taskRunID: $task_run_id,
     browserOpenVerified: $browser_open_verified,
     siteScreenshotsVerified: $site_screenshots_verified,
+    autoConfirmationSent: $auto_confirmation_sent,
     sitePublicURL: $site_public_url,
     siteHTMLText: $site_html_text,
     siteStyleMetrics: ($site_style_metrics[0] // {}),
@@ -2062,7 +2085,7 @@ jq -cn \
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue, waitForCompletionValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue, waitForCompletionValue, autoConfirmValue)
 }
 
 func verifyMattermostDirectMessageE2EScript(keep bool, timeoutSeconds int) string {
@@ -2157,7 +2180,7 @@ blueclaw_request() {
 
 wait_for_blueclaw_health() {
   for _ in $(seq 1 "$timeout_seconds"); do
-    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+    if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
     fi
@@ -2443,7 +2466,7 @@ blueclaw_request() {
 
 wait_for_blueclaw_health() {
   for _ in $(seq 1 "$timeout_seconds"); do
-    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+    if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
     fi
@@ -2789,7 +2812,7 @@ blueclaw_request() {
 
 wait_for_blueclaw_health() {
   for _ in $(seq 1 "$timeout_seconds"); do
-    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+    if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
     fi

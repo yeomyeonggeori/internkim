@@ -149,6 +149,7 @@ const (
 	ConstraintModeLlamaGBNF                  = "llama_gbnf"
 	ConstraintModeLiteRTLLGuidanceJSONSchema = "litert_llguidance_json_schema"
 	ConstraintModeNativeToolCall             = "native_tool_call"
+	ConstraintModePromptedJSON               = "prompted_json"
 )
 
 type StructuredCompleter interface {
@@ -287,8 +288,8 @@ func nativeActionFallbackError(nativeError error, fallbackError error) error {
 	return errors.New("native action tool call failed: " + nativeError.Error() + "; json schema fallback failed: " + fallbackError.Error())
 }
 
-func nativeActionModelFallbackError(nativeErrors []error, fallbackErrors []error) error {
-	return errors.New("native action tool-call attempts failed: " + joinedErrors(nativeErrors) + "; json schema fallback attempts failed: " + joinedErrors(fallbackErrors))
+func nativeActionModelFallbackError(nativeErrors []error, fallbackErrors []error, promptedErrors []error) error {
+	return errors.New("native action tool-call attempts failed: " + joinedErrors(nativeErrors) + "; json schema fallback attempts failed: " + joinedErrors(fallbackErrors) + "; prompted json fallback attempts failed: " + joinedErrors(promptedErrors))
 }
 
 func modelAttemptError(modelName string, errorValue error) error {
