@@ -1,22 +1,14 @@
 ---
 name: mattermost
-description: Work with Mattermost conversations, posts, threads, attachments, channels, pins, and InternKim bot messages when the user is talking with InternKim inside Mattermost.
-when_to_use: Use when the user asks about Mattermost messages, threads, replies, attachments, DMs, channels, pins, headers, invites, or asks to edit/delete messages that InternKim posted.
-allowed-tools:
-  - ask.confirm
-  - platform.message.context
-  - platform.message.search
-  - platform.message.send
-  - platform.message.update
-  - platform.message.delete
-  - mattermost.channel.update
+description: Work with Mattermost conversations, posts, threads, attachments, channels, pins, and assistant bot messages when the user is talking with the assistant inside Mattermost.
+when_to_use: Use when the user asks about Mattermost messages, threads, replies, attachments, DMs, channels, pins, headers, invites, or asks to edit/delete messages that assistant posted.
 ---
 
 # Mattermost
 
-Use platform message tools for Mattermost messaging. Mattermost is the current platform adapter; do not choose Mattermost-specific post tools for ordinary message work.
+Use platform message capabilities for Mattermost messaging. Invoke `platform.message.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`.
 
-If the current conversation is Mattermost, use this skill when the user asks about messages in the current thread, current channel, a DM, a named channel, or bot messages that InternKim already sent.
+If the current conversation is Mattermost, use this skill when the user asks about messages in the current thread, current channel, a DM, a named channel, or bot messages that the assistant already sent.
 
 ## Read
 
@@ -31,21 +23,21 @@ Search scopes:
 - `directMessage`: a DM with `personHint`, or the current DM when no person is needed.
 - `channel`: a named channel with `channelID` or `channelName`.
 
-Use `authoredBy: "assistant"` when the user asks about messages InternKim sent. Use the returned previews to decide which messages match the user's intent. Do not delete from a natural-language description without first finding candidate message IDs.
+Use `authoredBy: "assistant"` when the user asks about messages assistant sent. Use the returned previews to decide which messages match the user's intent. Do not delete from a natural-language description without first finding candidate message IDs.
 
 ## Post
 
-Use `platform.message.send` to send a DM, reply to the current thread, post to the current channel, or post to a named channel. Ask for confirmation first with `ask.confirm`, then call the tool only after approval.
+Invoke `platform.message.send` through the capability CLI to send a DM, reply to the current thread, post to the current channel, or post to a named channel. Ask for confirmation first with `ask.confirm`, then invoke the capability only after approval.
 
 Use `pin: true` when the user asks to post and pin the message in the same request. Do not call `platform.message.update` again after a pinned post succeeds.
 
 ## Update Or Delete Posts
 
-Use `platform.message.update` to edit an InternKim bot message or pin/unpin a message. Ask for confirmation first with `ask.confirm`.
+Invoke `platform.message.update` through the capability CLI to edit an assistant bot message or pin/unpin a message. Ask for confirmation first with `ask.confirm`.
 
 Set `isPinned: true` to pin, `isPinned: false` to unpin, and omit `isPinned` when only changing message text.
 
-Use `platform.message.delete` to delete one or more InternKim bot messages. Ask for confirmation first with `ask.confirm`.
+Invoke `platform.message.delete` through the capability CLI to delete one or more assistant bot messages. Ask for confirmation first with `ask.confirm`.
 
 For precise deletion, pass all selected IDs in `messageIDs`, even when deleting a single message:
 
@@ -53,7 +45,7 @@ For precise deletion, pass all selected IDs in `messageIDs`, even when deleting 
 {"messageIDs":["message-id-1","message-id-2"]}
 ```
 
-Search is paginated. A search returns at most 25 candidates and a compact `messageIDs` array for the deletable InternKim bot messages on that page.
+Search is paginated. A search returns at most 25 candidates and a compact `messageIDs` array for the deletable assistant bot messages on that page.
 
 Delete does not search internally and does not use pagination. Pass only `messageIDs`:
 
@@ -63,9 +55,9 @@ Delete does not search internally and does not use pagination. Pass only `messag
 
 For "delete all matching messages", repeat this loop: search, delete the returned `messageIDs`, then run the same search again until `messageIDs` is empty. Do not advance to `nextCursor` after deleting, because deleted messages can shift later matches into the first page.
 
-Do not claim that a message was changed or deleted until the tool succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by InternKim, and blocks 업무, 캘린더, and 출결 automated messages.
+Do not claim that a message was changed or deleted until the tool succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by the assistant, and blocks 업무, 캘린더, and 출결 automated messages.
 
-When the user asks to stop future messages, use `schedule.cancel`. When the user asks to remove messages already sent in Mattermost, use `platform.message.search` and `platform.message.delete`.
+When the user asks to stop future messages, invoke `schedule.cancel` through the capability CLI. When the user asks to remove messages already sent in Mattermost, invoke `platform.message.search` and `platform.message.delete` through the capability CLI.
 
 ## Channel Management
 

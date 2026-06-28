@@ -912,6 +912,16 @@ done
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	fmt.Println("ok")
 
+	fmt.Print("Deploying workspace tools... ")
+	toolsDirectoryPath := blueclawworkspace.ToolsPath(scriptDir)
+	if _, err := os.Stat(toolsDirectoryPath); err == nil {
+		remoteToolsDirectoryPath := "/root/.blueclaw/workspace/tools"
+		ssh.run("rm -rf " + remoteToolsDirectoryPath + " && mkdir -p " + remoteToolsDirectoryPath)
+		ssh.scpDir(toolsDirectoryPath, remoteToolsDirectoryPath)
+		ssh.run("chown -R root:root " + remoteToolsDirectoryPath + " && chmod -R a+rX,go-w " + remoteToolsDirectoryPath)
+	}
+	fmt.Println("ok")
+
 	for _, tool := range boardTools {
 		fmt.Printf("Building %s... ", tool)
 		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, tool), "./cmd/"+tool+"/")
@@ -1577,33 +1587,62 @@ su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuse
 		fmt.Printf("  %s\n", m.t("PostgreSQL DB/사용자 설정 완료", "PostgreSQL DB/user configured"))
 	}
 
-	// Download and install Mattermost (arm64 tarball)
-	fmt.Printf("  %s\n", m.t("Mattermost 버전 확인 중...", "Checking Mattermost version..."))
-	installOut := ssh.run(`
+	if already == "yes" {
+		versionOutput := strings.TrimSpace(ssh.run(`/opt/mattermost/bin/mattermost version 2>/dev/null | head -1 || true`))
+		if versionOutput != "" {
+			fmt.Printf("  %s: %s\n", m.t("Mattermost 버전", "Mattermost version"), versionOutput)
+		}
+		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 건너뜀 — 기존 설치 사용", "Skipping Mattermost download — using existing installation"))
+	} else {
+		fmt.Printf("  %s\n", m.t("Mattermost 버전 확인 중...", "Checking Mattermost version..."))
+		installOut := ssh.run(`
 cd /tmp
-MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
-[ -z "$MMVER" ] && MMVER="10.9.1"
-echo "MMVER=${MMVER}"
-URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
-echo "Downloading Mattermost ${MMVER}..."
-curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok" || echo "download_failed"`)
-	mmver := ""
-	for _, line := range strings.Split(installOut, "\n") {
-		if strings.HasPrefix(line, "MMVER=") {
-			mmver = strings.TrimPrefix(strings.TrimSpace(line), "MMVER=")
+if [ -s /tmp/mattermost.tar.gz ]; then
+  echo "MMVER=cached"
+  echo "download_ok"
+else
+  MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
+  [ -z "$MMVER" ] && MMVER="10.9.1"
+  echo "MMVER=${MMVER}"
+  URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
+  echo "Downloading Mattermost ${MMVER}..."
+  curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok" || echo "download_failed"
+fi`)
+		mmver := ""
+		for _, line := range strings.Split(installOut, "\n") {
+			if strings.HasPrefix(line, "MMVER=") {
+				mmver = strings.TrimPrefix(strings.TrimSpace(line), "MMVER=")
+			}
+		}
+		if mmver != "" {
+			fmt.Printf("  %s: %s\n", m.t("Mattermost 버전", "Mattermost version"), mmver)
+		}
+		if strings.Contains(installOut, "download_failed") {
+			fmt.Printf("  ERROR: %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
+			return fmt.Errorf("Mattermost download failed")
+		}
+		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 완료, 설치 중...", "Download complete, installing..."))
+		extractResult := ssh.run(`
+cd /tmp && rm -rf mattermost
+if tar -xzf mattermost.tar.gz 2>&1; then
+  echo "tar_ok"
+  systemctl stop mattermost 2>/dev/null || true
+  rm -rf /opt/mattermost
+  mv /tmp/mattermost /opt/mattermost && echo "move_ok" || echo "move_failed"
+else
+  echo "tar_failed"
+fi`)
+		if strings.Contains(extractResult, "tar_failed") {
+			fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
+			return fmt.Errorf("failed to extract Mattermost tarball")
+		}
+		if strings.Contains(extractResult, "move_failed") {
+			fmt.Printf("  ERROR: %s\n", m.t("Mattermost 설치 디렉터리 이동 실패", "Failed to move Mattermost install directory"))
+			return fmt.Errorf("failed to move Mattermost install directory")
 		}
 	}
-	if mmver != "" {
-		fmt.Printf("  %s: %s\n", m.t("Mattermost 버전", "Mattermost version"), mmver)
-	}
-	if strings.Contains(installOut, "download_failed") {
-		fmt.Printf("  ERROR: %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
-		return fmt.Errorf("Mattermost download failed")
-	}
-	fmt.Printf("  %s\n", m.t("Mattermost 다운로드 완료, 설치 중...", "Download complete, installing..."))
 
 	installResult := ssh.run(fmt.Sprintf(`
-cd /tmp && tar -xzf mattermost.tar.gz 2>&1 && echo "tar_ok" || echo "tar_failed"
 legacy_data="%s"
 persistent_data="%s"
 if [ -d "$legacy_data" ] && [ ! -L "$legacy_data" ]; then
@@ -1614,8 +1653,6 @@ if [ -d "$legacy_data" ] && [ ! -L "$legacy_data" ]; then
     cp -an "$legacy_data"/. "$persistent_data"/ 2>/dev/null || true
   fi
 fi
-rm -rf /opt/mattermost
-mv /tmp/mattermost /opt/mattermost
 mkdir -p "$persistent_data"
 rm -rf "$legacy_data"
 ln -s "$persistent_data" "$legacy_data"
@@ -1685,10 +1722,6 @@ systemctl daemon-reload
 systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
 systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mattermostLegacyFileStorageDirectory, mattermostPersistentFileStorageDirectory, mmDBPass, mattermostManagedResourcePathSetting(), mattermostPersistentFileStorageDirectory, mattermostDefaultPushNotificationServer))
 
-	if strings.Contains(installResult, "tar_failed") {
-		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
-		return fmt.Errorf("failed to extract Mattermost tarball")
-	}
 	if strings.Contains(installResult, "defaults_missing") {
 		fmt.Printf("  WARN: %s\n", m.t("config.defaults.json 없음 — 기존 config.json 사용", "config.defaults.json missing — using existing config.json"))
 	}

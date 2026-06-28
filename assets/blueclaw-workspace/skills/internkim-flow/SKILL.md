@@ -1,19 +1,14 @@
 ---
 name: internkim-flow
-description: Add, find, update, or complete weekly work items when the user asks Intern Kim to handle work, todos, requests, deadlines, or task notes.
+description: Add, find, update, or complete weekly work items when the user asks the assistant to handle work, todos, requests, deadlines, or task notes.
 when_to_use: Use when the user asks to add, record, request, find, update, change, or complete work items, todos, 업무, 회의 준비, 미팅 준비, 추가, 넣어, 등록, 요청, 수정, 변경, 완료, 마감, 전달, 할 일, or 할일.
-allowed-tools:
-  - flow.task.add
-  - flow.task.list
-  - flow.task.update
-  - calendar.event.add
-  - calendar.event.list
-  - calendar.event.update
 ---
 
 # 업무 관리
 
 Use the work tools when the user asks to add, record, request, find, update, or complete a work item.
+
+Invoke all `flow.task.*` and `calendar.event.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`.
 
 Rules:
 

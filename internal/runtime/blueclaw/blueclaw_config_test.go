@@ -193,14 +193,6 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
 	}
-	for _, expectedToolName := range capabilities.DefaultToolNames() {
-		if expectedToolName == "site.app.preview" {
-			continue
-		}
-		if !containsStringValue(allowedToolNames, expectedToolName) {
-			t.Fatalf("expected default agent profile to allow default capability tool %q, got %+v", expectedToolName, allowedToolNames)
-		}
-	}
 	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
 		if containsStringValue(allowedToolNames, disabledToolName) {
 			t.Fatalf("expected default profile to omit disabled Google Workspace tool %q, got %+v", disabledToolName, allowedToolNames)
@@ -297,12 +289,19 @@ func TestBlueclawRuntimeConfigCanIncludeGenerationOptions(t *testing.T) {
 }
 
 func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestModelEnvironment, "google/test-model")
 	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
 	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
 
 	options, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
 	if errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	if options.ModelName != "google/test-model" {
+		t.Fatalf("expected model from environment, got %+v", options)
+	}
+	if !options.ShouldUseModelForAllTiers {
+		t.Fatalf("expected environment model to apply to all model tiers, got %+v", options)
 	}
 	if options.GenerationSeed == nil || *options.GenerationSeed != 41 {
 		t.Fatalf("expected seed from environment, got %+v", options)
@@ -376,8 +375,36 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 	if capabilityLanguageModel["model"] != "google/custom-model" {
 		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
 	}
+	for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+		if _, isFound := capabilityLanguageModel[tierModelField]; isFound {
+			t.Fatalf("expected ordinary model override to omit %s, got %+v", tierModelField, capabilityLanguageModel)
+		}
+	}
 	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
 		t.Fatalf("expected context window to remain tied to default runtime model, got %+v", capabilityLanguageModel)
+	}
+}
+
+func TestBlueclawRuntimeConfigCanApplyModelOverrideToAllTiers(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+		ModelName:                 "google/test-model",
+		ShouldUseModelForAllTiers: true,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	capabilityLanguageModel := languageModel["capability"].(map[string]any)
+	for _, tierModelField := range []string{"model", "highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+		if capabilityLanguageModel[tierModelField] != "google/test-model" {
+			t.Fatalf("expected %s to use test model, got %+v", tierModelField, capabilityLanguageModel)
+		}
 	}
 }
 
@@ -655,6 +682,18 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 		if strings.Contains(serviceDocument, forbiddenValue) {
 			t.Fatalf("expected physical Jetson capabilityd service to avoid Worker gateway value %q, got %s", forbiddenValue, serviceDocument)
 		}
+	}
+}
+
+func TestCapabilitydServiceCanUseTestModelFromEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestModelEnvironment, BlueclawTestModelName)
+
+	serviceDocument := CapabilitydServiceUnit()
+	if !strings.Contains(serviceDocument, "--openrouter-model "+BlueclawTestModelName) {
+		t.Fatalf("expected capabilityd service to use test model, got %s", serviceDocument)
+	}
+	if !strings.Contains(serviceDocument, "--force-openrouter-model") {
+		t.Fatalf("expected capabilityd service to force test model, got %s", serviceDocument)
 	}
 }
 

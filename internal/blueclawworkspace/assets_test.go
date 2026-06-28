@@ -21,6 +21,30 @@ func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	}
 }
 
+func TestCapabilityToolAssetExistsAndIsExecutable(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	toolPath := filepath.Join(ToolsPath(repositoryRootPath), "capability")
+	fileInfo, errorValue := os.Stat(toolPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if fileInfo.IsDir() {
+		t.Fatalf("expected capability tool file, got directory: %s", toolPath)
+	}
+	if fileInfo.Mode()&0o111 == 0 {
+		t.Fatalf("expected capability tool to be executable: %s", toolPath)
+	}
+	document, errorValue := os.ReadFile(toolPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"CAPABILITY_BRIDGE_URL", "/v1/tools/", "catalog", "invoke", "render"} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("capability tool must contain %q", expectedText)
+		}
+	}
+}
+
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillNames := []string{"docx", "xlsx", "pptx", "simple-slides", "pdf"}
@@ -444,7 +468,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("simple-slides must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.promote", "tmp/<deck-slug>/build/<deck-slug>.pptx", `"destinationDirectoryPath": "artifacts/<deck-slug>"`} {
+	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "artifact.deliver", "tmp/<deck-slug>/build/<deck-slug>.pptx", `"destinationDirectoryPath": "artifacts/<deck-slug>"`} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("simple-slides must document %q", expectedText)
 		}

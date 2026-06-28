@@ -18,6 +18,8 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
+	BlueclawTestModelName                               = "google/gemma-4-31b-it:free"
+	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 )
@@ -29,35 +31,36 @@ type defaultCircleDefinition struct {
 }
 
 type RuntimeConfigOptions struct {
-	ModelName                string
-	AdminTaskLinkBaseURL     string
-	BaseURL                  string
-	DirectExecution          bool
-	WorkspaceRootPath        string
-	POSIXHelperPath          string
-	DatabaseConnectionString string
-	MigrationDirectoryPath   string
-	CapabilitySocketPath     string
-	CapabilityVSockPort      int
-	GraphitiEndpoint         string
-	MattermostBaseURL        string
-	HostWorkspacePath        string
-	RootFilesystemImagePath  string
-	WorkspaceImagePath       string
-	HostHTTPListenAddress    string
-	HealthPortOrService      string
-	GuestHTTPPortOrService   string
-	LogDirectoryPath         string
-	RuntimeDirectoryPath     string
-	OutboundHostDeviceName   string
-	OutboundGuestMACAddress  string
-	OutboundNetworkCIDR      string
-	OutboundHostAddressCIDR  string
-	OutboundGuestAddressCIDR string
-	OutboundGuestGateway     string
-	BridgeListenAddress      string
-	GenerationSeed           *int64
-	GenerationTemperature    *float64
+	ModelName                 string
+	AdminTaskLinkBaseURL      string
+	BaseURL                   string
+	DirectExecution           bool
+	WorkspaceRootPath         string
+	POSIXHelperPath           string
+	DatabaseConnectionString  string
+	MigrationDirectoryPath    string
+	CapabilitySocketPath      string
+	CapabilityVSockPort       int
+	GraphitiEndpoint          string
+	MattermostBaseURL         string
+	HostWorkspacePath         string
+	RootFilesystemImagePath   string
+	WorkspaceImagePath        string
+	HostHTTPListenAddress     string
+	HealthPortOrService       string
+	GuestHTTPPortOrService    string
+	LogDirectoryPath          string
+	RuntimeDirectoryPath      string
+	OutboundHostDeviceName    string
+	OutboundGuestMACAddress   string
+	OutboundNetworkCIDR       string
+	OutboundHostAddressCIDR   string
+	OutboundGuestAddressCIDR  string
+	OutboundGuestGateway      string
+	BridgeListenAddress       string
+	GenerationSeed            *int64
+	GenerationTemperature     *float64
+	ShouldUseModelForAllTiers bool
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -69,33 +72,16 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 }
 
 var blueclawNativeToolNames = []string{
-	"conversation.history",
-	"memory.search",
-	"memory.remember",
-	"math.calculate",
 	"terminal.run",
-	"terminal.session",
-	"browser_handoff.openURL",
-	"ask.confirm",
-	"ask.choice",
 	"ask.input",
-	"file.read",
-	"file.preview",
-	"file.write",
-	"file.edit",
-	"file.patch",
-	"file.promote",
-	"file.attach",
-	"skill.add",
-	"skill.remove",
+	"ask.choice",
+	"ask.confirm",
+	"artifact.deliver",
 	"skill.search",
-	"schedule.create",
-	"schedule.cancel",
-	"db.sql",
 }
 
 func BlueclawDefaultAllowedToolNames() []string {
-	return removeDefaultSkillScopedToolNames(uniqueStringList(append(blueclawNativeToolNames, capabilities.DefaultToolNames()...)))
+	return uniqueStringList(blueclawNativeToolNames)
 }
 
 func removeDefaultSkillScopedToolNames(toolNames []string) []string {
@@ -124,9 +110,12 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
 	}
+	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
 	return RuntimeConfigOptions{
-		GenerationSeed:        seed,
-		GenerationTemperature: temperature,
+		ModelName:                 modelName,
+		ShouldUseModelForAllTiers: modelName != "",
+		GenerationSeed:            seed,
+		GenerationTemperature:     temperature,
 	}, nil
 }
 
@@ -148,7 +137,13 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"enableResponseHealing": true,
 	}
 	if strings.TrimSpace(options.ModelName) != "" {
-		capabilityLanguageModel["model"] = strings.TrimSpace(options.ModelName)
+		modelName := strings.TrimSpace(options.ModelName)
+		capabilityLanguageModel["model"] = modelName
+		if options.ShouldUseModelForAllTiers {
+			for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+				capabilityLanguageModel[tierModelField] = modelName
+			}
+		}
 	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
@@ -355,6 +350,10 @@ func firstPositiveInt(values ...int) int {
 		}
 	}
 	return 0
+}
+
+func optionalStringEnvironment(name string) string {
+	return strings.TrimSpace(os.Getenv(name))
 }
 
 func optionalInt64Environment(name string) (*int64, error) {

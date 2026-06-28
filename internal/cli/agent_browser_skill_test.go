@@ -64,7 +64,7 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 		"## Retrieval And Browser",
 		"`browser.snapshot`",
 		"interactive fallback",
-		"`web.fetch`",
+		"/workspace/tools/capability invoke web.fetch",
 		"## File Delivery",
 		"## Memory",
 		"## Approval Handling",
@@ -119,9 +119,12 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 		"install_device_browser_runtime",
 		"/usr/local/bin/lightpanda",
 		"$STAGE/.agents/skills/agent-browser/SKILL.md",
+		"$STAGE/tools",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
+		"/root/.blueclaw/workspace/tools",
 		"chown -R root:root \"$agentBrowserSkillDir\"",
 		"chmod -R a+rX,go-w /root/.blueclaw/workspace/skills",
+		"chmod -R a+rX,go-w /root/.blueclaw/workspace/tools",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {

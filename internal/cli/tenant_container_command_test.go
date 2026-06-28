@@ -191,8 +191,8 @@ func installTenantContainerCLIHTTPTransport(t *testing.T) {
 			if errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if fileHeader.Filename != "logo.png" || string(document) != "<svg></svg>" {
-				t.Fatalf("unexpected profile image upload: %s %q", fileHeader.Filename, string(document))
+			if fileHeader.Filename != "internkim.png" || !bytes.HasPrefix(document, []byte("\x89PNG\r\n\x1a\n")) {
+				t.Fatalf("unexpected profile image upload: %s %d bytes", fileHeader.Filename, len(document))
 			}
 			return newTenantContainerCLIHTTPResponse(t, http.StatusOK, map[string]bool{"ok": true}, ""), nil
 		case request.URL.Path == "/api/v4/teams/team-id/members/company-admin-id/schemeRoles":
