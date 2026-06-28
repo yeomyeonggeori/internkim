@@ -2,10 +2,6 @@
 name: ask
 description: Ask the user for confirmation, a bounded choice, or free-form input when execution cannot safely continue without their decision.
 when_to_use: Always available. Use only when the user must confirm an action, choose from explicit options, or provide missing input before the task can continue.
-allowed-tools:
-  - ask.confirm
-  - ask.choice
-  - ask.input
 ---
 
 # Ask

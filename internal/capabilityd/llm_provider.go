@@ -41,6 +41,7 @@ type providerAvailability struct {
 }
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
+	request.Model = service.llmRequestModel(request.Model)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm.structured", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -49,6 +50,7 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 }
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	request.Model = service.llmRequestModel(request.Model)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm.text", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -57,6 +59,7 @@ func (service Service) completeText(ctx context.Context, request TextLLMRequest)
 }
 
 func (service Service) completeChat(ctx context.Context, request ChatLLMRequest) (ChatLLMResponse, error) {
+	request.Model = service.llmRequestModel(request.Model)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm.chat", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return ChatLLMResponse{}, errorValue
@@ -66,6 +69,13 @@ func (service Service) completeChat(ctx context.Context, request ChatLLMRequest)
 		return ChatLLMResponse{}, errors.New("selected llm provider does not support native chat completions")
 	}
 	return chatProvider.CompleteChat(ctx, request)
+}
+
+func (service Service) llmRequestModel(requestModel string) string {
+	if !service.Configuration.ForceOpenRouterModel {
+		return requestModel
+	}
+	return firstNonEmpty(service.Configuration.OpenRouterModel, requestModel)
 }
 
 func (service Service) providerForExecutionMode(ctx context.Context, toolName, executionMode, providerName, accelerator string) (LLMProvider, error) {
@@ -147,11 +157,18 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 		KeyPath:             service.Configuration.OpenRouterKeyPath,
 		BaseURL:             service.Configuration.OpenRouterBaseURL,
 		ModelName:           firstNonEmpty(service.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel),
-		FallbackModelNames:  llmbackend.DefaultOpenRouterActionFallbackModels,
+		FallbackModelNames:  service.openRouterActionFallbackModelNames(),
 		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
 		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
 		HTTPClient:          service.httpClient(),
 	}
+}
+
+func (service Service) openRouterActionFallbackModelNames() []string {
+	if service.Configuration.ForceOpenRouterModel {
+		return nil
+	}
+	return append([]string{}, llmbackend.DefaultOpenRouterActionFallbackModels...)
 }
 
 func firstProviderOrder(values []string, fallback []string) []string {

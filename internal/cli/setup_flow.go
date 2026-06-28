@@ -1179,6 +1179,10 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
+	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
+	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
+		return fmt.Errorf("tools directory missing: %s", toolsDirectoryPath)
+	}
 	if errorValue := state.installSkillPythonDependenciesSSH(); errorValue != nil {
 		return errorValue
 	}
@@ -1190,6 +1194,11 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	remoteSkillsDirectoryPath := filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")
 	state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillsDirectoryPath) + " && mkdir -p " + quoteShellValue(remoteSkillsDirectoryPath))
 	if errorValue := state.sshClient.scpDir(skillsDirectoryPath, remoteSkillsDirectoryPath); errorValue != nil {
+		return errorValue
+	}
+	remoteToolsDirectoryPath := filepath.Join(blueclaw.BlueclawWorkspacePath, "tools")
+	state.sshClient.run("rm -rf " + quoteShellValue(remoteToolsDirectoryPath) + " && mkdir -p " + quoteShellValue(remoteToolsDirectoryPath))
+	if errorValue := state.sshClient.scpDir(toolsDirectoryPath, remoteToolsDirectoryPath); errorValue != nil {
 		return errorValue
 	}
 
@@ -1218,6 +1227,8 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	}
 	state.sshClient.run(`chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
 chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
+chown -R root:root /root/.blueclaw/workspace/tools 2>/dev/null || true
+chmod -R a+rX,go-w /root/.blueclaw/workspace/tools 2>/dev/null || true
 chown root:root /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
 chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
 	return nil
@@ -1236,7 +1247,14 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
+	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
+	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
+		return fmt.Errorf("tools directory missing: %s", toolsDirectoryPath)
+	}
 	if errorValue := copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills")); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := copyDirectoryToStage(toolsDirectoryPath, filepath.Join(context.SD.RootPath(), "tools")); errorValue != nil {
 		return errorValue
 	}
 	agentsDocument, errorValue := os.ReadFile(blueclawworkspace.AgentsPath(state.scriptDir))
@@ -1256,7 +1274,11 @@ func (state *setupFlowState) skillsManifest() string {
 	if errorValue != nil {
 		return ""
 	}
-	digest = sha256String(digest + ":" + agentsDigest)
+	toolsDigest, errorValue := directoryDigest(blueclawworkspace.ToolsPath(state.scriptDir))
+	if errorValue != nil {
+		return ""
+	}
+	digest = sha256String(digest + ":" + agentsDigest + ":" + toolsDigest)
 	return fmt.Sprintf("{\n  \"name\": \"internkim-skills\",\n  \"sha256\": \"%s\"\n}\n", digest)
 }
 
@@ -2679,6 +2701,12 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 	localSkillsPath := blueclawworkspace.SkillsPath(state.scriptDir)
 	if info, err := os.Stat(localSkillsPath); err == nil && info.IsDir() {
 		if err := copyDirectoryContents(localSkillsPath, filepath.Join(context.SD.RootPath(), "skills")); err != nil {
+			return err
+		}
+	}
+	localToolsPath := blueclawworkspace.ToolsPath(state.scriptDir)
+	if info, err := os.Stat(localToolsPath); err == nil && info.IsDir() {
+		if err := copyDirectoryContents(localToolsPath, filepath.Join(context.SD.RootPath(), "tools")); err != nil {
 			return err
 		}
 	}

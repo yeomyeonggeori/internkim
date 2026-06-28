@@ -51,6 +51,7 @@ type Configuration struct {
 	AdmindBaseURL                  string
 	OpenRouterBaseURL              string
 	OpenRouterModel                string
+	ForceOpenRouterModel           bool
 	OpenRouterGatewaySecretPath    string
 	OpenRouterGatewaySecretHeader  string
 	OpenRouterWebBaseURL           string

@@ -110,11 +110,27 @@ func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 	if configuration.ServiceOptions.AdminHostPort != 19080 || configuration.ServiceOptions.MattermostHostPort != 19065 {
 		t.Fatalf("ports = %+v", configuration.ServiceOptions)
 	}
+	if configuration.ServiceOptions.ShouldUseRealModels {
+		t.Fatalf("expected test models by default: %+v", configuration.ServiceOptions)
+	}
 	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "mattermost-direct-message-send" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 	if !configuration.Request.KeepArtifacts {
 		t.Fatalf("expected keep artifacts request: %+v", configuration.Request)
+	}
+}
+
+func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
+	configuration, errorValue := parseDevFleetRunArguments([]string{
+		"--real",
+		"--scenario", "mattermost-direct-message-send",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if !configuration.ServiceOptions.ShouldUseRealModels {
+		t.Fatalf("expected real model option: %+v", configuration.ServiceOptions)
 	}
 }
 

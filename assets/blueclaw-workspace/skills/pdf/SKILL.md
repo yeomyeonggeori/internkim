@@ -5,19 +5,9 @@ description:
   reports, invoices, forms, or when user mentions PDF generation or document creation. Also use
   pypdf for reading or editing existing PDF files."
 when_to_use: Use for PDF, document, report, invoice, 문서, 보고서, 견적서, 청구서, PDF generation, or PDF reading/editing requests.
-allowed-tools:
-  - file.preview
-  - file.read
-  - terminal.run
-  - file.write
-  - file.edit
-  - file.patch
-  - file.promote
-  - file.attach
 completion:
   requiredEvidenceTools:
-    - file.promote
-    - file.attach
+    - artifact.deliver
 ---
 
 # Generating PDFs with fpdf2
@@ -32,7 +22,7 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
 4. For straightforward proposals, estimates, reports, invoices, and short source-backed documents, write a JSON spec and run `scripts/create_pdf.py` through `scripts/skill_runtime.py`; use custom Python only when the layout needs features the JSON helper does not support.
 5. Run custom PDF generation scripts through `scripts/skill_runtime.py python <file.py>` so `fpdf2` and `pypdf` resolve from the bundled dependency environment.
 6. Validate the final PDF with `scripts/skill_runtime.py python scripts/validate_pdf.py` or an equivalent `pypdf` check for page count, extractable text, required source facts, forbidden unsupported facts, encryption, embedded fonts, and Korean-capable font names. Pass source-provided names, dates, totals, and key labels as repeated `--required-text` arguments. Pass likely invented or explicitly disallowed claims as repeated `--forbidden-text` arguments.
-7. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+7. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `artifact.deliver` unless the user requested a circle or shared destination.
 8. Attach the promoted PDF. Attach intermediate files only if the user asks.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. Do not run `pip install` directly. Do not use bare `python3 create_pdf.py` for fpdf2 or pypdf work; it may use a Python environment without the PDF libraries.

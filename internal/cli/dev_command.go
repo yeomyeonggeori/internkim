@@ -163,6 +163,7 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
 	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
 	mattermostHostPort := flagSet.Int("mattermost-port", 0, "Host port for the local Mattermost tunnel")
+	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devFleetRunConfiguration{}, errorValue
 	}
@@ -177,10 +178,11 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		return devFleetRunConfiguration{}, errors.New("--run-id requires a disposable run; remove --reuse")
 	}
 	serviceOptions := localfleet.Options{
-		IsEphemeral:        !*reuseFleet,
-		RunID:              strings.TrimSpace(*runID),
-		AdminHostPort:      *adminHostPort,
-		MattermostHostPort: *mattermostHostPort,
+		IsEphemeral:         !*reuseFleet,
+		RunID:               strings.TrimSpace(*runID),
+		AdminHostPort:       *adminHostPort,
+		MattermostHostPort:  *mattermostHostPort,
+		ShouldUseRealModels: *useRealModels,
 	}
 	request := localfleet.JobRequest{
 		KeepArtifacts:     *keepArtifacts,
@@ -233,6 +235,7 @@ func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Ser
 		MattermostHostPort:    options.MattermostHostPort,
 		GenerationSeed:        options.GenerationSeed,
 		GenerationTemperature: options.GenerationTemperature,
+		ShouldUseRealModels:   options.ShouldUseRealModels,
 		IsEphemeral:           options.IsEphemeral,
 	})
 }

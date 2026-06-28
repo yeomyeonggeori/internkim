@@ -415,6 +415,30 @@ func TestAutoProviderAttemptTimeoutFallsBackToRemote(t *testing.T) {
 	}
 }
 
+func TestLLMRequestModelPreservesRequestedModelByDefault(t *testing.T) {
+	service := Service{Configuration: Configuration{OpenRouterModel: "configured-model"}}
+
+	if modelName := service.llmRequestModel("requested-model"); modelName != "requested-model" {
+		t.Fatalf("expected requested model to be preserved, got %q", modelName)
+	}
+}
+
+func TestLLMRequestModelCanForceConfiguredOpenRouterModel(t *testing.T) {
+	service := Service{Configuration: Configuration{OpenRouterModel: "configured-model", ForceOpenRouterModel: true}}
+
+	if modelName := service.llmRequestModel("requested-model"); modelName != "configured-model" {
+		t.Fatalf("expected configured model to override requested model, got %q", modelName)
+	}
+}
+
+func TestForceOpenRouterModelDisablesActionFallbackModels(t *testing.T) {
+	service := Service{Configuration: Configuration{ForceOpenRouterModel: true}}
+
+	if fallbackModelNames := service.openRouterBackend().FallbackModelNames; len(fallbackModelNames) != 0 {
+		t.Fatalf("expected forced OpenRouter model to disable fallback models, got %+v", fallbackModelNames)
+	}
+}
+
 var errTestProviderUnavailable = os.ErrNotExist
 
 type staticLLMProvider struct {

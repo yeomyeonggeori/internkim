@@ -526,6 +526,11 @@ if [ -d "$STAGE/skills" ]; then
   mkdir -p /root/.blueclaw/workspace/skills
   cp -af "$STAGE/skills/." /root/.blueclaw/workspace/skills/
 fi
+if [ -d "$STAGE/tools" ]; then
+  rm -rf /root/.blueclaw/workspace/tools
+  mkdir -p /root/.blueclaw/workspace/tools
+  cp -af "$STAGE/tools/." /root/.blueclaw/workspace/tools/
+fi
 
 install_device_browser_runtime() {
   if [ ! -x "`+browserruntime.DeviceBrowserExecutablePath+`" ]; then
@@ -562,6 +567,8 @@ chown -R root:root "$agentBrowserSkillDir" 2>/dev/null || true
 chmod -R a+rX,go-w "$agentBrowserSkillDir" 2>/dev/null || true
 chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
 chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
+chown -R root:root /root/.blueclaw/workspace/tools 2>/dev/null || true
+chmod -R a+rX,go-w /root/.blueclaw/workspace/tools 2>/dev/null || true
 
 if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh

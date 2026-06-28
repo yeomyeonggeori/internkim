@@ -52,10 +52,24 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 	if isActionTurnStructuredRequest(request) {
 		return backend.completeActionStructured(ctx, apiKey, request, backend.actionModelNames(modelName))
 	}
-	return backend.completeJSONSchema(ctx, apiKey, request, modelName)
+	if prefersPromptedStructuredJSON(modelName) {
+		return backend.completePromptedJSON(ctx, apiKey, request, modelName)
+	}
+	response, errorValue := backend.completeJSONSchema(ctx, apiKey, request, modelName)
+	if errorValue == nil {
+		return response, nil
+	}
+	promptedResponse, promptedError := backend.completePromptedJSON(ctx, apiKey, request, modelName)
+	if promptedError == nil {
+		return promptedResponse, nil
+	}
+	return Response{}, errors.New("json schema completion failed: " + errorValue.Error() + "; prompted json fallback failed: " + promptedError.Error())
 }
 
 func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, apiKey string, request StructuredRequest, modelNames []string) (Response, error) {
+	if len(modelNames) == 1 && prefersPromptedStructuredJSON(modelNames[0]) {
+		return backend.completePromptedJSON(ctx, apiKey, request, modelNames[0])
+	}
 	nativeErrors := []error{}
 	for _, modelName := range modelNames {
 		response, isHandled, errorValue := backend.completeNativeAction(ctx, apiKey, request, modelName)
@@ -75,7 +89,15 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 		}
 		fallbackErrors = append(fallbackErrors, modelAttemptError(modelName, errorValue))
 	}
-	return Response{}, nativeActionModelFallbackError(nativeErrors, fallbackErrors)
+	promptedErrors := []error{}
+	for _, modelName := range modelNames {
+		response, errorValue := backend.completePromptedJSON(ctx, apiKey, request, modelName)
+		if errorValue == nil {
+			return response, nil
+		}
+		promptedErrors = append(promptedErrors, modelAttemptError(modelName, errorValue))
+	}
+	return Response{}, nativeActionModelFallbackError(nativeErrors, fallbackErrors, promptedErrors)
 }
 
 func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, bool, error) {
@@ -110,12 +132,39 @@ func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey 
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
+	content = normalizeStructuredJSONContent(content)
+	if errorValue := validateStructuredJSONContent(content); errorValue != nil {
+		return Response{}, errorValue
+	}
 	return Response{
 		Provider:        "openrouter",
 		Model:           modelName,
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
+		Usage:           usage,
+	}, nil
+}
+
+func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
+	requestDocument, errorValue := buildOpenRouterPromptedStructuredRequest(request, modelName)
+	if errorValue != nil {
+		return Response{}, errorValue
+	}
+	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
+	if errorValue != nil {
+		return Response{}, errorValue
+	}
+	content = normalizeStructuredJSONContent(content)
+	if errorValue := validateStructuredJSONContent(content); errorValue != nil {
+		return Response{}, errorValue
+	}
+	return Response{
+		Provider:        "openrouter",
+		Model:           modelName,
+		Content:         content,
+		SelectedBackend: capabilities.LLMBackendRemote,
+		ConstraintMode:  ConstraintModePromptedJSON,
 		Usage:           usage,
 	}, nil
 }
@@ -201,6 +250,10 @@ func uniqueModelNames(modelNames []string) []string {
 		result = append(result, normalized)
 	}
 	return result
+}
+
+func prefersPromptedStructuredJSON(modelName string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(modelName)), ":free")
 }
 
 func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (string, Usage, error) {
@@ -352,6 +405,76 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 	}
 	addGenerationOptions(document, request.GenerationOptions)
 	return json.Marshal(document)
+}
+
+func buildOpenRouterPromptedStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
+	messages := append([]openAIMessage{}, openAIMessages(request.Messages)...)
+	messages = append(messages, openAIMessage{
+		Role:    "user",
+		Content: promptedStructuredOutputInstruction(request.StructuredOutputSchema),
+	})
+	document := map[string]any{
+		"model":    modelName,
+		"messages": messages,
+		"stream":   false,
+	}
+	if request.RequireParameters {
+		document["provider"] = map[string]bool{"require_parameters": true}
+	}
+	if request.EnableResponseHealing {
+		document["plugins"] = []map[string]string{{"id": "response-healing"}}
+	}
+	addGenerationOptions(document, request.GenerationOptions)
+	return json.Marshal(document)
+}
+
+func promptedStructuredOutputInstruction(schema StructuredOutputSchema) string {
+	schemaName := strings.TrimSpace(schema.Name)
+	if schemaName == "" {
+		schemaName = "structured_output"
+	}
+	schemaDocument := strings.TrimSpace(string(schema.Document))
+	if schemaDocument == "" {
+		return "Return only valid JSON for " + schemaName + ". Do not use Markdown or explanatory text."
+	}
+	return "Return only one valid JSON object for " + schemaName + ". Do not use Markdown or explanatory text. The JSON must satisfy this schema:\n" + schemaDocument
+}
+
+func normalizeStructuredJSONContent(content string) string {
+	trimmedContent := strings.TrimSpace(content)
+	if json.Valid([]byte(trimmedContent)) {
+		return trimmedContent
+	}
+	fencedContent, hasFencedContent := fencedJSONContent(trimmedContent)
+	if hasFencedContent && json.Valid([]byte(fencedContent)) {
+		return fencedContent
+	}
+	return content
+}
+
+func validateStructuredJSONContent(content string) error {
+	trimmedContent := strings.TrimSpace(content)
+	if trimmedContent == "" {
+		return errors.New("structured response content was empty")
+	}
+	if !json.Valid([]byte(trimmedContent)) {
+		return errors.New("structured response content was not valid json")
+	}
+	return nil
+}
+
+func fencedJSONContent(content string) (string, bool) {
+	if !strings.HasPrefix(content, "```") {
+		return "", false
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) < 3 {
+		return "", false
+	}
+	if !strings.HasPrefix(strings.TrimSpace(lines[len(lines)-1]), "```") {
+		return "", false
+	}
+	return strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n")), true
 }
 
 func buildOpenRouterChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {

@@ -2,20 +2,9 @@
 name: simple-slides
 description: Generate clean presentation slides from an HTML-first source and attach the requested files. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
 when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
-allowed-tools:
-  - terminal.run
-  - file.preview
-  - file.read
-  - file.write
-  - file.edit
-  - file.patch
-  - file.promote
-  - file.attach
-  - artifact.review
 completion:
   requiredEvidenceTools:
-    - file.promote
-    - file.attach
+    - artifact.deliver
 ---
 
 # Simple Slides
@@ -29,17 +18,17 @@ The source of truth is `slides.html`. Revisions should edit that same HTML sourc
 Use this order for normal requests:
 
 1. Decide the deck archetype and main narrative flow before writing source files.
-2. Use `file.write` to create `tmp/<deck-slug>/deck-brief.md`; keep it short and natural-language: request intent, audience, deck archetype, main thesis, story spine, slide sequence, visual direction, must-show content, and what would be too shallow.
-3. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
-4. Use `file.write` to create `tmp/<deck-slug>/slides.html`.
+2. Create `tmp/<deck-slug>/deck-brief.md` with a task-local script; keep it short and natural-language: request intent, audience, deck archetype, main thesis, story spine, slide sequence, visual direction, must-show content, and what would be too shallow.
+3. Create `tmp/<deck-slug>/DESIGN.md` with the same task-local script; do not use Blueclaw internal temporary paths.
+4. Create `tmp/<deck-slug>/slides.html` before running the build.
 5. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
 6. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
 7. If the deck is visually important and budget remains, call `artifact.review` for contact sheets with expected visible text from `fit-review-XX.md`, the deck brief, and the deck archetype. Skip extra review calls when deterministic review is clean and delivery budget is tight.
 8. If rendered images, deterministic review, or LLM review show useful improvements and the improvement budget remains, revise `slides.html` and rebuild. Repeat at most three times. If the deck is usable after the budget, attach it and report the top remaining notes instead of failing solely on visual quality.
-9. Promote final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination. Also promote `tmp/<deck-slug>/slides.html`, `tmp/<deck-slug>/DESIGN.md`, and `tmp/<deck-slug>/deck-brief.md` to `artifacts/<deck-slug>/source/` so later revisions can restore the editable source.
-10. Use one `file.attach` call with a `files` array for all requested promoted files.
+9. Deliver final files from `tmp/<deck-slug>/build/` with `artifact.deliver`, using `destinationDirectoryPath: "artifacts/<deck-slug>"` unless the user requested a circle or shared destination. Also deliver `tmp/<deck-slug>/slides.html`, `tmp/<deck-slug>/DESIGN.md`, and `tmp/<deck-slug>/deck-brief.md` to `artifacts/<deck-slug>/source/` so later revisions can restore the editable source.
+10. Use one `artifact.deliver` call with a `files` array for all requested promoted files.
 
-`file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
+Bundle source creation into one task-local script so you do not spend separate terminal calls on `mkdir` or tiny file writes. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
 Use this command shape after the source files exist. Do not copy `build.sh` into the task directory:
 
@@ -52,7 +41,7 @@ Use this command shape after the source files exist. Do not copy `build.sh` into
 
 If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, text-preserving PDF, image-backed PPTX, notes, and review evidence are produced.
 
-Use `file.promote` to promote final outputs after the build succeeds:
+Use `artifact.deliver` to promote final outputs after the build succeeds:
 
 ```json
 {
@@ -168,7 +157,7 @@ Keep variable text within a line budget: title 1-2 lines, takeaway 1-2 lines, ca
 
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask. A finished deck should feel like a paced argument, not a sequence of topic pages.
 
-Use `file.write` for `DESIGN.md` and `slides.html`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for running the build.
+Use a task-local script for `DESIGN.md` and `slides.html`, then run it with `terminal.run`. Do not create source files with shell heredocs or `echo` inside the command string.
 
 Iterate on `slides.html` when the rendered images show useful improvements. Preserve important request constraints directly in the deck, such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
 
@@ -230,7 +219,7 @@ If the requested PPTX/PDF/HTML exists and is usable, promote and attach it after
 
 ## Revisions
 
-When the user asks to change a previously delivered deck, treat it as a revision of the same `<deck-slug>`, not a new deck. If `tmp/<deck-slug>/slides.html` no longer exists, restore the editable source from `artifacts/<deck-slug>/source/` into `tmp/<deck-slug>/` with `file.read` and `file.write`. Apply the requested changes to `slides.html`, rebuild with the same build command, re-promote with `overwrite: true`, and re-attach the requested formats. Do not create a new deck slug for a revision, and do not rebuild the deck from scratch when the source is available.
+When the user asks to change a previously delivered deck, treat it as a revision of the same `<deck-slug>`, not a new deck. If `tmp/<deck-slug>/slides.html` no longer exists, restore the editable source from `artifacts/<deck-slug>/source/` into `tmp/<deck-slug>/` through a task-local script. Apply the requested changes to `slides.html`, rebuild with the same build command, and deliver the requested formats again with `artifact.deliver` and `overwrite: true`. Do not create a new deck slug for a revision, and do not rebuild the deck from scratch when the source is available.
 
 ## Output
 

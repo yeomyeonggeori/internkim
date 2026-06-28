@@ -13,6 +13,10 @@ func SkillsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "skills")
 }
 
+func ToolsPath(scriptDir string) string {
+	return filepath.Join(AssetsPath(scriptDir), "tools")
+}
+
 func AgentSkillsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), ".agents", "skills")
 }

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type recordingLogger struct {
@@ -146,6 +148,9 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
 		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
 	}
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment+"='"+blueclaw.BlueclawTestModelName+"'") {
+		t.Fatalf("expected test up plan to use the cheap test model:\n%s", joinedPlans)
+	}
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
 	}
@@ -162,6 +167,21 @@ func TestUpPlanSkipsRuntimeBaseForReusableFleet(t *testing.T) {
 	}
 	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
 		t.Fatalf("expected reusable fleet setup to skip runtime base reinstall:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanUseRealModels(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath:  "/repo",
+		ExecutablePath:      "/repo/internkim",
+		ShouldUseRealModels: true,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
+		t.Fatalf("expected real model setup to omit test model override:\n%s", joinedPlans)
 	}
 }
 

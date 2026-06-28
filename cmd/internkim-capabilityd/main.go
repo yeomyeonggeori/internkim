@@ -25,6 +25,8 @@ func main() {
 	flag.StringVar(&configuration.LiteRTModelPath, "litert-model", defaultConfiguration.LiteRTModelPath, "LiteRT-LM model path")
 	flag.StringVar(&configuration.LocalLLMRunnerPath, "local-llm-runner", defaultConfiguration.LocalLLMRunnerPath, "local LLM runner path")
 	flag.StringVar(&configuration.OpenRouterBaseURL, "openrouter-url", defaultConfiguration.OpenRouterBaseURL, "OpenRouter-compatible chat completion URL")
+	flag.StringVar(&configuration.OpenRouterModel, "openrouter-model", defaultConfiguration.OpenRouterModel, "OpenRouter chat model")
+	flag.BoolVar(&configuration.ForceOpenRouterModel, "force-openrouter-model", defaultConfiguration.ForceOpenRouterModel, "force OpenRouter requests to use --openrouter-model")
 	flag.StringVar(&configuration.OpenRouterGatewaySecretPath, "openrouter-gateway-secret", defaultConfiguration.OpenRouterGatewaySecretPath, "OpenRouter gateway shared secret path")
 	flag.StringVar(&configuration.OpenRouterGatewaySecretHeader, "openrouter-gateway-secret-header", defaultConfiguration.OpenRouterGatewaySecretHeader, "OpenRouter gateway shared secret header")
 	flag.StringVar(&configuration.OpenRouterEmbeddingBaseURL, "openrouter-embedding-url", defaultConfiguration.OpenRouterEmbeddingBaseURL, "OpenRouter embedding URL")
