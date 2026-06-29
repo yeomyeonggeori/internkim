@@ -101,7 +101,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.create", "site.build", "site.publish"}, nil, false, false, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -129,7 +129,7 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false, false, false)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.create", "site.build", "site.publish"}, nil, false, false, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)

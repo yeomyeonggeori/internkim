@@ -50,24 +50,24 @@ type platformMessageDeleteInput struct {
 
 func (service Service) invokePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch request.ToolName {
-	case "platform.message.context":
+	case "message.context":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokeMattermostContextInspect(ctx, request)
-	case "platform.message.search":
+	case "message.search":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokePlatformMessageSearch(ctx, request)
-	case "platform.message.send":
+	case "message.send":
 		return service.invokePlatformMessageSend(ctx, request)
-	case "platform.message.update":
+	case "message.update":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
 		return service.invokePlatformMessageUpdate(ctx, request)
-	case "platform.message.delete":
+	case "message.delete":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
@@ -237,11 +237,11 @@ func (service Service) invokePlatformMessageDelete(ctx context.Context, request 
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
 	if len(input.MessageIDs) == 0 {
-		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use platform.message.search first to find message IDs")
+		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use message.search first to find message IDs")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	if len(input.MessageIDs) > mattermostPostSearchPageLimit {
-		failure := mattermostToolStaticFailure("too_many_message_ids", "input_decode", "platform.message.delete accepts at most 25 messageIDs per call; delete one search page at a time")
+		failure := mattermostToolStaticFailure("too_many_message_ids", "input_decode", "message.delete accepts at most 25 messageIDs per call; delete one search page at a time")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	mattermostInput := mattermostPostDeleteInput{PostIDs: input.MessageIDs}
@@ -293,7 +293,7 @@ func normalizePlatformMessageSearchQueries(values []string) []string {
 
 func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSendInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return platformMessageSendInput{}, fmt.Errorf("platform.message.send input is required")
+		return platformMessageSendInput{}, fmt.Errorf("message.send input is required")
 	}
 	var input platformMessageSendInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -313,7 +313,7 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 
 func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessageUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return platformMessageUpdateInput{}, fmt.Errorf("platform.message.update input is required")
+		return platformMessageUpdateInput{}, fmt.Errorf("message.update input is required")
 	}
 	var input platformMessageUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -334,7 +334,7 @@ func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessage
 
 func decodePlatformMessageDeleteInput(document json.RawMessage) (platformMessageDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return platformMessageDeleteInput{}, fmt.Errorf("platform.message.delete input is required")
+		return platformMessageDeleteInput{}, fmt.Errorf("message.delete input is required")
 	}
 	if errorValue := rejectUnexpectedPlatformMessageDeleteFields(document); errorValue != nil {
 		return platformMessageDeleteInput{}, errorValue
@@ -357,7 +357,7 @@ func rejectUnexpectedPlatformMessageDeleteFields(document json.RawMessage) error
 	}
 	for fieldName := range input {
 		if fieldName != "messageIDs" {
-			return fmt.Errorf("platform.message.delete accepts only messageIDs; use platform.message.search for criteria")
+			return fmt.Errorf("message.delete accepts only messageIDs; use message.search for criteria")
 		}
 	}
 	return nil

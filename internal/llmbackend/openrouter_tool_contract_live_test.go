@@ -31,10 +31,10 @@ func toolArgumentContractCases(t *testing.T) []toolArgumentContractCase {
 			RequiredField: "query",
 		},
 		{
-			Name:          "flow.task.add.prompt",
-			Descriptor:    findLiveDescriptor(t, flowDescriptors, "flow.task.add"),
+			Name:          "task.add.prompt",
+			Descriptor:    findLiveDescriptor(t, flowDescriptors, "task.add"),
 			Prompt:        "Add a new work task: 분기 보고서 초안 작성.",
-			ExpectedTool:  "flow.task.add",
+			ExpectedTool:  "task.add",
 			RequiredField: "prompt",
 		},
 	}

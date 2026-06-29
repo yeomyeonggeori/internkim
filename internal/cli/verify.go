@@ -73,7 +73,7 @@ func runVerifyMattermost(arguments []string) error {
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	htmlAttachmentFollowupE2E := flagSet.Bool("html-attachment-followup-e2e", false, "Upload an HTML file through Mattermost and verify current and follow-up attachment preview")
 	messageDeleteE2E := flagSet.Bool("message-delete-e2e", false, "Create Mattermost test posts and verify InternKim deletes only its own posts")
-	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify platform.message.send sends a direct message")
+	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify message.send sends a direct message")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
@@ -140,7 +140,7 @@ func runVerifySite(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
-	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
+	expectedTools := []string{"site.create", "site.build", "site.publish"}
 	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptSSHTimeout(*timeoutSeconds))
 }
 
@@ -2323,8 +2323,8 @@ if [ "$task_status" != "completed" ]; then
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
-if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.platform.message.send.requested")' "$task_detail_file" >/dev/null; then
-  echo "expected platform.message.send request in direct-message E2E task $task_run_id" >&2
+if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.message.send.requested")' "$task_detail_file" >/dev/null; then
+  echo "expected message.send request in direct-message E2E task $task_run_id" >&2
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
@@ -2652,7 +2652,7 @@ if [ "$task_status" != "completed" ]; then
   exit 1
 fi
 
-for expected_tool in platform.message.search platform.message.delete; do
+for expected_tool in message.search message.delete; do
   if ! jq -e --arg name "tool.$expected_tool.requested" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == $name)' "$task_detail_file" >/dev/null; then
     echo "expected $expected_tool to be requested in message delete E2E task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true

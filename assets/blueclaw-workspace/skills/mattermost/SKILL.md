@@ -6,15 +6,15 @@ when_to_use: Use when the user asks about Mattermost messages, threads, replies,
 
 # Mattermost
 
-Use platform message capabilities for Mattermost messaging. Invoke `platform.message.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`.
+Use platform message capabilities for Mattermost messaging. Run these operations through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. The operations are `message.context`, `message.search`, `message.send`, `message.update`, `message.delete`, and `channel.update`.
 
 If the current conversation is Mattermost, use this skill when the user asks about messages in the current thread, current channel, a DM, a named channel, or bot messages that the assistant already sent.
 
 ## Read
 
-Use `platform.message.context` when you need the current channel, thread, DM, post, bot user, or requester context.
+Use `message.context` when you need the current channel, thread, DM, post, bot user, or requester context.
 
-Use `platform.message.search` when the user refers to messages without exact IDs. Pass `queries` as a string array; one query is `["keyword"]`, and multiple queries are OR-matched.
+Use `message.search` when the user refers to messages without exact IDs. Pass `queries` as a string array; one query is `["keyword"]`, and multiple queries are OR-matched.
 
 Search scopes:
 
@@ -27,17 +27,17 @@ Use `authoredBy: "assistant"` when the user asks about messages assistant sent. 
 
 ## Post
 
-Invoke `platform.message.send` through the capability CLI to send a DM, reply to the current thread, post to the current channel, or post to a named channel. Ask for confirmation first with `ask.confirm`, then invoke the capability only after approval.
+Use `capability.invoke` with `operation: message.send` to send a DM, reply to the current thread, post to the current channel, or post to a named channel. Ask for confirmation first with `ask.confirm`, then invoke only after approval.
 
-Use `pin: true` when the user asks to post and pin the message in the same request. Do not call `platform.message.update` again after a pinned post succeeds.
+Use `pin: true` when the user asks to post and pin the message in the same request. Do not call `message.update` again after a pinned post succeeds.
 
 ## Update Or Delete Posts
 
-Invoke `platform.message.update` through the capability CLI to edit an assistant bot message or pin/unpin a message. Ask for confirmation first with `ask.confirm`.
+Use `capability.invoke` with `operation: message.update` to edit an assistant bot message or pin/unpin a message. Ask for confirmation first with `ask.confirm`.
 
 Set `isPinned: true` to pin, `isPinned: false` to unpin, and omit `isPinned` when only changing message text.
 
-Invoke `platform.message.delete` through the capability CLI to delete one or more assistant bot messages. Ask for confirmation first with `ask.confirm`.
+Use `capability.invoke` with `operation: message.delete` to delete one or more assistant bot messages. Ask for confirmation first with `ask.confirm`.
 
 For precise deletion, pass all selected IDs in `messageIDs`, even when deleting a single message:
 
@@ -57,15 +57,15 @@ For "delete all matching messages", repeat this loop: search, delete the returne
 
 Do not claim that a message was changed or deleted until the operation succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by the assistant, and blocks 업무, 캘린더, and 출결 automated messages.
 
-When the user asks to stop future messages, invoke `schedule.cancel` through the capability CLI. When the user asks to remove messages already sent in Mattermost, invoke `platform.message.search` and `platform.message.delete` through the capability CLI.
+When the user asks to stop future messages, use `capability.invoke` with `operation: schedule.cancel`. When the user asks to remove messages already sent in Mattermost, use `capability.invoke` with `operation: message.search` then `operation: message.delete`.
 
 ## Channel Management
 
-Use `mattermost.channel.update` for channel header changes, display name changes, and channel invites. This operation is admin-only and requires confirmation.
+Use `channel.update` for channel header changes, display name changes, and channel invites. This operation is admin-only and requires confirmation.
 
 Rules:
 
-- Ask for confirmation with `ask.confirm` before `mattermost.channel.update`.
+- Ask for confirmation with `ask.confirm` before `channel.update`.
 - Do not use this skill to bypass Flow, calendar, or attendance workflows.
 - Managed headers containing links like `업무 열기`, `캘린더 열기`, `출결 열기`, `Open Flow`, `Open Calendar`, or `Open Attendance` are protected by the backend.
 - Default channel display names are protected by the backend.

@@ -98,13 +98,13 @@ const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
 
 func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "flow.task.add":
+	case "task.add":
 		return service.invokeFlowTaskAdd(ctx, request)
-	case "flow.task.list":
+	case "task.list":
 		return service.invokeFlowTaskList(ctx, request)
-	case "flow.task.update":
+	case "task.update":
 		return service.invokeFlowTaskUpdate(ctx, request)
-	case "flow.task.delete":
+	case "task.delete":
 		return service.invokeFlowTaskDelete(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("flow task tool is not configured: %s", request.ToolName)
@@ -290,7 +290,7 @@ func flowTaskResponseStatus(result json.RawMessage) string {
 
 func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskAddInput{}, fmt.Errorf("flow.task.add input is required")
+		return flowTaskAddInput{}, fmt.Errorf("task.add input is required")
 	}
 	var input flowTaskAddInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -323,7 +323,7 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 
 func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskUpdateInput{}, fmt.Errorf("flow.task.update input is required")
+		return flowTaskUpdateInput{}, fmt.Errorf("task.update input is required")
 	}
 	var input flowTaskUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -351,7 +351,7 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 
 func decodeFlowTaskDeleteInput(document json.RawMessage) (flowTaskDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskDeleteInput{}, fmt.Errorf("flow.task.delete input is required")
+		return flowTaskDeleteInput{}, fmt.Errorf("task.delete input is required")
 	}
 	var input flowTaskDeleteInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -800,13 +800,13 @@ func resolveFlowTaskUpdateTarget(input flowTaskUpdateInput, summary flowSummaryF
 	failure := flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_not_found",
 		FailureStage: "target_resolution",
-		Message:      "flow.task.update target was not found; ask the user to identify the task",
+		Message:      "task.update target was not found; ask the user to identify the task",
 		Retryable:    true,
 		SafeRetry:    true,
 	}
 	if len(candidates) > 1 {
 		failure.ErrorCode = "flow_task_ambiguous"
-		failure.Message = "flow.task.update target is ambiguous; ask the user to choose one candidate"
+		failure.Message = "task.update target is ambiguous; ask the user to choose one candidate"
 		failure.Candidates = flowTaskUpdateCandidateSummaries(candidates, "matched")
 	}
 	return flowTaskForTool{}, &failure

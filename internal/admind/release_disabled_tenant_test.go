@@ -42,4 +42,3 @@ func TestRemoveTenantPilotsActionAllowedAndScoped(t *testing.T) {
 		t.Fatal("remove command must be scoped to pilot dirs, not the whole tenants tree")
 	}
 }
-
