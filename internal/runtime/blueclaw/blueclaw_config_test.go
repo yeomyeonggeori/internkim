@@ -217,6 +217,10 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if terminal["posixHelperPath"] != BlueclawPOSIXHelperPath {
 		t.Fatalf("expected POSIX helper path, got %q", terminal["posixHelperPath"])
 	}
+	allowedExecutableNames := terminal["allowedExecutableNames"].([]any)
+	if !containsStringValue(allowedExecutableNames, "capability") {
+		t.Fatalf("expected capability CLI executable to be allowed, got %+v", allowedExecutableNames)
+	}
 	requesterWorkspace := terminal["requesterWorkspace"].(map[string]any)
 	if requesterWorkspace["taskTemporaryEnvironmentVariable"] != "BLUECLAW_TASK_TMP" {
 		t.Fatalf("expected requester task temporary environment contract, got %+v", requesterWorkspace)

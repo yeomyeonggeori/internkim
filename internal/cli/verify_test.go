@@ -142,7 +142,7 @@ func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
-	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true, false, false)
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.deliver"}, nil, true, false, false)
 	requiredFragments := []string{
 		"download_files=true",
 		"download_bot_files",

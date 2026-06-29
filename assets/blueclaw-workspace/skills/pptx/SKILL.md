@@ -4,7 +4,7 @@ description: Create, read, edit, combine, clean, and attach PowerPoint files. Us
 when_to_use: Use when the user asks for PowerPoint, .pptx, slide deck, presentation, deck editing, speaker notes, 발표자료, 프레젠테이션, 파워포인트, 피피티, or a PPTX deliverable.
 completion:
   requiredEvidenceTools:
-    - artifact.deliver
+    - file.deliver
 ---
 
 # PPTX Presentations
@@ -23,7 +23,7 @@ Use this skill when the user provides an existing PPTX, asks for direct PowerPoi
 6. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
 7. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
 8. When layout fidelity matters and exported slide images are available, call `artifact.review` on the rendered images before attaching. Treat blocking issues as reasons to revise and regenerate.
-9. Promote accepted final files from `tmp/<deck-slug>/build/` or the generated output path to `artifacts/<deck-slug>/` with `artifact.deliver` unless the user requested a circle or shared destination, then attach the promoted `.pptx`; attach exported PDFs or images only if requested.
+9. Deliver accepted final `.pptx` files from `tmp/<deck-slug>/build/` or the generated output path with `file.deliver`; deliver exported PDFs or images only if requested.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at a missing-library error; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the PowerPoint library.
 

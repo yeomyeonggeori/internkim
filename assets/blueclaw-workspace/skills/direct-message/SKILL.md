@@ -13,7 +13,7 @@ Use `/workspace/tools/capability invoke platform.message.send '<json>'` with `re
 
 The task is complete after one successful `platform.message.send` observation. Do not send another direct message in the same task after `platform.message.send` succeeds; use that successful observation as completion evidence and reply.
 
-The tool only supports approved workspace people with Mattermost accounts. Do not claim that contacts cannot be found before trying the tool when the user names a person.
+The operation only supports approved workspace people with Mattermost accounts. Do not claim that contacts cannot be found before trying the operation when the user names a person.
 
 ## Approval
 

@@ -1,6 +1,6 @@
 ---
 name: scheduled-task
-description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks through Blueclaw schedule tools.
+description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks through Blueclaw schedule capability operations.
 when_to_use: Use when the user asks to schedule, remind, repeat, send something every minute, hour, day, week, or month, repeat N times, cancel schedules, stop reminders, or says 예약, 알림, 리마인드, 취소, 중지, 마다, 분마다, 시간마다, 한 번씩, 1분에 한 번씩, 10번, 매일, 매주, or 매월.
 ---
 
@@ -16,7 +16,7 @@ Every schedule stores one `taskInstruction`. Put only the work to perform at run
 
 Do not copy the user's full scheduling request into `taskInstruction`. Cadence and stop conditions belong only in structured schedule fields such as `runAt`, `intervalSecond`, `cronExpression`, `expiresAt`, and `maxRunCount`.
 
-The scheduled agent run can use approved delivery tools later without asking for approval again.
+The scheduled agent run can use approved delivery operations later without asking for approval again.
 
 ## Workflow
 

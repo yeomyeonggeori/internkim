@@ -24,7 +24,7 @@ completion:
 
 Use `math.calculate` for explicit arithmetic expressions and exact numeric results.
 
-Do not invent a separate calculator tool name. If `math.calculate` is unavailable, answer that the calculator capability is unavailable instead of claiming a calculation tool stopped responding.
+Do not invent a separate calculator operation name. If `math.calculate` is unavailable, answer that the calculator capability is unavailable instead of claiming a calculation operation stopped responding.
 
 For simple greetings or non-numeric explanations, answer directly without using this skill.
 

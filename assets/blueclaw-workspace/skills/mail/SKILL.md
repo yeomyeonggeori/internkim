@@ -6,9 +6,9 @@ when_to_use: Use when the user asks to check, find, read, search, reply to, draf
 
 # Mail
 
-Use mail capabilities for the configured IMAP/SMTP account. Invoke all `mail.message.*` and `mail.connection.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`.
+Use mail capabilities for the configured IMAP/SMTP account. Invoke all `mail.message.*` and `mail.connection.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`.
 
-Never answer that you cannot access email before trying the relevant mail tool. If the user asks whether any email arrived from a sender or service, use `mail.message.search`.
+Never answer that you cannot access email before trying the relevant mail operation. If the user asks whether any email arrived from a sender or service, use `mail.message.search`.
 
 ## Reading
 
@@ -26,11 +26,11 @@ For requests like "GitHub에서 온 최근 메일 있어?", call:
 }
 ```
 
-Both list and search return `nextCursor`. If the user asks for more, call the same tool again with that cursor.
+Both list and search return `nextCursor`. If the user asks for more, invoke the same operation again with that cursor.
 
 Call `mail.message.read` only when the user needs the full body or when a listed/search result must be inspected before answering.
 
-Do not claim a message was found or read until the tool succeeds.
+Do not claim a message was found or read until the operation succeeds.
 
 ## Sending
 
@@ -67,6 +67,6 @@ After approval, use:
 
 If mail is not configured, say that an IMAP/SMTP account must be connected first.
 
-If sending fails, report the tool error directly. Do not imply retry success.
+If sending fails, report the operation error directly. Do not imply retry success.
 
-If search or read fails, explain which mailbox or query failed and ask for a narrower mailbox/query only when the tool error indicates ambiguity or too many results.
+If search or read fails, explain which mailbox or query failed and ask for a narrower mailbox/query only when the operation error indicates ambiguity or too many results.

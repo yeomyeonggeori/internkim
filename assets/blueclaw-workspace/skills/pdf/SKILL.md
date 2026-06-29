@@ -7,12 +7,12 @@ description:
 when_to_use: Use for PDF, document, report, invoice, 문서, 보고서, 견적서, 청구서, PDF generation, or PDF reading/editing requests.
 completion:
   requiredEvidenceTools:
-    - artifact.deliver
+    - file.deliver
 ---
 
 # Generating PDFs with fpdf2
 
-Use this skill to create, validate, read, merge, or lightly edit PDFs with Python. Work under `tmp/<pdf-slug>`, keep drafts and previews there, and deliver only accepted final files through `artifact.deliver`.
+Use this skill to create, validate, read, merge, or lightly edit PDFs with Python. Work under `tmp/<pdf-slug>`, keep drafts and previews there, and deliver only accepted final files through `file.deliver`.
 
 ## Workflow
 
@@ -22,7 +22,7 @@ Use this skill to create, validate, read, merge, or lightly edit PDFs with Pytho
 4. Use custom Python only when layout needs features the JSON helper does not support.
 5. Run every fpdf2 or pypdf command through `python3 /workspace/skills/pdf/scripts/skill_runtime.py python ...`; do not run `pip install` or bare `python3 create_pdf.py`.
 6. Validate before delivery with `validate_pdf.py` or an equivalent pypdf check for page count, extractable PDF text, required source facts, forbidden unsupported facts, encryption, embedded fonts, and Korean-capable font names.
-7. Promote final PDFs to `artifacts/<pdf-slug>/` with `artifact.deliver`. Attach intermediate files only when asked.
+7. Deliver final PDFs with `file.deliver`. Deliver intermediate files only when asked.
 
 Use `timeoutSecond` of at least 300 for generation and validation. First-run dependency checks and font embedding can exceed 120 seconds. If generation produced a PDF but validation timed out, do not repeat the identical command; validate the existing file separately with a longer timeout.
 
