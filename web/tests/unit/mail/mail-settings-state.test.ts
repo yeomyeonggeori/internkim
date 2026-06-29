@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { createMailAccountDraft, emptyMailAccount } from '../../../src/routes/mail/mail-account-draft';
 import {
+	currentMailPresetFromDraft,
 	mailAppPasswordInputValue,
 	mailAddressSettingsUpdate,
 	mailProviderSettingsUpdate,
@@ -39,6 +40,54 @@ describe('mail settings state', () => {
 		});
 	});
 
+	test('fills Daum server settings with the login ID only', () => {
+		const accountDraft = createMailAccountDraft(emptyMailAccount);
+
+		expect(mailAddressSettingsUpdate(accountDraft, 'chanee234', 'daum', '', false)).toMatchObject({
+			email: 'chanee234@daum.net',
+			fromAddress: 'chanee234@daum.net',
+			imapHost: 'imap.daum.net',
+			imapPort: 993,
+			imapSecurity: 'tls',
+			smtpHost: 'smtp.daum.net',
+			smtpPort: 465,
+			smtpSecurity: 'tls',
+			imapUsername: 'chanee234',
+			smtpUsername: 'chanee234'
+		});
+	});
+
+	test('fills Hanmail server settings with the login ID only', () => {
+		const accountDraft = createMailAccountDraft(emptyMailAccount);
+
+		expect(mailAddressSettingsUpdate(accountDraft, 'chanee234', 'hanmail', '', false)).toMatchObject({
+			email: 'chanee234@hanmail.net',
+			fromAddress: 'chanee234@hanmail.net',
+			imapHost: 'imap.daum.net',
+			smtpHost: 'smtp.daum.net',
+			imapUsername: 'chanee234',
+			smtpUsername: 'chanee234'
+		});
+	});
+
+	test('detects Daum and Hanmail presets by the email domain when server settings match', () => {
+		const daumDraft = createMailAccountDraft({
+			...emptyMailAccount,
+			email: 'chanee234@daum.net',
+			imapHost: 'imap.daum.net',
+			smtpHost: 'smtp.daum.net'
+		});
+		const hanmailDraft = createMailAccountDraft({
+			...emptyMailAccount,
+			email: 'chanee234@hanmail.net',
+			imapHost: 'imap.daum.net',
+			smtpHost: 'smtp.daum.net'
+		});
+
+		expect(currentMailPresetFromDraft(daumDraft)?.id).toBe('daum');
+		expect(currentMailPresetFromDraft(hanmailDraft)?.id).toBe('hanmail');
+	});
+
 	test('preserves manual server settings while editing the address', () => {
 		const accountDraft = createMailAccountDraft({
 			...emptyMailAccount,
@@ -72,6 +121,8 @@ describe('mail settings state', () => {
 
 	test('resolves the domain shown in the split email control', () => {
 		expect(selectedMailSettingsDomain('gmail', '')).toBe('gmail.com');
+		expect(selectedMailSettingsDomain('daum', '')).toBe('daum.net');
+		expect(selectedMailSettingsDomain('hanmail', '')).toBe('hanmail.net');
 		expect(selectedMailSettingsDomain('custom', 'example.com')).toBe('example.com');
 	});
 
