@@ -8,6 +8,7 @@ import type {
 	CircleRecord,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
+	OrgchartEmploymentStatus,
 	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
@@ -26,6 +27,8 @@ export class AdminApiError extends Error {
 		super(message);
 	}
 }
+
+const fallbackAdminApiErrorMessages = new Set(['employmentStatus must be active, leave, or resigned']);
 
 export async function fetchAdminSession(adminBaseURL: string, fallbackMessage: string): Promise<AdminSession> {
 	const response = await fetch(`${adminBaseURL}/session`, { credentials: 'include' });
@@ -321,8 +324,15 @@ export type OrgProfileUpdate = {
 	userID: string;
 	email: string;
 	jobTitle: string;
-	group: string;
-	supervisorID: string;
+	group?: string;
+	positionLevel?: number;
+	primaryGroupID?: string;
+	groupIDs?: string[];
+	supervisorID?: string;
+	projectIDs?: string[];
+	teamRole?: string;
+	employmentStatus?: OrgchartEmploymentStatus;
+	isOrgchartVisible?: boolean;
 };
 
 export type RestoreCompletionRequest = {
@@ -346,6 +356,7 @@ async function responseErrorMessage(response: Response, fallbackMessage: string)
 }
 
 export function apiErrorMessage(error: unknown, fallbackMessage: string): string {
+	if (error instanceof AdminApiError && fallbackAdminApiErrorMessages.has(error.message)) return fallbackMessage;
 	if (error instanceof Error && error.message) return error.message;
 	return fallbackMessage;
 }
