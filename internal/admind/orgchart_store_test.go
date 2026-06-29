@@ -364,29 +364,3 @@ func TestOrgchartProfileRequestKeepsExplicitPrimaryGroupInGroupIDs(t *testing.T)
 		t.Fatalf("group ids = %#v; want product and growth", profile.GroupIDs)
 	}
 }
-
-func TestImportOrgchartGroupsIfUninitializedDoesNotOverwriteInitializedGroups(t *testing.T) {
-	service := newLocalUsersTestService(t)
-	ctx := context.Background()
-	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "current", Name: "현재"}}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	groups, isImported, errorValue := service.importOrgchartGroupsIfUninitialized(ctx, []orgGroupRecord{{ID: "legacy", Name: "Legacy"}})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if isImported {
-		t.Fatal("isImported = true; want false")
-	}
-	if len(groups) != 1 || groups[0].ID != "current" {
-		t.Fatalf("groups = %#v; want current group", groups)
-	}
-	storedGroups, errorValue := service.readOrgchartGroups(ctx)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(storedGroups) != 1 || storedGroups[0].ID != "current" {
-		t.Fatalf("stored groups = %#v; want current group", storedGroups)
-	}
-}

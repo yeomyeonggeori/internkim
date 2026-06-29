@@ -49,10 +49,10 @@ func (service *Service) handleOrgchartProfileUpdate(responseWriter http.Response
 
 func validateOrgchartProfileRequests(requestProfiles []orgchartProfileRequest) error {
 	for _, requestProfile := range requestProfiles {
-		if requestProfile.EmploymentStatus == nil {
-			continue
+		if requestProfile.PositionLevel != nil && *requestProfile.PositionLevel < 1 {
+			return fmt.Errorf("positionLevel must be greater than or equal to 1")
 		}
-		if !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
+		if requestProfile.EmploymentStatus != nil && !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
 			return fmt.Errorf("employmentStatus must be active, leave, or resigned")
 		}
 	}
