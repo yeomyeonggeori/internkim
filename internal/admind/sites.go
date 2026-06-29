@@ -1333,9 +1333,6 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureSiteBuildHasNoDeliveryBlockers(site.HostSourcePath); errorValue != nil {
-		return errorValue
-	}
 	service.updateSiteBuildQualitySummary(site)
 	if errorValue := materializeDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
 		return errorValue
@@ -1362,9 +1359,6 @@ func (service *Service) prepareSitePreview(site *SiteRecord, previewID string) e
 		return errors.New("site workspace must contain app/dist; build in Blueclaw before preview")
 	}
 	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := ensureSiteBuildHasNoDeliveryBlockers(site.HostSourcePath); errorValue != nil {
 		return errorValue
 	}
 	service.updateSiteBuildQualitySummary(site)
@@ -1492,75 +1486,6 @@ func siteBuildQualityLines(issues []siteBuildQualityIssue) []string {
 	return lines
 }
 
-func ensureSiteBuildHasNoDeliveryBlockers(workspacePath string) error {
-	return nil
-}
-
-func siteBuildDeliveryBlockerLines(workspacePath string) []string {
-	quality, isFound := readSiteBuildQualityDocument(workspacePath)
-	if !isFound {
-		return siteSourceDeliveryBlockerLines(workspacePath)
-	}
-	blockers := []string{}
-	for _, issue := range quality.Issues {
-		if !siteBuildIssueBlocksDelivery(issue) {
-			continue
-		}
-		target := firstNonEmpty(strings.TrimSpace(issue.Target), "site")
-		message := firstNonEmpty(strings.TrimSpace(issue.Message), strings.TrimSpace(issue.SuggestedFix), strings.TrimSpace(issue.Category))
-		blockers = append(blockers, target+": "+message)
-	}
-	return blockers
-}
-
-func readSiteBuildQualityDocument(workspacePath string) (siteBuildQualityDocument, bool) {
-	document, errorValue := os.ReadFile(filepath.Join(workspacePath, ".internkim", "build-quality.json"))
-	if errorValue != nil {
-		return siteBuildQualityDocument{}, false
-	}
-	var quality siteBuildQualityDocument
-	if errorValue := json.Unmarshal(document, &quality); errorValue != nil {
-		return siteBuildQualityDocument{}, false
-	}
-	return quality, true
-}
-
-func siteBuildIssueBlocksDelivery(issue siteBuildQualityIssue) bool {
-	category := strings.TrimSpace(issue.Category)
-	if category == "templateSmell" {
-		return true
-	}
-	combinedText := strings.Join([]string{issue.Target, issue.Message, issue.SuggestedFix}, "\n")
-	return siteSourceContainsStarterMarker(combinedText)
-}
-
-func siteSourceDeliveryBlockerLines(workspacePath string) []string {
-	lines := []string{}
-	for _, relativePath := range []string{"app/src/App.tsx", "app/src/index.css", "app/dist/index.html"} {
-		document, errorValue := os.ReadFile(filepath.Join(workspacePath, relativePath))
-		if errorValue != nil {
-			continue
-		}
-		if siteSourceContainsStarterMarker(string(document)) {
-			lines = append(lines, relativePath+": starter scaffold marker remains")
-		}
-	}
-	return lines
-}
-
-func siteSourceContainsStarterMarker(value string) bool {
-	for _, marker := range []string{
-		"INTERNKIM_SITE_STARTER_REPLACE_ME",
-		"Replace this starter",
-		"Beautiful default scaffold",
-		"InternKim React prototype",
-	} {
-		if strings.Contains(value, marker) {
-			return true
-		}
-	}
-	return false
-}
 
 func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
 	latestModTime := time.Time{}
