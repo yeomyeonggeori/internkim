@@ -6,9 +6,9 @@ when_to_use: Use when the user asks to add, record, request, find, update, chang
 
 # 업무 관리
 
-Use the work tools when the user asks to add, record, request, find, update, or complete a work item.
+Use the work capability operations when the user asks to add, record, request, find, update, or complete a work item.
 
-Invoke all `flow.task.*` and `calendar.event.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`.
+Invoke all `flow.task.*` and `calendar.event.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`.
 
 Rules:
 
@@ -21,18 +21,18 @@ Rules:
 - Call `flow.task.add` with `prompt` containing the user's natural-language task request.
 - Call `flow.task.list` before update or completion when the matching work item is uncertain.
 - `flow.task.list` lists the current week by default. Pass `weekFrom` and `weekTo` as week offsets from this week (0 this week, -1 last week, 1 next week) when the user asks for another period: 지난주 is `weekFrom -1, weekTo -1`; the last 4 weeks is `weekFrom -3, weekTo 0`; the whole history is a wide range such as `weekFrom -520`. Leave both unset for this week.
-- Call `flow.task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the tool marks the item complete.
+- Call `flow.task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the operation marks the item complete.
 - Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
 - Use `weekCode` only with `flow.task.add`, `flow.task.update`, or `flow.task.delete` when the user names a specific work week. Use `weekFrom` and `weekTo` for `flow.task.list`.
 - Do not add the requester as a participant by default when asking another person to do work. Include the requester only when the user implies joint work, such as 같이, 함께, 나랑, 저랑, 우리, with me, with us, together, joint, or collaborate.
 - Do not say a task was added until `flow.task.add` succeeds.
-- If `flow.task.add` returns `flow_owner_ambiguous`, ask the user which candidate they mean and show the `@handle` candidates returned by the tool.
-- If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching work item is already in the 업무 목록 and ask whether to add another copy. Do not call the tool again unless the user explicitly says to add it anyway.
+- If `flow.task.add` returns `flow_owner_ambiguous`, ask the user which candidate they mean and show the `@handle` candidates returned by the operation.
+- If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching work item is already in the 업무 목록 and ask whether to add another copy. Do not invoke the operation again unless the user explicitly says to add it anyway.
 - When the user explicitly confirms adding a duplicate, call `flow.task.add` again with the same input and `allowDuplicate: true`.
 - If `flow.task.update` returns multiple candidates, ask the user which work item to update or complete.
 - After success, reply with the created task summary: 담당자, 상태, 대분류, 종류, 크기, 내용, 목표, 주간코드.
 - In Korean replies, say `업무`, `업무 목록`, or `업무 관리`; do not call the product `Flow` unless the user explicitly uses that English name.
-- If the tool fails, explain the failure honestly and do not fabricate a task.
+- If the operation fails, explain the failure honestly and do not fabricate a task.
 
 Size rubric:
 
