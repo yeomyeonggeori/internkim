@@ -3,7 +3,8 @@
 	import type { AttendanceText } from '../text';
 	import TeamStatusDateHeader from './team-status-date-header.svelte';
 	import TeamStatusDayCell from './team-status-day-cell.svelte';
-	import TeamStatusDayDetailDialog, { type TeamStatusDayDetail } from './team-status-day-detail-dialog.svelte';
+	import type { TeamStatusDayDetail } from './team-status-day-detail';
+	import TeamStatusDayDetailDialog from './team-status-day-detail-dialog.svelte';
 	import TeamStatusPersonHeader from './team-status-person-header.svelte';
 	import type { TeamStatusPersonDay, TeamStatusPersonRow } from './team-status-table-model';
 
