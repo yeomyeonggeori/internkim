@@ -50,17 +50,20 @@
 </script>
 
 <Card.Root data-testid="team-status-grid" class="flex min-h-[calc(100vh-7rem)] min-w-0 flex-1 flex-col">
-	<Card.Header class="flex min-w-0 flex-col gap-3 overflow-hidden pb-3 sm:flex-row sm:items-start sm:justify-between">
-		<div class="min-w-0">
-			<Card.Title class="text-base">{text.teamMonthlyStatus}</Card.Title>
+	<Card.Header class="flex min-w-0 flex-col gap-[10px] overflow-hidden pb-1 sm:flex-row sm:items-start sm:justify-between">
+		<div class="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto">
+			<Card.Title class="min-w-0 flex-1 truncate text-base sm:flex-none sm:whitespace-nowrap">{text.teamMonthlyStatus}</Card.Title>
+			<div class="ml-auto min-w-0 max-w-full shrink-0 overflow-hidden sm:hidden">
+				<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} density="compact" />
+			</div>
 		</div>
-		<div class="flex w-full min-w-0 flex-col gap-2 overflow-hidden sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-			<div class="min-w-0 max-w-full self-start overflow-hidden">
+		<div class="flex w-full min-w-0 flex-col gap-[10px] overflow-hidden sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+			<div class="hidden min-w-0 max-w-full overflow-hidden sm:block">
 				<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
 			</div>
 			<div class="relative w-full min-w-0 max-w-full sm:w-48">
 				<SearchIcon class="pointer-events-none absolute left-2 top-2.5 size-4 text-muted-foreground" />
-				<Input class="h-9 min-w-0 pl-8" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
+				<Input class="h-9 min-w-0 pl-8 focus-visible:border-input focus-visible:ring-0" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
 			</div>
 		</div>
 	</Card.Header>

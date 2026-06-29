@@ -9,7 +9,7 @@
 
 	const text = createPageText(attendanceText);
 	const isMobile = new IsMobile();
-	let selectedTab = $state<MobileAttendanceViewTab>('status');
+	let selectedTab = $state<MobileAttendanceViewTab>('tools');
 
 	$effect(() => {
 		if (!isMobile.current) selectedTab = 'status';
@@ -17,9 +17,19 @@
 </script>
 
 <Tabs.Root bind:value={selectedTab} class="min-h-0 min-w-0 flex-1 gap-3">
-	<Tabs.List class="grid h-10 w-full grid-cols-2 rounded-md border bg-muted/50 p-1 md:hidden">
-		<Tabs.Trigger value="status">{text.mobileStatusView}</Tabs.Trigger>
-		<Tabs.Trigger value="tools">{text.mobileToolsView}</Tabs.Trigger>
+	<Tabs.List class="inline-flex h-9 w-fit self-start rounded-full border-0 bg-muted p-1 md:hidden">
+		<Tabs.Trigger
+			value="tools"
+			class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+		>
+			{text.mobileToolsView}
+		</Tabs.Trigger>
+		<Tabs.Trigger
+			value="status"
+			class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+		>
+			{text.mobileStatusView}
+		</Tabs.Trigger>
 	</Tabs.List>
 	<Tabs.Content value="status" class="min-h-0 min-w-0">
 		<TeamView />
