@@ -108,7 +108,7 @@ func TestCompanionStructuredProviderRejectsEmptyContent(t *testing.T) {
 }
 
 func TestDecodeToolInvokeRequestRequiresRequesterPersonIDForTrustedFlags(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
 		"context": {
 			"isScheduledRun": true
 		}
@@ -119,7 +119,7 @@ func TestDecodeToolInvokeRequestRequiresRequesterPersonIDForTrustedFlags(t *test
 }
 
 func TestDecodeToolInvokeRequestRejectsReservedRequesterPersonID(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": "blueclaw"
 		}
@@ -130,7 +130,7 @@ func TestDecodeToolInvokeRequestRejectsReservedRequesterPersonID(t *testing.T) {
 }
 
 func TestDecodeToolInvokeRequestRejectsMalformedRequesterPersonID(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": "../person-1"
 		}
@@ -141,7 +141,7 @@ func TestDecodeToolInvokeRequestRejectsMalformedRequesterPersonID(t *testing.T) 
 }
 
 func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) {
-	request, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+	request, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": " person-1 ",
 			"isApprovalContinuation": true
@@ -383,17 +383,17 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 	toolNames := []string{
-		"platform.message.send",
-		"platform.message.update",
-		"platform.message.delete",
-		"mattermost.channel.update",
-		"flow.task.delete",
-		"calendar.event.delete",
+		"message.send",
+		"message.update",
+		"message.delete",
+		"channel.update",
+		"task.delete",
+		"calendar.delete",
 		"mail.connection.start",
 		"mail.message.send",
-		"site.app.rollback",
-		"site.app.unpublish",
-		"site.app.delete",
+		"site.rollback",
+		"site.unpublish",
+		"site.delete",
 		"google.gmail.send",
 	}
 	for _, toolName := range toolNames {
@@ -416,7 +416,7 @@ func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
 		t.Fatal("expected browser tool to stay device-side regardless of PreferCompanionBrowser")
 	}
-	for _, toolName := range []string{"flow.task.add", "flow.task.list", "flow.task.update", "flow.task.delete"} {
+	for _, toolName := range []string{"task.add", "task.list", "task.update", "task.delete"} {
 		if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: toolName}) {
 			t.Fatalf("expected %s to stay device-side", toolName)
 		}

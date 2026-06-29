@@ -6,7 +6,7 @@ when_to_use: Use when the user asks to create a skill, add a skill, update a ski
 
 # Skill Management
 
-Use `/workspace/tools/capability invoke skill.add '<json>'` to create or update user-managed skills. Use `/workspace/tools/capability invoke skill.remove '<json>'` to remove user-managed skills.
+Use `capability.invoke` with `operation: skill.add` to create or update user-managed skills. Use `capability.invoke` with `operation: skill.remove` to remove user-managed skills.
 
 Before writing a skill, capture the intent:
 

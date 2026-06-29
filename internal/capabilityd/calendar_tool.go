@@ -60,13 +60,13 @@ type calendarEventForTool struct {
 
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "calendar.event.add":
+	case "calendar.add":
 		return service.invokeCalendarEventAdd(ctx, request)
-	case "calendar.event.list":
+	case "calendar.list":
 		return service.invokeCalendarEventList(ctx, request)
-	case "calendar.event.update":
+	case "calendar.update":
 		return service.invokeCalendarEventUpdate(ctx, request)
-	case "calendar.event.delete":
+	case "calendar.delete":
 		return service.invokeCalendarEventDelete(ctx, request)
 	case "calendar.connection.status":
 		return service.invokeCalendarConnectionStatus(ctx, request)

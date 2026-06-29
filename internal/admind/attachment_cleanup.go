@@ -19,12 +19,12 @@ type attachmentCleanupAction struct {
 }
 
 type attachmentCleanupReport struct {
-	Applied            bool                      `json:"applied"`
-	ConversationsSeen  int                       `json:"conversationsSeen"`
-	DuplicatesRemoved  int                       `json:"duplicatesRemoved"`
-	FilesFlattened     int                       `json:"filesFlattened"`
-	EmptyFoldersRemoved int                      `json:"emptyFoldersRemoved"`
-	Actions            []attachmentCleanupAction `json:"actions"`
+	Applied             bool                      `json:"applied"`
+	ConversationsSeen   int                       `json:"conversationsSeen"`
+	DuplicatesRemoved   int                       `json:"duplicatesRemoved"`
+	FilesFlattened      int                       `json:"filesFlattened"`
+	EmptyFoldersRemoved int                       `json:"emptyFoldersRemoved"`
+	Actions             []attachmentCleanupAction `json:"actions"`
 }
 
 func (service *Service) handleAttachmentCleanup(responseWriter http.ResponseWriter, request *http.Request, apply bool) {

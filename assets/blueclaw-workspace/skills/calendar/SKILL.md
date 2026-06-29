@@ -6,11 +6,11 @@ when_to_use: Use when the user asks about calendar, schedule, meeting, 일정, �
 
 # Workspace Calendar
 
-Use the workspace calendar capability operations for team schedule creation and lookup. Invoke all `calendar.event.*` and related `flow.task.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
+Use the workspace calendar capability operations for team schedule creation and lookup. Run these operations through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. The runtime supplies requester identity and approval. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
 
 ## Operations
 
-### `calendar.event.add`
+### `calendar.add`
 
 Create an event. This does not require approval.
 
@@ -32,7 +32,7 @@ Optional fields:
 
 Use RFC 3339 timestamps with timezone offsets, for example `2026-05-20T10:00:00+09:00`.
 
-### `calendar.event.list`
+### `calendar.list`
 
 Read events. This does not require approval.
 
@@ -46,7 +46,7 @@ Optional fields:
 
 Use both `startISO` and `endISO` together when narrowing a date range.
 
-### `calendar.event.update`
+### `calendar.update`
 
 Update an existing event. This does not require approval. List first if the user has not provided an `eventID`.
 
@@ -57,9 +57,9 @@ Required fields:
 - `startISO`
 - `endISO`
 
-Optional fields are the same as `calendar.event.add`.
+Optional fields are the same as `calendar.add`.
 
-### `calendar.event.delete`
+### `calendar.delete`
 
 Delete an event by `eventID`. This requires approval. List matching events first when the user refers to an event by title or time.
 
@@ -67,11 +67,11 @@ Delete an event by `eventID`. This requires approval. List matching events first
 
 - Prefer the Work calendar operations over Google Workspace operations for ordinary schedule requests.
 - Decide by the user's intent, not by the noun they used. A meeting, appointment, attendance block, location-based visit, or time block is a calendar event. A deliverable, deadline, todo, request, handoff, or completion target is work.
-- If the user asks to add a schedule but the content is a deadline-driven deliverable, create the work item with `flow.task.add` and also create a calendar deadline/reminder when a due time is given.
-- If the user says a task-like item is complete, use `flow.task.update` before considering `calendar.event.update`.
+- If the user asks to add a schedule but the content is a deadline-driven deliverable, create the work item with `task.add` and also create a calendar deadline/reminder when a due time is given.
+- If the user says a task-like item is complete, use `task.update` before considering `calendar.update`.
 - Do not mark calendar events with `[완료]` for task-like completion. Update or delete calendar events only when the user clearly asks to change, cancel, delete, or reschedule a calendar event.
-- Do not ask for approval before `calendar.event.add`, `calendar.event.list`, or `calendar.event.update`.
-- Ask for approval before `calendar.event.delete`.
+- Do not ask for approval before `calendar.add`, `calendar.list`, or `calendar.update`.
+- Ask for approval before `calendar.delete`.
 - If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the runtime temporal context before invoking an operation.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
@@ -83,6 +83,6 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - Use `12` or `6` for external meetings or half-day preparation.
 - Use `1` for same-day internal online meetings.
 - Do not say an event was created, changed, or deleted until the operation succeeds.
-- When deleting or updating, list matching events first unless the user supplied an exact `eventID`.
+- When deleting or updating, use `calendar.list` to find matching events first unless the user supplied an exact `eventID`.
 - External attendee invitation is not supported by the Work calendar operation yet. If the user asks to invite people, create the event with attendee names in the description and mention that CalDAV clients can add invitations after sync.
 - Google Calendar integration is via the Work calendar's CalDAV/ICS sync URL. Do not use Google credential files, shell scripts, or Google-only operations unless the user explicitly asks for a Google Workspace bridge and that operation is available.

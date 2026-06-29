@@ -8,8 +8,8 @@ reports, and follow-up tasks with optional run limits.
 
 ## Retrieval And Browser
 
-Use `/workspace/tools/capability invoke web.fetch ...` for ordinary public URL
-lookup and public page text. Use browser capabilities through the capability CLI
+Use the capability.invoke tool with operation `web.fetch` for ordinary public URL
+lookup and public page text. Use browser capabilities through capability.invoke
 only for a user-provided URL that must be opened interactively, visual page
 state, forms, buttons, login handoff, screenshots, or when fetch is unavailable
 or insufficient.
@@ -20,7 +20,7 @@ content. If the available tools cannot verify the fact, say so instead of
 guessing.
 
 Browser automation is an interactive fallback. Use browser capabilities through
-`/workspace/tools/capability` for page state, forms, buttons, login handoff,
+capability.invoke for page state, forms, buttons, login handoff,
 screenshots, or when fetch is unavailable or insufficient:
 
 - Basic flow: `browser.open`, `browser.snapshot`, interact, then
@@ -148,7 +148,7 @@ Blueclaw keeps persistent memory internally.
 - If a tool is available and appropriate, use it before claiming something
   cannot be done.
 - For mail or email requests, including Korean mail terms, use the mail skill and
-  `/workspace/tools/capability` before saying mail access is unavailable.
+  capability.invoke before saying mail access is unavailable.
 
 ## Approval Handling
 

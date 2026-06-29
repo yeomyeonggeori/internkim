@@ -22,7 +22,7 @@ func TestMattermostChannelUpdateRequiresAdminAfterApproval(t *testing.T) {
 	})
 
 	staffResponse, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mattermost.channel.update",
+		ToolName: "channel.update",
 		Input:    mustJSON(t, map[string]any{"channelID": "channel-1", "header": "hello"}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -90,7 +90,7 @@ func TestMattermostChannelUpdateAdminPatchesAndInvites(t *testing.T) {
 	})
 
 	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mattermost.channel.update",
+		ToolName: "channel.update",
 		Input: mustJSON(t, map[string]any{
 			"channelName":  "random",
 			"header":       "new header",
@@ -124,7 +124,7 @@ func TestMattermostChannelUpdateProtectsManagedHeadersAndDefaultNames(t *testing
 	})
 
 	headerResponse, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mattermost.channel.update",
+		ToolName: "channel.update",
 		Input:    mustJSON(t, map[string]any{"channelID": "flow-channel", "header": "new header"}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "admin@example.com",
@@ -139,7 +139,7 @@ func TestMattermostChannelUpdateProtectsManagedHeadersAndDefaultNames(t *testing
 	}
 
 	nameResponse, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mattermost.channel.update",
+		ToolName: "channel.update",
 		Input:    mustJSON(t, map[string]any{"channelID": "flow-channel", "displayName": "Ops"}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "admin@example.com",
@@ -186,7 +186,7 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
+		ToolName: "message.send",
 		Input: mustJSON(t, map[string]any{
 			"deliveryTarget": map[string]any{"type": "channel", "channelName": "random"},
 			"message":        "hello",
@@ -233,7 +233,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "channel",
 			"deliveryTarget": map[string]any{"type": "channel", "channelID": "channel-1"},
@@ -282,7 +282,7 @@ func TestPlatformMessageSearchMatchesAnyQuery(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "assistant",
@@ -336,7 +336,7 @@ func TestPlatformMessageSearchPaginatesCandidates(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "assistant",
@@ -411,7 +411,7 @@ func TestPlatformMessageSearchScansUntilLimitMatches(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "assistant",
@@ -474,7 +474,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	})
 
 	messageResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.update",
+		ToolName: "message.update",
 		Input:    mustJSON(t, map[string]any{"messageID": "user-post", "message": "changed"}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -489,7 +489,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 
 	pinResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.update",
+		ToolName: "message.update",
 		Input:    mustJSON(t, map[string]any{"messageID": "user-post", "isPinned": true}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -504,7 +504,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 
 	protectedResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.update",
+		ToolName: "message.update",
 		Input:    mustJSON(t, map[string]any{"messageID": "protected-post", "isPinned": false}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -519,7 +519,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 
 	protectedFlowResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"protected-flow-post"}}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -534,7 +534,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 
 	deleteResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"bot-post"}}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -573,7 +573,7 @@ func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"bot-post-1", "user-post", "bot-post-2"}}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -612,7 +612,7 @@ func TestPlatformMessageDeleteRejectsTooManyExactIDs(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": messageIDs}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -637,7 +637,7 @@ func TestPlatformMessageDeleteRejectsCriteriaWithoutExactIDs(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "assistant",
@@ -671,7 +671,7 @@ func TestPlatformMessageDeleteRejectsCriteriaWithExactIDs(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input: mustJSON(t, map[string]any{
 			"messageIDs": []string{"bot-post"},
 			"queries":    []string{"삭제대상"},
@@ -711,7 +711,7 @@ func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "assistant",
@@ -758,7 +758,7 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "currentChannel",
 			"deliveryTarget": map[string]any{"type": "currentChannel", "channelID": "circle-secret"},
@@ -795,7 +795,7 @@ func TestPlatformMessageDeleteRejectsCriteriaWithoutMessageIDs(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
 			"authoredBy": "anyone",
@@ -834,7 +834,7 @@ func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.delete",
+		ToolName: "message.delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"user-post"}}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
@@ -866,7 +866,7 @@ func TestMattermostContextInspectReturnsCurrentMattermostContext(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.context",
+		ToolName: "message.context",
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
 			ConversationID: "thread:channel-1:root-1",
@@ -910,7 +910,7 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input:    mustJSON(t, map[string]any{"scope": "currentThread", "authoredBy": "assistant"}),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
@@ -973,7 +973,7 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
 			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
@@ -1026,7 +1026,7 @@ func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) 
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
 			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
@@ -1070,7 +1070,7 @@ func TestMattermostPostSearchDirectMessageDeniedForAdmin(t *testing.T) {
 	})
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.search",
+		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
 			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},

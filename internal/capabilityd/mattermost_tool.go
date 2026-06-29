@@ -143,7 +143,7 @@ func (service Service) invokeMattermostTool(ctx context.Context, request capabil
 		return response, nil
 	}
 	switch request.ToolName {
-	case "mattermost.channel.update":
+	case "channel.update":
 		return service.invokeMattermostChannelUpdate(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("mattermost tool is not configured: %s", request.ToolName)
@@ -160,7 +160,7 @@ func (service Service) authorizeMattermostTool(ctx context.Context, request capa
 }
 
 func mattermostRequiredCircle(toolName string) string {
-	if toolName == "mattermost.channel.update" {
+	if toolName == "channel.update" {
 		return mattermostToolAdminCircle
 	}
 	return mattermostToolStaffCircle
@@ -215,7 +215,7 @@ func (service Service) invokeMattermostPostSearch(ctx context.Context, request c
 		"returnedCandidateCount": len(searchResult.Candidates),
 		"messageIDs":             deletableMattermostCandidateIDs(searchResult.Candidates),
 		"candidates":             searchResult.Candidates,
-		"recommendedNextAction":  "Delete returned messageIDs with platform.message.delete. For delete-all tasks, repeat the same search after each delete until messageIDs is empty.",
+		"recommendedNextAction":  "Delete returned messageIDs with message.delete. For delete-all tasks, repeat the same search after each delete until messageIDs is empty.",
 	}
 	return mattermostToolSuccessResponse(request.ToolName, "ok", result), nil
 }
@@ -324,7 +324,7 @@ func (service Service) invokeMattermostChannelUpdate(ctx context.Context, reques
 
 func decodeMattermostChannelUpdateInput(document json.RawMessage) (mattermostChannelUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostChannelUpdateInput{}, fmt.Errorf("mattermost.channel.update input is required")
+		return mattermostChannelUpdateInput{}, fmt.Errorf("channel.update input is required")
 	}
 	var input mattermostChannelUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -366,7 +366,7 @@ func decodeMattermostPostSearchInput(document json.RawMessage) (mattermostPostSe
 
 func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostUpdateInput{}, fmt.Errorf("platform.message.update input is required")
+		return mattermostPostUpdateInput{}, fmt.Errorf("message.update input is required")
 	}
 	var input mattermostPostUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -387,7 +387,7 @@ func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUp
 
 func decodeMattermostPostDeleteInput(document json.RawMessage) (mattermostPostDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostDeleteInput{}, fmt.Errorf("platform.message.delete input is required")
+		return mattermostPostDeleteInput{}, fmt.Errorf("message.delete input is required")
 	}
 	var input mattermostPostDeleteInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {

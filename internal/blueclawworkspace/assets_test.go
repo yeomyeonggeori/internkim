@@ -172,7 +172,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	calendarContent := string(calendarDocument)
-	for _, expectedText := range []string{"flow.task.add", "flow.task.update", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+	for _, expectedText := range []string{"task.add", "task.update", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
 		if !strings.Contains(calendarContent, expectedText) {
 			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
 		}
@@ -183,7 +183,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	workContent := string(workDocument)
-	for _, expectedText := range []string{"flow.task.list", "flow.task.update", "calendar.event.add", "Decide by intent", "do not call the product `Flow`"} {
+	for _, expectedText := range []string{"task.list", "task.update", "calendar.add", "Decide by intent", "do not call the product `Flow`"} {
 		if !strings.Contains(workContent, expectedText) {
 			t.Fatalf("work skill must document localized semantic routing %q", expectedText)
 		}
@@ -220,7 +220,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"dependency-free TypeScript + CSS", "offline-first", "UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "website build operation", "website repair operation", "website preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
+	for _, expectedText := range []string{"dependency-free TypeScript + CSS", "offline-first", "UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}

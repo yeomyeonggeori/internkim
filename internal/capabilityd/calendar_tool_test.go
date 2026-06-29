@@ -29,7 +29,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.event.add",
+		ToolName: "calendar.add",
 		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":"샘플, 수민","reminderLeadHours":48}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
@@ -80,7 +80,7 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.event.list",
+		ToolName: "calendar.list",
 		Input:    []byte(`{"startISO":"2026-05-08T00:00:00Z","endISO":"2026-05-09T00:00:00Z","query":"design","limit":1}`),
 	})
 	if errorValue != nil {
@@ -107,7 +107,7 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 
 	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.event.list",
+		ToolName: "calendar.list",
 		Input:    []byte(`{}`),
 	}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -162,7 +162,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.event.delete", strings.NewReader(`{"input":{"eventID":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.delete", strings.NewReader(`{"input":{"eventID":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
