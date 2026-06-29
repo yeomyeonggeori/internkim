@@ -18,7 +18,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 
 Skill은 절차와 판단 기준이다. Kernel tool은 LLM이 직접 호출할 수 있는 실행 API다. Domain capability는 `/workspace/tools/capability` CLI를 통해 호출하는 로컬 bridge API다. Skill은 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
-LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `terminal.run`, `ask.input`, `ask.confirm`, `file.deliver`, `skill.search`, `file.read`, `file.write`, `file.edit`, `file.patch`, `file.preview`, `image.read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. `terminal.session`은 `terminal.run`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
+LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `terminal.run`, `ask.input`, `ask.confirm`, `file.deliver`, `skill.search`, `file.read`, `file.write`, `file.edit`, `file.patch`, `file.preview`, `image.read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. Interactive terminal session 동작은 `terminal.run`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
 
 `SKILL.md`는 선택될 때 초기 LLM context에 들어가는 실행 지침이다. 일반 skill은 8 KB 이하, 복잡한 artifact skill은 12 KB 이하를 목표로 하고, repository hard gate는 15 KB 및 300 lines다. 이 한계를 넘는 skill 문서는 prompt-runtime bug로 간주한다. 긴 reference는 `references/`, 반복 실행 로직은 `scripts/`, 재사용 asset은 `assets/`에 두고 `SKILL.md`에는 언제 읽거나 실행해야 하는지만 쓴다. 초기 prompt builder는 선택된 `SKILL.md` body만 포함해야 하며 scripts, references, assets 내용을 자동으로 붙이면 안 된다.
 
