@@ -117,7 +117,12 @@ fi`,
 func deviceBrowserRuntimeDependencyInstallScript() string {
 	return strings.TrimSpace(`apt-get update -qq >/dev/null 2>&1 || true
 ` + deviceBrowserRuntimePackageSelectionScript() + `
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null`)
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null 2>&1 || true
+if ! command -v git >/dev/null 2>&1; then
+  apt-get update -qq >/dev/null 2>&1 || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null 2>&1 || true
+fi
+command -v git >/dev/null 2>&1`)
 }
 
 func baseDeviceToolPackages() []string {
