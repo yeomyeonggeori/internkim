@@ -50,15 +50,17 @@
 </script>
 
 <Card.Root data-testid="team-status-grid" class="flex min-h-[calc(100vh-7rem)] min-w-0 flex-1 flex-col">
-	<Card.Header class="flex min-w-0 flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
-		<div>
+	<Card.Header class="flex min-w-0 flex-col gap-3 overflow-hidden pb-3 sm:flex-row sm:items-start sm:justify-between">
+		<div class="min-w-0">
 			<Card.Title class="text-base">{text.teamMonthlyStatus}</Card.Title>
 		</div>
-		<div class="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-			<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
-			<div class="relative w-full sm:w-48">
+		<div class="flex w-full min-w-0 flex-col gap-2 overflow-hidden sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+			<div class="min-w-0 max-w-full self-start overflow-hidden">
+				<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
+			</div>
+			<div class="relative w-full min-w-0 max-w-full sm:w-48">
 				<SearchIcon class="pointer-events-none absolute left-2 top-2.5 size-4 text-muted-foreground" />
-				<Input class="h-9 pl-8" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
+				<Input class="h-9 min-w-0 pl-8" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
 			</div>
 		</div>
 	</Card.Header>
