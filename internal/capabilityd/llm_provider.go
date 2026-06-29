@@ -93,6 +93,12 @@ func (service Service) providerForExecutionMode(ctx context.Context, toolName, e
 		}
 		return remoteProvider, nil
 	case "auto":
+		if service.Configuration.ForceOpenRouterModel {
+			if service.Configuration.LocalOnly {
+				return nil, errors.New("forced OpenRouter model cannot run in local-only mode")
+			}
+			return remoteProvider, nil
+		}
 		localProviderSet := service.localProviderSet(providerName, accelerator, true)
 		autoCompanionProvider := service.companionLLMProviderForAuto(ctx, toolName)
 		return AutoProvider{

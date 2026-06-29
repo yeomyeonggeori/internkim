@@ -439,6 +439,18 @@ func TestForceOpenRouterModelDisablesActionFallbackModels(t *testing.T) {
 	}
 }
 
+func TestForceOpenRouterModelUsesRemoteProviderForAutoMode(t *testing.T) {
+	service := Service{Configuration: Configuration{ForceOpenRouterModel: true}}
+
+	provider, errorValue := service.providerForExecutionMode(context.Background(), "llm.structured", "auto", "", "")
+	if errorValue != nil {
+		t.Fatalf("expected forced OpenRouter auto provider: %v", errorValue)
+	}
+	if _, isOpenRouter := provider.(OpenRouterBackend); !isOpenRouter {
+		t.Fatalf("expected OpenRouter provider, got %T", provider)
+	}
+}
+
 var errTestProviderUnavailable = os.ErrNotExist
 
 type staticLLMProvider struct {
