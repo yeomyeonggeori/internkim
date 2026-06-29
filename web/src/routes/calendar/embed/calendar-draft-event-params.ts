@@ -2,6 +2,9 @@ import type { DraftEventParams } from './calendar-draft-events';
 import { orderedDateKeys, type MonthRangeSelection } from './calendar-month-range-action';
 import { dateFromDateKey } from './calendar-month-selection';
 
+const draftEventIDPrefixes = ['quick', 'range', 'month', 'all-day', 'timeline'] as const;
+type DraftEventIDPrefix = (typeof draftEventIDPrefixes)[number];
+
 export function quickDraftEventParams(baseDate: Date): DraftEventParams {
 	const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 0, 0, 0);
 	const endDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 10, 0, 0, 0);
@@ -36,6 +39,17 @@ export function monthSingleDayDraftEventParams(dateKey: string): DraftEventParam
 		start: startDate,
 		end: endDate,
 		allDay: false,
+		calendarId: 'internkim'
+	};
+}
+
+export function allDaySingleDraftEventParams(dateKey: string): DraftEventParams {
+	const startDate = dateFromDateKey(dateKey);
+	return {
+		id: draftEventID('all-day'),
+		start: startDate,
+		end: new Date(startDate),
+		allDay: true,
 		calendarId: 'internkim'
 	};
 }
@@ -83,6 +97,10 @@ function normalizedTimelineDate(date: Date): Date {
 	return normalizedDate;
 }
 
-function draftEventID(prefix: string): string {
+export function isDraftEventID(eventID: string): boolean {
+	return draftEventIDPrefixes.some((prefix) => eventID.startsWith(`${prefix}-`));
+}
+
+function draftEventID(prefix: DraftEventIDPrefix): string {
 	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
