@@ -9,12 +9,26 @@ import (
 func (service *Service) flowMembers(request *http.Request) []flowMember {
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	var records []adminUserMutation
 	if fleetID != "" && fleetSecret != "" {
-		if records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil && len(records) > 0 {
-			return membersFromUserRecords(records)
+		if fetched, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil {
+			records = fetched
 		}
 	}
-	return nil
+	return membersFromUserRecords(withActorUserRecord(records, service.flowActorEmail(request)))
+}
+
+func withActorUserRecord(records []adminUserMutation, actorEmail string) []adminUserMutation {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(actorEmail))
+	if normalizedEmail == "" {
+		return records
+	}
+	for _, record := range records {
+		if strings.EqualFold(strings.TrimSpace(record.Email), normalizedEmail) {
+			return records
+		}
+	}
+	return append(records, adminUserMutation{Email: normalizedEmail, Status: "active"})
 }
 
 func membersFromUserRecords(records []adminUserMutation) []flowMember {
