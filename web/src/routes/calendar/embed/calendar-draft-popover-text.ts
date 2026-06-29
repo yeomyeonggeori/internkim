@@ -5,6 +5,9 @@ export type DraftPopoverText = {
 	allDay: string;
 	location: string;
 	description: string;
+	participants: string;
+	participantsPlaceholder: string;
+	removeParticipantAction: string;
 	calendar: string;
 	cancel: string;
 	complete: string;
