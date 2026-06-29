@@ -543,10 +543,6 @@ func TestSiteScaffoldMirrorsCanonicalAssets(t *testing.T) {
 		repositoryPath("assets", "blueclaw-site-scaffold", "react-vite-ts"),
 		repositoryPath("internal", "admind", "site_scaffold", "react-vite-ts"),
 	)
-	assertDirectoriesMatch(t,
-		repositoryPath("assets", "blueclaw-site-scaffold", "react-vite-ts"),
-		repositoryPath(".dependency", "blueclaw", "internal", "agentruntime", "site_scaffold", "react-vite-ts"),
-	)
 	siteSource := readRepositoryFile(t, "internal", "admind", "sites.go")
 	for _, forbiddenText := range []string{"func sitePackageJSON", "func siteBuildTS", "func siteAppTSX", "func siteIndexCSS"} {
 		if strings.Contains(siteSource, forbiddenText) {

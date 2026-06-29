@@ -1,37 +1,55 @@
 import { prototypeData } from "./prototype-data";
 
-const starterMarker = "INTERNKIM_SITE_STARTER_REPLACE_ME";
+function App() {
+	const { siteName, tagline, heroAction, sections } = prototypeData;
+	return (
+		<div className="min-h-screen bg-background text-foreground antialiased">
+			<header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
+				<span className="text-sm font-semibold tracking-tight">{siteName}</span>
+				<nav className="hidden gap-6 text-sm text-muted-foreground sm:flex">
+					{sections.map((section) => (
+						<a
+							key={section.id}
+							href={"#" + section.id}
+							className="transition-colors hover:text-foreground"
+						>
+							{section.title}
+						</a>
+					))}
+				</nav>
+			</header>
 
-export function renderApp(rootElement: HTMLElement): void {
-	rootElement.innerHTML = `
-		<main data-starter-marker="${starterMarker}" class="app-shell">
-			<section class="starter-panel">
-				<p class="eyebrow">Dependency-free site scaffold</p>
-				<h1>Replace this starter with the requested site.</h1>
-				<p class="lede">
-					InternKim site prototype loaded. Use source-backed data, stable controls, and responsive CSS before publishing.
-				</p>
-				<div class="starter-grid">
-					<div>
-						<span class="label">Title</span>
-						<strong>${escapeHTML(prototypeData.title)}</strong>
-					</div>
-					<div>
-						<span class="label">Status</span>
-						<strong>${escapeHTML(prototypeData.status)}</strong>
-					</div>
-				</div>
-				<button class="primary-action" type="button">Replace starter</button>
-			</section>
-		</main>
-	`;
+			<main className="mx-auto max-w-4xl px-6">
+				<section className="py-20">
+					<h1 className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight">
+						{siteName}
+					</h1>
+					<p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">{tagline}</p>
+					{heroAction && heroAction.label ? (
+						<a
+							href={heroAction.href}
+							className="mt-8 inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+						>
+							{heroAction.label}
+						</a>
+					) : null}
+				</section>
+
+				{sections.map((section) => (
+					<section key={section.id} id={section.id} className="border-t border-border py-16">
+						<h2 className="text-2xl font-semibold tracking-tight">{section.title}</h2>
+						<p className="mt-4 max-w-2xl whitespace-pre-line leading-relaxed text-muted-foreground">
+							{section.body}
+						</p>
+					</section>
+				))}
+			</main>
+
+			<footer className="mx-auto max-w-4xl border-t border-border px-6 py-10 text-sm text-muted-foreground">
+				<p>{siteName}</p>
+			</footer>
+		</div>
+	);
 }
 
-function escapeHTML(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
-		.replaceAll("'", "&#39;");
-}
+export default App;
