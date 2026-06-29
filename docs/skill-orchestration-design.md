@@ -20,6 +20,8 @@ Skill은 절차와 판단 기준이다. Tool은 실행 가능한 런타임 API�
 
 Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Tool 권한/노출 관련 frontmatter는 `allowed-tools`만 사용한다. `requiredTools`, `required-tools`, custom dependency field는 쓰지 않는다.
 
+`SKILL.md`는 선택될 때 초기 LLM context에 들어가는 실행 지침이다. 일반 skill은 8 KB 이하, 복잡한 artifact skill은 12 KB 이하를 목표로 하고, repository hard gate는 15 KB 및 300 lines다. 이 한계를 넘는 skill 문서는 prompt-runtime bug로 간주한다. 긴 reference는 `references/`, 반복 실행 로직은 `scripts/`, 재사용 asset은 `assets/`에 두고 `SKILL.md`에는 언제 읽거나 실행해야 하는지만 쓴다. 초기 prompt builder는 선택된 `SKILL.md` body만 포함해야 하며 scripts, references, assets 내용을 자동으로 붙이면 안 된다.
+
 `allowed-tools`는 skill이 쓸 수 있는 도구 목록이자 Blueclaw skill selection의 runtime gate다. 목록에 있는 도구가 현재 profile, policy, ToolSet에 없으면 해당 skill은 선택되지 않는다.
 
 Tool의 설명, input schema, output schema, policy resource, side-effect class, approval requirement는 turn-scoped ToolSet과 capability/MCP descriptor가 소유한다. Prompt의 "Available tools", structured output schema, runtime invocation은 같은 ToolSet에서 나온다.
