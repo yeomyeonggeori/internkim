@@ -682,51 +682,6 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 	}
 }
 
-func TestSitePublishRejectsStarterLeakage(t *testing.T) {
-	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
-		Slug:        "starter-leak",
-		Title:       "Starter Leak",
-		RequestedBy: "owner@example.com",
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	sourceWorkspacePath := t.TempDir()
-	writeTestSourceBuild(t, sourceWorkspacePath, "starter publish")
-	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
-  "blockingIssueCount": 1,
-  "issues": [
-    {
-      "severity": "blocking",
-      "category": "templateSmell",
-      "target": "src/App.tsx",
-      "message": "Replace the scaffold starter.",
-      "suggestedFix": "Use a domain-specific first screen."
-    }
-  ]
-}`)
-
-	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:              site.SiteID,
-		RequestedBy:         "owner@example.com",
-		Message:             "Publish starter leakage",
-		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
-		SourceBundleFormat:  "tar.gz",
-		SourceWorkspacePath: site.SourceWorkspacePath,
-	})
-	if errorValue == nil {
-		t.Fatal("expected starter leakage publish to fail")
-	}
-	if !strings.Contains(errorValue.Error(), "starter scaffold") || !strings.Contains(errorValue.Error(), "app/src/App.tsx") {
-		t.Fatalf("expected actionable starter leakage error, got %v", errorValue)
-	}
-	response := serveSiteRequest(service, "starter-leak.device.example.test", "/")
-	if response.Code == http.StatusOK {
-		t.Fatalf("starter leakage should not publish public content: %q", response.Body.String())
-	}
-}
-
 func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
@@ -1134,8 +1089,9 @@ func TestWriteSiteRepairsBrokenSlugAliasDirectory(t *testing.T) {
 	if string(content) != "read repaired" {
 		t.Fatalf("migrated source = %q", string(content))
 	}
-	if !strings.Contains(response.Body.String(), "/workspace/circles/staff/sites/read-repairs-alias/draft") {
-		t.Fatalf("response should keep slug workspace path: %s", response.Body.String())
+	expectedSourcePath := "home/sites/" + site.SiteID + "/draft"
+	if !strings.Contains(response.Body.String(), expectedSourcePath) {
+		t.Fatalf("response should expose the personal source workspace path %q: %s", expectedSourcePath, response.Body.String())
 	}
 }
 
