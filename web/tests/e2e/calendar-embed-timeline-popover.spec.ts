@@ -82,6 +82,48 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expectPopoverArrowPointsToElement(page, proxySelector);
 	});
 
+	test('anchors week popovers to timed, all-day, and multi-day proxy blocks', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'week-anchor-timed',
+				title: 'Week Anchor Timed',
+				startISO: '2026-06-16T09:00:00+09:00',
+				endISO: '2026-06-16T10:00:00+09:00',
+				isAllDay: false
+			},
+			{
+				id: 'week-anchor-all-day',
+				title: 'Week Anchor All Day',
+				startISO: '2026-06-17T00:00:00+09:00',
+				endISO: '2026-06-18T00:00:00+09:00',
+				isAllDay: true
+			},
+			{
+				id: 'week-anchor-proxy',
+				title: 'Week Anchor Proxy',
+				startISO: '2026-06-18T11:45:00+09:00',
+				endISO: '2026-06-20T12:30:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-16');
+		const anchorSelectors = [
+			'.calendar-stage [data-event-id="week-anchor-timed"].df-week-event.df-event-timed',
+			'.calendar-stage .df-week-all-day-event-layer [data-event-id="week-anchor-all-day"]',
+			'.calendar-stage .calendar-multi-day-all-day-proxy[data-event-id="week-anchor-proxy::multi-day-proxy"]'
+		];
+
+		for (const anchorSelector of anchorSelectors) {
+			await expect(page.locator(anchorSelector)).toBeVisible();
+			await doubleClickCalendarEvent(page, anchorSelector);
+			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+			await expectPopoverArrowPointsToElement(page, anchorSelector);
+			await page.keyboard.press('Escape');
+		}
+	});
+
 	test('anchors day edit popovers to the clicked timeline event block when a right panel duplicate exists', async ({ page }) => {
 		await routeDuplicateDayAnchorEvent(page);
 

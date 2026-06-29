@@ -54,7 +54,7 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 				enableDrag: true,
 				enableResize: true,
 				enableCreate: false,
-				enableAllDayCreate: true,
+				enableAllDayCreate: false,
 				onEventDrop: context.saveUpdatedEvent,
 				onEventResize: context.saveUpdatedEvent
 			})
