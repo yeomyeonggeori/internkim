@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	createDevAdminOrgchartMockResponse,
 	createDevAdminOrgchartMockState
-} from '../../../dev-admin-orgchart-mock-plugin';
+} from '../../../dev-admin-orgchart-state';
 import type { UsersResponse } from '../../../src/routes/admin/admin-types';
 
 describe('dev admin orgchart mock plugin', () => {
