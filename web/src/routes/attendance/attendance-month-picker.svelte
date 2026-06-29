@@ -9,9 +9,10 @@
 	type Props = {
 		selectedMonth: string;
 		onSelectMonth: (month: string) => void;
+		density?: 'default' | 'compact';
 	};
 
-	let { selectedMonth, onSelectMonth }: Props = $props();
+	let { selectedMonth, onSelectMonth, density = 'default' }: Props = $props();
 
 	const text = createPageText(attendanceText);
 	const today = new Date();
@@ -21,7 +22,13 @@
 	let pickerYearWindowStart = $state(Math.floor(today.getFullYear() / 12) * 12);
 
 	const selectedYearMonth = $derived(parseYearMonth(selectedMonth));
-	const triggerWidthClass = $derived(currentLocale.value === 'en' ? 'w-[9.25rem]' : 'w-[7.25rem]');
+	const rootSpacingClass = $derived(density === 'compact' ? 'gap-0' : 'gap-1');
+	const navigationButtonClass = $derived(density === 'compact' ? 'size-7' : 'size-8');
+	const triggerWidthClass = $derived(
+		currentLocale.value === 'en'
+			? density === 'compact' ? 'w-[8.5rem]' : 'w-[9.25rem]'
+			: density === 'compact' ? 'w-[6.75rem]' : 'w-[7.25rem]'
+	);
 	const previousPickerLabel = $derived(pickerMode === 'month' ? text.previousYear : text.previousYearWindow);
 	const nextPickerLabel = $derived(pickerMode === 'month' ? text.nextYear : text.nextYearWindow);
 
@@ -99,11 +106,11 @@
 	}
 </script>
 
-<div class="inline-flex items-center gap-1">
+<div class={`inline-flex items-center ${rootSpacingClass}`}>
 	<button
 		type="button"
 		aria-label={text.previousMonth}
-		class="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+		class={`flex ${navigationButtonClass} items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
 		onclick={() => moveSelectedMonth(-1)}
 	>
 		<ChevronLeftIcon class="size-4" />
@@ -185,7 +192,7 @@
 	<button
 		type="button"
 		aria-label={text.nextMonth}
-		class="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+		class={`flex ${navigationButtonClass} items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
 		onclick={() => moveSelectedMonth(1)}
 	>
 		<ChevronRightIcon class="size-4" />
