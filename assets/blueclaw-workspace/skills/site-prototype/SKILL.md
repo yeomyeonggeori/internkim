@@ -23,9 +23,10 @@ Source-backed facts must appear in the rendered UI, not only in `prototype-data.
 
 ## Stack
 
-- Use the managed dependency-free TypeScript + CSS scaffold. The managed build is offline-first and does not run `bun install`.
+- The scaffold is a working React + Tailwind + shadcn black-on-white template. Start from it and customize content; the build installs npm dependencies online.
+- Reuse the shadcn primitives in `app/src/components/ui/*` (Button, Card, Badge, Input, Tabs, Dialog, etc.). Keep the black-on-white default unless the request asks otherwise.
 - Use PocketBase only when the prototype needs local data, auth, files, realtime, or migrations.
-- Do not use Next.js, SvelteKit, Node servers, cloud databases, hosted backends, paid APIs, Tailwind, React packages, lucide-react, Radix, or other dependencies unless the user explicitly asks and accepts the cost/reliability tradeoff.
+- Do not add Next.js, SvelteKit, Node servers, cloud databases, hosted backends, or paid APIs unless the user explicitly asks and accepts the cost/reliability tradeoff.
 - Use system fonts by default. If embedding fonts, use WOFF2 assets with `@font-face` and `format("woff2")`; do not paste base64 fonts or rely on CDN-only fonts.
 - Treat returned `sourceWorkspacePath` and `appWorkspacePath` as canonical. Do not rewrite them to private POSIX paths.
 
@@ -41,8 +42,8 @@ Website creation and update requests are incomplete until the site.publish opera
 6. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 7. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
 8. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
-9. Write a request-specific Stitch-compatible `DESIGN.md`, then create or update `app/src/prototype-data.ts` with supplied source data or clearly fake workflow state.
-10. Replace the starter `app/src/App.tsx` and update `app/src/index.css`. Do not preserve starter copy or generic feature cards.
+9. Put the request content in `app/src/prototype-data.ts` (site name, tagline, sections, contact, and any source-backed data). This is the main customization step; the template renders from it.
+10. Adjust `app/src/App.tsx` sections and `app/src/index.css` to fit the request, reusing the shadcn primitives. Write a request-specific `DESIGN.md` when the visual direction matters.
 11. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`.
 12. Build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`.
 13. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
