@@ -35,6 +35,7 @@
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
+	import { fetchCalendarParticipants } from './calendar-participants';
 	import './calendar-page.css';
 
 	const text = createPageText(calendarText);
@@ -116,6 +117,7 @@
 	});
 
 	onMount(() => {
+		void loadParticipantCandidates();
 		return installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
@@ -194,6 +196,14 @@
 		}
 		draftPopoverActions.createQuickDraftPopover(event);
 	}
+
+	async function loadParticipantCandidates(): Promise<void> {
+		try {
+			state.participantCandidates = await fetchCalendarParticipants(text.error);
+		} catch {
+			state.participantCandidates = [];
+		}
+	}
 </script>
 <svelte:head>
 	<title>{text.pageTitle}</title>
@@ -234,6 +244,7 @@
 	popover={state.draftPopover}
 	auditEvent={selectedAuditEvent}
 	{calendarOptions}
+	participantCandidates={state.participantCandidates}
 	isSaving={state.isSaving}
 	{text}
 	updatePopover={draftPopoverActions.updateDraftPopover}

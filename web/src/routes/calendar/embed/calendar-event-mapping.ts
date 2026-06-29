@@ -1,5 +1,6 @@
 import { createEvent, temporalToDate, type Event as DayFlowEvent } from '@dayflow/core';
 import type { CalendarEvent, CalendarEventPayload } from './calendar-event-persistence';
+import { calendarParticipantInputs, calendarParticipantsFromUnknown } from './calendar-participants';
 
 export type CalendarDateParts = {
 	year: number;
@@ -20,6 +21,7 @@ export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEven
 			uid: event.uid,
 			location: event.location,
 			color: event.color,
+			participants: calendarParticipantsFromUnknown(event.participants),
 			timeZone: event.timeZone,
 			createdByEmail: event.createdByEmail,
 			createdByName: event.createdByName,
@@ -49,7 +51,8 @@ export function calendarEventPayloadFromDayFlowEvent(
 		endISO: endDate.toISOString(),
 		timeZone,
 		isAllDay: event.allDay ?? false,
-		color
+		color,
+		participants: calendarParticipantInputs(calendarParticipantsFromUnknown(event.meta?.participants))
 	};
 }
 

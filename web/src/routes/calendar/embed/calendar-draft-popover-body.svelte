@@ -5,6 +5,8 @@
 	import CalendarDraftPopoverDateTimeField from './calendar-draft-popover-date-time-field.svelte';
 	import type { DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
+	import CalendarParticipantSelector from './calendar-participant-selector.svelte';
+	import type { CalendarParticipant } from './calendar-participants';
 
 	type CalendarOption = {
 		id: string;
@@ -14,6 +16,7 @@
 	type Props = {
 		popover: DraftPopoverState;
 		calendarOptions: CalendarOption[];
+		participantCandidates: CalendarParticipant[];
 		auditRows: CalendarAuditRow[];
 		auditLabel: string;
 		localeCode: string;
@@ -22,7 +25,7 @@
 		setScrollState: (canScrollUp: boolean, canScrollDown: boolean) => void;
 	};
 
-	let { popover, calendarOptions, auditRows, auditLabel, localeCode, text, updatePopover, setScrollState }: Props = $props();
+	let { popover, calendarOptions, participantCandidates, auditRows, auditLabel, localeCode, text, updatePopover, setScrollState }: Props = $props();
 
 	let bodyElement: HTMLElement | null = null;
 	let scrollFrame: number | null = null;
@@ -75,6 +78,7 @@
 		popover.allDay;
 		popover.description;
 		popover.location;
+		popover.participants;
 		popover.calendarID;
 		auditRows;
 		schedulePopoverScrollState();
@@ -107,6 +111,18 @@
 			oninput={(event) => updatePopover({ description: inputValue(event) })}
 		></textarea>
 	</label>
+
+	<div class="draft-popover-field">
+		<span class="draft-popover-field-label">{text.participants}</span>
+		<CalendarParticipantSelector
+			participants={popover.participants}
+			candidates={participantCandidates}
+			label={text.participants}
+			placeholder={text.participantsPlaceholder}
+			removeLabel={text.removeParticipantAction}
+			onChange={(participants) => updatePopover({ participants })}
+		/>
+	</div>
 
 	<label class="draft-popover-field">
 		<span class="draft-popover-field-label">{text.calendar}</span>

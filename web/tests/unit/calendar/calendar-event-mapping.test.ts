@@ -3,6 +3,8 @@ import { createEvent } from '@dayflow/core';
 import { expect, test } from 'bun:test';
 
 import {
+	calendarEventPayloadFromDayFlowEvent,
+	dayFlowEventFromCalendarEvent,
 	eventEndDate,
 	eventStartDate
 } from '../../../src/routes/calendar/embed/calendar-event-mapping';
@@ -19,4 +21,38 @@ test('maps all-day event display dates to local midnight', () => {
 
 	expect(eventStartDate(event)).toEqual(new Date(2026, 5, 8));
 	expect(eventEndDate(event)).toEqual(new Date(2026, 5, 10));
+});
+
+test('maps calendar participants through event meta and payload', () => {
+	const event = dayFlowEventFromCalendarEvent({
+		id: 'participants-event',
+		uid: 'participants-event@internkim',
+		title: 'Participants event',
+		description: 'Bring agenda',
+		location: 'Studio',
+		startISO: '2026-06-18T03:00:00Z',
+		endISO: '2026-06-18T04:00:00Z',
+		timeZone: 'Asia/Seoul',
+		isAllDay: false,
+		color: '#2563eb',
+		participants: [
+			{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com', image: '/calendar/api/participants/person-gamyeong/image' },
+			{ personID: 'person-pyobon', name: '김표본', email: 'pyobon@example.com' }
+		],
+		createdByEmail: 'admin@example.com',
+		createdByName: 'Admin',
+		updatedAt: '2026-06-18T04:00:00Z'
+	});
+
+	expect(event.meta?.participants).toEqual([
+		{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com', image: '/calendar/api/participants/person-gamyeong/image' },
+		{ personID: 'person-pyobon', name: '김표본', email: 'pyobon@example.com' }
+	]);
+
+	const payload = calendarEventPayloadFromDayFlowEvent(event, '#2563eb', 'Asia/Seoul');
+
+	expect(payload.participants).toEqual([
+		{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com' },
+		{ personID: 'person-pyobon', name: '김표본', email: 'pyobon@example.com' }
+	]);
 });
