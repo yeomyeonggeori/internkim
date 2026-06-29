@@ -11,7 +11,7 @@
 | 사용자 권한 경계 | 다른 사람의 private workspace, service-owned internal path | requester POSIX identity와 Blueclaw workspace actor |
 | 비밀값 경계 | provider token, platform token, Google credential, local model path | `internkim-capabilityd`, `internkim-admind`, Google helper |
 | 로컬 컴퓨터 경계 | local absolute path, browser cookie, local profile path, sensitive login step | `internkim-companion` |
-| 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file.promote`와 `file.attach` 기반 artifact flow |
+| 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file.deliver` 기반 artifact flow |
 | LLM 운영 연속성 경계 | remote provider만 유일한 실행 경로로 고정 | `internkim-capabilityd` local/companion/remote provider routing |
 | 업무 운영 경계 | 출결, 메일, 일정, 업무 관리를 각기 다른 SaaS 권한 모델에 흩어두기 | Mattermost와 Blueclaw task/capability/event model |
 
@@ -149,13 +149,13 @@ Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만
 
 김인턴은 작업을 바로 "완료"로 처리하지 않고, artifact와 event를 남기는 방식으로 설계되어 있다.
 
-- Required artifact task는 promoted durable attachment가 있어야 완료로 인정한다.
+- Required artifact task는 `file.deliver` completion evidence가 있어야 완료로 인정한다.
 - `tmp/<slug>`의 중간 파일, local path 문자열, markdown 링크, 내부 `/workspace/...` 경로 노출은 완료 증거가 아니다.
-- 생성물은 `file.write -> terminal.run -> file.promote -> file.attach` 흐름을 탄다.
+- 생성물은 `file.write -> terminal.run -> file.deliver` 흐름을 탄다.
 - reset 명령은 Blueclaw task, raw event, conversation, memory mirror, Kuzu memory files, Mattermost post/reaction/thread 기록을 구분해서 정리한다.
 - secrets, policy, platform account link는 기본 reset 대상에서 제외해 운영 상태를 보존한다.
 
-이 장점은 운영 중 장애가 났을 때 중요하다. 어떤 작업이 어떤 actor 권한으로 실행됐고, 어떤 artifact가 최종 산출물로 승격됐는지 추적할 수 있으며, 테스트와 복구 시 지워야 할 데이터와 보존해야 할 데이터를 분리할 수 있다.
+이 장점은 운영 중 장애가 났을 때 중요하다. 어떤 작업이 어떤 actor 권한으로 실행됐고, 어떤 artifact가 최종 산출물로 전달됐는지 추적할 수 있으며, 테스트와 복구 시 지워야 할 데이터와 보존해야 할 데이터를 분리할 수 있다.
 
 ## 한 문장 요약
 

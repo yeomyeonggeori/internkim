@@ -505,7 +505,9 @@ PY`))
 		}
 	}
 	if check == "ok" {
-		check = strings.TrimSpace(context.SSH.Run(blueclawRootfsBaseContractCheckCommand()))
+		if !blueclawServiceIsActive(context) {
+			check = strings.TrimSpace(context.SSH.Run(blueclawRootfsBaseContractCheckCommand()))
+		}
 	}
 	if check == "ok" {
 		fmt.Println("  blueclaw firecracker runtime: ok")
@@ -516,6 +518,10 @@ PY`))
 		check = "failed"
 	}
 	fmt.Printf("  blueclaw firecracker runtime: %s\n", check)
+}
+
+func blueclawServiceIsActive(context *Context) bool {
+	return strings.TrimSpace(context.SSH.Run("systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null || true")) == "active"
 }
 
 func checkMattermostPing(context *Context, failedChecks *[]string) {
