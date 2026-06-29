@@ -2877,19 +2877,15 @@ func siteWorkspaceAliasName(siteID string, slug string) string {
 	return strings.TrimSpace(siteID)
 }
 
-func siteOwnerPersonID(site *SiteRecord) string {
+func siteOwnerProjectWorkspacePath(site *SiteRecord) string {
 	if site == nil {
 		return ""
 	}
-	return firstNonEmpty(strings.TrimSpace(site.OwnerIdentity.PersonID), strings.TrimSpace(site.CreatedBy.PersonID))
-}
-
-func siteOwnerProjectWorkspacePath(site *SiteRecord) string {
-	personID := siteOwnerPersonID(site)
-	if personID == "" {
+	siteID := strings.TrimSpace(site.SiteID)
+	if siteID == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join("/workspace/private/people", personID, "sites", strings.TrimSpace(site.SiteID)))
+	return "home/sites/" + siteID
 }
 
 func siteOwnerSourceWorkspacePath(site *SiteRecord) string {
@@ -2897,7 +2893,7 @@ func siteOwnerSourceWorkspacePath(site *SiteRecord) string {
 	if projectPath == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join(projectPath, "draft"))
+	return projectPath + "/draft"
 }
 
 type siteSourceFile struct {
