@@ -673,11 +673,17 @@ func decodeSitePublishRequest(reader io.Reader) (sitePublishRequest, error) {
 	return payload, json.Unmarshal(document, &payload)
 }
 
-func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord, error) {
-	baseSlug := normalizeSiteSlug(payload.Slug)
-	if !isValidSiteSlug(baseSlug) {
-		return nil, errors.New("site slug must be a valid DNS label")
+func deriveSiteSlug(slug string, title string) string {
+	for _, candidate := range []string{slug, title} {
+		if normalized := normalizeSiteSlug(candidate); isValidSiteSlug(normalized) {
+			return normalized
+		}
 	}
+	return "site-" + randomHex(6)
+}
+
+func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord, error) {
+	baseSlug := deriveSiteSlug(payload.Slug, payload.Title)
 	port, errorValue := service.allocateSitePort()
 	if errorValue != nil {
 		return nil, errorValue
