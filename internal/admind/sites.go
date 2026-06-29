@@ -415,16 +415,37 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	site, errorValue := service.createSiteRecord(payload)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
+	site := service.reusableSiteForCreate(payload)
+	if site == nil {
+		createdSite, errorValue := service.createSiteRecord(payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		site = createdSite
 	}
 	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	service.writeSiteRecord(responseWriter, site)
+}
+
+// reusableSiteForCreate returns the conversation's existing site so repeated
+// create requests update it in place instead of spawning duplicates. A new site
+// is created only for a conversation that does not yet have one; deleting the
+// existing site is the explicit way to start over.
+func (service *Service) reusableSiteForCreate(payload siteCreateRequest) *SiteRecord {
+	conversationID := strings.TrimSpace(payload.ConversationID)
+	if conversationID == "" {
+		return nil
+	}
+	for _, site := range service.siteList() {
+		if site != nil && strings.EqualFold(strings.TrimSpace(site.ConversationID), conversationID) {
+			return site
+		}
+	}
+	return nil
 }
 
 // materializeSiteSourceWorkspace provisions the managed scaffold and the editable
