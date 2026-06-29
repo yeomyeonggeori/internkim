@@ -7,6 +7,9 @@ import (
 	"testing"
 )
 
+const maximumSkillDocumentBytes = 15000
+const maximumSkillDocumentLines = 300
+
 func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	document, errorValue := os.ReadFile(AgentsPath(repositoryRootPath))
@@ -19,6 +22,56 @@ func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	if !strings.Contains(string(document), "web.fetch") {
 		t.Fatal("workspace AGENTS asset must prefer available web.fetch for public page lookup")
 	}
+}
+
+func TestBundledSkillDocumentsStayWithinPromptBudget(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillDocumentPaths := bundledSkillDocumentPaths(t, repositoryRootPath)
+	if len(skillDocumentPaths) == 0 {
+		t.Fatal("expected bundled skill documents")
+	}
+
+	for _, skillDocumentPath := range skillDocumentPaths {
+		document, errorValue := os.ReadFile(skillDocumentPath)
+		if errorValue != nil {
+			t.Fatalf("expected skill document %s: %v", skillDocumentPath, errorValue)
+		}
+		lineCount := skillDocumentLineCount(string(document))
+		if len(document) > maximumSkillDocumentBytes {
+			t.Fatalf("%s is %d bytes; keep SKILL.md under %d bytes and move details into references, scripts, or assets", skillDocumentPath, len(document), maximumSkillDocumentBytes)
+		}
+		if lineCount > maximumSkillDocumentLines {
+			t.Fatalf("%s is %d lines; keep SKILL.md under %d lines and move details into references, scripts, or assets", skillDocumentPath, lineCount, maximumSkillDocumentLines)
+		}
+	}
+}
+
+func bundledSkillDocumentPaths(t *testing.T, repositoryRootPath string) []string {
+	t.Helper()
+	patterns := []string{
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "*", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", ".agents", "skills", "*", "SKILL.md"),
+	}
+	documentPaths := []string{}
+	for _, pattern := range patterns {
+		matches, errorValue := filepath.Glob(pattern)
+		if errorValue != nil {
+			t.Fatalf("expected valid glob pattern %s: %v", pattern, errorValue)
+		}
+		documentPaths = append(documentPaths, matches...)
+	}
+	return documentPaths
+}
+
+func skillDocumentLineCount(content string) int {
+	if content == "" {
+		return 0
+	}
+	lineCount := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lineCount++
+	}
+	return lineCount
 }
 
 func TestCapabilityToolAssetExistsAndIsExecutable(t *testing.T) {

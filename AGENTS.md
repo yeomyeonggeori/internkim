@@ -66,6 +66,22 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   Disposable local fleet runs clean themselves up by default; use
   `./internkim dev fleet reset` after `--reuse` runs.
 
+## Blueclaw Skill Size Budget
+
+- Treat oversized `SKILL.md` files as prompt-runtime bugs, not documentation
+  debt.
+- Keep normal skills under 8 KB and complex artifact skills under 12 KB when
+  practical.
+- The hard repository gate is 15 KB and 300 lines for each bundled `SKILL.md`.
+- Put long reference material in `references/`, deterministic helpers in
+  `scripts/`, and reusable files in `assets/`. Do not inline them into
+  `SKILL.md`.
+- `SKILL.md` should describe trigger scope, workflow order, required evidence,
+  and when to inspect bundled resources. It should not duplicate script logic or
+  full API documentation.
+- Initial LLM context must include only the selected `SKILL.md` body. Scripts,
+  references, and assets are loaded or executed only when the task needs them.
+
 ## Web Test Hygiene
 
 - Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
