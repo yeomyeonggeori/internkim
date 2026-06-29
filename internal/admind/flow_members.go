@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strings"
@@ -15,7 +16,49 @@ func (service *Service) flowMembers(request *http.Request) []flowMember {
 			records = fetched
 		}
 	}
+	records = mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(request.Context()))
 	return membersFromUserRecords(withActorUserRecord(records, service.flowActorEmail(request)))
+}
+
+func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUserMutation {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return nil
+	}
+	people, _ := policyDocument["people"].([]any)
+	records := []adminUserMutation{}
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson {
+			continue
+		}
+		name := strings.TrimSpace(mattermostPolicyString(person["displayName"]))
+		emailValues, _ := person["emails"].([]any)
+		for _, emailValue := range emailValues {
+			email := strings.ToLower(strings.TrimSpace(mattermostPolicyString(emailValue)))
+			if email == "" {
+				continue
+			}
+			records = append(records, adminUserMutation{Email: email, Name: name, Status: "active"})
+		}
+	}
+	return records
+}
+
+func mergeUserRecordsByEmail(primaryRecords []adminUserMutation, additionalRecords []adminUserMutation) []adminUserMutation {
+	mergedRecords := []adminUserMutation{}
+	seenEmail := map[string]bool{}
+	for _, recordGroup := range [][]adminUserMutation{primaryRecords, additionalRecords} {
+		for _, record := range recordGroup {
+			email := strings.ToLower(strings.TrimSpace(record.Email))
+			if email == "" || seenEmail[email] {
+				continue
+			}
+			seenEmail[email] = true
+			mergedRecords = append(mergedRecords, record)
+		}
+	}
+	return mergedRecords
 }
 
 func withActorUserRecord(records []adminUserMutation, actorEmail string) []adminUserMutation {

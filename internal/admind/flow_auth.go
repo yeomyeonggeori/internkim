@@ -153,12 +153,22 @@ func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string)
 	}
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
-	if errorValue != nil {
-		return service.isEmailInUsersSyncCache(actorEmail)
+	if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
+		for _, record := range records {
+			if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+				return true
+			}
+		}
 	}
-	for _, record := range records {
-		if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+	if service.isEmailInBlueclawPolicy(ctx, actorEmail) {
+		return true
+	}
+	return service.isEmailInUsersSyncCache(actorEmail)
+}
+
+func (service *Service) isEmailInBlueclawPolicy(ctx context.Context, actorEmail string) bool {
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+		if strings.EqualFold(strings.TrimSpace(record.Email), actorEmail) {
 			return true
 		}
 	}
