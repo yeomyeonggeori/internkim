@@ -3282,6 +3282,9 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusUnauthorized, `{}`, nil), nil
 		}
+		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
