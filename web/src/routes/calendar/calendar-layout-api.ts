@@ -38,3 +38,17 @@ export async function rotateCalendarSubscriptionURL(errorMessage: string): Promi
 	if (!response.ok) throw new Error(errorMessage);
 	return (await response.json()) as CalendarSyncResponse;
 }
+
+export async function uploadGoogleOAuthClient(file: File, errorMessage: string): Promise<void> {
+	const formData = new FormData();
+	formData.append('client', file, file.name);
+	const response = await fetch('/calendar/api/google-oauth-client', {
+		method: 'POST',
+		credentials: 'include',
+		body: formData
+	});
+	if (!response.ok) {
+		const responseText = (await response.text()).trim();
+		throw new Error(responseText || errorMessage);
+	}
+}
