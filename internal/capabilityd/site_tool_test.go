@@ -27,7 +27,7 @@ func TestSiteAppCreatePropagatesConversationContext(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.create",
+		ToolName: "site.create",
 		Input:    json.RawMessage(`{"slug":"demo","title":"Demo","prompt":"Build a booking site","designBrief":"Editorial restaurant style","prototypeScope":"booking request flow"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "owner@example.com",
@@ -49,7 +49,7 @@ func TestSiteAppCreatePropagatesConversationContext(t *testing.T) {
 func TestSiteAppPublishRequiresExistingSiteID(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.publish",
+		ToolName: "site.publish",
 		Input:    json.RawMessage(`{"slug":"demo"}`),
 	})
 	if errorValue == nil {
@@ -76,7 +76,7 @@ func TestSiteAppPublishResolvesConversationSite(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.publish",
+		ToolName: "site.publish",
 		Input:    json.RawMessage(`{"message":"Update prototype"}`),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
@@ -110,7 +110,7 @@ func TestSiteAppPreviewResolvesConversationSite(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.preview",
+		ToolName: "site.preview",
 		Input:    json.RawMessage(`{"message":"Preview prototype"}`),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
@@ -144,7 +144,7 @@ func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.status",
+		ToolName: "site.status",
 		Input:    json.RawMessage(`{}`),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
@@ -177,7 +177,7 @@ func TestSiteAppStatusReturnsAmbiguousCandidates(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.status",
+		ToolName: "site.status",
 		Input:    json.RawMessage(`{}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID: "person-1",
@@ -209,7 +209,7 @@ func TestSiteAppStatusIgnoresConversationSitesRequesterCannotEdit(t *testing.T) 
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.status",
+		ToolName: "site.status",
 		Input:    json.RawMessage(`{}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID: "other-person",
@@ -239,7 +239,7 @@ func TestSiteAppStatusMineListsOnlyRequesterEditableSites(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.status",
+		ToolName: "site.status",
 		Input:    json.RawMessage(`{"scope":"mine","checkLive":true}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID: "person-a",
@@ -285,7 +285,7 @@ func TestSiteAppStatusBySlugHidesSourcePathsForNonEditor(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.status",
+		ToolName: "site.status",
 		Input:    json.RawMessage(`{"slug":"demo"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID: "other-person",
@@ -321,7 +321,7 @@ func TestSiteAppHistoryResolvesConversationSite(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.history",
+		ToolName: "site.history",
 		Input:    json.RawMessage(`{}`),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",
@@ -355,7 +355,7 @@ func TestSiteAppDiffPassesRevisionQuery(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.app.diff",
+		ToolName: "site.diff",
 		Input:    json.RawMessage(`{"fromRevision":"abc","toRevision":"def"}`),
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "mattermost",

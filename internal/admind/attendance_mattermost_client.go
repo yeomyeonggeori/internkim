@@ -81,4 +81,3 @@ func isMattermostAttendanceResultPostCurrent(postRecord mattermostPostRecord, ch
 	}
 	return strings.TrimSpace(postRecord.RootID) == strings.TrimSpace(rootID)
 }
-

@@ -4,9 +4,9 @@ import "strings"
 
 func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics {
 	metrics := flowMetrics{
-		StatusCounts:    map[string]int{},
-		BusinessCounts:  map[string]int{},
-		TypeCounts:      map[string]int{},
+		StatusCounts:       map[string]int{},
+		BusinessCounts:     map[string]int{},
+		TypeCounts:         map[string]int{},
 		MemberDistances:    map[string]int{},
 		MemberScores:       map[string]int{},
 		MemberScoreDetails: map[string]flowMemberScoreItem{},

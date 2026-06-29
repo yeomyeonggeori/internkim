@@ -51,7 +51,7 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 		"--auto-confirm",
 		"--expect-public-url",
 		"--expect-tool",
-		"site.app.publish",
+		"site.publish",
 	}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -71,7 +71,7 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if !configuration.ShouldUseRealModels || !configuration.ShouldAutoConfirm {
 		t.Fatalf("expected real model and auto confirm options: %+v", configuration)
 	}
-	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.app.publish" {
+	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.publish" {
 		t.Fatalf("unexpected site verification flags: %+v", configuration)
 	}
 }

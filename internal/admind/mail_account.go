@@ -46,19 +46,19 @@ type mailAccountResponse struct {
 }
 
 type mailAccountWriteRequest struct {
-	Email          string `json:"email"`
-	FromAddress    string `json:"fromAddress"`
-	DisplayName    string `json:"displayName"`
-	IMAPHost       string `json:"imapHost"`
-	IMAPPort       int    `json:"imapPort"`
-	IMAPSecurity   string `json:"imapSecurity"`
-	IMAPUsername   string `json:"imapUsername"`
-	IMAPPassword   string `json:"imapPassword"`
-	SMTPHost       string `json:"smtpHost"`
-	SMTPPort       int    `json:"smtpPort"`
-	SMTPSecurity   string `json:"smtpSecurity"`
-	SMTPUsername   string `json:"smtpUsername"`
-	SMTPPassword   string `json:"smtpPassword"`
-	DefaultMailbox string `json:"defaultMailbox"`
+	Email          string  `json:"email"`
+	FromAddress    string  `json:"fromAddress"`
+	DisplayName    string  `json:"displayName"`
+	IMAPHost       string  `json:"imapHost"`
+	IMAPPort       int     `json:"imapPort"`
+	IMAPSecurity   string  `json:"imapSecurity"`
+	IMAPUsername   string  `json:"imapUsername"`
+	IMAPPassword   string  `json:"imapPassword"`
+	SMTPHost       string  `json:"smtpHost"`
+	SMTPPort       int     `json:"smtpPort"`
+	SMTPSecurity   string  `json:"smtpSecurity"`
+	SMTPUsername   string  `json:"smtpUsername"`
+	SMTPPassword   string  `json:"smtpPassword"`
+	DefaultMailbox string  `json:"defaultMailbox"`
 	SentMailbox    *string `json:"sentMailbox"`
 }

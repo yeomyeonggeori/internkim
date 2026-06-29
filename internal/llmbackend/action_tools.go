@@ -46,8 +46,8 @@ type actionSchemaDocument struct {
 
 type actionSchemaVariant struct {
 	Description string                     `json:"description"`
-	Properties map[string]json.RawMessage `json:"properties"`
-	Required   []string                   `json:"required"`
+	Properties  map[string]json.RawMessage `json:"properties"`
+	Required    []string                   `json:"required"`
 }
 
 func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionToolSet, bool, error) {

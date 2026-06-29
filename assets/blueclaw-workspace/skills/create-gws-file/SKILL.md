@@ -6,7 +6,7 @@ when_to_use: Use when the user asks for Google Docs, Google Sheets, spreadsheets
 
 # Google Workspace Files
 
-Use typed Google Workspace capabilities through `/workspace/tools/capability invoke <operation> '<json>'`. Blueclaw does not read API keys, service-account JSON, OAuth exports, webhook URLs, or any other Google credential.
+Use typed Google Workspace capabilities through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. Blueclaw does not read API keys, service-account JSON, OAuth exports, webhook URLs, or any other Google credential.
 
 ## Routing
 

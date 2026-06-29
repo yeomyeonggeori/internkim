@@ -6,7 +6,7 @@ when_to_use: Use when the user asks to check, find, read, search, reply to, draf
 
 # Mail
 
-Use mail capabilities for the configured IMAP/SMTP account. Invoke all `mail.message.*` and `mail.connection.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`.
+Use mail capabilities for the configured IMAP/SMTP account. Run these operations through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. The operations include `mail.message.list`, `mail.message.search`, `mail.message.read`, `mail.message.send`, and `mail.connection.*`.
 
 Never answer that you cannot access email before trying the relevant mail operation. If the user asks whether any email arrived from a sender or service, use `mail.message.search`.
 
@@ -40,7 +40,7 @@ For immediate sending:
 
 1. Confirm the recipient, subject, and exact body.
 2. Call `ask.confirm` with the recipient, subject, and body.
-3. After approval, invoke `mail.message.send` through the capability CLI.
+3. After approval, invoke `mail.message.send` via `capability.invoke`.
 
 Never say the email was sent before `mail.message.send` succeeds.
 

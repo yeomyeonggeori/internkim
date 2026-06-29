@@ -108,19 +108,19 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 		return nil, errorValue
 	}
 	switch request.ToolName {
-	case "site.app.create":
+	case "site.create":
 		return service.postAdmindSite(ctx, "/admin/api/sites", inputDocument)
-	case "site.app.publish":
+	case "site.publish":
 		return service.publishAdmindSite(ctx, inputDocument)
-	case "site.app.preview":
+	case "site.preview":
 		return service.previewAdmindSite(ctx, inputDocument)
-	case "site.app.status":
+	case "site.status":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
 			return nil, errorValue
 		}
 		return service.getAdmindSiteStatus(ctx, input)
-	case "site.app.history":
+	case "site.history":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
 			return nil, errorValue
@@ -130,9 +130,9 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 			return nil, errorValue
 		}
 		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/history")
-	case "site.app.diff":
+	case "site.diff":
 		return service.getAdmindSiteDiff(ctx, inputDocument)
-	case "site.app.logs":
+	case "site.logs":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
 			return nil, errorValue
@@ -142,13 +142,13 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 			return nil, errorValue
 		}
 		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/logs")
-	case "site.app.rollback":
+	case "site.rollback":
 		return service.postAdmindSiteAction(ctx, inputDocument, "rollback")
-	case "site.app.unpublish":
+	case "site.unpublish":
 		return service.postAdmindSiteAction(ctx, inputDocument, "unpublish")
-	case "site.app.restore":
+	case "site.restore":
 		return service.postAdmindSiteAction(ctx, inputDocument, "restore")
-	case "site.app.delete":
+	case "site.delete":
 		return service.deleteAdmindSite(ctx, inputDocument)
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)

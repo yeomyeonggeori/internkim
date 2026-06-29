@@ -96,7 +96,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
 		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
 	}
-	if !containsCompletionEvidence(capabilityToolDescriptors, "platform.message.send", "success", "send_message", "message") {
+	if !containsCompletionEvidence(capabilityToolDescriptors, "message.send", "success", "send_message", "message") {
 		t.Fatalf("expected platform message send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
 	}
 	if !containsCompletionEvidence(capabilityToolDescriptors, "mail.message.send", "success", "send_email", "email") {
@@ -327,9 +327,9 @@ func TestBlueclawRuntimeConfigOptionsRejectInvalidGenerationEnvironment(t *testi
 func TestBlueclawRuntimeKnowsBuiltinSkillToolsWithoutExposingAllByDefault(t *testing.T) {
 	allowedToolNames := stringSet(BlueclawDefaultAllowedToolNames())
 	skillScopedToolNames := stringSet([]string{
-		"site.app.build",
-		"site.app.repair",
-		"site.app.preview",
+		"site.build",
+		"site.repair",
+		"site.preview",
 	})
 	disabledSkillToolNames := stringSet([]string{
 		"google.docs.create",
@@ -508,21 +508,21 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "api:flow.definition", "admin") {
 		t.Fatalf("expected admin Flow definition API rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
+	if !containsPolicyResource(resourceAccess, "tool:task.add", "staff") {
 		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:flow.task.list", "staff") {
+	if !containsPolicyResource(resourceAccess, "tool:task.list", "staff") {
 		t.Fatalf("expected staff Flow task list tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:flow.task.update", "staff") {
+	if !containsPolicyResource(resourceAccess, "tool:task.update", "staff") {
 		t.Fatalf("expected staff Flow update tool rule, got %+v", resourceAccess)
 	}
-	for _, toolName := range []string{"platform.message.context", "platform.message.search", "platform.message.send", "platform.message.update", "platform.message.delete"} {
+	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete"} {
 		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
 			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
 		}
 	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.update", "admin") {
+	if !containsPolicyResource(resourceAccess, "tool:channel.update", "admin") {
 		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
 	}
 	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {

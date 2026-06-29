@@ -102,7 +102,7 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.add",
+		ToolName: "task.add",
 		Input:    []byte(`{"prompt":"10분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -137,7 +137,7 @@ func TestFlowTaskAddPropagatesDuplicateConfirmation(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.add",
+		ToolName: "task.add",
 		Input:    []byte(`{"prompt":"10분 회의","allowDuplicate":true}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -170,7 +170,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.add",
+		ToolName: "task.add",
 		Input:    []byte(`{"prompt":"동하에게 업무 요청해줘"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -207,7 +207,7 @@ func TestFlowTaskAddReturnsSkippedDuplicateStatus(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.add",
+		ToolName: "task.add",
 		Input:    []byte(`{"prompt":"10분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -233,7 +233,7 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"query":"디플랫 코리아","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
@@ -273,7 +273,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.update",
+		ToolName: "task.update",
 		Input:    []byte(`{"taskID":"task-1","content":"15분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -314,7 +314,7 @@ func TestFlowTaskUpdateQueryOnlyDefaultsToComplete(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.update",
+		ToolName: "task.update",
 		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -350,7 +350,7 @@ func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.update",
+		ToolName: "task.update",
 		Input:    []byte(`{"query":"회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -389,7 +389,7 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.delete",
+		ToolName: "task.delete",
 		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
@@ -433,7 +433,7 @@ func flowTaskListTwoOwnerStateService(t *testing.T) Service {
 func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
@@ -452,7 +452,7 @@ func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
 func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"targetPersonHint":"신우경","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
@@ -471,7 +471,7 @@ func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
 func TestFlowTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"status":"예약","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
@@ -490,7 +490,7 @@ func TestFlowTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"targetPersonHint":"이동하","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
@@ -517,7 +517,7 @@ func TestFlowTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
 		})},
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"targetPersonHint":"이동하","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "owner@example.com"},
 	})
@@ -546,7 +546,7 @@ func TestFlowTaskListTreatsAvailablePlannedAndPausedAsCurrentWeek(t *testing.T) 
 		})},
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"targetPersonHint":"이동하"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
@@ -579,7 +579,7 @@ func TestFlowTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 		})},
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{"targetPersonHint":"이동하"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
@@ -629,7 +629,7 @@ func TestFlowTaskListDefaultsToThisWeekOnly(t *testing.T) {
 		})},
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.list",
+		ToolName: "task.list",
 		Input:    []byte(`{}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
