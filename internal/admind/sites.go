@@ -420,6 +420,35 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeSiteRecord(responseWriter, site)
+}
+
+// materializeSiteSourceWorkspace provisions the managed scaffold and the editable
+// staff-circle workspace for a site. Blueclaw no longer writes site source; the
+// admin service owns the scaffold and the editable workspace.
+func (service *Service) materializeSiteSourceWorkspace(ctx context.Context, site *SiteRecord) error {
+	if errorValue := service.prepareSiteWorkspace(ctx, site); errorValue != nil {
+		return errorValue
+	}
+	return service.migrateSiteSourceToStaffCircle(site)
+}
+
+// repairSiteFromRequest re-materializes any missing managed scaffold files into
+// the editable workspace without overwriting existing edits.
+func (service *Service) repairSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
+	site := service.findSiteByID(siteID)
+	if site == nil {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeSiteRecord(responseWriter, site)
 }
 
@@ -446,6 +475,8 @@ func (service *Service) handleSite(responseWriter http.ResponseWriter, request *
 		service.unpublishSiteFromRequest(responseWriter, request, siteID)
 	case request.Method == http.MethodPost && action == "restore":
 		service.restoreSiteFromRequest(responseWriter, request, siteID)
+	case request.Method == http.MethodPost && action == "repair":
+		service.repairSiteFromRequest(responseWriter, request, siteID)
 	case request.Method == http.MethodGet && action == "logs":
 		service.writeSiteLogs(responseWriter, request, siteID)
 	case request.Method == http.MethodDelete && action == "":
@@ -1040,12 +1071,53 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := service.writeSiteMetadataMirror(site); errorValue != nil {
+	} else {
+		editWorkspaceDraftPath := filepath.Join(service.siteProjectStorageHostPath(site.SiteID), "draft")
+		if !directoryHasEntries(editWorkspaceDraftPath) {
+			return errors.New("site source workspace is empty; create or repair the site before publishing")
+		}
+		if errorValue := clearSiteHostSourceWorkspace(site.HostSourcePath); errorValue != nil {
 			return errorValue
 		}
-		return service.initializeSiteGitRepository(ctx, site)
+		if errorValue := copySiteSourceTree(editWorkspaceDraftPath, site.HostSourcePath); errorValue != nil {
+			return errorValue
+		}
 	}
-	return errors.New("sourceBundleBase64 is required; publish from the Blueclaw editable source workspace")
+	if errorValue := service.writeSiteMetadataMirror(site); errorValue != nil {
+		return errorValue
+	}
+	return service.initializeSiteGitRepository(ctx, site)
+}
+
+// copySiteSourceTree mirrors a site source tree into the publish ledger, skipping
+// version-control state so the ledger's own git history is preserved.
+func copySiteSourceTree(sourceRoot string, targetRoot string) error {
+	return filepath.Walk(sourceRoot, func(sourcePath string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, errorValue := filepath.Rel(sourceRoot, sourcePath)
+		if errorValue != nil || relativePath == "." {
+			return errorValue
+		}
+		if relativePath == ".git" {
+			if information.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		targetPath := filepath.Join(targetRoot, relativePath)
+		if information.IsDir() {
+			return os.MkdirAll(targetPath, information.Mode())
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o750); errorValue != nil {
+			return errorValue
+		}
+		return copyFile(sourcePath, targetPath, information.Mode())
+	})
 }
 
 func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload sitePublishRequest) error {
