@@ -115,14 +115,15 @@ fi`)
 
 func blueclawHostNetworkDependencyInstallCommand() string {
 	return `set -euo pipefail
-if ! command -v ip >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1 || ! command -v sysctl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+if ! command -v ip >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1 || ! command -v sysctl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
   apt-get update -qq >/dev/null 2>&1 || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iproute2 iptables procps jq >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iproute2 iptables procps jq git >/dev/null
 fi
 command -v ip >/dev/null
 command -v iptables >/dev/null
 command -v sysctl >/dev/null
-command -v jq >/dev/null`
+command -v jq >/dev/null
+command -v git >/dev/null`
 }
 
 func shouldReconcileMattermostSiteURL(context *Context) bool {
