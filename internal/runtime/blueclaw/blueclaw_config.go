@@ -82,6 +82,7 @@ var blueclawNativeToolNames = []string{
 	"file.edit",
 	"file.patch",
 	"file.preview",
+	"file.delete",
 	"image.read",
 }
 
