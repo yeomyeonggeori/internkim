@@ -5,6 +5,8 @@
 		DEFAULT_MAIL_PROVIDER_ID,
 		type MailProviderID
 	} from './mail-provider-presets';
+	import MailProviderSetupGuide from './mail-provider-setup-guide.svelte';
+	import { mailProviderSetupGuide } from './mail-provider-setup-guides';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
 	import type { mailText } from './text';
 
@@ -31,6 +33,13 @@
 		syncAccountEmailFromParts,
 		syncCommonAppPassword
 	}: Props = $props();
+	let openSetupProviderID = $state<MailProviderID | null>(null);
+	let setupGuide = $derived(mailProviderSetupGuide(emailProviderID, text));
+	let isSetupGuideOpen = $derived(setupGuide !== null && openSetupProviderID === emailProviderID);
+
+	function toggleSetupGuide() {
+		openSetupProviderID = isSetupGuideOpen ? null : emailProviderID;
+	}
 </script>
 
 <div class="grid gap-4">
@@ -53,6 +62,8 @@
 			>
 				<option value="gmail">{text.providers.gmail}</option>
 				<option value="naver">{text.providers.naver}</option>
+				<option value="daum">{text.providers.daum}</option>
+				<option value="hanmail">{text.providers.hanmail}</option>
 				<option value="custom">{text.providers.custom}</option>
 			</select>
 		</div>
@@ -73,15 +84,16 @@
 		<div class="w-full space-y-2">
 			<div class="flex items-center justify-between gap-3">
 				<Label for="mail-app-password">{text.fields.appPassword}</Label>
-				{#if emailProviderID === 'gmail'}
-					<a
+				{#if setupGuide}
+					<button
+						type="button"
 						class="text-xs font-medium text-primary underline-offset-4 hover:underline"
-						href="https://myaccount.google.com/apppasswords"
-						target="_blank"
-						rel="noopener noreferrer"
+						aria-expanded={isSetupGuideOpen}
+						aria-controls={setupGuide.panelID}
+						onclick={toggleSetupGuide}
 					>
-						{text.settingsSheet.googleAppPasswordLink}
-					</a>
+						{setupGuide.triggerLabel}
+					</button>
 				{/if}
 			</div>
 				<Input
@@ -92,6 +104,9 @@
 					placeholder={account.hasIMAPPassword || account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
 					oninput={syncCommonAppPassword}
 				/>
+			{#if setupGuide && isSetupGuideOpen}
+				<MailProviderSetupGuide guide={setupGuide} />
+			{/if}
 			<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.appPassword}</p>
 		</div>
 		<div class="w-full space-y-2">
