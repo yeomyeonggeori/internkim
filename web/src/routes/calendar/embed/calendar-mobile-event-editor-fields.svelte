@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { CalendarLocaleText } from '../text';
+	import CalendarParticipantSelector from './calendar-participant-selector.svelte';
+	import type { CalendarParticipant } from './calendar-participants';
 	import type { MobileEventEditorCalendar } from './calendar-mobile-event-editor-types';
 
 	type MobileEventEditorFieldsProps = {
@@ -16,7 +18,10 @@
 		allDay: boolean;
 		location: string;
 		description: string;
+		participants: CalendarParticipant[];
+		participantCandidates: CalendarParticipant[];
 		calendarID: string;
+		onParticipantsChange: (participants: CalendarParticipant[]) => void;
 		titleInputElement?: HTMLInputElement;
 	};
 
@@ -34,7 +39,10 @@
 		allDay,
 		location,
 		description,
+		participants = $bindable<CalendarParticipant[]>(),
+		participantCandidates,
 		calendarID,
+		onParticipantsChange,
 		titleInputElement = $bindable<HTMLInputElement | undefined>()
 	}: MobileEventEditorFieldsProps = $props();
 </script>
@@ -127,6 +135,19 @@
 			data-mobile-editor-field="description"
 		></textarea>
 	</label>
+
+	<div class="mobile-event-field mobile-event-participants-field">
+		<span class="mobile-event-field-label">{draftText.participants}</span>
+		<CalendarParticipantSelector
+			bind:participants
+			candidates={participantCandidates}
+			label={draftText.participants}
+			placeholder={draftText.participantsPlaceholder}
+			removeLabel={draftText.removeParticipantAction}
+			disabled={!canEdit}
+			onChange={onParticipantsChange}
+		/>
+	</div>
 
 	{#if calendars.length > 0}
 		<label class="mobile-event-field">

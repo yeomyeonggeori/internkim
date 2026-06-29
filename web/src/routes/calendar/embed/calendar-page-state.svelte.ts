@@ -2,6 +2,7 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import type { ViewType } from '@dayflow/svelte';
 import type { CalendarConflict } from './calendar-conflicts';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
+import type { CalendarParticipant } from './calendar-participants';
 import type { MonthRangePreviewSegment, MonthRangeSelection } from './calendar-month-range-action';
 import type { VisibleMonthScrollLabel } from './calendar-month-scroll-overlay-state';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
@@ -31,6 +32,7 @@ export class CalendarEmbedPageState {
 	pendingEventID: string | null;
 	draftPopover = $state<DraftPopoverState | null>(null);
 	calendarConflicts = $state<CalendarConflict[]>([]);
+	participantCandidates = $state<CalendarParticipant[]>([]);
 
 	constructor(initialValues: CalendarEmbedPageStateInitialValues) {
 		this.toolbarDate = $state(initialValues.toolbarDate);
