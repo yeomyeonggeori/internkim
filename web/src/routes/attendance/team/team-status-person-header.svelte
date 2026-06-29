@@ -13,13 +13,13 @@
 	}
 </script>
 
-<div class="sticky left-0 z-10 min-w-0 border-r bg-card px-2 py-2" role="rowheader">
-	<div class="flex min-w-0 items-center gap-2">
+<div class="sticky left-0 z-10 min-w-0 border-r bg-card px-1.5 py-1.5 sm:px-2 sm:py-2" role="rowheader">
+	<div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
 		<PersonAvatar
 			name={row.displayName}
 			email={row.email}
 			seed={row.email || row.mattermostUsername || row.displayName}
-			class="size-6 shrink-0"
+			class="size-5 shrink-0 sm:size-6"
 		/>
 		<div class="min-w-0 flex-1">
 			<div class="whitespace-normal break-all text-sm font-medium leading-tight text-foreground">{row.displayName}</div>

@@ -18,17 +18,38 @@
 
 	let { rows, statusDates, selectedDate, today, text, onSelectDate }: Props = $props();
 	let scrollContainer: HTMLDivElement | undefined = $state();
+	let scrollContainerWidth = $state(0);
 	let isDetailOpen = $state(false);
 	let selectedDetail = $state<TeamStatusDayDetail | null>(null);
 	let lastScrollKey = $state('');
 
+	const minimumMobileEmployeeColumnWidth = 5;
 	const minimumEmployeeColumnWidth = 7;
+	const maximumMobileEmployeeColumnWidth = 7;
 	const maximumEmployeeColumnWidth = 13;
-	const employeeColumnChromeWidth = 3.75;
+	const employeeColumnChromeWidth = 2;
 	const dayColumnWidth = 5.75;
-	const employeeColumnWidth = $derived(calculateEmployeeColumnWidth(rows));
+	const wideTableMinimumWidth = 640;
+	const minimumResponsiveEmployeeColumnWidth = $derived(
+		scrollContainerWidth >= wideTableMinimumWidth ? minimumEmployeeColumnWidth : minimumMobileEmployeeColumnWidth
+	);
+	const maximumResponsiveEmployeeColumnWidth = $derived(
+		scrollContainerWidth >= wideTableMinimumWidth ? maximumEmployeeColumnWidth : maximumMobileEmployeeColumnWidth
+	);
+	const canShowCellTooltip = $derived(scrollContainerWidth >= wideTableMinimumWidth);
+	const employeeColumnWidth = $derived(calculateEmployeeColumnWidth(rows, minimumResponsiveEmployeeColumnWidth, maximumResponsiveEmployeeColumnWidth));
 	const gridTemplateColumns = $derived(`${employeeColumnWidth}rem repeat(${statusDates.length}, minmax(${dayColumnWidth}rem, ${dayColumnWidth}rem))`);
 	const tableWidth = $derived(`${employeeColumnWidth + statusDates.length * dayColumnWidth}rem`);
+
+	$effect(() => {
+		if (!scrollContainer) return;
+		scrollContainerWidth = scrollContainer.clientWidth;
+		const resizeObserver = new ResizeObserver((entries) => {
+			scrollContainerWidth = entries[0]?.contentRect.width ?? scrollContainer?.clientWidth ?? 0;
+		});
+		resizeObserver.observe(scrollContainer);
+		return () => resizeObserver.disconnect();
+	});
 
 	$effect(() => {
 		const targetDate = selectedDate;
@@ -40,9 +61,9 @@
 		tick().then(() => scrollToDate(targetDate));
 	});
 
-	function calculateEmployeeColumnWidth(employeeRows: TeamStatusPersonRow[]): number {
+	function calculateEmployeeColumnWidth(employeeRows: TeamStatusPersonRow[], minimumWidth: number, maximumWidth: number): number {
 		const longestNameWidth = Math.max(0, ...employeeRows.map(row => estimateDisplayNameWidth(row.displayName)));
-		return clampWidth(longestNameWidth + employeeColumnChromeWidth);
+		return clampWidth(longestNameWidth + employeeColumnChromeWidth, minimumWidth, maximumWidth);
 	}
 
 	function estimateDisplayNameWidth(displayName: string): number {
@@ -56,8 +77,8 @@
 		return 0.95;
 	}
 
-	function clampWidth(width: number): number {
-		return Math.min(maximumEmployeeColumnWidth, Math.max(minimumEmployeeColumnWidth, width));
+	function clampWidth(width: number, minimumWidth: number, maximumWidth: number): number {
+		return Math.min(maximumWidth, Math.max(minimumWidth, width));
 	}
 
 	function openDayDetail(row: TeamStatusPersonRow, day: TeamStatusPersonDay): void {
@@ -102,6 +123,7 @@
 							{day}
 							{index}
 							personEmail={row.email}
+							canShowTooltip={canShowCellTooltip}
 							onOpenDayDetail={(selectedDay) => openDayDetail(row, selectedDay)}
 						/>
 					{/each}
