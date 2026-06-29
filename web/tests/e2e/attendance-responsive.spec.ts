@@ -1,4 +1,5 @@
 import { expect, test } from './attendance-page-test-fixture';
+import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
 import {
 	expectReadableMobileTeamStatusTable,
 	measureMobileTeamStatusTable,
@@ -64,6 +65,34 @@ test.describe('attendance responsive view', () => {
 		await expect(recordsTab).toHaveAttribute('aria-selected', 'true');
 		await expect(page.getByTestId('mobile-attendance-tools-view')).toBeVisible();
 		await expect(page.getByTestId('team-status-grid')).toBeHidden();
+	});
+
+	test('shows personal attendance tools in the mobile records tab', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		const todayDate = todayDateInSeoul();
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? todayDate.slice(0, 7);
+			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const toolsView = page.getByTestId('mobile-attendance-tools-view');
+		await expect(page.getByRole('tab', { name: '내 기록' })).toHaveAttribute('aria-selected', 'true');
+		await expect(toolsView.getByText('내 근무 시간')).toBeVisible();
+		await expect(toolsView.getByTestId('personal-month-calendar-grid')).toBeVisible();
+		await expect(toolsView.getByRole('button', { name: '부재 등록' })).toBeVisible();
+
+		await toolsView.getByTestId(`personal-calendar-day-${todayDate}`).click();
+
+		const detailPanel = toolsView.getByTestId('personal-day-detail-panel');
+		await expect(detailPanel).toBeVisible();
+		await expect(detailPanel.getByTestId('personal-day-event-label')).toHaveCount(5);
+		await expect(detailPanel.getByRole('button', { name: '수정' })).toHaveCount(0);
+		await detailPanel.getByTestId('personal-day-event-label').first().click();
+		await expect(detailPanel.getByRole('button', { name: '수정' })).toBeVisible();
 	});
 
 	test('keeps the mobile monthly status table readable while date columns scroll', async ({ page }) => {
