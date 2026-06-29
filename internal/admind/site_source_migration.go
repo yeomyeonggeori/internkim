@@ -54,7 +54,12 @@ func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
 		}
 		return service.recordStaffCircleSitePaths(site, siteID)
 	}
-	if !isExistingDirectory(targetDraftHostPath) {
+	if !looksLikeSiteDraftDirectory(targetDraftHostPath) {
+		if isExistingDirectory(targetDraftHostPath) {
+			if errorValue := os.RemoveAll(targetDraftHostPath); errorValue != nil {
+				return errorValue
+			}
+		}
 		if errorValue := copyDirectoryIntoStaffCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
 			return errorValue
 		}
@@ -98,7 +103,7 @@ func locateSiteSourceHostPath(workspaceRoot string, site *SiteRecord, targetDraf
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID, "draft"))...)
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID))...)
 	for _, candidate := range candidates {
-		if isExistingDirectory(candidate) {
+		if looksLikeSiteDraftDirectory(candidate) {
 			return candidate
 		}
 	}
