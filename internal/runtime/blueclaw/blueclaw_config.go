@@ -318,7 +318,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				"taskTemporaryDirectoryTemplate":        "/workspace/private/people/{personID}/tmp/{taskID}",
 				"requesterArtifactsDirectoryTemplate":   "/workspace/private/people/{personID}/artifacts",
 			},
-			"timeoutSecond":         120,
+			"timeoutSecond":         600,
 			"outputMaxBytes":        32768,
 			"sessionMaxCount":       4,
 			"allowNetwork":          true,
