@@ -74,6 +74,31 @@
 		return `${year}-${month}-${day} ${hour}:${minute} (${revision.slice(0, 8)})`;
 	}
 
+	function releaseTimeFromID(releaseID: string | undefined) {
+		const value = releaseID?.trim() ?? '';
+		const parsed = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z-/);
+		if (!parsed) return undefined;
+		const [, year, month, day, hour, minute, second] = parsed;
+		return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+	}
+
+	function releaseTimeFromDate(createdAt: string | undefined) {
+		const value = createdAt?.trim() ?? '';
+		if (!value) return undefined;
+		const time = new Date(value).getTime();
+		if (Number.isNaN(time)) return undefined;
+		return time;
+	}
+
+	function currentReleaseTime() {
+		const currentRelease = blueclawUpdateStatus?.current;
+		return releaseTimeFromID(currentRelease?.releaseID) ?? releaseTimeFromDate(currentRelease?.createdAt);
+	}
+
+	function historyEntryReleaseTime(entry: ReleaseHistoryEntry) {
+		return releaseTimeFromID(entry.releaseID) ?? releaseTimeFromDate(entry.createdAt);
+	}
+
 	function releaseComponents(summary: ReleaseUpdateSummary | undefined) {
 		const components = summary?.components ?? {};
 		return Object.entries(components).sort(([leftName], [rightName]) => leftName.localeCompare(rightName));
@@ -102,6 +127,22 @@
 		if (isApplyingBlueclawUpdate) return false;
 		if (isReleaseUpdateJobActive()) return false;
 		return !isCurrentRelease(entry);
+	}
+
+	function isDowngradeRelease(entry: ReleaseHistoryEntry) {
+		const currentTime = currentReleaseTime();
+		const targetTime = historyEntryReleaseTime(entry);
+		if (currentTime === undefined || targetTime === undefined) return false;
+		return targetTime < currentTime;
+	}
+
+	function releaseActionLabel(entry: ReleaseHistoryEntry) {
+		return isDowngradeRelease(entry) ? text.deviceUpdate.downgrade : text.deviceUpdate.upgrade;
+	}
+
+	function releaseActionConfirmMessage(entry: ReleaseHistoryEntry) {
+		const template = isDowngradeRelease(entry) ? text.deviceUpdate.downgradeConfirm : text.deviceUpdate.upgradeConfirm;
+		return template.replace('{release}', releaseLabel(entry.releaseID));
 	}
 
 	function blueclawUpdateStateLabel(state: string | undefined) {
@@ -171,10 +212,12 @@
 		}
 	}
 
-	async function applyUpdate(releaseID = '') {
+	async function applyUpdate(entry: ReleaseHistoryEntry) {
 		if (!adminBaseURL) return;
+		if (!confirm(releaseActionConfirmMessage(entry))) return;
 
 		isApplyingBlueclawUpdate = true;
+		const releaseID = entry.releaseID;
 		applyingReleaseID = releaseID;
 		blueclawUpdateMessage = '';
 		try {
@@ -317,13 +360,13 @@
 							</div>
 							<p class="text-muted-foreground mt-1 text-xs">{releaseDate(entry.createdAt)}</p>
 						</div>
-						<Button size="sm" class="gap-2" disabled={!canApplyRelease(entry)} onclick={() => applyUpdate(entry.releaseID)}>
+						<Button size="sm" class="gap-2" disabled={!canApplyRelease(entry)} onclick={() => applyUpdate(entry)}>
 							{#if isApplyingBlueclawUpdate && applyingReleaseID === entry.releaseID}
 								<LoaderIcon class="size-4 animate-spin" />
 							{:else}
 								<UploadIcon class="size-4" />
 							{/if}
-							{text.deviceUpdate.apply}
+							{releaseActionLabel(entry)}
 						</Button>
 					</div>
 				{/each}
