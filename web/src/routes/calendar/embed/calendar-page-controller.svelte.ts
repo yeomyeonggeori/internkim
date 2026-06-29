@@ -202,7 +202,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		getToolbarView: () => context.state.toolbarView,
 		getToolbarDate: () => context.state.toolbarDate,
 		getCalendarEvents: () => calendar.app.getAllEvents(),
-		openEventDetails: eventDetails.openEventDetails,
 		refreshCurrentRange: eventLoader.refreshCurrentRange,
 		loadCalendarConflicts: conflictActions.loadCalendarConflicts,
 		broadcastCalendarEventsChanged

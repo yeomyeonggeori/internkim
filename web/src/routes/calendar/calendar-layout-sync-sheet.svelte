@@ -3,8 +3,8 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
+	import CalendarLayoutGoogleAccountCard from './calendar-layout-google-account-card.svelte';
 	import type {
 		CalendarAccountStatusResponse,
 		CalendarSyncResponse
@@ -20,7 +20,33 @@
 		googleCalendarConnectAction: string;
 		googleCalendarReconnectAction: string;
 		googleCalendarReconnectHint: string;
+		googleCalendarReadyHint: string;
 		googleCalendarUnavailableHint: string;
+		googleOAuthClientUploadTitle: string;
+		googleOAuthClientUploadHint: string;
+		googleOAuthClientUploadAction: string;
+		googleOAuthClientUploading: string;
+		googleOAuthClientFileLabel: string;
+		googleOAuthClientChooseFile: string;
+		googleOAuthClientReplaceTitle: string;
+		googleOAuthClientReplaceHint: string;
+		googleOAuthClientGuide: {
+			title: string;
+			intro: string;
+			checklistTitle: string;
+			checks: string[];
+			stepsTitle: string;
+			steps: Array<{
+				title: string;
+				body: string;
+				action?: {
+					label: string;
+					url: string;
+				};
+			}>;
+			redirectURI: string;
+			javascriptOrigin: string;
+		};
 		saveError: string;
 		syncTitle: string;
 		syncDescription: string;
@@ -41,8 +67,10 @@
 		accountStatusError,
 		isLoadingAccountStatus,
 		isRotatingSync,
+		isUploadingGoogleOAuthClient,
 		syncError,
-		rotateSubscriptionURL
+		rotateSubscriptionURL,
+		uploadGoogleOAuthClient
 	}: {
 		isOpen: boolean;
 		text: CalendarSyncSheetText;
@@ -51,43 +79,12 @@
 		accountStatusError: boolean;
 		isLoadingAccountStatus: boolean;
 		isRotatingSync: boolean;
+		isUploadingGoogleOAuthClient: boolean;
 		syncError: string;
 		rotateSubscriptionURL: () => void;
+		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
 	} = $props();
 
-	function accountStatusLabel() {
-		if (isLoadingAccountStatus) return text.accountStatusLoading;
-		if (accountStatusError) return text.accountStatusLoadFailed;
-		if (!accountStatus?.connected) return text.googleCalendarDisconnected;
-		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
-		if (accountStatus.accountEmail) {
-			return text.googleCalendarConnectedTemplate.replace('{email}', accountStatus.accountEmail);
-		}
-		return text.googleCalendarConnected;
-	}
-
-	function shouldShowGoogleOAuthAction() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
-		if (accountStatus?.googleOAuthConfigured !== true) return false;
-		return !accountStatus.connected || accountStatus.needsReauth;
-	}
-
-	function shouldShowGoogleOAuthUnavailableHint() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
-		if (accountStatus?.googleOAuthConfigured !== false) return false;
-		return !accountStatus.connected || accountStatus.needsReauth;
-	}
-
-	function googleOAuthActionLabel() {
-		if (accountStatus?.needsReauth) return text.googleCalendarReconnectAction;
-		return text.googleCalendarConnectAction;
-	}
-
-	function accountStatusDotClass() {
-		if (accountStatusError || accountStatus?.needsReauth) return 'bg-warning';
-		if (accountStatus?.connected) return 'bg-success';
-		return 'bg-muted-foreground/50';
-	}
 </script>
 
 <Sheet.Root bind:open={isOpen}>
@@ -102,25 +99,14 @@
 				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{syncError}</p>
 			{/if}
 
-			<div class="space-y-2 rounded-md border p-3">
-				<p class="text-xs font-medium uppercase text-muted-foreground">{text.externalCalendarAccount}</p>
-				<div class="flex items-center gap-2 text-sm">
-					<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
-					<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
-				</div>
-				{#if accountStatus?.needsReauth && accountStatus.googleOAuthConfigured}
-					<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
-				{/if}
-				{#if shouldShowGoogleOAuthUnavailableHint()}
-					<p class="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{text.googleCalendarUnavailableHint}</p>
-				{/if}
-				{#if shouldShowGoogleOAuthAction()}
-					<Button href="/calendar/oauth/google/start" variant="outline" class="w-full justify-center gap-2">
-						<RefreshCwIcon class="size-4" />
-						<span>{googleOAuthActionLabel()}</span>
-					</Button>
-				{/if}
-			</div>
+			<CalendarLayoutGoogleAccountCard
+				{text}
+				{accountStatus}
+				{accountStatusError}
+				{isLoadingAccountStatus}
+				{isUploadingGoogleOAuthClient}
+				{uploadGoogleOAuthClient}
+			/>
 
 			<div class="space-y-3">
 				<p class="text-xs font-medium text-muted-foreground">{text.subscriptionReady}</p>

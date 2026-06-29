@@ -1,0 +1,168 @@
+package admind
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+)
+
+type orgchartProfileRequest struct {
+	UserID            string    `json:"userID"`
+	Email             string    `json:"email"`
+	JobTitle          *string   `json:"jobTitle"`
+	Group             *string   `json:"group"`
+	PositionLevel     *int      `json:"positionLevel"`
+	PrimaryGroupID    *string   `json:"primaryGroupID"`
+	GroupIDs          *[]string `json:"groupIDs"`
+	SupervisorID      *string   `json:"supervisorID"`
+	ProjectIDs        *[]string `json:"projectIDs"`
+	TeamRole          *string   `json:"teamRole"`
+	EmploymentStatus  *string   `json:"employmentStatus"`
+	IsOrgchartVisible *bool     `json:"isOrgchartVisible"`
+}
+
+func (service *Service) handleOrgchartProfileUpdate(responseWriter http.ResponseWriter, request *http.Request) {
+	var profilesRequest struct {
+		Profiles []orgchartProfileRequest `json:"profiles"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&profilesRequest); errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if errorValue := validateOrgchartProfileRequests(profilesRequest.Profiles); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	profiles, errorValue := service.orgchartProfilesFromRequest(request.Context(), profilesRequest.Profiles)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorValue := service.writeOrgchartProfiles(request.Context(), profiles); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeFullLocalUsersResponse(responseWriter, request)
+}
+
+func validateOrgchartProfileRequests(requestProfiles []orgchartProfileRequest) error {
+	for _, requestProfile := range requestProfiles {
+		if requestProfile.EmploymentStatus == nil {
+			continue
+		}
+		if !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
+			return fmt.Errorf("employmentStatus must be active, leave, or resigned")
+		}
+	}
+	return nil
+}
+
+func (service *Service) handleOrgchartGroupsUpdate(responseWriter http.ResponseWriter, request *http.Request) {
+	var groupsRequest struct {
+		Groups []orgGroupRecord `json:"groups"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&groupsRequest); errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if errorValue := service.writeOrgchartGroups(request.Context(), groupsRequest.Groups); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeFullLocalUsersResponse(responseWriter, request)
+}
+
+func (service *Service) orgchartProfilesFromRequest(ctx context.Context, requestProfiles []orgchartProfileRequest) ([]orgchartProfile, error) {
+	existingProfiles, errorValue := service.readOrgchartProfiles(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	profilesByUserID, profilesByEmail := orgchartProfileIndexes(existingProfiles)
+	profiles := make([]orgchartProfile, 0, len(requestProfiles))
+	for _, requestProfile := range requestProfiles {
+		profile := orgchartProfileForRequest(requestProfile, profilesByUserID, profilesByEmail)
+		profile = applyOrgchartProfileRequest(profile, requestProfile)
+		profiles = append(profiles, profile)
+	}
+	return profiles, nil
+}
+
+func orgchartProfileForRequest(requestProfile orgchartProfileRequest, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) orgchartProfile {
+	profile, found := orgchartProfileForUser(adminUserMutation{UserID: requestProfile.UserID, Email: requestProfile.Email}, profilesByUserID, profilesByEmail)
+	if !found {
+		profile = orgchartProfile{
+			EmploymentStatus:  orgchartEmploymentStatusActive,
+			IsOrgchartVisible: true,
+		}
+	}
+	if strings.TrimSpace(requestProfile.UserID) != "" {
+		profile.UserID = requestProfile.UserID
+	}
+	if strings.TrimSpace(requestProfile.Email) != "" {
+		profile.Email = requestProfile.Email
+	}
+	return profile
+}
+
+func applyOrgchartProfileRequest(profile orgchartProfile, requestProfile orgchartProfileRequest) orgchartProfile {
+	previousPrimaryGroupID := profile.PrimaryGroupID
+	if requestProfile.JobTitle != nil {
+		profile.JobTitle = *requestProfile.JobTitle
+	}
+	if requestProfile.PositionLevel != nil {
+		profile.PositionLevel = *requestProfile.PositionLevel
+	}
+	if requestProfile.Group != nil {
+		profile.PrimaryGroupID = *requestProfile.Group
+	}
+	if requestProfile.PrimaryGroupID != nil {
+		profile.PrimaryGroupID = *requestProfile.PrimaryGroupID
+	}
+	if requestProfile.GroupIDs != nil {
+		profile.GroupIDs = *requestProfile.GroupIDs
+	}
+	if requestProfile.GroupIDs == nil && (requestProfile.Group != nil || requestProfile.PrimaryGroupID != nil) {
+		profile.GroupIDs = orgchartGroupIDsReplacingPrimary(profile.GroupIDs, previousPrimaryGroupID, profile.PrimaryGroupID)
+	}
+	if requestProfile.SupervisorID != nil {
+		profile.SupervisorID = *requestProfile.SupervisorID
+	}
+	if requestProfile.ProjectIDs != nil {
+		profile.ProjectIDs = *requestProfile.ProjectIDs
+	}
+	if requestProfile.TeamRole != nil {
+		profile.TeamRole = *requestProfile.TeamRole
+	}
+	if requestProfile.EmploymentStatus != nil {
+		profile.EmploymentStatus = *requestProfile.EmploymentStatus
+	}
+	if requestProfile.IsOrgchartVisible != nil {
+		profile.IsOrgchartVisible = *requestProfile.IsOrgchartVisible
+	}
+	return profile
+}
+
+func orgchartGroupIDsReplacingPrimary(groupIDs []string, previousPrimaryGroupID string, nextPrimaryGroupID string) []string {
+	normalizedGroupIDs := normalizeOrgchartStringList(groupIDs)
+	normalizedPreviousPrimaryGroupID := strings.TrimSpace(previousPrimaryGroupID)
+	normalizedNextPrimaryGroupID := strings.TrimSpace(nextPrimaryGroupID)
+	result := []string{}
+	seenGroupIDs := map[string]bool{}
+	appendGroupID := func(groupID string) {
+		if groupID == "" || seenGroupIDs[groupID] {
+			return
+		}
+		seenGroupIDs[groupID] = true
+		result = append(result, groupID)
+	}
+	appendGroupID(normalizedNextPrimaryGroupID)
+	for _, groupID := range normalizedGroupIDs {
+		if groupID == normalizedPreviousPrimaryGroupID || groupID == normalizedNextPrimaryGroupID {
+			continue
+		}
+		appendGroupID(groupID)
+	}
+	return result
+}

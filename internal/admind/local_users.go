@@ -414,6 +414,9 @@ func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWrit
 }
 
 func (service *Service) localUsersResponseBody(ctx context.Context, response pagesUsersResponse) ([]byte, error) {
+	for index := range response.Records {
+		applyDefaultOrgchartMetadata(&response.Records[index])
+	}
 	responseBody, errorValue := json.Marshal(response)
 	if errorValue != nil {
 		return nil, errorValue
@@ -421,7 +424,13 @@ func (service *Service) localUsersResponseBody(ctx context.Context, response pag
 	enhancedBody, errorValue := service.withBlueclawCircles(ctx, responseBody)
 	if errorValue != nil {
 		log.Printf("Blueclaw circle merge failed: %v", errorValue)
-		return responseBody, nil
+		enhancedBody = responseBody
+	}
+	bodyWithCircles := enhancedBody
+	enhancedBody, errorValue = service.withOrgchartMetadata(ctx, bodyWithCircles)
+	if errorValue != nil {
+		log.Printf("Orgchart metadata merge failed: %v", errorValue)
+		return bodyWithCircles, nil
 	}
 	return enhancedBody, nil
 }

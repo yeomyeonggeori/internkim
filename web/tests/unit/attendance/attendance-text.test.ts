@@ -21,6 +21,8 @@ describe('attendance text', () => {
 		expect(attendanceText.en.teamMonthlyStatus).toBe('Monthly work status table');
 		expect(attendanceText.en.teamMemberSearchPlaceholder).toBe('Search employees');
 		expect(attendanceText.en.presentCountTemplate).toBe('{present}/{total}');
+		expect(attendanceText.en.mobileStatusView).toBe('Team status');
+		expect(attendanceText.en.mobileToolsView).toBe('My records');
 		expect(attendanceText.ko.finished).toBe('퇴근');
 		expect(attendanceText.ko.absent).toBe('미출근');
 		expect(attendanceText.ko.inProgress).toBe('진행 중');
@@ -32,6 +34,8 @@ describe('attendance text', () => {
 		expect(attendanceText.ko.teamMonthlyStatus).toBe('월간 근무 현황표');
 		expect(attendanceText.ko.teamMemberSearchPlaceholder).toBe('직원 검색');
 		expect(attendanceText.ko.presentCountTemplate).toBe('{present}/{total}');
+		expect(attendanceText.ko.mobileStatusView).toBe('팀 현황');
+		expect(attendanceText.ko.mobileToolsView).toBe('내 기록');
 	});
 });
 
