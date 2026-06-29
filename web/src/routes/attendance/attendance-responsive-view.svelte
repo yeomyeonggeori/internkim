@@ -2,6 +2,7 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
 	import TeamView from './team/team-view.svelte';
 	import { attendanceText } from './text';
 
@@ -34,5 +35,9 @@
 	<Tabs.Content value="status" class="min-h-0 min-w-0">
 		<TeamView />
 	</Tabs.Content>
-	<Tabs.Content value="tools" class="min-h-[calc(100vh-9rem)] min-w-0" data-testid="mobile-attendance-tools-view"></Tabs.Content>
+	<Tabs.Content value="tools" class="min-h-[calc(100vh-9rem)] min-w-0 overflow-auto" data-testid="mobile-attendance-tools-view">
+		{#if isMobile.current}
+			<PersonalToolsPanel containerClass="pb-4 [&>[data-slot=card]]:border [&>[data-slot=card]]:border-border [&>[data-slot=card]]:ring-0" />
+		{/if}
+	</Tabs.Content>
 </Tabs.Root>
