@@ -67,13 +67,15 @@ export const mailTextEn = {
 	providers: {
 		gmail: 'gmail.com',
 		naver: 'naver.com',
+		daum: 'daum.net',
+		hanmail: 'hanmail.net',
 		custom: 'Custom'
 	},
 	fieldDescriptions: {
 		emailAddress: 'Choose a domain to fill server settings automatically.',
 		displayName: 'The sender name recipients will see.',
 		defaultMailbox: 'The inbox opened first. INBOX is typical.',
-		loginAccount: 'Usually the full email address.',
+		loginAccount: 'Use the login account shown by the mail service.',
 		appPassword: 'Use an app password from your mail service, not your normal login password.',
 		sentMailbox: 'The mailbox for saving sent-message copies. Leave blank for Gmail to avoid duplicates.',
 		providerPreset: 'Change server addresses and ports only when needed.'
@@ -85,6 +87,22 @@ export const mailTextEn = {
 		savedPassword: 'Saved password',
 		appPassword: 'App password',
 		googleAppPasswordLink: 'Create Google app password',
+		googleAccountNote: 'First check that you are signed in to the correct Google account. App passwords from another account will not connect.',
+		googleSetupNote: 'You cannot view the generated app password again after closing this screen. Save it somewhere safe, then paste it into the app password field.',
+		naverSetupLink: 'Show Naver setup links',
+		naverSetupSteps: ['Enable IMAP/SMTP', 'Create app password'],
+		naverAccountNote: 'First check that you are signed in to the correct Naver account. App passwords from another account will not connect.',
+		naverSetupNotes: ['Turn IMAP/SMTP on, then save the setting. The IMAP sync mail limit is the maximum number of messages to fetch at once.', 'You cannot view the generated app password again after closing this screen. Save it somewhere safe, then paste it into the app password field.'],
+		daumSetupLink: 'Show Daum/Hanmail setup links',
+		daumSetupSteps: ['Enable IMAP/SMTP', 'Create Daum app password'],
+		daumSetupNotes: ['Turn IMAP/SMTP on, then save the setting. Use the ID shown on that settings screen as the IMAP/SMTP login account.', 'Paste the generated app password into the app password field. Save it somewhere safe because it may be hard to view again.'],
+		setupImageAlts: {
+			googleAppPasswordCreated: 'Google app password creation example',
+			naverIMAPSMTP: 'Naver IMAP/SMTP settings example',
+			naverAppPassword: 'Naver app password creation example',
+			daumIMAPSMTP: 'Daum IMAP/SMTP settings example',
+			daumAppPassword: 'Daum app password creation example'
+		},
 		advancedSettings: 'Advanced settings',
 		autoConfigured: 'Incoming and outgoing mail servers are configured automatically for the selected domain.',
 		testing: 'Testing...',
