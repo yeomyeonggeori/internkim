@@ -9,7 +9,8 @@
 		fetchCalendarAccountStatus,
 		fetchCalendarEventsForMonth,
 		fetchCalendarSyncInformation,
-		rotateCalendarSubscriptionURL
+		rotateCalendarSubscriptionURL,
+		uploadGoogleOAuthClient
 	} from './calendar-layout-api';
 	import {
 		initialSelectedDateKey,
@@ -128,6 +129,21 @@
 		}
 	}
 
+	async function uploadGoogleOAuthClientFile(file: File): Promise<boolean> {
+		layoutState.isUploadingGoogleOAuthClient = true;
+		layoutState.syncError = '';
+		try {
+			await uploadGoogleOAuthClient(file, text.googleOAuthClientUploadError);
+			await loadAccountStatus();
+			return true;
+		} catch (error) {
+			layoutState.syncError = error instanceof Error ? error.message : text.googleOAuthClientUploadError;
+			return false;
+		} finally {
+			layoutState.isUploadingGoogleOAuthClient = false;
+		}
+	}
+
 	function openSyncSheet() {
 		layoutState.openSyncSheet();
 		loadSyncInformation();
@@ -168,7 +184,9 @@
 		accountStatusError={layoutState.accountStatusError}
 		isLoadingAccountStatus={layoutState.isLoadingAccountStatus}
 		isRotatingSync={layoutState.isRotatingSync}
+		isUploadingGoogleOAuthClient={layoutState.isUploadingGoogleOAuthClient}
 		syncError={layoutState.syncError}
 		{rotateSubscriptionURL}
+		uploadGoogleOAuthClient={uploadGoogleOAuthClientFile}
 	/>
 {/if}
