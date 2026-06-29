@@ -35,6 +35,8 @@
 	const plotTop = defaultFlowLineChartLayout.plotTop;
 	const currentColor = '#0f766e';
 	const previousColor = '#94a3b8';
+	const tooltipWidth = 160;
+	const tooltipGap = 12;
 
 	const chartData = $derived(buildFlowLineChartData(section.trend));
 	const isMonthlyChart = $derived(variant === 'monthly');
@@ -78,7 +80,7 @@
 	}
 
 	function tooltipClass(index: number): string {
-		const edgeClass = flowLineShouldAlignTooltipEnd(index, chartData.length) ? '-translate-x-full -ml-3' : 'ml-3';
+		const edgeClass = flowLineShouldAlignTooltipEnd(index, chartData.length, chartViewportWidth, tooltipWidth, tooltipGap) ? '-translate-x-full -ml-3' : 'ml-3';
 		return `pointer-events-none absolute z-20 min-w-40 -translate-y-1/2 rounded-md border bg-card/95 px-3 py-2 text-xs shadow-sm backdrop-blur ${edgeClass}`;
 	}
 
