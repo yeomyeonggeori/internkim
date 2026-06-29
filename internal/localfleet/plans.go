@@ -247,7 +247,9 @@ func (service Service) setupEnvironmentAssignments() []string {
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
 	}
-	if !service.options.ShouldUseRealModels {
+	if pinnedModelName := strings.TrimSpace(os.Getenv(blueclaw.BlueclawTestModelEnvironment)); pinnedModelName != "" {
+		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(pinnedModelName))
+	} else if !service.options.ShouldUseRealModels {
 		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(blueclaw.BlueclawTestModelName))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
