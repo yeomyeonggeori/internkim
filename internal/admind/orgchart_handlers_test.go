@@ -158,6 +158,35 @@ func TestOrgchartProfileHandlerRejectsInvalidEmploymentStatus(t *testing.T) {
 	}
 }
 
+func TestOrgchartProfileHandlerRejectsZeroPositionLevel(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	if errorValue := service.writeOrgchartProfiles(context.Background(), []orgchartProfile{{
+		UserID:            "user-member",
+		Email:             "member@example.com",
+		JobTitle:          "Product Manager",
+		PositionLevel:     2,
+		EmploymentStatus:  orgchartEmploymentStatusActive,
+		IsOrgchartVisible: true,
+	}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","positionLevel":0}]}`)
+	responseRecorder := httptest.NewRecorder()
+
+	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
+
+	if responseRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; want %d; body = %s", responseRecorder.Code, http.StatusBadRequest, responseRecorder.Body.String())
+	}
+	profilesByEmail, errorValue := service.readOrgchartProfilesByEmail(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if profilesByEmail["member@example.com"].PositionLevel != 2 {
+		t.Fatalf("profile = %#v; want existing position level preserved", profilesByEmail["member@example.com"])
+	}
+}
+
 func TestOrgchartGroupHandlerPersistsGroups(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
