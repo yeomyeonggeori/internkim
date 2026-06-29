@@ -10,7 +10,6 @@ import {
 } from './calendar-mobile-two-day-week';
 import { syncCalendarMultiDayProxyLayout } from './calendar-multi-day-proxy-layout';
 import { syncTimelineEventLaneLayout } from './calendar-timeline-event-lanes';
-import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 
 type CalendarDOMSyncTask = () => void;
 type CalendarDOMSyncRuntime = {
@@ -38,16 +37,14 @@ export function scheduleCalendarMultiDayProxyLayoutSync(
 	stageElement: HTMLElement | null,
 	currentView: CalendarViewType,
 	currentDate: Date,
-	events: () => DayFlowEvent[],
-	openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void
+	events: () => DayFlowEvent[]
 ): void {
 	multiDayProxyLayoutScheduler(() =>
 		syncCalendarMultiDayProxyLayout({
 			stageElement,
 			currentView,
 			currentDate,
-			events: events(),
-			openEvent
+			events: events()
 		})
 	);
 }

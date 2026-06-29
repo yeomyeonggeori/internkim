@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
+import { expect, test, type Page } from '@playwright/test';
+import { routeCalendarEventCreates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import { expectTimelinePreviewWithinGrid } from './calendar-embed-interaction-assertions';
 import { expectTimelineDraftCount } from './calendar-embed-draft-assertions';
 import {
@@ -24,6 +24,25 @@ test.describe('embedded calendar timeline drag interactions', () => {
 		await openCalendarEmbed(page, '주');
 		await createTimelineSlotByDoubleClick(page, '주');
 		await expectTimelineDraftCount(page, 1, 2);
+	});
+
+	test('opens an unsaved draft popover when double-clicking day and week all-day cells', async ({ page }) => {
+		const createdEvents = await routeCalendarEventCreates(page);
+
+		await openCalendarEmbed(page, '일');
+		await doubleClickAllDayCell(page, '일');
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover [aria-label="종일"]')).toBeChecked();
+		expect(createdEvents).toHaveLength(0);
+
+		await page.locator('.calendar-draft-popover .draft-popover-cancel').click();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+
+		await openCalendarEmbed(page, '주');
+		await doubleClickAllDayCell(page, '주');
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover [aria-label="종일"]')).toBeChecked();
+		expect(createdEvents).toHaveLength(0);
 	});
 
 	test('creates one draft when dragging a timeline range', async ({ page }) => {
@@ -88,3 +107,18 @@ test.describe('embedded calendar timeline drag interactions', () => {
 		await finishTimelineRangeDrag(page, '일');
 	});
 });
+
+async function doubleClickAllDayCell(page: Page, viewLabel: '일' | '주'): Promise<void> {
+	const selector = viewLabel === '일' ? '.df-day-content-all-day-lane' : '.df-week-all-day-cell:nth-child(2)';
+	await page.waitForSelector(selector, { state: 'attached' });
+	await page.evaluate((targetSelector) => {
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!target) throw new Error(`Missing all-day cell: ${targetSelector}`);
+		const rectangle = target.getBoundingClientRect();
+		const clientX = rectangle.left + rectangle.width / 2;
+		const clientY = rectangle.top + rectangle.height / 2;
+		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+	}, selector);
+}

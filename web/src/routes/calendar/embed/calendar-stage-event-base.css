@@ -66,8 +66,7 @@
 	.calendar-stage .internkim-calendar-event-focused .calendar-event-title,
 	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-content,
 	.calendar-stage .internkim-calendar-event-focused .calendar-month-event-title,
-	.calendar-stage .internkim-calendar-event-focused .calendar-multi-day-all-day-proxy-start,
-	.calendar-stage .internkim-calendar-event-focused .calendar-multi-day-all-day-proxy-end {
+	.calendar-stage .internkim-calendar-event-focused .calendar-multi-day-all-day-proxy-start {
 		color: inherit !important;
 	}
 
@@ -93,16 +92,6 @@
 		flex: none;
 		height: 16px;
 		color: inherit;
-		font-variant-numeric: tabular-nums;
-		line-height: 16px;
-		white-space: nowrap;
-	}
-
-	.calendar-stage .calendar-multi-day-all-day-proxy-end {
-		display: block;
-		flex: none;
-		height: 16px;
-		margin-left: auto;
 		font-variant-numeric: tabular-nums;
 		line-height: 16px;
 		white-space: nowrap;
