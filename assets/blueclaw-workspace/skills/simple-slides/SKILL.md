@@ -4,7 +4,7 @@ description: Generate clean presentation slides from an HTML-first source and at
 when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
 completion:
   requiredEvidenceTools:
-    - artifact.deliver
+    - file.deliver
 ---
 
 # Simple Slides
@@ -21,7 +21,7 @@ Create a useful, visually strong deck and attach the requested files. This is an
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`.
 7. Use `artifact.review` when visual judgment is worth the budget. Include deck intent, `deck-brief.md`, deck archetype, contact sheet image, and expected visible text.
 8. If deterministic review, rendered image evidence, or LLM notes show useful improvements, revise `slides.html` and rebuild. Repeat at most three times.
-9. Deliver promoted outputs from `tmp/<deck-slug>/build/` plus source files with `artifact.deliver`. Use one call and a `files` array when attaching multiple files.
+9. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
 
@@ -34,7 +34,7 @@ Use this build command shape:
 
 For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS`.
 
-Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.pptx` under `artifacts/<deck-slug>` and source files under `artifacts/<deck-slug>/source/` with `"destinationDirectoryPath": "artifacts/<deck-slug>"`. Do not use shell `cp`, do not promote from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
+Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.pptx` and requested source files with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
 Do not look for a content generator or template deck. There is no template to fill in. The content, layout, and HTML source are your responsibility.
 

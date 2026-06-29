@@ -13,10 +13,10 @@ Before writing a skill, capture the intent:
 - What the skill should enable.
 - When it should trigger, including realistic user phrases.
 - The expected behavior or output.
-- Which runtime tools it needs.
+- Which runtime capabilities it needs.
 - Two or three realistic test prompts the user can try after creation.
 
-Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only standard frontmatter fields. Do not invent custom fields, summaries, tags, trigger hints, custom tool dependency fields, allowed profiles, generated indexes, or full-body embeddings. Prefer `name`, `description`, and `when_to_use`.
+Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only standard frontmatter fields. Do not invent custom fields, summaries, tags, trigger hints, custom capability dependency fields, allowed profiles, generated indexes, or full-body embeddings. Prefer `name`, `description`, and `when_to_use`.
 
 Keep `SKILL.md` concise. Put essential workflow in the body. Put long domain knowledge in `references/`, deterministic repeated logic in `scripts/`, and output resources in `assets/`. When adding bundled resources, pass them through the `resources` argument to `skill.add` and mention each referenced resource from `SKILL.md`.
 

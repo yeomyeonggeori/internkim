@@ -159,7 +159,7 @@ func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool)
 	verificationKind := strings.Join([]string{
 		"mattermost",
 		"--prompt " + quoteShell(prompt),
-		"--expect-tool file.attach",
+		"--expect-tool file.deliver",
 		"--download-files-to " + quoteShell(downloadDirectory),
 		"--wait-for-completion",
 		"--timeout 480",

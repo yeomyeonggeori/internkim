@@ -1,18 +1,18 @@
 ---
 name: site-prototype
-description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through site capability tools.
+description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through site capability operations.
 when_to_use: Use when the user asks the assistant to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
 completion:
   requiredEvidenceTools:
-    - site.app.status
-    - site.app.build
+    - website.status
+    - website.build
     - artifact.review
-    - site.app.publish
+    - website.publish
 ---
 
 # Site Prototype
 
-Use this skill for website and web app prototypes. Invoke `site.app.*`, browser, and `artifact.review` operations through `/workspace/tools/capability invoke <tool> '<json>'` unless the step is a local build command run with `terminal.run`.
+Use this skill for website and web app prototypes. Discover website, browser, and review capability operations through `/workspace/tools/capability list` and `/workspace/tools/capability describe`, then call them with `/workspace/tools/capability invoke <operation> '<json>'` unless the step is a local build command run with `terminal.run`.
 
 Create validation prototypes, not production software. Do not claim production readiness, compliance, SLA, paid hosting, payment support, real customer workflows, or external integrations unless the user explicitly requests and confirms that path.
 
@@ -32,12 +32,12 @@ Source-backed facts must appear in the rendered UI, not only in `prototype-data.
 
 ## Create, Update, Publish
 
-Website creation and update requests are incomplete until `site.app.publish` succeeds and a final `site.app.status` returns `published`. A preview URL is only a draft.
+Website creation and update requests are incomplete until the website publish operation succeeds and a final website status operation returns `published`. A preview URL is only a draft.
 
-1. Call `site.app.status` with the known `siteID`, slug, or empty input for the current conversation.
+1. Call the website status operation with the known `siteID`, slug, or empty input for the current conversation.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
-3. If no site is resolved, call `site.app.create` with a DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords; then call `site.app.status`.
-4. If `workspaceHealth` is `missing` or `permission_problem`, call `site.app.repair`, then status again. If it is `stale_build`, edit or build; do not repair.
+3. If no site is resolved, call the website create operation with a DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords; then call status.
+4. If `workspaceHealth` is `missing` or `permission_problem`, call the website repair operation, then status again. If it is `stale_build`, edit or build; do not repair.
 5. Choose the UI archetype before editing: landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell.
 6. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 7. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
@@ -45,13 +45,13 @@ Website creation and update requests are incomplete until `site.app.publish` suc
 9. Write a request-specific Stitch-compatible `DESIGN.md`, then create or update `app/src/prototype-data.ts` with supplied source data or clearly fake workflow state.
 10. Replace the starter `app/src/App.tsx` and update `app/src/index.css`. Do not preserve starter copy or generic feature cards.
 11. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`.
-12. Call `site.app.build`; it writes `.internkim/build-quality.json`. Use raw `terminal.run` from `appWorkspacePath` with `bun scripts/build.ts` only as fallback.
-13. Use `site.app.preview` or local preview only for visual QA. Capture desktop and mobile screenshots when browser tools are available.
+12. Call the website build operation; it writes `.internkim/build-quality.json`. Use raw `terminal.run` from `appWorkspacePath` with `bun scripts/build.ts` only as fallback.
+13. Use the website preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
 14. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
 15. Write `.internkim/review-log.json` with attempts, reviewed artifacts, issues, changes made, remaining notes, and screenshot paths or `visualReviewUnavailable: true`.
 16. Revise and rebuild when screenshots or review notes show useful improvements and budget remains; repeat at most three times.
-17. Call `site.app.publish` with `siteID` and a concise revision message.
-18. Call `site.app.status` again and confirm `status` is `published`.
+17. Call the website publish operation with `siteID` and a concise revision message.
+18. Call the website status operation again and confirm `status` is `published`.
 19. Reply with the public URL, what changed, how to try the main workflow, rollback availability, and test credentials only when login exists.
 
 Use this terminal shape when the fallback build is needed:
@@ -77,17 +77,17 @@ If login, saved records, files, realtime, reservations, admin state, or CRUD is 
 
 ## Follow-Ups
 
-For feedback in the same conversation, call `site.app.status` with empty input or the known slug. Update the resolved site and publish the same URL. Read existing `DESIGN.md`, `app/src/prototype-data.ts`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present.
+For feedback in the same conversation, call the website status operation with empty input or the known slug. Update the resolved site and publish the same URL. Read existing `DESIGN.md`, `app/src/prototype-data.ts`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present.
 
-Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from `site.app.status` when deciding whether a follow-up should update an existing site.
+Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from website status when deciding whether a follow-up should update an existing site.
 
 Short continuations such as "해줘", "진행", "좋아", "응", "게시해", "배포해", or "publish" mean finish the current site workflow. Resolve status, complete missing implementation, build, review, publish, and reply with the public URL. Do not ask for publish approval.
 
 ## Owner Audit and Destructive Actions
 
-When the user asks to check all requester-deployed sites, call `site.app.status` with `scope=mine` and `checkLive=true`. Treat a site as dead when status is `failed`, workspace health is unusable, or live HTTP status is present and not `200`. Repair, build, publish, or restore each site and report outcomes.
+When the user asks to check all requester-deployed sites, call the website status operation with `scope=mine` and `checkLive=true`. Treat a site as dead when status is `failed`, workspace health is unusable, or live HTTP status is present and not `200`. Repair, build, publish, or restore each site and report outcomes.
 
-Do not ask approval for create, build, preview, publish, status, logs, or restore. `site.app.publish` is a normal completion step. Use `ask.confirm` before rollback, unpublish, or delete. For delete, call `site.app.delete` only after confirmation succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
+Do not ask approval for create, build, preview, publish, status, logs, or restore. Website publish is a normal completion step. Use `ask.confirm` before rollback, unpublish, or delete. For delete, call the website delete operation only after confirmation succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
 
 ## Final Reply
 
@@ -99,4 +99,4 @@ For a successful publish, reply briefly with:
 - test login credentials, only if the app has login
 - note that it is a prototype for idea validation, not production software
 
-Never say the website is ready, created, available, or done unless `site.app.publish` and final `site.app.status` succeeded.
+Never say the website is ready, created, available, or done unless website publish and final website status succeeded.

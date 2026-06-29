@@ -74,10 +74,15 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 var blueclawNativeToolNames = []string{
 	"terminal.run",
 	"ask.input",
-	"ask.choice",
 	"ask.confirm",
-	"artifact.deliver",
+	"file.deliver",
 	"skill.search",
+	"file.read",
+	"file.write",
+	"file.edit",
+	"file.patch",
+	"file.preview",
+	"image.read",
 }
 
 func BlueclawDefaultAllowedToolNames() []string {

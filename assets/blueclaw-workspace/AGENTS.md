@@ -46,11 +46,11 @@ leaf directories enforce privacy and membership.
   built-in admin/capability tools for approved admin actions.
 - Do not change ownership, chmod around denials, copy protected paths into shared
   locations, or use dependency caches to move private/source files.
-- Use bundled skill scripts, `terminal.run`, and `artifact.deliver` for
-  user-visible artifacts. If a built-in tool reads through a grant, do not leave the
+- Use bundled skill scripts, `terminal.run`, and `file.deliver` for
+  user-visible artifacts. If a built-in capability reads through a grant, do not leave the
   privileged source file in a terminal-visible path.
 
-Allowed workspace paths for raw terminal and file tools:
+Allowed workspace paths for raw terminal and file kernel tools:
 
 - `home/<path>`: requester-private durable source workspace. Use this for
   editable site/app source or other private work that should survive beyond the
@@ -58,8 +58,8 @@ Allowed workspace paths for raw terminal and file tools:
 - `tmp/<artifact-slug>`: normal draft path, relative to the default writable
   directory. Use it for generated specs, scripts, fallback environments, and
   intermediate files.
-- `artifacts/<artifact-slug>`: preserved personal output path. Promote only
-  accepted final files there.
+- `artifacts/<artifact-slug>`: preserved personal output path for final files
+  that need durable personal storage.
 - `/workspace/circles/<circleID>`: team/circle artifact path only when the
   requester belongs to that circle and asked for shared placement.
 - `/workspace/shared/public`: intentionally public shared artifacts.
@@ -80,7 +80,7 @@ Denied or internal paths:
   is not a member.
 
 Tool path fields such as `terminal.run.workingDirectoryPath` and
-`artifact.deliver.path` should use virtual workspace paths like
+`file.deliver.path` should use virtual workspace paths like
 `home/<slug>`, `tmp/<slug>`, and `artifacts/<slug>`, not shell variable
 references or concrete POSIX paths. Do not use Blueclaw internal temporary paths
 for user-facing artifact work.
@@ -98,14 +98,12 @@ When a user asks for any file:
 
 1. Use the relevant tool or bundled skill.
 2. Build outputs under `tmp/<slug>/build/`.
-3. Deliver accepted final files with `artifact.deliver`.
-4. Pass `destinationDirectoryPath` such as `artifacts/<slug>` when a draft file
-   must be promoted before delivery.
-5. Do not use local paths, temporary URLs, or markdown links as final delivery.
+3. Deliver accepted final files with `file.deliver`.
+4. Do not use local paths, temporary URLs, or markdown links as final delivery.
 
 Mattermost users only see final reply text and native attachments. Files in
 `/workspace`, `/tmp`, or runtime directories are invisible until successful
-`artifact.deliver`. If attachment fails, say that and summarize only visible
+`file.deliver`. If delivery fails, say that and summarize only visible
 content.
 
 ## Completion Evidence
@@ -115,7 +113,7 @@ the user's request, the active skill metadata, and successful tool observations.
 Before a public final reply, compare the requested outcome with actual evidence:
 
 - File or artifact delivery requires successful native attachment evidence from
-  `artifact.deliver` or a platform reply result with native attachments.
+  `file.deliver` or a platform reply result with native attachments.
 - Website delivery or updates require a successful publish observation for the
   intended site, not only an existing status or a private draft.
 - Calendar, task, mail, and message actions require the matching successful

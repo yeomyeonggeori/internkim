@@ -6,7 +6,7 @@ when_to_use: Use when the user asks about Mattermost messages, threads, replies,
 
 # Mattermost
 
-Use platform message capabilities for Mattermost messaging. Invoke `platform.message.*` operations through `/workspace/tools/capability invoke <tool> '<json>'`.
+Use platform message capabilities for Mattermost messaging. Invoke `platform.message.*` operations through `/workspace/tools/capability invoke <operation> '<json>'`.
 
 If the current conversation is Mattermost, use this skill when the user asks about messages in the current thread, current channel, a DM, a named channel, or bot messages that the assistant already sent.
 
@@ -55,17 +55,17 @@ Delete does not search internally and does not use pagination. Pass only `messag
 
 For "delete all matching messages", repeat this loop: search, delete the returned `messageIDs`, then run the same search again until `messageIDs` is empty. Do not advance to `nextCursor` after deleting, because deleted messages can shift later matches into the first page.
 
-Do not claim that a message was changed or deleted until the tool succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by the assistant, and blocks 업무, 캘린더, and 출결 automated messages.
+Do not claim that a message was changed or deleted until the operation succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by the assistant, and blocks 업무, 캘린더, and 출결 automated messages.
 
 When the user asks to stop future messages, invoke `schedule.cancel` through the capability CLI. When the user asks to remove messages already sent in Mattermost, invoke `platform.message.search` and `platform.message.delete` through the capability CLI.
 
 ## Channel Management
 
-Use `mattermost.channel.update` for channel header changes, display name changes, and channel invites. This tool is admin-only and requires confirmation.
+Use `mattermost.channel.update` for channel header changes, display name changes, and channel invites. This operation is admin-only and requires confirmation.
 
 Rules:
 
 - Ask for confirmation with `ask.confirm` before `mattermost.channel.update`.
-- Do not use this skill to bypass Flow, calendar, or attendance tools.
+- Do not use this skill to bypass Flow, calendar, or attendance workflows.
 - Managed headers containing links like `업무 열기`, `캘린더 열기`, `출결 열기`, `Open Flow`, `Open Calendar`, or `Open Attendance` are protected by the backend.
 - Default channel display names are protected by the backend.

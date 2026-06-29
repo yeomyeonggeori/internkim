@@ -17,7 +17,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"firecrackerGuest",
 		"runtime-profile-google-tool",
 		"runtime-capability-google-tool",
-		"artifact.deliver",
+		"file.deliver",
 		"ask.confirm",
 		"runtime-config-mirror-drift",
 		"runtime-outbound-network-disabled",

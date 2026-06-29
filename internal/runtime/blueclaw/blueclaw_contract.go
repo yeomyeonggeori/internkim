@@ -105,6 +105,7 @@ var BlueclawAllowedExecutables = []string{
 	"python3",
 	"curl",
 	"jq",
+	"capability",
 	"download",
 }
 

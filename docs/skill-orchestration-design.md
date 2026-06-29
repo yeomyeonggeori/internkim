@@ -12,27 +12,29 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 4. Companion은 사용자 로컬 브라우저, 파일, 입력, 승인을 담당한다.
 5. Graphiti는 기억 저장과 검색을 담당한다.
 6. Google Workspace는 기본값이 아니라 import/export/publish target이다.
-7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다. InternKim `site.app.publish`는 prototype 생성의 기본 완료 단계이며 tool descriptor상 승인 불필요 작업이다.
+7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다. Website publish capability는 prototype 생성의 기본 완료 단계이며 descriptor상 승인 불필요 작업이다.
 
 ## Skill and Tool Contract
 
-Skill은 절차와 판단 기준이다. Tool은 실행 가능한 런타임 API다. Skill은 tool을 사용할 수 있지만 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
+Skill은 절차와 판단 기준이다. Kernel tool은 LLM이 직접 호출할 수 있는 실행 API다. Domain capability는 `/workspace/tools/capability` CLI를 통해 호출하는 로컬 bridge API다. Skill은 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
-Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Tool 권한/노출 관련 frontmatter는 `allowed-tools`만 사용한다. `requiredTools`, `required-tools`, custom dependency field는 쓰지 않는다.
+LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `terminal.run`, `ask.input`, `ask.confirm`, `file.deliver`, `skill.search`, `file.read`, `file.write`, `file.edit`, `file.patch`, `file.preview`, `image.read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. `terminal.session`은 `terminal.run`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
 
 `SKILL.md`는 선택될 때 초기 LLM context에 들어가는 실행 지침이다. 일반 skill은 8 KB 이하, 복잡한 artifact skill은 12 KB 이하를 목표로 하고, repository hard gate는 15 KB 및 300 lines다. 이 한계를 넘는 skill 문서는 prompt-runtime bug로 간주한다. 긴 reference는 `references/`, 반복 실행 로직은 `scripts/`, 재사용 asset은 `assets/`에 두고 `SKILL.md`에는 언제 읽거나 실행해야 하는지만 쓴다. 초기 prompt builder는 선택된 `SKILL.md` body만 포함해야 하며 scripts, references, assets 내용을 자동으로 붙이면 안 된다.
 
-`allowed-tools`는 skill이 쓸 수 있는 도구 목록이자 Blueclaw skill selection의 runtime gate다. 목록에 있는 도구가 현재 profile, policy, ToolSet에 없으면 해당 skill은 선택되지 않는다.
+Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Blueclaw bundled skills must not depend on `allowed-tools` as a runtime contract. If legacy skill metadata contains `allowed-tools`, treat it as non-authoritative documentation only; kernel exposure, capability access, approval, and policy are owned by runtime configuration and capability descriptors.
 
-Tool의 설명, input schema, output schema, policy resource, side-effect class, approval requirement는 turn-scoped ToolSet과 capability/MCP descriptor가 소유한다. Prompt의 "Available tools", structured output schema, runtime invocation은 같은 ToolSet에서 나온다.
+Kernel tool 설명, input schema, output schema, policy resource, side-effect class, approval requirement는 fixed ToolSet이 소유한다. Domain operation 설명, schema, policy, approval requirement는 capability descriptor가 소유한다. Prompt의 "Available tools", structured output schema, runtime invocation은 fixed kernel ToolSet에서 나오고, domain operation discovery는 capability CLI catalog/list/describe에서 나온다.
 
 WorkflowContract는 반복되는 업무 흐름의 공통 계약이다. WorkKind, step working set tool group, intent별 evidence tool 선택을 한 곳에서 정의한다. Intake, skill selection, outcome contract, turn runner는 이 계약을 소비한다. 새 업무 흐름이 생기면 completion gate나 skill prompt에 예외를 추가하지 않고 WorkflowContract와 Tool descriptor를 갱신한다.
 
-완료 판단은 Skill이 아니라 OutcomeContract와 tool observation이 소유한다. Skill은 사용 절차를 설명하고 allowed tool 범위를 제한할 수 있지만, operation별 hard gate를 소유하지 않는다. 업무 등록은 `flow.task.add`, 업무 목록은 `flow.task.list`, 업무 수정/완료는 `flow.task.update`처럼 WorkflowContract가 현재 intent에 맞는 evidence tool을 고르고, 그 tool의 성공 observation이 있어야 완료다.
+완료 판단은 Skill이 아니라 OutcomeContract와 observation이 소유한다. Skill은 사용 절차를 설명할 수 있지만 operation별 hard gate를 소유하지 않는다. 업무 등록은 `flow.task.add`, 업무 목록은 `flow.task.list`, 업무 수정/완료는 `flow.task.update`처럼 WorkflowContract가 현재 intent에 맞는 evidence operation을 고르고, 그 operation의 성공 observation이 있어야 완료다.
 
-CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.SideEffectClass` 또는 `ToolRecoveryCard.SideEffect`를 통해 상태 변경이 필요한 evidence requirement인지 판단한다. 상태 변경 tool은 성공 observation 없이 완료할 수 없고, read/computation tool은 답변 대체가 가능한 경우에만 fallback으로 완료할 수 있다.
+CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.SideEffectClass`, `ToolRecoveryCard.SideEffect`, 또는 capability descriptor를 통해 상태 변경이 필요한 evidence requirement인지 판단한다. 상태 변경 operation은 성공 observation 없이 완료할 수 없고, read/computation operation은 답변 대체가 가능한 경우에만 fallback으로 완료할 수 있다.
 
 `no_tool_fallback`은 순수 계산, 설명, 조회처럼 답변으로 대체 가능한 실패에만 허용한다. 메시지 전송, 업무 변경, 일정 변경, 스킬 변경처럼 외부 상태가 바뀌어야 하는 작업은 fallback 문장으로 완료 처리하지 않는다.
+
+Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc에 의존하면 코딩 품질과 회복성이 떨어지므로 `file.read`, `file.write`, `file.edit`, `file.patch`는 kernel에 포함한다. Attachment/document entrypoint인 `file.preview`와 visual attachment entrypoint인 `image.read`도 kernel에 포함한다. 이 파일 도구들은 virtual workspace path와 requester permissions를 지켜야 하며, delivery는 `file.deliver`가 담당한다. Legacy delivery aliases are not model-facing kernel tools. Domain operations such as tasks, calendar, mail, browser, and website publish remain capability CLI operations.
 
 ## Canonical 실행 경로
 
@@ -68,7 +70,7 @@ CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.
 
 - 사용자 로컬 파일은 Companion `file.pick`으로 받고 로컬 경로를 노출하지 않는다.
 - Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
-- 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file.promote`로 `artifacts/<slug>` 또는 명시된 circle/shared 위치로 복사한 뒤 `file.attach`한다.
+- 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file.deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
 - 장기 보관이 필요할 때만 artifact registry로 승격한다.
 
@@ -87,9 +89,9 @@ CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.
 
 - 간단한 Google Slides와 고급 HTML 슬라이드를 같은 deck pipeline으로 다루되, 기본 출력은 HTML/PPTX/PDF다.
 - `DESIGN.md`는 YAML token front matter와 Markdown rationale을 포함한다.
-- source files는 `file.write`로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
+- source files는 `file.write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
 - build는 `terminal.run`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
-- output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file.promote`로 `artifacts/<deck-slug>/`에 승격한 뒤 `file.attach`한다.
+- output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file.deliver`로 전달한다.
 - `simple-slides`는 global PATH의 Marp를 선택하지 않는다. Rootfs 선설치 Marp entrypoint를 사용하거나 requester tmp의 skill-local install을 사용하고, runtime temp/cache/home은 task build tmp 아래에 둔다.
 - 폰트는 Korean-first로 고른다. 기본 조합은 Paperlogy display + Freesentation body이며, 기술/모빌리티 덱은 A2Z display + Freesentation body를 우선한다. 후보와 import/cache 경로는 `assets/blueclaw-workspace/fonts/korean-fonts.tsv`와 `simple-slides`의 `references/design-system.md`를 따른다.
 - 시각 품질 검증과 출력 파일 연결은 `simple-slides` 규칙을 따른다.
@@ -165,7 +167,7 @@ CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.
 - "내일 3시에 미팅 잡아줘"는 `workspace-orchestrator`가 ICS/CalDAV 이벤트를 만들고, 사용자가 원하면 Google Calendar에도 동기화한다.
 - "시트 하나 만들어줘"는 `workspace-orchestrator`가 XLSX/CSV를 만들고, 사용자가 원하면 Google Sheets로 가져간다.
 - "발표자료 만들어줘"는 `slide-orchestrator`가 `DESIGN.md`를 먼저 만든 뒤 HTML/PPTX/PDF를 만들고, 사용자가 원하면 Google Slides로 가져간다.
-- "pptx 파일로 줘"처럼 required artifact 요청이면 promoted `file.attach`가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
+- "pptx 파일로 줘"처럼 required artifact 요청이면 `file.deliver` completion evidence가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
 - "계약서 템플릿 채워줘"는 `document-orchestrator`가 누락 필드를 인터뷰한 뒤 DOCX 또는 PDF 생성으로 위임한다.
 - "이 파일 보내줘"는 `artifact-orchestrator`가 기존 attachment 경로를 사용한다.
 - "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user.confirm`을 사용한다.
