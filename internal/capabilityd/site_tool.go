@@ -148,6 +148,8 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 		return service.postAdmindSiteAction(ctx, inputDocument, "unpublish")
 	case "site.restore":
 		return service.postAdmindSiteAction(ctx, inputDocument, "restore")
+	case "site.repair":
+		return service.postAdmindSiteAction(ctx, inputDocument, "repair")
 	case "site.delete":
 		return service.deleteAdmindSite(ctx, inputDocument)
 	default:
