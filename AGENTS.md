@@ -107,8 +107,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   Bazel/CUDA builds OOM the 8GB Jetson.
 - Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
-- For Admin/Flow web UI-only changes, use
-  `./internkim deploy --components web`.
+- For Admin/Flow web UI-only changes, rebuild the board UI before deploying:
+  run `cd web && bun install` when dependencies may have changed, then
+  `cd web && bun run build:board`, then `./internkim deploy --components web`
+  from the repository root. The OTA web deploy packages the pre-built
+  `build/board-ui` directory and does not rebuild it for you.
 - For a small `internkim-admind` change, use `make build` and
   `./internkim deploy --components admind`.
 - For a small `internkim-capabilityd` change, use `make build` and
