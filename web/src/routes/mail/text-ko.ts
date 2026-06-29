@@ -67,13 +67,15 @@ export const mailTextKo = {
 	providers: {
 		gmail: 'gmail.com',
 		naver: 'naver.com',
+		daum: 'daum.net',
+		hanmail: 'hanmail.net',
 		custom: '직접 입력'
 	},
 	fieldDescriptions: {
 		emailAddress: '도메인을 선택하면 서버 설정은 자동으로 채워집니다.',
 		displayName: '메일을 받는 사람에게 보이는 이름입니다.',
 		defaultMailbox: '처음 열어볼 받은편지함입니다. 보통 INBOX를 사용합니다.',
-		loginAccount: '보통 전체 이메일 주소를 그대로 사용합니다.',
+		loginAccount: '메일 서비스에서 안내하는 로그인 계정을 사용합니다.',
 		appPassword: '일반 로그인 비밀번호가 아니라 메일 서비스에서 만든 앱 비밀번호입니다.',
 		sentMailbox: '발송한 메일 사본을 저장할 메일함입니다. Gmail은 비워두면 중복 저장을 피할 수 있습니다.',
 		providerPreset: '필요할 때만 서버 주소와 포트를 직접 바꿉니다.'
@@ -85,6 +87,22 @@ export const mailTextKo = {
 		savedPassword: '저장된 비밀번호',
 		appPassword: '앱 비밀번호',
 		googleAppPasswordLink: 'Google 앱 비밀번호 만들기',
+		googleAccountNote: '먼저 올바른 Google 계정으로 로그인했는지 확인하세요. 다른 계정에서 만든 앱 비밀번호는 연결되지 않습니다.',
+		googleSetupNote: '생성된 앱 비밀번호는 이 화면을 닫으면 다시 볼 수 없습니다. 안전한 곳에 저장한 뒤, 앱 비밀번호 칸에 붙여넣으세요.',
+		naverSetupLink: '네이버 설정 링크 보기',
+		naverSetupSteps: ['IMAP/SMTP 사용 설정하기', '애플리케이션 비밀번호 생성하기'],
+		naverAccountNote: '먼저 올바른 네이버 계정으로 로그인했는지 확인하세요. 다른 계정에서 만든 애플리케이션 비밀번호는 연결되지 않습니다.',
+		naverSetupNotes: ['IMAP/SMTP 사용을 사용함으로 바꾸고 저장하세요. IMAP 동기화 메일 제한은 한 번에 가져올 최대 메일 수입니다.', '생성된 애플리케이션 비밀번호는 이 화면을 닫으면 다시 볼 수 없습니다. 안전한 곳에 저장한 뒤, 앱 비밀번호 칸에 붙여넣으세요.'],
+		daumSetupLink: 'Daum/Hanmail 설정 링크 보기',
+		daumSetupSteps: ['IMAP/SMTP 사용 설정하기', 'Daum 앱 비밀번호 생성하기'],
+		daumSetupNotes: ['IMAP/SMTP 사용을 사용함으로 바꾸고 저장하세요. 설정 화면의 아이디를 IMAP/SMTP 로그인 계정으로 사용합니다.', '생성된 앱 비밀번호는 앱 비밀번호 칸에 붙여넣으세요. 앱 비밀번호는 다시 확인하기 어려우니 안전한 곳에 저장하세요.'],
+		setupImageAlts: {
+			googleAppPasswordCreated: 'Google 앱 비밀번호 생성 완료 예시',
+			naverIMAPSMTP: '네이버 IMAP/SMTP 설정 예시',
+			naverAppPassword: '네이버 애플리케이션 비밀번호 생성 예시',
+			daumIMAPSMTP: 'Daum IMAP/SMTP 설정 예시',
+			daumAppPassword: 'Daum 앱 비밀번호 생성 예시'
+		},
 		advancedSettings: '고급 설정',
 		autoConfigured: '선택한 도메인에 맞춰 받는 메일과 보내는 메일 서버가 자동으로 설정됩니다.',
 		testing: '테스트 중...',
