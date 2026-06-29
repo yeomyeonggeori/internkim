@@ -428,7 +428,7 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeSiteRecord(responseWriter, site)
+	service.writeSiteCreateRecord(responseWriter, site)
 }
 
 // reusableSiteForCreate returns the conversation's existing site so repeated
@@ -661,6 +661,12 @@ func siteAPIResponse(site *SiteRecord) *SiteRecord {
 	copiedSite := *site
 	if copiedSite.Status != SiteStatusPublished {
 		copiedSite.PublishedURL = ""
+	}
+	if personalDraftPath := siteOwnerSourceWorkspacePath(&copiedSite); personalDraftPath != "" {
+		copiedSite.SourceWorkspacePath = personalDraftPath
+		copiedSite.DraftPath = personalDraftPath
+		copiedSite.AppWorkspacePath = filepath.ToSlash(filepath.Join(personalDraftPath, "app"))
+		copiedSite.WorkspacePath = siteOwnerProjectWorkspacePath(&copiedSite)
 	}
 	return &copiedSite
 }
@@ -1976,13 +1982,7 @@ func materializeDirectory(sourceRoot string, targetRoot string) error {
 }
 
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
-	files := []siteTemplateFile{
-		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
-		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
-		{Path: "DESIGN.md", Document: siteDesignMD(site)},
-		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
-	}
-	files = append(files, siteAppScaffoldTemplateFiles(site)...)
+	files := service.siteScaffoldFiles(site)
 	for _, file := range files {
 		path := filepath.Join(site.HostSourcePath, file.Path)
 		if isRegularFile(path) {
@@ -2875,6 +2875,65 @@ func siteWorkspaceAliasName(siteID string, slug string) string {
 		return aliasName
 	}
 	return strings.TrimSpace(siteID)
+}
+
+func siteOwnerPersonID(site *SiteRecord) string {
+	if site == nil {
+		return ""
+	}
+	return firstNonEmpty(strings.TrimSpace(site.OwnerIdentity.PersonID), strings.TrimSpace(site.CreatedBy.PersonID))
+}
+
+func siteOwnerProjectWorkspacePath(site *SiteRecord) string {
+	personID := siteOwnerPersonID(site)
+	if personID == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("/workspace/private/people", personID, "sites", strings.TrimSpace(site.SiteID)))
+}
+
+func siteOwnerSourceWorkspacePath(site *SiteRecord) string {
+	projectPath := siteOwnerProjectWorkspacePath(site)
+	if projectPath == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join(projectPath, "draft"))
+}
+
+type siteSourceFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type siteCreateAPIResponse struct {
+	*SiteRecord
+	SourceFiles []siteSourceFile `json:"sourceFiles,omitempty"`
+}
+
+func (service *Service) siteScaffoldFiles(site *SiteRecord) []siteTemplateFile {
+	files := []siteTemplateFile{
+		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
+		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
+		{Path: "DESIGN.md", Document: siteDesignMD(site)},
+		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
+	}
+	return append(files, siteAppScaffoldTemplateFiles(site)...)
+}
+
+func (service *Service) siteScaffoldSourceFiles(site *SiteRecord) []siteSourceFile {
+	templateFiles := service.siteScaffoldFiles(site)
+	sourceFiles := make([]siteSourceFile, 0, len(templateFiles))
+	for _, file := range templateFiles {
+		sourceFiles = append(sourceFiles, siteSourceFile{Path: file.Path, Content: file.Document})
+	}
+	return sourceFiles
+}
+
+func (service *Service) writeSiteCreateRecord(responseWriter http.ResponseWriter, site *SiteRecord) {
+	service.writeJSON(responseWriter, siteCreateAPIResponse{
+		SiteRecord:  siteAPIResponse(site),
+		SourceFiles: service.siteScaffoldSourceFiles(site),
+	})
 }
 
 func isLegacySiteWorkspacePath(path string, siteID string) bool {
