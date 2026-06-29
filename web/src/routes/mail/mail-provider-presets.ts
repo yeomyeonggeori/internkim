@@ -1,6 +1,8 @@
-export type MailProviderID = 'gmail' | 'naver' | 'custom';
+export type MailProviderID = 'gmail' | 'naver' | 'daum' | 'hanmail' | 'custom';
 
 export type MailSecurity = 'tls' | 'starttls' | 'none';
+
+export type MailLoginAccountMode = 'email' | 'localPart';
 
 export type MailProviderPreset = {
 	id: Exclude<MailProviderID, 'custom'>;
@@ -12,6 +14,7 @@ export type MailProviderPreset = {
 	smtpPort: number;
 	smtpSecurity: MailSecurity;
 	sentMailbox: string;
+	loginAccountMode: MailLoginAccountMode;
 };
 
 export type MailAddressDraft = {
@@ -32,7 +35,8 @@ export const MAIL_PROVIDER_PRESETS: Record<Exclude<MailProviderID, 'custom'>, Ma
 		smtpHost: 'smtp.gmail.com',
 		smtpPort: 587,
 		smtpSecurity: 'starttls',
-		sentMailbox: ''
+		sentMailbox: '',
+		loginAccountMode: 'email'
 	},
 	naver: {
 		id: 'naver',
@@ -43,7 +47,32 @@ export const MAIL_PROVIDER_PRESETS: Record<Exclude<MailProviderID, 'custom'>, Ma
 		smtpHost: 'smtp.naver.com',
 		smtpPort: 587,
 		smtpSecurity: 'starttls',
-		sentMailbox: 'Sent'
+		sentMailbox: 'Sent',
+		loginAccountMode: 'email'
+	},
+	daum: {
+		id: 'daum',
+		domain: 'daum.net',
+		imapHost: 'imap.daum.net',
+		imapPort: 993,
+		imapSecurity: 'tls',
+		smtpHost: 'smtp.daum.net',
+		smtpPort: 465,
+		smtpSecurity: 'tls',
+		sentMailbox: 'Sent',
+		loginAccountMode: 'localPart'
+	},
+	hanmail: {
+		id: 'hanmail',
+		domain: 'hanmail.net',
+		imapHost: 'imap.daum.net',
+		imapPort: 993,
+		imapSecurity: 'tls',
+		smtpHost: 'smtp.daum.net',
+		smtpPort: 465,
+		smtpSecurity: 'tls',
+		sentMailbox: 'Sent',
+		loginAccountMode: 'localPart'
 	}
 };
 

@@ -11,6 +11,8 @@ describe('mail provider presets', () => {
 	test('resolves known mail domains', () => {
 		expect(mailProviderIDFromDomain('gmail.com')).toBe('gmail');
 		expect(mailProviderIDFromDomain('NAVER.COM')).toBe('naver');
+		expect(mailProviderIDFromDomain('daum.net')).toBe('daum');
+		expect(mailProviderIDFromDomain('HANMAIL.NET')).toBe('hanmail');
 		expect(mailProviderIDFromDomain('example.com')).toBe('custom');
 	});
 
@@ -28,6 +30,11 @@ describe('mail provider presets', () => {
 		expect(mailAddressDraftFromEmail(' chanhee@gmail.com ')).toEqual({
 			localPart: 'chanhee',
 			providerID: 'gmail',
+			customDomain: ''
+		});
+		expect(mailAddressDraftFromEmail('chanee234@hanmail.net')).toEqual({
+			localPart: 'chanee234',
+			providerID: 'hanmail',
 			customDomain: ''
 		});
 		expect(mailAddressDraftFromEmail('staff@example.com')).toEqual({
@@ -48,6 +55,22 @@ describe('mail provider presets', () => {
 			domain: 'gmail.com',
 			imapHost: 'imap.gmail.com',
 			smtpHost: 'smtp.gmail.com'
+		});
+		expect(mailProviderPreset('daum')).toMatchObject({
+			domain: 'daum.net',
+			imapHost: 'imap.daum.net',
+			imapPort: 993,
+			imapSecurity: 'tls',
+			smtpHost: 'smtp.daum.net',
+			smtpPort: 465,
+			smtpSecurity: 'tls',
+			loginAccountMode: 'localPart'
+		});
+		expect(mailProviderPreset('hanmail')).toMatchObject({
+			domain: 'hanmail.net',
+			imapHost: 'imap.daum.net',
+			smtpHost: 'smtp.daum.net',
+			loginAccountMode: 'localPart'
 		});
 		expect(mailProviderPreset('custom')).toBe(null);
 	});

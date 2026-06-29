@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
 	activeMobileEditorField,
 	closeDayFlowMobileEditor,
+	doubleClickFirstVisibleAllDayCell,
 	dayFlowMobileEditor,
 	doubleClickFirstVisibleTimeCell,
 	enableDarkMode,
@@ -175,6 +176,14 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await closeDayFlowMobileEditor(page);
 		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('timeline-'))).toBe(true);
+
+		await doubleClickFirstVisibleAllDayCell(page);
+		await expect(dayFlowMobileEditor(page)).toBeVisible();
+		await expect(dayFlowMobileEditor(page).getByText('새 일정')).toBeVisible();
+		await expect(dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="allDay"]')).toBeChecked();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await closeDayFlowMobileEditor(page);
+		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('all-day-'))).toBe(true);
 
 		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();

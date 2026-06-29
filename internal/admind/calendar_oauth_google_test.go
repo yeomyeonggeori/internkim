@@ -1,8 +1,10 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -45,8 +47,16 @@ func TestLoadGoogleOAuthClientSecretParsesWeb(t *testing.T) {
 func TestLoadGoogleOAuthClientSecretRejectsMissingClientID(t *testing.T) {
 	service := newCalendarTestService(t)
 	writeGoogleClientFile(t, service, `{"installed":{"client_secret":"only-secret"}}`)
-	if _, _, errorValue := service.loadGoogleOAuthClientSecret(); errorValue == nil {
-		t.Fatal("expected error when client_id missing")
+	if _, _, errorValue := service.loadGoogleOAuthClientSecret(); errorValue == nil || !strings.Contains(errorValue.Error(), "missing client_id") {
+		t.Fatalf("expected missing client_id error, got %v", errorValue)
+	}
+}
+
+func TestLoadGoogleOAuthClientSecretRejectsMissingClientSecret(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1"}}`)
+	if _, _, errorValue := service.loadGoogleOAuthClientSecret(); errorValue == nil || !strings.Contains(errorValue.Error(), "missing client_secret") {
+		t.Fatalf("expected missing client_secret error, got %v", errorValue)
 	}
 }
 
@@ -154,6 +164,107 @@ func TestCalendarConnectionStartReturnsDeviceAuthorizationURL(t *testing.T) {
 	}
 	if location.Query().Get("redirect_uri") != response.RedirectURI {
 		t.Fatalf("authorization redirect_uri = %q", location.Query().Get("redirect_uri"))
+	}
+}
+
+func TestUploadGoogleOAuthClientFileStoresValidClientJSON(t *testing.T) {
+	service := newCalendarTestService(t)
+	body, contentType := buildGoogleOAuthClientUploadBody(t, `{"web":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/calendar/api/google-oauth-client", body)
+	request.RemoteAddr = "127.0.0.1:34567"
+	request.Header.Set("Content-Type", contentType)
+	recorder := httptest.NewRecorder()
+
+	service.handleCalendar(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "secret-1") {
+		t.Fatalf("response must not expose client secret: %s", recorder.Body.String())
+	}
+	clientID, clientSecret, errorValue := service.loadGoogleOAuthClientSecret()
+	if errorValue != nil {
+		t.Fatalf("load stored client: %v", errorValue)
+	}
+	if clientID != "client-1" || clientSecret != "secret-1" {
+		t.Fatalf("stored credentials = %q / %q", clientID, clientSecret)
+	}
+	fileInformation, errorValue := os.Stat(service.googleOAuthClientFilePath())
+	if errorValue != nil {
+		t.Fatalf("stat stored client: %v", errorValue)
+	}
+	if fileInformation.Mode().Perm() != 0o600 {
+		t.Fatalf("client file mode = %o", fileInformation.Mode().Perm())
+	}
+	directoryInformation, errorValue := os.Stat(service.calendarSecretsDirectory())
+	if errorValue != nil {
+		t.Fatalf("stat secrets directory: %v", errorValue)
+	}
+	if directoryInformation.Mode().Perm() != 0o700 {
+		t.Fatalf("secrets directory mode = %o", directoryInformation.Mode().Perm())
+	}
+}
+
+func TestUploadGoogleOAuthClientFileRequiresAdmin(t *testing.T) {
+	service := newCalendarTestService(t)
+	body, contentType := buildGoogleOAuthClientUploadBody(t, `{"web":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodPost, "http://admind.local/calendar/api/google-oauth-client", body)
+	request.Header.Set("Content-Type", contentType)
+	recorder := httptest.NewRecorder()
+
+	service.handleCalendar(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestUploadGoogleOAuthClientFileRejectsInvalidClientJSON(t *testing.T) {
+	testCases := map[string]string{
+		"invalid json":          `{`,
+		"missing client id":     `{"web":{"client_secret":"secret-1"}}`,
+		"missing client secret": `{"web":{"client_id":"client-1"}}`,
+	}
+	for name, document := range testCases {
+		t.Run(name, func(t *testing.T) {
+			service := newCalendarTestService(t)
+			body, contentType := buildGoogleOAuthClientUploadBody(t, document)
+			request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/calendar/api/google-oauth-client", body)
+			request.RemoteAddr = "127.0.0.1:34567"
+			request.Header.Set("Content-Type", contentType)
+			recorder := httptest.NewRecorder()
+
+			service.handleCalendar(recorder, request)
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+			}
+			if _, errorValue := os.Stat(service.googleOAuthClientFilePath()); !os.IsNotExist(errorValue) {
+				t.Fatalf("client file should not be written, stat error = %v", errorValue)
+			}
+		})
+	}
+}
+
+func TestUploadGoogleOAuthClientFileRejectsTooLargeDocument(t *testing.T) {
+	service := newCalendarTestService(t)
+	body, contentType := buildGoogleOAuthClientUploadBody(t, strings.Repeat("a", googleOAuthClientUploadMaxBytes+1))
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/calendar/api/google-oauth-client", body)
+	request.RemoteAddr = "127.0.0.1:34567"
+	request.Header.Set("Content-Type", contentType)
+	recorder := httptest.NewRecorder()
+
+	service.handleCalendar(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "client.json file is too large") {
+		t.Fatalf("body should explain size limit: %s", recorder.Body.String())
+	}
+	if _, errorValue := os.Stat(service.googleOAuthClientFilePath()); !os.IsNotExist(errorValue) {
+		t.Fatalf("client file should not be written, stat error = %v", errorValue)
 	}
 }
 
@@ -448,4 +559,21 @@ func writeGoogleClientFile(t *testing.T, service *Service, content string) {
 	if errorValue := os.WriteFile(path, []byte(content), 0o600); errorValue != nil {
 		t.Fatalf("write client.json: %v", errorValue)
 	}
+}
+
+func buildGoogleOAuthClientUploadBody(t *testing.T, content string) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, errorValue := writer.CreateFormFile("client", "client.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := part.Write([]byte(content)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := writer.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return body, writer.FormDataContentType()
 }

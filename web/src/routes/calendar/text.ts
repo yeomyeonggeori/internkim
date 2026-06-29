@@ -1,3 +1,5 @@
+import { googleOAuthClientGuideText, type CalendarGoogleOAuthClientGuideText } from './calendar-google-oauth-guide-text';
+
 export type CalendarLocaleText = {
 	pageTitle: string;
 	title: string;
@@ -25,7 +27,18 @@ export type CalendarLocaleText = {
 	googleCalendarConnectAction: string;
 	googleCalendarReconnectAction: string;
 	googleCalendarReconnectHint: string;
+	googleCalendarReadyHint: string;
 	googleCalendarUnavailableHint: string;
+	googleOAuthClientUploadTitle: string;
+	googleOAuthClientUploadHint: string;
+	googleOAuthClientUploadAction: string;
+	googleOAuthClientUploading: string;
+	googleOAuthClientUploadError: string;
+	googleOAuthClientFileLabel: string;
+	googleOAuthClientChooseFile: string;
+	googleOAuthClientReplaceTitle: string;
+	googleOAuthClientReplaceHint: string;
+	googleOAuthClientGuide: CalendarGoogleOAuthClientGuideText;
 	shared: string;
 	refresh: string;
 	syncTitle: string;
@@ -124,7 +137,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnectAction: 'Google Calendar 연결',
 		googleCalendarReconnectAction: 'Google Calendar 다시 연결',
 		googleCalendarReconnectHint: '외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.',
+		googleCalendarReadyHint: 'Google Calendar를 연결하세요.',
 		googleCalendarUnavailableHint: 'Google Calendar 연동은 아직 준비되지 않았습니다.\n사용이 필요하면 관리자에게 문의하세요.',
+		googleOAuthClientUploadTitle: 'Google OAuth client.json',
+		googleOAuthClientUploadHint: '여기에 client.json을 드롭하거나 파일을 선택하세요.',
+		googleOAuthClientUploadAction: '업로드',
+		googleOAuthClientUploading: '업로드 중',
+		googleOAuthClientUploadError: 'client.json을 업로드하지 못했습니다.',
+		googleOAuthClientFileLabel: 'client.json 파일 선택',
+		googleOAuthClientChooseFile: '파일 선택',
+		googleOAuthClientReplaceTitle: 'client.json 교체',
+		googleOAuthClientReplaceHint: '잘못된 프로젝트나 리디렉션 URI로 만든 파일을 올렸다면 새 client.json으로 교체하세요.',
+		googleOAuthClientGuide: googleOAuthClientGuideText.ko,
 		shared: '공유',
 		refresh: '새로고침',
 		syncTitle: '연동',
@@ -232,7 +256,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnectAction: 'Connect Google Calendar',
 		googleCalendarReconnectAction: 'Reconnect Google Calendar',
 		googleCalendarReconnectHint: 'Reconnect the account to resume remote calendar sync.',
+		googleCalendarReadyHint: 'Connect Google Calendar to start remote calendar sync.',
 		googleCalendarUnavailableHint: 'Google Calendar integration is not ready yet.\nContact an administrator if you need access.',
+		googleOAuthClientUploadTitle: 'Google OAuth client.json',
+		googleOAuthClientUploadHint: 'Drop client.json here or choose the file.',
+		googleOAuthClientUploadAction: 'Upload',
+		googleOAuthClientUploading: 'Uploading',
+		googleOAuthClientUploadError: 'Could not upload client.json.',
+		googleOAuthClientFileLabel: 'Choose client.json file',
+		googleOAuthClientChooseFile: 'Choose file',
+		googleOAuthClientReplaceTitle: 'Replace client.json',
+		googleOAuthClientReplaceHint: 'If the uploaded file came from the wrong project or redirect URI, replace it with a new client.json.',
+		googleOAuthClientGuide: googleOAuthClientGuideText.en,
 		shared: 'Shared',
 		refresh: 'Refresh',
 		syncTitle: 'Sync',

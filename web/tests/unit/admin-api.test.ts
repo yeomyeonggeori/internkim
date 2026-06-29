@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { adminApiFetch } from '../../src/lib/admin-api';
+import { AdminApiError, apiErrorMessage } from '../../src/routes/admin/admin-api';
 
 const originalFetch = globalThis.fetch;
 const originalWindow = (globalThis as { window?: unknown }).window;
@@ -59,5 +60,13 @@ describe('adminApiFetch', () => {
 		} finally {
 			restoreGlobals();
 		}
+	});
+});
+
+describe('apiErrorMessage', () => {
+	test('falls back instead of showing raw orgchart employment status validation', () => {
+		const error = new AdminApiError('employmentStatus must be active, leave, or resigned', 400);
+
+		expect(apiErrorMessage(error, '사용자 저장에 실패했습니다.')).toBe('사용자 저장에 실패했습니다.');
 	});
 });

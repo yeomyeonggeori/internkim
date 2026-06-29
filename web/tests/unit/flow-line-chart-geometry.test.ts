@@ -65,6 +65,11 @@ describe('flow line chart geometry', () => {
 		expect(flowLineShouldAlignTooltipEnd(26, 30)).toBe(false);
 	});
 
+	test('flips monthly tooltip before it overflows the visible chart width', () => {
+		expect(flowLineShouldAlignTooltipEnd(22, 30, 444, 160)).toBe(true);
+		expect(flowLineShouldAlignTooltipEnd(17, 30, 444, 160)).toBe(false);
+	});
+
 	test('returns polyline points from the same geometry as individual points', () => {
 		const data = buildFlowLineChartData({
 			labels: ['월', '화'],

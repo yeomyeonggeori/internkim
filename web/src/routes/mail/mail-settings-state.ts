@@ -1,5 +1,6 @@
 import {
 	composeMailAddress,
+	MAIL_PROVIDER_PRESETS,
 	mailAddressDraftFromEmail,
 	mailProviderPreset,
 	type MailProviderID,
@@ -36,7 +37,9 @@ export function mailAppPasswordInputValue(value: string, emailProviderID: MailPr
 export function currentMailPresetFromDraft(accountDraft: MailAccountDraft): MailProviderPreset | undefined {
 	const currentIMAPHost = accountDraft.imapHost.trim().toLowerCase();
 	const currentSMTPHost = accountDraft.smtpHost.trim().toLowerCase();
-	return [mailProviderPreset('gmail'), mailProviderPreset('naver')].find(
+	const emailPreset = mailProviderPreset(mailAddressDraftFromEmail(accountDraft.email).providerID);
+	if (emailPreset?.imapHost === currentIMAPHost && emailPreset.smtpHost === currentSMTPHost) return emailPreset;
+	return Object.values(MAIL_PROVIDER_PRESETS).find(
 		(preset): preset is MailProviderPreset => preset !== null && preset.imapHost === currentIMAPHost && preset.smtpHost === currentSMTPHost
 	);
 }
@@ -61,16 +64,20 @@ export function mailAddressSettingsUpdate(
 ): Partial<MailAccountDraft> {
 	const previousEmail = accountDraft.email.trim();
 	const nextEmail = composeMailAddress(emailLocalPart, selectedMailSettingsDomain(emailProviderID, customEmailDomain));
+	const currentPreset = currentMailPresetFromDraft(accountDraft);
+	const nextPreset = mailProviderPreset(emailProviderID);
+	const previousLoginUsername = mailLoginUsernameFromEmail(previousEmail, currentPreset);
+	const nextLoginUsername = mailLoginUsernameFromParts(emailLocalPart, nextEmail, nextPreset);
 	const update: Partial<MailAccountDraft> = {
 		email: nextEmail,
 		fromAddress: nextEmail,
 		...mailServerSettingsUpdateFromAddress(accountDraft, nextEmail, emailProviderID)
 	};
-	if (forceUsernameSync || shouldSyncMailUsername(accountDraft.imapUsername, previousEmail)) {
-		update.imapUsername = nextEmail;
+	if (forceUsernameSync || shouldSyncMailUsername(accountDraft.imapUsername, previousLoginUsername)) {
+		update.imapUsername = nextLoginUsername;
 	}
-	if (forceUsernameSync || shouldSyncMailUsername(accountDraft.smtpUsername, previousEmail)) {
-		update.smtpUsername = nextEmail;
+	if (forceUsernameSync || shouldSyncMailUsername(accountDraft.smtpUsername, previousLoginUsername)) {
+		update.smtpUsername = nextLoginUsername;
 	}
 	return update;
 }
@@ -99,8 +106,18 @@ function mailServerSettingsFromPreset(preset: MailProviderPreset): Partial<MailA
 	};
 }
 
-function shouldSyncMailUsername(username: string, previousEmail: string): boolean {
+function mailLoginUsernameFromEmail(email: string, preset: MailProviderPreset | null | undefined): string {
+	const emailDraft = mailAddressDraftFromEmail(email);
+	return mailLoginUsernameFromParts(emailDraft.localPart, email, preset);
+}
+
+function mailLoginUsernameFromParts(localPart: string, email: string, preset: MailProviderPreset | null | undefined): string {
+	if (preset?.loginAccountMode === 'localPart') return localPart;
+	return email;
+}
+
+function shouldSyncMailUsername(username: string, previousLoginUsername: string): boolean {
 	const normalizedUsername = username.trim().toLowerCase();
-	const normalizedEmail = previousEmail.trim().toLowerCase();
-	return normalizedUsername === '' || (normalizedEmail !== '' && normalizedUsername === normalizedEmail);
+	const normalizedPreviousLoginUsername = previousLoginUsername.trim().toLowerCase();
+	return normalizedUsername === '' || (normalizedPreviousLoginUsername !== '' && normalizedUsername === normalizedPreviousLoginUsername);
 }

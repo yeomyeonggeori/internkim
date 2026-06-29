@@ -204,6 +204,35 @@
     line-height: 20px;
   }
 
+  .internkim-app-mobile-brand {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    text-decoration: none;
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .internkim-app-mobile-brand:hover {
+    background: hsl(var(--muted));
+  }
+
+  .internkim-app-mobile-brand:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .internkim-app-mobile-brand img {
+    width: 28px;
+    height: 28px;
+  }
+
   .internkim-app-crumbs a,
   .internkim-app-crumbs span {
     color: hsl(var(--muted-foreground));
@@ -230,6 +259,12 @@
   @media (max-width: 639px) {
     .internkim-app-crumbs a,
     .internkim-app-crumbs span {
+      display: none;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .internkim-app-mobile-brand {
       display: none;
     }
   }

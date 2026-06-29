@@ -25,6 +25,7 @@ import type { MonthRangeSelection } from './calendar-month-range-action';
 
 export type CalendarDraftPopoverActions = {
 	createQuickDraftPopover: (event: MouseEvent) => void;
+	openAllDaySingleDraftPopover: (dateKey: string, anchor?: DraftPopoverAnchor | null) => void;
 	openMonthSingleDayDraftPopover: (dateKey: string, anchor?: DraftPopoverAnchor | null) => void;
 	openMonthRangeDraftPopover: (selection: MonthRangeSelection, anchor?: DraftPopoverAnchor | null) => void;
 	openTimelineSingleDraftPopover: (startDate: Date, anchor: DraftPopoverAnchor) => void;
@@ -62,6 +63,12 @@ export function createCalendarDraftPopoverActions(
 
 	function openMonthSingleDayDraftPopover(dateKey: string, anchor: DraftPopoverAnchor | null = null): void {
 		const draftEvent = context.eventActions.createMonthSingleDayEvent(dateKey);
+		if (!draftEvent) return;
+		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(context.getStageElement(), dateKey), true);
+	}
+
+	function openAllDaySingleDraftPopover(dateKey: string, anchor: DraftPopoverAnchor | null = null): void {
+		const draftEvent = context.eventActions.createAllDaySingleEvent(dateKey);
 		if (!draftEvent) return;
 		openDraftPopoverForEvent(draftEvent, 'create', anchor ?? monthDateAnchor(context.getStageElement(), dateKey), true);
 	}
@@ -160,6 +167,7 @@ export function createCalendarDraftPopoverActions(
 
 	return {
 		createQuickDraftPopover,
+		openAllDaySingleDraftPopover,
 		openMonthSingleDayDraftPopover,
 		openMonthRangeDraftPopover,
 		openTimelineSingleDraftPopover,
