@@ -118,7 +118,12 @@ export function flowLineTooltipPositionPercent(index: number, datum: FlowLineCha
 	};
 }
 
-export function flowLineShouldAlignTooltipEnd(index: number, pointCount: number): boolean {
+export function flowLineShouldAlignTooltipEnd(index: number, pointCount: number, visibleChartWidth = 0, tooltipWidth = 0, tooltipGap = 12, layout = defaultFlowLineChartLayout): boolean {
+	if (visibleChartWidth > 0 && tooltipWidth > 0) {
+		const x = flowLineXForIndex(index, pointCount, layout);
+		const visibleChartX = (x / layout.chartWidth) * visibleChartWidth;
+		return visibleChartX + tooltipGap + tooltipWidth > visibleChartWidth;
+	}
 	return index >= pointCount - 3;
 }
 

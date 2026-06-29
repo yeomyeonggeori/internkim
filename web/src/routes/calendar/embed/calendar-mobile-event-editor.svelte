@@ -2,6 +2,7 @@
 	import { getContext, tick } from 'svelte';
 	import { createEvent, type Event as DayFlowEvent, type MobileEventProps } from '@dayflow/core';
 	import { calendarText } from '../text';
+	import { isDraftEventID } from './calendar-draft-event-params';
 	import { dateKey, draftPopoverAllDayChanges, type DraftPopoverState } from './calendar-draft-popover-state';
 	import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 	import CalendarMobileEventEditorFields from './calendar-mobile-event-editor-fields.svelte';
@@ -34,7 +35,7 @@
 	const draftText = $derived(text.draftPopover);
 	const calendars = $derived(app.getCalendars());
 	const canEdit = $derived(draftEvent ? app.canMutateFromUI(draftEvent.id) : false);
-	const isDraftEvent = $derived(Boolean(draftEvent && isLocalDraftEventID(draftEvent.id)));
+	const isDraftEvent = $derived(Boolean(draftEvent && isDraftEventID(draftEvent.id)));
 	const canDelete = $derived(Boolean(draftEvent && canEdit && onEventDelete));
 	const editorTitle = $derived(isDraftEvent ? text.newEvent : text.editEvent);
 	const canSave = $derived(Boolean(draftEvent && canEdit && isValidEventForm()));
@@ -228,10 +229,6 @@
 
 	function timeValue(date: Date): string {
 		return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-	}
-
-	function isLocalDraftEventID(eventID: string): boolean {
-		return /^(quick|timeline|month|range)-/.test(eventID);
 	}
 
 	$effect(() => {

@@ -1,5 +1,6 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import {
+	allDaySingleDraftEventParams,
 	monthRangeDraftEventParams,
 	monthSingleDayDraftEventParams,
 	quickDraftEventParams,
@@ -15,6 +16,7 @@ type CalendarEventDraftActionsContext = {
 };
 
 export type CalendarEventDraftActions = {
+	createAllDaySingleEvent: (dateKey: string) => DayFlowEvent | null;
 	createMonthRangeEvent: (selection: MonthRangeSelection) => DayFlowEvent;
 	createMonthSingleDayEvent: (dateKey: string) => DayFlowEvent | null;
 	createQuickEvent: () => DayFlowEvent;
@@ -25,7 +27,7 @@ export type CalendarEventDraftActions = {
 export function createCalendarEventDraftActions(
 	context: CalendarEventDraftActionsContext
 ): CalendarEventDraftActions {
-	let lastMonthCellCreationTime = 0;
+	let lastDateCellCreationTime = 0;
 	let lastTimelineSlotCreationTime = 0;
 
 	function createQuickEvent(): DayFlowEvent {
@@ -42,9 +44,15 @@ export function createCalendarEventDraftActions(
 	}
 
 	function createMonthSingleDayEvent(dateKey: string): DayFlowEvent | null {
-		if (Date.now() - lastMonthCellCreationTime < 250) return null;
-		lastMonthCellCreationTime = Date.now();
+		if (Date.now() - lastDateCellCreationTime < 250) return null;
+		lastDateCellCreationTime = Date.now();
 		return context.addDraftEvent(monthSingleDayDraftEventParams(dateKey));
+	}
+
+	function createAllDaySingleEvent(dateKey: string): DayFlowEvent | null {
+		if (Date.now() - lastDateCellCreationTime < 250) return null;
+		lastDateCellCreationTime = Date.now();
+		return context.addDraftEvent(allDaySingleDraftEventParams(dateKey));
 	}
 
 	function createTimelineSingleEvent(startDate: Date): DayFlowEvent | null {
@@ -60,6 +68,7 @@ export function createCalendarEventDraftActions(
 	}
 
 	return {
+		createAllDaySingleEvent,
 		createMonthRangeEvent,
 		createMonthSingleDayEvent,
 		createQuickEvent,

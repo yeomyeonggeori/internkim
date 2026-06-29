@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getAttendanceState } from './attendance-context.svelte';
-	import TeamView from './team/team-view.svelte';
+	import AttendanceResponsiveView from './attendance-responsive-view.svelte';
 	import { attendanceText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 
@@ -15,5 +15,5 @@
 {#if isTeamBlocked}
 	<p class="text-sm text-muted-foreground">{text.teamBlocked}</p>
 {:else}
-	<TeamView />
+	<AttendanceResponsiveView />
 {/if}

@@ -13,6 +13,7 @@ export class CalendarLayoutState {
 	isLoadingAccountStatus = $state(false);
 	isSyncSheetOpen = $state(false);
 	isRotatingSync = $state(false);
+	isUploadingGoogleOAuthClient = $state(false);
 	syncError = $state('');
 	miniMonthEventDates = $state<Set<string>>(new Set());
 	miniMonthEventCount = $state(0);

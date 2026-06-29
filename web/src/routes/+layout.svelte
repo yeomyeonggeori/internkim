@@ -64,6 +64,15 @@
 			<AppRail />
 			<div class="flex min-w-0 flex-1 flex-col">
 				<header class="internkim-app-header">
+					<a
+						href="/admin/"
+						aria-label="Blueclaw"
+						class="internkim-app-mobile-brand"
+						data-sveltekit-preload-data="off"
+						data-sveltekit-preload-code="off"
+					>
+						<img src="/logo.svg" alt="" />
+					</a>
 					<div class="internkim-app-crumbs flex-1">
 						<Breadcrumb.Root>
 							<Breadcrumb.List>

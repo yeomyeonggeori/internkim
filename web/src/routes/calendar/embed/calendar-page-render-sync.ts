@@ -7,7 +7,6 @@ import {
 	scheduleTimelineEventLaneLayoutSync
 } from './calendar-embed-dom-sync';
 import type { CalendarEventLoader } from './calendar-event-loader';
-import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import { syncRemoteCalendarAndRefreshConflicts } from './calendar-remote-sync';
 
 type CalendarPageRenderSyncContext = {
@@ -19,7 +18,6 @@ type CalendarPageRenderSyncContext = {
 	getToolbarView: () => ViewType;
 	isBrowser: () => boolean;
 	loadCalendarConflicts: () => Promise<void>;
-	openEventDetails: (eventID: string, anchor?: DraftPopoverAnchor | null) => void;
 	refreshCurrentRange: CalendarEventLoader['refreshCurrentRange'];
 };
 
@@ -42,8 +40,7 @@ export function createCalendarPageRenderSync(
 			context.getStageElement(),
 			context.getToolbarView(),
 			context.getToolbarDate(),
-			context.getCalendarEvents,
-			context.openEventDetails
+			context.getCalendarEvents
 		);
 		scheduleCalendarAllDayLayoutSync(context.getStageElement(), context.getToolbarView());
 		scheduleTimelineEventLaneLayoutSync(
