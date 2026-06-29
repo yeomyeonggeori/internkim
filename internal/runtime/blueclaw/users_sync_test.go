@@ -37,6 +37,21 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 	}
 }
 
+func TestUsersSyncScriptPreservesLocalTestUsers(t *testing.T) {
+	script := InternKimUsersSyncScript()
+
+	for _, fragment := range []string{
+		"is_preserved_local_email()",
+		"*@internkim.test) return 0",
+		"write_removable_policy_emails",
+		"if is_preserved_local_email \"$email\"; then",
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected users sync script to include %q", fragment)
+		}
+	}
+}
+
 func TestTemporaryCleanupScriptOnlyTargetsPersonTaskTemporaryDirectories(t *testing.T) {
 	script := InternKimBlueclawTemporaryCleanupScript()
 

@@ -49,6 +49,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+is_preserved_local_email() {
+  case "$1" in
+    *@internkim.test) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+write_removable_policy_emails() {
+  jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$current_policy_path" 2>/dev/null |
+    awk 'NF {print tolower($0)}' |
+    while IFS= read -r email; do
+      if is_preserved_local_email "$email"; then
+        continue
+      fi
+      printf '%s\n' "$email"
+    done |
+    sort -u > "$policy_removable_path"
+}
+
 sync_posix_policy() {
   if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$POLICY_PATH" ]; then
     /usr/local/bin/blueclaw-posix-helper sync \
@@ -88,7 +107,7 @@ cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$des
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
 curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path" 2>/dev/null || true
 jq -r '.people[]?.emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
-jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
+write_removable_policy_emails || true
 
 if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
@@ -116,6 +135,9 @@ if [ -s "$removal_source_path" ]; then
   while IFS= read -r email; do
     [ -n "$email" ] || continue
     [ "$email" = "$admin_email" ] && continue
+    if is_preserved_local_email "$email"; then
+      continue
+    fi
     if ! grep -Fxq "$email" "$desired_path"; then
       encoded_email="$(printf '%s' "$email" | jq -sRr @uri)"
       status_code="$(curl -sS -X DELETE \
