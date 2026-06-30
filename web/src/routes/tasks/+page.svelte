@@ -317,20 +317,22 @@
 				</div>
 			</Card.Content>
 		</Card.Root>
-		<ListPaginationFooter
-			totalItems={totalTaskRunCount}
-			pageIndex={taskPageIndex}
-			pageSize={taskPageSize}
-			pageCount={taskPageCount}
-			canPreviousPage={taskPageIndex > 0 && !isLoading}
-			canNextPage={hasNextTaskPage && !isLoading}
-			previousPage={goToPreviousTaskPage}
-			nextPage={goToNextTaskPage}
-			summary={text.paginationSummary}
-			previousLabel={text.paginationPrevious}
-			nextLabel={text.paginationNext}
-			ariaLabel={text.paginationLabel}
-		/>
+		<div class="max-md:pb-[calc(5rem+env(safe-area-inset-bottom))]">
+			<ListPaginationFooter
+				totalItems={totalTaskRunCount}
+				pageIndex={taskPageIndex}
+				pageSize={taskPageSize}
+				pageCount={taskPageCount}
+				canPreviousPage={taskPageIndex > 0 && !isLoading}
+				canNextPage={hasNextTaskPage && !isLoading}
+				previousPage={goToPreviousTaskPage}
+				nextPage={goToNextTaskPage}
+				summary={text.paginationSummary}
+				previousLabel={text.paginationPrevious}
+				nextLabel={text.paginationNext}
+				ariaLabel={text.paginationLabel}
+			/>
+		</div>
 	{/if}
 </main>
 
