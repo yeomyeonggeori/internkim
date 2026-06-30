@@ -54,6 +54,30 @@ describe('team status day context', () => {
 		]);
 	});
 
+	test('uses exact calendar participant tokens before name fallback', () => {
+		const context = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수', mattermostUsername: 'kim' },
+			'2026-06-16',
+			[
+				calendarEvent('same-name-other-email', '동명이인 일정', '2026-06-16T01:00:00.000Z', '2026-06-16T02:00:00.000Z', [
+					{ personID: 'same-name', name: '김철수', email: 'same-name@example.com' }
+				]),
+				calendarEvent('email-matched', '이메일 매칭 일정', '2026-06-16T03:00:00.000Z', '2026-06-16T04:00:00.000Z', [
+					{ personID: 'other-id', name: '다른 표시명', email: 'kim@example.com' }
+				]),
+				calendarEvent('id-matched', 'ID 매칭 일정', '2026-06-16T05:00:00.000Z', '2026-06-16T06:00:00.000Z', [
+					{ personID: 'kim', name: '다른 표시명', email: 'other@example.com' }
+				])
+			],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+
+		expect(context.calendarEvents.map((event) => event.id)).toEqual(['email-matched', 'id-matched']);
+	});
+
 	test('hides timed events from the end date when the event ends at midnight', () => {
 		const event = calendarEvent('midnight-end', '자정 종료 일정', '2026-06-16T14:00:00.000Z', '2026-06-16T15:00:00.000Z', [
 			{ personID: 'kim', name: '김철수', email: 'kim@example.com' }

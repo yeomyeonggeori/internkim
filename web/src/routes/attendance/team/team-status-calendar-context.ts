@@ -53,16 +53,29 @@ function isAllParticipant(participant: CalendarParticipant): boolean {
 }
 
 function participantMatchesPerson(participant: CalendarParticipant, person: TeamStatusDayContextPerson): boolean {
-	const personTokens = personMatchTokens(person);
-	return participantTokens(participant).some((token) => personTokens.has(token));
+	const exactPersonTokens = exactPersonMatchTokens(person);
+	const exactParticipantTokens = exactParticipantMatchTokens(participant);
+	if (exactPersonTokens.size > 0 && exactParticipantTokens.length > 0) {
+		return exactParticipantTokens.some((token) => exactPersonTokens.has(token));
+	}
+	const nameToken = normalizeToken(participant.name);
+	return Boolean(nameToken) && fallbackPersonNameTokens(person).has(nameToken);
 }
 
 function participantTokens(participant: CalendarParticipant): string[] {
 	return [participant.personID, participant.name, participant.email ?? ''].map(normalizeToken).filter(Boolean);
 }
 
-function personMatchTokens(person: TeamStatusDayContextPerson): Set<string> {
-	return new Set([person.email, person.displayName, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
+function exactParticipantMatchTokens(participant: CalendarParticipant): string[] {
+	return [participant.personID, participant.email ?? ''].map(normalizeToken).filter(Boolean);
+}
+
+function exactPersonMatchTokens(person: TeamStatusDayContextPerson): Set<string> {
+	return new Set([person.email, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
+}
+
+function fallbackPersonNameTokens(person: TeamStatusDayContextPerson): Set<string> {
+	return new Set([person.displayName, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
 }
 
 function normalizeToken(value: string): string {
