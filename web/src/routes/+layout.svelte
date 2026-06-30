@@ -102,7 +102,7 @@
 						<LightSwitch variant="ghost" />
 					</div>
 				</header>
-				<div class="flex min-h-0 flex-1 overflow-y-auto max-md:pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
+				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-md:pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate returnPath={currentReturnPath()}>
 							{@render children()}
