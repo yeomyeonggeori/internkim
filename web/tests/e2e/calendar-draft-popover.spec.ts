@@ -67,6 +67,7 @@ test.describe('calendar draft popover', () => {
 		await picker.getByRole('button', { name: '저장하기' }).click();
 
 		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.17 14:50/ })).toBeVisible();
+		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.17 15:50/ })).toBeVisible();
 	});
 
 	test('posts the draft only after the popover is completed', async ({ page }) => {
