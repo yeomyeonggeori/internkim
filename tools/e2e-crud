@@ -62,7 +62,7 @@ CASES=(
 	"site-create|회사 소개 웹사이트 하나 만들어서 배포해줘|site.create|600"
 	"site-edit|방금 만든 웹사이트 제목을 환영합니다로 바꿔서 다시 배포해줘|site.publish|600"
 	"site-delete|방금 만든 웹사이트 삭제해줘|site.delete|260"
-	"dm-send|우경이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
+	"dm-send|길동이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
 )
 
 screenshot() { # case-name png-path
