@@ -1,4 +1,3 @@
-<!-- admin 사용자 디렉터리의 모바일 카드 행을 렌더링한다. -->
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
