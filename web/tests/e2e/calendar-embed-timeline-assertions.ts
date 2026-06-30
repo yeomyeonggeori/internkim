@@ -7,6 +7,7 @@ export {
 	expectDayTimelineRowsRightBorderHidden,
 	expectElementHeightAtLeast,
 	expectFirstVisibleTimeLabel,
+	expectRightPanelEventContentCentered,
 	expectRightPanelEventCardsShareBlockStyle,
 	expectTimelineEndsAt24,
 	expectTimelineEventLayeredBehindLanes,

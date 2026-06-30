@@ -23,6 +23,7 @@ export {
 	expectDayToolbarDividerUsesSingleBorder,
 	expectElementHeightAtLeast,
 	expectFirstVisibleTimeLabel,
+	expectRightPanelEventContentCentered,
 	expectRightPanelEventCardsShareBlockStyle,
 	expectTimelineEndsAt24,
 	expectTimelineEventLayeredBehindLanes,
