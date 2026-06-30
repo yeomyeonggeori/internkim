@@ -42,6 +42,11 @@ For numeric documents, compute totals from source numbers in code and assert the
 - Fonts must be local files at render time. Remote URLs are only useful for downloading a TTF into the task directory.
 - `references/google-fonts.txt` lists Latin, Korean, and CJK Google Fonts with TTF URLs.
 
+
+## Saving and managing the document
+
+Save the final PDF to `~/documents/<title>.pdf` so it persists across tasks; run `mkdir -p ~/documents` once before writing there. `~` is the requester personal workspace and resolves the same way in a tool path field and in a shell command. To edit or delete a document the user names in a later task, list `~/documents/` (`ls ~/documents`) to find the file, then edit it in place or remove it with `file.delete`.
+
 ## Helper Path
 
 For a standard short PDF, create a spec:

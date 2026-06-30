@@ -26,6 +26,11 @@ Bundled scripts are responsible for their own Python dependencies. Run them thro
 
 Treat the supplied data as the source of truth. Preserve source-provided company names, product names, people, dates, amounts, IDs, and units exactly unless the user asks for translation or normalization. Do not invent missing vendors, prices, tax details, contact details, discounts, totals, or external context. When the source names a project, client, event, campaign, workbook title, or reporting period, put that name in a visible worksheet cell, not only in the filename or final message. When a useful field is missing, write the user's-language equivalent of "Not provided" instead of filling a plausible value.
 
+
+## Saving and managing the document
+
+Save the final workbook to `~/documents/<title>.xlsx` so it persists across tasks; run `mkdir -p ~/documents` once before writing there. `~` is the requester personal workspace and resolves the same way in a tool path field and in a shell command. To edit or delete a document the user names in a later task, list `~/documents/` (`ls ~/documents`) to find the file, then edit it in place or remove it with `file.delete`.
+
 ## Helper Scripts
 
 For normal workbooks, create a spec file. Put the workbook or project title in `title`; the helper keeps it visible in the first sheet if the sheet spec does not already include it.
