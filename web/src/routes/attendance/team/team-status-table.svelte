@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
+	import type { FlowState } from '../../flow/flow-types';
 	import type { AttendanceText } from '../text';
 	import TeamStatusDateHeader from './team-status-date-header.svelte';
 	import TeamStatusDayCell from './team-status-day-cell.svelte';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
+	import { buildTeamStatusDayContext } from './team-status-day-context';
+	import { loadTeamStatusDayContextData } from './team-status-day-context-loader';
 	import TeamStatusDayDetailDialog from './team-status-day-detail-dialog.svelte';
 	import TeamStatusPersonHeader from './team-status-person-header.svelte';
 	import type { TeamStatusPersonDay, TeamStatusPersonRow } from './team-status-table-model';
@@ -21,8 +25,18 @@
 	let scrollContainer: HTMLDivElement | undefined = $state();
 	let scrollContainerWidth = $state(0);
 	let isDetailOpen = $state(false);
-	let selectedDetail = $state<TeamStatusDayDetail | null>(null);
+	let selectedDetailBase = $state<Omit<TeamStatusDayDetail, 'context'> | null>(null);
+	let calendarEvents = $state<CalendarEvent[]>([]);
+	let flowState = $state<FlowState | null>(null);
+	let isCalendarContextLoading = $state(false);
+	let isFlowContextLoading = $state(false);
+	let hasCalendarContextLoadFailed = $state(false);
+	let hasFlowContextLoadFailed = $state(false);
 	let lastScrollKey = $state('');
+	let lastContextLoadKey = $state('');
+	let lastContextLoadedAt = $state(0);
+	let activeContextLoadKey = $state('');
+	let contextRequestID = 0;
 
 	const minimumMobileEmployeeColumnWidth = 5;
 	const minimumEmployeeColumnWidth = 7;
@@ -31,6 +45,7 @@
 	const employeeColumnChromeWidth = 2;
 	const dayColumnWidth = 5.75;
 	const wideTableMinimumWidth = 640;
+	const contextReloadTTLMilliseconds = 30_000;
 	const minimumResponsiveEmployeeColumnWidth = $derived(
 		scrollContainerWidth >= wideTableMinimumWidth ? minimumEmployeeColumnWidth : minimumMobileEmployeeColumnWidth
 	);
@@ -41,6 +56,23 @@
 	const employeeColumnWidth = $derived(calculateEmployeeColumnWidth(rows, minimumResponsiveEmployeeColumnWidth, maximumResponsiveEmployeeColumnWidth));
 	const gridTemplateColumns = $derived(`${employeeColumnWidth}rem repeat(${statusDates.length}, minmax(${dayColumnWidth}rem, ${dayColumnWidth}rem))`);
 	const tableWidth = $derived(`${employeeColumnWidth + statusDates.length * dayColumnWidth}rem`);
+	const selectedDetail = $derived(selectedDetailBase ? {
+		...selectedDetailBase,
+		context: buildTeamStatusDayContext(
+			selectedDetailBase,
+			selectedDetailBase.day.date,
+			calendarEvents,
+			flowState,
+			text.dateLocale,
+			text.calendarAllDay,
+			{
+				isCalendarEventsLoading: isCalendarContextLoading,
+				isCompletedWorkLoading: isFlowContextLoading,
+				hasCalendarEventsLoadFailed: hasCalendarContextLoadFailed,
+				hasCompletedWorkLoadFailed: hasFlowContextLoadFailed
+			}
+		)
+	} : null);
 
 	$effect(() => {
 		if (!scrollContainer) return;
@@ -60,6 +92,13 @@
 		if (lastScrollKey === scrollKey) return;
 		lastScrollKey = scrollKey;
 		tick().then(() => scrollToDate(targetDate));
+	});
+
+	$effect(() => {
+		const firstDate = statusDates[0];
+		const lastDate = statusDates.at(-1);
+		if (!firstDate || !lastDate) return;
+		void loadDayContextData(firstDate, lastDate, { force: false });
 	});
 
 	function calculateEmployeeColumnWidth(employeeRows: TeamStatusPersonRow[], minimumWidth: number, maximumWidth: number): number {
@@ -83,12 +122,47 @@
 	}
 
 	function openDayDetail(row: TeamStatusPersonRow, day: TeamStatusPersonDay): void {
-		selectedDetail = {
+		selectedDetailBase = {
 			displayName: row.displayName,
 			email: row.email,
-			day,
+			mattermostUsername: row.mattermostUsername,
+			day
 		};
 		isDetailOpen = true;
+		const firstDate = statusDates[0];
+		const lastDate = statusDates.at(-1);
+		if (!firstDate || !lastDate) return;
+		void loadDayContextData(firstDate, lastDate, { force: true });
+	}
+
+	async function loadDayContextData(firstDate: string, lastDate: string, options: { force: boolean }): Promise<void> {
+		const loadKey = `${firstDate}:${lastDate}`;
+		if (activeContextLoadKey === loadKey) return;
+		const hasLoadedContext = lastContextLoadKey === loadKey;
+		const hasFreshSuccessfulContext = hasLoadedContext
+			&& !hasCalendarContextLoadFailed
+			&& !hasFlowContextLoadFailed
+			&& Date.now() - lastContextLoadedAt <= contextReloadTTLMilliseconds;
+		if (hasFreshSuccessfulContext) return;
+		if (!options.force && hasLoadedContext) return;
+		activeContextLoadKey = loadKey;
+		const requestID = contextRequestID + 1;
+		contextRequestID = requestID;
+		isCalendarContextLoading = true;
+		isFlowContextLoading = true;
+		hasCalendarContextLoadFailed = false;
+		hasFlowContextLoadFailed = false;
+		const contextData = await loadTeamStatusDayContextData(firstDate, lastDate, text.loadFailed);
+		if (requestID !== contextRequestID) return;
+		calendarEvents = contextData.calendarEvents;
+		flowState = contextData.flowState;
+		hasCalendarContextLoadFailed = contextData.hasCalendarEventsLoadFailed;
+		hasFlowContextLoadFailed = contextData.hasCompletedWorkLoadFailed;
+		isCalendarContextLoading = false;
+		isFlowContextLoading = false;
+		lastContextLoadKey = loadKey;
+		lastContextLoadedAt = contextData.hasCalendarEventsLoadFailed || contextData.hasCompletedWorkLoadFailed ? 0 : Date.now();
+		activeContextLoadKey = '';
 	}
 
 	function scrollToDate(date: string): void {
