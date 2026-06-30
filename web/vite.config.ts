@@ -3,18 +3,22 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devAdminOrgchartMockPlugin } from './dev-admin-orgchart-mock-plugin';
+import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
 
-const admindTarget = 'http://127.0.0.1:18080';
-
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
+	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	return {
 		plugins: [
+			devAdminUsersMockPlugin({
+				isEnabled: env.VITE_MOCK_ADMIN === '1',
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+			}),
 			devAdminOrgchartMockPlugin({
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'

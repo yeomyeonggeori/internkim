@@ -47,6 +47,10 @@ function normalizeISODate(value: unknown): string {
 	return parsed.toISOString().slice(0, 10) === date ? date : '';
 }
 
+function normalizeNote(value: unknown): string {
+	return typeof value === 'string' ? value.trim() : '';
+}
+
 function normalizeUserRecord(value: unknown): UserRecord | null {
 	if (typeof value === 'string') {
 		const email = normalizeEmail(value);
@@ -67,12 +71,14 @@ function normalizeUserRecord(value: unknown): UserRecord | null {
 	const handle = normalizeHandle(record.handle ?? record.mattermostUsername ?? normalizeHandleFromEmail(email));
 	const name = typeof record.name === 'string' ? record.name.trim() : '';
 	const hireDate = normalizeISODate(record.hireDate);
+	const note = normalizeNote(record.note);
 	return {
 		userID: typeof record.userID === 'string' && record.userID.trim() ? record.userID.trim() : stableUserID(email),
 		handle: handle || normalizeHandleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
 		...(hireDate ? { hireDate } : {}),
+		...(note ? { note } : {}),
 		role: normalizeRole(record.role),
 		mattermostUserID: record.mattermostUserID,
 		mattermostUsername: record.mattermostUsername,
