@@ -10,6 +10,7 @@
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
+	import { dateKeyFromWeekHeaderTarget } from './calendar-month-selection';
 	import CalendarMonthScrollOverlay from './calendar-month-scroll-overlay.svelte';
 	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
 	import {
@@ -105,12 +106,25 @@
 		navigateToDateKey(calendarMobileTwoDayWeekDateKeyForColumn(toolbarDate, columnIndex));
 	}
 
+	function handleWeekHeaderDateClick(event: MouseEvent): void {
+		if (toolbarView !== ViewType.WEEK || isMobileTwoDayWeekView || !stageElement) return;
+		if (!(event.target instanceof Element)) return;
+		const dateKey = dateKeyFromWeekHeaderTarget(stageElement, event.target, toolbarDate);
+		if (!dateKey) return;
+		navigateToDateKey(dateKey);
+	}
+
+	function handleStageDateClick(event: MouseEvent): void {
+		handleMobileTwoDayWeekDateClick(event);
+		handleWeekHeaderDateClick(event);
+	}
+
 	$effect(() => {
 		const currentStageElement = stageElement;
 		if (!currentStageElement) return;
-		currentStageElement.addEventListener('click', handleMobileTwoDayWeekDateClick, true);
+		currentStageElement.addEventListener('click', handleStageDateClick, true);
 		return () => {
-			currentStageElement.removeEventListener('click', handleMobileTwoDayWeekDateClick, true);
+			currentStageElement.removeEventListener('click', handleStageDateClick, true);
 		};
 	});
 

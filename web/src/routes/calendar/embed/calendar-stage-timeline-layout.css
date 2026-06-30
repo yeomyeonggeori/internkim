@@ -215,6 +215,7 @@
 
 	.calendar-stage.calendar-stage-week .df-week-header > .df-week-day-cell {
 		border-right: 1px solid var(--calendar-grid-line) !important;
+		cursor: pointer;
 	}
 
 	.calendar-stage.calendar-stage-week .df-week-all-day-cell,

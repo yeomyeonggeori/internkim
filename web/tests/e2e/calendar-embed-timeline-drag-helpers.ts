@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '일' | '주'): Promise<void> {
-	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
+	await expect(page.locator('header .calendar-toolbar-title')).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
 	await resetTimelineScrollerTop(page, viewLabel);
 	await page.evaluate(({ selector, view }) => {
@@ -33,7 +33,7 @@ export async function createTimelineRangeByDrag(page: Page, viewLabel: '일' | '
 }
 
 export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주'): Promise<void> {
-	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
+	await expect(page.locator('header .calendar-toolbar-title')).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
 	await resetTimelineScrollerTop(page, viewLabel);
 	await page.evaluate(({ selector, columnIndex, view }) => {
@@ -90,7 +90,7 @@ export async function startTimelineRangeDrag(page: Page, viewLabel: '일' | '주
 }
 
 export async function startDayTimelineRangeDragAtHour(page: Page, startHour: number, durationHours: number): Promise<void> {
-	await expect(page.locator('header').getByRole('button', { name: '오늘' })).toBeVisible();
+	await expect(page.locator('header .calendar-toolbar-title')).toBeVisible();
 	await page.waitForSelector('.df-day-content-grid-column', { state: 'attached' });
 	await resetTimelineScrollerTop(page, '일');
 	await page.evaluate(

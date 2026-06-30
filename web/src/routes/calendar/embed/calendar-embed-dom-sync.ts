@@ -29,8 +29,13 @@ export function scheduleDayFlowMiniCalendarEnhancement(context: DayFlowMiniCalen
 	dayFlowMiniCalendarScheduler(() => enhanceDayFlowMiniCalendar(context));
 }
 
-export function scheduleCalendarAllDayLayoutSync(stageElement: HTMLElement | null, currentView: CalendarViewType): void {
-	allDayLayoutScheduler(() => syncCalendarAllDayLayout(stageElement, currentView));
+export function scheduleCalendarAllDayLayoutSync(
+	stageElement: HTMLElement | null,
+	currentView: CalendarViewType,
+	currentDate: Date,
+	events: () => DayFlowEvent[]
+): void {
+	allDayLayoutScheduler(() => syncCalendarAllDayLayout(stageElement, currentView, currentDate, events()));
 }
 
 export function scheduleCalendarMultiDayProxyLayoutSync(
