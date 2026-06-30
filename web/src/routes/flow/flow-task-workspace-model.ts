@@ -1,4 +1,3 @@
-// Flow 업무 작업공간의 필터, 사업값, 권한 규칙을 계산한다.
 import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
 
 export const EMPTY_FLOW_BUSINESS_VALUE = '__empty_flow_business__';

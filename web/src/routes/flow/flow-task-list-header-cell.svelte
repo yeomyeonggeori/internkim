@@ -1,4 +1,3 @@
-<!-- 업무 목록 테이블의 정렬 가능한 헤더 셀을 렌더링한다. -->
 <script lang="ts">
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';

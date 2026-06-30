@@ -1,4 +1,3 @@
-// AI 업무 추가 패널의 위치와 전환 클래스를 제공한다.
 const launcherAnchorClass = 'fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc((100vw-30rem)/2))] md:bottom-6 md:right-6';
 const launcherTransitionClass = 'transition-all duration-[400ms]';
 const launcherContentBaseClass = [

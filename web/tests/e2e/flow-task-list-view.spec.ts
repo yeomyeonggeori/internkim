@@ -1,4 +1,3 @@
-// 업무 목록 탭의 상호작용 회귀를 검증한다.
 import { expect, test } from '@playwright/test';
 import { openFlowBoard, visibleBoundingBox } from './flow-task-helpers';
 

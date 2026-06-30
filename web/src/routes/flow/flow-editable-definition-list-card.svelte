@@ -1,4 +1,3 @@
-<!-- 업무 정의의 사업과 종류 편집 목록 카드를 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';

@@ -1,4 +1,3 @@
-// 업무 화면의 선택 옵션과 상태 라벨을 만든다.
 import { buildBusinessSelectOptions } from './flow-task-workspace-model';
 import { flowText } from './text';
 import type { FlowDefinitions, FlowMember, FlowSummary } from './flow-types';

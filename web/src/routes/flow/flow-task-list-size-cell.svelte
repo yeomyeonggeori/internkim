@@ -1,4 +1,3 @@
-<!-- 업무 목록 테이블의 크기 배지 셀을 렌더링한다. -->
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { sizeBadgeClass } from './flow-style';
