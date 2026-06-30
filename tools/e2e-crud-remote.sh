@@ -130,14 +130,14 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		[ -n "$task_run_id" ] || { sleep 1; continue; }
 		status="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id" | jq -r '.taskRun.status')"
 		case "$status" in
-			running) sleep 1 ;;
+			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
 			waiting_user_input|waiting_approval|blocked)
 				if [ "$confirmed" = 0 ]; then
 					mm POST "/api/v4/posts" "$e2e_token" "$(jq -cn --arg channel_id "$channel_id" --arg root_id "$root_post_id" --arg message "응 확인했어, 진행해줘" '{channel_id:$channel_id,root_id:$root_id,message:$message}')" >/dev/null
 					confirmed=1
 				fi
 				sleep 2 ;;
-			*) break ;;
+			*) sleep 1 ;;
 		esac
 	done
 	detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
