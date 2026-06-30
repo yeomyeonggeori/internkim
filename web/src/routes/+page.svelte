@@ -24,7 +24,18 @@
 
 	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
+	const isMockAdminAPI = import.meta.env.VITE_MOCK_ADMIN === '1';
 	const text = createPageText(adminText);
+	const adminSectionConfigurations: { value: AdminSection; isDeviceManagedOnly: boolean }[] = [
+		{ value: 'device', isDeviceManagedOnly: true },
+		{ value: 'users', isDeviceManagedOnly: false },
+		{ value: 'orgchart', isDeviceManagedOnly: false },
+		{ value: 'credentials', isDeviceManagedOnly: false },
+		{ value: 'backup', isDeviceManagedOnly: false },
+		{ value: 'bot', isDeviceManagedOnly: false },
+		{ value: 'settings', isDeviceManagedOnly: false },
+		{ value: 'network', isDeviceManagedOnly: true }
+	];
 
 	let fleetIdInput = $state('');
 	let adminSession = $state<AdminSession | null>(null);
@@ -47,44 +58,45 @@
 
 	function adminBaseURL() {
 		const currentFleetID = fleetID();
-		if (fleetIDFromHost()) return '/admin/api';
+		if (fleetIDFromHost() || isMockAdminAPI) return '/admin/api';
 		return currentFleetID ? `https://${currentFleetID}.example.test/admin/api` : '';
 	}
 
 	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
 
 	function adminSections(): { value: AdminSection; label: string }[] {
-		const sections: { value: AdminSection; label: string }[] = [
-			{ value: 'users', label: text.sections.users },
-			{ value: 'orgchart', label: text.sections.orgchart },
-			{ value: 'credentials', label: text.sections.credentials },
-			{ value: 'backup', label: text.sections.backup },
-			{ value: 'bot', label: text.sections.bot },
-			{ value: 'settings', label: text.sections.settings }
-		];
-		if (showDeviceSection) {
-			sections.unshift({ value: 'device', label: text.sections.device });
-			sections.push({ value: 'network', label: text.sections.network });
-		}
-		return sections;
+		return adminSectionConfigurations
+			.filter((section) => showDeviceSection || !section.isDeviceManagedOnly)
+			.map((section) => ({ value: section.value, label: text.sections[section.value] }));
 	}
 
 	$effect(() => {
-		if (!showDeviceSection && activeAdminSection === 'device') {
+		if (!isVisibleAdminSection(activeAdminSection)) {
 			activeAdminSection = 'users';
 		}
 	});
 
 	onMount(() => {
-		const queryFleetID = new URLSearchParams(location.search).get('fleet_id')?.trim().toLowerCase() ?? '';
+		const urlParams = new URLSearchParams(location.search);
+		const queryFleetID = urlParams.get('fleet_id')?.trim().toLowerCase() ?? '';
+		const querySection = urlParams.get('section')?.trim() ?? '';
 		if (queryFleetID && !fleetIDFromHost() && !isLocalBrowserHost()) {
 			location.replace(`https://${queryFleetID}.example.test/admin/`);
 			return;
 		}
+		if (isAdminSection(querySection)) activeAdminSection = querySection;
 		fleetIdInput = queryFleetID || fleetIDFromHost() || localStorage.getItem(storedFleetIdKey) || '';
 		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadAdminSession();
 	});
+
+	function isAdminSection(section: string): section is AdminSection {
+		return adminSectionConfigurations.some((adminSection) => adminSection.value === section);
+	}
+
+	function isVisibleAdminSection(section: AdminSection) {
+		return adminSections().some((adminSection) => adminSection.value === section);
+	}
 
 	function activateAdminSection(section: AdminSection) {
 		activeAdminSection = section;
