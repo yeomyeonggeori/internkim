@@ -1,12 +1,8 @@
 // 출결 팀 상세 팝업의 개인별 캘린더 일정 매칭을 담당한다.
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import { calendarParticipantsFromUnknown, type CalendarParticipant } from '../../calendar/embed/calendar-participants';
-import { addDays, todayDateInTimeZone, utcDateKey } from '../shared/attendance-date';
+import { addDays, timeInTimeZone, todayDateInTimeZone, utcDateKey } from '../shared/attendance-date';
 import type { TeamStatusCalendarEventDetail, TeamStatusDayContextPerson } from './team-status-day-context';
-
-type LegacyCalendarEvent = CalendarEvent & {
-	people?: unknown;
-};
 
 export function calendarEventDetailsForPersonDay(
 	person: TeamStatusDayContextPerson,
@@ -33,11 +29,15 @@ function isCalendarEventVisibleForPersonDay(
 }
 
 function eventParticipants(event: CalendarEvent): CalendarParticipant[] {
-	const legacyEvent = event as LegacyCalendarEvent;
 	return calendarParticipantsFromUnknown([
 		...(event.participants ?? []),
-		...legacyParticipantsFromUnknown(legacyEvent.people)
+		...legacyParticipantsFromUnknown(legacyPeopleFromEvent(event))
 	]);
+}
+
+function legacyPeopleFromEvent(event: CalendarEvent): unknown {
+	if (!('people' in event)) return undefined;
+	return event.people;
 }
 
 function legacyParticipantsFromUnknown(value: unknown): CalendarParticipant[] {
@@ -73,8 +73,16 @@ function isCalendarEventOnDate(event: CalendarEvent, date: string): boolean {
 	const startDate = eventDateKey(event, event.startISO);
 	const rawEndDate = eventDateKey(event, event.endISO);
 	if (!startDate || !rawEndDate) return false;
-	const endDate = event.isAllDay ? addDays(rawEndDate, -1) : rawEndDate;
+	const endDate = isExclusiveEndDate(event) ? addDays(rawEndDate, -1) : rawEndDate;
 	return date >= startDate && date <= endDate;
+}
+
+function isExclusiveEndDate(event: CalendarEvent): boolean {
+	if (event.isAllDay) return true;
+	const endDate = new Date(event.endISO);
+	if (Number.isNaN(endDate.getTime())) return false;
+	const endTime = timeInTimeZone(event.timeZone, endDate);
+	return endTime === '00:00' || endTime === '24:00';
 }
 
 function eventDateKey(event: CalendarEvent, isoDate: string): string {

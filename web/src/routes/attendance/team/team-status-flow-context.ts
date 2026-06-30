@@ -26,14 +26,22 @@ function isCompletedFlowTaskForPersonDay(
 }
 
 function flowTaskMatchesPerson(task: FlowTask, person: TeamStatusDayContextPerson, flowState: FlowState): boolean {
+	const emailMemberIDs = flowState.members
+		.filter((member) => normalizeToken(member.email) === normalizeToken(person.email))
+		.map((member) => member.id);
+	if (emailMemberIDs.length > 0) return flowTaskMatchesMemberIDs(task, emailMemberIDs);
 	const memberIDs = flowState.members
-		.filter((member) => normalizeToken(member.email) === normalizeToken(person.email) || normalizeToken(member.name) === normalizeToken(person.displayName))
+		.filter((member) => normalizeToken(member.name) === normalizeToken(person.displayName))
 		.map((member) => member.id);
 	const personTokens = personMatchTokens(person);
-	if (memberIDs.includes(task.ownerID)) return true;
+	if (flowTaskMatchesMemberIDs(task, memberIDs)) return true;
 	if (personTokens.has(normalizeToken(task.ownerName))) return true;
-	if (task.participantIDs.some((participantID) => memberIDs.includes(participantID))) return true;
 	return task.participantNames.some((name) => personTokens.has(normalizeToken(name)));
+}
+
+function flowTaskMatchesMemberIDs(task: FlowTask, memberIDs: string[]): boolean {
+	if (memberIDs.includes(task.ownerID)) return true;
+	return task.participantIDs.some((participantID) => memberIDs.includes(participantID));
 }
 
 function personMatchTokens(person: TeamStatusDayContextPerson): Set<string> {
