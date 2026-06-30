@@ -14,9 +14,9 @@
 </script>
 
 <div class="grid gap-4" data-testid="team-status-day-detail-content">
-	{#if detail.day.absenceDetail}
-		<div class="grid gap-2">
-			<div class="text-sm font-semibold">{text.absenceDetails}</div>
+	<div class="grid gap-2">
+		<div class="text-sm font-semibold">{text.workRecords}</div>
+		{#if detail.day.absenceDetail}
 			<div class={`rounded-md border px-3 py-2 ${absenceDisplayClass(detail.day.absenceTone ?? 'leave')}`}>
 				<div class="flex items-center justify-between gap-3">
 					<div class="min-w-0 truncate text-sm font-medium">{detail.day.absenceDetail.label}</div>
@@ -31,11 +31,9 @@
 					</div>
 				{/if}
 			</div>
-		</div>
-	{:else if detail.day.segments.length}
-		<div class="grid gap-2">
+		{:else if detail.day.segments.length}
 			<div class="flex items-center justify-between gap-3">
-				<div class="text-sm font-semibold">{text.workSegments}</div>
+				<div class="text-xs font-medium text-muted-foreground">{text.workSegments}</div>
 				{#if totalDurationLabel}
 					<div class="shrink-0 text-sm font-semibold text-muted-foreground">{totalDurationLabel}</div>
 				{/if}
@@ -61,13 +59,68 @@
 					{/if}
 				</div>
 			{/each}
-		</div>
-	{:else}
-		<div class="grid gap-2">
-			<div class="text-sm font-semibold">{text.workSegments}</div>
+		{:else}
 			<div class="rounded-md border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
 				{text.eventNone}
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
+
+	<div class="grid gap-2">
+		<div class="text-sm font-semibold">{text.calendarEvents}</div>
+		{#if detail.context.isCalendarEventsLoading}
+			<div class="rounded-md border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground">
+				{text.loading}
+			</div>
+		{:else if detail.context.hasCalendarEventsLoadFailed}
+			<div class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-4 text-center text-sm text-destructive">
+				{text.calendarEventsLoadFailed}
+			</div>
+		{:else if detail.context.calendarEvents.length}
+			{#each detail.context.calendarEvents as event (event.id)}
+				<div class="rounded-md border px-3 py-2" data-testid="team-status-calendar-event">
+					<div class="flex min-w-0 items-center justify-between gap-3">
+						<div class="min-w-0 truncate text-sm font-medium">{event.title}</div>
+						<div class="shrink-0 text-xs tabular-nums text-muted-foreground">{event.timeLabel}</div>
+					</div>
+					{#if event.location}
+						<div class="mt-0.5 truncate text-xs text-muted-foreground">{event.location}</div>
+					{/if}
+				</div>
+			{/each}
+		{:else}
+			<div class="rounded-md border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground">
+				{text.noCalendarEvents}
+			</div>
+		{/if}
+	</div>
+
+	<div class="grid gap-2">
+		<div class="text-sm font-semibold">{text.completedWork}</div>
+		{#if detail.context.isCompletedWorkLoading}
+			<div class="rounded-md border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground">
+				{text.loading}
+			</div>
+		{:else if detail.context.hasCompletedWorkLoadFailed}
+			<div class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-4 text-center text-sm text-destructive">
+				{text.completedWorkLoadFailed}
+			</div>
+		{:else if detail.context.completedTasks.length}
+			{#each detail.context.completedTasks as task (task.id)}
+				<div class="rounded-md border px-3 py-2" data-testid="team-status-completed-task">
+					<div class="min-w-0 truncate text-sm font-medium">{task.title}</div>
+					<div class="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+						<span class="shrink-0">{task.ownerName}</span>
+						{#if task.collaboratorNames.length}
+							<span class="min-w-0 truncate">{task.collaboratorNames.join(', ')}</span>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		{:else}
+			<div class="rounded-md border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground">
+				{text.noCompletedWork}
+			</div>
+		{/if}
+	</div>
 </div>
