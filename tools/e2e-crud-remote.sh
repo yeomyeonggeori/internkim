@@ -82,7 +82,8 @@ setup() {
 	e2e_token="$(curl -s -i -d "$(jq -cn --arg login_id "$E2E_USERNAME" --arg password "$E2E_PASSWORD" '{login_id:$login_id,password:$password}')" \
 		"$MATTERMOST/api/v4/users/login" | awk '/^[Tt]oken:/{print $2}' | tr -d '\r')"
 	jq -cn --arg channel_id "$channel_id" --arg e2e_token "$e2e_token" --arg channel_name "$E2E_CHANNEL_NAME" \
-		'{channelID:$channel_id,e2eToken:$e2e_token,channelName:$channel_name}'
+		--arg e2e_username "$E2E_USERNAME" --arg e2e_password "$E2E_PASSWORD" \
+		'{channelID:$channel_id,e2eToken:$e2e_token,channelName:$channel_name,e2eUsername:$e2e_username,e2ePassword:$e2e_password}'
 }
 
 run_case() { # channel_id e2e_token prompt expected_op timeout
