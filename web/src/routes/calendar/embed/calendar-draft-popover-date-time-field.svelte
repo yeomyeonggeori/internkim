@@ -8,7 +8,11 @@
 		type DraftDateTimePickerKind,
 		type DraftDateTimePickerValue
 	} from './calendar-draft-date-time-format';
-	import { draftPopoverAllDayChanges, type DraftPopoverState } from './calendar-draft-popover-state';
+	import {
+		draftPopoverAllDayChanges,
+		draftPopoverStartDateTimeChanges,
+		type DraftPopoverState
+	} from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
 	import './calendar-draft-popover-date-time-field.css';
 
@@ -50,7 +54,7 @@
 
 	function saveDateTimePicker(value: DraftDateTimePickerValue): void {
 		if (activeDateTimePicker === 'start') {
-			updatePopover({ dateKey: value.dateKey, startTime: value.time });
+			updatePopover(draftPopoverStartDateTimeChanges(popover, value.dateKey, value.time));
 			activeDateTimePicker = null;
 			return;
 		}

@@ -1,7 +1,10 @@
 import { createEvent } from '@dayflow/core';
 import { expect, test } from 'bun:test';
 
-import { calendarMobileEditorUpdatedEvent } from '../../../src/routes/calendar/embed/calendar-mobile-event-editor-state';
+import {
+	calendarMobileEditorStartDateTimeChanges,
+	calendarMobileEditorUpdatedEvent
+} from '../../../src/routes/calendar/embed/calendar-mobile-event-editor-state';
 
 test('keeps edited mobile participants in event metadata', () => {
 	const draftEvent = createEvent({
@@ -46,4 +49,25 @@ test('keeps edited mobile participants in event metadata', () => {
 			image: '/calendar/api/participants/person-gamyeong/image'
 		}
 	]);
+});
+
+test('keeps the existing duration when a mobile editor start moves after the current end', () => {
+	const changes = calendarMobileEditorStartDateTimeChanges(
+		{
+			startDateKey: '2026-06-18',
+			endDateKey: '2026-06-18',
+			startTime: '10:00',
+			endTime: '12:00',
+			allDay: false
+		},
+		{ startTime: '14:00' }
+	);
+
+	expect(changes).toEqual({
+		startDateKey: '2026-06-18',
+		endDateKey: '2026-06-18',
+		startTime: '14:00',
+		endTime: '16:00',
+		allDay: false
+	});
 });

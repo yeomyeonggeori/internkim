@@ -1,5 +1,6 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { temporalToDate } from '@dayflow/core';
+import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 import {
 	draftPopoverPositionFromAnchor,
 	type DraftPopoverAnchor,
@@ -47,6 +48,8 @@ export type DraftPopoverEventChanges = {
 	meta: Record<string, unknown>;
 };
 
+type DraftPopoverDateTimeState = Pick<DraftPopoverState, 'dateKey' | 'endDateKey' | 'startTime' | 'endTime' | 'allDay'>;
+
 const defaultTimedStartTime = '09:00';
 const defaultTimedEndTime = '10:00';
 
@@ -82,6 +85,32 @@ export function draftPopoverAllDayChanges(popover: DraftPopoverState, allDay: bo
 		allDay,
 		startTime: defaultTimedStartTime,
 		endTime: defaultTimedEndTime
+	};
+}
+
+export function draftPopoverStartDateTimeChanges(
+	popover: DraftPopoverDateTimeState,
+	nextDateKey: string,
+	nextStartTime: string
+): Partial<DraftPopoverState> {
+	const changes = calendarDateTimeRangeChangesForStart(
+		{
+			startDateKey: popover.dateKey,
+			endDateKey: popover.endDateKey,
+			startTime: popover.startTime,
+			endTime: popover.endTime,
+			allDay: popover.allDay
+		},
+		{
+			startDateKey: nextDateKey,
+			startTime: nextStartTime
+		}
+	);
+	return {
+		dateKey: changes.startDateKey,
+		startTime: changes.startTime,
+		endDateKey: changes.endDateKey,
+		endTime: changes.endTime
 	};
 }
 
