@@ -1,5 +1,6 @@
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
 import { expect, test } from './attendance-page-test-fixture';
+import { calendarEvent, flowStateFixture, flowTask, routePersonalDayContext } from './attendance-team-status-fixtures';
 import { buildWideTooltipSummary, selectKorean, todayDateInSeoul } from './attendance-test-helpers';
 
 test.describe('attendance team status', () => {
@@ -96,16 +97,103 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('12:45~')).toBeVisible();
 	});
 
+	test('shows personal calendar events and completed work in status day details', async ({ page }) => {
+		const targetDate = '2026-06-16';
+		const summary = buildAttendanceSummaryFixture('2026-06');
+		let calendarRequests = 0;
+		let flowRequests = 0;
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: summary });
+		});
+		await page.unroute('**/calendar/api/events?**');
+		await page.route('**/calendar/api/events?**', async (route) => {
+			calendarRequests += 1;
+			await route.fulfill({
+				json: {
+					events: [
+						calendarEvent('personal-calendar-event', '개인 캘린더 일정', targetDate, [
+							{ personID: 'kim', name: '김철수', email: 'kim@example.com' }
+						]),
+						calendarEvent('all-calendar-event', '전체 캘린더 일정', targetDate, [
+							{ personID: 'all', name: '전체' }
+						]),
+						calendarEvent('other-calendar-event', '다른 사람 일정', targetDate, [
+							{ personID: 'park', name: '박지민', email: 'park@example.com' }
+						])
+					]
+				}
+			});
+		});
+		await page.unroute('**/flow/api/state');
+		await page.route('**/flow/api/state', async (route) => {
+			flowRequests += 1;
+			await route.fulfill({
+				json: flowStateFixture([
+					flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', ['kim', 'park']),
+					flowTask('planned-personal-task', '아직 예정 업무', '예정', targetDate, 'kim', ['kim']),
+					flowTask('other-person-task', '다른 사람 완료 업무', '완료', targetDate, 'park', ['park'])
+				])
+			});
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${targetDate}`).click();
+
+		const dialog = page.getByTestId('team-status-day-detail-dialog');
+		await expect(dialog.getByText('근무 기록', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('캘린더 일정', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('완료된 업무', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('개인 캘린더 일정')).toBeVisible();
+		await expect(dialog.getByText('전체 캘린더 일정')).toHaveCount(0);
+		await expect(dialog.getByText('다른 사람 일정')).toHaveCount(0);
+		await expect(dialog.getByText('월간 현황 팝업 구현')).toBeVisible();
+		await expect(dialog.getByText('박지민')).toBeVisible();
+		await expect(dialog.getByText('아직 예정 업무')).toHaveCount(0);
+		await expect(dialog.getByText('다른 사람 완료 업무')).toHaveCount(0);
+		expect(calendarRequests).toBe(1);
+		expect(flowRequests).toBe(1);
+	});
+
+	test('shows context load failures instead of empty states', async ({ page }) => {
+		const targetDate = '2026-06-16';
+		const summary = buildAttendanceSummaryFixture('2026-06');
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: summary });
+		});
+		await page.unroute('**/calendar/api/events?**');
+		await page.route('**/calendar/api/events?**', async (route) => {
+			await route.fulfill({ status: 500, body: 'calendar failed' });
+		});
+		await page.unroute('**/flow/api/state');
+		await page.route('**/flow/api/state', async (route) => {
+			await route.fulfill({ status: 500, body: 'flow failed' });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${targetDate}`).click();
+
+		const dialog = page.getByTestId('team-status-day-detail-dialog');
+		await expect(dialog.getByText('일정을 불러오지 못했습니다.')).toBeVisible();
+		await expect(dialog.getByText('완료된 업무를 불러오지 못했습니다.')).toBeVisible();
+		await expect(dialog.getByText('해당 일정 없음')).toHaveCount(0);
+		await expect(dialog.getByText('완료된 업무 없음')).toHaveCount(0);
+	});
+
 	test('opens mobile status day details in a read-only bottom sheet', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
+		const todayDate = todayDateInSeoul();
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
-			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
+			const month = requestURL.searchParams.get('month') ?? todayDate.slice(0, 7);
 			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
 		});
+		await routePersonalDayContext(page, todayDate);
 
-		const todayDate = todayDateInSeoul();
 		await page.goto('/attendance');
 		await selectKorean(page);
 		await page.getByRole('tab', { name: '팀 현황' }).click();
@@ -122,6 +210,8 @@ test.describe('attendance team status', () => {
 		await expect(sheet.getByText('08:30-10:20')).toBeVisible();
 		await expect(sheet.getByText('10:45-12:20')).toBeVisible();
 		await expect(sheet.getByText('12:45~')).toBeVisible();
+		await expect(sheet.getByText('개인 캘린더 일정')).toBeVisible();
+		await expect(sheet.getByText('월간 현황 팝업 구현')).toBeVisible();
 		await expect(sheet.getByRole('button', { name: '수정' })).toHaveCount(0);
 		await expect(sheet.getByRole('button', { name: '취소' })).toHaveCount(0);
 		await expect(page.getByTestId('team-status-day-detail-dialog')).toHaveCount(0);
