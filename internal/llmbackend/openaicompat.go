@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type openAICompatClient struct {
@@ -144,41 +145,84 @@ func (client openAICompatClient) chatCompletion(ctx context.Context, request Cha
 	return chatResponseFromOpenAI(client.providerName(), modelName, response), nil
 }
 
+const openAIMaxRetryAttempts = 5
+
 func (client openAICompatClient) chatCompletionResponse(ctx context.Context, request openAIRequest) (openAIResponseWithUsage, error) {
 	requestDocument, errorValue := json.Marshal(request)
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, errorValue
 	}
-
 	endpoint := strings.TrimRight(client.BaseURL, "/") + "/v1/chat/completions"
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDocument))
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
 
-	httpResponse, errorValue := client.client().Do(httpRequest)
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
-	}
-	defer httpResponse.Body.Close()
+	var lastError error
+	for attempt := 0; attempt < openAIMaxRetryAttempts; attempt++ {
+		if attempt > 0 {
+			if errorValue := sleepWithContext(ctx, openAIRetryBackoff(attempt)); errorValue != nil {
+				return openAIResponseWithUsage{}, errorValue
+			}
+		}
 
-	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errors.New("read response: " + errorValue.Error())
-	}
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return openAIResponseWithUsage{}, openAIErrorWithNativeSchemaLint(client.providerName(), httpResponse.StatusCode, responseDocument, request.NativeToolSchemaLint)
-	}
+		httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDocument))
+		if errorValue != nil {
+			return openAIResponseWithUsage{}, errorValue
+		}
+		httpRequest.Header.Set("Content-Type", "application/json")
 
-	var response openAIResponseWithUsage
-	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
+		httpResponse, errorValue := client.client().Do(httpRequest)
+		if errorValue != nil {
+			lastError = errorValue
+			continue
+		}
+		responseDocument, readError := io.ReadAll(httpResponse.Body)
+		httpResponse.Body.Close()
+		if readError != nil {
+			lastError = errors.New("read response: " + readError.Error())
+			continue
+		}
+
+		if httpResponse.StatusCode >= http.StatusBadRequest {
+			responseError := openAIErrorWithNativeSchemaLint(client.providerName(), httpResponse.StatusCode, responseDocument, request.NativeToolSchemaLint)
+			if isRetryableUpstreamStatus(httpResponse.StatusCode) {
+				lastError = responseError
+				continue
+			}
+			return openAIResponseWithUsage{}, responseError
+		}
+
+		var response openAIResponseWithUsage
+		if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
+			return openAIResponseWithUsage{}, errorValue
+		}
+		if len(response.Choices) == 0 {
+			return openAIResponseWithUsage{}, errors.New("response did not include choices")
+		}
+		return response, nil
 	}
-	if len(response.Choices) == 0 {
-		return openAIResponseWithUsage{}, errors.New("response did not include choices")
+	return openAIResponseWithUsage{}, lastError
+}
+
+func isRetryableUpstreamStatus(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests || statusCode == http.StatusBadGateway ||
+		statusCode == http.StatusServiceUnavailable || statusCode == http.StatusGatewayTimeout
+}
+
+func openAIRetryBackoff(attempt int) time.Duration {
+	backoff := time.Duration(1<<uint(attempt-1)) * time.Second
+	if backoff > 16*time.Second {
+		backoff = 16 * time.Second
 	}
-	return response, nil
+	return backoff
+}
+
+func sleepWithContext(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (client openAICompatClient) pingPath(ctx context.Context, path string) error {
