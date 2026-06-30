@@ -58,12 +58,12 @@ mm() { # method path token [body]
 
 user_id_by_name() { mm GET "/api/v4/users/username/$1" "$2" | jq -r '.id'; }
 
-ensure_user() { # email username token [first_name] -> user_id
-	local email="$1" username="$2" token="$3" first_name="${4:-}" existing
+ensure_user() { # email username token [first_name] [last_name] [nickname] -> user_id
+	local email="$1" username="$2" token="$3" first_name="${4:-}" last_name="${5:-}" nickname="${6:-${4:-}}" existing
 	existing="$(mm GET "/api/v4/users/username/$username" "$token" | jq -r 'if .status_code then empty else .id end')"
 	if [ -n "$existing" ]; then echo "$existing"; return; fi
 	mm POST "/api/v4/users" "$token" \
-		"$(jq -cn --arg email "$email" --arg username "$username" --arg password "$E2E_PASSWORD" --arg first "$first_name" '{email:$email,username:$username,password:$password,first_name:$first,nickname:$first}')" \
+		"$(jq -cn --arg email "$email" --arg username "$username" --arg password "$E2E_PASSWORD" --arg first "$first_name" --arg last "$last_name" --arg nick "$nickname" '{email:$email,username:$username,password:$password,first_name:$first,last_name:$last,nickname:$nick}')" \
 		| jq -r '.id'
 }
 
@@ -102,11 +102,11 @@ setup() {
 	join_channel "$channel_id" "$token" "$bot_id"
 	join_channel "$channel_id" "$token" "$e2e_id"
 	invite_person "$e2e_id" "$E2E_EMAIL"
-	# DM recipient: a person resolvable by first name (테스트) for message.send cases.
+	# DM recipient: 홍길동, resolvable by the given name 길동 for message.send cases.
 	local recipient_id
-	recipient_id="$(ensure_user "woojin@internkim.test" "woojin" "$token" "테스트")"
+	recipient_id="$(ensure_user "gildong@internkim.test" "gildong" "$token" "길동" "홍" "홍길동")"
 	join_team "$team_id" "$token" "$recipient_id"
-	invite_person "$recipient_id" "woojin@internkim.test"
+	invite_person "$recipient_id" "gildong@internkim.test"
 	e2e_token="$(curl -s -i -d "$(jq -cn --arg login_id "$E2E_USERNAME" --arg password "$E2E_PASSWORD" '{login_id:$login_id,password:$password}')" \
 		"$MATTERMOST/api/v4/users/login" | awk '/^[Tt]oken:/{print $2}' | tr -d '\r')"
 	jq -cn --arg channel_id "$channel_id" --arg e2e_token "$e2e_token" --arg channel_name "$E2E_CHANNEL_NAME" \
