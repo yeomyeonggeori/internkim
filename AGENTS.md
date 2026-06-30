@@ -94,6 +94,20 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Deployment Hygiene
 
+- When told to deploy, make it the default to: (1) check each relevant
+  component's currently-deployed version first, (2) rebuild the changes fresh
+  (`make build`, plus `make prepare-blueclaw-payload` for any `cmd/blueclaw`
+  change), (3) deploy the related components together so none lags, and (4)
+  verify each deployed version matches the intended HEAD afterward. This avoids
+  shipping a stale/rolled-back component.
+- Never split a contract change across components. When op names, the kernel
+  verb, descriptors, or the approval/reply protocol change, deploy `capabilityd`
+  and `blueclawPayload` (and `admind`) in the same release — a half-deploy
+  (e.g. neutral `capabilityd` against a legacy `blueclaw`) makes the agent call
+  names the other side does not know and the task stalls.
+- The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
+  component name is silently dropped, so confirm the deploy log's `Components:`
+  line lists everything you intended.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device
