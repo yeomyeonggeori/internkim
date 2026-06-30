@@ -73,6 +73,9 @@ export type CalendarLocaleText = {
 	editEvent: string;
 	draftPopover: {
 		calendar: string;
+		participants: string;
+		participantsPlaceholder: string;
+		removeParticipantAction: string;
 		cancel: string;
 		complete: string;
 		delete: string;
@@ -183,6 +186,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		editEvent: '일정 편집',
 		draftPopover: {
 			calendar: '캘린더',
+			participants: '참여자',
+			participantsPlaceholder: '이름으로 검색해 추가',
+			removeParticipantAction: '{name} 제거',
 			cancel: '취소',
 			complete: '완료',
 			delete: '삭제',
@@ -226,6 +232,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			timeZone: '시간대',
 			isAllDay: '종일 여부',
 			color: '색상',
+			participants: '참여자',
 			reminderLeadHours: '알림 시간'
 		}
 	},
@@ -302,6 +309,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		editEvent: 'Edit Event',
 		draftPopover: {
 			calendar: 'Calendar',
+			participants: 'Participants',
+			participantsPlaceholder: 'Search by name to add',
+			removeParticipantAction: 'Remove {name}',
 			cancel: 'Cancel',
 			complete: 'Done',
 			delete: 'Delete',
@@ -345,6 +355,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			timeZone: 'Time zone',
 			isAllDay: 'All day',
 			color: 'Color',
+			participants: 'Participants',
 			reminderLeadHours: 'Reminder lead'
 		}
 	}
