@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarParticipantSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS calendar_settings (
 	key TEXT PRIMARY KEY,
@@ -173,16 +176,11 @@ WHERE deleted_at = ''`
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer rows.Close()
-	events := []calendarEvent{}
-	for rows.Next() {
-		event, errorValue := scanCalendarEvent(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		events = append(events, event)
+	events, errorValue := scanCalendarEventRows(rows)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return events, rows.Err()
+	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
 func (service *Service) readCalendarEventsWithMattermostPosts(ctx context.Context) ([]calendarEvent, error) {
@@ -199,16 +197,11 @@ ORDER BY start_at, title`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer rows.Close()
-	events := []calendarEvent{}
-	for rows.Next() {
-		event, errorValue := scanCalendarEvent(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		events = append(events, event)
+	events, errorValue := scanCalendarEventRows(rows)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return events, rows.Err()
+	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
 func (service *Service) readCalendarEventIDsRequiringMattermostProjection(ctx context.Context) ([]string, error) {
@@ -251,16 +244,11 @@ ORDER BY uid`, strings.TrimSpace(source))
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer rows.Close()
-	events := []calendarEvent{}
-	for rows.Next() {
-		event, errorValue := scanCalendarEvent(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		events = append(events, event)
+	events, errorValue := scanCalendarEventRows(rows)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return events, rows.Err()
+	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
 func (service *Service) readSoftDeletedCalendarEvents(ctx context.Context) ([]calendarEvent, error) {
@@ -277,16 +265,11 @@ ORDER BY uid`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer rows.Close()
-	events := []calendarEvent{}
-	for rows.Next() {
-		event, errorValue := scanCalendarEvent(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		events = append(events, event)
+	events, errorValue := scanCalendarEventRows(rows)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return events, rows.Err()
+	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
 func (service *Service) readCalendarEventByID(ctx context.Context, eventID string) (calendarEvent, bool, error) {
@@ -314,6 +297,9 @@ func (service *Service) readCalendarEventProjectionByID(ctx context.Context, eve
 	WHERE id = ?`, strings.TrimSpace(eventID))
 	projection, errorValue := scanCalendarEventProjection(row)
 	if errorValue == nil {
+		if errorValue := loadCalendarEventParticipants(ctx, database, &projection.Event); errorValue != nil {
+			return calendarEventProjection{}, false, errorValue
+		}
 		return projection, true, nil
 	}
 	if errors.Is(errorValue, sql.ErrNoRows) {
@@ -334,6 +320,9 @@ FROM calendar_events
 WHERE deleted_at = '' AND `+columnName+` = ?`, strings.TrimSpace(value))
 	event, errorValue := scanCalendarEvent(row)
 	if errorValue == nil {
+		if errorValue := loadCalendarEventParticipants(ctx, database, &event); errorValue != nil {
+			return calendarEvent{}, false, errorValue
+		}
 		return event, true, nil
 	}
 	if errors.Is(errorValue, sql.ErrNoRows) {
@@ -344,6 +333,27 @@ WHERE deleted_at = '' AND `+columnName+` = ?`, strings.TrimSpace(value))
 
 type calendarEventScanner interface {
 	Scan(destinations ...any) error
+}
+
+func scanCalendarEventRows(rows *sql.Rows) (events []calendarEvent, errorValue error) {
+	defer func() {
+		closeError := rows.Close()
+		if errorValue == nil && closeError != nil {
+			errorValue = closeError
+		}
+	}()
+	events = []calendarEvent{}
+	for rows.Next() {
+		event, errorValue := scanCalendarEvent(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		events = append(events, event)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	return events, nil
 }
 
 func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {

@@ -151,8 +151,8 @@ func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEven
 }
 
 func calendarMattermostMentionText(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
-	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
-	if !hasPeopleLine || calendarPeopleIncludesAll(people) {
+	people, hasPeople := calendarNotificationPeople(event)
+	if !hasPeople || calendarPeopleIncludesAll(people) {
 		return "@all"
 	}
 	return strings.Join(calendarMattermostMentionsForPeople(people, mattermostUsers), " ")
@@ -387,19 +387,46 @@ func calendarNotificationLocation(timeZone string) *time.Location {
 }
 
 func (service *Service) calendarNotificationTargets(ctx context.Context, event calendarEvent) ([]calendarNotificationTarget, error) {
-	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
-	if !hasPeopleLine {
+	if _, hasPeople := calendarNotificationPeople(event); !hasPeople {
 		return []calendarNotificationTarget{calendarAnnouncementsTarget()}, nil
 	}
 	users, errorValue := service.calendarMattermostUsers(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	targets := calendarTargetsForPeople(people, users)
-	if len(targets) != len(people) {
+	targets, resolved := calendarNotificationTargetsForUsers(event, users)
+	if !resolved {
 		return []calendarNotificationTarget{calendarAnnouncementsTarget()}, nil
 	}
 	return targets, nil
+}
+
+func calendarNotificationTargetsForUsers(event calendarEvent, users []mattermostUserRecord) ([]calendarNotificationTarget, bool) {
+	people, hasPeople := calendarNotificationPeople(event)
+	if !hasPeople {
+		return nil, false
+	}
+	targets := calendarTargetsForPeople(people, users)
+	if len(targets) != len(people) {
+		return nil, false
+	}
+	creatorTargets := calendarTargetsForPeople(calendarNotificationCreatorPeople(event), users)
+	return appendCalendarNotificationTargets(targets, creatorTargets), true
+}
+
+func appendCalendarNotificationTargets(targets []calendarNotificationTarget, values []calendarNotificationTarget) []calendarNotificationTarget {
+	seenKeys := map[string]bool{}
+	for _, target := range targets {
+		seenKeys[target.Key] = true
+	}
+	for _, value := range values {
+		if value.Key == "" || seenKeys[value.Key] {
+			continue
+		}
+		seenKeys[value.Key] = true
+		targets = append(targets, value)
+	}
+	return targets
 }
 
 func calendarAnnouncementsTarget() calendarNotificationTarget {
