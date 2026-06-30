@@ -1,4 +1,3 @@
-// 업무 목록 테이블의 컬럼 정의를 생성한다.
 import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
 import { compareOptionalDate } from './flow-style';

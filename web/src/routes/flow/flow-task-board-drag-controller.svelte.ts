@@ -1,4 +1,3 @@
-// 업무 보드 카드 드래그의 DOM 이벤트 상태를 관리한다.
 import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import { isFlowTaskBoardStatus } from './flow-task-board-model';
 import type { FlowTask } from './flow-types';

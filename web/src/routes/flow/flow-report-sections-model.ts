@@ -1,4 +1,3 @@
-// Flow 보고 탭 섹션 생성을 위한 copy와 데이터를 조립한다.
 import type { FlowDefinitions, FlowMember, FlowMetrics, FlowSummary, FlowTask } from './flow-types';
 import { buildFlowReportSections } from './report/flow-report-data';
 import { flowText } from './text';

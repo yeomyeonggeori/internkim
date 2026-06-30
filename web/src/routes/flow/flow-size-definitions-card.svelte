@@ -1,4 +1,3 @@
-<!-- 업무 크기 정의 표 카드를 렌더링한다. -->
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';

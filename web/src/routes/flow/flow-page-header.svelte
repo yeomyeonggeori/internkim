@@ -1,4 +1,3 @@
-<!-- Flow 페이지 제목과 주차 이동 컨트롤을 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';

@@ -1,4 +1,3 @@
-// AI 업무 추가 패널의 열림 상태와 포커스 이동을 관리한다.
 import { tick } from 'svelte';
 import type { FlowQuickTaskCreateResult } from './flow-types';
 
