@@ -1,4 +1,3 @@
-// 출결 팀 상세 팝업에 필요한 외부 컨텍스트 데이터를 불러온다.
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import { fetchCalendarEvents } from '../../calendar/embed/calendar-event-persistence';
 import { fetchFlowState } from '../../flow/flow-api';

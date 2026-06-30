@@ -1,4 +1,3 @@
-// 출결 팀 상세 팝업의 개인별 캘린더 일정 매칭을 담당한다.
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import { calendarParticipantsFromUnknown, type CalendarParticipant } from '../../calendar/embed/calendar-participants';
 import { addDays, timeInTimeZone, todayDateInTimeZone, utcDateKey } from '../shared/attendance-date';
