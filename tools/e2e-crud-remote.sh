@@ -16,6 +16,18 @@ E2E_CHANNEL_NAME="e2e-crud-$NONCE"
 
 admin_password() { sudo cat /root/.internkim/secrets/mm-admin-pass; }
 
+# The local fleet is reached at the VM IP, but provisioning sets AllowCorsFrom to
+# the cloudflare SiteURL, so Mattermost rejects the webapp websocket origin (1006)
+# and never delivers live events (ephemeral approval controls included). Allow any
+# origin so a local browser session receives them, matching real cloudflare access.
+ensure_websocket_cors() { # token
+	local current
+	current="$(mm GET /api/v4/config "$1" | jq -r '.ServiceSettings.AllowCorsFrom')"
+	[ "$current" = "*" ] && return
+	mm GET /api/v4/config "$1" | jq '.ServiceSettings.AllowCorsFrom="*"' > /tmp/e2e-mmconfig.json
+	mm PUT /api/v4/config "$1" "$(cat /tmp/e2e-mmconfig.json)" >/dev/null
+}
+
 admin_token() {
 	curl -s -i -d "$(jq -cn --arg login_id admin --arg password "$(admin_password)" '{login_id:$login_id,password:$password}')" \
 		"$MATTERMOST/api/v4/users/login" | awk '/^[Tt]oken:/{print $2}' | tr -d '\r'
@@ -64,6 +76,7 @@ task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
 setup() {
 	local token team_id channel_id bot_id e2e_id e2e_token admin_id
 	token="$(admin_token)"
+	ensure_websocket_cors "$token"
 	team_id="$(mm GET "/api/v4/teams/name/$TEAM_NAME" "$token" | jq -r '.id')"
 	admin_id="$(mm GET "/api/v4/users/me" "$token" | jq -r '.id')"
 	bot_id="$(user_id_by_name "$BOT_USERNAME" "$token")"
