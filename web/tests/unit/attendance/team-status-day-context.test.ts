@@ -54,6 +54,33 @@ describe('team status day context', () => {
 		]);
 	});
 
+	test('hides timed events from the end date when the event ends at midnight', () => {
+		const event = calendarEvent('midnight-end', '자정 종료 일정', '2026-06-16T14:00:00.000Z', '2026-06-16T15:00:00.000Z', [
+			{ personID: 'kim', name: '김철수', email: 'kim@example.com' }
+		]);
+		const dayContext = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-06-16',
+			[event],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+		const nextDayContext = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-06-17',
+			[event],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+
+		expect(dayContext.calendarEvents.map((calendarEvent) => calendarEvent.id)).toEqual(['midnight-end']);
+		expect(nextDayContext.calendarEvents).toEqual([]);
+	});
+
 	test('shows completed flow tasks for the selected person and date', () => {
 		const flowState = flowStateFixture([
 			flowTask('done-owned', '완료', '2026-06-16', 'kim', ['kim'], ['김철수']),
@@ -77,6 +104,26 @@ describe('team status day context', () => {
 		expect(context.completedTasks.find((task) => task.id === 'done-owned')?.collaboratorNames).toEqual([]);
 		expect(context.completedTasks.find((task) => task.id === 'done-owned-collaborating')?.collaboratorNames).toEqual(['박지민']);
 		expect(context.completedTasks.find((task) => task.id === 'done-participating')?.collaboratorNames).toEqual(['김철수']);
+	});
+
+	test('uses email matched flow member IDs before name fallback', () => {
+		const flowState = flowStateFixture([
+			flowTask('same-name-other-email', '완료', '2026-06-16', 'same-name', ['same-name'], ['김철수']),
+			flowTask('email-matched', '완료', '2026-06-16', 'kim', ['kim'], ['김철수'])
+		]);
+		flowState.members.push(flowMember('same-name', '김철수', 'same-name@example.com'));
+
+		const context = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-06-16',
+			[],
+			flowState,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+
+		expect(context.completedTasks.map((task) => task.id)).toEqual(['email-matched']);
 	});
 
 	test('hides calendar events with invalid dates', () => {
