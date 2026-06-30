@@ -1,4 +1,3 @@
-<!-- admin 사용자 목록 패널을 렌더링하고 메모 편집 상태를 관리한다. -->
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';

@@ -1,4 +1,3 @@
-<!-- 사용자 메모 팝업을 여는 아이콘 버튼을 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import StickyNoteIcon from '@lucide/svelte/icons/sticky-note';

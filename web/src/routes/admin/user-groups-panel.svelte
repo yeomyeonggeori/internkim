@@ -1,4 +1,3 @@
-<!-- admin 사용자 그룹 관리 패널을 렌더링한다. -->
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';

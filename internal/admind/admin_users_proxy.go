@@ -1,4 +1,3 @@
-// admin 사용자 원격 API 프록시 흐름을 담당한다.
 package admind
 
 import (

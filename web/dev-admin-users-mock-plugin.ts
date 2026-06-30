@@ -1,4 +1,3 @@
-// Admin 사용자 탭 로컬 확인용 mock API를 제공한다.
 import type { Plugin } from 'vite';
 import {
 	createDevAdminMockResponse,

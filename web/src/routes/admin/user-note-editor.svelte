@@ -1,4 +1,3 @@
-<!-- 사용자 메모 팝업 편집 UI를 제공한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';

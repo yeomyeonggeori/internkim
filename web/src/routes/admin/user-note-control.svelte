@@ -1,4 +1,3 @@
-<!-- 사용자 메모 버튼과 팝업 편집 상태를 연결한다. -->
 <script lang="ts">
 	import type { AdminPageText } from './admin-types';
 	import UserNoteEditor from './user-note-editor.svelte';

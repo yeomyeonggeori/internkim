@@ -1,4 +1,3 @@
-// admin 사용자 프록시 저장 회귀 테스트를 담당한다.
 package admind
 
 import (
