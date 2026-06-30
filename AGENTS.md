@@ -48,6 +48,18 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
   agent execution that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
+- The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
+  its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
+  Firecracker guest inside it, so skill/Blueclaw/runtime changes only reach it through
+  a reprovision. Push working-tree changes onto the running VM with
+  `./internkim dev fleet reprovision`; it reprovisions in place with the required
+  `GO_MOD_CACHE` override and resets the policy people and guest Postgres.
+- Never run `./internkim lab` with no subcommand: it creates and starts a separate
+  scratch `internkim-lab` container. Reach the fleet only through
+  `./internkim lab vm-ssh --config <cfg>` and `./internkim lab vm-ip --config <cfg>`.
+  Do not `container stop`/`container delete` the active fleet container. Confirm the
+  fleet with `container ls` (`internkim-e2e-<runID>` present); if it is gone it was
+  destroyed, and a fresh one comes up via `./internkim test --keep "<msg>"`.
 - Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
   until the relevant Local Fleet run produces the intended result. If Local Fleet verification
   fails, fix the behavior or explicitly report the unresolved failure instead of
