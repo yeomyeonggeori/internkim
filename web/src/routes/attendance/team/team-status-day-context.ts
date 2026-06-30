@@ -1,4 +1,3 @@
-// 출결 팀 상세 팝업에 표시할 개인별 일정과 완료 업무를 만든다.
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import type { FlowState } from '../../flow/flow-types';
 import { calendarEventDetailsForPersonDay } from './team-status-calendar-context';
