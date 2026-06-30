@@ -67,6 +67,10 @@ function normalizeISODate(value: unknown): string {
 	return date;
 }
 
+function normalizeNote(value: unknown): string {
+	return typeof value === 'string' ? value.trim() : '';
+}
+
 function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[] {
 	const existingRecord = records.find((record) => record.email === nextRecord.email);
 	const filtered = records.filter((record) => record.email !== nextRecord.email);
@@ -79,6 +83,7 @@ function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[
 			handle: nextRecord.handle || existingRecord?.handle || '',
 			name: nextRecord.name ?? existingRecord?.name,
 			hireDate: nextRecord.hireDate ?? existingRecord?.hireDate,
+			note: nextRecord.note ?? existingRecord?.note,
 			mattermostUserID: nextRecord.mattermostUserID ?? existingRecord?.mattermostUserID,
 			mattermostUsername: nextRecord.mattermostUsername ?? existingRecord?.mattermostUsername,
 			status: nextRecord.status ?? existingRecord?.status,
@@ -126,13 +131,14 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const { fleet_id, userID, handle, name, email, hireDate, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
+	const { fleet_id, userID, handle, name, email, hireDate, note, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
 		fleet_id?: string;
 		userID?: string;
 		handle?: string;
 		name?: string;
 		email: string;
 		hireDate?: string;
+		note?: string;
 		role?: UserRole;
 		admin_token: string;
 		mattermostUserID?: string;
@@ -157,6 +163,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const normalizedHandle = normalizeHandle(handle ?? existingRecord?.handle ?? '');
 	const normalizedName = typeof name === 'string' ? name.trim() : existingRecord?.name;
 	const normalizedHireDate = hireDate === undefined ? (existingRecord?.hireDate ?? '') : normalizeISODate(hireDate);
+	const normalizedNote = note === undefined ? existingRecord?.note : normalizeNote(note);
 	if (!existingRecord && (!normalizedHandle || !normalizedName)) throw error(400, 'handle, name, and email required');
 	if (normalizedHandle && !isValidHandle(normalizedHandle)) throw error(400, 'handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores');
 	if (!isAuthorizedNode && existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
@@ -168,6 +175,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		...(normalizedName ? { name: normalizedName } : {}),
 		email: normalizedEmail,
 		hireDate: normalizedHireDate,
+		note: normalizedNote ?? '',
 		role: normalizedRole,
 		mattermostUserID,
 		mattermostUsername,

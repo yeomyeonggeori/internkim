@@ -12,6 +12,7 @@ export type UserRecord = {
 	name?: string;
 	email: string;
 	hireDate?: string;
+	note?: string;
 	role: UserRole;
 	circles?: string[];
 	jobTitle?: string;

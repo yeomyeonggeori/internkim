@@ -320,6 +320,7 @@ export type NewUserRequest = {
 export type UserSaveRequest = Pick<UserRecord, 'userID' | 'handle' | 'email' | 'mattermostUserID' | 'mattermostUsername' | 'status'> & {
 	name: string;
 	hireDate: string;
+	note: string;
 	role: UserRole;
 	circles: string[];
 };

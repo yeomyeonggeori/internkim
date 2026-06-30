@@ -54,6 +54,9 @@ func TestLocalListUsers(t *testing.T) {
 	if response.Records[0].Role != "admin" || response.Records[1].Role != "member" {
 		t.Fatalf("roles = %q, %q; want admin, member", response.Records[0].Role, response.Records[1].Role)
 	}
+	if response.Records[1].Note != "Existing member note" {
+		t.Fatalf("member note = %q; want Existing member note", response.Records[1].Note)
+	}
 }
 
 func TestLocalUpsertUser(t *testing.T) {
@@ -67,7 +70,7 @@ func TestLocalUpsertUser(t *testing.T) {
 		return localUsersMattermostUpsertResponse(t, request, &mattermostCreated)
 	})}
 
-	requestBody := strings.NewReader(`{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[]}`)
+	requestBody := strings.NewReader(`{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"  Local note  "}`)
 	responseRecorder := httptest.NewRecorder()
 	service.localUpsertUser(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
 
@@ -235,7 +238,7 @@ func localUsersBlueclawUpsertResponse(t *testing.T, request *http.Request, bluec
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
 		body := readLocalUsersTestBody(t, request)
-		if !strings.Contains(body, `"emails":["new@example.com"]`) || !strings.Contains(body, `"isAdmin":true`) {
+		if !strings.Contains(body, `"emails":["new@example.com"]`) || !strings.Contains(body, `"isAdmin":true`) || !strings.Contains(body, `"note":"Local note"`) {
 			t.Fatalf("unexpected policy save body %s", body)
 		}
 		*blueclawSaved = true
@@ -260,7 +263,7 @@ func localUsersPolicyDocument() string {
 	return `{
 		"people":[
 			{"personID":"user-admin","displayName":"Admin User","emails":["admin@example.com"],"circles":["staff","admin"],"isAdmin":true},
-			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false},
+			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false,"note":"Existing member note"},
 			{"personID":"user-new","displayName":"New User","emails":["new@example.com"],"circles":["staff"],"isAdmin":false}
 		],
 		"circles":[{"circleID":"staff","displayName":"Staff"}],

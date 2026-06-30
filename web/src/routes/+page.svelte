@@ -59,6 +59,7 @@
 	function adminBaseURL() {
 		const currentFleetID = fleetID();
 		if (fleetIDFromHost() || isMockAdminAPI) return '/admin/api';
+		if (isLocalBrowserHost() && currentFleetID) return '/admin/api';
 		return currentFleetID ? `https://${currentFleetID}.example.test/admin/api` : '';
 	}
 
