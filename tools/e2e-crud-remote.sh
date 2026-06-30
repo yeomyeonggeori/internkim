@@ -80,9 +80,10 @@ join_team() { mm POST "/api/v4/teams/$1/members" "$2" "$(jq -cn --arg team_id "$
 
 join_channel() { mm POST "/api/v4/channels/$1/members" "$2" "$(jq -cn --arg user_id "$3" '{user_id:$user_id}')" >/dev/null; }
 
-invite_person() { # mm_user_id email
+invite_person() { # mm_user_id email [display_name]
 	curl -s -X POST -H "Content-Type: application/json" "$BLUECLAW/admin/api/people/invite" \
-		-d "$(jq -cn --arg personID "$1" --arg email "$2" '{personID:$personID,email:$email}')" >/dev/null || true
+		-d "$(jq -cn --arg personID "$1" --arg email "$2" --arg name "${3:-}" \
+			'{personID:$personID,email:$email} + (if $name == "" then {} else {displayName:$name} end)')" >/dev/null || true
 }
 
 task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
@@ -106,7 +107,7 @@ setup() {
 	local recipient_id
 	recipient_id="$(ensure_user "gildong@internkim.test" "gildong" "$token" "길동" "홍" "홍길동")"
 	join_team "$team_id" "$token" "$recipient_id"
-	invite_person "$recipient_id" "gildong@internkim.test"
+	invite_person "$recipient_id" "gildong@internkim.test" "홍길동"
 	e2e_token="$(curl -s -i -d "$(jq -cn --arg login_id "$E2E_USERNAME" --arg password "$E2E_PASSWORD" '{login_id:$login_id,password:$password}')" \
 		"$MATTERMOST/api/v4/users/login" | awk '/^[Tt]oken:/{print $2}' | tr -d '\r')"
 	jq -cn --arg channel_id "$channel_id" --arg e2e_token "$e2e_token" --arg channel_name "$E2E_CHANNEL_NAME" \
