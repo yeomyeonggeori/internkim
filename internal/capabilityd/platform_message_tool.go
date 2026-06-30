@@ -33,6 +33,7 @@ type platformMessageSearchInput struct {
 
 type platformMessageSendInput struct {
 	DeliveryTarget platformMessageDeliveryTarget `json:"deliveryTarget"`
+	RecipientHint  string                        `json:"recipientHint"`
 	Message        string                        `json:"message"`
 	Pin            bool                          `json:"pin"`
 	Reason         string                        `json:"reason"`
@@ -301,6 +302,8 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 	}
 	input.Message = strings.TrimSpace(input.Message)
 	input.Reason = strings.TrimSpace(input.Reason)
+	input.RecipientHint = strings.TrimSpace(input.RecipientHint)
+	input.DeliveryTarget = defaultPlatformMessageDeliveryToDirectMessage(input.DeliveryTarget, input.RecipientHint)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
 	if input.Message == "" {
 		return platformMessageSendInput{}, fmt.Errorf("message is required")
@@ -309,6 +312,21 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 		return platformMessageSendInput{}, errorValue
 	}
 	return input, nil
+}
+
+// Direct message is the default delivery for a named person: a recipientHint, or a
+// deliveryTarget that names a person without a channel, sends a DM without the model
+// having to set type=directMessage or choose between DM and mail.
+func defaultPlatformMessageDeliveryToDirectMessage(target platformMessageDeliveryTarget, recipientHint string) platformMessageDeliveryTarget {
+	if recipientHint != "" && target.PersonHint == "" && len(target.PersonHints) == 0 {
+		target.PersonHint = recipientHint
+	}
+	hasPerson := strings.TrimSpace(target.PersonHint) != "" || len(target.PersonHints) > 0
+	hasChannel := strings.TrimSpace(target.ChannelID) != "" || strings.TrimSpace(target.ChannelName) != ""
+	if strings.TrimSpace(target.Type) == "" && hasPerson && !hasChannel {
+		target.Type = "directMessage"
+	}
+	return target
 }
 
 func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessageUpdateInput, error) {
