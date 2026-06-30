@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Reproducible real end-to-end CRUD verification against a live 김인턴 on a fleet VM.
+# Each case posts a real Mattermost message, a live model executes it, and we assert
+# the real task outcome (capability/tool actually succeeded) plus record the step
+# count (fewer steps scores higher). A conversation screenshot is saved per case to
+# e2e-evidence/<case>.png (overwritten each run).
+#
+# Usage: tools/e2e-crud [case-name-filter]
+#   Bring up a fleet first, e.g.: internkim test --keep "warmup" (leaves the VM up).
+#   INTERNKIM_E2E_CONFIG overrides the fleet run config path.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FILTER="${1:-}"
+CFG="${INTERNKIM_E2E_CONFIG:-$(ls -dt "$ROOT"/.local/local-fleet/runs/*/config.json 2>/dev/null | head -1)}"
+[ -n "${CFG:-}" ] && [ -f "$CFG" ] || { echo "no fleet run config found; bring up a fleet (internkim test --keep ...) first" >&2; exit 1; }
+
+vmssh() { "$ROOT/internkim" lab vm-ssh --config "$CFG" "$@" 2>/dev/null; }
+remote() { vmssh "bash -s $*" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1; }
+
+VMIP="$("$ROOT/internkim" lab vm-ip --config "$CFG" 2>/dev/null | tail -1)"
+MM_URL="http://$VMIP:8065"
+ADMIN_PASS="$(vmssh 'sudo cat /root/.internkim/secrets/mm-admin-pass' | tail -1)"
+EVID="$ROOT/e2e-evidence"; mkdir -p "$EVID"
+
+MODEL="${INTERNKIM_E2E_MODEL:-google/gemini-3.1-flash-lite}"
+echo "fleet: $CFG"
+echo "mattermost: $MM_URL"
+echo "model: $MODEL"
+if [ "${INTERNKIM_E2E_SKIP_MODEL:-}" = 1 ]; then
+	echo "skipping model pin (already set)"
+else
+	echo "pinning model (restarts blueclaw)..."
+	remote "set-model '$MODEL'" >/dev/null
+fi
+RUN_NONCE="${INTERNKIM_E2E_NONCE:-$(date +%H%M%S)}"
+echo "run id: $RUN_NONCE (fresh person + channel)"
+SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' bash -s setup" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1)"
+CH="$(echo "$SETUP" | jq -r '.channelID')"
+TOK="$(echo "$SETUP" | jq -r '.e2eToken')"
+CHNAME="$(echo "$SETUP" | jq -r '.channelName')"
+[ -n "$CH" ] && [ "$CH" != null ] && [ -n "$TOK" ] && [ "$TOK" != null ] || { echo "setup failed: $SETUP" >&2; exit 1; }
+
+# name|prompt|expected_op|timeout — natural language; ordered so add precedes update/delete.
+# A fresh e2e person+channel per run keeps state clean, so entities resolve by natural
+# description (e.g. "주간보고서 업무 삭제") without injecting internal IDs into prompts.
+CASES=(
+	"task-add|내 주간보고서 작성 업무 추가해줘|task.add|220"
+	"task-update|내 주간보고서 업무 진행 중으로 바꿔줘|task.update|220"
+	"task-delete|내 주간보고서 업무 삭제해줘|task.delete|220"
+	"calendar-add|7월 13일 오후 2시에 샨보장이랑 미팅 일정 잡아줘|calendar.add|220"
+	"calendar-update|샨보장 미팅을 7월 14일로 옮겨줘|calendar.update|220"
+	"calendar-delete|샨보장 미팅 일정 삭제해줘|calendar.delete|220"
+	"document-add|회의록 문서 하나 만들어줘 내용은 안건 3개 간단히|file.write|260"
+	"document-edit|회의록 문서에 결정사항 항목 추가해줘|file.edit|260"
+	"document-delete|회의록 문서 삭제해줘|file.delete|220"
+	"schedule-add|매주 월요일 오전 9시에 주간보고 리마인드 예약해줘|schedule.create|260"
+	"schedule-update|주간보고 리마인드를 화요일로 바꿔줘|schedule.update|260"
+	"schedule-delete|주간보고 리마인드 예약 삭제해줘|schedule.delete|220"
+	"site-create|회사 소개 웹사이트 하나 만들어서 배포해줘|site.create|600"
+	"site-edit|방금 만든 웹사이트 제목을 환영합니다로 바꿔서 다시 배포해줘|site.publish|600"
+	"site-delete|방금 만든 웹사이트 삭제해줘|site.delete|260"
+	"dm-send|테스트이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
+)
+
+screenshot() { # case-name png-path
+	(cd "$ROOT/web" && \
+		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="admin" INTERNKIM_ADMIN_PASSWORD="$ADMIN_PASS" \
+		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_SCREENSHOT="$2" \
+		bunx playwright test tests/e2e/crud-evidence.spec.ts >/dev/null 2>&1) || true
+}
+
+score_for() { # passed steps -> score
+	[ "$1" = true ] || { echo 0; return; }
+	local s="$2"; [ "$s" -lt 2 ] 2>/dev/null && { echo 100; return; }
+	local v=$((100 - (s - 2) * 8)); [ "$v" -lt 0 ] && v=0; echo "$v"
+}
+
+PASS=0; TOTAL=0; TOTAL_SCORE=0
+printf "\n%-16s %-7s %6s %6s  %s\n" CASE OUTCOME STEPS SCORE EVIDENCE
+printf -- "------------------------------------------------------------\n"
+for entry in "${CASES[@]}"; do
+	IFS='|' read -r name prompt op timeout <<< "$entry"
+	[ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]] && continue
+	TOTAL=$((TOTAL + 1))
+	res="$(remote "run-case '$CH' '$TOK' '$prompt' '$op' $timeout")"
+	status="$(echo "$res" | jq -r '.status // "error"')"
+	reason="$(echo "$res" | jq -r '.reason // ""')"
+	if [ "$status" != completed ] && echo "$reason" | grep -qiE "429|rate.?limit|timeout|HTTP 5[0-9][0-9]|context deadline"; then
+		sleep 45
+		res="$(remote "run-case '$CH' '$TOK' '$prompt' '$op' $timeout")"
+		status="$(echo "$res" | jq -r '.status // "error"')"
+	fi
+	steps="$(echo "$res" | jq -r '.steps // 0')"
+	opok="$(echo "$res" | jq -r '.opOk // false')"
+	png="$EVID/$name.png"; rm -f "$png"; screenshot "$name" "$png"
+	passed=false
+	[ "$status" = completed ] && passed=true
+	score="$(score_for "$passed" "$steps")"
+	[ "$passed" = true ] && PASS=$((PASS + 1))
+	TOTAL_SCORE=$((TOTAL_SCORE + score))
+	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$([ -f "$png" ] && echo "$name.png" || echo "(no shot)")"
+	sleep "${INTERNKIM_E2E_PACE_SECONDS:-40}"
+done
+printf -- "------------------------------------------------------------\n"
+printf "passed %d/%d   total score %d\n\n" "$PASS" "$TOTAL" "$TOTAL_SCORE"
+[ "$PASS" = "$TOTAL" ]
