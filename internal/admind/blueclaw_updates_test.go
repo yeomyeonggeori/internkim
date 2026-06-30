@@ -310,3 +310,30 @@ func writeBlueclawPayloadTenantRuntimeConfiguration(t *testing.T, tenantBasePath
 		t.Fatal(errorValue)
 	}
 }
+
+func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing.T) {
+	staleDocument := `{
+  "capabilities": {
+    "transport": "vsock",
+    "toolDescriptors": [{"name": "flow.task.add", "version": "1"}],
+    "toolNames": ["flow.task.add"],
+    "routing": {"candidates": ["flow.task.add"], "localOnly": false}
+  },
+  "languageModel": {"capability": {"model": "preserve-me"}},
+  "firecracker": {"hostWorkspacePath": "/srv/keep/this"}
+}`
+
+	refreshed, errorValue := refreshBlueclawCapabilityContract(staleDocument)
+	if errorValue != nil {
+		t.Fatalf("refresh returned error: %v", errorValue)
+	}
+	if strings.Contains(refreshed, "flow.task.add") {
+		t.Fatalf("expected legacy flow.task.add to be gone, got:\n%s", refreshed)
+	}
+	if !strings.Contains(refreshed, `"task.add"`) {
+		t.Fatalf("expected neutral task.add descriptor, got:\n%s", refreshed)
+	}
+	if !strings.Contains(refreshed, "preserve-me") || !strings.Contains(refreshed, "/srv/keep/this") {
+		t.Fatalf("expected host-specific fields preserved, got:\n%s", refreshed)
+	}
+}
