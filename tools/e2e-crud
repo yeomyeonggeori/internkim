@@ -39,6 +39,8 @@ SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' bash -s setup" < "$ROOT/tools/e2e-crud-re
 CH="$(echo "$SETUP" | jq -r '.channelID')"
 TOK="$(echo "$SETUP" | jq -r '.e2eToken')"
 CHNAME="$(echo "$SETUP" | jq -r '.channelName')"
+REQUESTER_USER="$(echo "$SETUP" | jq -r '.e2eUsername')"
+REQUESTER_PASS="$(echo "$SETUP" | jq -r '.e2ePassword')"
 [ -n "$CH" ] && [ "$CH" != null ] && [ -n "$TOK" ] && [ "$TOK" != null ] || { echo "setup failed: $SETUP" >&2; exit 1; }
 
 # name|prompt|expected_op|timeout — natural language; ordered so add precedes update/delete.
@@ -64,8 +66,9 @@ CASES=(
 )
 
 screenshot() { # case-name png-path
+	# Log in as the requester so requester-only ephemeral approval buttons are visible.
 	(cd "$ROOT/web" && \
-		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="admin" INTERNKIM_ADMIN_PASSWORD="$ADMIN_PASS" \
+		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQUESTER_USER" INTERNKIM_ADMIN_PASSWORD="$REQUESTER_PASS" \
 		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_SCREENSHOT="$2" \
 		bunx playwright test tests/e2e/crud-evidence.spec.ts >/dev/null 2>&1) || true
 }
@@ -93,7 +96,7 @@ for entry in "${CASES[@]}"; do
 	fi
 	steps="$(echo "$res" | jq -r '.steps // 0')"
 	opok="$(echo "$res" | jq -r '.opOk // false')"
-	png="$EVID/$name.png"; rm -f "$png"; screenshot "$name" "$png"
+	png="$EVID/$name.png"; screenshot "$name" "$png"
 	passed=false
 	[ "$status" = completed ] && passed=true
 	score="$(score_for "$passed" "$steps")"
