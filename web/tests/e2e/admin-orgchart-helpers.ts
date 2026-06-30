@@ -59,11 +59,6 @@ export async function selectCardOption(page: Page, card: Locator, label: string,
 	await page.getByRole('option', { name }).click();
 }
 
-export async function selectGroupMembership(page: Page, card: Locator, name: string): Promise<void> {
-	await card.getByLabel('참여 조직').click();
-	await page.getByRole('menuitemcheckbox', { name }).click();
-}
-
 export function cloneUsersResponse(response: UsersResponse): UsersResponse {
 	return JSON.parse(JSON.stringify(response)) as UsersResponse;
 }

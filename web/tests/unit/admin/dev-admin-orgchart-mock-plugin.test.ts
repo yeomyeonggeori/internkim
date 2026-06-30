@@ -70,12 +70,8 @@ describe('dev admin orgchart mock plugin', () => {
 						email: 'grace@example.com',
 						jobTitle: 'Operations Lead',
 						primaryGroupID: 'group-operations',
-						groupIDs: ['group-operations', 'group-leadership'],
-						supervisorID: 'dev-user-ada',
-						projectIDs: ['launch'],
-						teamRole: 'owner',
-						employmentStatus: 'leave',
-						isOrgchartVisible: false
+						groupIDs: ['group-operations'],
+						supervisorID: 'dev-user-ada'
 					}
 				]
 			})
@@ -87,11 +83,12 @@ describe('dev admin orgchart mock plugin', () => {
 		expect(updatedUser).toMatchObject({
 			jobTitle: 'Operations Lead',
 			primaryGroupID: 'group-operations',
-			groupIDs: ['group-operations', 'group-leadership'],
-			projectIDs: ['launch'],
-			teamRole: 'owner',
-			employmentStatus: 'leave',
-			isOrgchartVisible: false
+			groupIDs: ['group-operations'],
+			supervisorID: 'dev-user-ada',
+			projectIDs: ['blueclaw', 'admin'],
+			teamRole: 'frontend',
+			employmentStatus: 'active',
+			isOrgchartVisible: true
 		});
 	});
 });

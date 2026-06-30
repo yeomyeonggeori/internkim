@@ -3,8 +3,7 @@ import type { OrgGroup, UserRecord } from './admin-types';
 export function copyUserRecord(record: UserRecord): UserRecord {
 	return {
 		...record,
-		groupIDs: [...(record.groupIDs ?? [])],
-		projectIDs: [...(record.projectIDs ?? [])]
+		groupIDs: [...(record.groupIDs ?? [])]
 	};
 }
 
@@ -21,14 +20,11 @@ export function reconcileEditingRecords(editingRecords: Record<string, UserRecor
 }
 
 function reconcileEditingRecordGroups(editingRecord: UserRecord, responseRecord: UserRecord, availableGroupIDs: Set<string>): UserRecord {
-	const editableGroupIDs = (editingRecord.groupIDs ?? []).filter((groupID) => availableGroupIDs.has(groupID));
-	const responseGroupIDs = (responseRecord.groupIDs ?? []).filter((groupID) => availableGroupIDs.has(groupID));
 	const primaryGroupID = editingRecord.primaryGroupID && availableGroupIDs.has(editingRecord.primaryGroupID) ? editingRecord.primaryGroupID : responseRecord.primaryGroupID ?? '';
-	const groupIDs = primaryGroupID ? [primaryGroupID, ...editableGroupIDs, ...responseGroupIDs] : [...editableGroupIDs, ...responseGroupIDs];
 	return {
 		...editingRecord,
 		group: primaryGroupID,
 		primaryGroupID,
-		groupIDs: [...new Set(groupIDs)]
+		groupIDs: primaryGroupID ? [primaryGroupID] : []
 	};
 }
