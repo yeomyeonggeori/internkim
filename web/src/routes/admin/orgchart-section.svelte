@@ -1,17 +1,21 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
-	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import XIcon from '@lucide/svelte/icons/x';
 	import { apiErrorMessage, fetchUsers, saveOrgGroups, saveOrgProfiles } from './admin-api';
 	import type { AdminPageText, OrgGroup, UserRecord, UsersResponse } from './admin-types';
+	import { copyUserRecord, reconcileEditingRecords } from './orgchart-editing-records';
+	import OrgchartProfileCard from './orgchart-profile-card.svelte';
+	import {
+		isOrgProfileChanged,
+		normalizeOrgProfileRecord,
+		orgProfileSnapshot,
+		orgProfileUpdate,
+		type OrgProfileSnapshot
+	} from './orgchart-profile-model';
+	import { isSupervisorCandidateForRecord, orgForest, type OrgNode } from './orgchart-tree';
 
 	type OrgchartSectionProps = {
 		adminBaseURL: string;
@@ -20,46 +24,30 @@
 		text: AdminPageText;
 	};
 
-	type OrgNode = {
-		record: UserRecord;
-		reports: OrgNode[];
-	};
-
-	type OrgProfile = {
-		jobTitle: string;
-		group: string;
-		supervisorID: string;
-	};
-
 	let { adminBaseURL, fleetID, isDeviceContext, text }: OrgchartSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let userRecords = $state<UserRecord[]>([]);
 	let groups = $state<OrgGroup[]>([]);
-	let originalProfiles = $state<Record<string, OrgProfile>>({});
-	let newGroupName = $state('');
+	let originalProfiles = $state<Record<string, OrgProfileSnapshot>>({});
 	let isEditing = $state(false);
+	let editingRecordsByUserID = $state<Record<string, UserRecord>>({});
 	let isLoading = $state(false);
-	let isSaving = $state(false);
+	let isSavingGroups = $state(false);
+	let savingProfileUserIDs = $state<Record<string, boolean>>({});
 	let errorMessage = $state('');
-
-	function profileOf(record: UserRecord): OrgProfile {
-		return {
-			jobTitle: record.jobTitle?.trim() ?? '',
-			group: record.group ?? '',
-			supervisorID: record.supervisorID ?? ''
-		};
-	}
+	let newGroupName = $state('');
 
 	function isChanged(record: UserRecord) {
-		const original = originalProfiles[record.userID];
-		if (!original) return false;
-		const current = profileOf(record);
-		return current.jobTitle !== original.jobTitle || current.group !== original.group || current.supervisorID !== original.supervisorID;
+		return isOrgProfileChanged(record, originalProfiles[record.userID]);
 	}
 
-	function changedRecords() {
-		return userRecords.filter(isChanged);
+	function isSavingProfile(userID: string) {
+		return savingProfileUserIDs[userID] === true;
+	}
+
+	function hasInvalidSupervisor(record: UserRecord) {
+		return !isSupervisorCandidateForRecord(userRecords, record);
 	}
 
 	$effect(() => {
@@ -68,16 +56,23 @@
 		loadUsers();
 	});
 
+	$effect(() => {
+		if (isEditing) return;
+		editingRecordsByUserID = {};
+	});
+
 	function applyUsersResponse(response: UsersResponse) {
 		groups = (response.availableGroups ?? []).map((group) => ({ ...group }));
-		userRecords = (response.records ?? []).map((record) => ({
-			...record,
-			name: record.name ?? '',
-			jobTitle: record.jobTitle ?? '',
-			group: record.group ?? '',
-			supervisorID: record.supervisorID ?? ''
-		}));
-		originalProfiles = Object.fromEntries(userRecords.map((record) => [record.userID, profileOf(record)]));
+		userRecords = (response.records ?? []).map(normalizeOrgProfileRecord);
+		originalProfiles = Object.fromEntries(userRecords.map((record) => [record.userID, orgProfileSnapshot(record)]));
+	}
+
+	function applyGroupsResponse(response: UsersResponse, fallbackGroups: OrgGroup[]) {
+		groups = (response.availableGroups ?? fallbackGroups).map((group) => ({ ...group }));
+		if (!response.records) return;
+		userRecords = response.records.map(normalizeOrgProfileRecord);
+		originalProfiles = Object.fromEntries(userRecords.map((record) => [record.userID, orgProfileSnapshot(record)]));
+		editingRecordsByUserID = reconcileEditingRecords(editingRecordsByUserID, userRecords, groups);
 	}
 
 	async function loadUsers() {
@@ -93,95 +88,88 @@
 		}
 	}
 
-	function groupName(groupID: string) {
-		return groups.find((group) => group.id === groupID)?.name ?? '';
-	}
-
-	function personLabel(record: UserRecord) {
-		return record.name || record.email;
-	}
-
-	function supervisorLabel(supervisorID: string) {
-		const supervisor = userRecords.find((candidate) => candidate.userID === supervisorID);
-		return supervisor ? personLabel(supervisor) : text.orgchart.none;
-	}
-
-	function byName(first: UserRecord, second: UserRecord) {
-		return personLabel(first).localeCompare(personLabel(second));
-	}
-
-	function orgForest(): OrgNode[] {
-		const reportsBySupervisor = new Map<string, UserRecord[]>();
-		const knownID = new Set(userRecords.map((record) => record.userID));
-		for (const record of userRecords) {
-			const supervisorID = record.supervisorID?.trim() ?? '';
-			const key = supervisorID && knownID.has(supervisorID) ? supervisorID : '';
-			if (!reportsBySupervisor.has(key)) reportsBySupervisor.set(key, []);
-			reportsBySupervisor.get(key)?.push(record);
-		}
-		const placed = new Set<string>();
-		const buildNode = (record: UserRecord): OrgNode => {
-			placed.add(record.userID);
-			const reports = (reportsBySupervisor.get(record.userID) ?? [])
-				.filter((report) => !placed.has(report.userID))
-				.sort(byName)
-				.map(buildNode);
-			return { record, reports };
-		};
-		const roots = (reportsBySupervisor.get('') ?? []).sort(byName).map(buildNode);
-		for (const record of userRecords) {
-			if (!placed.has(record.userID)) roots.push(buildNode(record));
-		}
-		return roots;
-	}
-
 	async function persistGroups(nextGroups: OrgGroup[]) {
-		isSaving = true;
+		isSavingGroups = true;
 		errorMessage = '';
 		try {
-			applyUsersResponse(await saveOrgGroups(adminBaseURL, nextGroups, text.messages.userSaveError));
+			const response = await saveOrgGroups(adminBaseURL, nextGroups, text.messages.userSaveError);
+			applyGroupsResponse(response, nextGroups);
+			return true;
 		} catch (error) {
 			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
+			return false;
 		} finally {
-			isSaving = false;
+			isSavingGroups = false;
 		}
 	}
 
-	function addGroup() {
-		const name = newGroupName.trim();
-		if (!name) return;
+	async function addGroup(name: string): Promise<string> {
+		const trimmedName = name.trim();
+		if (!trimmedName) return '';
+		const existingGroupID = groupIDByName(trimmedName);
+		if (existingGroupID) return existingGroupID;
+		return createGroup(trimmedName);
+	}
+
+	async function addGlobalGroup() {
+		const groupID = await addGroup(newGroupName);
+		if (!groupID) return;
 		newGroupName = '';
-		persistGroups([...groups, { id: crypto.randomUUID(), name }]);
 	}
 
-	function removeGroup(groupID: string) {
-		persistGroups(groups.filter((group) => group.id !== groupID));
+	async function createGroup(name: string) {
+		const group = { id: crypto.randomUUID(), name };
+		const isPersisted = await persistGroups([...groups, group]);
+		return isPersisted ? group.id : '';
 	}
 
-	function renameGroup() {
-		const named = groups.filter((group) => group.name.trim());
-		persistGroups(named.map((group) => ({ id: group.id, name: group.name.trim() })));
+	function groupIDByName(name: string) {
+		const normalizedName = normalizedGroupName(name);
+		return groups.find((group) => normalizedGroupName(group.name) === normalizedName)?.id ?? '';
 	}
 
-	async function saveProfiles() {
-		if (!fleetID || !adminBaseURL) return;
-		const pending = changedRecords();
-		if (pending.length === 0) return;
-		isSaving = true;
+	function normalizedGroupName(name: string) {
+		return name.trim().toLowerCase();
+	}
+
+	function editProfile(record: UserRecord) {
+		if (editingRecordsByUserID[record.userID]) return;
+		errorMessage = '';
+		editingRecordsByUserID = {
+			...editingRecordsByUserID,
+			[record.userID]: copyUserRecord(record)
+		};
+	}
+
+	function cancelProfileEdit(userID: string) {
+		errorMessage = '';
+		removeEditingRecord(userID);
+	}
+
+	function removeEditingRecord(userID: string) {
+		editingRecordsByUserID = Object.fromEntries(Object.entries(editingRecordsByUserID).filter(([candidateUserID]) => candidateUserID !== userID));
+	}
+
+	async function saveProfile(userID: string) {
+		const record = editingRecordsByUserID[userID];
+		if (!record) return;
+		if (!fleetID || !adminBaseURL || isSavingProfile(userID) || hasInvalidSupervisor(record)) return;
+		if (!isChanged(record)) {
+			errorMessage = '';
+			removeEditingRecord(userID);
+			return;
+		}
+		savingProfileUserIDs = { ...savingProfileUserIDs, [userID]: true };
 		errorMessage = '';
 		try {
-			const profiles = pending.map((record) => ({
-				userID: record.userID,
-				email: record.email,
-				jobTitle: record.jobTitle?.trim() ?? '',
-				group: record.group ?? '',
-				supervisorID: record.supervisorID ?? ''
-			}));
+			const profiles = [orgProfileUpdate(record)];
 			applyUsersResponse(await saveOrgProfiles(adminBaseURL, profiles, text.messages.userSaveError));
+			errorMessage = '';
+			removeEditingRecord(userID);
 		} catch (error) {
 			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
 		} finally {
-			isSaving = false;
+			savingProfileUserIDs = Object.fromEntries(Object.entries(savingProfileUserIDs).filter(([candidateUserID]) => candidateUserID !== userID));
 		}
 	}
 </script>
@@ -193,16 +181,8 @@
 	</div>
 	{#if isDeviceContext && userRecords.length > 0}
 		<div class="flex items-center gap-3">
-			{#if isEditing}
-				<Button size="sm" disabled={isSaving || changedRecords().length === 0} onclick={saveProfiles} class="gap-2">
-					{#if isSaving}
-						<RefreshCwIcon class="size-4 animate-spin" />
-					{/if}
-					{text.users.save}{#if changedRecords().length > 0}&nbsp;{changedRecords().length}{/if}
-				</Button>
-			{/if}
 			<label class="flex items-center gap-2 text-sm">
-				<Switch bind:checked={isEditing} />
+				<Switch bind:checked={isEditing} aria-label={text.orgchart.editMode} />
 				{text.orgchart.editMode}
 			</label>
 		</div>
@@ -216,42 +196,25 @@
 {/if}
 
 {#if isDeviceContext}
-	{#if isEditing}
-		<Card.Root>
-			<Card.Header class="gap-1">
-				<Card.Title class="text-sm">{text.orgchart.manageGroups}</Card.Title>
-			</Card.Header>
-			<Card.Content class="grid gap-3">
-				{#if groups.length > 0}
-					<div class="grid gap-2 sm:grid-cols-2">
-						{#each groups as group (group.id)}
-							<div class="flex items-center gap-2">
-								<Input bind:value={group.name} onchange={renameGroup} autocomplete="off" />
-								<Button variant="ghost" size="icon-sm" disabled={isSaving} onclick={() => removeGroup(group.id)} aria-label={text.users.remove}>
-									<XIcon class="size-4" />
-								</Button>
-							</div>
-						{/each}
-					</div>
-				{/if}
-				<form class="flex items-center gap-2" onsubmit={(event) => { event.preventDefault(); addGroup(); }}>
-					<Input bind:value={newGroupName} placeholder={text.orgchart.groupPlaceholder} autocomplete="off" />
-					<Button type="submit" size="sm" disabled={isSaving || !newGroupName.trim()} class="gap-2">
-						<PlusIcon class="size-4" />
-						{text.orgchart.addGroup}
-					</Button>
-				</form>
-			</Card.Content>
-		</Card.Root>
-	{/if}
-
 	{#if isLoading}
 		<p class="text-muted-foreground text-sm">{text.users.loading}</p>
 	{:else if userRecords.length === 0}
 		<p class="text-muted-foreground text-sm">{text.users.empty}</p>
 	{:else}
-		<div class="grid gap-2.5">
-			{#each orgForest() as node (node.record.email)}
+		{#if isEditing}
+			<form class="grid gap-1.5 rounded-lg border bg-card p-3 shadow-sm" onsubmit={(event) => { event.preventDefault(); addGlobalGroup(); }}>
+				<Label class="text-xs" for="new-orgchart-group">{text.orgchart.newGroup}</Label>
+				<div class="flex gap-2">
+					<Input id="new-orgchart-group" class="h-8 text-sm" bind:value={newGroupName} placeholder={text.orgchart.groupPlaceholder} autocomplete="off" disabled={isSavingGroups} />
+					<Button type="submit" size="sm" disabled={isSavingGroups || !newGroupName.trim()} class="h-8 gap-2">
+						<PlusIcon class="size-4" />
+						{text.orgchart.addOrganization}
+					</Button>
+				</div>
+			</form>
+		{/if}
+		<div class="grid gap-2">
+			{#each orgForest(userRecords) as node (node.record.email)}
 				{@render orgNode(node)}
 			{/each}
 		</div>
@@ -259,66 +222,47 @@
 {/if}
 
 {#snippet orgNode(node: OrgNode)}
-	{@const record = node.record}
-	<div class="grid gap-2.5">
-		<div class="rounded-xl border bg-card px-3.5 py-3 shadow-sm">
-			<div class="flex min-w-0 items-center gap-3">
-				<PersonAvatar name={record.name} email={record.email} class="size-9" />
-				<div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-					<span class="truncate text-sm font-medium">{personLabel(record)}</span>
-					{#if record.jobTitle}
-						<span class="text-muted-foreground truncate text-xs">{record.jobTitle}</span>
-					{/if}
-				</div>
-				{#if record.group && groupName(record.group)}
-					<Badge variant="secondary" class="shrink-0">{groupName(record.group)}</Badge>
-				{/if}
-			</div>
-
-			{#if isEditing}
-				<div class="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-3">
-					<label class="grid gap-1.5">
-						<Label class="text-xs">{text.orgchart.jobTitle}</Label>
-						<Input bind:value={record.jobTitle} placeholder={text.orgchart.jobTitlePlaceholder} autocomplete="off" />
-					</label>
-					<label class="grid gap-1.5">
-						<Label class="text-xs">{text.orgchart.group}</Label>
-						<Select.Root type="single" bind:value={record.group}>
-							<Select.Trigger class="w-full">
-								{record.group ? groupName(record.group) || text.orgchart.none : text.orgchart.none}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="" label={text.orgchart.none}>{text.orgchart.none}</Select.Item>
-								{#each groups as group (group.id)}
-									<Select.Item value={group.id} label={group.name}>{group.name}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</label>
-					<label class="grid gap-1.5">
-						<Label class="text-xs">{text.orgchart.supervisor}</Label>
-						<Select.Root type="single" bind:value={record.supervisorID}>
-							<Select.Trigger class="w-full">
-								{record.supervisorID ? supervisorLabel(record.supervisorID) : text.orgchart.none}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="" label={text.orgchart.none}>{text.orgchart.none}</Select.Item>
-								{#each userRecords.filter((candidate) => candidate.userID !== record.userID) as option (option.userID)}
-									<Select.Item value={option.userID} label={personLabel(option)}>{personLabel(option)}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</label>
-				</div>
-			{/if}
-		</div>
-
+	{@const editingRecord = editingRecordsByUserID[node.record.userID]}
+	<div class="grid min-w-0 gap-2">
+		{@render orgProfile(node.record, editingRecord)}
 		{#if node.reports.length > 0}
-			<div class="ml-4 grid gap-2.5 border-l pl-4 sm:ml-5 sm:pl-5">
+			<div class="ml-5 grid gap-2 border-l pl-4" data-testid={`orgchart-reports-${node.record.userID}`}>
 				{#each node.reports as report (report.record.email)}
 					{@render orgNode(report)}
 				{/each}
 			</div>
 		{/if}
 	</div>
+{/snippet}
+
+{#snippet orgProfile(record: UserRecord, editingRecord: UserRecord | undefined)}
+	{#if editingRecord}
+		<OrgchartProfileCard
+			record={editingRecord}
+			{userRecords}
+			{groups}
+			{text}
+			canEdit={isEditing}
+			isEditing={true}
+			isSaving={isSavingProfile(editingRecord.userID)}
+			hasInvalidSupervisor={hasInvalidSupervisor(editingRecord)}
+			onEdit={() => editProfile(record)}
+			onSave={() => saveProfile(record.userID)}
+			onCancel={() => cancelProfileEdit(record.userID)}
+		/>
+	{:else}
+		<OrgchartProfileCard
+			{record}
+			{userRecords}
+			{groups}
+			{text}
+			canEdit={isEditing}
+			isEditing={false}
+			isSaving={isSavingProfile(record.userID)}
+			hasInvalidSupervisor={hasInvalidSupervisor(record)}
+			onEdit={() => editProfile(record)}
+			onSave={() => saveProfile(record.userID)}
+			onCancel={() => cancelProfileEdit(record.userID)}
+		/>
+	{/if}
 {/snippet}
