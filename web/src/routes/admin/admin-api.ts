@@ -28,7 +28,10 @@ export class AdminApiError extends Error {
 	}
 }
 
-const fallbackAdminApiErrorMessages = new Set(['employmentStatus must be active, leave, or resigned']);
+const fallbackAdminApiErrorMessages = new Set([
+	'employmentStatus must be active, leave, or resigned',
+	'supervisor hierarchy cannot contain cycles'
+]);
 const fallbackNetworkErrorMessages = new Set(['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.', 'fetch failed']);
 
 export async function fetchAdminSession(adminBaseURL: string, fallbackMessage: string): Promise<AdminSession> {

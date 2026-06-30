@@ -3,7 +3,7 @@ import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEdit
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-orgchart-fixtures';
 
 test.describe('admin org chart groups', () => {
-	test('adds an organization from the primary organization picker', async ({ page }) => {
+	test('adds an organization from the organization picker', async ({ page }) => {
 		const savedGroups: { id: string; name: string }[][] = [];
 		let usersResponse = cloneUsersResponse(initialUsersResponse);
 		usersResponse.availableGroups = [
@@ -46,9 +46,9 @@ test.describe('admin org chart groups', () => {
 		]);
 		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
 		await expect(page.getByTestId('orgchart-profile-user-ada')).toContainText('Platform');
-		await expect(graceCard.getByLabel('주 소속 조직')).toContainText('Engineering');
-		await selectCardOption(page, graceCard, '주 소속 조직', 'Platform');
-		await expect(graceCard.getByLabel('주 소속 조직')).toContainText('Platform');
+		await expect(graceCard.getByLabel('소속 조직')).toContainText('Engineering');
+		await selectCardOption(page, graceCard, '소속 조직', 'Platform');
+		await expect(graceCard.getByLabel('소속 조직')).toContainText('Platform');
 	});
 
 	test('reuses an existing organization when the new organization name already exists', async ({ page }) => {
@@ -74,7 +74,7 @@ test.describe('admin org chart groups', () => {
 		await page.getByRole('button', { name: '조직 추가' }).click();
 		const graceCard = page.getByTestId('orgchart-profile-user-grace');
 		await openCardEditor(graceCard);
-		await selectCardOption(page, graceCard, '주 소속 조직', 'Engineering');
+		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 
 		await expect.poll(() => savedGroups).toEqual([]);

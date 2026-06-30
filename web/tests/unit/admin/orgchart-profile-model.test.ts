@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import type { UserRecord } from '../../../src/routes/admin/admin-types';
 import {
 	isOrgProfileChanged,
-	isPositionLevelInvalid,
 	normalizeOrgProfileRecord,
 	orgProfileSnapshot,
 	orgProfileUpdate
@@ -25,25 +24,45 @@ describe('orgchart profile model', () => {
 			userRecord({
 				jobTitle: '  Engineer  ',
 				group: 'engineering',
-				groupIDs: [' operations ', 'engineering', 'operations'],
-				projectIDs: [' blueclaw ', 'admin', 'blueclaw'],
-				teamRole: ' frontend ',
-				employmentStatus: undefined,
-				isOrgchartVisible: undefined
+				groupIDs: [' operations ', 'engineering', 'operations']
 			})
 		);
 
 		expect(record.jobTitle).toBe('Engineer');
 		expect(record.primaryGroupID).toBe('engineering');
 		expect(record.group).toBe('engineering');
-		expect(record.groupIDs).toEqual(['engineering', 'operations']);
-		expect(record.projectIDs).toEqual(['blueclaw', 'admin']);
-		expect(record.teamRole).toBe('frontend');
-		expect(record.employmentStatus).toBe('active');
-		expect(record.isOrgchartVisible).toBe(true);
+		expect(record.groupIDs).toEqual(['engineering']);
 	});
 
-	test('compares snapshots with trimmed values', () => {
+	test('falls back to legacy group metadata when primary group is empty', () => {
+		const record = normalizeOrgProfileRecord(
+			userRecord({
+				primaryGroupID: '',
+				group: 'operations',
+				groupIDs: ['engineering']
+			})
+		);
+
+		expect(record.primaryGroupID).toBe('operations');
+		expect(record.group).toBe('operations');
+		expect(record.groupIDs).toEqual(['operations']);
+	});
+
+	test('falls back to the first legacy group id when primary and group are empty', () => {
+		const record = normalizeOrgProfileRecord(
+			userRecord({
+				primaryGroupID: '',
+				group: '',
+				groupIDs: ['engineering', 'operations']
+			})
+		);
+
+		expect(record.primaryGroupID).toBe('engineering');
+		expect(record.group).toBe('engineering');
+		expect(record.groupIDs).toEqual(['engineering']);
+	});
+
+	test('compares snapshots with minimal editable values', () => {
 		const original = orgProfileSnapshot(
 			userRecord({
 				jobTitle: 'Designer',
@@ -64,8 +83,8 @@ describe('orgchart profile model', () => {
 					groupIDs: ['design'],
 					projectIDs: [' brand '],
 					teamRole: ' system ',
-					employmentStatus: 'active',
-					isOrgchartVisible: true
+					employmentStatus: 'leave',
+					isOrgchartVisible: false
 				}),
 				original
 			)
@@ -76,14 +95,9 @@ describe('orgchart profile model', () => {
 		const update = orgProfileUpdate(
 			userRecord({
 				jobTitle: ' Lead ',
-				positionLevel: 2,
 				primaryGroupID: 'leadership',
 				groupIDs: ['engineering', 'leadership', 'engineering'],
-				supervisorID: 'manager-1',
-				projectIDs: [' blueclaw ', 'blueclaw'],
-				teamRole: ' owner ',
-				employmentStatus: 'leave',
-				isOrgchartVisible: false
+				supervisorID: 'manager-1'
 			})
 		);
 
@@ -92,22 +106,9 @@ describe('orgchart profile model', () => {
 			email: 'user@example.com',
 			jobTitle: 'Lead',
 			group: 'leadership',
-			positionLevel: 2,
 			primaryGroupID: 'leadership',
-			groupIDs: ['leadership', 'engineering'],
-			supervisorID: 'manager-1',
-			projectIDs: ['blueclaw'],
-			teamRole: 'owner',
-			employmentStatus: 'leave',
-			isOrgchartVisible: false
+			groupIDs: ['leadership'],
+			supervisorID: 'manager-1'
 		});
-	});
-
-	test('validates position level as a positive integer', () => {
-		expect(isPositionLevelInvalid(userRecord({ positionLevel: undefined }))).toBe(false);
-		expect(isPositionLevelInvalid(userRecord({ positionLevel: 0 }))).toBe(true);
-		expect(isPositionLevelInvalid(userRecord({ positionLevel: 1 }))).toBe(false);
-		expect(isPositionLevelInvalid(userRecord({ positionLevel: 1.5 }))).toBe(true);
-		expect(isPositionLevelInvalid(userRecord({ positionLevel: -1 }))).toBe(true);
 	});
 });

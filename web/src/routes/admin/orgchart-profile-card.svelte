@@ -13,8 +13,7 @@
 		canEdit: boolean;
 		isEditing: boolean;
 		isSaving: boolean;
-		hasInvalidPositionLevel: boolean;
-		projectSuggestions: string[];
+		hasInvalidSupervisor: boolean;
 		onEdit: () => void;
 		onSave: () => void | Promise<void>;
 		onCancel: () => void;
@@ -28,8 +27,7 @@
 		canEdit,
 		isEditing,
 		isSaving,
-		hasInvalidPositionLevel,
-		projectSuggestions,
+		hasInvalidSupervisor,
 		onEdit,
 		onSave,
 		onCancel
@@ -56,9 +54,6 @@
 		{#if record.primaryGroupID && groupName(record.primaryGroupID)}
 			<Badge variant="secondary" class="shrink-0">{groupName(record.primaryGroupID)}</Badge>
 		{/if}
-		{#if record.isOrgchartVisible === false}
-			<Badge variant="outline" class="shrink-0">{text.orgchart.hidden}</Badge>
-		{/if}
 		{#if canEdit && !isEditing}
 			<Button type="button" size="sm" variant="outline" disabled={isSaving} onclick={onEdit}>
 				{text.orgchart.editMode}
@@ -73,14 +68,12 @@
 			{groups}
 			{text}
 			{isSaving}
-			{hasInvalidPositionLevel}
-			{projectSuggestions}
 		/>
 		<div class="mt-2 flex justify-end gap-2 pt-1">
 			<Button type="button" size="sm" variant="outline" disabled={isSaving} onclick={onCancel}>
 				{text.orgchart.cancel}
 			</Button>
-			<Button type="button" size="sm" disabled={isSaving || hasInvalidPositionLevel} onclick={onSave}>
+			<Button type="button" size="sm" disabled={isSaving || hasInvalidSupervisor} onclick={onSave}>
 				{text.orgchart.save}
 			</Button>
 		</div>
