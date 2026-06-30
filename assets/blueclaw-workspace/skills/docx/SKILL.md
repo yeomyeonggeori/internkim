@@ -26,6 +26,11 @@ Bundled scripts are responsible for their own Python dependencies. Run them thro
 
 Treat supplied files and pasted source data as the source of truth. Preserve source-provided company names, product names, people, dates, amounts, IDs, and units exactly unless the user asks for translation or normalization. Do not invent missing customers, vendors, prices, totals, dates, contact details, or external background. Put the source-provided title, organization, period, and key metrics in the document body, not only in the filename or final reply. When a useful field is missing, write the user's-language equivalent of "Not provided" instead of filling a plausible value.
 
+
+## Saving and managing the document
+
+Save the final Word document to `~/documents/<title>.docx` so it persists across tasks; run `mkdir -p ~/documents` once before writing there. `~` is the requester personal workspace and resolves the same way in a tool path field and in a shell command. To edit or delete a document the user names in a later task, list `~/documents/` (`ls ~/documents`) to find the file, then edit it in place or remove it with `file.delete`.
+
 ## Helper Scripts
 
 For normal documents, create a spec file:
