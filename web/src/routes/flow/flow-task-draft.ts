@@ -55,3 +55,43 @@ export function participantSelectionFromNames(
 		participantNames: ordered.map((member) => member.name)
 	};
 }
+
+export function updateFlowTaskOwner(task: FlowTask, members: FlowMember[], ownerID: string): FlowTask {
+	const owner = members.find((member) => member.id === ownerID);
+	if (!owner) return task;
+	const memberByID = new Map(members.map((member) => [member.id, member]));
+	const participantIDs = Array.from(new Set([owner.id, ...task.participantIDs]));
+	const participants = participantIDs
+		.map((participantID) => memberByID.get(participantID))
+		.filter((member): member is FlowMember => Boolean(member));
+	return {
+		...task,
+		ownerID: owner.id,
+		ownerName: owner.name,
+		participantIDs: participants.map((participant) => participant.id),
+		participantNames: participants.map((participant) => participant.name)
+	};
+}
+
+export function updateFlowTaskParticipantNames(task: FlowTask, members: FlowMember[], names: string[]): FlowTask {
+	const selection = participantSelectionFromNames(names, members, task.ownerID);
+	return {
+		...task,
+		participantIDs: selection.participantIDs,
+		participantNames: selection.participantNames
+	};
+}
+
+export function removeFlowTaskParticipant(task: FlowTask, memberID: string): FlowTask {
+	const participants = task.participantIDs
+		.map((participantID, index) => ({
+			id: participantID,
+			name: task.participantNames[index] ?? ''
+		}))
+		.filter((participant) => participant.id !== memberID);
+	return {
+		...task,
+		participantIDs: participants.map((participant) => participant.id),
+		participantNames: participants.map((participant) => participant.name)
+	};
+}
