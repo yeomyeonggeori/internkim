@@ -4,24 +4,19 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
-	import { calendarEventDateKeysForMonth } from './calendar-layout-date';
 	import {
 		fetchCalendarAccountStatus,
-		fetchCalendarEventsForMonth,
 		fetchCalendarSyncInformation,
 		rotateCalendarSubscriptionURL,
 		uploadGoogleOAuthClient
 	} from './calendar-layout-api';
 	import {
-		initialSelectedDateKey,
 		installCalendarLayoutMessageSync,
-		loadCalendarLayoutStoredState,
-		saveAndBroadcastCalendarWorkVisibility
+		loadCalendarLayoutStoredState
 	} from './calendar-layout-message-sync';
-	import CalendarLayoutSidebar from './calendar-layout-sidebar.svelte';
 	import { CalendarLayoutState } from './calendar-layout-state.svelte';
 	import CalendarLayoutSyncSheet from './calendar-layout-sync-sheet.svelte';
-	import { broadcastCalendarNavigation, bumpCalendarRefresh, calendarVisibility } from './refresh-signal.svelte';
+	import { bumpCalendarRefresh } from './refresh-signal.svelte';
 	import { calendarText } from './text';
 
 	let { children } = $props();
@@ -38,11 +33,6 @@
 		})
 	);
 
-	function selectMiniMonthDate(date: Date) {
-		layoutState.selectMiniMonthDate(date);
-		broadcastCalendarNavigation(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0));
-	}
-
 	$effect(() => {
 		if (isEmbed) return;
 		breadcrumbMeta.value = todayMonthLabel;
@@ -51,14 +41,6 @@
 		};
 	});
 
-	$effect(() => {
-		if (isEmbed) return;
-		layoutState.miniMonth;
-		loadMiniMonthEvents();
-	});
-
-	const calendarSources = $derived(layoutState.calendarSources(text.work, calendarVisibility.work));
-
 	onMount(() => {
 		if (isEmbed) return;
 		loadSyncInformation();
@@ -66,26 +48,14 @@
 		const storedState = loadCalendarLayoutStoredState();
 		if (storedState.visibleDate) {
 			layoutState.applyVisibleDate(storedState.visibleDate);
-		} else {
-			layoutState.selectedMiniDateKey = initialSelectedDateKey(layoutState.today, null);
 		}
-		if (storedState.view) layoutState.miniMonthCalendarView = storedState.view;
-		if (storedState.isWorkVisible !== null) calendarVisibility.work = storedState.isWorkVisible;
 		return installCalendarLayoutMessageSync({
-			selectedDateKey: () => layoutState.selectedMiniDateKey,
+			selectedDateKey: () => layoutState.selectedDateKey,
 			applyVisibleDate: (date) => layoutState.applyVisibleDate(date),
-			applyCalendarView: (view) => {
-				layoutState.miniMonthCalendarView = view;
-			},
-			reloadMiniMonthEvents: loadMiniMonthEvents
+			openSettings: openSyncSheet,
+			refreshCalendar: bumpCalendarRefresh
 		});
 	});
-
-	function toggleCalendarSource(sourceID: string) {
-		if (sourceID !== 'work') return;
-		calendarVisibility.work = !calendarVisibility.work;
-		saveAndBroadcastCalendarWorkVisibility(calendarVisibility.work);
-	}
 
 	async function loadSyncInformation() {
 		try {
@@ -105,15 +75,6 @@
 			layoutState.accountStatusError = true;
 		} finally {
 			layoutState.isLoadingAccountStatus = false;
-		}
-	}
-
-	async function loadMiniMonthEvents() {
-		try {
-			const events = await fetchCalendarEventsForMonth(layoutState.miniMonth);
-			layoutState.setMiniMonthEvents(calendarEventDateKeysForMonth(events, layoutState.miniMonth), events.length);
-		} catch {
-			layoutState.resetMiniMonthEvents();
 		}
 	}
 
@@ -149,29 +110,11 @@
 		loadSyncInformation();
 		loadAccountStatus();
 	}
-
-	function setMiniMonth(month: Date) {
-		layoutState.setMiniMonth(month);
-	}
 </script>
 
 {#if isEmbed}
 	{@render children()}
 {:else}
-	<CalendarLayoutSidebar
-		{text}
-		{calendarSources}
-		miniMonth={layoutState.miniMonth}
-		miniMonthCalendarView={layoutState.miniMonthCalendarView}
-		miniMonthEventDates={layoutState.miniMonthEventDates}
-		selectedMiniDateKey={layoutState.selectedMiniDateKey}
-		{setMiniMonth}
-		{selectMiniMonthDate}
-		{openSyncSheet}
-		refreshCalendar={bumpCalendarRefresh}
-		{toggleCalendarSource}
-	/>
-
 	<div class="flex min-w-0 flex-1 flex-col">
 		{@render children()}
 	</div>

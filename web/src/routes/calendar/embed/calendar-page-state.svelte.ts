@@ -17,7 +17,6 @@ type CalendarEmbedPageStateInitialValues = {
 export class CalendarEmbedPageState {
 	isSaving = $state(false);
 	visibleEvents = $state<DayFlowEvent[]>([]);
-	calendarWorkVisible = $state(true);
 	calendarStageElement = $state<HTMLElement | null>(null);
 	monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);

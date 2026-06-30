@@ -46,7 +46,6 @@ type CalendarPageLifecycleOptionsContext = {
 	setMonthRangeSelection: (selection: MonthRangeSelection | null) => void;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
-	setWorkCalendarVisible: (isVisible: boolean) => void;
 	syncCalendarThemeToDocument: () => void;
 	text: CalendarLocaleText;
 };
@@ -56,7 +55,6 @@ export function createCalendarPageLifecycleOptions(
 ): CalendarEmbedLifecycleOptions {
 	return {
 		stageElement: context.getStageElement(),
-		setWorkCalendarVisible: context.setWorkCalendarVisible,
 		handleCalendarChannelMessage: context.pageMessages.handleCalendarChannelMessage,
 		handleCalendarWindowMessage: context.pageMessages.handleCalendarWindowMessage,
 		handleCalendarStorageMessage: context.pageMessages.handleCalendarStorageMessage,
