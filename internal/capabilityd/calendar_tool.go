@@ -70,8 +70,6 @@ func (service Service) invokeCalendarTool(ctx context.Context, request capabilit
 		return service.invokeCalendarEventDelete(ctx, request)
 	case "calendar.connection.status":
 		return service.invokeCalendarConnectionStatus(ctx, request)
-	case "calendar.connection.start":
-		return service.invokeCalendarConnectionStart(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
 	}
@@ -137,14 +135,6 @@ func (service Service) invokeCalendarConnectionStatus(ctx context.Context, reque
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return calendarToolResponse(request.ToolName, "ok", result), nil
-}
-
-func (service Service) invokeCalendarConnectionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPost, "/calendar/api/connection/start", nil, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return calendarToolResponse(request.ToolName, "connection_required", result), nil
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {
