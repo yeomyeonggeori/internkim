@@ -1,22 +1,25 @@
-import { createQuickFlowTask, deleteFlowTask, saveFlowTask } from './flow-api';
-import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './flow-task-board-drag';
-import { saveFlowTaskBoardMove } from './flow-task-board-save';
-import { cloneFlowTask, createFlowTaskDraft, defaultFlowTaskOwner, participantSelectionFromNames } from './flow-task-draft';
+import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
+import { FlowTaskBoardController } from './flow-task-board-controller.svelte';
+import { FlowTaskEditorController } from './flow-task-editor-controller.svelte';
+import { FlowTaskFiltersController } from './flow-task-filters-controller.svelte';
+import { updateFlowTaskStatus } from './flow-task-persistence';
+import { FlowTaskQuickCreateController } from './flow-task-quick-create-controller.svelte';
 import type { LoadFlow } from './flow-load-tracker';
 import {
-	buildBusinessFilterOptions,
-	buildBusinessSelectOptions,
-	buildMemberFilterOptions,
-	canDeleteFlowTask,
-	canManageFlowTaskAssignment,
-	canRemoveFlowTaskParticipant,
+	categorySelectOptions,
+	definitionsFromSummary,
+	flowTaskStatusLabel,
+	memberSelectOptions,
+	sizeSelectOptions,
+	statusOptionsFromSummary,
+	statusSelectOptions,
+	typeSelectOptions
+} from './flow-task-options';
+import {
 	canUpdateFlowTask,
-	defaultParticipantFilterIDs,
-	filterFlowTasks,
-	sortFlowTaskList
 } from './flow-task-workspace-model';
 import { flowText } from './text';
-import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
+import type { FlowQuickTaskCreateResult, FlowSummary, FlowTask } from './flow-types';
 
 type FlowPageText = typeof flowText.ko;
 
@@ -27,12 +30,6 @@ type FlowTasksControllerInput = {
 	setPageErrorMessage: (message: string) => void;
 };
 
-const emptyDefinitions: FlowDefinitions = {
-	categories: [],
-	types: [],
-	sizes: []
-};
-
 export function createFlowTasksController() {
 	return new FlowTasksController();
 }
@@ -40,23 +37,11 @@ export function createFlowTasksController() {
 class FlowTasksController {
 	summary = $state<FlowSummary | null>(null);
 	text: FlowPageText = flowText.ko;
-	taskDraft = $state<FlowTask | null>(null);
-	searchText = $state('');
-	statusFilter = $state('all');
-	participantFilterIDs = $state<string[]>([]);
-	businessFilter = $state('all');
-	typeFilter = $state('all');
-	taskErrorMessage = $state('');
-	quickTaskDuplicateMessage = $state('');
-	quickTaskDuplicatePrompt = $state('');
-	quickTaskText = $state('');
-	isCreatingQuickTask = $state(false);
-	isSavingTask = $state(false);
-	isDeletingTask = $state(false);
+	board = new FlowTaskBoardController();
+	editor = new FlowTaskEditorController();
+	filters = new FlowTaskFiltersController();
+	quickTask = new FlowTaskQuickCreateController();
 	pendingStatusTaskID = $state('');
-	pendingBoardTaskIDs = $state<string[]>([]);
-	private defaultParticipantFilterEmail = '';
-	private hasCustomizedParticipantFilter = false;
 
 	private loadFlow: LoadFlow;
 	private setPageErrorMessage: (message: string) => void;
@@ -66,254 +51,127 @@ class FlowTasksController {
 		this.setPageErrorMessage = () => {};
 	}
 
+	get taskDraft(): FlowTask | null {
+		return this.editor.taskDraft;
+	}
+
+	set taskDraft(taskDraft: FlowTask | null) {
+		this.editor.taskDraft = taskDraft;
+	}
+
+	get taskErrorMessage(): string {
+		return this.editor.taskErrorMessage;
+	}
+
+	get isSavingTask(): boolean {
+		return this.editor.isSavingTask;
+	}
+
+	get isDeletingTask(): boolean {
+		return this.editor.isDeletingTask;
+	}
+
 	sync = (input: FlowTasksControllerInput): void => {
 		this.summary = input.summary;
 		this.text = input.text;
 		this.loadFlow = input.loadFlow;
 		this.setPageErrorMessage = input.setPageErrorMessage;
-		this.syncDefaultParticipantFilter();
+		this.filters.sync(this.summary);
+		this.quickTask.sync({
+			summary: this.summary,
+			text: this.text,
+			loadFlow: this.loadFlow
+		});
+		this.board.sync({
+			text: this.text,
+			loadFlow: this.loadFlow,
+			currentWeek: this.currentWeek,
+			getSummary: () => this.summary,
+			setSummary: (summary) => {
+				this.summary = summary;
+			},
+			setPageErrorMessage: this.setPageErrorMessage
+		});
+		this.editor.sync({
+			summary: this.summary,
+			text: this.text,
+			loadFlow: this.loadFlow,
+			currentWeek: this.currentWeek,
+			taskWeek: this.taskWeek,
+			setPageErrorMessage: this.setPageErrorMessage
+		});
 	};
 
 	currentWeek = () => this.summary?.week.code ?? '';
 	taskWeek = () => this.summary?.currentWeek?.code ?? this.summary?.week.code ?? '';
 	members = () => this.summary?.members ?? [];
 	tasks = () => this.summary?.tasks ?? [];
-	definitions = () => this.summary?.definitions ?? emptyDefinitions;
-	statusOptions = () => this.summary?.statusOptions ?? [];
-	categoryOptions = () => buildBusinessSelectOptions(this.definitions(), this.text.report.fallbackBusiness);
-	typeOptions = () => this.definitions().types.map((type) => ({ value: type, label: type }));
-	sizeOptions = () => this.definitions().sizes.map((size) => ({ value: size.name, label: `${size.name} · ${size.distanceKm}km · ${size.maxHours}h` }));
-	statusFilterOptions = () => [
-		{ value: 'all', label: this.text.filters.all },
-		...this.statusOptions().map((status) => ({ value: status, label: this.statusLabel(status) }))
-	];
-	memberFilterOptions = () => buildMemberFilterOptions(this.members(), this.text.filters.all);
-	categoryFilterOptions = () => buildBusinessFilterOptions(this.definitions().categories, this.text.filters.all, this.text.report.fallbackBusiness);
-	typeFilterOptions = () => [{ value: 'all', label: this.text.filters.all }, ...this.typeOptions()];
-	statusSelectOptions = () => this.statusOptions().map((status) => ({ value: status, label: this.statusLabel(status) }));
-	memberSelectOptions = () => this.members().map((member) => ({ value: member.id, label: member.name }));
+	definitions = () => definitionsFromSummary(this.summary);
+	statusOptions = () => statusOptionsFromSummary(this.summary);
+	categoryOptions = () => categorySelectOptions(this.definitions(), this.text.report.fallbackBusiness);
+	typeOptions = () => typeSelectOptions(this.definitions());
+	sizeOptions = () => sizeSelectOptions(this.definitions());
+	statusFilterOptions = () => this.filters.statusOptions(this.summary, this.text, this.statusLabel);
+	memberFilterOptions = () => this.filters.memberOptions(this.summary, this.text);
+	categoryFilterOptions = () => this.filters.businessOptions(this.summary, this.text);
+	typeFilterOptions = () => this.filters.typeOptions(this.summary, this.text);
+	statusSelectOptions = () => statusSelectOptions(this.statusOptions(), this.statusLabel);
+	memberSelectOptions = () => memberSelectOptions(this.members());
 
-	filteredTasks = () => sortFlowTaskList(
-		filterFlowTasks(this.tasks(), {
-			searchText: this.searchText,
-			statusFilter: this.statusFilter,
-			participantFilterIDs: this.participantFilterIDs,
-			businessFilter: this.businessFilter,
-			typeFilter: this.typeFilter
-		})
-	);
+	filteredTasks = () => this.filters.tasks(this.tasks());
 
-	clearStaleDuplicatePrompt = (): void => {
-		if (!this.quickTaskDuplicateMessage || this.quickTaskText.trim() === this.quickTaskDuplicatePrompt) return;
-		this.quickTaskDuplicateMessage = '';
-		this.quickTaskDuplicatePrompt = '';
-	};
-
-	statusLabel = (status: string): string => {
-		const labels = this.text.status as Record<string, string>;
-		return labels[status] ?? status;
-	};
+	statusLabel = (status: string): string => flowTaskStatusLabel(this.text, status);
 
 	openTask = (task: FlowTask): void => {
-		if (this.isBoardTaskPending(task.id)) return;
-		this.taskDraft = cloneFlowTask(task);
-		this.taskErrorMessage = '';
+		this.editor.openTask(task, this.isBoardTaskPending);
 	};
 
 	createTask = (status?: string): void => {
-		const owner = this.defaultTaskOwner();
-		if (!owner || !this.summary) return;
-		this.taskDraft = createFlowTaskDraft(owner, this.definitions(), this.taskWeek());
-		if (typeof status === 'string' && status) this.taskDraft.status = status;
-		this.taskErrorMessage = '';
+		this.editor.createTask(status);
 	};
 
-	createQuickTask = async (allowDuplicate = false): Promise<void> => {
-		const prompt = this.quickTaskText.trim();
-		const owner = this.defaultTaskOwner();
-		if (!prompt || !owner || !this.summary) return;
-		this.isCreatingQuickTask = true;
-		this.taskErrorMessage = '';
-		if (!allowDuplicate) {
-			this.quickTaskDuplicateMessage = '';
-			this.quickTaskDuplicatePrompt = '';
-		}
-		try {
-			const result = await createQuickFlowTask(
-				{
-					prompt,
-					ownerID: owner.id,
-					participantIDs: [owner.id],
-					weekCode: this.taskWeek(),
-					allowDuplicate
-				},
-				this.text.task.quickAddError
-			);
-			if (result.status === 'skipped_duplicate') {
-				this.quickTaskDuplicateMessage = this.text.task.quickAddDuplicate;
-				this.quickTaskDuplicatePrompt = prompt;
-				return;
-			}
-			this.quickTaskText = '';
-			this.quickTaskDuplicateMessage = '';
-			this.quickTaskDuplicatePrompt = '';
-			await this.loadFlow(this.currentWeek());
-		} catch (error) {
-			this.taskErrorMessage = error instanceof Error ? error.message : this.text.task.quickAddError;
-		} finally {
-			this.isCreatingQuickTask = false;
-		}
-	};
+	createQuickTask = (allowDuplicate = false): Promise<FlowQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);
 
-	saveTask = async (): Promise<void> => {
-		if (!this.taskDraft || !this.canUpdateTask(this.taskDraft)) return;
-		this.isSavingTask = true;
-		this.taskErrorMessage = '';
-		try {
-			await saveFlowTask(this.taskDraft, this.text.task.saveError);
-			this.taskDraft = null;
-			await this.loadFlow(this.currentWeek());
-		} catch (error) {
-			this.taskErrorMessage = error instanceof Error ? error.message : this.text.task.saveError;
-		} finally {
-			this.isSavingTask = false;
-		}
-	};
+	saveTask = this.editor.saveTask;
 
 	updateTaskStatus = async (task: FlowTask, nextStatus: string): Promise<void> => {
-		if (!task.id || nextStatus === task.status) return;
-		if (!this.canUpdateTask(task)) return;
-		if (this.isBoardTaskPending(task.id)) return;
 		this.pendingStatusTaskID = task.id;
 		this.setPageErrorMessage('');
-		try {
-			await saveFlowTask({ ...task, status: nextStatus }, this.text.task.saveError);
-			await this.loadFlow(this.currentWeek());
-		} catch (error) {
-			this.setPageErrorMessage(error instanceof Error ? error.message : this.text.task.saveError);
-		} finally {
-			this.pendingStatusTaskID = '';
-		}
+		const result = await updateFlowTaskStatus({
+			task,
+			nextStatus,
+			canUpdateTask: this.canUpdateTask,
+			isTaskPending: this.isBoardTaskPending,
+			loadFlow: this.loadFlow,
+			weekCode: this.currentWeek(),
+			saveErrorMessage: this.text.task.saveError
+		});
+		if (result.status === 'failed') this.setPageErrorMessage(result.errorMessage);
+		this.pendingStatusTaskID = '';
 	};
 
 	moveTaskOnBoard = async (request: FlowTaskBoardMoveRequest): Promise<void> => {
-		if (!this.summary || this.pendingBoardTaskIDs.length > 0) return;
-		const task = this.summary.tasks.find((candidate) => candidate.id === request.taskID);
-		if (!task || !this.canUpdateTask(task)) return;
-		const move = createFlowTaskBoardMove(this.summary.tasks, request);
-		if (!move) return;
-
-		const previousSummary = this.summary;
-		const week = this.currentWeek();
-		this.pendingBoardTaskIDs = move.updates.map((task) => task.id);
-		this.setPageErrorMessage('');
-		this.summary = { ...this.summary, tasks: move.tasks };
-
-		try {
-			const saveResult = await saveFlowTaskBoardMove({
-				request,
-				week,
-				currentWeek: this.currentWeek,
-				loadFlow: this.loadFlow,
-				setPageErrorMessage: this.setPageErrorMessage,
-				saveErrorMessage: this.text.task.saveError,
-				loadErrorMessage: this.text.loadError
-			});
-			if (saveResult === 'failed' && this.currentWeek() === week) {
-				this.summary = previousSummary;
-			}
-			if (saveResult === 'saved_with_reload_error' && this.currentWeek() === week && this.summary) {
-				this.summary = { ...this.summary, tasks: move.tasks };
-			}
-		} finally {
-			this.pendingBoardTaskIDs = [];
-		}
+		await this.board.moveTaskOnBoard(request);
 	};
 
-	isBoardTaskPending = (taskID: string): boolean => this.pendingBoardTaskIDs.includes(taskID);
+	isBoardTaskPending = (taskID: string): boolean => this.board.isTaskPending(taskID);
 
 	resetFilters = (): void => {
-		this.searchText = '';
-		this.statusFilter = 'all';
-		this.participantFilterIDs = defaultParticipantFilterIDs(this.summary);
-		this.hasCustomizedParticipantFilter = false;
-		this.businessFilter = 'all';
-		this.typeFilter = 'all';
+		this.filters.reset(this.summary);
 	};
 
 	setParticipantFilterIDs = (memberIDs: string[]): void => {
-		this.participantFilterIDs = [...memberIDs];
-		this.hasCustomizedParticipantFilter = true;
+		this.filters.setParticipantIDs(memberIDs);
 	};
 
-	setTaskOwnerID = (memberID: string): void => {
-		if (!this.taskDraft) return;
-		const owner = this.members().find((member) => member.id === memberID);
-		if (!owner) return;
-		const memberByID = new Map(this.members().map((member) => [member.id, member]));
-		const participantIDs = Array.from(new Set([owner.id, ...this.taskDraft.participantIDs]));
-		const participants = participantIDs
-			.map((participantID) => memberByID.get(participantID))
-			.filter((member): member is FlowMember => Boolean(member));
-		this.taskDraft.ownerID = owner.id;
-		this.taskDraft.ownerName = owner.name;
-		this.taskDraft.participantIDs = participants.map((participant) => participant.id);
-		this.taskDraft.participantNames = participants.map((participant) => participant.name);
-	};
-
-	setParticipantNames = (names: string[]): void => {
-		if (!this.taskDraft) return;
-		const selection = participantSelectionFromNames(names, this.members(), this.taskDraft.ownerID);
-		this.taskDraft.participantIDs = selection.participantIDs;
-		this.taskDraft.participantNames = selection.participantNames;
-	};
-
-	removeParticipantID = (memberID: string): void => {
-		if (!this.taskDraft || !canRemoveFlowTaskParticipant(this.taskDraft, memberID)) return;
-		const nextParticipants = this.taskDraft.participantIDs
-			.map((participantID, index) => ({
-				id: participantID,
-				name: this.taskDraft?.participantNames[index] ?? ''
-			}))
-			.filter((participant) => participant.id !== memberID);
-		this.taskDraft.participantIDs = nextParticipants.map((participant) => participant.id);
-		this.taskDraft.participantNames = nextParticipants.map((participant) => participant.name);
-	};
-
-	closeEditor = (): void => {
-		this.taskDraft = null;
-	};
+	setTaskOwnerID = this.editor.setTaskOwnerID;
+	setParticipantNames = this.editor.setParticipantNames;
+	removeParticipantID = this.editor.removeParticipantID;
+	closeEditor = this.editor.closeEditor;
 
 	canUpdateTask = (task: FlowTask): boolean => canUpdateFlowTask(this.summary, task);
-	canDeleteTask = (task: FlowTask): boolean => canDeleteFlowTask(this.summary, task);
-	canManageTaskAssignment = (task: FlowTask): boolean => canManageFlowTaskAssignment(this.summary, task);
+	canDeleteTask = this.editor.canDeleteTask;
+	canManageTaskAssignment = this.editor.canManageTaskAssignment;
+	deleteTask = this.editor.deleteTask;
 
-	deleteTask = async (task: FlowTask): Promise<void> => {
-		if (!task.id || !this.canDeleteTask(task)) return;
-		this.isDeletingTask = true;
-		this.taskErrorMessage = '';
-		try {
-			await deleteFlowTask(task.id, this.text.task.deleteError);
-			this.taskDraft = null;
-			await this.loadFlow(this.currentWeek());
-		} catch (error) {
-			const message = error instanceof Error ? error.message : this.text.task.deleteError;
-			this.taskErrorMessage = message;
-			this.setPageErrorMessage(message);
-		} finally {
-			this.isDeletingTask = false;
-		}
-	};
-
-	private defaultTaskOwner(): FlowMember | undefined {
-		return defaultFlowTaskOwner(this.members(), this.summary?.currentUserEmail ?? '', '');
-	}
-
-	private syncDefaultParticipantFilter(): void {
-		const currentEmail = this.summary?.currentUserEmail ?? '';
-		if (!currentEmail || this.hasCustomizedParticipantFilter && this.defaultParticipantFilterEmail === currentEmail) return;
-		if (this.defaultParticipantFilterEmail === currentEmail && this.participantFilterIDs.length > 0) return;
-		this.participantFilterIDs = defaultParticipantFilterIDs(this.summary);
-		this.defaultParticipantFilterEmail = currentEmail;
-	}
 }

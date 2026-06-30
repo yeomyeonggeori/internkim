@@ -4,7 +4,9 @@
 	import FlowTaskEditor from './flow-task-editor.svelte';
 	import FlowTaskQuickAdd from './flow-task-quick-add.svelte';
 	import FlowTaskBoard from './flow-task-board.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import { createFlowTasksController } from './flow-tasks-controller.svelte';
 	import type { LoadFlow } from './flow-load-tracker';
@@ -47,10 +49,10 @@
 		});
 	});
 
-	$effect(page.clearStaleDuplicatePrompt);
+	$effect(page.quickTask.clearStaleDuplicatePrompt);
 </script>
 
-<div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-20 md:pb-16'}>
+<div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-36 md:pb-16'}>
 	<Tabs.Root bind:value={taskViewTab} class="flex flex-col gap-4" data-flow-task-results>
 		<div class="flex flex-wrap items-center gap-2">
 			<Tabs.List class="h-10 rounded-full border bg-muted/50 p-1">
@@ -62,11 +64,11 @@
 				</Tabs.Trigger>
 			</Tabs.List>
 			<FlowTaskFilters
-				bind:searchText={page.searchText}
-				bind:statusFilter={page.statusFilter}
-				bind:businessFilter={page.businessFilter}
-				bind:typeFilter={page.typeFilter}
-				participantFilterIDs={page.participantFilterIDs}
+				bind:searchText={page.filters.searchText}
+				bind:statusFilter={page.filters.statusFilter}
+				bind:businessFilter={page.filters.businessFilter}
+				bind:typeFilter={page.filters.typeFilter}
+				participantFilterIDs={page.filters.participantFilterIDs}
 				statusOptions={page.statusFilterOptions()}
 				participantOptions={page.memberFilterOptions()}
 				businessOptions={page.categoryFilterOptions()}
@@ -78,6 +80,19 @@
 				createTask={page.createTask}
 				setParticipantFilterIDs={page.setParticipantFilterIDs}
 			/>
+			{#if taskViewTab === 'list'}
+				<Button
+					type="button"
+					size="icon"
+					class="ml-auto bg-primary text-primary-foreground hover:bg-primary/90"
+					aria-label={text.filters.addTask}
+					title={text.filters.addTask}
+					onclick={() => page.createTask()}
+					disabled={page.members().length === 0}
+				>
+					<PlusIcon class="size-4" />
+				</Button>
+			{/if}
 		</div>
 		<Tabs.Content value="board" class="min-h-[36rem]">
 			<FlowTaskBoard
@@ -88,7 +103,7 @@
 				openTask={page.openTask}
 				createTask={page.createTask}
 				moveTask={page.moveTaskOnBoard}
-				pendingTaskIDs={page.pendingBoardTaskIDs}
+				pendingTaskIDs={page.board.pendingTaskIDs}
 				canUpdateTask={page.canUpdateTask}
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
@@ -110,12 +125,12 @@
 	</Tabs.Root>
 </div>
 
-{#if page.taskDraft === null}
+{#if page.editor.taskDraft === null}
 	<FlowTaskQuickAdd
-		bind:quickTaskText={page.quickTaskText}
-		taskErrorMessage={page.taskErrorMessage}
-		quickTaskDuplicateMessage={page.quickTaskDuplicateMessage}
-		isCreatingQuickTask={page.isCreatingQuickTask}
+		bind:quickTaskText={page.quickTask.quickTaskText}
+		taskErrorMessage={page.quickTask.taskErrorMessage}
+		quickTaskDuplicateMessage={page.quickTask.quickTaskDuplicateMessage}
+		isCreatingQuickTask={page.quickTask.isCreatingQuickTask}
 		hasMembers={page.members().length > 0}
 		text={text.task}
 		createQuickTask={() => page.createQuickTask(false)}
@@ -124,16 +139,16 @@
 {/if}
 
 <FlowTaskEditor
-	bind:taskDraft={page.taskDraft}
+	bind:taskDraft={page.editor.taskDraft}
 	members={page.members()}
 	memberOptions={page.memberSelectOptions()}
 	categoryOptions={page.categoryOptions()}
 	typeOptions={page.typeOptions()}
 	sizeOptions={page.sizeOptions()}
 	statusOptions={page.statusSelectOptions()}
-	taskErrorMessage={page.taskErrorMessage}
-	isSavingTask={page.isSavingTask}
-	isDeletingTask={page.isDeletingTask}
+	taskErrorMessage={page.editor.taskErrorMessage}
+	isSavingTask={page.editor.isSavingTask}
+	isDeletingTask={page.editor.isDeletingTask}
 	pageTitle={text.title}
 	text={text.task}
 	statusLabel={page.statusLabel}

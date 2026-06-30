@@ -1,4 +1,3 @@
-// Flow 개인 상세 점수 표에 표시할 주간·월간 계산 행을 만든다.
 import { isFlowStatusCompleted } from './flow-status';
 import { currentFlowMember } from './flow-task-workspace-model';
 import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask, FlowWeek } from './flow-types';
