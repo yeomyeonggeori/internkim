@@ -1,4 +1,3 @@
-// 출결 팀 상세 팝업의 개인별 완료 Flow 업무 매칭을 담당한다.
 import { isFlowStatusCompleted } from '../../flow/flow-status';
 import type { FlowState, FlowTask } from '../../flow/flow-types';
 import type { TeamStatusCompletedTaskDetail, TeamStatusDayContextPerson } from './team-status-day-context';
