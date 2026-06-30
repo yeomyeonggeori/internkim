@@ -1,5 +1,14 @@
 import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
+import {
+	calendarDateTimeRangeChangesForStart,
+	type CalendarDateTimeRangeFields,
+	type CalendarDateTimeRangeStartInput
+} from './calendar-date-time-range';
 import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
+
+export type CalendarMobileEditorDateTimeFields = CalendarDateTimeRangeFields;
+
+export type CalendarMobileEditorStartDateTimeInput = CalendarDateTimeRangeStartInput;
 
 export type CalendarMobileEditorUpdatedEventParams = {
 	draftEvent: DayFlowEvent;
@@ -12,6 +21,13 @@ export type CalendarMobileEditorUpdatedEventParams = {
 	location: string;
 	participants: CalendarParticipant[];
 };
+
+export function calendarMobileEditorStartDateTimeChanges(
+	fields: CalendarMobileEditorDateTimeFields,
+	input: CalendarMobileEditorStartDateTimeInput
+): CalendarMobileEditorDateTimeFields {
+	return calendarDateTimeRangeChangesForStart(fields, input);
+}
 
 export function calendarMobileEditorUpdatedEvent(params: CalendarMobileEditorUpdatedEventParams): DayFlowEvent {
 	return createEvent({
