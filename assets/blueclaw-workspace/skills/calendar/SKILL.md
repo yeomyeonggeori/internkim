@@ -83,6 +83,6 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - Use `12` or `6` for external meetings or half-day preparation.
 - Use `1` for same-day internal online meetings.
 - Do not say an event was created, changed, or deleted until the operation succeeds.
-- When deleting or updating, use `calendar.list` to find matching events first unless the user supplied an exact `eventID`.
+- When deleting or updating, use `calendar.list` to find matching events first unless the user supplied an exact `eventID`. Set `query` to a distinctive keyword from the event (such as a person or topic name) and leave `startISO` and `endISO` unset so events on any date are searched; a future meeting will not appear if you narrow to the current week. Then use the `eventID` of the best title match. The query matches against title, description, and location.
 - External attendee invitation is not supported by the Work calendar operation yet. If the user asks to invite people, create the event with attendee names in the description and mention that CalDAV clients can add invitations after sync.
 - Google Calendar integration is via the Work calendar's CalDAV/ICS sync URL. Do not use Google credential files, shell scripts, or Google-only operations unless the user explicitly asks for a Google Workspace bridge and that operation is available.
