@@ -3,6 +3,7 @@
 	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
+	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarEventContent from './calendar-event-content.svelte';
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
@@ -13,8 +14,10 @@
 	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
 	import {
 		mobileEventEditorLocaleContextKey,
+		mobileEventEditorParticipantsContextKey,
 		mobileEventEditorPersistenceContextKey,
 		type MobileEventEditorLocaleContext,
+		type MobileEventEditorParticipantsContext,
 		type MobileEventEditorPersistenceContext
 	} from './calendar-mobile-event-editor-types';
 	import CalendarTimelineRangePreview from './calendar-timeline-range-preview.svelte';
@@ -32,6 +35,7 @@
 		calendar: ReturnType<typeof useCalendarApp>;
 		clearSelectedEvent: () => void;
 		events: DayFlowEvent[];
+		participantCandidates: CalendarParticipant[];
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
 		text: CalendarLocaleText;
@@ -59,6 +63,7 @@
 		calendar,
 		clearSelectedEvent,
 		events,
+		participantCandidates,
 		isMobileTwoDayWeekView,
 		localeCode,
 		text,
@@ -84,6 +89,9 @@
 	});
 	setContext<MobileEventEditorLocaleContext>(mobileEventEditorLocaleContextKey, {
 		getText: () => text
+	});
+	setContext<MobileEventEditorParticipantsContext>(mobileEventEditorParticipantsContextKey, {
+		getCandidates: () => participantCandidates
 	});
 
 	function handleMobileTwoDayWeekDateClick(event: MouseEvent): void {

@@ -75,6 +75,25 @@ func TestMergeCalendarEventChangesOverlaysOnlyChangedFields(t *testing.T) {
 	}
 }
 
+func TestPreserveCalendarInternalParticipantsKeepsLocalUnlessParticipantsChanged(t *testing.T) {
+	local := calendarEvent{
+		Participants: []calendarParticipant{
+			{PersonID: "person-dongha", Name: "이동하", Email: "dongha@example.com"},
+		},
+	}
+	remote := calendarEvent{Title: "Remote Title"}
+
+	preserved := preserveCalendarInternalParticipants(remote, local, []string{calendarFieldTitle})
+	if len(preserved.Participants) != 1 || preserved.Participants[0].PersonID != "person-dongha" {
+		t.Fatalf("preserved participants = %+v", preserved.Participants)
+	}
+
+	cleared := preserveCalendarInternalParticipants(remote, local, []string{calendarFieldParticipants})
+	if len(cleared.Participants) != 0 {
+		t.Fatalf("changed participants = %+v", cleared.Participants)
+	}
+}
+
 func TestIntersectCalendarFieldsReturnsOverlap(t *testing.T) {
 	got := intersectCalendarFields([]string{"a", "b", "c"}, []string{"b", "c", "d"})
 	expected := []string{"b", "c"}

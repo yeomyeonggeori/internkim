@@ -5,6 +5,11 @@ import {
 	type DraftPopoverAnchor,
 	type DraftPopoverPosition
 } from './calendar-draft-popover-position';
+import {
+	calendarParticipantsEqual,
+	calendarParticipantsFromUnknown,
+	type CalendarParticipant
+} from './calendar-participants';
 
 export {
 	draftPopoverPositionFromAnchor,
@@ -26,6 +31,7 @@ export type DraftPopoverState = {
 	allDay: boolean;
 	location: string;
 	description: string;
+	participants: CalendarParticipant[];
 	calendarID: string;
 	anchor: DraftPopoverAnchor | null;
 	position: DraftPopoverPosition;
@@ -63,6 +69,7 @@ export function draftPopoverStateFromEvent(
 		allDay: event.allDay ?? false,
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
 		description: event.description ?? '',
+		participants: calendarParticipantsFromUnknown(event.meta?.participants),
 		calendarID: event.calendarId ?? 'internkim',
 		anchor,
 		position: draftPopoverPositionFromAnchor(anchor, stageElement)
@@ -89,7 +96,8 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 		allDay: popover.allDay,
 		calendarId: popover.calendarID,
 		meta: {
-			location: popover.location.trim()
+			location: popover.location.trim(),
+			participants: popover.participants
 		}
 	};
 }
@@ -103,7 +111,8 @@ export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: D
 		dateFromEventValue(event.end).getTime() !== changes.end.getTime() ||
 		(event.allDay ?? false) !== changes.allDay ||
 		(event.calendarId ?? 'internkim') !== changes.calendarId ||
-		eventLocation(event) !== normalizedText(changes.meta.location)
+		eventLocation(event) !== normalizedText(changes.meta.location) ||
+		!calendarParticipantsEqual(calendarParticipantsFromUnknown(event.meta?.participants), popover.participants)
 	);
 }
 
