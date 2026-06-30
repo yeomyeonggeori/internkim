@@ -68,7 +68,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "calendar.update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
 	{ToolName: "calendar.delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
 	{ToolName: "calendar.connection.status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar.connection.start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
 	{ToolName: "mail.message.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
 	{ToolName: "mail.message.search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
 	{ToolName: "mail.message.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},

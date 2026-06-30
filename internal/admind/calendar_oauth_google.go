@@ -174,18 +174,6 @@ func (service *Service) handleGoogleOAuthStart(writer http.ResponseWriter, reque
 	http.Redirect(writer, request, response.AuthorizationURL, http.StatusFound)
 }
 
-func (service *Service) startCalendarConnection(writer http.ResponseWriter, request *http.Request) {
-	service.cleanupExpiredGoogleOAuthStates(time.Now())
-	redirectURI := strings.TrimRight(service.calendarExternalBaseURL(request), "/") + googleOAuthCallbackPath
-	response, errorValue := service.createGoogleOAuthStartResponse(redirectURI)
-	if errorValue != nil {
-		log.Printf("calendar connection start: %v", errorValue)
-		http.Error(writer, "calendar connection start failed", http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(writer, response)
-}
-
 func (service *Service) createGoogleOAuthStartResponse(redirectURI string) (googleOAuthStartResponse, error) {
 	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
 	if errorValue != nil {
