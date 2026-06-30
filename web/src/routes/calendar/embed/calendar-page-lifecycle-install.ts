@@ -48,7 +48,6 @@ type CalendarPageLifecycleInstallContext = {
 	setMonthRangeSelection: (selection: MonthRangeSelection | null) => void;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
-	setWorkCalendarVisible: (isVisible: boolean) => void;
 	syncCalendarThemeToDocument: () => void;
 	text: CalendarLocaleText;
 };
