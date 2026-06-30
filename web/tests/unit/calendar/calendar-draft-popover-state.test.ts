@@ -1,5 +1,35 @@
 import { describe, expect, test } from 'bun:test';
-import { draftPopoverPositionFromAnchor, type DraftPopoverAnchor } from '../../../src/routes/calendar/embed/calendar-draft-popover-state';
+import { createEvent } from '@dayflow/core';
+import {
+	draftPopoverChanges,
+	draftPopoverPositionFromAnchor,
+	draftPopoverStateFromEvent,
+	hasDraftPopoverEventChanges,
+	type DraftPopoverAnchor
+} from '../../../src/routes/calendar/embed/calendar-draft-popover-state';
+
+test('calendar draft popover carries participants through changes', () => {
+	const event = createEvent({
+		id: 'participant-draft',
+		title: 'Participant draft',
+		description: 'Bring agenda',
+		start: new Date(2026, 5, 18, 12),
+		end: new Date(2026, 5, 18, 13),
+		allDay: false,
+		calendarId: 'internkim',
+		meta: {
+			location: 'Studio',
+			participants: [{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' }]
+		}
+	});
+	const popover = draftPopoverStateFromEvent(event, 'edit', null, null);
+
+	expect(popover.participants).toEqual([{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' }]);
+	expect(draftPopoverChanges(popover).meta.participants).toEqual([
+		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' }
+	]);
+	expect(hasDraftPopoverEventChanges({ ...popover, participants: [] }, event)).toBe(true);
+});
 
 describe('calendar draft popover position', () => {
 	test('keeps the popover from covering the clicked event title on narrow stages', () => {

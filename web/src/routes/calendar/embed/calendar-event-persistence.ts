@@ -1,3 +1,5 @@
+import type { CalendarParticipant, CalendarParticipantInput } from './calendar-participants';
+
 export type CalendarEvent = {
 	id: string;
 	uid: string;
@@ -9,6 +11,7 @@ export type CalendarEvent = {
 	timeZone: string;
 	isAllDay: boolean;
 	color: string;
+	participants?: CalendarParticipant[];
 	createdByEmail: string;
 	createdByName: string;
 	createdByImage?: string;
@@ -29,6 +32,7 @@ export type CalendarEventPayload = {
 	timeZone: string;
 	isAllDay: boolean;
 	color: string;
+	participants: CalendarParticipantInput[];
 };
 
 type CalendarEventsResponse = {
