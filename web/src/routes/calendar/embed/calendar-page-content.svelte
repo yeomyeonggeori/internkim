@@ -3,6 +3,7 @@
 	import type { useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
+	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
@@ -22,6 +23,7 @@
 		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
+		participantCandidates: CalendarParticipant[];
 		conflicts: CalendarConflict[];
 		createQuickEvent: (event: MouseEvent) => void;
 		currentMonthTitle: string;
@@ -66,6 +68,7 @@
 		auditEvent,
 		calendar,
 		calendarOptions,
+		participantCandidates,
 		cancelPopover,
 		changeCalendarView,
 		clearSelectedEvent,
@@ -129,6 +132,7 @@
 		{calendar}
 		{clearSelectedEvent}
 		events={stageEvents}
+		{participantCandidates}
 		{localeCode}
 		{isMobileTwoDayWeekView}
 		{text}
@@ -155,6 +159,7 @@
 		{popover}
 		{auditEvent}
 		{calendarOptions}
+		{participantCandidates}
 		{isSaving}
 		{localeCode}
 		{text}
