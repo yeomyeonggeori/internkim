@@ -1,4 +1,3 @@
-// 업무 보드 이동의 낙관적 반영과 저장 흐름을 관리한다.
 import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import { saveFlowTaskBoardMove } from './flow-task-board-save';
 import type { LoadFlow } from './flow-load-tracker';

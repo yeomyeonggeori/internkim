@@ -1,4 +1,3 @@
-<!-- AI 업무 빠른 추가 패널의 입력, 제출, 피드백 UI를 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';

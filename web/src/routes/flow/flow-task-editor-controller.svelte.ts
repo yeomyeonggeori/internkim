@@ -1,4 +1,3 @@
-// 업무 편집 패널의 draft 상태와 저장, 삭제 흐름을 관리한다.
 import {
 	cloneFlowTask,
 	createFlowTaskDraft,

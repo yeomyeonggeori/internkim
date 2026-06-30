@@ -1,4 +1,3 @@
-// 업무 목록과 보드에서 공유하는 필터 상태와 옵션 계산을 관리한다.
 import {
 	buildBusinessFilterOptions,
 	buildMemberFilterOptions,

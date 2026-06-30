@@ -1,4 +1,3 @@
-<!-- AI 업무 빠른 추가 플로팅 런처 버튼을 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';

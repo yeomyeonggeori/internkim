@@ -1,4 +1,3 @@
-// 업무 저장, 삭제, 상태 변경 API 호출 결과를 정규화한다.
 import { deleteFlowTask, saveFlowTask } from './flow-api';
 import type { LoadFlow } from './flow-load-tracker';
 import type { FlowTask } from './flow-types';

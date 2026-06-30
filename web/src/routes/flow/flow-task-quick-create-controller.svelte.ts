@@ -1,4 +1,3 @@
-// AI 업무 생성 입력 상태와 생성 API 호출 흐름을 관리한다.
 import type { LoadFlow } from './flow-load-tracker';
 import { requestQuickTaskCreation } from './flow-quick-task-create';
 import { defaultFlowTaskOwner } from './flow-task-draft';

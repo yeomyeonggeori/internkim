@@ -1,4 +1,3 @@
-<!-- 업무 목록 테이블의 상태 선택 셀을 렌더링한다. -->
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import { cn } from '$lib/utils';
