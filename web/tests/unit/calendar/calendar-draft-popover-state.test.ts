@@ -3,6 +3,7 @@ import { createEvent } from '@dayflow/core';
 import {
 	draftPopoverChanges,
 	draftPopoverPositionFromAnchor,
+	draftPopoverStartDateTimeChanges,
 	draftPopoverStateFromEvent,
 	hasDraftPopoverEventChanges,
 	type DraftPopoverAnchor
@@ -29,6 +30,27 @@ test('calendar draft popover carries participants through changes', () => {
 		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' }
 	]);
 	expect(hasDraftPopoverEventChanges({ ...popover, participants: [] }, event)).toBe(true);
+});
+
+test('keeps the existing duration when a timed draft popover start moves after the current end', () => {
+	const event = createEvent({
+		id: 'duration-draft',
+		title: 'Duration draft',
+		start: new Date(2026, 5, 18, 10),
+		end: new Date(2026, 5, 18, 12),
+		allDay: false,
+		calendarId: 'internkim'
+	});
+	const popover = draftPopoverStateFromEvent(event, 'edit', null, null);
+
+	const changes = draftPopoverStartDateTimeChanges(popover, '2026-06-18', '14:00');
+
+	expect(changes).toMatchObject({
+		dateKey: '2026-06-18',
+		startTime: '14:00',
+		endDateKey: '2026-06-18',
+		endTime: '16:00'
+	});
 });
 
 describe('calendar draft popover position', () => {
