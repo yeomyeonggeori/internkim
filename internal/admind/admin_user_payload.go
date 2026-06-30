@@ -1,4 +1,3 @@
-// admin 사용자 요청 payload 타입과 정규화를 담당한다.
 package admind
 
 import (

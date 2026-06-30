@@ -1,4 +1,3 @@
-<!-- 사용자 저장과 권한 변경 액션 버튼을 렌더링한다. -->
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';

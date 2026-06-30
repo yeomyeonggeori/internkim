@@ -1,4 +1,3 @@
-// admin 사용자 레코드의 변경 계산을 담당한다.
 import type { UserRecord, UserRole } from './admin-types';
 
 export type UserRecordChanges = Partial<Pick<UserRecord, 'handle' | 'name' | 'hireDate' | 'note'>>;

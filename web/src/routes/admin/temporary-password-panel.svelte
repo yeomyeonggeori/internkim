@@ -1,4 +1,3 @@
-<!-- admin 사용자 임시 비밀번호 결과를 렌더링한다. -->
 <script lang="ts">
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import type { AdminPageText } from './admin-types';

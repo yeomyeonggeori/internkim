@@ -1,4 +1,3 @@
-// 사용자 메모 팝업의 화면 기준 위치를 계산한다.
 export type NoteEditorPosition = {
 	left: number;
 	top: number;

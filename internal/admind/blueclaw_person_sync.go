@@ -1,4 +1,3 @@
-// Blueclaw person 초대와 사용자 정책 동기화를 담당한다.
 package admind
 
 import (
