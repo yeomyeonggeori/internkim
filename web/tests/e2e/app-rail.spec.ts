@@ -1,5 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import { feedbackFormURL } from '../../src/lib/components/app-rail-config';
+import { createTaskRunsFixture } from './tasks-test-fixtures';
 
 const expandedRailWidth = 224;
 const appRailSelector = '[data-app-rail]';
@@ -75,6 +76,39 @@ test.describe('app rail', () => {
 		const bottomNavigation = mobileBottomNavigation(page);
 		await expect(bottomNavigation).toBeVisible();
 		await expect(bottomNavigation.getByRole('button', { name: '더보기', exact: true })).toBeVisible();
+	});
+
+	test('treats mobile bottom navigation as a subtle overlay instead of a reserved well', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.goto('/memory/');
+
+		const bottomNavigation = mobileBottomNavigation(page);
+		await expect(bottomNavigation).toBeVisible();
+
+		const metrics = await mobileBottomNavigationOverlayMetrics(page);
+		expect(metrics.backgroundAlpha).toBeGreaterThanOrEqual(0.72);
+		expect(metrics.backgroundAlpha).toBeLessThanOrEqual(0.86);
+		expect(metrics.backdropFilter).toContain('blur');
+		expect(metrics.scrollPaddingBottom).toBeLessThan(metrics.navigationHeight);
+	});
+
+	test('keeps task pagination controls reachable above the mobile overlay', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.route('**/tasks/api/runs**', async (route) => {
+			await route.fulfill({ json: createTaskRunsFixture() });
+		});
+		await page.goto('/tasks/');
+
+		const bottomNavigation = mobileBottomNavigation(page);
+		await expect(bottomNavigation).toBeVisible();
+		const nextPageButton = page.getByRole('button', { name: '다음' });
+		await expect(nextPageButton).toBeVisible();
+
+		await page.locator('[data-app-shell-scroll]').evaluate((element) => {
+			if (element instanceof HTMLElement) element.scrollTop = element.scrollHeight;
+		});
+
+		await expect.poll(async () => elementOverlap(nextPageButton, bottomNavigation)).toBe(0);
 	});
 
 	test('shows the brand logo in the mobile app header', async ({ page }) => {
@@ -173,6 +207,50 @@ async function elementLeft(element: ReturnType<Page['locator']>): Promise<number
 	return box?.x ?? Number.POSITIVE_INFINITY;
 }
 
+async function elementOverlap(firstElement: Locator, secondElement: Locator): Promise<number> {
+	const firstBox = await firstElement.boundingBox();
+	const secondBox = await secondElement.boundingBox();
+	if (!firstBox || !secondBox) return Number.POSITIVE_INFINITY;
+	const horizontalOverlap = Math.max(0, Math.min(firstBox.x + firstBox.width, secondBox.x + secondBox.width) - Math.max(firstBox.x, secondBox.x));
+	const verticalOverlap = Math.max(0, Math.min(firstBox.y + firstBox.height, secondBox.y + secondBox.height) - Math.max(firstBox.y, secondBox.y));
+	return Math.round(horizontalOverlap * verticalOverlap);
+}
+
 function mobileBottomNavigation(page: Page): ReturnType<Page['locator']> {
 	return page.locator('nav[aria-label]').filter({ has: page.getByRole('button', { name: '더보기', exact: true }) });
+}
+
+async function mobileBottomNavigationOverlayMetrics(page: Page): Promise<{
+	backgroundAlpha: number;
+	backdropFilter: string;
+	navigationHeight: number;
+	scrollPaddingBottom: number;
+}> {
+	return page.evaluate(() => {
+		const navigation = [...document.querySelectorAll('nav[aria-label]')].find((element) => element.textContent?.includes('더보기'));
+		const scrollContainer = document.querySelector('[data-app-shell-scroll]');
+		if (!(navigation instanceof HTMLElement)) throw new Error('mobile bottom navigation not found');
+		if (!(scrollContainer instanceof HTMLElement)) throw new Error('app shell scroll container not found');
+
+		const navigationStyle = window.getComputedStyle(navigation);
+		const scrollContainerStyle = window.getComputedStyle(scrollContainer);
+		const navigationRectangle = navigation.getBoundingClientRect();
+
+		return {
+			backgroundAlpha: alphaFromCSSColor(navigationStyle.backgroundColor),
+			backdropFilter: navigationStyle.backdropFilter,
+			navigationHeight: navigationRectangle.height,
+			scrollPaddingBottom: Number.parseFloat(scrollContainerStyle.paddingBottom)
+		};
+
+		function alphaFromCSSColor(color: string): number {
+			const slashAlphaMatch = color.match(/\/\s*([0-9.]+)\s*\)$/);
+			if (slashAlphaMatch) return Number.parseFloat(slashAlphaMatch[1] ?? '1');
+			const rgbaMatch = color.match(/^rgba?\((.+)\)$/);
+			if (!rgbaMatch) return 1;
+			const values = (rgbaMatch[1] ?? '').split(',').map((value) => value.trim());
+			if (values.length < 4) return 1;
+			return Number.parseFloat(values[3] ?? '1');
+		}
+	});
 }
