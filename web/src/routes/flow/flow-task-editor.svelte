@@ -3,7 +3,6 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import { tick } from 'svelte';
 	import FlowTaskEditorFields from './flow-task-editor-fields.svelte';
 	import FlowTaskEditorParticipants from './flow-task-editor-participants.svelte';
 	import FlowTaskEditorSummary from './flow-task-editor-summary.svelte';
@@ -64,9 +63,7 @@
 	let canRemoveTask = $derived(taskDraft ? Boolean(taskDraft.id) && canDeleteTask(taskDraft) : false);
 	let canEditTaskAssignment = $derived(taskDraft ? canManageTaskAssignment(taskDraft) : false);
 
-	async function confirmTaskDelete(task: FlowTask): Promise<void> {
-		closeEditor();
-		await tick();
+	function confirmTaskDelete(task: FlowTask): void {
 		confirmDelete({
 			title: text.deleteTitle,
 			description: text.deleteDescription.replace('{task}', task.content),
@@ -126,7 +123,7 @@
 				<Sheet.Footer>
 					{#if canRemoveTask}
 						<Button variant="destructive" onclick={() => {
-							if (taskDraft) void confirmTaskDelete(taskDraft);
+							if (taskDraft) confirmTaskDelete(taskDraft);
 						}} disabled={isDeletingTask || isSavingTask}>
 							{isDeletingTask ? text.deleting : text.deleteAction}
 						</Button>

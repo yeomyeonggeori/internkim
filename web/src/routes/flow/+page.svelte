@@ -1,37 +1,20 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { replaceState } from '$app/navigation';
-	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import FlowDefinitionsEditor from './flow-definitions-editor.svelte';
 	import FlowMembersView from './flow-members-view.svelte';
+	import FlowPageHeader from './flow-page-header.svelte';
 	import FlowPersonalScoreDetail from './flow-personal-score-detail.svelte';
 	import FlowReportView from './flow-report-view.svelte';
 	import FlowTabRow from './flow-tab-row.svelte';
 	import FlowTasksView from './flow-tasks-view.svelte';
-	import FlowWeekSelector from './flow-week-selector.svelte';
 	import { fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from './flow-api';
 	import { createFlowLoadTracker, type FlowLoadOptions } from './flow-load-tracker';
-	import type { FlowMetrics, FlowState, FlowSummary, FlowWeeklySummary } from './flow-types';
-	import { buildFlowReportSections } from './report/flow-report-data';
+	import { createFlowReportSections, emptyFlowMetrics } from './flow-report-sections-model';
+	import type { FlowState, FlowSummary, FlowWeeklySummary } from './flow-types';
 	import { flowText } from './text';
-
-	const emptyMetrics: FlowMetrics = {
-		totalTasks: 0,
-		completedTasks: 0,
-		requestedTasks: 0,
-		pausedTasks: 0,
-		stoppedTasks: 0,
-		totalDistance: 0,
-		statusCounts: {},
-		businessCounts: {},
-		typeCounts: {},
-		memberDistances: {}
-	};
 
 	let summary = $state<FlowSummary | null>(null);
 	let flowState = $state<FlowState | null>(null);
@@ -46,7 +29,7 @@
 	const members = () => summary?.members ?? [];
 	const tasks = () => summary?.tasks ?? [];
 	const weeklyTasks = () => summary?.weeklyTasks ?? tasks();
-	const metrics = () => summary?.metrics ?? emptyMetrics;
+	const metrics = () => summary?.metrics ?? emptyFlowMetrics;
 	const definitions = () =>
 		summary?.definitions ?? {
 			categories: [],
@@ -54,53 +37,14 @@
 			sizes: []
 		};
 	const text = createPageText(flowText);
-	const reportSections = () =>
-		buildFlowReportSections(metrics(), {
-			emptyLabel: text.report.empty,
-			sectionLabels: {
-				weeklyStatus: {
-					title: text.report.weeklyStatus,
-					description: text.report.weeklyStatusDescription
-				},
-				memberDistance: {
-					title: text.report.memberDistance,
-					description: text.report.memberDistanceDescription
-				},
-				weeklyDistanceTrend: {
-					title: text.report.weeklyDistanceTrend,
-					description: text.report.weeklyDistanceTrendDescription
-				},
-				monthlyDistanceTrend: {
-					title: text.report.monthlyDistanceTrend,
-					description: text.report.monthlyDistanceTrendDescription
-				},
-				businessDistance: {
-					title: text.report.businessDistance,
-					description: text.report.businessDistanceDescription
-				}
-			},
-			copy: {
-				weekdays: [...text.report.weekdays],
-				fallbackType: text.report.fallbackType,
-				fallbackBusiness: text.report.fallbackBusiness,
-				memberScoreLabel: text.report.memberScoreLabel,
-				weeklyScoreLabel: text.report.weeklyScoreLabel,
-				monthlyScoreLabel: text.report.monthlyScoreLabel,
-				scoreUnit: text.report.scoreUnit,
-				teamAverageLabel: text.report.teamAverageLabel,
-				memberScrollHint: text.report.memberScrollHint,
-				currentWeekTrend: text.report.currentWeekTrend,
-				previousWeekTrend: text.report.previousWeekTrend,
-				currentMonthTrend: text.report.currentMonthTrend,
-				previousMonthTrend: text.report.previousMonthTrend,
-				monthlyDayLabelTemplate: text.report.monthlyDayLabelTemplate
-			},
-			report: summary?.report,
-			tasks: weeklyTasks(),
-			members: members(),
-			definitions: definitions(),
-			weekStartISO: summary?.week.startISO
-		});
+	const reportSections = () => createFlowReportSections({
+		metrics: metrics(),
+		text,
+		summary,
+		tasks: weeklyTasks(),
+		members: members(),
+		definitions: definitions()
+	});
 	const flowLoadTracker = createFlowLoadTracker();
 
 	onMount(() => {
@@ -161,6 +105,10 @@
 		loadFlow(week, { reloadState: false });
 	}
 
+	function refreshCurrentWeek() {
+		loadFlow(currentWeek(), { reloadState: true });
+	}
+
 	async function fetchCachedFlowWeeklySummary(week: string): Promise<FlowWeeklySummary> {
 		const cachedSummary = week ? weeklySummaryCache.get(week) : undefined;
 		if (cachedSummary) return cachedSummary;
@@ -177,34 +125,14 @@
 
 <main class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
 	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
-		<header class="flex min-w-0 flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
-			<div class="min-w-0 space-y-1">
-				<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.product}</p>
-				<h1 class="text-2xl font-semibold">{text.title}</h1>
-				<p class="text-sm text-muted-foreground">{text.description}</p>
-			</div>
-			<div class="flex flex-wrap items-center gap-2">
-				<Button variant="outline" size="sm" onclick={() => selectWeek(summary?.week.previous ?? '')} disabled={!summary || isLoading}>
-					<ChevronLeftIcon />
-					{text.previousWeek}
-				</Button>
-				<FlowWeekSelector
-					week={summary?.week}
-					disabled={!summary || isLoading}
-					selectDateLabel={text.selectWeekDate}
-					currentWeekLabel={text.currentWeekAction}
-					onSelectWeek={selectWeek}
-					onSelectCurrentWeek={selectCurrentWeek}
-				/>
-				<Button variant="outline" size="sm" onclick={() => selectWeek(summary?.week.next ?? '')} disabled={!summary || isLoading}>
-					{text.nextWeek}
-					<ChevronRightIcon />
-				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek(), { reloadState: true })} disabled={isLoading}>
-					<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
-				</Button>
-			</div>
-		</header>
+		<FlowPageHeader
+			{summary}
+			{text}
+			{isLoading}
+			{selectWeek}
+			{selectCurrentWeek}
+			{refreshCurrentWeek}
+		/>
 
 		{#if errorMessage}
 			<div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
