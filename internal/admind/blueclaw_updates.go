@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -573,11 +574,36 @@ func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	updatedDocument := strings.ReplaceAll(string(document), legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
+	migratedDocument := strings.ReplaceAll(string(document), legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
+	updatedDocument, errorValue := refreshBlueclawCapabilityContract(migratedDocument)
+	if errorValue != nil {
+		return errorValue
+	}
 	if updatedDocument == string(document) {
 		return nil
 	}
 	return os.WriteFile(configurationPath, []byte(updatedDocument), 0o640)
+}
+
+func refreshBlueclawCapabilityContract(document string) (string, error) {
+	var runtimeDocument map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeDocument); errorValue != nil {
+		return "", errorValue
+	}
+	capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any)
+	if !ok {
+		return document, nil
+	}
+	capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
+	capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
+	if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
+		routing["candidates"] = capabilities.RoutingCandidates()
+	}
+	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return string(refreshedBytes) + "\n", nil
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
