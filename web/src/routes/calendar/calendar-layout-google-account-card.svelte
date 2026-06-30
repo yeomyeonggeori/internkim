@@ -114,12 +114,6 @@
 		return text.googleCalendarConnectAction;
 	}
 
-	function accountStatusDotClass() {
-		if (accountStatusError || accountStatus?.needsReauth) return 'bg-warning';
-		if (accountStatus?.connected) return 'bg-success';
-		return 'bg-muted-foreground/50';
-	}
-
 	function selectGoogleOAuthClientFile(fileList: FileList | null) {
 		selectedGoogleOAuthClientFile = fileList?.[0] ?? null;
 	}
@@ -242,10 +236,7 @@
 
 <div class="space-y-2 rounded-md border p-3">
 	<p class="text-xs font-medium uppercase text-muted-foreground">{text.externalCalendarAccount}</p>
-	<div class="flex items-center gap-2 text-sm">
-		<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
-		<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
-	</div>
+	<p class="min-w-0 truncate text-sm font-medium">{accountStatusLabel()}</p>
 	{#if accountStatus?.needsReauth && accountStatus.googleOAuthConfigured}
 		<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
 	{/if}

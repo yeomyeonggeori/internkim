@@ -5,15 +5,15 @@ describe('calendar text', () => {
 	test('separates subscription settings from external account status', () => {
 		expect(calendarText.en.subscriptionSettings).toBe('Subscription settings');
 		expect(calendarText.en.subscriptionReady).toBe('CalDAV/ICS subscription ready');
-		expect(calendarText.en.googleCalendarDisconnected).toBe('Google Calendar not connected');
-		expect(calendarText.en.googleCalendarConnectedTemplate).toBe('Google Calendar connected: {email}');
-		expect(calendarText.en.googleCalendarConnectAction).toBe('Connect Google Calendar');
-		expect(calendarText.en.googleCalendarReconnectAction).toBe('Reconnect Google Calendar');
-		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume remote calendar sync.');
-		expect(calendarText.en.googleCalendarReadyHint).toBe('Connect Google Calendar to start remote calendar sync.');
-		expect(calendarText.en.googleCalendarUnavailableHint).toBe(
-			'Google Calendar integration is not ready yet.\nContact an administrator if you need access.'
-		);
+		expect(calendarText.en.settings).toBe('Settings');
+		expect(calendarText.en.externalCalendarAccount).toBe('Connected Google Calendar');
+		expect(calendarText.en.googleCalendarDisconnected).toBe('Not connected');
+		expect(calendarText.en.googleCalendarConnectedTemplate).toBe('Connected: {email}');
+		expect(calendarText.en.googleCalendarConnectAction).toBe('Connect');
+		expect(calendarText.en.googleCalendarReconnectAction).toBe('Reconnect');
+		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume Google Calendar sync.');
+		expect(calendarText.en.googleCalendarReadyHint).toBe('Connect Google Calendar.');
+		expect(calendarText.en.googleCalendarUnavailableHint).toBe('Google Calendar sync is not ready yet.');
 		expect(calendarText.en.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.en.googleOAuthClientUploadHint).toBe('Drop client.json here or choose the file.');
 		expect(calendarText.en.googleOAuthClientUploadAction).toBe('Upload');
@@ -46,15 +46,15 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleOAuthClientGuide.steps.length).toBe(7);
 		expect(calendarText.ko.subscriptionSettings).toBe('구독 설정');
 		expect(calendarText.ko.subscriptionReady).toBe('CalDAV/ICS 구독 URL 준비됨');
-		expect(calendarText.ko.googleCalendarDisconnected).toBe('Google Calendar 미연결');
-		expect(calendarText.ko.googleCalendarConnectedTemplate).toBe('Google Calendar 연결됨: {email}');
-		expect(calendarText.ko.googleCalendarConnectAction).toBe('Google Calendar 연결');
-		expect(calendarText.ko.googleCalendarReconnectAction).toBe('Google Calendar 다시 연결');
-		expect(calendarText.ko.googleCalendarReconnectHint).toBe('외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.');
-		expect(calendarText.ko.googleCalendarReadyHint).toBe('Google Calendar를 연결하세요.');
-		expect(calendarText.ko.googleCalendarUnavailableHint).toBe(
-			'Google Calendar 연동은 아직 준비되지 않았습니다.\n사용이 필요하면 관리자에게 문의하세요.'
-		);
+		expect(calendarText.ko.settings).toBe('설정');
+		expect(calendarText.ko.externalCalendarAccount).toBe('연결된 Google 캘린더');
+		expect(calendarText.ko.googleCalendarDisconnected).toBe('미연결');
+		expect(calendarText.ko.googleCalendarConnectedTemplate).toBe('연결됨: {email}');
+		expect(calendarText.ko.googleCalendarConnectAction).toBe('연결');
+		expect(calendarText.ko.googleCalendarReconnectAction).toBe('다시 연결');
+		expect(calendarText.ko.googleCalendarReconnectHint).toBe('Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.');
+		expect(calendarText.ko.googleCalendarReadyHint).toBe('Google 캘린더를 연결하세요.');
+		expect(calendarText.ko.googleCalendarUnavailableHint).toBe('Google 캘린더 연동은 아직 준비되지 않았습니다.');
 		expect(calendarText.ko.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.ko.googleOAuthClientUploadHint).toBe('여기에 client.json을 드롭하거나 파일을 선택하세요.');
 		expect(calendarText.ko.googleOAuthClientUploadAction).toBe('업로드');

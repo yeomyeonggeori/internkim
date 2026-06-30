@@ -42,7 +42,12 @@ export function createCalendarPageRenderSync(
 			context.getToolbarDate(),
 			context.getCalendarEvents
 		);
-		scheduleCalendarAllDayLayoutSync(context.getStageElement(), context.getToolbarView());
+		scheduleCalendarAllDayLayoutSync(
+			context.getStageElement(),
+			context.getToolbarView(),
+			context.getToolbarDate(),
+			context.getCalendarEvents
+		);
 		scheduleTimelineEventLaneLayoutSync(
 			context.getStageElement(),
 			context.getToolbarView(),
