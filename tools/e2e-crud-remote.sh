@@ -20,6 +20,20 @@ admin_password() { sudo cat /root/.internkim/secrets/mm-admin-pass; }
 # the cloudflare SiteURL, so Mattermost rejects the webapp websocket origin (1006)
 # and never delivers live events (ephemeral approval controls included). Allow any
 # origin so a local browser session receives them, matching real cloudflare access.
+# Name-resolved entities (업무/일정) accumulate across runs and users, so a delete
+# query can resolve a different requester's same-named entity and fail the owner
+# check. Reset the entity stores once per suite so each run resolves deterministically.
+reset_entity_state() {
+	sudo systemctl stop internkim-admind 2>/dev/null || true
+	sudo rm -f /root/.internkim/state/flow.sqlite /root/.internkim/state/calendar.sqlite
+	sudo systemctl start internkim-admind 2>/dev/null || true
+	local attempt
+	for attempt in $(seq 1 20); do
+		[ "$(systemctl is-active internkim-admind 2>/dev/null)" = active ] && return
+		sleep 1
+	done
+}
+
 ensure_websocket_cors() { # token
 	local current
 	current="$(mm GET /api/v4/config "$1" | jq -r '.ServiceSettings.AllowCorsFrom')"
@@ -75,6 +89,7 @@ task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
 
 setup() {
 	local token team_id channel_id bot_id e2e_id e2e_token admin_id
+	reset_entity_state
 	token="$(admin_token)"
 	ensure_websocket_cors "$token"
 	team_id="$(mm GET "/api/v4/teams/name/$TEAM_NAME" "$token" | jq -r '.id')"
