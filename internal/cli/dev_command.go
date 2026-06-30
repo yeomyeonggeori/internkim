@@ -119,6 +119,8 @@ func runDevFleetArguments(arguments []string) error {
 		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
 	case "run":
 		return runDevFleetRunArguments(commandArguments)
+	case "reprovision":
+		return runDevFleetReprovision()
 	case "verify-regression":
 		service, errorValue := newLocalFleetService()
 		if errorValue != nil {
@@ -136,6 +138,91 @@ func runDevFleetArguments(arguments []string) error {
 type devFleetRunConfiguration struct {
 	ServiceOptions localfleet.Options
 	Request        localfleet.JobRequest
+}
+
+// Reprovision the running local fleet VM in place from the current working tree.
+// The Firecracker guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
+// runtime changes only reach it through a reprovision; copying files onto the host
+// and restarting the service does not update the guest. GO_MOD_CACHE must point at
+// the real module cache or the payload build fails on the empty isolated cache.
+func runDevFleetReprovision() error {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	executablePath, errorValue := currentExecutablePath()
+	if errorValue != nil {
+		return errorValue
+	}
+	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	vmInternetProtocolAddress, errorValue := localFleetVMInternetProtocolAddress(executablePath, configurationPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("reprovisioning local fleet at %s from the working tree\n", vmInternetProtocolAddress)
+
+	command := exec.Command(executablePath, "setup", "--board", "lab", "--ssh", "--host", vmInternetProtocolAddress,
+		"--user", "admin", "--password", "admin",
+		"--admin-email", "local-fleet-admin@internkim.test",
+		"--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost")
+	command.Env = append(os.Environ(),
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
+		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5")
+	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
+		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
+	}
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
+func latestLocalFleetConfigurationPath(repositoryRootPath string) (string, error) {
+	matches, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "*", "config.json"))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	latestPath := ""
+	var latestModificationTime int64
+	for _, match := range matches {
+		fileInfo, statError := os.Stat(match)
+		if statError != nil {
+			continue
+		}
+		if latestPath == "" || fileInfo.ModTime().UnixNano() > latestModificationTime {
+			latestPath = match
+			latestModificationTime = fileInfo.ModTime().UnixNano()
+		}
+	}
+	if latestPath == "" {
+		return "", errors.New("no local fleet run config found; bring up a fleet first")
+	}
+	return latestPath, nil
+}
+
+func localFleetVMInternetProtocolAddress(executablePath string, configurationPath string) (string, error) {
+	command := exec.Command(executablePath, "lab", "vm-ip", "--config", configurationPath)
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return "", fmt.Errorf("could not resolve fleet VM IP: %w", errorValue)
+	}
+	lines := strings.Fields(strings.TrimSpace(string(output)))
+	if len(lines) == 0 {
+		return "", errors.New("fleet VM IP lookup returned no address")
+	}
+	return lines[len(lines)-1], nil
+}
+
+func goModuleCachePath() string {
+	output, errorValue := exec.Command("go", "env", "GOMODCACHE").Output()
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func runDevFleetRunArguments(arguments []string) error {
@@ -541,7 +628,8 @@ func printDevUsage() {
 }
 
 func printDevFleetUsage() {
-	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|verify-regression>")
+	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|reprovision|verify-regression>")
+	fmt.Println("  internkim dev fleet reprovision")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
