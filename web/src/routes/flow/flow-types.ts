@@ -44,6 +44,8 @@ export type FlowTask = {
 	decisionReason?: string;
 };
 
+export type FlowQuickTaskCreateResult = 'created' | 'duplicate' | 'failed' | 'ignored';
+
 export type FlowMetrics = {
 	totalTasks: number;
 	completedTasks: number;
