@@ -10,13 +10,12 @@
 	import OrgchartProfileCard from './orgchart-profile-card.svelte';
 	import {
 		isOrgProfileChanged,
-		isPositionLevelInvalid,
 		normalizeOrgProfileRecord,
 		orgProfileSnapshot,
 		orgProfileUpdate,
 		type OrgProfileSnapshot
 	} from './orgchart-profile-model';
-	import { orgForest, type OrgNode } from './orgchart-tree';
+	import { isSupervisorCandidateForRecord, orgForest, type OrgNode } from './orgchart-tree';
 
 	type OrgchartSectionProps = {
 		adminBaseURL: string;
@@ -38,7 +37,6 @@
 	let savingProfileUserIDs = $state<Record<string, boolean>>({});
 	let errorMessage = $state('');
 	let newGroupName = $state('');
-	let projectSuggestions = $derived([...new Set(userRecords.flatMap((record) => record.projectIDs ?? []))].sort());
 
 	function isChanged(record: UserRecord) {
 		return isOrgProfileChanged(record, originalProfiles[record.userID]);
@@ -46,6 +44,10 @@
 
 	function isSavingProfile(userID: string) {
 		return savingProfileUserIDs[userID] === true;
+	}
+
+	function hasInvalidSupervisor(record: UserRecord) {
+		return !isSupervisorCandidateForRecord(userRecords, record);
 	}
 
 	$effect(() => {
@@ -151,7 +153,7 @@
 	async function saveProfile(userID: string) {
 		const record = editingRecordsByUserID[userID];
 		if (!record) return;
-		if (!fleetID || !adminBaseURL || isSavingProfile(userID) || isPositionLevelInvalid(record)) return;
+		if (!fleetID || !adminBaseURL || isSavingProfile(userID) || hasInvalidSupervisor(record)) return;
 		if (!isChanged(record)) {
 			errorMessage = '';
 			removeEditingRecord(userID);
@@ -211,8 +213,8 @@
 				</div>
 			</form>
 		{/if}
-		<div class="grid gap-2.5">
-				{#each orgForest(userRecords) as node (node.record.email)}
+		<div class="grid gap-2">
+			{#each orgForest(userRecords) as node (node.record.email)}
 				{@render orgNode(node)}
 			{/each}
 		</div>
@@ -221,45 +223,46 @@
 
 {#snippet orgNode(node: OrgNode)}
 	{@const editingRecord = editingRecordsByUserID[node.record.userID]}
-	<div class="grid gap-2.5">
-		{#if editingRecord}
-			<OrgchartProfileCard
-				record={editingRecord}
-				{userRecords}
-				{groups}
-				{text}
-				canEdit={isEditing}
-				isEditing={true}
-				isSaving={isSavingProfile(editingRecord.userID)}
-				hasInvalidPositionLevel={isPositionLevelInvalid(editingRecord)}
-				{projectSuggestions}
-				onEdit={() => editProfile(node.record)}
-				onSave={() => saveProfile(node.record.userID)}
-				onCancel={() => cancelProfileEdit(node.record.userID)}
-			/>
-		{:else}
-			<OrgchartProfileCard
-				record={node.record}
-				{userRecords}
-				{groups}
-				{text}
-				canEdit={isEditing}
-				isEditing={false}
-				isSaving={isSavingProfile(node.record.userID)}
-				hasInvalidPositionLevel={isPositionLevelInvalid(node.record)}
-				{projectSuggestions}
-				onEdit={() => editProfile(node.record)}
-				onSave={() => saveProfile(node.record.userID)}
-				onCancel={() => cancelProfileEdit(node.record.userID)}
-			/>
-		{/if}
-
+	<div class="grid min-w-0 gap-2">
+		{@render orgProfile(node.record, editingRecord)}
 		{#if node.reports.length > 0}
-			<div class="ml-4 grid gap-2.5 border-l pl-4 sm:ml-5 sm:pl-5">
+			<div class="ml-5 grid gap-2 border-l pl-4" data-testid={`orgchart-reports-${node.record.userID}`}>
 				{#each node.reports as report (report.record.email)}
 					{@render orgNode(report)}
 				{/each}
 			</div>
 		{/if}
 	</div>
+{/snippet}
+
+{#snippet orgProfile(record: UserRecord, editingRecord: UserRecord | undefined)}
+	{#if editingRecord}
+		<OrgchartProfileCard
+			record={editingRecord}
+			{userRecords}
+			{groups}
+			{text}
+			canEdit={isEditing}
+			isEditing={true}
+			isSaving={isSavingProfile(editingRecord.userID)}
+			hasInvalidSupervisor={hasInvalidSupervisor(editingRecord)}
+			onEdit={() => editProfile(record)}
+			onSave={() => saveProfile(record.userID)}
+			onCancel={() => cancelProfileEdit(record.userID)}
+		/>
+	{:else}
+		<OrgchartProfileCard
+			{record}
+			{userRecords}
+			{groups}
+			{text}
+			canEdit={isEditing}
+			isEditing={false}
+			isSaving={isSavingProfile(record.userID)}
+			hasInvalidSupervisor={hasInvalidSupervisor(record)}
+			onEdit={() => editProfile(record)}
+			onSave={() => saveProfile(record.userID)}
+			onCancel={() => cancelProfileEdit(record.userID)}
+		/>
+	{/if}
 {/snippet}

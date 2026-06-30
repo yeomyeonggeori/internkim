@@ -137,14 +137,14 @@ function applyOrgProfileUpdates(users: UserRecord[], profiles: OrgProfileUpdate[
 			...user,
 			jobTitle: profile.jobTitle,
 			group: primaryGroupID,
-			positionLevel: profile.positionLevel,
+			positionLevel: profile.positionLevel ?? user.positionLevel,
 			primaryGroupID,
 			groupIDs: profile.groupIDs ?? (primaryGroupID ? [primaryGroupID] : []),
-			supervisorID: profile.supervisorID,
-			projectIDs: profile.projectIDs,
-			teamRole: profile.teamRole,
-			employmentStatus: profile.employmentStatus,
-			isOrgchartVisible: profile.isOrgchartVisible
+			supervisorID: profile.supervisorID ?? user.supervisorID,
+			projectIDs: profile.projectIDs ?? user.projectIDs,
+			teamRole: profile.teamRole ?? user.teamRole,
+			employmentStatus: profile.employmentStatus ?? user.employmentStatus,
+			isOrgchartVisible: profile.isOrgchartVisible ?? user.isOrgchartVisible
 		};
 	});
 }

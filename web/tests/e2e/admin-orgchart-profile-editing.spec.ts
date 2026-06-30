@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEditor, openOrgchartEditor, selectCardOption, selectGroupMembership } from './admin-orgchart-helpers';
+import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEditor, openOrgchartEditor, selectCardOption } from './admin-orgchart-helpers';
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-orgchart-fixtures';
 
 test.describe('admin org chart profile editing', () => {
@@ -51,7 +51,7 @@ test.describe('admin org chart profile editing', () => {
 		await expect(graceCard.getByRole('button', { name: '편집' })).toBeVisible();
 	});
 
-	test('saves full organization metadata from existing user candidates', async ({ page }) => {
+	test('saves minimal organization metadata from existing user candidates', async ({ page }) => {
 		const savedProfiles: OrgProfileUpdate[] = [];
 		let usersResponse = cloneUsersResponse(initialUsersResponse);
 		await mockAdminOrgchart(page, {
@@ -68,15 +68,8 @@ test.describe('admin org chart profile editing', () => {
 		await openCardEditor(graceCard);
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
-		await graceCard.getByLabel('직책 레벨').fill('4');
-		await selectCardOption(page, graceCard, '주 소속 조직', 'Engineering');
-		await selectGroupMembership(page, graceCard, 'Operations');
-		await selectCardOption(page, graceCard, '상위 담당자', 'Ada Kim');
-		await graceCard.getByLabel('담당 프로젝트').fill('Brand refresh');
-		await graceCard.getByLabel('담당 프로젝트').press('Enter');
-		await graceCard.getByLabel('팀 안 역할').fill('Design systems');
-		await selectCardOption(page, graceCard, '재직 상태', '휴직');
-		await selectCardOption(page, graceCard, '조직도 표시 여부', '숨김');
+		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
+		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 
 		await expect.poll(() => savedProfiles).toEqual([
@@ -84,16 +77,65 @@ test.describe('admin org chart profile editing', () => {
 				userID: 'user-grace',
 				email: 'grace@example.com',
 				jobTitle: 'Product Designer',
-				positionLevel: 4,
 				primaryGroupID: 'engineering',
-				groupIDs: ['engineering', 'operations'],
-				supervisorID: 'user-ada',
-				projectIDs: ['Brand refresh'],
-				teamRole: 'Design systems',
-				employmentStatus: 'leave',
-				isOrgchartVisible: false
+				groupIDs: ['engineering'],
+				supervisorID: 'user-ada'
 			})
 		]);
+	});
+
+	test('does not allow selecting descendants as direct managers', async ({ page }) => {
+		const usersResponse = cloneUsersResponse(initialUsersResponse);
+		usersResponse.records = [
+			{
+				...usersResponse.records[0],
+				userID: 'user-ada',
+				name: 'Ada Kim',
+				supervisorID: ''
+			},
+			{
+				...usersResponse.records[1],
+				userID: 'user-grace',
+				name: 'Grace Lee',
+				supervisorID: 'user-ada'
+			},
+			{
+				userID: 'user-linus',
+				handle: 'linus',
+				name: 'Linus Park',
+				email: 'linus@example.com',
+				hireDate: '2026-03-01',
+				role: 'member',
+				jobTitle: 'Engineer',
+				supervisorID: 'user-grace',
+				primaryGroupID: 'engineering',
+				groupIDs: ['engineering']
+			},
+			{
+				userID: 'user-dan',
+				handle: 'dan',
+				name: 'Dan Root',
+				email: 'dan@example.com',
+				hireDate: '2026-01-20',
+				role: 'member',
+				jobTitle: 'Lead',
+				supervisorID: '',
+				primaryGroupID: 'operations',
+				groupIDs: ['operations']
+			}
+		];
+		await mockAdminOrgchart(page, {
+			getUsersResponse: () => usersResponse
+		});
+
+		await openOrgchartEditor(page);
+		const adaCard = page.getByTestId('orgchart-profile-user-ada');
+		await openCardEditor(adaCard);
+		await adaCard.getByLabel('직속 상관').click();
+
+		await expect(page.getByRole('option', { name: 'Grace Lee' })).toHaveCount(0);
+		await expect(page.getByRole('option', { name: 'Linus Park' })).toHaveCount(0);
+		await expect(page.getByRole('option', { name: 'Dan Root' })).toBeVisible();
 	});
 
 	test('cancels a single profile edit without saving draft changes', async ({ page }) => {
@@ -134,7 +176,7 @@ test.describe('admin org chart profile editing', () => {
 		await openCardEditor(graceCard);
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
-		await selectCardOption(page, graceCard, '주 소속 조직', 'Engineering');
+		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 		await expect(graceCard.getByRole('button', { name: '편집' })).toBeVisible();
 
@@ -144,10 +186,10 @@ test.describe('admin org chart profile editing', () => {
 		const reloadedGraceCard = page.getByTestId('orgchart-profile-user-grace');
 		await openCardEditor(reloadedGraceCard);
 		await expect(reloadedGraceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
-		await expect(reloadedGraceCard.getByLabel('주 소속 조직')).toContainText('Engineering');
+		await expect(reloadedGraceCard.getByLabel('소속 조직')).toContainText('Engineering');
 	});
 
-	test('keeps invalid position level and failed saves visible', async ({ page }) => {
+	test('keeps failed saves visible', async ({ page }) => {
 		await mockAdminOrgchart(page, {
 			getUsersResponse: () => cloneUsersResponse(initialUsersResponse),
 			saveProfiles: async () => {
@@ -159,15 +201,6 @@ test.describe('admin org chart profile editing', () => {
 		const graceCard = page.getByTestId('orgchart-profile-user-grace');
 		await openCardEditor(graceCard);
 
-		await graceCard.getByLabel('직책 레벨').fill('0');
-		await expect(graceCard.getByRole('button', { name: '저장' })).toBeDisabled();
-		await expect(graceCard.getByText('1 이상의 숫자를 입력하세요.')).toBeVisible();
-
-		await graceCard.getByLabel('직책 레벨').fill('-1');
-		await expect(graceCard.getByRole('button', { name: '저장' })).toBeDisabled();
-		await expect(graceCard.getByText('1 이상의 숫자를 입력하세요.')).toBeVisible();
-
-		await graceCard.getByLabel('직책 레벨').fill('3');
 		await graceCard.getByLabel('직책', { exact: true }).fill('Designer');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 
