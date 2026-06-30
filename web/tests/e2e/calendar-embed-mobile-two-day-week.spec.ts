@@ -263,12 +263,17 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 수정 일정');
+		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="startTime"]').fill('04:00');
+		await expect(dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="endTime"]')).toHaveValue('05:00');
 		await dayFlowMobileEditor(page).getByRole('button', { name: '완료' }).click();
 
 		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
 		await expect.poll(() => updatedEvents.length).toBe(1);
 		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
 		expect(updatedEvents[0]?.title).toBe('모바일 수정 일정');
+		expect(new Date(updatedEvents[0]?.endISO ?? '').getTime() - new Date(updatedEvents[0]?.startISO ?? '').getTime()).toBe(
+			60 * 60 * 1000
+		);
 	});
 
 	test('saves mobile-edited participants through the calendar persistence path', async ({ page }) => {

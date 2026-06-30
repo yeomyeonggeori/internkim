@@ -7,7 +7,10 @@
 	import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 	import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
 	import CalendarMobileEventEditorFields from './calendar-mobile-event-editor-fields.svelte';
-	import { calendarMobileEditorUpdatedEvent } from './calendar-mobile-event-editor-state';
+	import {
+		calendarMobileEditorStartDateTimeChanges,
+		calendarMobileEditorUpdatedEvent
+	} from './calendar-mobile-event-editor-state';
 	import {
 		mobileEventEditorLocaleContextKey,
 		mobileEventEditorParticipantsContextKey,
@@ -94,14 +97,31 @@
 		const field = target.dataset.mobileEditorField;
 		if (!field) return;
 		if (field === 'title') title = target.value;
-		if (field === 'startDate') startDateKey = target.value;
-		if (field === 'startTime') startTime = target.value;
+		if (field === 'startDate') updateStartDateTime({ startDateKey: target.value });
+		if (field === 'startTime') updateStartDateTime({ startTime: target.value });
 		if (field === 'endDate') endDateKey = target.value;
 		if (field === 'endTime') endTime = target.value;
 		if (field === 'allDay' && target instanceof HTMLInputElement) updateAllDay(target.checked);
 		if (field === 'location') location = target.value;
 		if (field === 'description') description = target.value;
 		if (field === 'calendar') calendarID = target.value;
+	}
+
+	function updateStartDateTime(changes: { startDateKey?: string; startTime?: string }): void {
+		const fields = calendarMobileEditorStartDateTimeChanges(
+			{
+				startDateKey,
+				endDateKey,
+				startTime,
+				endTime,
+				allDay
+			},
+			changes
+		);
+		startDateKey = fields.startDateKey;
+		endDateKey = fields.endDateKey;
+		startTime = fields.startTime;
+		endTime = fields.endTime;
 	}
 
 	function handleEditorKeydown(event: KeyboardEvent): void {
