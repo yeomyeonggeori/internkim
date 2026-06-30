@@ -17,9 +17,7 @@ The operation only supports approved workspace people with Mattermost accounts. 
 
 ## Approval
 
-Immediate direct messages to someone else require confirmation. First call `ask.confirm` with a message naming the recipient and exact text in the same language as the original user request. After the user approves, use `capability.invoke` with `operation: message.send`.
-
-Immediate direct messages to the requester themselves do not require approval.
+The runtime asks the user to confirm a direct message to someone else automatically before it is sent; do not call `ask.confirm` yourself. Just call `message.send`. After the user approves, the same call runs and the message is delivered. Messages to the requester themselves are sent without confirmation.
 
 Scheduled direct messages do not require approval at run time. For a future or recurring message to a named person, use `capability.invoke` with `operation: schedule.create` and make `taskInstruction` the direct future instruction to use DM delivery.
 
@@ -27,22 +25,12 @@ Scheduled direct messages do not require approval at run time. For a future or r
 
 1. Identify the recipient hint from the user's wording.
 2. Identify the exact message to send.
-3. If this is an immediate send to someone else, call `ask.confirm`.
-4. If the latest task context says the user approved the pending action, use `capability.invoke` with `operation: message.send`.
-5. If this is scheduled for later, use `capability.invoke` with `operation: schedule.create` with a `taskInstruction` that names the recipient and message.
+3. For an immediate message, use `capability.invoke` with `operation: message.send`. The runtime handles confirmation when the recipient is someone other than the requester.
+4. If this is scheduled for later, use `capability.invoke` with `operation: schedule.create` with a `taskInstruction` that names the recipient and message.
 
 If `message.send` reports that a recipient was not found or ambiguous, say that the recipient could not be resolved and ask for the missing distinction when needed. Do not combine that with approval language; approval is separate from recipient resolution.
 
-For immediate "동하에게 테스트라고 보내줘", first use:
-
-```json
-{
-  "userFacingMessage": "동하 님에게 다음 DM을 보내도 될까요?\n\n테스트",
-  "reasonCode": "external_send"
-}
-```
-
-After approval, use:
+For immediate "동하에게 테스트라고 보내줘", use:
 
 ```json
 {
