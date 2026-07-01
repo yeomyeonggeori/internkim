@@ -17,7 +17,7 @@ Use this skill to create, validate, read, merge, or lightly edit PDFs with Pytho
 ## Workflow
 
 1. Work directly in `~/documents` (run `mkdir -p ~/documents` once first). Build, validate, and deliver the PDF there.
-2. If the user refers to a document from an earlier task ("방금 만든", "그 문서", "the doc I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. Run `ls -t ~/documents`, then for the common case — appending a section — run the deterministic `scripts/edit_pdf.py` (see Editing Existing Files). Do NOT hand-write Python or use `python -c` for a simple append. Save back to the SAME `~/documents/<name>.pdf` and re-deliver from there.
+2. If the user refers to a document from an earlier task ("방금 만든", "그 문서", "the doc I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. For the common case — appending a section — run the deterministic `scripts/edit_pdf.py` with no path; it targets the newest `.pdf` in `~/documents/` automatically (see Editing Existing Files). Do NOT hand-write Python or use `python -c` for a simple append. Save back to the SAME `~/documents/<name>.pdf` and re-deliver from there.
 3. Only when the user uploaded a NEW file in THIS conversation and you need to read it (summarize, extract, OCR — not edit a binary you made), call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 4. For short proposals, estimates, reports, invoices, and source-backed documents, run `scripts/create_pdf.py` with inline `--title`/`--heading`/`--paragraph`/`--bullet` flags. Use `--spec <file>` only for rich layouts with tables or complex multi-section content.
 5. Use custom Python only when layout needs features the JSON helper does not support.
@@ -116,16 +116,18 @@ file fonts/NanumGothic.ttf
 
 To edit a PDF you delivered in an earlier task, the source is the workspace file in `~/documents/` — not the delivered attachment.
 
-1. `ls -t ~/documents` and pick the newest file whose name matches what the user described ("the doc I just made" is the most recent one).
+1. For "the doc I just made" (most recently created .pdf), pass no path — the script targets the newest `.pdf` in `~/documents/` automatically. Only run `ls -t ~/documents` when the user names a specific older file and you need to confirm the exact filename.
 2. For the common case — append a heading, paragraphs, or bullet items — run the deterministic editor. Do NOT hand-write Python or use `python -c`:
 
 ```json
 {
-  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/edit_pdf.py ~/documents/<name>.pdf --heading \"추가 사항\" --paragraph \"첫 번째 내용\" --paragraph \"두 번째 내용\"",
+  "command": "python3 /workspace/skills/pdf/scripts/skill_runtime.py python /workspace/skills/pdf/scripts/edit_pdf.py --heading \"추가 사항\" --paragraph \"첫 번째 내용\" --paragraph \"두 번째 내용\"",
   "timeoutSecond": 300,
   "workingDirectoryPath": "~/documents"
 }
 ```
+
+For a specific older file named by the user, pass the path explicitly: `edit_pdf.py ~/documents/<name>.pdf --heading ...`
 
 `edit_pdf.py` builds a new page with fpdf2 (Korean-capable font auto-selected from the same font candidates as `create_pdf.py`), appends it to the existing PDF using pypdf, and writes back to the same path. Repeat `--paragraph` and `--bullet` as needed. Use `--section <spec.json>` when the content needs a structured section object (same schema as a `create_pdf.py` sections array element, supports `title`, `paragraphs`, `bullets`, `table`). Only write a task-local Python script (through `scripts/skill_runtime.py python <file.py>`) when the edit is beyond appending — a rewrite, page deletion, annotation, or structural change — and expand `~` with `os.path.expanduser`.
 3. Deliver the edited `~/documents/<name>.pdf`. Keep the same filename so the next edit or delete task still finds it; save to a new filename only when the user attached a file in THIS conversation or explicitly wants both versions kept.
