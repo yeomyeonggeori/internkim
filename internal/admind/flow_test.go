@@ -230,3 +230,16 @@ func TestMembersFromUserRecordsSortsByHireDate(t *testing.T) {
 		}
 	}
 }
+
+func TestMembersFromUserRecordsPreservesOperationsAdminRole(t *testing.T) {
+	members := membersFromUserRecords([]adminUserMutation{
+		{Email: "operator@example.com", Name: "Operator", Role: "operationsAdmin"},
+	})
+
+	if len(members) != 1 {
+		t.Fatalf("members = %d, want 1", len(members))
+	}
+	if members[0].Role != "operationsAdmin" {
+		t.Fatalf("role = %q, want operationsAdmin", members[0].Role)
+	}
+}

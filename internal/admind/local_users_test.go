@@ -82,6 +82,19 @@ func TestLocalUpsertUser(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdminUserPayloadPreservesOperationsAdminRole(t *testing.T) {
+	payload, _, errorValue := normalizeAdminUserPayload(adminUserMutation{
+		Email: "operator@example.com",
+		Role:  "operationsAdmin",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload.Role != "operationsAdmin" {
+		t.Fatalf("role = %q, want operationsAdmin", payload.Role)
+	}
+}
+
 func TestLocalRemoveUser(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	deactivatedUser := false
