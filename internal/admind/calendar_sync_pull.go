@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -32,6 +33,9 @@ func (service *Service) pullCalendarChangesForProvider(ctx context.Context, prov
 	if !found {
 		return false, nil
 	}
+	if selectedRemoteCalendarTarget(account).CalendarURL == "" {
+		return false, nil
+	}
 	httpClient, errorValue := provider.BuildHTTPClient(ctx, service, account)
 	if errorValue != nil {
 		service.markRemoteCalendarAccountAuthError(ctx, account, errorValue)
@@ -57,30 +61,41 @@ func (service *Service) runGoogleCalendarPull(ctx context.Context, account remot
 }
 
 func (service *Service) runCalendarPull(ctx context.Context, provider calendarProvider, account remoteCalendarAccount, client calDAVPullClient, forceQuery bool, protectedUIDs map[string]struct{}) (bool, error) {
-	if strings.TrimSpace(account.DefaultCalendarURL) == "" {
+	if strings.TrimSpace(account.DefaultCalendarURL) == "" && strings.TrimSpace(account.SelectedCalendarURL) == "" {
 		discovered, errorValue := provider.Discover(ctx, service, account)
 		if errorValue != nil {
 			return false, errorValue
 		}
 		account = discovered
 	}
-	serverCTag, errorValue := client.fetchCalendarCTag(ctx, account.DefaultCalendarURL)
+	target := activeRemoteCalendarTarget(account)
+	if target.CalendarURL == "" {
+		return false, errors.New("calendar URL required for pull")
+	}
+	serverCTag, errorValue := client.fetchCalendarCTag(ctx, target.CalendarURL)
 	if errorValue != nil {
 		return false, fmt.Errorf("fetch ctag: %w", errorValue)
 	}
-	if !forceQuery && serverCTag != "" && serverCTag == account.DefaultCalendarCTag {
+	if !forceQuery && serverCTag != "" && serverCTag == target.CalendarCTag && !target.NeedsInitialSyncCompletion {
 		return false, nil
 	}
-	objects, errorValue := client.queryAllCalendarEvents(ctx, account.DefaultCalendarURL)
+	objects, errorValue := client.queryAllCalendarEvents(ctx, target.CalendarURL)
 	if errorValue != nil {
 		return false, fmt.Errorf("query calendar: %w", errorValue)
 	}
 	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, objects, protectedUIDs); errorValue != nil {
 		return false, errorValue
 	}
-	if serverCTag != "" && serverCTag != account.DefaultCalendarCTag {
-		account.DefaultCalendarCTag = serverCTag
-		if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+	shouldSaveCTag := serverCTag != "" && serverCTag != target.CalendarCTag
+	if shouldSaveCTag || target.NeedsInitialSyncCompletion {
+		nextCTag := target.CalendarCTag
+		if serverCTag != "" {
+			nextCTag = serverCTag
+		}
+		if _, errorValue := service.saveCalendarPullState(ctx, account, nextCTag, time.Now(), target.NeedsInitialSyncCompletion); errorValue != nil {
+			if target.NeedsInitialSyncCompletion {
+				return false, fmt.Errorf("update calendar pull state: %w", errorValue)
+			}
 			log.Printf("update calendar ctag: %v", errorValue)
 		}
 	}
@@ -88,6 +103,7 @@ func (service *Service) runCalendarPull(ctx context.Context, provider calendarPr
 }
 
 func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}) error {
+	target := activeRemoteCalendarTarget(account)
 	activeEvents, errorValue := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
 	if errorValue != nil {
 		return errorValue
@@ -115,7 +131,7 @@ func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account
 		return errorValue
 	}
 	service.markCalendarPushUIDsObserved(remoteUIDs)
-	return service.softDeleteMissingRemoteEvents(ctx, account.ID, activeEvents, remoteUIDs, mergeCalendarProtectedUIDs(protectedUIDs, pendingLocalChanges))
+	return service.softDeleteMissingRemoteEvents(ctx, account.ID, target, activeEvents, remoteUIDs, mergeCalendarProtectedUIDs(protectedUIDs, pendingLocalChanges))
 }
 
 func (service *Service) applyPulledRemoteEvents(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent) (map[string]struct{}, error) {
@@ -215,9 +231,12 @@ func mergeCalendarProtectedUIDs(protectedUIDs map[string]struct{}, pendingLocalC
 	return result
 }
 
-func (service *Service) softDeleteMissingRemoteEvents(ctx context.Context, accountID string, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}) error {
+func (service *Service) softDeleteMissingRemoteEvents(ctx context.Context, accountID string, target remoteCalendarTarget, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}) error {
 	for _, event := range allEvents {
 		if event.RemoteSource != remoteCalendarProviderGoogle {
+			continue
+		}
+		if !remoteCalendarEventBelongsToTarget(event, target) {
 			continue
 		}
 		if _, kept := remoteUIDs[event.UID]; kept {

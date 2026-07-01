@@ -9,12 +9,23 @@ import (
 )
 
 func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, token *oauth2.Token, email string) (remoteCalendarAccount, error) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	existing, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, errorValue
+	}
+	accountID := googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(normalizedEmail)
+	tokenPath := service.calendarTokenFilePath(accountID)
+	if found && strings.EqualFold(strings.TrimSpace(existing.AccountEmail), normalizedEmail) {
+		accountID = existing.ID
+		if strings.TrimSpace(existing.TokenFilePath) != "" {
+			tokenPath = existing.TokenFilePath
+		}
+	}
 	key, errorValue := service.loadOrCreateCalendarTokenEncryptionKey()
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
-	accountID := googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(email)
-	tokenPath := service.calendarTokenFilePath(accountID)
 	payload := oauthTokenPayloadFromOAuth2Token(token)
 	if errorValue := writeCalendarTokenFile(tokenPath, key, payload); errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
@@ -22,18 +33,20 @@ func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, toke
 	account := remoteCalendarAccount{
 		ID:            accountID,
 		Provider:      remoteCalendarProviderGoogle,
-		AccountEmail:  email,
+		AccountEmail:  normalizedEmail,
 		TokenFilePath: tokenPath,
 	}
-	existing, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
-	if errorValue != nil {
-		return remoteCalendarAccount{}, errorValue
-	}
-	if found && strings.EqualFold(strings.TrimSpace(existing.AccountEmail), strings.TrimSpace(email)) {
+	if found && strings.EqualFold(strings.TrimSpace(existing.AccountEmail), normalizedEmail) {
 		account.PrincipalURL = existing.PrincipalURL
 		account.HomeSetURL = existing.HomeSetURL
 		account.DefaultCalendarURL = existing.DefaultCalendarURL
 		account.DefaultCalendarCTag = existing.DefaultCalendarCTag
+		account.SelectedCalendarID = existing.SelectedCalendarID
+		account.SelectedCalendarSummary = existing.SelectedCalendarSummary
+		account.SelectedCalendarAccessRole = existing.SelectedCalendarAccessRole
+		account.SelectedCalendarURL = existing.SelectedCalendarURL
+		account.SelectedCalendarSelectedAt = existing.SelectedCalendarSelectedAt
+		account.InitialSyncCompletedAt = existing.InitialSyncCompletedAt
 	}
 	return service.upsertRemoteCalendarAccount(ctx, account)
 }

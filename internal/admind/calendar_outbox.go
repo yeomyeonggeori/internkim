@@ -64,8 +64,12 @@ func (service *Service) enqueueCalendarOutbox(ctx context.Context, row calendarO
 		return errorValue
 	}
 	defer database.Close()
+	return enqueueCalendarOutboxWithRunner(ctx, database, row)
+}
+
+func enqueueCalendarOutboxWithRunner(ctx context.Context, queryRunner calendarSQLRunner, row calendarOutboxRow) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, errorValue = database.ExecContext(ctx, `
+	_, errorValue := queryRunner.ExecContext(ctx, `
 INSERT INTO calendar_outbox (account_id, event_id, event_uid, operation, payload_ics, if_match_etag, remote_href, changed_fields, attempt_count, last_error, created_at, last_attempted_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, '')`,
 		strings.TrimSpace(row.AccountID),
@@ -216,6 +220,51 @@ func (service *Service) hasPendingCalendarLocalDelete(ctx context.Context, accou
 		return false, nil
 	}
 	return false, errorValue
+}
+
+func (service *Service) hasPendingCalendarPutForTarget(ctx context.Context, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
+	trimmedEventUID := strings.TrimSpace(eventUID)
+	if trimmedEventUID == "" {
+		return false, nil
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer database.Close()
+	return hasPendingCalendarPutForTargetWithRunner(ctx, database, accountID, trimmedEventUID, target)
+}
+
+func hasPendingCalendarPutForTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
+	trimmedEventUID := strings.TrimSpace(eventUID)
+	if trimmedEventUID == "" {
+		return false, nil
+	}
+	query := `SELECT remote_href FROM calendar_outbox WHERE event_uid = ? AND operation = ?`
+	arguments := []any{trimmedEventUID, calendarOutboxOperationPut}
+	if strings.TrimSpace(accountID) != "" {
+		query += " AND account_id = ?"
+		arguments = append(arguments, strings.TrimSpace(accountID))
+	}
+	query += " ORDER BY id"
+	rows, errorValue := queryRunner.QueryContext(ctx, query, arguments...)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var remoteHref string
+		if errorValue := rows.Scan(&remoteHref); errorValue != nil {
+			return false, errorValue
+		}
+		if calendarOutboxPutTargetsRemoteTarget(calendarOutboxRow{
+			Operation:  calendarOutboxOperationPut,
+			RemoteHref: remoteHref,
+		}, target) {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 func mergeCalendarFieldLists(left []string, right []string) []string {
