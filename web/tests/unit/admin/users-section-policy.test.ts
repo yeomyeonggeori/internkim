@@ -38,7 +38,7 @@ describe('users section policy', () => {
 	test('hides full admin role options from operations admins', () => {
 		expect(userRoleOptions(adminText.ko, false).map((option) => option.value)).toEqual(['member', 'operationsAdmin']);
 		expect(userRoleOptions(adminText.ko, true).map((option) => option.value)).toEqual(['member', 'operationsAdmin', 'admin']);
-		expect(userRoleLabel(adminText.ko, 'operationsAdmin')).toBe('운영 관리자');
+		expect(userRoleLabel(adminText.ko, 'operationsAdmin')).toBe('운영자');
 	});
 
 	test('protects admin users from limited admins', () => {
