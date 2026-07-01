@@ -4,6 +4,7 @@ import {
 	parseJSONRecord,
 	shouldHandleDevAdminMockRequest,
 	type DevAdminMockState,
+	type DevAdminMockUserRole,
 	type DevMockRequest,
 	type DevMockResponse
 } from './dev-admin-mock';
@@ -16,11 +17,11 @@ export type DevAdminOrgchartMockState = DevAdminMockState & {
 	users: UserRecord[];
 };
 
-export function createDevAdminOrgchartMockState(userEmail: string): DevAdminOrgchartMockState {
+export function createDevAdminOrgchartMockState(userEmail: string, userRole: DevAdminMockUserRole = 'admin'): DevAdminOrgchartMockState {
 	return {
-		...createDevAdminMockState(userEmail),
+		...createDevAdminMockState(userEmail, userRole),
 		groups: createDevAdminOrgchartGroups(),
-		users: createDevAdminOrgchartUsers(userEmail)
+		users: createDevAdminOrgchartUsers(userEmail, userRole)
 	};
 }
 
@@ -29,12 +30,16 @@ export function createDevAdminOrgchartMockResponse(
 	request: DevMockRequest
 ): DevMockResponse | undefined {
 	if (request.method === 'GET' && request.pathname === '/admin/api/session') {
+		if (state.userRole === 'member') {
+			return { status: 403, body: { error: 'admin access required' } };
+		}
 		return {
 			status: 200,
 			body: {
 				email: state.userEmail,
 				claimedAdminEmail: state.userEmail,
-				isAdmin: true,
+				isAdmin: state.userRole === 'admin',
+				role: state.userRole,
 				isClaimed: true,
 				bootstrapStatus: 'claimed',
 				deviceManaged: true,
