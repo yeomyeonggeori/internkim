@@ -73,7 +73,7 @@ func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/calendar.connection.start/invoke", strings.NewReader(`{}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail.connection.start/invoke", strings.NewReader(`{}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -87,7 +87,7 @@ func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		if request.ToolName != "calendar.connection.start" {
+		if request.ToolName != "mail.connection.start" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if !request.Context.IsApprovalContinuation {
@@ -99,7 +99,7 @@ func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/calendar.connection.start/invoke", strings.NewReader(`{}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail.connection.start/invoke", strings.NewReader(`{}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -171,6 +171,42 @@ func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicToolGatewayDoesNotListCalendarConnectionStart(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"read", "write", "connect"}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tools", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Tools []struct {
+			Name string `json:"name"`
+		} `json:"tools"`
+	}
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	toolNames := make([]string, 0, len(payload.Tools))
+	for _, tool := range payload.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	if containsString(toolNames, "calendar.connection.start") {
+		t.Fatalf("calendar connection start should not be listed: %+v", toolNames)
+	}
+	if !containsString(toolNames, "calendar.connection.status") {
+		t.Fatalf("calendar connection status should remain listed: %+v", toolNames)
 	}
 }
 

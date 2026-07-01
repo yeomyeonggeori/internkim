@@ -1,6 +1,30 @@
 import { ViewType } from '@dayflow/svelte';
-import type { CalendarViewType } from '@dayflow/core';
+import type { CalendarViewType, Event as DayFlowEvent } from '@dayflow/core';
 import { dayFlowSelector, visibleDayFlowElements } from './calendar-dayflow-dom-adapter';
+import {
+	calendarDateKey,
+	calendarEventDisplayOrderCandidate,
+	compareCalendarEventDisplayOrderCandidates,
+	type CalendarEventDisplayOrderCandidate
+} from './calendar-event-display-order';
+
+type IndexedCalendarEvent = {
+	event: DayFlowEvent;
+	eventIndex: number;
+};
+
+type AllDayVisibleRange = {
+	startDateKey: string;
+	endDateKey: string;
+};
+
+type AllDayEventPlacement = {
+	eventElement: HTMLElement;
+	left: number;
+	right: number;
+	rowIndex: number;
+	displayOrder: CalendarEventDisplayOrderCandidate | null;
+};
 
 const emptyDayAllDayRowHeight = 48;
 const compactAllDayRowHeight = 36;
@@ -10,15 +34,20 @@ const allDayEventGap = 4;
 const allDaySingleEventTop = 7;
 const allDayStackEventTop = 2;
 
-export function syncCalendarAllDayLayout(stageElement: HTMLElement | null, currentView: CalendarViewType): void {
+export function syncCalendarAllDayLayout(
+	stageElement: HTMLElement | null,
+	currentView: CalendarViewType,
+	currentDate: Date,
+	events: DayFlowEvent[]
+): void {
 	if (!stageElement) return;
 	if (currentView === ViewType.DAY) {
-		syncDayAllDayLayout(stageElement);
+		syncDayAllDayLayout(stageElement, currentDate, events);
 		clearWeekAllDayLayout(stageElement);
 		return;
 	}
 	if (currentView === ViewType.WEEK) {
-		syncWeekAllDayLayout(stageElement);
+		syncWeekAllDayLayout(stageElement, currentDate, events);
 		clearDayAllDayLayout(stageElement);
 		return;
 	}
@@ -31,24 +60,26 @@ export function clearCalendarAllDayLayout(stageElement: HTMLElement | null): voi
 	clearWeekAllDayLayout(stageElement);
 }
 
-function syncDayAllDayLayout(stageElement: HTMLElement): void {
+function syncDayAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.dayAllDayRow);
 	if (!rowElement) return;
 	const eventElements = visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event, ${dayFlowSelector.multiDayProxy}`);
-	const rowCount = eventElements.length;
+	const eventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, dayVisibleRange(currentDate));
+	const rowCount = allDayEventRowCount(eventRowIndexes);
 	const rowHeight = dayAllDayRowHeight(rowCount);
 	rowElement.style.setProperty('--calendar-day-all-day-row-height', `${rowHeight}px`);
 	rowElement.dataset.eventRows = String(rowCount);
-	eventElements.forEach((eventElement, index) => {
-		applyAllDayEventGeometry(eventElement, rowCount, index, true);
+	eventElements.forEach((eventElement) => {
+		const rowIndex = eventRowIndexes.get(eventElement) ?? 0;
+		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, true);
 	});
 }
 
-function syncWeekAllDayLayout(stageElement: HTMLElement): void {
+function syncWeekAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.weekAllDayRow);
 	if (!rowElement) return;
 	const eventElements = visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event, ${dayFlowSelector.multiDayProxy}`);
-	const compactEventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements);
+	const compactEventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, weekVisibleRange(currentDate));
 	const rowCount = allDayEventRowCount(compactEventRowIndexes);
 	const rowHeight = allDayRowHeight(rowCount);
 	stageElement.style.setProperty('--calendar-week-all-day-row-content-height', `${rowHeight}px`);
@@ -86,12 +117,16 @@ function allDayEventRowIndex(rowElement: HTMLElement, eventElement: HTMLElement)
 	return Math.max(0, Math.round((eventRectangle.top - rowRectangle.top - allDayStackEventTop) / rowStride));
 }
 
-function compactAllDayEventRowIndexes(rowElement: HTMLElement, eventElements: HTMLElement[]): Map<HTMLElement, number> {
-	const eventPlacements = eventElements.map((eventElement) => ({
-		eventElement,
-		rowIndex: allDayEventRowIndex(rowElement, eventElement),
-		...allDayEventHorizontalSpan(eventElement)
-	})).sort(compareAllDayEventPlacements);
+function compactAllDayEventRowIndexes(
+	rowElement: HTMLElement,
+	eventElements: HTMLElement[],
+	events: DayFlowEvent[],
+	visibleRange: AllDayVisibleRange
+): Map<HTMLElement, number> {
+	const indexedEvents = indexedCalendarEvents(events);
+	const eventPlacements = eventElements
+		.map((eventElement) => allDayEventPlacement(rowElement, eventElement, indexedEvents, visibleRange))
+		.sort(compareAllDayEventPlacements);
 	const rowRightEdges: number[] = [];
 	const rowIndexByEventElement = new Map<HTMLElement, number>();
 	for (const placement of eventPlacements) {
@@ -116,9 +151,14 @@ function allDayEventHorizontalSpan(eventElement: HTMLElement): { left: number; r
 }
 
 function compareAllDayEventPlacements(
-	firstPlacement: { rowIndex: number; left: number; right: number },
-	secondPlacement: { rowIndex: number; left: number; right: number }
+	firstPlacement: AllDayEventPlacement,
+	secondPlacement: AllDayEventPlacement
 ): number {
+	if (firstPlacement.displayOrder && secondPlacement.displayOrder) {
+		const displayOrderComparison = compareCalendarEventDisplayOrderCandidates(firstPlacement.displayOrder, secondPlacement.displayOrder);
+		if (displayOrderComparison !== 0) return displayOrderComparison;
+	}
+	if (firstPlacement.displayOrder !== secondPlacement.displayOrder) return firstPlacement.displayOrder ? -1 : 1;
 	if (firstPlacement.rowIndex !== secondPlacement.rowIndex) return firstPlacement.rowIndex - secondPlacement.rowIndex;
 	if (firstPlacement.left !== secondPlacement.left) return firstPlacement.left - secondPlacement.left;
 	return secondPlacement.right - firstPlacement.right;
@@ -139,6 +179,72 @@ function dayAllDayRowHeight(rowCount: number): number {
 	if (rowCount === 0) return emptyDayAllDayRowHeight;
 	if (rowCount === 1) return compactDayAllDayRowHeight;
 	return Math.max(compactDayAllDayRowHeight, allDayRowHeight(rowCount));
+}
+
+function allDayEventPlacement(
+	rowElement: HTMLElement,
+	eventElement: HTMLElement,
+	indexedEvents: Map<string, IndexedCalendarEvent>,
+	visibleRange: AllDayVisibleRange
+): AllDayEventPlacement {
+	const eventID = eventIDFromElement(eventElement);
+	const indexedEvent = eventID ? indexedEvents.get(eventID) : null;
+	return {
+		eventElement,
+		rowIndex: allDayEventRowIndex(rowElement, eventElement),
+		...allDayEventHorizontalSpan(eventElement),
+		displayOrder: indexedEvent
+			? calendarEventDisplayOrderCandidate(
+					indexedEvent.event,
+					indexedEvent.eventIndex,
+					visibleRange.startDateKey,
+					visibleRange.endDateKey
+				)
+			: null
+	};
+}
+
+function indexedCalendarEvents(events: DayFlowEvent[]): Map<string, IndexedCalendarEvent> {
+	return new Map(events.map((event, eventIndex) => [event.id, { event, eventIndex }]));
+}
+
+function eventIDFromElement(eventElement: HTMLElement): string | null {
+	const eventID = eventElement.dataset.eventId;
+	if (!eventID) return null;
+	const [baseEventID = ''] = eventID.split('::');
+	return baseEventID || null;
+}
+
+function dayVisibleRange(currentDate: Date): AllDayVisibleRange {
+	const visibleDateKey = calendarDateKey(startOfDay(currentDate));
+	return {
+		startDateKey: visibleDateKey,
+		endDateKey: visibleDateKey
+	};
+}
+
+function weekVisibleRange(currentDate: Date): AllDayVisibleRange {
+	const startDate = startOfWeek(currentDate);
+	return {
+		startDateKey: calendarDateKey(startDate),
+		endDateKey: calendarDateKey(addDays(startDate, 6))
+	};
+}
+
+function startOfWeek(date: Date): Date {
+	const startDate = startOfDay(date);
+	startDate.setDate(startDate.getDate() - startDate.getDay());
+	return startDate;
+}
+
+function startOfDay(date: Date): Date {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, days: number): Date {
+	const nextDate = new Date(date);
+	nextDate.setDate(nextDate.getDate() + days);
+	return nextDate;
 }
 
 function allDayEventTop(rowCount: number, rowIndex: number, shouldCenterCompactRows: boolean): number {

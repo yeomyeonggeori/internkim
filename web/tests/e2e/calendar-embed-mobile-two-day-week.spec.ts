@@ -18,6 +18,7 @@ import {
 	routeCalendarEventDeletes,
 	routeCalendarEventUpdates,
 	routeCalendarEvents,
+	routeCalendarParticipants,
 	routeDefaultCalendarAPI
 } from './calendar-embed-test-utils';
 import { navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
@@ -232,6 +233,8 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await expect(dayFlowMobileEditor(page).getByText('Start date')).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByText('All day')).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByText('Location')).toBeVisible();
+		await expect(dayFlowMobileEditor(page).getByText('Participants')).toBeVisible();
+		await expect(dayFlowMobileEditor(page).getByPlaceholder('Search by name to add')).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByRole('button', { name: 'Delete' })).toBeVisible();
 	});
 
@@ -260,12 +263,55 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 수정 일정');
+		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="startTime"]').fill('04:00');
+		await expect(dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="endTime"]')).toHaveValue('05:00');
 		await dayFlowMobileEditor(page).getByRole('button', { name: '완료' }).click();
 
 		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
 		await expect.poll(() => updatedEvents.length).toBe(1);
 		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
 		expect(updatedEvents[0]?.title).toBe('모바일 수정 일정');
+		expect(new Date(updatedEvents[0]?.endISO ?? '').getTime() - new Date(updatedEvents[0]?.startISO ?? '').getTime()).toBe(
+			60 * 60 * 1000
+		);
+	});
+
+	test('saves mobile-edited participants through the calendar persistence path', async ({ page }) => {
+		const updatedEvents = await routeCalendarEventUpdates(page);
+		await routeCalendarParticipants(page, [
+			{
+				personID: 'person-gamyeong',
+				name: '이샘플',
+				email: 'gamyeong@example.com',
+				image: '/calendar/api/participants/person-gamyeong/image'
+			},
+			{
+				personID: 'person-pyobon',
+				name: '김표본',
+				email: 'pyobon@example.com'
+			}
+		]);
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-01');
+
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await expect(dayFlowMobileEditor(page)).toBeVisible();
+		await dayFlowMobileEditor(page).getByPlaceholder('이름으로 검색해 추가').fill('이샘플');
+		await dayFlowMobileEditor(page).getByRole('option', { name: '이샘플' }).click();
+		await expect(dayFlowMobileEditor(page).getByRole('button', { name: '이샘플 제거' })).toBeVisible();
+		await dayFlowMobileEditor(page).getByRole('button', { name: '완료' }).click();
+
+		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
+		await expect.poll(() => updatedEvents.length).toBe(1);
+		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
+		expect(updatedEvents[0]?.participants).toEqual([
+			{
+				personID: 'person-gamyeong',
+				name: '이샘플',
+				email: 'gamyeong@example.com'
+			}
+		]);
 	});
 
 	test('deletes mobile-edited events through the calendar persistence path', async ({ page }) => {

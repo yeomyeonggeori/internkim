@@ -1,15 +1,22 @@
 <script lang="ts">
 	import { getContext, tick } from 'svelte';
-	import { createEvent, type Event as DayFlowEvent, type MobileEventProps } from '@dayflow/core';
+	import { type Event as DayFlowEvent, type MobileEventProps } from '@dayflow/core';
 	import { calendarText } from '../text';
 	import { isDraftEventID } from './calendar-draft-event-params';
 	import { dateKey, draftPopoverAllDayChanges, type DraftPopoverState } from './calendar-draft-popover-state';
 	import { eventEndDate, eventStartDate } from './calendar-event-mapping';
+	import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
 	import CalendarMobileEventEditorFields from './calendar-mobile-event-editor-fields.svelte';
 	import {
+		calendarMobileEditorStartDateTimeChanges,
+		calendarMobileEditorUpdatedEvent
+	} from './calendar-mobile-event-editor-state';
+	import {
 		mobileEventEditorLocaleContextKey,
+		mobileEventEditorParticipantsContextKey,
 		mobileEventEditorPersistenceContextKey,
 		type MobileEventEditorLocaleContext,
+		type MobileEventEditorParticipantsContext,
 		type MobileEventEditorPersistenceContext
 	} from './calendar-mobile-event-editor-types';
 	import './calendar-mobile-event-editor.css';
@@ -17,6 +24,9 @@
 	let { isOpen, onClose, onSave, onEventDelete, draftEvent, app }: MobileEventProps = $props();
 	const persistence = getContext<MobileEventEditorPersistenceContext | undefined>(mobileEventEditorPersistenceContextKey);
 	const localeContext = getContext<MobileEventEditorLocaleContext | undefined>(mobileEventEditorLocaleContextKey);
+	const participantsContext = getContext<MobileEventEditorParticipantsContext | undefined>(
+		mobileEventEditorParticipantsContextKey
+	);
 
 	let loadedEventKey = $state('');
 	let title = $state('');
@@ -27,6 +37,7 @@
 	let allDay = $state(false);
 	let location = $state('');
 	let description = $state('');
+	let participants = $state<CalendarParticipant[]>([]);
 	let calendarID = $state('');
 	let isEditorOpen = $state(false);
 	let titleInputElement: HTMLInputElement | undefined = $state();
@@ -34,6 +45,7 @@
 	const text = $derived(localeContext?.getText() ?? calendarText.ko);
 	const draftText = $derived(text.draftPopover);
 	const calendars = $derived(app.getCalendars());
+	const participantCandidates = $derived(participantsContext?.getCandidates() ?? []);
 	const canEdit = $derived(draftEvent ? app.canMutateFromUI(draftEvent.id) : false);
 	const isDraftEvent = $derived(Boolean(draftEvent && isDraftEventID(draftEvent.id)));
 	const canDelete = $derived(Boolean(draftEvent && canEdit && onEventDelete));
@@ -51,6 +63,7 @@
 		allDay = event.allDay ?? false;
 		location = typeof event.meta?.location === 'string' ? event.meta.location : '';
 		description = event.description ?? '';
+		participants = calendarParticipantsFromUnknown(event.meta?.participants);
 		calendarID = event.calendarId ?? calendars[0]?.id ?? 'internkim';
 	}
 
@@ -84,14 +97,31 @@
 		const field = target.dataset.mobileEditorField;
 		if (!field) return;
 		if (field === 'title') title = target.value;
-		if (field === 'startDate') startDateKey = target.value;
-		if (field === 'startTime') startTime = target.value;
+		if (field === 'startDate') updateStartDateTime({ startDateKey: target.value });
+		if (field === 'startTime') updateStartDateTime({ startTime: target.value });
 		if (field === 'endDate') endDateKey = target.value;
 		if (field === 'endTime') endTime = target.value;
 		if (field === 'allDay' && target instanceof HTMLInputElement) updateAllDay(target.checked);
 		if (field === 'location') location = target.value;
 		if (field === 'description') description = target.value;
 		if (field === 'calendar') calendarID = target.value;
+	}
+
+	function updateStartDateTime(changes: { startDateKey?: string; startTime?: string }): void {
+		const fields = calendarMobileEditorStartDateTimeChanges(
+			{
+				startDateKey,
+				endDateKey,
+				startTime,
+				endTime,
+				allDay
+			},
+			changes
+		);
+		startDateKey = fields.startDateKey;
+		endDateKey = fields.endDateKey;
+		startTime = fields.startTime;
+		endTime = fields.endTime;
 	}
 
 	function handleEditorKeydown(event: KeyboardEvent): void {
@@ -148,18 +178,16 @@
 
 	async function saveEvent(): Promise<void> {
 		if (!draftEvent || !canSave) return;
-		const updatedEvent = createEvent({
-			id: draftEvent.id,
-			title: title.trim(),
-			description: description.trim(),
+		const updatedEvent = calendarMobileEditorUpdatedEvent({
+			draftEvent,
+			title,
+			description,
 			start: startDate(),
 			end: endDate(),
 			allDay,
-			calendarId: calendarID,
-			meta: {
-				...(draftEvent.meta ?? {}),
-				location: location.trim()
-			}
+			calendarID,
+			location,
+			participants
 		});
 		if (persistence) {
 			isEditorOpen = false;
@@ -193,6 +221,7 @@
 			allDay,
 			location,
 			description,
+			participants,
 			calendarID,
 			anchor: null,
 			position: {
@@ -319,7 +348,12 @@
 				{allDay}
 				{location}
 				{description}
+				bind:participants
+				{participantCandidates}
 				{calendarID}
+				onParticipantsChange={(nextParticipants) => {
+					participants = nextParticipants;
+				}}
 				bind:titleInputElement
 			/>
 		</section>

@@ -55,7 +55,6 @@
 
 <style>
 	.calendar-search-shell {
-		margin-left: auto;
 		position: relative;
 		width: min(220px, 20vw);
 		flex-shrink: 1;

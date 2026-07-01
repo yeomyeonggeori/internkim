@@ -39,23 +39,22 @@ test.describe('calendar localization', () => {
 		});
 
 		await page.goto('/calendar/');
-		await expect(page.getByRole('button', { name: '구독 설정' })).toBeVisible();
+		let calendarFrame = page.frameLocator('iframe');
+		await expect(calendarFrame.getByRole('button', { name: '설정' })).toBeVisible();
 		await page.getByRole('button', { name: '언어 변경' }).click();
 		await page.getByRole('menuitemradio', { name: 'English' }).click();
 
-		await expect(page.getByRole('button', { name: 'Subscription settings' })).toBeVisible();
-		await page.getByRole('button', { name: 'Subscription settings' }).click();
-		await expect(page.getByText('External calendar account', { exact: true })).toBeVisible();
-		await expect(page.getByText('Google Calendar not connected')).toBeVisible();
-		await expect(page.getByText('Google Calendar integration is not ready yet.')).toBeVisible();
-		await expect(page.getByText('Contact an administrator if you need access.')).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Connect Google Calendar' })).toBeHidden();
+		calendarFrame = page.frameLocator('iframe');
+		await expect(calendarFrame.getByRole('button', { name: 'Settings' })).toBeVisible();
+		await calendarFrame.getByRole('button', { name: 'Settings' }).click();
+		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+		await expect(page.getByText('Connected Google Calendar', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Connect' })).toBeHidden();
 		await expect(page.getByText('CalDAV/ICS subscription ready')).toBeVisible();
 		await page.keyboard.press('Escape');
-		await expect(page.getByText('External calendar account', { exact: true })).toBeHidden();
+		await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();
 
-		const calendarFrame = page.frameLocator('iframe');
-		await expect(calendarFrame.getByRole('button', { name: 'Today' })).toBeVisible();
+		await expect(calendarFrame.getByRole('button', { name: 'June 2026' })).toBeVisible();
 		await expect(calendarFrame.getByRole('button', { name: 'Month' })).toBeVisible();
 
 		await calendarFrame.getByRole('button', { name: 'New', exact: true }).click();

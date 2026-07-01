@@ -70,7 +70,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventLoader: CalendarEventLoader = createCalendarEventLoader({
 		isBrowser: context.isBrowser,
 		errorFallback: () => context.text.error,
-		isWorkCalendarVisible: () => context.state.calendarWorkVisible,
 		getCalendarEvents: () => calendar.app.getAllEvents(),
 		applyCalendarEventsChanges: (changes) => {
 			calendar.app.applyEventsChanges(changes);

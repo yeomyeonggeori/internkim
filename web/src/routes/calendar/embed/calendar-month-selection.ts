@@ -76,6 +76,35 @@ export function dateFromDateKey(dateKey: string): Date {
 	return new Date(Number(year), Number(month) - 1, Number(day));
 }
 
+export function dateKeyFromWeekHeaderTarget(stageElement: HTMLElement, target: Element, toolbarDate: Date): string | null {
+	const weekHeader = target.closest<HTMLElement>('.df-week-header > .df-week-day-cell, .df-week-day-header');
+	if (!weekHeader || !stageElement.contains(weekHeader)) return null;
+	const headers = weekHeaderElements(stageElement);
+	if (headers.length < 7) return null;
+	const headerIndex = headers.indexOf(weekHeader);
+	if (headerIndex < 0) return null;
+	const weekStartDate = new Date(
+		toolbarDate.getFullYear(),
+		toolbarDate.getMonth(),
+		toolbarDate.getDate() - toolbarDate.getDay(),
+		12,
+		0,
+		0,
+		0
+	);
+	return dateKeyFromDate(
+		new Date(
+			weekStartDate.getFullYear(),
+			weekStartDate.getMonth(),
+			weekStartDate.getDate() + headerIndex,
+			12,
+			0,
+			0,
+			0
+		)
+	);
+}
+
 export function installCalendarMonthKeyboardNavigation(options: CalendarMonthKeyboardNavigationOptions): () => void {
 	function handleKeydown(event: KeyboardEvent): void {
 		if (options.currentView() !== ViewType.MONTH) return;
@@ -106,9 +135,13 @@ function monthDateCellByDateKey(stageElement: HTMLElement, dateKey: string): { e
 
 function weekHeaderByDateKey(stageElement: HTMLElement, dateKey: string): HTMLElement | null {
 	const date = dateFromDateKey(dateKey);
-	const headers = Array.from(stageElement.querySelectorAll<HTMLElement>('.df-week-header > .df-week-day-cell, .df-week-day-header'));
+	const headers = weekHeaderElements(stageElement);
 	if (headers.length < 7) return null;
 	return headers[date.getDay()] ?? null;
+}
+
+function weekHeaderElements(stageElement: HTMLElement): HTMLElement[] {
+	return Array.from(stageElement.querySelectorAll<HTMLElement>('.df-week-header > .df-week-day-cell, .df-week-day-header'));
 }
 
 function monthKeyboardDayDelta(key: string): number {
@@ -125,7 +158,7 @@ function shiftedDateKey(dateKeyValue: string, dayDelta: number): string {
 	return dateKeyFromDate(shiftedDate);
 }
 
-function dateKeyFromDate(date: Date): string {
+export function dateKeyFromDate(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 

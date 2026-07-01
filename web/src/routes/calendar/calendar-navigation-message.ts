@@ -19,6 +19,14 @@ export type CalendarEventsChangedMessage = {
 	type: 'calendar-events-changed';
 };
 
+export type CalendarOpenSettingsMessage = {
+	type: 'calendar-open-settings';
+};
+
+export type CalendarRefreshMessage = {
+	type: 'calendar-refresh';
+};
+
 const calendarDateKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isCalendarNavigationMessage(value: unknown): value is CalendarNavigationMessage {
@@ -45,6 +53,16 @@ export function isCalendarViewMessage(value: unknown): value is CalendarViewMess
 export function isCalendarEventsChangedMessage(value: unknown): value is CalendarEventsChangedMessage {
 	if (!value || typeof value !== 'object') return false;
 	return 'type' in value && value.type === 'calendar-events-changed';
+}
+
+export function isCalendarOpenSettingsMessage(value: unknown): value is CalendarOpenSettingsMessage {
+	if (!value || typeof value !== 'object') return false;
+	return 'type' in value && value.type === 'calendar-open-settings';
+}
+
+export function isCalendarRefreshMessage(value: unknown): value is CalendarRefreshMessage {
+	if (!value || typeof value !== 'object') return false;
+	return 'type' in value && value.type === 'calendar-refresh';
 }
 
 export function isCalendarViewValue(value: string): value is CalendarViewValue {

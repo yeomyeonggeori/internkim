@@ -273,6 +273,17 @@ test.describe('embedded calendar month interactions', () => {
 		const selectedDateNumber = selectedWeekHeader.locator('.df-date-number, .df-week-date-number').first();
 		await expect(selectedDateNumber).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 	});
+
+	test('selects a week header date when clicked', async ({ page }) => {
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-08');
+
+		await page.locator('.df-week-header > .df-week-day-cell').nth(2).click();
+
+		await expect(page.locator('.calendar-stage')).toHaveAttribute('data-calendar-selected-date-key', '2026-06-09');
+		const selectedWeekHeader = page.locator('.df-week-day-cell.calendar-selected-week-date, .df-week-day-header.calendar-selected-week-date');
+		await expect(selectedWeekHeader).toContainText(/화\s*9/);
+	});
 });
 
 async function selectedMonthDateKey(page: Page): Promise<string> {

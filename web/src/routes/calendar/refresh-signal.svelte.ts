@@ -1,6 +1,8 @@
 import type {
 	CalendarEventsChangedMessage,
 	CalendarNavigationMessage,
+	CalendarOpenSettingsMessage,
+	CalendarRefreshMessage,
 	CalendarViewMessage,
 	CalendarViewValue,
 	CalendarVisibleDateMessage
@@ -8,7 +10,6 @@ import type {
 import { calendarDateStorageKey, calendarViewStorageKey } from './calendar-storage-keys';
 
 export const calendarRefresh = $state({ ticks: 0 });
-export const calendarVisibility = $state({ work: true });
 export const calendarNavigation = $state({ dateKey: '' });
 
 export const calendarChannelName = 'internkim-calendar';
@@ -59,6 +60,26 @@ export function broadcastCalendarEventsChanged() {
 		{
 			type: 'calendar-events-changed'
 		} satisfies CalendarEventsChangedMessage,
+		window.location.origin
+	);
+}
+
+export function requestCalendarSettingsOpen() {
+	if (typeof window === 'undefined') return;
+	window.parent.postMessage(
+		{
+			type: 'calendar-open-settings'
+		} satisfies CalendarOpenSettingsMessage,
+		window.location.origin
+	);
+}
+
+export function requestCalendarRefresh() {
+	if (typeof window === 'undefined') return;
+	window.parent.postMessage(
+		{
+			type: 'calendar-refresh'
+		} satisfies CalendarRefreshMessage,
 		window.location.origin
 	);
 }

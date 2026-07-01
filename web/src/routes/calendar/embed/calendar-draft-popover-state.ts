@@ -1,10 +1,16 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { temporalToDate } from '@dayflow/core';
+import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 import {
 	draftPopoverPositionFromAnchor,
 	type DraftPopoverAnchor,
 	type DraftPopoverPosition
 } from './calendar-draft-popover-position';
+import {
+	calendarParticipantsEqual,
+	calendarParticipantsFromUnknown,
+	type CalendarParticipant
+} from './calendar-participants';
 
 export {
 	draftPopoverPositionFromAnchor,
@@ -26,6 +32,7 @@ export type DraftPopoverState = {
 	allDay: boolean;
 	location: string;
 	description: string;
+	participants: CalendarParticipant[];
 	calendarID: string;
 	anchor: DraftPopoverAnchor | null;
 	position: DraftPopoverPosition;
@@ -40,6 +47,8 @@ export type DraftPopoverEventChanges = {
 	calendarId: string;
 	meta: Record<string, unknown>;
 };
+
+type DraftPopoverDateTimeState = Pick<DraftPopoverState, 'dateKey' | 'endDateKey' | 'startTime' | 'endTime' | 'allDay'>;
 
 const defaultTimedStartTime = '09:00';
 const defaultTimedEndTime = '10:00';
@@ -63,6 +72,7 @@ export function draftPopoverStateFromEvent(
 		allDay: event.allDay ?? false,
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
 		description: event.description ?? '',
+		participants: calendarParticipantsFromUnknown(event.meta?.participants),
 		calendarID: event.calendarId ?? 'internkim',
 		anchor,
 		position: draftPopoverPositionFromAnchor(anchor, stageElement)
@@ -78,6 +88,32 @@ export function draftPopoverAllDayChanges(popover: DraftPopoverState, allDay: bo
 	};
 }
 
+export function draftPopoverStartDateTimeChanges(
+	popover: DraftPopoverDateTimeState,
+	nextDateKey: string,
+	nextStartTime: string
+): Partial<DraftPopoverState> {
+	const changes = calendarDateTimeRangeChangesForStart(
+		{
+			startDateKey: popover.dateKey,
+			endDateKey: popover.endDateKey,
+			startTime: popover.startTime,
+			endTime: popover.endTime,
+			allDay: popover.allDay
+		},
+		{
+			startDateKey: nextDateKey,
+			startTime: nextStartTime
+		}
+	);
+	return {
+		dateKey: changes.startDateKey,
+		startTime: changes.startTime,
+		endDateKey: changes.endDateKey,
+		endTime: changes.endTime
+	};
+}
+
 export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEventChanges {
 	const start = draftPopoverStartDate(popover);
 	const end = draftPopoverEndDate(popover);
@@ -89,7 +125,8 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 		allDay: popover.allDay,
 		calendarId: popover.calendarID,
 		meta: {
-			location: popover.location.trim()
+			location: popover.location.trim(),
+			participants: popover.participants
 		}
 	};
 }
@@ -103,7 +140,8 @@ export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: D
 		dateFromEventValue(event.end).getTime() !== changes.end.getTime() ||
 		(event.allDay ?? false) !== changes.allDay ||
 		(event.calendarId ?? 'internkim') !== changes.calendarId ||
-		eventLocation(event) !== normalizedText(changes.meta.location)
+		eventLocation(event) !== normalizedText(changes.meta.location) ||
+		!calendarParticipantsEqual(calendarParticipantsFromUnknown(event.meta?.participants), popover.participants)
 	);
 }
 

@@ -153,6 +153,7 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		return false, errorValue
 	}
 	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, row.ChangedFields)
+	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, row.ChangedFields)
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
 	mergedEvent.CreatedByName = localEvent.CreatedByName

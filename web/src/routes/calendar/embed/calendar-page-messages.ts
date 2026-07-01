@@ -1,12 +1,10 @@
 import { calendarDateStorageKey } from '../calendar-storage-keys';
 import { isCalendarNavigationMessage } from '../calendar-navigation-message';
 import { dateKey } from './calendar-draft-popover-state';
-import { isCalendarVisibilityMessage } from './calendar-work-visibility';
 
 type CalendarPageMessageContext = {
 	getCurrentOrigin: () => string;
 	navigateToDateKey: (dateKey: string) => void;
-	setWorkCalendarVisibility: (isVisible: boolean) => void;
 };
 
 export type CalendarPageMessageActions = {
@@ -17,10 +15,6 @@ export type CalendarPageMessageActions = {
 
 export function createCalendarPageMessageActions(context: CalendarPageMessageContext): CalendarPageMessageActions {
 	function handleCalendarChannelMessage(event: MessageEvent<unknown>): void {
-		if (isCalendarVisibilityMessage(event.data)) {
-			context.setWorkCalendarVisibility(event.data.work);
-			return;
-		}
 		if (isCalendarNavigationMessage(event.data)) {
 			context.navigateToDateKey(event.data.dateKey);
 		}

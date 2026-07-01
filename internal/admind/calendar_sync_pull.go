@@ -172,6 +172,7 @@ func (service *Service) applyPulledRemoteEvent(ctx context.Context, account remo
 		if hasPendingLocalChange {
 			return service.applyPulledRemoteEventWithPendingLocalChangeLocked(ctx, account, currentEvent, remoteEvent, pendingLocalChange)
 		}
+		remoteEvent = preserveCalendarInternalParticipants(remoteEvent, currentEvent, nil)
 	} else {
 		remoteEvent.ID = randomHex(16)
 	}
@@ -186,6 +187,7 @@ func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx c
 		return errorValue
 	}
 	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, pendingLocalChange.ChangedFields)
+	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, pendingLocalChange.ChangedFields)
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
 	mergedEvent.CreatedByName = localEvent.CreatedByName

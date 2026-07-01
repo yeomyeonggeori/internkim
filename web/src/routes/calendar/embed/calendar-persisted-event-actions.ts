@@ -49,6 +49,7 @@ export function createCalendarPersistedEventActions(
 						uid: event.uid,
 						location: event.location,
 						color: event.color,
+						participants: event.participants,
 						timeZone: event.timeZone,
 						createdByEmail: event.createdByEmail,
 						createdByName: event.createdByName,
