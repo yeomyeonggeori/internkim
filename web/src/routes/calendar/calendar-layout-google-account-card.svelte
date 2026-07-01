@@ -3,46 +3,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import type { CalendarAccountStatusResponse } from './calendar-layout-types';
-
-	type CalendarGoogleAccountCardText = {
-		accountStatusLoading: string;
-		accountStatusLoadFailed: string;
-		googleCalendarDisconnected: string;
-		googleCalendarConnected: string;
-		googleCalendarConnectedTemplate: string;
-		googleCalendarReauthRequired: string;
-		googleCalendarConnectAction: string;
-		googleCalendarReconnectAction: string;
-		googleCalendarReconnectHint: string;
-		googleCalendarReadyHint: string;
-		googleCalendarUnavailableHint: string;
-		googleOAuthClientUploadTitle: string;
-		googleOAuthClientUploadHint: string;
-		googleOAuthClientUploadAction: string;
-		googleOAuthClientUploading: string;
-		googleOAuthClientFileLabel: string;
-		googleOAuthClientChooseFile: string;
-		googleOAuthClientReplaceTitle: string;
-		googleOAuthClientReplaceHint: string;
-		googleOAuthClientGuide: {
-			title: string;
-			intro: string;
-			checklistTitle: string;
-			checks: string[];
-			stepsTitle: string;
-			steps: Array<{
-				title: string;
-				body: string;
-				action?: {
-					label: string;
-					url: string;
-				};
-			}>;
-			redirectURI: string;
-			javascriptOrigin: string;
-		};
-		externalCalendarAccount: string;
-	};
+	import type { CalendarGoogleAccountText } from './text';
 
 	let {
 		text,
@@ -52,7 +13,7 @@
 		isUploadingGoogleOAuthClient,
 		uploadGoogleOAuthClient
 	}: {
-		text: CalendarGoogleAccountCardText;
+		text: CalendarGoogleAccountText;
 		accountStatus: CalendarAccountStatusResponse | null;
 		accountStatusError: boolean;
 		isLoadingAccountStatus: boolean;
@@ -112,6 +73,35 @@
 	function googleOAuthActionLabel() {
 		if (accountStatus?.needsReauth) return text.googleCalendarReconnectAction;
 		return text.googleCalendarConnectAction;
+	}
+
+	function selectedGoogleCalendarLabel() {
+		return accountStatus?.selectedCalendarName || accountStatus?.selectedCalendarID || '';
+	}
+
+	function hasWritableSelectedCalendar() {
+		const accessRole = accountStatus?.selectedCalendarAccessRole?.trim().toLowerCase();
+		return accessRole === 'writer' || accessRole === 'owner';
+	}
+
+	function calendarConnectionStateLabel() {
+		if (isLoadingAccountStatus || accountStatusError || !accountStatus?.connected) return '';
+		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
+		if (accountStatus.needsCalendarSelection) return text.googleCalendarSelectionRequired;
+		if (!hasWritableSelectedCalendar()) return text.googleCalendarWritePermissionRequired;
+		if (!accountStatus.initialSyncCompleted) return text.googleCalendarInitialSyncPending;
+		if (accountStatus.calendarSyncReady) return text.googleCalendarSyncReady;
+		return text.googleCalendarInitialSyncPending;
+	}
+
+	function calendarConnectionStateClass() {
+		if (!accountStatus?.connected || accountStatus.needsCalendarSelection || !accountStatus.initialSyncCompleted) {
+			return 'border-border bg-muted text-muted-foreground';
+		}
+		if (accountStatus.calendarSyncReady) {
+			return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+		}
+		return 'border-destructive/30 bg-destructive/10 text-destructive';
 	}
 
 	function selectGoogleOAuthClientFile(fileList: FileList | null) {
@@ -237,6 +227,16 @@
 <div class="space-y-2 rounded-md border p-3">
 	<p class="text-xs font-medium uppercase text-muted-foreground">{text.externalCalendarAccount}</p>
 	<p class="min-w-0 truncate text-sm font-medium">{accountStatusLabel()}</p>
+	{#if selectedGoogleCalendarLabel()}
+		<p class="min-w-0 truncate text-xs text-muted-foreground">
+			{text.googleCalendarSelectedCalendarTemplate.replace('{calendar}', selectedGoogleCalendarLabel())}
+		</p>
+	{/if}
+	{#if calendarConnectionStateLabel()}
+		<p class={`inline-flex max-w-full rounded-md border px-2 py-1 text-xs font-medium ${calendarConnectionStateClass()}`}>
+			<span class="min-w-0 truncate">{calendarConnectionStateLabel()}</span>
+		</p>
+	{/if}
 	{#if accountStatus?.needsReauth && accountStatus.googleOAuthConfigured}
 		<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
 	{/if}
