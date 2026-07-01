@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
@@ -26,6 +27,23 @@ def optional_text(value):
     if not isinstance(value, str):
         raise ValueError("text fields must be strings")
     return value.strip()
+
+
+def build_specification(arguments):
+    sections = []
+    for heading_text in arguments.heading:
+        sections.append({"title": heading_text, "paragraphs": [], "bullets": []})
+    if not sections and (arguments.paragraph or arguments.bullet):
+        sections.append({"title": "", "paragraphs": [], "bullets": []})
+    if sections:
+        last_section = sections[-1]
+        last_section["paragraphs"] = arguments.paragraph
+        last_section["bullets"] = arguments.bullet
+    return {
+        "title": arguments.title or "",
+        "subtitle": arguments.subtitle or "",
+        "sections": sections,
+    }
 
 
 def create_pdf(specification):
@@ -172,17 +190,25 @@ def contains_non_latin_text(text):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Create a source-grounded PDF from a JSON specification.")
-    parser.add_argument("specification_path")
-    parser.add_argument("output_path")
+    parser = argparse.ArgumentParser(description="Create a PDF from arguments or a JSON spec.")
+    parser.add_argument("output_path", help="Path to the output .pdf file")
+    parser.add_argument("--title", metavar="TEXT", default="", help="Document title")
+    parser.add_argument("--subtitle", metavar="TEXT", default="", help="Document subtitle (optional)")
+    parser.add_argument("--heading", action="append", default=[], metavar="TEXT", help="Add a section heading (repeatable)")
+    parser.add_argument("--paragraph", action="append", default=[], metavar="TEXT", help="Add a paragraph (repeatable)")
+    parser.add_argument("--bullet", action="append", default=[], metavar="TEXT", help="Add a bullet item (repeatable)")
+    parser.add_argument("--spec", metavar="JSON_PATH", help="JSON spec file for rich PDFs (tables, multi-section layouts)")
     return parser.parse_args()
 
 
 def main():
     arguments = parse_arguments()
-    specification = load_specification(arguments.specification_path)
+    has_inline_content = arguments.title or arguments.subtitle or arguments.heading or arguments.paragraph or arguments.bullet
+    if not arguments.spec and not has_inline_content:
+        raise ValueError("provide at least --title, --heading, --paragraph, or --bullet; or pass --spec <file>")
+    specification = load_specification(arguments.spec) if arguments.spec else build_specification(arguments)
     pdf = create_pdf(specification)
-    output_path = Path(arguments.output_path)
+    output_path = Path(os.path.expanduser(arguments.output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pdf.output(str(output_path))
     print(output_path)

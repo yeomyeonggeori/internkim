@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
@@ -218,18 +219,36 @@ def set_table_borders(table):
     table._tbl.tblPr.append(borders)
 
 
+def build_specification(arguments):
+    blocks = []
+    for heading_text in arguments.heading:
+        blocks.append({"type": "heading", "level": 1, "text": heading_text})
+    for paragraph_text in arguments.paragraph:
+        blocks.append({"type": "paragraph", "text": paragraph_text})
+    if arguments.bullet:
+        blocks.append({"type": "bullets", "items": arguments.bullet})
+    return {"title": arguments.title or "", "blocks": blocks}
+
+
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Create a DOCX file from a JSON specification.")
-    parser.add_argument("specification_path")
-    parser.add_argument("output_path")
+    parser = argparse.ArgumentParser(description="Create a DOCX file from arguments or a JSON spec.")
+    parser.add_argument("output_path", help="Path to the output .docx file")
+    parser.add_argument("--title", metavar="TEXT", default="", help="Document title")
+    parser.add_argument("--heading", action="append", default=[], metavar="TEXT", help="Add a level-1 heading (repeatable)")
+    parser.add_argument("--paragraph", action="append", default=[], metavar="TEXT", help="Add a paragraph (repeatable)")
+    parser.add_argument("--bullet", action="append", default=[], metavar="TEXT", help="Add a bullet item (repeatable)")
+    parser.add_argument("--spec", metavar="JSON_PATH", help="Full {title,page,fontName,blocks} spec for rich structure (tables, fonts, margins)")
     return parser.parse_args()
 
 
 def main():
     arguments = parse_arguments()
-    specification = load_specification(arguments.specification_path)
+    has_inline_content = arguments.title or arguments.heading or arguments.paragraph or arguments.bullet
+    if not arguments.spec and not has_inline_content:
+        raise ValueError("provide at least --title, --heading, --paragraph, or --bullet; or pass --spec <file>")
+    specification = load_specification(arguments.spec) if arguments.spec else build_specification(arguments)
     document = create_document(specification)
-    output_path = Path(arguments.output_path)
+    output_path = Path(os.path.expanduser(arguments.output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     document.save(output_path)
     print(output_path)
