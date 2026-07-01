@@ -2326,7 +2326,15 @@ func (service *Service) httpClient() *http.Client {
 	if service.HTTPClient != nil {
 		return service.HTTPClient
 	}
-	return http.DefaultClient
+	return admindHTTPClient
+}
+
+var admindHTTPClient = &http.Client{Transport: newAdmindHTTPTransport()}
+
+func newAdmindHTTPTransport() http.RoundTripper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	return transport
 }
 
 func (service *Service) runCommand(ctx context.Context, name string, arguments ...string) ([]byte, error) {
