@@ -8,7 +8,6 @@
 	import type { AdminPageText, CircleRecord, UserRecord, UserRole } from './admin-types';
 	import UserDirectoryActions from './user-directory-actions.svelte';
 	import UserNoteControl from './user-note-control.svelte';
-	import type { NoteEditorPosition } from './user-note-position';
 
 	type UserDirectoryMobileCardProps = {
 		record: UserRecord;
@@ -17,16 +16,10 @@
 		adminCount: number;
 		isSaving: boolean;
 		isValid: boolean;
-		isNoteOpen: boolean;
-		noteDraft: string;
-		noteEditorPosition: NoteEditorPosition;
 		hasUserCircle: (record: UserRecord, circleID: string) => boolean;
 		onRecordChange: (record: UserRecord, changes: UserRecordChanges) => void;
 		onToggleCircle: (record: UserRecord, circleID: string) => void;
-		onOpenNote: (record: UserRecord, event: MouseEvent) => void;
-		onNoteValueChange: (value: string) => void;
-		onCancelNote: () => void;
-		onSaveNote: (record: UserRecord) => void;
+		onSaveNote: (record: UserRecord, note: string) => Promise<boolean>;
 		onSave: (record: UserRecord, role?: UserRole) => void;
 		onResetPassword: (record: UserRecord) => void;
 		onRemove: (email: string) => void;
@@ -39,15 +32,9 @@
 		adminCount,
 		isSaving,
 		isValid,
-		isNoteOpen,
-		noteDraft,
-		noteEditorPosition,
 		hasUserCircle,
 		onRecordChange,
 		onToggleCircle,
-		onOpenNote,
-		onNoteValueChange,
-		onCancelNote,
 		onSaveNote,
 		onSave,
 		onResetPassword,
@@ -69,18 +56,7 @@
 			</div>
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
-			<UserNoteControl
-				note={record.note}
-				{text}
-				isOpen={isNoteOpen}
-				draft={noteDraft}
-				position={noteEditorPosition}
-				isSaving={isSaving}
-				onOpen={(event) => onOpenNote(record, event)}
-				onValueChange={onNoteValueChange}
-				onCancel={onCancelNote}
-				onSave={() => onSaveNote(record)}
-			/>
+			<UserNoteControl note={record.note} {text} {isSaving} onSave={(note) => onSaveNote(record, note)} />
 			<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
 		</div>
 	</div>
