@@ -11,7 +11,8 @@ export function readPersistedAttendanceFilters(): PersistedAttendanceFilters {
 	if (typeof window === 'undefined') return {};
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
-		return raw ? (JSON.parse(raw) as PersistedAttendanceFilters) : {};
+		const parsed = raw ? (JSON.parse(raw) as PersistedAttendanceFilters) : {};
+		return { chartMode: parsed.chartMode };
 	} catch {
 		return {};
 	}
