@@ -29,7 +29,24 @@ func flowStatusOptions() []string {
 }
 
 func cleanFlowStatus(status string) string {
-	return strings.TrimSpace(status)
+	trimmed := strings.TrimSpace(status)
+	switch strings.ToLower(strings.ReplaceAll(trimmed, " ", "")) {
+	case "진행", "진행중", "inprogress", "in_progress", "doing", "started", "active":
+		return flowStatusInProgress
+	case "예정", "planned", "todo", "scheduled", "upcoming":
+		return flowStatusPlanned
+	case "완료", "done", "completed", "complete", "finished":
+		return flowStatusCompleted
+	case "요청", "requested", "request":
+		return flowStatusRequested
+	case "일시정지", "보류", "paused", "pause", "onhold", "hold":
+		return flowStatusPaused
+	case "기각", "rejected", "reject", "denied":
+		return flowStatusRejected
+	case "중단", "취소", "stopped", "stop", "cancelled", "canceled", "abandoned":
+		return flowStatusStopped
+	}
+	return trimmed
 }
 
 func isAllowedFlowStatus(status string) bool {

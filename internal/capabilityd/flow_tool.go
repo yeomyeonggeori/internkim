@@ -223,6 +223,15 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	}
 	task, failure := resolveFlowTaskDeleteTarget(input, summary)
 	if failure != nil {
+		if failure.ErrorCode == "flow_task_not_found" {
+			return capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        request.ToolName,
+				Status:          "deleted",
+				Result:          json.RawMessage(`{"status":"deleted","alreadyDeleted":true}`),
+			}, nil
+		}
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
 	}
 	result, errorValue := service.deleteFlowTask(ctx, task.ID, request.Context.RequesterEmail)

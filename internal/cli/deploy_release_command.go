@@ -317,7 +317,7 @@ func deployReleaseBundleToTarget(target commandTarget, bundle directReleaseBundl
 	if errorValue != nil {
 		return errorValue
 	}
-	completedJob, errorValue := waitForReleaseUpdateJob(target, job)
+	completedJob, errorValue := waitForReleaseUpdateJob(target, job, bundle.manifest.ReleaseID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -522,8 +522,8 @@ func completeReleaseUpdateUpload(target commandTarget, upload releaseUpdateUploa
 	return response, postReleaseUpdateJSON(endpointURL, payload, upload.UploadToken, &response)
 }
 
-func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse) (blueclawUpdateJobResponse, error) {
-	for attempt := 0; attempt < 180; attempt++ {
+func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse, expectedReleaseID string) (blueclawUpdateJobResponse, error) {
+	for attempt := 0; attempt < 240; attempt++ {
 		currentJob, errorValue := fetchDeviceReleaseUpdateJob(target, job.JobID)
 		if errorValue == nil {
 			fmt.Printf("Status: %s/%s\n", currentJob.Status, currentJob.Phase)
@@ -533,10 +533,31 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 			case "failed":
 				return currentJob, errors.New(strings.TrimSpace(currentJob.Error))
 			}
+		} else if releaseUpdateReachedTarget(target, expectedReleaseID) {
+			// The job record is gone (an admind-containing release restarts admind and
+			// wipes the in-memory job store), but the device's current release already
+			// matches the target, so the deploy actually landed.
+			fmt.Println("Status: completed/verified (job record cleared by service restart; current release matches target)")
+			return blueclawUpdateJobResponse{Status: "completed", Phase: "verified"}, nil
 		}
 		time.Sleep(1500 * time.Millisecond)
 	}
+	if releaseUpdateReachedTarget(target, expectedReleaseID) {
+		return blueclawUpdateJobResponse{Status: "completed", Phase: "verified"}, nil
+	}
 	return job, errors.New("release deploy did not finish before timeout")
+}
+
+func releaseUpdateReachedTarget(target commandTarget, expectedReleaseID string) bool {
+	trimmedExpected := strings.TrimSpace(expectedReleaseID)
+	if trimmedExpected == "" {
+		return false
+	}
+	status, errorValue := fetchDeviceReleaseUpdateStatusForTarget(target)
+	if errorValue != nil {
+		return false
+	}
+	return releaseUpdateID(status.Current) == trimmedExpected
 }
 
 func sendReleaseUpdateRequest(buildRequest func() (*http.Request, error)) (int, []byte, error) {

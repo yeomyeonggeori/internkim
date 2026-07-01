@@ -112,8 +112,8 @@ func CalendarDescriptors() []Descriptor {
 		{Name: "calendar.connection.status", Description: "Check whether the requester's calendar account is connected. Call this before any calendar read or write operation when you are unsure if the calendar is set up.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.status", SideEffectClass: "read"},
 		{Name: "calendar.add", Description: "Create a new calendar event. Provide title, startISO, and endISO at minimum. Use ISO 8601 with timezone for times, e.g. 2026-06-23T14:00:00+09:00. Do not call this to update an existing event — use calendar.update.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
 		{Name: "calendar.list", Description: "List the requester's calendar events within a time window. Use this to answer any 'what is on my calendar' question (today, this week, a date range): compute the concrete startISO/endISO window yourself and call it directly — do not run a shell command and do not ask the user for their calendar. Returns the events in the window (possibly empty).", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.list", SideEffectClass: "read"},
-		{Name: "calendar.update", Description: "Update an existing calendar event. Requires the eventID from a prior calendar.list result — never invent an ID. All required fields (title, startISO, endISO) must be re-supplied even if unchanged.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
-		{Name: "calendar.delete", Description: "Delete a calendar event by its eventID. Requires the eventID from a prior calendar.list result — never invent an ID. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "calendar.update", Description: "Update an existing calendar event. Identify it by eventID from a prior calendar.list result, or set query to a distinctive keyword (a person or topic name) and the runtime finds it across all dates — never invent an eventID. All required fields (title, startISO, endISO) must be re-supplied even if unchanged.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
+		{Name: "calendar.delete", Description: "Delete a calendar event. Identify it by eventID from a prior calendar.list result, or set query to a distinctive keyword (a person or topic name) and the runtime finds it across all dates — never invent an eventID. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
 	}
 }
 
@@ -380,7 +380,8 @@ func calendarEventListInputSchema() json.RawMessage {
 
 func calendarEventUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("eventID", jsonschema.String().WithDescription("ID of the event to update. Must come from a prior calendar.list result — never invent an ID.")),
+		jsonschema.Field("eventID", jsonschema.String().WithDescription("ID of the event to update from a prior calendar.list result. Omit and set query instead to let the runtime find the event by name.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Distinctive keyword from the event title or attendee (e.g. a person or topic name) used to find the event when no eventID is given. The runtime resolves it across all dates and fails if it matches zero or several events.")),
 		jsonschema.Required("title", jsonschema.String().WithDescription("Event title. Must be re-supplied even if unchanged.")),
 		jsonschema.Field("description", jsonschema.String().WithDescription("Event notes or agenda. Omit to clear the existing description.")),
 		jsonschema.Field("location", jsonschema.String().WithDescription("Physical or virtual location. Omit to clear the existing location.")),
@@ -395,7 +396,10 @@ func calendarEventUpdateInputSchema() json.RawMessage {
 }
 
 func calendarEventDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("eventID", jsonschema.String().WithDescription("ID of the calendar event to delete. Must come from a prior calendar.list result — never invent an ID."))).RawMessage()
+	return jsonschema.Object(
+		jsonschema.Field("eventID", jsonschema.String().WithDescription("ID of the calendar event to delete from a prior calendar.list result. Omit and set query instead to let the runtime find the event by name.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Distinctive keyword from the event title or attendee used to find the event when no eventID is given. The runtime resolves it across all dates and fails if it matches zero or several events.")),
+	).RawMessage()
 }
 
 func mailMessageListInputSchema() json.RawMessage {

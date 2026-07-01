@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import os
 import re
 from pathlib import Path
 
@@ -220,18 +221,35 @@ def apply_column_number_formats(worksheet, sheet_specification):
             cell.number_format = number_format
 
 
+def parse_row(row_string):
+    return [cell.strip() for cell in row_string.split(",")]
+
+
+def build_specification(arguments):
+    sheet_name = arguments.sheet or arguments.title or "Sheet1"
+    rows = [parse_row(row_string) for row_string in arguments.row]
+    sheet_specification = {"title": sheet_name, "rows": rows}
+    return {"title": arguments.title or "", "sheets": [sheet_specification]}
+
+
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Create an XLSX workbook from a JSON specification.")
-    parser.add_argument("specification_path")
-    parser.add_argument("output_path")
+    parser = argparse.ArgumentParser(description="Create an XLSX workbook from arguments or a JSON spec.")
+    parser.add_argument("output_path", help="Path to the output .xlsx file")
+    parser.add_argument("--title", metavar="TEXT", default="", help="Workbook title (also used as sheet name when --sheet is absent)")
+    parser.add_argument("--sheet", metavar="NAME", default=None, help="Sheet name (default: title or Sheet1)")
+    parser.add_argument("--row", action="append", default=[], metavar="CELLS", help="Add one row; comma-separated cell values (repeatable)")
+    parser.add_argument("--spec", metavar="JSON_PATH", help="Full workbook spec JSON for rich workbooks (multiple sheets, formulas, formats, charts)")
     return parser.parse_args()
 
 
 def main():
     arguments = parse_arguments()
-    specification = load_specification(arguments.specification_path)
+    has_inline_content = arguments.title or arguments.row
+    if not arguments.spec and not has_inline_content:
+        raise ValueError("provide at least --title or --row, or pass --spec <file>")
+    specification = load_specification(arguments.spec) if arguments.spec else build_specification(arguments)
     workbook = create_workbook(specification)
-    output_path = Path(arguments.output_path)
+    output_path = Path(os.path.expanduser(arguments.output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output_path)
     print(output_path)
