@@ -54,6 +54,7 @@ export type AdminSession = {
 	email: string;
 	claimedAdminEmail: string;
 	isAdmin: boolean;
+	role?: UserRole;
 	isClaimed: boolean;
 	bootstrapStatus: string;
 	bootstrapError?: string;

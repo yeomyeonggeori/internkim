@@ -12,6 +12,7 @@
 	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import type { UserRole } from '$lib/types';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
@@ -27,9 +28,11 @@
 	const text = createPageText(appShellText);
 	let isProfileMenuOpen = $state(false);
 	let isAPITokenSheetOpen = $state(false);
+	let adminRole = $state<UserRole>('member');
 	let userName = $state('');
 	const currentPath = $derived(page.url.pathname);
 	const displayUserName = $derived(userName || text.workspace);
+	const canViewAdminNavigation = $derived(adminRole === 'admin' || adminRole === 'operationsAdmin');
 
 	const apps = $derived<AppRailItem[]>([
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
@@ -42,7 +45,7 @@
 
 	const workspace = $derived<AppRailItem[]>([
 		{ href: '/tasks/', label: text.tasks, icon: ActivityIcon },
-		{ href: '/admin/', label: text.admin, icon: CogIcon }
+		...(canViewAdminNavigation ? [{ href: '/admin/', label: text.admin, icon: CogIcon }] : [])
 	]);
 
 	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
@@ -74,14 +77,22 @@
 		return currentPath === base || currentPath.startsWith(`${base}/`);
 	}
 
+	function normalizeSessionRole(session: { role?: UserRole; isAdmin?: boolean }) {
+		if (session.role === 'admin' || session.role === 'operationsAdmin') return session.role;
+		if (session.isAdmin) return 'admin';
+		return 'member';
+	}
+
 	async function loadUser() {
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
+				adminRole = 'member';
 				await loadWebUser();
 				return;
 			}
-			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string };
+			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string; isAdmin?: boolean; role?: UserRole };
+			adminRole = normalizeSessionRole(session);
 			const adminEmail = session.email || session.claimedAdminEmail || '';
 			if (!adminEmail) {
 				await loadWebUser();
@@ -90,6 +101,7 @@
 			userEmail = adminEmail;
 			userName = userEmail.split('@')[0];
 		} catch {
+			adminRole = 'member';
 			await loadWebUser();
 		}
 	}
@@ -135,6 +147,7 @@
 </AppRailShell>
 
 <AppMobileNavigation
+	{canViewAdminNavigation}
 	displayUserName={displayUserName}
 	{isActive}
 	{logOut}
