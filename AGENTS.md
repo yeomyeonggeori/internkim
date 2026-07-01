@@ -54,6 +54,18 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   a reprovision. Push working-tree changes onto the running VM with
   `./internkim dev fleet reprovision`; it reprovisions in place with the required
   `GO_MOD_CACHE` override and resets the policy people and guest Postgres.
+- Reprovision (and OTA) deploy Blueclaw by release SHA (`.dependency/blueclaw` HEAD):
+  the guest runs `.blueclaw/runtime/releases/<sha>/bin/blueclaw` and the deploy is
+  idempotent on that SHA. An UNCOMMITTED Blueclaw Go change builds a new binary but
+  stamps the same HEAD SHA, so the deploy sees "already deployed" and SKIPS it — the
+  guest keeps the old binary even though the working tree and host payload have the fix.
+  COMMIT Blueclaw Go changes (new SHA) before reprovision, then verify by grepping the
+  guest binary: `lab vm-ssh --config <cfg> 'sudo grep -c "<changed string>"
+  /root/.blueclaw/workspace/.blueclaw/runtime/current/bin/blueclaw'`. Skills are python
+  on the virtiofs share (`/root/.blueclaw/workspace/skills`) and hot-push live (write +
+  restart Blueclaw, no reprovision); only the Go binary needs the commit+reprovision.
+  `./internkim test` does NOT build from the working tree (it uses the committed/artifact
+  payload), so it never carries uncommitted changes.
 - Never run `./internkim lab` with no subcommand: it creates and starts a separate
   scratch `internkim-lab` container. Reach the fleet only through
   `./internkim lab vm-ssh --config <cfg>` and `./internkim lab vm-ip --config <cfg>`.
