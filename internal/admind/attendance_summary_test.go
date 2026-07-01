@@ -59,6 +59,118 @@ func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	}
 }
 
+func TestAttendanceSummaryIncludesRegisteredMembersWithoutEvents(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	service.Configuration.APIBaseURL = "http://admin.local"
+	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
+	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-1")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "http://admin.local/api/users?fleet_id=fleet-1":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"kim@example.com","name":"김철수","mattermostUsername":"kim","status":"active"},{"email":"park@example.com","name":"박지민","mattermostUsername":"park","status":"active"}]}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-06", nil)
+	request.Header.Set("X-Forwarded-Email", "kim@example.com")
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(response.Members) != 2 {
+		t.Fatalf("members = %+v", response.Members)
+	}
+	if response.Members[0].Email != "kim@example.com" || response.Members[1].Email != "park@example.com" {
+		t.Fatalf("members = %+v", response.Members)
+	}
+	if len(response.Events) != 0 {
+		t.Fatalf("events = %+v", response.Events)
+	}
+}
+
+func TestAttendanceSummaryFallsBackWhenRegisteredMembersLookupFails(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	service.Configuration.APIBaseURL = "http://admin.local"
+	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
+	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-1")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "http://admin.local/api/users?fleet_id=fleet-1":
+			return jsonResponse(http.StatusBadGateway, `{"error":"upstream unavailable"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-06", nil)
+	request.Header.Set("X-Forwarded-Email", "kim@example.com")
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(response.Members) != 0 {
+		t.Fatalf("members = %+v", response.Members)
+	}
+	if !strings.Contains(recorder.Body.String(), `"members":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestAttendanceSummaryLeavesMembersEmptyWithoutRegisteredMembersCredentials(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-06", nil)
+	request.Header.Set("X-Forwarded-Email", "kim@example.com")
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(response.Members) != 0 {
+		t.Fatalf("members = %+v", response.Members)
+	}
+	if !strings.Contains(recorder.Body.String(), `"members":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
 func TestAttendanceStatusIgnoresFutureEvents(t *testing.T) {
 	now := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
 	events := []attendanceEvent{
