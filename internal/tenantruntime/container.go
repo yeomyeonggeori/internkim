@@ -27,7 +27,7 @@ import (
 const (
 	DefaultContainerWorkDirectoryPath = "~/.internkim/container-poc"
 	DefaultContainerTenantImageName   = "internkim-poc-tenant:latest"
-	DefaultContainerTenantModelName   = "google/gemini-3.5-flash"
+	DefaultContainerTenantModelName   = blueclaw.BlueclawDefaultModelName
 	DefaultContainerMattermostURL     = "https://poc-0.intern.kim"
 	DefaultContainerFlowHostBaseLabel = "poc0"
 	DefaultContainerCloudflareZone    = "intern.kim"
