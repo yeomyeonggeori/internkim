@@ -31,6 +31,7 @@
 	};
 
 	let {
+		canViewAdminNavigation,
 		displayUserName,
 		isActive,
 		logOut,
@@ -40,6 +41,7 @@
 		text,
 		userEmail
 	}: {
+		canViewAdminNavigation: boolean;
 		displayUserName: string;
 		isActive: (href: string) => boolean;
 		logOut: () => Promise<void>;
@@ -114,14 +116,16 @@
 			</div>
 		</div>
 		<div class="mt-2 grid gap-1">
-			<a
-				href="/admin/"
-				onclick={closeMoreSheet}
-				class="flex min-h-10 items-center gap-3 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			>
-				<BadgeCheckIcon class="size-4" />
-				<span>{text.account}</span>
-			</a>
+			{#if canViewAdminNavigation}
+				<a
+					href="/admin/"
+					onclick={closeMoreSheet}
+					class="flex min-h-10 items-center gap-3 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>
+					<BadgeCheckIcon class="size-4" />
+					<span>{text.account}</span>
+				</a>
+			{/if}
 			<button
 				type="button"
 				onclick={openMobileAPITokenSheet}

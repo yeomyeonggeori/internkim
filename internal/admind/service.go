@@ -193,6 +193,7 @@ type adminSessionResponse struct {
 	Email                  string `json:"email"`
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
+	Role                   string `json:"role"`
 	IsClaimed              bool   `json:"isClaimed"`
 	BootstrapStatus        string `json:"bootstrapStatus"`
 	BootstrapError         string `json:"bootstrapError,omitempty"`
@@ -702,7 +703,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if !service.isAuthorized(request) {
-		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		if !service.isOperationsAdminRequest(request, path) {
+			http.Error(responseWriter, "admin access required", http.StatusForbidden)
+			return
+		}
+	}
+	if service.rejectOperationsAdminRestrictedMutation(responseWriter, request, path) {
 		return
 	}
 
@@ -856,10 +862,12 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	claimedAdminEmail := service.claimedAdminEmail()
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	consoleEmail := service.adminConsoleActorEmail(request)
+	role := service.adminSessionRole(request.Context(), consoleEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
-		IsAdmin:           service.isFlowAdminEmail(request.Context(), consoleEmail),
+		IsAdmin:           role == adminUserRoleAdmin,
+		Role:              role,
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
@@ -1173,11 +1181,20 @@ func newInternKimUserID() string {
 	return "user-" + randomHex(16)
 }
 
+const (
+	adminUserRoleAdmin           = "admin"
+	adminUserRoleMember          = "member"
+	adminUserRoleOperationsAdmin = "operationsAdmin"
+)
+
 func normalizeAdminUserRole(role string) string {
-	if strings.EqualFold(strings.TrimSpace(role), "admin") {
-		return "admin"
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "admin":
+		return adminUserRoleAdmin
+	case "operationsadmin":
+		return adminUserRoleOperationsAdmin
 	}
-	return "member"
+	return adminUserRoleMember
 }
 
 func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {
@@ -1191,8 +1208,8 @@ func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
 		return
 	}
-	if circleID == "staff" {
-		http.Error(responseWriter, "staff circle is built in", http.StatusBadRequest)
+	if isReservedAdminCircleID(circleID) {
+		http.Error(responseWriter, "reserved group cannot be changed", http.StatusBadRequest)
 		return
 	}
 	var policyDocument map[string]any
@@ -1220,8 +1237,8 @@ func (service *Service) deleteBlueclawCircle(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
 		return
 	}
-	if circleID == "staff" {
-		http.Error(responseWriter, "staff circle cannot be removed", http.StatusBadRequest)
+	if isReservedAdminCircleID(circleID) {
+		http.Error(responseWriter, "reserved group cannot be removed", http.StatusBadRequest)
 		return
 	}
 	var policyDocument map[string]any
@@ -2487,6 +2504,22 @@ func (service *Service) isCurrentAdminEmail(ctx context.Context, callerEmail str
 		}
 	}
 	return false
+}
+
+func (service *Service) currentAdminUserRole(ctx context.Context, callerEmail string) string {
+	if strings.TrimSpace(callerEmail) == "" {
+		return adminUserRoleMember
+	}
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return adminUserRoleMember
+	}
+	for _, record := range records {
+		if strings.EqualFold(record.Email, callerEmail) {
+			return normalizeAdminUserRole(record.Role)
+		}
+	}
+	return adminUserRoleMember
 }
 
 func isLocalRequest(request *http.Request) bool {
