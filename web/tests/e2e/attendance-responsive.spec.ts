@@ -11,6 +11,33 @@ import {
 import { buildWideTooltipSummary, selectKorean, todayDateInSeoul } from './attendance-test-helpers';
 
 test.describe('attendance responsive view', () => {
+	test('starts on the current month even when a stale selected month was stored', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		const currentMonth = todayDate.slice(0, 7);
+		const staleMonth = currentMonth === '2026-06' ? '2026-05' : '2026-06';
+		const [year, month] = currentMonth.split('-');
+		const currentMonthLabel = `${year}년 ${Number(month)}월`;
+		const requestedMonths: Array<string | null> = [];
+
+		await page.addInitScript((storedMonth) => {
+			window.localStorage.setItem('attendance.filters', JSON.stringify({ selectedMonth: storedMonth, chartMode: 'month' }));
+		}, staleMonth);
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const monthParameter = requestURL.searchParams.get('month');
+			requestedMonths.push(monthParameter);
+			await route.fulfill({ json: buildAttendanceSummaryFixture(monthParameter ?? currentMonth) });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		expect(requestedMonths[0]).toBeNull();
+		await expect(page.getByRole('button', { name: currentMonthLabel }).first()).toBeVisible();
+		await expect(page.getByText(`${currentMonth} 캘린더`)).toBeVisible();
+	});
+
 	test('renders the monthly team status table with personal tools in the fixed sidebar', async ({ page }) => {
 		await page.goto('/attendance');
 		await selectKorean(page);
