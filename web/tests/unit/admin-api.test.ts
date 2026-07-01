@@ -64,8 +64,8 @@ describe('adminApiFetch', () => {
 });
 
 describe('apiErrorMessage', () => {
-	test('falls back instead of showing raw orgchart employment status validation', () => {
-		const error = new AdminApiError('employmentStatus must be active, leave, or resigned', 400);
+	test('falls back instead of showing raw orgchart supervisor validation', () => {
+		const error = new AdminApiError('supervisor hierarchy cannot contain cycles', 400);
 
 		expect(apiErrorMessage(error, '사용자 저장에 실패했습니다.')).toBe('사용자 저장에 실패했습니다.');
 	});

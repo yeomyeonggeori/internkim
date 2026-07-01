@@ -1,7 +1,6 @@
 import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
-export type OrgchartEmploymentStatus = 'active' | 'leave' | 'resigned';
 export type WorkspaceLanguage = 'ko' | 'en';
 export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'orgchart' | 'settings' | 'network';
 export type AdminPageText = typeof adminText.ko;
@@ -17,14 +16,9 @@ export type UserRecord = {
 	circles?: string[];
 	jobTitle?: string;
 	group?: string;
-	positionLevel?: number;
 	primaryGroupID?: string;
 	groupIDs?: string[];
 	supervisorID?: string;
-	projectIDs?: string[];
-	teamRole?: string;
-	employmentStatus?: OrgchartEmploymentStatus;
-	isOrgchartVisible?: boolean;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
 	status?: string;

@@ -41,11 +41,14 @@ func TestOrgchartProfileHandlerPersistsMetadata(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	profile := profilesByEmail["member@example.com"]
-	if profile.JobTitle != "Designer" || profile.PrimaryGroupID != "design" || profile.EmploymentStatus != orgchartEmploymentStatusResigned {
+	if profile.JobTitle != "Designer" || profile.PrimaryGroupID != "design" {
 		t.Fatalf("profile = %#v", profile)
 	}
-	if profile.IsOrgchartVisible {
-		t.Fatal("isOrgchartVisible = true; want false")
+	if profile.PositionLevel != 0 || len(profile.ProjectIDs) != 0 || profile.TeamRole != "" {
+		t.Fatalf("unsupported profile fields = %#v; want ignored", profile)
+	}
+	if profile.EmploymentStatus != orgchartEmploymentStatusActive || !profile.IsOrgchartVisible {
+		t.Fatalf("profile defaults = %#v; want active visible defaults", profile)
 	}
 }
 
@@ -110,80 +113,6 @@ func TestOrgchartProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 	}
 	if profile.TeamRole != "제품 일정 관리" {
 		t.Fatalf("team role = %q; want preserved team role", profile.TeamRole)
-	}
-}
-
-func TestOrgchartProfileHandlerRejectsInvalidEmploymentStatus(t *testing.T) {
-	service := newLocalUsersTestService(t)
-	if errorValue := service.writeOrgchartProfiles(context.Background(), []orgchartProfile{{
-		UserID:            "user-member",
-		Email:             "member@example.com",
-		JobTitle:          "Product Manager",
-		EmploymentStatus:  orgchartEmploymentStatusLeave,
-		IsOrgchartVisible: true,
-	}}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
-			return jsonResponse(http.StatusOK, `[{"id":"user-2","email":"member@example.com","username":"member-user","nickname":"Member User","roles":"system_user","delete_at":0}]`, nil), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
-			return jsonResponse(http.StatusOK, `[{"user_id":"user-2","roles":"team_user"}]`, nil), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
-			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","employmentStatus":"paused"}]}`)
-	responseRecorder := httptest.NewRecorder()
-
-	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
-
-	if responseRecorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d; want %d; body = %s", responseRecorder.Code, http.StatusBadRequest, responseRecorder.Body.String())
-	}
-	profilesByEmail, errorValue := service.readOrgchartProfilesByEmail(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if profilesByEmail["member@example.com"].EmploymentStatus != orgchartEmploymentStatusLeave {
-		t.Fatalf("profile = %#v; want existing employment status preserved", profilesByEmail["member@example.com"])
-	}
-}
-
-func TestOrgchartProfileHandlerRejectsZeroPositionLevel(t *testing.T) {
-	service := newLocalUsersTestService(t)
-	if errorValue := service.writeOrgchartProfiles(context.Background(), []orgchartProfile{{
-		UserID:            "user-member",
-		Email:             "member@example.com",
-		JobTitle:          "Product Manager",
-		PositionLevel:     2,
-		EmploymentStatus:  orgchartEmploymentStatusActive,
-		IsOrgchartVisible: true,
-	}}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","positionLevel":0}]}`)
-	responseRecorder := httptest.NewRecorder()
-
-	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
-
-	if responseRecorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d; want %d; body = %s", responseRecorder.Code, http.StatusBadRequest, responseRecorder.Body.String())
-	}
-	profilesByEmail, errorValue := service.readOrgchartProfilesByEmail(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if profilesByEmail["member@example.com"].PositionLevel != 2 {
-		t.Fatalf("profile = %#v; want existing position level preserved", profilesByEmail["member@example.com"])
 	}
 }
 

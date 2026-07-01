@@ -33,8 +33,26 @@ describe('dev admin orgchart mock plugin', () => {
 
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
-		expect(body.records?.length).toBe(3);
-		expect(body.availableGroups?.some((group) => group.id === 'group-engineering')).toBe(true);
+		expect(body.records?.length).toBe(30);
+		expect(body.availableGroups?.some((group) => group.id === 'group-product')).toBe(true);
+	});
+
+	test('returns public orgchart directory data for the employee page', () => {
+		const state = createDevAdminOrgchartMockState('admin@example.com');
+		const response = createDevAdminOrgchartMockResponse(state, {
+			method: 'GET',
+			pathname: '/orgchart/api/people',
+			searchParams: new URLSearchParams()
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as UsersResponse;
+		const userIDs = body.records?.map((record) => record.userID);
+		expect(userIDs?.length).toBe(30);
+		expect(userIDs?.includes('dev-user-ceo')).toBe(true);
+		expect(userIDs?.includes('dev-user-dabin')).toBe(true);
+		expect(userIDs?.includes('dev-user-eunchae')).toBe(true);
+		expect(body.availableGroups?.map((group) => group.id)).toEqual(['group-leadership', 'group-operations', 'group-product', 'group-design', 'group-field']);
 	});
 
 	test('deduplicates groups by case-insensitive name when saving', () => {
@@ -66,12 +84,12 @@ describe('dev admin orgchart mock plugin', () => {
 			body: JSON.stringify({
 				profiles: [
 					{
-						userID: 'dev-user-grace',
-						email: 'grace@example.com',
+						userID: 'dev-user-dabin',
+						email: 'dabin@example.com',
 						jobTitle: 'Operations Lead',
 						primaryGroupID: 'group-operations',
 						groupIDs: ['group-operations'],
-						supervisorID: 'dev-user-ada'
+						supervisorID: 'dev-user-sujin'
 					}
 				]
 			})
@@ -79,16 +97,12 @@ describe('dev admin orgchart mock plugin', () => {
 
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
-		const updatedUser = body.records?.find((record) => record.userID === 'dev-user-grace');
+		const updatedUser = body.records?.find((record) => record.userID === 'dev-user-dabin');
 		expect(updatedUser).toMatchObject({
 			jobTitle: 'Operations Lead',
 			primaryGroupID: 'group-operations',
 			groupIDs: ['group-operations'],
-			supervisorID: 'dev-user-ada',
-			projectIDs: ['blueclaw', 'admin'],
-			teamRole: 'frontend',
-			employmentStatus: 'active',
-			isOrgchartVisible: true
+			supervisorID: 'dev-user-sujin'
 		});
 	});
 });

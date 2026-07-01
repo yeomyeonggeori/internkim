@@ -68,10 +68,8 @@ describe('orgchart profile model', () => {
 				jobTitle: 'Designer',
 				primaryGroupID: 'design',
 				groupIDs: ['design'],
-				projectIDs: ['brand'],
-				teamRole: 'system',
-				employmentStatus: 'active',
-				isOrgchartVisible: true
+				handle: 'designer',
+				name: 'Designer'
 			})
 		);
 
@@ -81,10 +79,8 @@ describe('orgchart profile model', () => {
 					jobTitle: '  Designer  ',
 					primaryGroupID: 'design',
 					groupIDs: ['design'],
-					projectIDs: [' brand '],
-					teamRole: ' system ',
-					employmentStatus: 'leave',
-					isOrgchartVisible: false
+					handle: 'designer-next',
+					name: 'Designer Next'
 				}),
 				original
 			)
