@@ -1,8 +1,7 @@
-// 캘린더 사이드바의 Google OAuth client.json 업로드 흐름을 검증합니다.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { routeCalendarShellAPI } from './calendar-route-sidebar-test-utils';
+import { routeCalendarShellAPI } from './calendar-route-shell-test-utils';
 
-test.describe('calendar route sidebar Google OAuth setup', () => {
+test.describe('calendar route Google OAuth setup', () => {
 	test.beforeEach(async ({ page }) => {
 		await routeCalendarShellAPI(page);
 	});
@@ -21,9 +20,9 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		});
 
 		await page.goto('/calendar/');
-		await page.getByRole('button', { name: '구독 설정' }).click();
+		await openCalendarSettings(page);
 
-		await expect(page.getByText('Google Calendar 연동은 아직 준비되지 않았습니다.')).toBeVisible();
+		await expect(page.getByText('연결된 Google 캘린더')).toHaveCount(0);
 		await expect(page.getByText('Google OAuth client.json')).toHaveCount(0);
 	});
 
@@ -46,7 +45,8 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		});
 
 		await page.goto('/calendar/');
-		await page.getByRole('button', { name: '구독 설정' }).click();
+		await openCalendarSettings(page);
+		await expect(page.getByText('연결된 Google 캘린더', { exact: true })).toBeVisible();
 		await expect(page.getByText('Google OAuth client.json')).toBeVisible();
 		const googleOAuthClientGuide = page.locator('details', { hasText: 'client.json 만드는 방법' });
 
@@ -85,8 +85,8 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		});
 		await page.getByRole('button', { name: '업로드' }).click();
 
-		await expect(page.getByText('Google Calendar를 연결하세요.')).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Google Calendar 연결' })).toBeVisible();
+		await expect(page.getByText('Google 캘린더를 연결하세요.')).toBeVisible();
+		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
 		await expect(page.getByText('secret-1')).toHaveCount(0);
 	});
 
@@ -109,9 +109,9 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		});
 
 		await page.goto('/calendar/');
-		await page.getByRole('button', { name: '구독 설정' }).click();
+		await openCalendarSettings(page);
 
-		await expect(page.getByRole('link', { name: 'Google Calendar 연결' })).toBeVisible();
+		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
 		await page.getByText('client.json 교체').click();
 		await page.getByLabel('client.json 파일 선택').setInputFiles({
 			name: 'client.json',
@@ -146,7 +146,7 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		});
 
 		await page.goto('/calendar/');
-		await page.getByRole('button', { name: '구독 설정' }).click();
+		await openCalendarSettings(page);
 		await page.setViewportSize({ width: 764, height: 900 });
 		await expectGoogleOAuthUploadLayoutToFit(page);
 		await page.getByLabel('client.json 파일 선택').setInputFiles({
@@ -163,6 +163,22 @@ test.describe('calendar route sidebar Google OAuth setup', () => {
 		await expectGoogleOAuthUploadLayoutToFit(page);
 	});
 });
+
+async function openCalendarSettings(page: Page): Promise<void> {
+	const calendarFrame = page.frameLocator('iframe');
+	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
+	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
+	const settingsHeading = page.getByRole('heading', { name: '설정' });
+	await expect
+		.poll(async () => {
+			if ((await settingsHeading.count()) > 0) return true;
+			await settingsButton.click();
+			await page.waitForTimeout(100);
+			return (await settingsHeading.count()) > 0;
+		})
+		.toBe(true);
+	await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+}
 
 async function expectGoogleOAuthUploadLayoutToFit(page: Page): Promise<void> {
 	await expectElementNotToOverflow(page.locator('[data-slot="sheet-content"]'));

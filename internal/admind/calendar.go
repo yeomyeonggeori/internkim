@@ -158,8 +158,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.runCalendarRemoteSync(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/account-status":
 		service.serveCalendarAccountStatus(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/connection/start":
-		service.startCalendarConnection(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/google-oauth-client":
 		service.uploadGoogleOAuthClient(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/conflicts":

@@ -54,6 +54,7 @@ function isAdminRequest(request: Request, device: Device, adminUsers: string[], 
 }
 
 function normalizeRole(role: unknown): UserRole {
+	if (role === 'operationsAdmin') return 'operationsAdmin';
 	return role === 'admin' ? 'admin' : 'member';
 }
 

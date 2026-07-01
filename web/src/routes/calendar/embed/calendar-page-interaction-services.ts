@@ -7,7 +7,6 @@ import { createCalendarPageMessageActions } from './calendar-page-messages';
 import { createCalendarPageNavigation } from './calendar-page-navigation';
 import { createCalendarPageRangePreview } from './calendar-page-range-preview';
 import { createCalendarPageScrollOverlays } from './calendar-page-scroll-overlays';
-import { createCalendarPageVisibility } from './calendar-page-visibility';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 
 type CalendarPageInteractionCalendar = {
@@ -53,18 +52,9 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView
 	});
 
-	const visibilityActions = createCalendarPageVisibility({
-		getVisibleEvents: () => context.state.visibleEvents,
-		renderVisibleEvents: context.eventLoader.renderVisibleEvents,
-		setWorkCalendarVisible: (isVisible) => {
-			context.state.calendarWorkVisible = isVisible;
-		}
-	});
-
 	const pageMessages = createCalendarPageMessageActions({
 		getCurrentOrigin: () => window.location.origin,
-		navigateToDateKey: pageNavigation.navigateToDateKey,
-		setWorkCalendarVisibility: visibilityActions.setWorkCalendarVisibility
+		navigateToDateKey: pageNavigation.navigateToDateKey
 	});
 
 	const rangePreview = createCalendarPageRangePreview({

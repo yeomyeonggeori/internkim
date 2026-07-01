@@ -31,7 +31,6 @@
 		dismissConflict: (conflictID: number) => void | Promise<void>;
 		goToNext: () => void;
 		goToPrevious: () => void;
-		goToToday: () => void;
 		isSaving: boolean;
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
@@ -41,8 +40,10 @@
 		navigateToDateKey: (dateKey: string) => void;
 		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
+		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
+		refreshCalendar: () => void;
 		repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
@@ -79,7 +80,6 @@
 		dismissConflict,
 		goToNext,
 		goToPrevious,
-		goToToday,
 		isSaving,
 		isMobileTwoDayWeekView,
 		localeCode,
@@ -89,8 +89,10 @@
 		navigateToDateKey,
 		navigateToSearchResult,
 		openEvent,
+		openSettings,
 		popover,
 		refreshConflicts,
+		refreshCalendar,
 		repositionPopover,
 		saveMovedEvent,
 		savePopover,
@@ -118,15 +120,19 @@
 	/>
 	<CalendarToolbar
 		{currentMonthTitle}
+		{toolbarDate}
 		bind:searchText
 		{searchResults}
 		{toolbarView}
+		{localeCode}
 		{changeCalendarView}
-		{goToToday}
 		{goToPrevious}
 		{goToNext}
+		{navigateToDateKey}
 		{navigateToSearchResult}
 		createQuickEvent={createQuickEvent}
+		{openSettings}
+		{refreshCalendar}
 	/>
 	<CalendarStage
 		{calendar}

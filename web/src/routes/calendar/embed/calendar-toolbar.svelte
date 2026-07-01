@@ -4,52 +4,126 @@
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { calendarText } from '../text';
+	import { dateKeyFromDate } from './calendar-month-selection';
 	import type { CalendarSearchResult } from './calendar-search';
 	import CalendarSearchBox from './calendar-search-box.svelte';
+	import CalendarToolbarDatePicker from './calendar-toolbar-date-picker.svelte';
 	import CalendarViewSwitcher from './calendar-view-switcher.svelte';
 
 	type CalendarToolbarProps = {
 		currentMonthTitle: string;
+		toolbarDate: Date;
 		searchText: string;
 		searchResults: CalendarSearchResult[];
 		toolbarView: ViewType;
+		localeCode: string;
 		changeCalendarView: (viewType: ViewType) => void;
-		goToToday: () => void;
 		goToPrevious: () => void;
 		goToNext: () => void;
+		navigateToDateKey: (dateKey: string) => void;
 		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		createQuickEvent: (event: MouseEvent) => void;
+		openSettings: () => void;
+		refreshCalendar: () => void;
 	};
 
 	let {
 		currentMonthTitle,
+		toolbarDate,
 		searchText = $bindable(''),
 		searchResults,
 		toolbarView,
+		localeCode,
 		changeCalendarView,
-		goToToday,
 		goToPrevious,
 		goToNext,
+		navigateToDateKey,
 		navigateToSearchResult,
-		createQuickEvent
+		createQuickEvent,
+		openSettings,
+		refreshCalendar
 	}: CalendarToolbarProps = $props();
 
 	const text = createPageText(calendarText);
+	let isDatePickerOpen = $state(false);
+
+	function toggleDatePicker(event: MouseEvent): void {
+		event.stopPropagation();
+		isDatePickerOpen = !isDatePickerOpen;
+	}
+
+	function closeDatePicker(): void {
+		isDatePickerOpen = false;
+	}
+
+	function navigatePrevious(event: MouseEvent): void {
+		event.stopPropagation();
+		closeDatePicker();
+		goToPrevious();
+	}
+
+	function navigateNext(event: MouseEvent): void {
+		event.stopPropagation();
+		closeDatePicker();
+		goToNext();
+	}
+
+	function selectPickerDate(date: Date): void {
+		navigateToDateKey(dateKeyFromDate(date));
+	}
+
+	function handleWindowClick(): void {
+		if (!isDatePickerOpen) return;
+		closeDatePicker();
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent): void {
+		if (!isDatePickerOpen) return;
+		if (event.key !== 'Escape') return;
+		closeDatePicker();
+	}
 </script>
+
+<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
 <header class="calendar-toolbar">
 	<div class="calendar-toolbar-left">
-		<button type="button" class="toolbar-button today-button" onclick={goToToday}>
-			{text.today}
+		<div class="calendar-date-navigation">
+			<button type="button" class="toolbar-icon-button" aria-label={text.previous} onclick={navigatePrevious}>
+				<ChevronLeftIcon class="size-4" />
+			</button>
+			<button
+				type="button"
+				class="calendar-toolbar-title"
+				aria-haspopup="dialog"
+				aria-expanded={isDatePickerOpen}
+				onclick={toggleDatePicker}
+			>
+				{currentMonthTitle}
+			</button>
+			<button type="button" class="toolbar-icon-button" aria-label={text.next} onclick={navigateNext}>
+				<ChevronRightIcon class="size-4" />
+			</button>
+			{#if isDatePickerOpen}
+				<CalendarToolbarDatePicker
+					selectedDate={toolbarDate}
+					{localeCode}
+					{text}
+					selectDate={selectPickerDate}
+					close={closeDatePicker}
+				/>
+			{/if}
+		</div>
+	</div>
+	<div class="calendar-toolbar-actions">
+		<button type="button" class="toolbar-icon-button" aria-label={text.refresh} onclick={refreshCalendar}>
+			<RefreshCwIcon class="size-4" />
 		</button>
-		<button type="button" class="toolbar-icon-button" aria-label={text.previous} onclick={goToPrevious}>
-			<ChevronLeftIcon class="size-4" />
+		<button type="button" class="toolbar-button settings-button" onclick={openSettings}>
+			{text.settings}
 		</button>
-		<button type="button" class="toolbar-icon-button" aria-label={text.next} onclick={goToNext}>
-			<ChevronRightIcon class="size-4" />
-		</button>
-		<h1 class="calendar-toolbar-title">{currentMonthTitle}</h1>
 	</div>
 	<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
 	<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
@@ -78,6 +152,13 @@
 		gap: 12px;
 	}
 
+	.calendar-date-navigation {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 12px;
+	}
+
 	.toolbar-button,
 	.toolbar-icon-button,
 	.new-event-button {
@@ -102,9 +183,9 @@
 		background: #f4f4f5;
 	}
 
-	.today-button {
+	.settings-button {
 		height: 36px;
-		min-width: 94px;
+		min-width: 56px;
 		border-radius: 8px;
 		padding: 0 12px;
 		font-size: 14px;
@@ -118,12 +199,33 @@
 	}
 
 	.calendar-toolbar-title {
-		margin: 0 4px;
+		display: inline-flex;
+		height: 36px;
+		align-items: center;
+		justify-content: center;
+		margin: 0;
+		border: 0;
+		border-radius: 8px;
+		background: transparent;
+		padding: 0 8px;
+		color: #111827;
 		white-space: nowrap;
 		font-size: 20px;
 		font-weight: 800;
 		line-height: 1;
 		letter-spacing: 0;
+	}
+
+	.calendar-toolbar-title:hover {
+		background: #f4f4f5;
+	}
+
+	.calendar-toolbar-actions {
+		display: inline-flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
 	}
 
 	.new-event-button {
@@ -147,14 +249,16 @@
 	}
 
 	:global(html.dark) .toolbar-button,
-	:global(html.dark) .toolbar-icon-button {
+	:global(html.dark) .toolbar-icon-button,
+	:global(html.dark) .calendar-toolbar-title {
 		border-color: #27272a;
 		background: #09090b;
 		color: #f4f4f5;
 	}
 
 	:global(html.dark) .toolbar-button:hover,
-	:global(html.dark) .toolbar-icon-button:hover {
+	:global(html.dark) .toolbar-icon-button:hover,
+	:global(html.dark) .calendar-toolbar-title:hover {
 		background: #18181b;
 	}
 
@@ -167,12 +271,17 @@
 		}
 
 		.calendar-toolbar-title {
-			margin-left: 2px;
 			font-size: 16px;
+		}
+
+		.calendar-toolbar-actions {
+			margin-left: 0;
+			order: 2;
 		}
 
 		.new-event-button {
 			margin-left: auto;
+			order: 3;
 		}
 	}
 </style>

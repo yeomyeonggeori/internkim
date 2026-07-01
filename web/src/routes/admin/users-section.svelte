@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import {
-		hasUserCircle,
-		normalizeUserCircles,
-		toggleUserRecordCircle,
-		updateUserRecords,
-		type UserRecordChanges
-	} from './admin-user-record-changes';
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import { CopyButton } from '$lib/components/ui/copy-button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import * as Select from '$lib/components/ui/select';
+	import MailIcon from '@lucide/svelte/icons/mail';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import XIcon from '@lucide/svelte/icons/x';
 	import {
 		apiErrorMessage,
 		createCircle,
@@ -18,11 +21,16 @@
 		resetUserPassword,
 		saveUser
 	} from './admin-api';
+	import { adminSessionRole } from './admin-role-policy';
+	import UsersDirectory from './users-directory.svelte';
+	import {
+		isReservedCircleID,
+		isValidHandle,
+		normalizeHandle,
+		normalizeUserCircles,
+		userRoleOptions
+	} from './users-section-policy';
 	import type { AdminPageText, AdminSession, CircleRecord, UserRecord, UserRole, UsersResponse } from './admin-types';
-	import TemporaryPasswordPanel from './temporary-password-panel.svelte';
-	import UserDirectoryPanel from './user-directory-panel.svelte';
-	import UserGroupsPanel from './user-groups-panel.svelte';
-	import UserInviteForm from './user-invite-form.svelte';
 
 	type UsersSectionProps = {
 		adminBaseURL: string;
@@ -55,6 +63,8 @@
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
 	let errorMessage = $state('');
+	const currentAdminRole = $derived(adminSessionRole(adminSession));
+	const canGrantAdminRole = $derived(currentAdminRole === 'admin');
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -75,44 +85,6 @@
 		return userRecords.length;
 	}
 
-	function adminCount() {
-		return userRecords.filter((record) => record.role === 'admin').length;
-	}
-
-	function userRoleOptions(): { value: UserRole; label: string }[] {
-		return [
-			{ value: 'member', label: text.users.member },
-			{ value: 'admin', label: text.users.admin }
-		];
-	}
-
-	function visibleCircles() {
-		return availableCircles.filter((circle) => circle.circleID !== 'admin');
-	}
-
-	function normalizeHandle(handle: string) {
-		return handle.trim().toLowerCase();
-	}
-
-	function isValidHandle(handle: string) {
-		return /^[a-z][a-z0-9._-]{2,21}$/.test(normalizeHandle(handle));
-	}
-
-	function isValidUserRecord(record: UserRecord) {
-		return isValidHandle(record.handle) && !!record.name?.trim() && !!record.email.trim();
-	}
-
-	function userRecordsByHireDate() {
-		return [...userRecords].sort((first, second) => {
-			if (first.hireDate || second.hireDate) {
-				if (!first.hireDate) return 1;
-				if (!second.hireDate) return -1;
-				if (first.hireDate !== second.hireDate) return first.hireDate.localeCompare(second.hireDate);
-			}
-			return (first.name || first.email).localeCompare(second.name || second.email);
-		});
-	}
-
 	function applyUsersResponse(response: UsersResponse) {
 		availableCircles = response.availableCircles?.length ? response.availableCircles : [{ circleID: 'staff', displayName: 'Staff' }];
 		if (response.records) {
@@ -120,7 +92,6 @@
 				...record,
 				name: record.name ?? '',
 				hireDate: record.hireDate ?? '',
-				note: record.note ?? '',
 				circles: normalizeUserCircles(record.circles, record.role)
 			}));
 		} else {
@@ -129,7 +100,6 @@
 				handle: email.split('@')[0]?.toLowerCase() ?? '',
 				email,
 				hireDate: '',
-				note: '',
 				role: index === 0 ? 'admin' : 'member',
 				circles: index === 0 ? ['staff', 'admin'] : ['staff']
 			}));
@@ -140,24 +110,6 @@
 				password: response.temporaryPassword
 			};
 		}
-	}
-
-	function toggleUserCircle(record: UserRecord, circleID: string) {
-		userRecords = toggleUserRecordCircle(userRecords, record.email, circleID);
-	}
-
-	function updateUserRecord(record: UserRecord, changes: UserRecordChanges) {
-		userRecords = updateUserRecords(userRecords, record.email, changes);
-	}
-
-	async function saveUserNote(record: UserRecord, note: string): Promise<boolean> {
-		const trimmedNote = note.trim();
-		const nextRecord = { ...record, note: trimmedNote };
-		const didSave = await saveUserRecord(nextRecord);
-		if (didSave) {
-			userRecords = updateUserRecords(userRecords, record.email, { note: trimmedNote });
-		}
-		return didSave;
 	}
 
 	function usersErrorMessage(error: unknown, fallbackMessage: string, forbiddenMessage: string = text.messages.adminAuthRequiredOnDevice) {
@@ -206,7 +158,7 @@
 	}
 
 	async function removeCircle(circleID: string) {
-		if (!adminBaseURL || circleID === 'staff') return;
+		if (!adminBaseURL || isReservedCircleID(circleID)) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -277,6 +229,11 @@
 		}
 	}
 
+	async function saveUserNote(record: UserRecord, note: string): Promise<boolean> {
+		record.note = note.trim();
+		return saveUserRecord(record);
+	}
+
 	async function removeEmail(email: string) {
 		if (!fleetID || !adminBaseURL) return;
 
@@ -330,56 +287,146 @@
 		{text.users.deviceOnly}
 	</p>
 {:else}
-	<UserInviteForm
-		text={text.users}
-		bind:handle={newHandle}
-		bind:name={newName}
-		bind:email={newEmail}
-		bind:hireDate={newHireDate}
-		bind:role={newUserRole}
-		roleOptions={userRoleOptions()}
-		isSaving={isSavingUser}
-		isHandleValid={isValidHandle(newHandle)}
-		onSubmit={addEmail}
-	/>
+	<Card.Root>
+		<Card.Header class="gap-1">
+			<Card.Title class="text-sm">{text.users.inviteTitle}</Card.Title>
+			<Card.Description>{text.users.inviteDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<form
+				class="grid gap-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(150px,1fr)_minmax(210px,1.3fr)_150px_120px_auto] lg:items-end"
+				onsubmit={(event) => {
+					event.preventDefault();
+					addEmail();
+				}}
+			>
+				<label class="grid gap-1.5">
+					<Label>{text.users.handle}</Label>
+					<Input bind:value={newHandle} placeholder="mohyeong" autocomplete="off" />
+				</label>
+				<label class="grid gap-1.5">
+					<Label>{text.users.realName}</Label>
+					<Input bind:value={newName} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
+				</label>
+				<label class="grid gap-1.5">
+					<Label>{text.users.email}</Label>
+					<div class="relative">
+						<MailIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input bind:value={newEmail} type="email" placeholder={text.users.emailPlaceholder} class="pl-9" />
+					</div>
+				</label>
+				<label class="grid gap-1.5">
+					<Label>{text.users.hireDate}</Label>
+					<Input bind:value={newHireDate} type="date" />
+				</label>
+				<label class="grid gap-1.5">
+						<Label>{text.users.role}</Label>
+						<Select.Root type="single" bind:value={newUserRole}>
+							<Select.Trigger class="w-full">
+								{userRoleOptions(text, canGrantAdminRole).find((option) => option.value === newUserRole)?.label ?? '-'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each userRoleOptions(text, canGrantAdminRole) as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+								{/each}
+							</Select.Content>
+					</Select.Root>
+				</label>
+				<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)} class="gap-2">
+					{#if isSavingUser}
+						<RefreshCwIcon class="size-4 animate-spin" />
+					{:else}
+						<PlusIcon class="size-4" />
+					{/if}
+					{text.users.invite}
+				</Button>
+			</form>
+		</Card.Content>
+	</Card.Root>
 
 	<p class="text-muted-foreground text-sm">
 		{text.users.passwordNotice}
 	</p>
 
-	<UserGroupsPanel
-		text={text.users}
-		circles={availableCircles}
-		bind:circleID={newCircleID}
-		bind:circleName={newCircleName}
-		bind:isMattermostManaged={newCircleMattermostManaged}
-		isSaving={isSavingUser}
-		onSave={saveCircle}
-		onRemove={removeCircle}
-	/>
+	<Card.Root>
+		<Card.Header class="gap-1">
+			<Card.Title class="text-sm">{text.users.groupTitle}</Card.Title>
+			<Card.Description>{text.users.groupDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<form
+				class="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"
+				onsubmit={(event) => {
+					event.preventDefault();
+					saveCircle();
+				}}
+			>
+				<label class="grid gap-1.5">
+					<Label>{text.users.groupID}</Label>
+					<Input bind:value={newCircleID} placeholder={text.users.groupIDPlaceholder} autocomplete="off" />
+				</label>
+				<label class="grid gap-1.5">
+					<Label>{text.users.groupName}</Label>
+					<Input bind:value={newCircleName} placeholder={text.users.groupNamePlaceholder} autocomplete="off" />
+				</label>
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={newCircleMattermostManaged} />
+					{text.users.mattermostManaged}
+				</label>
+				<Button type="submit" disabled={isSavingUser || !newCircleID.trim() || isReservedCircleID(newCircleID)}>{text.users.addGroup}</Button>
+			</form>
+			<div class="mt-3 flex flex-wrap gap-2">
+				{#each availableCircles as circle (circle.circleID)}
+					<Badge variant="outline" class="gap-2">
+						{circle.displayName || circle.circleID}
+						{#if !isReservedCircleID(circle.circleID)}
+							<button
+								type="button"
+								class="text-muted-foreground hover:text-destructive"
+								onclick={() => removeCircle(circle.circleID)}
+								aria-label={`${text.users.remove} ${circle.displayName || circle.circleID}`}
+							>
+								<XIcon class="size-3" />
+							</button>
+						{/if}
+					</Badge>
+				{/each}
+			</div>
+		</Card.Content>
+	</Card.Root>
 
 	{#if temporaryPasswordResult}
-		<TemporaryPasswordPanel text={text.users} email={temporaryPasswordResult.email} password={temporaryPasswordResult.password} />
+		<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<p class="font-semibold">{text.users.temporaryPasswordTitle}: {temporaryPasswordResult.email} / {temporaryPasswordResult.password}</p>
+					<p class="mt-1">{text.users.temporaryPasswordNotice}</p>
+					<code class="mt-3 block rounded-md bg-white px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
+				</div>
+				<CopyButton text={temporaryPasswordResult.password} />
+			</div>
+		</div>
 	{/if}
 
 	{#if errorMessage}
 		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
 	{/if}
 
-	<UserDirectoryPanel
-		records={userRecordsByHireDate()}
-		visibleCircles={visibleCircles()}
-		text={text.users}
-		adminCount={adminCount()}
-		isLoading={isLoadingUsers}
-		isSaving={isSavingUser}
-		{hasUserCircle}
-		{isValidUserRecord}
-		onRecordChange={updateUserRecord}
-		onToggleCircle={toggleUserCircle}
-		onSaveNote={saveUserNote}
-		onSave={saveUserRecord}
-		onResetPassword={resetPassword}
-		onRemove={removeEmail}
-	/>
-{/if}
+		{#if isLoadingUsers}
+			<p class="text-muted-foreground text-sm">{text.users.loading}</p>
+		{:else if userRecords.length === 0}
+			<p class="text-muted-foreground text-sm">{text.users.empty}</p>
+		{:else}
+			<UsersDirectory
+				{availableCircles}
+				{canGrantAdminRole}
+				{isSavingUser}
+				{text}
+				bind:userRecords
+				onRemoveUser={removeEmail}
+				onResetPassword={resetPassword}
+				onSaveUser={saveUserRecord}
+				onSaveNote={saveUserNote}
+			/>
+		{/if}
+	{/if}
