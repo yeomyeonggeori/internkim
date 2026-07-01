@@ -90,7 +90,9 @@ task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
 
 setup() {
 	local token team_id channel_id bot_id e2e_id e2e_token admin_id
-	reset_entity_state
+	# Skip the global admind/entity reset for parallel-safe runs (a fresh person+channel
+	# per run already isolates state; the reset restarts admind and would stomp peers).
+	[ "${E2E_SKIP_RESET:-}" = 1 ] || reset_entity_state
 	token="$(admin_token)"
 	ensure_websocket_cors "$token"
 	team_id="$(mm GET "/api/v4/teams/name/$TEAM_NAME" "$token" | jq -r '.id')"
@@ -165,9 +167,22 @@ set_model() { # model
 	echo "model set but capabilityd not active: $model" >&2
 }
 
+find_status() { # prompt -> latest matching task run status + steps
+	local prompt="$1" task_run_id detail
+	task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg p "$prompt" '[.[]|select(.prompt==$p)]|sort_by(.createdAt)|last|.taskRunID // empty')"
+	if [ -z "$task_run_id" ]; then echo '{"status":"none","steps":0}'; return; fi
+	detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+	jq -cn --arg id "$task_run_id" \
+		--arg status "$(printf '%s' "$detail" | jq -r '.taskRun.status')" \
+		--arg reason "$(printf '%s' "$detail" | jq -r '.taskRun.failureReason // ""')" \
+		--argjson steps "$(printf '%s' "$detail" | jq '[.taskSteps[]|select(.taskStepID|test("turn-"))]|length')" \
+		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps}'
+}
+
 case "${1:-}" in
 	set-model) set_model "$2" ;;
 	setup) setup ;;
 	run-case) run_case "$2" "$3" "$4" "$5" "${6:-240}" ;;
-	*) echo "usage: $0 set-model <model> | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout]" >&2; exit 2 ;;
+	find-status) find_status "$2" ;;
+	*) echo "usage: $0 set-model <model> | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout] | find-status <prompt>" >&2; exit 2 ;;
 esac
