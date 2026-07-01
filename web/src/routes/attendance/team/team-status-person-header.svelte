@@ -24,7 +24,7 @@
 		<div class="min-w-0 flex-1">
 			<div class="whitespace-normal break-all text-sm font-medium leading-tight text-foreground">{row.displayName}</div>
 			{#if row.currentLocationName}
-				<div class="mt-0.5 flex min-w-0 items-start gap-1 text-[11px] leading-tight text-foreground">
+				<div class="mt-0.5 hidden min-w-0 items-start gap-1 text-[11px] leading-tight text-foreground sm:flex">
 					<span
 						class="mt-1 size-1.5 shrink-0 rounded-full"
 						style:background-color={locationIndicatorColor(row.currentLocationColor)}
