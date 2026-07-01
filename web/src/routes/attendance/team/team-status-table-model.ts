@@ -1,6 +1,6 @@
-import type { AttendanceAbsence, AttendanceEvent, AttendanceLocation, AttendanceSummary } from '../attendance-context.svelte';
+import type { AttendanceAbsence, AttendanceEvent, AttendanceLocation, AttendanceMember, AttendanceSummary } from '../attendance-context.svelte';
 import type { AttendanceText } from '../text';
-import { eachDayOfMonth, todayDateInTimeZone } from '../shared/attendance-date';
+import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
 import { formatHoursMinutes } from '../shared/attendance-format';
 import type { AttendanceWorkSegment, PersonToday } from '../shared/attendance-aggregation';
 import { computePeopleToday, uniquePeople } from '../shared/attendance-aggregation';
@@ -111,9 +111,12 @@ function buildTeamRowsForDates(
 			...person,
 			currentLocationName,
 			currentLocationColor: findLocationColor(currentLocationColors, currentLocationID, currentLocationName),
-			days: dates.map((date) =>
-				buildTeamStatusPersonDay(date, peopleByDate.get(date)?.get(person.email), text, locationColors)
-			),
+			days: dates.map((date) => {
+				const dayPerson = peopleByDate.get(date)?.get(person.email);
+				return dayPerson
+					? buildTeamStatusPersonDay(date, dayPerson, text, locationColors)
+					: fallbackTeamStatusPersonDay(date, today);
+			}),
 		};
 	});
 }
@@ -122,6 +125,9 @@ function buildTeamPeopleForDates(
 	summary: AttendanceSummary,
 	dates: string[]
 ): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>[] {
+	if ((summary.members?.length ?? 0) > 0) {
+		return summary.members.map(attendanceMemberToTeamPerson);
+	}
 	const dateSet = new Set(dates);
 	const events = summary.events.filter(
 		(event) => event.localDate.startsWith(summary.month) || dateSet.has(event.localDate)
@@ -130,6 +136,14 @@ function buildTeamPeopleForDates(
 		(absence) => absence.date.startsWith(summary.month) || dateSet.has(absence.date)
 	);
 	return uniquePeople(events, absences);
+}
+
+function attendanceMemberToTeamPerson(member: AttendanceMember): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'> {
+	return {
+		email: member.email,
+		displayName: member.displayName || member.mattermostUsername || member.email,
+		mattermostUsername: member.mattermostUsername,
+	};
 }
 
 function buildTeamStatusPersonDay(
@@ -186,6 +200,11 @@ function buildTeamStatusPersonDay(
 
 function emptyTeamStatusPersonDay(date: string): TeamStatusPersonDay {
 	return { date, label: '-', tone: 'empty', segments: [] };
+}
+
+function fallbackTeamStatusPersonDay(date: string, today: string): TeamStatusPersonDay {
+	if (!isWeekend(date) && date <= today) return { date, label: '-', tone: 'absent', segments: [] };
+	return emptyTeamStatusPersonDay(date);
 }
 
 function buildTeamStatusPersonDaySegments(
