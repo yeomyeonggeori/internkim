@@ -35,3 +35,4 @@ client_secret_*.apps.googleusercontent.com.json
 !.dependency/blueclaw/
 .superpowers/
 docs/superpowers/
+e2e-evidence/

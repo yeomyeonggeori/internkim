@@ -16,14 +16,15 @@ Use this skill when the user provides an existing PPTX, asks for direct PowerPoi
 ## Workflow
 
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
-2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing deck, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
-3. Create work under `tmp/<deck-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
-4. For straightforward direct-PPTX decks, write a JSON spec and run `scripts/create_pptx.py`.
-5. For custom layouts, charts, notes, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
-6. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
-7. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
-8. When layout fidelity matters and exported slide images are available, call `artifact.review` on the rendered images before attaching. Treat blocking issues as reasons to revise and regenerate.
-9. Deliver accepted final `.pptx` files from `tmp/<deck-slug>/build/` or the generated output path with `file.deliver`; deliver exported PDFs or images only if requested.
+2. If the user refers to a deck from an earlier task ("방금 만든", "그 파일", "the deck I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. For slide appends, run `scripts/edit_pptx.py` with no path; it targets the newest `.pptx` in `~/documents/` automatically (see Editing Existing Files). For other edits write a task-local Python file through `scripts/skill_runtime.py`. Save back to the SAME `~/documents/<name>.pptx` and re-deliver from there.
+3. Only when the user uploaded a NEW file in THIS conversation and you need to read it (summarize, extract, OCR — not edit a binary you made), call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
+4. Work directly in `~/documents` (run `mkdir -p ~/documents` once first). Build and deliver the deck there.
+5. For straightforward direct-PPTX decks, run `scripts/create_pptx.py` with inline `--deck-title`/`--slide-title`/`--bullet` args. Pass `--spec <json_path>` for rich layouts, themes, or images.
+6. For custom layouts, charts, notes, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
+7. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
+8. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
+9. When layout fidelity matters and exported slide images are available, call `artifact.review` on the rendered images before attaching. Treat blocking issues as reasons to revise and regenerate.
+10. Save the accepted final `.pptx` to `~/documents/<title>.pptx` (run `mkdir -p ~/documents` first) so it persists for later edit and delete tasks, then deliver it from there with `file.deliver`; deliver exported PDFs or images only if requested.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at a missing-library error; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the PowerPoint library.
 
@@ -31,60 +32,33 @@ For from-scratch presentation design, use the existing `simple-slides` skill unl
 
 For high-fidelity PPTX where only some text needs later editing, use a hybrid deck: render the static visual design as a full-slide image, then overlay only the required editable titles, labels, numbers, or body text as PowerPoint text boxes. Do not force decorative lines, cards, screenshots, charts, or complex HTML layouts into editable shapes when they are not meant to be changed.
 
-## Helper Scripts
+## Saving and managing the document
 
-For normal decks, create a spec file:
+Save the final deck to `~/documents/<title>.pptx` so it persists across tasks; run `mkdir -p ~/documents` once before writing there. `~` is the requester personal workspace and resolves the same way in a tool path field and in a shell command. To edit or delete a deck the user names in a later task, list `~/documents/` (`ls -t ~/documents`) to find the file, then edit it in place or remove it with `file.delete`.
 
-```json
-{
-  "widthInches": 13.333,
-  "heightInches": 7.5,
-  "slides": [
-    {
-      "layout": "title",
-      "title": "Presentation Title",
-      "subtitle": "Subtitle"
-    },
-    {
-      "layout": "cards",
-      "title": "Main takeaway",
-      "body": ["First point", "Second point"],
-      "images": [
-        {
-          "path": "chart.png",
-          "leftInches": 7,
-          "topInches": 1.5,
-          "widthInches": 5
-        }
-      ]
-    },
-    {
-      "layout": "hybrid",
-      "backgroundImage": "rendered-slide-03.png",
-      "editableTexts": [
-        {
-          "text": "Editable decision headline",
-          "leftInches": 0.8,
-          "topInches": 0.7,
-          "widthInches": 8.5,
-          "heightInches": 0.7,
-          "fontSize": 28,
-          "weight": "bold"
-        }
-      ]
-    }
-  ]
-}
-```
+## Creating a New Deck
 
-Run:
+For common decks, pass inline arguments — no spec file needed:
 
 ```json
 {
-  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/create_pptx.py deck.json output.pptx && python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/validate_pptx.py output.pptx",
-  "workingDirectoryPath": "tmp/<deck-slug>"
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/create_pptx.py ~/documents/<title>.pptx --deck-title \"Presentation Title\" --slide-title \"Key Findings\" --bullet \"Revenue up 12%\" --bullet \"Cost down 8%\" --slide-title \"Next Steps\" --bullet \"Launch Q3\" && python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/validate_pptx.py ~/documents/<title>.pptx",
+  "workingDirectoryPath": "~/documents"
 }
 ```
+
+`--deck-title` adds a styled title slide. Each `--slide-title` starts a new content slide; each `--bullet` attaches to the most recent `--slide-title`. Repeat `--slide-title`/`--bullet` pairs for multiple slides in one call. This is the symmetric pair to editing: create and edit share the same `--slide-title`/`--bullet` vocabulary.
+
+For rich decks that need themes, custom layouts (cards, comparison, matrix, timeline), or images, pass `--spec <json_path>` instead:
+
+```json
+{
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/create_pptx.py ~/documents/<title>.pptx --spec deck.json && python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/validate_pptx.py ~/documents/<title>.pptx",
+  "workingDirectoryPath": "~/documents"
+}
+```
+
+The spec format: `{"slides": [{"layout": "title", "title": "...", "subtitle": "..."}, {"layout": "cards", "title": "...", "body": ["..."]}, {"layout": "hybrid", "backgroundImage": "...", "editableTexts": [{"text": "...", "leftInches": 0.8, "topInches": 0.7, "widthInches": 8.5, "heightInches": 0.7, "fontSize": 28, "weight": "bold"}]}]}`. Optional top-level keys: `widthInches` (default 13.333), `heightInches` (default 7.5), `style.fontName`, `style.colors`.
 
 ## Custom Python
 
@@ -93,7 +67,7 @@ For work that exceeds the JSON script, create a task-local Python file such as `
 ```json
 {
   "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python custom_pptx.py",
-  "workingDirectoryPath": "tmp/<deck-slug>"
+  "workingDirectoryPath": "~/documents"
 }
 ```
 
@@ -105,20 +79,25 @@ When preserving design matters more than object editability, prefer `layout: "hy
 
 ## Editing Existing Files
 
-For user-provided `.pptx` files:
+To edit a deck you delivered in an earlier task, the source is the workspace file in `~/documents/` — not the delivered attachment.
 
-1. Copy the input to a working directory.
-2. Write a task-local edit script and run it through `scripts/skill_runtime.py python <file.py>`.
-3. Preserve slide masters, layouts, theme colors, and existing images where possible.
-4. Save to a new filename unless the user asks to replace the original.
+1. For "the deck I just made" (most recently created .pptx), pass no path — the script targets the newest `.pptx` in `~/documents/` automatically. Only run `ls -t ~/documents` when the user names a specific older file and you need to confirm the exact filename.
+2. To append one or more slides — the most common edit — run the bundled helper directly. Do NOT hand-write Python or use `python -c` for a simple append:
 
-Use direct XML inspection for notes, comments, relationships, or other features that the library does not expose. Put inspection code in a task-local script and run it with Python:
-
-```bash
-python3 inspect_package.py
+```json
+{
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/edit_pptx.py --slide-title \"Q3 Results\" --bullet \"Revenue up 12%\" --bullet \"Cost down 8%\"",
+  "workingDirectoryPath": "~/documents"
+}
 ```
 
-Avoid XML rewrites unless required. If XML editing is required, preserve namespaces, relationships, and content types.
+For a specific older file named by the user, pass the path explicitly: `edit_pptx.py ~/documents/<name>.pptx --slide-title ...`
+
+   Each `--slide-title` starts a new appended slide; each `--bullet` attaches to the most recent `--slide-title`. Repeat `--slide-title`/`--bullet` pairs to append multiple slides in one call. For a JSON batch, write `[{"title": "...", "bullets": ["..."]}]` to a file and pass it with `--slides <file.json>`.
+
+3. For edits beyond appending — changing existing slide content, reordering slides, adding notes, modifying charts, or working with XML relationships — write a task-local Python script and run it through `scripts/skill_runtime.py python <file.py>`. `~` is NOT auto-expanded in Python; use `os.path.expanduser` to resolve the path. For features the library does not expose, inspect or rewrite ZIP/XML in the task-local script; preserve namespaces, relationships, and content types.
+4. Preserve slide masters, layouts, theme colors, and existing images where possible.
+5. Save back to the SAME `~/documents/<name>.pptx` (edit in place) so the next edit or delete task still finds it, then deliver from there. Save to a new filename only when the user attached a file in THIS conversation or explicitly wants both versions kept.
 
 ## Images
 

@@ -48,6 +48,30 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
   agent execution that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
+- The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
+  its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
+  Firecracker guest inside it, so skill/Blueclaw/runtime changes only reach it through
+  a reprovision. Push working-tree changes onto the running VM with
+  `./internkim dev fleet reprovision`; it reprovisions in place with the required
+  `GO_MOD_CACHE` override and resets the policy people and guest Postgres.
+- Reprovision (and OTA) deploy Blueclaw by release SHA (`.dependency/blueclaw` HEAD):
+  the guest runs `.blueclaw/runtime/releases/<sha>/bin/blueclaw` and the deploy is
+  idempotent on that SHA. An UNCOMMITTED Blueclaw Go change builds a new binary but
+  stamps the same HEAD SHA, so the deploy sees "already deployed" and SKIPS it — the
+  guest keeps the old binary even though the working tree and host payload have the fix.
+  COMMIT Blueclaw Go changes (new SHA) before reprovision, then verify by grepping the
+  guest binary: `lab vm-ssh --config <cfg> 'sudo grep -c "<changed string>"
+  /root/.blueclaw/workspace/.blueclaw/runtime/current/bin/blueclaw'`. Skills are python
+  on the virtiofs share (`/root/.blueclaw/workspace/skills`) and hot-push live (write +
+  restart Blueclaw, no reprovision); only the Go binary needs the commit+reprovision.
+  `./internkim test` does NOT build from the working tree (it uses the committed/artifact
+  payload), so it never carries uncommitted changes.
+- Never run `./internkim lab` with no subcommand: it creates and starts a separate
+  scratch `internkim-lab` container. Reach the fleet only through
+  `./internkim lab vm-ssh --config <cfg>` and `./internkim lab vm-ip --config <cfg>`.
+  Do not `container stop`/`container delete` the active fleet container. Confirm the
+  fleet with `container ls` (`internkim-e2e-<runID>` present); if it is gone it was
+  destroyed, and a fresh one comes up via `./internkim test --keep "<msg>"`.
 - Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
   until the relevant Local Fleet run produces the intended result. If Local Fleet verification
   fails, fix the behavior or explicitly report the unresolved failure instead of

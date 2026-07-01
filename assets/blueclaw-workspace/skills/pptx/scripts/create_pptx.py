@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
@@ -445,18 +446,54 @@ def rgb_color(style, modules, color_name):
     return modules["RGBColor"](int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16))
 
 
+def collect_inline_slides(tokens):
+    slides = []
+    current_slide = None
+    index = 0
+    while index < len(tokens):
+        if tokens[index] == "--slide-title" and index + 1 < len(tokens):
+            if current_slide is not None:
+                slides.append(current_slide)
+            current_slide = {"title": tokens[index + 1], "bullets": []}
+            index += 2
+        elif tokens[index] == "--bullet" and index + 1 < len(tokens):
+            if current_slide is None:
+                current_slide = {"title": "", "bullets": []}
+            current_slide["bullets"].append(tokens[index + 1])
+            index += 2
+        else:
+            raise SystemExit(f"unrecognized argument: {tokens[index]}")
+    if current_slide is not None:
+        slides.append(current_slide)
+    return slides
+
+
+def build_specification_from_arguments(arguments):
+    slides = []
+    if arguments.deck_title:
+        slides.append({"layout": "title", "title": arguments.deck_title})
+    for slide in arguments.inline_slides:
+        slides.append({"layout": "titleAndBody", "title": slide["title"], "body": slide["bullets"]})
+    if not slides:
+        raise ValueError("provide --deck-title and/or --slide-title, or pass --spec <file>")
+    return {"slides": slides}
+
+
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Create a PPTX deck from a JSON specification.")
-    parser.add_argument("specification_path")
-    parser.add_argument("output_path")
-    return parser.parse_args()
+    parser = argparse.ArgumentParser(description="Create a PPTX deck from arguments or a JSON spec.")
+    parser.add_argument("output_path", help="Path to the output .pptx file")
+    parser.add_argument("--deck-title", metavar="TEXT", dest="deck_title", default="", help="Title slide text")
+    parser.add_argument("--spec", metavar="JSON_PATH", help="Full spec JSON for rich decks (themes, layouts, images)")
+    arguments, extra_tokens = parser.parse_known_args()
+    arguments.inline_slides = collect_inline_slides(extra_tokens)
+    return arguments
 
 
 def main():
     arguments = parse_arguments()
-    specification = load_specification(arguments.specification_path)
+    specification = load_specification(arguments.spec) if arguments.spec else build_specification_from_arguments(arguments)
     presentation = create_presentation(specification)
-    output_path = Path(arguments.output_path)
+    output_path = Path(os.path.expanduser(arguments.output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     presentation.save(output_path)
     print(output_path)

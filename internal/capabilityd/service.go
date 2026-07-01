@@ -662,6 +662,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
 	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
 		if len(request.Attachments) > 0 {
 			return nil, errors.New("mattermost ephemeral reply cannot send native file attachments")
@@ -696,6 +697,11 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
+	}
+	if errorValue == nil && request.Interaction != nil {
+		if ephemeralError := service.sendMattermostAskEphemeralAttachment(ctx, handle, request); ephemeralError != nil {
+			log.Printf("mattermost ask ephemeral attachment failed: %v", ephemeralError)
+		}
 	}
 	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
 }
@@ -756,7 +762,54 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 }
 
 func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
-	return request.Interaction != nil
+	return false
+}
+
+func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle platformHandle, request replyRequest) string {
+	if strings.EqualFold(strings.TrimSpace(handle.ChannelType), "D") {
+		return ""
+	}
+	if service.mattermostAskAttachment(request, handle) == nil {
+		return ""
+	}
+	targetUserID := request.mattermostAskTargetUserID()
+	if targetUserID == "" {
+		return ""
+	}
+	var response struct {
+		Username string `json:"username"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(targetUserID), nil, &response); errorValue != nil {
+		return ""
+	}
+	if strings.TrimSpace(response.Username) == "" {
+		return ""
+	}
+	return "@" + response.Username + " "
+}
+
+func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context, handle platformHandle, request replyRequest) error {
+	targetUserID := request.mattermostAskTargetUserID()
+	if targetUserID == "" {
+		return nil
+	}
+	attachment := service.mattermostAskAttachment(request, handle)
+	if attachment == nil {
+		return nil
+	}
+	post := map[string]any{
+		"channel_id": handle.ChannelID,
+		"props": map[string]any{
+			"internkim_raw_event_id": request.RawEventID,
+			"internkim_outbox_id":    request.OutboxID,
+			"attachments":            []any{attachment},
+		},
+	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		post["root_id"] = handle.RootID
+	}
+	body := map[string]any{"user_id": targetUserID, "post": post}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil)
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
