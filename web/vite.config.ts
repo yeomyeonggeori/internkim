@@ -8,16 +8,24 @@ import { devFlowMockPlugin } from './dev-flow-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
+import type { DevAdminMockUserRole } from './dev-admin-mock';
 
 const admindTarget = 'http://127.0.0.1:18080';
+const devUserRoles = new Set(['admin', 'operationsAdmin', 'member']);
+
+function devUserRoleFromEnv(value: string | undefined): DevAdminMockUserRole {
+	return devUserRoles.has(value ?? '') ? (value as DevAdminMockUserRole) : 'admin';
+}
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
+	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	return {
 		plugins: [
 			devAdminOrgchartMockPlugin({
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com',
+				userRole: devUserRole
 			}),
 			devAttendanceMockPlugin({
 				isEnabled: env.VITE_MOCK_ATTENDANCE === '1',
