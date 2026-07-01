@@ -1,4 +1,3 @@
-// Google OAuth client.json 안내 문구를 언어별로 제공합니다.
 export type CalendarGoogleOAuthClientGuideText = {
 	title: string;
 	intro: string;
@@ -69,7 +68,7 @@ export const googleOAuthClientGuideText: Record<'ko' | 'en', CalendarGoogleOAuth
 			},
 			{
 				title: '업로드 후 연결 버튼을 확인합니다.',
-				body: '업로드가 끝나면 이 화면이 Google Calendar를 연결하세요 상태로 바뀌고 Google Calendar 연결 버튼이 나타납니다.'
+				body: '업로드가 끝나면 이 화면이 Google 캘린더를 연결하세요 상태로 바뀌고 연결 버튼이 나타납니다.'
 			}
 		],
 		redirectURI: '승인된 리디렉션 URI',
@@ -126,7 +125,7 @@ export const googleOAuthClientGuideText: Record<'ko' | 'en', CalendarGoogleOAuth
 			},
 			{
 				title: 'Check the connect button after upload.',
-				body: 'After upload, this panel changes to Connect Google Calendar guidance and shows the Google Calendar connect button.'
+				body: 'After upload, this panel changes to Google Calendar guidance and shows the Connect button.'
 			}
 		],
 		redirectURI: 'Authorized redirect URI',

@@ -33,6 +33,8 @@ type TimelineLayout = {
 	columnWidth: number;
 	minuteHeight: number;
 	boundaryTop: number;
+	viewportTop: number;
+	viewportBottom: number;
 };
 
 const minimumPreviewHeight = 24;
@@ -114,13 +116,17 @@ function timelineRangePreviewSegment(
 	const availableLaneWidth = Math.max(minimumTimelinePreviewWidth, availableColumnWidth / laneCount - timelinePreviewLaneGap);
 	const laneWidth = Math.min(availableColumnWidth, Math.max(minimumTimelinePreviewWidth, availableLaneWidth));
 	const left = layout.gridLeft + columnIndex * layout.columnWidth + timelinePreviewColumnInset;
-	const top = layout.gridTop + layout.boundaryTop + startMinute * layout.minuteHeight;
+	const unclippedTop = layout.gridTop + layout.boundaryTop + startMinute * layout.minuteHeight;
+	const unclippedHeight = Math.max(minimumPreviewHeight, (endMinute - startMinute) * layout.minuteHeight);
+	const top = Math.max(unclippedTop, layout.viewportTop);
+	const bottom = Math.min(unclippedTop + unclippedHeight, layout.viewportBottom);
+	if (bottom <= top) return null;
 	return {
 		id: `timeline-preview-${dateKey(cursorDate)}`,
 		left,
 		top,
 		width: laneWidth,
-		height: Math.max(minimumPreviewHeight, (endMinute - startMinute) * layout.minuteHeight),
+		height: bottom - top,
 		timeLabel: `${timeLabelFromMinute(startMinute)} - ${timeLabelFromMinute(endMinute)}`,
 		isOverlapped: overlapCount > 0,
 		overlapLeft: '0%',
@@ -138,18 +144,26 @@ function timelineLayout(
 	const displayDays = calendarTimelineDisplayDayCount(view, isMobileTwoDayWeekView);
 	const stageRectangle = stageElement.getBoundingClientRect();
 	const gridRectangle = gridElement.getBoundingClientRect();
+	const viewportRectangle = (timelineViewportElement(stageElement, view) ?? gridElement).getBoundingClientRect();
 	const hourHeight = stageElement.querySelector<HTMLElement>('.df-time-slot')?.getBoundingClientRect().height || defaultHourHeight;
 	return {
 		gridLeft: gridRectangle.left - stageRectangle.left,
 		gridTop: gridRectangle.top - stageRectangle.top,
 		columnWidth: gridRectangle.width / displayDays,
 		minuteHeight: hourHeight / 60,
-		boundaryTop: stageElement.querySelector<HTMLElement>('.df-time-grid-boundary-top')?.getBoundingClientRect().height || defaultBoundaryTop
+		boundaryTop: stageElement.querySelector<HTMLElement>('.df-time-grid-boundary-top')?.getBoundingClientRect().height || defaultBoundaryTop,
+		viewportTop: viewportRectangle.top - stageRectangle.top,
+		viewportBottom: viewportRectangle.bottom - stageRectangle.top
 	};
 }
 
 function timelineGridElement(stageElement: HTMLElement, view: CalendarViewType): HTMLElement | null {
 	const selector = view === ViewType.WEEK ? '.df-week-time-grid-grid' : '.df-day-content-grid-column';
+	return stageElement.querySelector<HTMLElement>(selector);
+}
+
+function timelineViewportElement(stageElement: HTMLElement, view: CalendarViewType): HTMLElement | null {
+	const selector = view === ViewType.WEEK ? '.df-week-time-grid-scroller' : '.df-day-content-grid';
 	return stageElement.querySelector<HTMLElement>(selector);
 }
 
