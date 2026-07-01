@@ -54,6 +54,7 @@
 	</Popover.Trigger>
 	<Popover.Portal>
 		<Popover.Content
+			side="top"
 			sideOffset={8}
 			class="z-50 w-[min(20rem,calc(100vw-2rem))] rounded-md border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
 		>
