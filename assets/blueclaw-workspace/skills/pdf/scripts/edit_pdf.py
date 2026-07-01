@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import io
 import json
 import os
@@ -12,12 +13,25 @@ import create_pdf as pdf_helper
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Append a new section page to an existing PDF in place.")
-    parser.add_argument("pdf_path")
+    parser.add_argument("pdf_path", nargs="?", help="Path to the .pdf; defaults to the newest .pdf in ~/documents")
     parser.add_argument("--heading", metavar="TEXT", help="Section heading for the appended page")
     parser.add_argument("--paragraph", action="append", default=[], metavar="TEXT", help="Paragraph to add")
     parser.add_argument("--bullet", action="append", default=[], metavar="TEXT", help="Bullet item to add")
     parser.add_argument("--section", metavar="JSON_PATH", help="JSON file with a section spec (same schema as create_pdf sections array element)")
     return parser.parse_args()
+
+
+def resolve_pdf_path(given_path):
+    if given_path:
+        return os.path.expanduser(given_path)
+    documents = sorted(
+        glob.glob(os.path.expanduser("~/documents/*.pdf")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    if not documents:
+        raise SystemExit("no .pdf found in ~/documents; pass the document path explicitly")
+    return documents[0]
 
 
 def load_section_from_json(json_path):
@@ -59,7 +73,7 @@ def merge_into_original(pdf_path, appended_page_bytes):
 
 def main():
     arguments = parse_arguments()
-    pdf_path = os.path.expanduser(arguments.pdf_path)
+    pdf_path = resolve_pdf_path(arguments.pdf_path)
 
     if arguments.section:
         section_data = load_section_from_json(arguments.section)
