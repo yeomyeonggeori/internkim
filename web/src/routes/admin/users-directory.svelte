@@ -29,7 +29,7 @@
 		userRecords: UserRecord[];
 		onRemoveUser: (email: string) => Promise<void> | void;
 		onResetPassword: (record: UserRecord) => Promise<void> | void;
-		onSaveUser: (record: UserRecord, role?: UserRole) => Promise<void> | void;
+		onSaveUser: (record: UserRecord, role?: UserRole) => Promise<boolean> | boolean | Promise<void> | void;
 		onSaveNote: (record: UserRecord, note: string) => Promise<boolean>;
 	};
 
