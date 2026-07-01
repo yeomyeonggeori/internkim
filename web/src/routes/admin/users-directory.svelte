@@ -64,7 +64,7 @@
 		<Badge variant="secondary">{userAdminCount(userRecords)} {text.users.adminCount}</Badge>
 	</Card.Header>
 	<Card.Content class="p-0">
-		<div class="hidden overflow-x-auto lg:block">
+		<div class="relative hidden overflow-x-auto lg:block">
 			<Table.Root class="min-w-[1260px]">
 				<Table.Header class="bg-muted/40">
 					<Table.Row class="hover:bg-transparent">
@@ -142,6 +142,10 @@
 					{/each}
 				</Table.Body>
 			</Table.Root>
+			<div
+				aria-hidden="true"
+				class="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-background/95 to-transparent"
+			></div>
 		</div>
 		<div class="grid gap-0 lg:hidden">
 			{#each sortUserRecordsByHireDate(userRecords) as record (record.email)}
