@@ -178,7 +178,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		if upsertedEmail != "" {
 			var errorValue error
 			if hasExplicitCircleMutation {
-				errorValue = service.upsertBlueclawPersonWithNote(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, upsertedNote)
+				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
 			} else {
 				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName)
 			}

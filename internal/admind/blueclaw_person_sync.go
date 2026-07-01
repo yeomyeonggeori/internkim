@@ -23,20 +23,12 @@ func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string,
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
 }
 
-func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string, email string, name string, role string, circles []string) error {
+func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string, email string, name string, role string, circles []string, note *string) error {
 	if errorValue := service.inviteBlueclawPerson(ctx, userID, email, name); errorValue != nil {
 		return errorValue
 	}
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	return service.updateBlueclawPersonCircles(ctx, normalizedEmail, name, role, circles, nil)
-}
-
-func (service *Service) upsertBlueclawPersonWithNote(ctx context.Context, userID string, email string, name string, role string, circles []string, note string) error {
-	if errorValue := service.inviteBlueclawPerson(ctx, userID, email, name); errorValue != nil {
-		return errorValue
-	}
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	return service.updateBlueclawPersonCircles(ctx, normalizedEmail, name, role, circles, &note)
+	return service.updateBlueclawPersonCircles(ctx, normalizedEmail, name, role, circles, note)
 }
 
 func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email string, name string, role string, circles []string, note *string) error {
