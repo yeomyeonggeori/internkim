@@ -9,6 +9,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { AdminPageText, CircleRecord, UserRecord, UserRole } from './admin-types';
+	import UserNoteControl from './user-note-control.svelte';
 	import {
 		canManageUserRecord,
 		hasUserCircle,
@@ -29,6 +30,7 @@
 		onRemoveUser: (email: string) => Promise<void> | void;
 		onResetPassword: (record: UserRecord) => Promise<void> | void;
 		onSaveUser: (record: UserRecord, role?: UserRole) => Promise<void> | void;
+		onSaveNote: (record: UserRecord, note: string) => Promise<boolean>;
 	};
 
 	let {
@@ -39,7 +41,8 @@
 		userRecords = $bindable(),
 		onRemoveUser,
 		onResetPassword,
-		onSaveUser
+		onSaveUser,
+		onSaveNote
 	}: UsersDirectoryProps = $props();
 
 	function userCanManage(record: UserRecord): boolean {
@@ -81,7 +84,10 @@
 								<div class="flex min-w-0 items-center gap-3">
 									<PersonAvatar name={record.name} email={record.email} class="size-9" />
 									<div class="min-w-0">
-										<p class="truncate text-sm font-medium">{record.email}</p>
+										<div class="flex min-w-0 items-center gap-1.5">
+											<p class="truncate text-sm font-medium">{record.email}</p>
+											<UserNoteControl note={record.note} text={text.users} isSaving={isSavingUser} onSave={(note) => onSaveNote(record, note)} />
+										</div>
 										<p class="truncate text-xs text-muted-foreground">
 											{record.mattermostUsername ? `Mattermost: ${record.mattermostUsername}` : text.users.noMattermost}
 										</p>
@@ -151,7 +157,10 @@
 								{/if}
 							</div>
 						</div>
-						<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{userRoleLabel(text, record.role)}</Badge>
+						<div class="flex shrink-0 items-center gap-2">
+							<UserNoteControl note={record.note} text={text.users} isSaving={isSavingUser} onSave={(note) => onSaveNote(record, note)} />
+							<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{userRoleLabel(text, record.role)}</Badge>
+						</div>
 					</div>
 					<div class="grid gap-3 sm:grid-cols-3">
 						<label class="grid gap-1.5">

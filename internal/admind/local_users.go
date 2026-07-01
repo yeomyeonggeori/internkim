@@ -236,35 +236,6 @@ func (service *Service) localResetUserPassword(responseWriter http.ResponseWrite
 	})
 }
 
-func localAdminUserPayload(responseWriter http.ResponseWriter, request *http.Request) (adminUserMutation, bool, bool) {
-	var rawPayload adminUserMutation
-	if errorValue := json.NewDecoder(request.Body).Decode(&rawPayload); errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return adminUserMutation{}, false, false
-	}
-	payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return adminUserMutation{}, false, false
-	}
-	return payload, hasExplicitCircleMutation, true
-}
-
-func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bool, error) {
-	hasExplicitCircleMutation := payload.Circles != nil
-	payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
-	if payload.Email == "" {
-		return adminUserMutation{}, false, errors.New("email required")
-	}
-	payload.Handle = normalizeMattermostHandle(firstNonEmpty(payload.Handle, mattermostUsernameBase(payload.Email)))
-	if !isValidMattermostHandle(payload.Handle) {
-		return adminUserMutation{}, false, errors.New("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")
-	}
-	payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
-	payload.Role = normalizeAdminUserRole(payload.Role)
-	return payload, hasExplicitCircleMutation, nil
-}
-
 func localAdminUserRecords(users []mattermostUserRecord, roleByUserID map[string]string) []adminUserMutation {
 	records := make([]adminUserMutation, 0, len(users))
 	for _, userRecord := range users {
@@ -379,7 +350,7 @@ func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Conte
 		return nil
 	}
 	name := firstNonEmpty(userRecord.Nickname, userRecord.DisplayName, userRecord.Username)
-	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"staff"})
+	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"staff"}, nil)
 }
 
 func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID string, isAdmin bool) error {
@@ -398,7 +369,7 @@ func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID
 
 func (service *Service) localSaveBlueclawPerson(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) error {
 	if hasExplicitCircleMutation {
-		return service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles)
+		return service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles, &payload.Note)
 	}
 	return service.inviteBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name)
 }

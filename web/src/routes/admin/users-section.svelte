@@ -196,8 +196,8 @@
 		}
 	}
 
-	async function saveUserRecord(record: UserRecord, role: UserRole = record.role) {
-		if (!fleetID || !adminBaseURL) return;
+	async function saveUserRecord(record: UserRecord, role: UserRole = record.role): Promise<boolean> {
+		if (!fleetID || !adminBaseURL) return false;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -210,6 +210,7 @@
 					handle: normalizeHandle(record.handle),
 					name: record.name?.trim() ?? '',
 					hireDate: record.hireDate ?? '',
+					note: record.note?.trim() ?? '',
 					email: record.email,
 					role,
 					circles: normalizeUserCircles(record.circles, role),
@@ -219,11 +220,18 @@
 				},
 				text.messages.userSaveError
 			));
+			return true;
 		} catch (error) {
 			errorMessage = usersErrorMessage(error, text.messages.userSaveError, text.messages.adminAuthRequired);
+			return false;
 		} finally {
 			isSavingUser = false;
 		}
+	}
+
+	async function saveUserNote(record: UserRecord, note: string): Promise<boolean> {
+		record.note = note.trim();
+		return saveUserRecord(record);
 	}
 
 	async function removeEmail(email: string) {
@@ -418,6 +426,7 @@
 				onRemoveUser={removeEmail}
 				onResetPassword={resetPassword}
 				onSaveUser={saveUserRecord}
+				onSaveNote={saveUserNote}
 			/>
 		{/if}
 	{/if}
