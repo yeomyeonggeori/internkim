@@ -28,6 +28,7 @@ type calendarEventWriteInput struct {
 	Color             string                  `json:"color"`
 	People            calendarToolPeopleInput `json:"people"`
 	ReminderLeadHours int                     `json:"reminderLeadHours"`
+	AllowDuplicate    bool                    `json:"allowDuplicate"`
 }
 
 type calendarEventListInput struct {
@@ -347,6 +348,7 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		"color":             input.Color,
 		"people":            []string(input.People),
 		"reminderLeadHours": input.ReminderLeadHours,
+		"allowDuplicate":    input.AllowDuplicate,
 	}
 }
 

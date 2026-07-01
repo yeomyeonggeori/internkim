@@ -44,3 +44,13 @@ func TestCalendarDisplayLocationPrefersEventTimezoneThenFallback(t *testing.T) {
 		t.Fatalf("nil fallback should default to UTC, got %v", location)
 	}
 }
+
+func TestCalendarMattermostMentionTextDefaultsToNoMention(t *testing.T) {
+	if got := calendarMattermostMentionText(calendarEvent{Title: "세라에스이 사장님 미팅"}, nil); got != "" {
+		t.Fatalf("event with no attendees should produce no mention, got %q", got)
+	}
+	explicitAll := calendarEvent{Title: "전사 회의", Participants: []calendarParticipant{{Name: "전체"}}}
+	if got := calendarMattermostMentionText(explicitAll, nil); got != "@all" {
+		t.Fatalf("explicit 전체 attendee should mention @all, got %q", got)
+	}
+}

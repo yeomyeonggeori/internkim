@@ -481,3 +481,48 @@ func calendarTestEvent(eventID string, title string, description string) calenda
 		CreatedByEmail:    "admin@example.com",
 	}
 }
+
+func postCalendarEventForDuplicateTest(t *testing.T, service *Service, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "/calendar/api/events", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	recorder := httptest.NewRecorder()
+	service.router().ServeHTTP(recorder, request)
+	return recorder
+}
+
+func TestCreateCalendarEventDetectsSameSlotSameParticipantDuplicate(t *testing.T) {
+	service := newCalendarTestService(t)
+	baseSlot := `"startISO":"2026-07-02T09:30:00+09:00","endISO":"2026-07-02T10:30:00+09:00","timeZone":"Asia/Seoul"`
+
+	created := postCalendarEventForDuplicateTest(t, service, `{"title":"세라에스이 사장님 미팅",`+baseSlot+`}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("first create status = %d body = %s", created.Code, created.Body.String())
+	}
+
+	duplicate := postCalendarEventForDuplicateTest(t, service, `{"title":"세라에스이 미팅",`+baseSlot+`}`)
+	if duplicate.Code != http.StatusOK {
+		t.Fatalf("same-slot same-participant add should return 200 duplicate_candidate, got %d body = %s", duplicate.Code, duplicate.Body.String())
+	}
+	var payload struct {
+		Status     string          `json:"status"`
+		Candidates []calendarEvent `json:"candidates"`
+	}
+	if errorValue := json.Unmarshal(duplicate.Body.Bytes(), &payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload.Status != "duplicate_candidate" || len(payload.Candidates) != 1 {
+		t.Fatalf("duplicate response = %s", duplicate.Body.String())
+	}
+
+	forced := postCalendarEventForDuplicateTest(t, service, `{"title":"세라에스이 미팅",`+baseSlot+`,"allowDuplicate":true}`)
+	if forced.Code != http.StatusCreated {
+		t.Fatalf("allowDuplicate should bypass detection and create, got %d body = %s", forced.Code, forced.Body.String())
+	}
+
+	differentPeople := postCalendarEventForDuplicateTest(t, service, `{"title":"세라에스이 미팅",`+baseSlot+`,"people":["someone@example.com"]}`)
+	if differentPeople.Code != http.StatusCreated {
+		t.Fatalf("same slot but different participants is not a duplicate; expected create, got %d body = %s", differentPeople.Code, differentPeople.Body.String())
+	}
+}
