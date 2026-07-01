@@ -116,10 +116,17 @@ type attendanceSummaryResponse struct {
 	TimeZone             string               `json:"timeZone"`
 	Events               []attendanceEvent    `json:"events"`
 	Absences             []attendanceAbsence  `json:"absences"`
+	Members              []attendanceMember   `json:"members"`
 	TodayStatus          string               `json:"todayStatus"`
 	Locations            []attendanceLocation `json:"locations"`
 	TeamViewVisibleToAll bool                 `json:"teamViewVisibleToAll"`
 	TeamViewBlocked      bool                 `json:"teamViewBlocked"`
+}
+
+type attendanceMember struct {
+	Email              string `json:"email"`
+	DisplayName        string `json:"displayName"`
+	MattermostUsername string `json:"mattermostUsername"`
 }
 
 type attendanceAbsenceRequest struct {
