@@ -1,6 +1,13 @@
 import { normalizeFleet } from './fleet';
 import type { Device, Invite, UserRecord, UserRole } from './types';
 
+export type KVStore = {
+	get<T = unknown>(key: string, type: 'json'): Promise<T | null>;
+	get(key: string): Promise<string | null>;
+	put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+	delete(key: string): Promise<void>;
+};
+
 function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
@@ -35,6 +42,7 @@ function stableUserID(email: string): string {
 }
 
 function normalizeRole(role: unknown): UserRole {
+	if (role === 'operationsAdmin') return 'operationsAdmin';
 	return role === 'admin' ? 'admin' : 'member';
 }
 
@@ -135,29 +143,29 @@ export function adminEmails(records: UserRecord[]): string[] {
 }
 
 export const kv = {
-	async getDevice(kv: KVNamespace, id: string): Promise<Device | null> {
+	async getDevice(kv: KVStore, id: string): Promise<Device | null> {
 		return normalizeDevice(await kv.get(fleetKey(id), 'json'), id);
 	},
 
-	async putDevice(kv: KVNamespace, id: string, device: Device): Promise<void> {
+	async putDevice(kv: KVStore, id: string, device: Device): Promise<void> {
 		await kv.put(fleetKey(id), JSON.stringify(normalizeDevice(device, id) ?? device));
 	},
 
-	async deleteDevice(kv: KVNamespace, id: string): Promise<void> {
+	async deleteDevice(kv: KVStore, id: string): Promise<void> {
 		await kv.delete(fleetKey(id));
 	},
 
-	async getUsers(kv: KVNamespace, fleetID: string): Promise<string[]> {
+	async getUsers(kv: KVStore, fleetID: string): Promise<string[]> {
 		return userEmails(await this.getUserRecords(kv, fleetID));
 	},
 
-	async getUserRecords(kv: KVNamespace, fleetID: string, fallbackAdminEmail?: string): Promise<UserRecord[]> {
+	async getUserRecords(kv: KVStore, fleetID: string, fallbackAdminEmail?: string): Promise<UserRecord[]> {
 		const users = await kv.get(fleetUsersKey(fleetID), 'json');
 		const values = Array.isArray(users) ? users : [];
 		return ensureAdmin(values.map(normalizeUserRecord).filter((record): record is UserRecord => record !== null), fallbackAdminEmail);
 	},
 
-	async putUsers(kv: KVNamespace, fleetID: string, emails: string[]): Promise<void> {
+	async putUsers(kv: KVStore, fleetID: string, emails: string[]): Promise<void> {
 		const records = normalizeUserRecords(
 			emails.map((email) => {
 				const normalizedEmail = normalizeEmail(email);
@@ -173,24 +181,24 @@ export const kv = {
 		await this.putUserRecords(kv, fleetID, records);
 	},
 
-	async putUserRecords(kv: KVNamespace, fleetID: string, records: UserRecord[]): Promise<void> {
+	async putUserRecords(kv: KVStore, fleetID: string, records: UserRecord[]): Promise<void> {
 		await kv.put(fleetUsersKey(fleetID), JSON.stringify(normalizeUserRecords(records)));
 	},
 
-	async deleteUserRecords(kv: KVNamespace, fleetID: string): Promise<void> {
+	async deleteUserRecords(kv: KVStore, fleetID: string): Promise<void> {
 		await kv.delete(fleetUsersKey(fleetID));
 	},
 
-	async getInvite(kv: KVNamespace, token: string): Promise<Invite | null> {
-		return kv.get(`invite:${token}`, 'json');
+	async getInvite(kv: KVStore, token: string): Promise<Invite | null> {
+		return kv.get<Invite>(`invite:${token}`, 'json');
 	},
 
-	async putInvite(kv: KVNamespace, token: string, invite: Invite): Promise<void> {
+	async putInvite(kv: KVStore, token: string, invite: Invite): Promise<void> {
 		const ttl = Math.max(Math.floor((invite.expires_at - Date.now()) / 1000), 60);
 		await kv.put(`invite:${token}`, JSON.stringify(invite), { expirationTtl: ttl });
 	},
 
-	async deleteInvite(kv: KVNamespace, token: string): Promise<void> {
+	async deleteInvite(kv: KVStore, token: string): Promise<void> {
 		await kv.delete(`invite:${token}`);
 	}
 };
