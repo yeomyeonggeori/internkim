@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Verifies the ephemeral ask.confirm button works when a human presses it. A real
+# browser session (the requester) opens the channel, posts an approval-triggering
+# prompt, waits for the websocket-only ephemeral 확인 button, and clicks it. We then
+# assert the paused task resumed (waiting_approval -> running -> completed) — proving
+# the rendered button drives the admind -> blueclaw resume path end to end.
+#
+# Usage: tools/e2e-approve-button
+#   Bring up a fleet first. INTERNKIM_E2E_CONFIG overrides the fleet run config path.
+#   INTERNKIM_E2E_SKIP_MODEL=1 skips the model pin. INTERNKIM_APPROVE_PROMPT overrides
+#   the prompt (default is a DM send, which requires ask.confirm approval).
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CFG="${INTERNKIM_E2E_CONFIG:-$(ls -dt "$ROOT"/.local/local-fleet/runs/*/config.json 2>/dev/null | head -1)}"
+[ -n "${CFG:-}" ] && [ -f "$CFG" ] || { echo "no fleet run config found; bring up a fleet first" >&2; exit 1; }
+
+vmssh() { "$ROOT/internkim" lab vm-ssh --config "$CFG" "$@" 2>/dev/null; }
+remote() { vmssh "bash -s $*" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1; }
+
+VMIP="$("$ROOT/internkim" lab vm-ip --config "$CFG" 2>/dev/null | tail -1)"
+MM_URL="http://$VMIP:8065"
+MODEL="${INTERNKIM_E2E_MODEL:-google/gemini-3.1-flash-lite}"
+PROMPT="${INTERNKIM_APPROVE_PROMPT:-길동이한테 회의 잘 부탁한다고 메시지 보내줘}"
+BUTTON="${INTERNKIM_APPROVE_BUTTON:-확인}"
+EVID="$ROOT/e2e-evidence"; mkdir -p "$EVID"
+PNG="$EVID/approve-button.png"
+
+echo "fleet: $CFG"
+echo "mattermost: $MM_URL"
+echo "prompt: $PROMPT"
+echo "button: $BUTTON"
+
+if [ "${INTERNKIM_E2E_SKIP_MODEL:-}" != 1 ]; then
+	echo "pinning model $MODEL (restarts blueclaw)..."
+	remote "set-model '$MODEL'" >/dev/null
+fi
+
+RUN_NONCE="${INTERNKIM_E2E_NONCE:-$(date +%H%M%S)}"
+SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' bash -s setup" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1)"
+CHNAME="$(echo "$SETUP" | jq -r '.channelName')"
+REQ_USER="$(echo "$SETUP" | jq -r '.e2eUsername')"
+REQ_PASS="$(echo "$SETUP" | jq -r '.e2ePassword')"
+[ -n "$CHNAME" ] && [ "$CHNAME" != null ] || { echo "setup failed: $SETUP" >&2; exit 1; }
+echo "run id: $RUN_NONCE (channel $CHNAME, requester $REQ_USER)"
+
+echo "opening requester browser, posting prompt, clicking the ephemeral button..."
+# Headed by default so you can watch the button get pressed; INTERNKIM_E2E_HEADLESS=1 hides it.
+HEADED=--headed; [ "${INTERNKIM_E2E_HEADLESS:-}" = 1 ] && HEADED=
+click_ok=1
+(cd "$ROOT/web" && \
+	INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQ_USER" INTERNKIM_ADMIN_PASSWORD="$REQ_PASS" \
+	INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" \
+	INTERNKIM_APPROVE_PROMPT="$PROMPT" INTERNKIM_APPROVE_BUTTON="$BUTTON" INTERNKIM_CRUD_SCREENSHOT="$PNG" \
+	bunx playwright test tests/e2e/crud-approve.spec.ts $HEADED --reporter=line) || click_ok=0
+
+status=none; steps=0; reason=""
+for _ in $(seq 1 60); do
+	res="$(remote "find-status '$PROMPT'")"
+	status="$(echo "$res" | jq -r '.status // "none"')"
+	steps="$(echo "$res" | jq -r '.steps // 0')"
+	reason="$(echo "$res" | jq -r '.reason // ""')"
+	case "$status" in completed|failed|cancelled|canceled|error) break ;; esac
+	sleep 2
+done
+
+echo "------------------------------------------------------------"
+button_result=$([ "$click_ok" = 1 ] && echo "CLICKED" || echo "BUTTON-NOT-FOUND")
+resume_result=$([ "$status" = completed ] && echo PASS || echo FAIL)
+printf "button: %s | task resume: %s (status=%s steps=%s)\n" "$button_result" "$resume_result" "$status" "$steps"
+[ -n "$reason" ] && [ "$status" != completed ] && echo "reason: $reason"
+[ -f "$PNG" ] && echo "evidence: $PNG"
+echo "------------------------------------------------------------"
+[ "$click_ok" = 1 ] && [ "$status" = completed ]

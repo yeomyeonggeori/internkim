@@ -35,7 +35,7 @@ else
 fi
 RUN_NONCE="${INTERNKIM_E2E_NONCE:-$(date +%H%M%S)}"
 echo "run id: $RUN_NONCE (fresh person + channel)"
-SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' bash -s setup" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1)"
+SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' E2E_SKIP_RESET='${INTERNKIM_E2E_SKIP_RESET:-}' bash -s setup" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1)"
 CH="$(echo "$SETUP" | jq -r '.channelID')"
 TOK="$(echo "$SETUP" | jq -r '.e2eToken')"
 CHNAME="$(echo "$SETUP" | jq -r '.channelName')"
@@ -48,9 +48,11 @@ REQUESTER_PASS="$(echo "$SETUP" | jq -r '.e2ePassword')"
 # description (e.g. "주간보고서 업무 삭제") without injecting internal IDs into prompts.
 CASES=(
 	"task-add|내 주간보고서 작성 업무 추가해줘|task.add|220"
+	"task-query|내 업무 목록 보여줘|task.list|220"
 	"task-update|내 주간보고서 업무 진행 중으로 바꿔줘|task.update|220"
 	"task-delete|내 주간보고서 업무 삭제해줘|task.delete|220"
 	"calendar-add|7월 13일 오후 2시에 샨보장이랑 미팅 일정 잡아줘|calendar.add|220"
+	"calendar-query|이번 달 내 일정 보여줘|calendar.list|220"
 	"calendar-update|샨보장 미팅을 7월 14일로 옮겨줘|calendar.update|220"
 	"calendar-delete|샨보장 미팅 일정 삭제해줘|calendar.delete|220"
 	"docx-create|회의록 Word 문서(.docx)로 만들어줘 내용은 안건 3개 간단히|file.deliver|320"
@@ -72,11 +74,13 @@ CASES=(
 )
 
 screenshot() { # case-name png-path
+	# Headed by default so the run is watchable; set INTERNKIM_E2E_HEADLESS=1 to hide it.
+	local headed=--headed; [ "${INTERNKIM_E2E_HEADLESS:-}" = 1 ] && headed=
 	# Log in as the requester so requester-only ephemeral approval buttons are visible.
 	(cd "$ROOT/web" && \
 		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQUESTER_USER" INTERNKIM_ADMIN_PASSWORD="$REQUESTER_PASS" \
 		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_SCREENSHOT="$2" \
-		bunx playwright test tests/e2e/crud-evidence.spec.ts >/dev/null 2>&1) || true
+		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed >/dev/null 2>&1) || true
 }
 
 score_for() { # passed steps -> score
@@ -88,9 +92,19 @@ score_for() { # passed steps -> score
 PASS=0; TOTAL=0; TOTAL_SCORE=0
 printf "\n%-16s %-7s %6s %6s  %s\n" CASE OUTCOME STEPS SCORE EVIDENCE
 printf -- "------------------------------------------------------------\n"
+matches_filter() { # case-name -- FILTER may be a comma-separated list of substrings; empty runs all
+	[ -z "$FILTER" ] && return 0
+	local part
+	IFS=',' read -ra parts <<< "$FILTER"
+	for part in "${parts[@]}"; do
+		[ -n "$part" ] && [[ "$1" == *"$part"* ]] && return 0
+	done
+	return 1
+}
+
 for entry in "${CASES[@]}"; do
 	IFS='|' read -r name prompt op timeout <<< "$entry"
-	[ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]] && continue
+	matches_filter "$name" || continue
 	TOTAL=$((TOTAL + 1))
 	res="$(remote "run-case '$CH' '$TOK' '$prompt' '$op' $timeout")"
 	status="$(echo "$res" | jq -r '.status // "error"')"
