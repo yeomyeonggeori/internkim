@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,6 +75,7 @@ type calendarEventWriteRequest struct {
 	People            calendarPeopleInput           `json:"people"`
 	Participants      []calendarParticipantIdentity `json:"participants"`
 	ReminderLeadHours int                           `json:"reminderLeadHours"`
+	AllowDuplicate    bool                          `json:"allowDuplicate"`
 }
 
 type calendarEventsResponse struct {
@@ -230,10 +232,20 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, request *http.Request) {
-	event, errorValue := service.decodeCalendarEventWriteRequest(request, "")
+	event, allowDuplicate, errorValue := service.decodeCalendarEventWriteRequest(request, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
+	}
+	if !allowDuplicate {
+		if candidates, errorValue := service.findDuplicateCalendarCandidates(request.Context(), event); errorValue == nil && len(candidates) > 0 {
+			responseWriter.WriteHeader(http.StatusOK)
+			service.writeJSON(responseWriter, map[string]any{
+				"status":     "duplicate_candidate",
+				"candidates": service.calendarEventsWithParticipantImages(request, candidates),
+			})
+			return
+		}
 	}
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -254,7 +266,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.NotFound(responseWriter, request)
 		return
 	}
-	event, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
+	event, _, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -432,12 +444,52 @@ func writeCalendarSyncCollectionUnsupported(responseWriter http.ResponseWriter) 
 	))
 }
 
-func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, error) {
+func (service *Service) findDuplicateCalendarCandidates(ctx context.Context, event calendarEvent) ([]calendarEvent, error) {
+	newStart, errorValue := time.Parse(time.RFC3339, event.StartISO)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	existingEvents, errorValue := service.readCalendarEvents(ctx, newStart.Add(-time.Second), newStart.Add(time.Second))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	newPeopleKey := calendarPeopleSetKey(event.People)
+	candidates := []calendarEvent{}
+	for _, existingEvent := range existingEvents {
+		existingStart, parseError := time.Parse(time.RFC3339, existingEvent.StartISO)
+		if parseError != nil || !existingStart.Equal(newStart) {
+			continue
+		}
+		if calendarPeopleSetKey(existingEvent.People) != newPeopleKey {
+			continue
+		}
+		candidates = append(candidates, existingEvent)
+	}
+	return candidates, nil
+}
+
+func calendarPeopleSetKey(people []string) string {
+	normalizedPeople := []string{}
+	seenPerson := map[string]bool{}
+	for _, person := range people {
+		normalizedPerson := strings.ToLower(strings.TrimSpace(person))
+		if normalizedPerson == "" || seenPerson[normalizedPerson] {
+			continue
+		}
+		seenPerson[normalizedPerson] = true
+		normalizedPeople = append(normalizedPeople, normalizedPerson)
+	}
+	sort.Strings(normalizedPeople)
+	return strings.Join(normalizedPeople, "\x00")
+}
+
+func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, bool, error) {
 	var payload calendarEventWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		return calendarEvent{}, errorValue
+		return calendarEvent{}, false, errorValue
 	}
-	return service.normalizeCalendarEventWriteRequest(request, payload, eventID)
+	event, errorValue := service.normalizeCalendarEventWriteRequest(request, payload, eventID)
+	return event, payload.AllowDuplicate, errorValue
 }
 
 func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request, payload calendarEventWriteRequest, eventID string) (calendarEvent, error) {

@@ -160,11 +160,11 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	}
 }
 
-func TestCalendarMattermostLogMentionsAllWhenPeopleAreEmpty(t *testing.T) {
+func TestCalendarMattermostLogOmitsMentionWhenPeopleAreEmpty(t *testing.T) {
 	service := newCalendarTestService(t)
 	message := service.calendarMattermostLogMessage(calendarTestEvent("all-hands", "Company offsite", "Travel prep"))
-	if !strings.Contains(message, "\n@all\n") {
-		t.Fatalf("message = %q", message)
+	if strings.Contains(message, "@all") {
+		t.Fatalf("event with no attendees must not tag everyone; message = %q", message)
 	}
 }
 
