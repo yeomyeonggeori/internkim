@@ -72,7 +72,8 @@ export default defineConfig(({ mode }) => {
 				'/calendar/oauth': admindTarget,
 				'/flow/api': admindTarget,
 				'/mail/api': admindTarget,
-				'/memory/api': admindTarget
+				'/memory/api': admindTarget,
+				'/orgchart/api': admindTarget
 			}
 		},
 		build: {

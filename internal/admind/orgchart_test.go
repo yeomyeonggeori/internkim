@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -68,14 +67,11 @@ func TestLocalListUsersMergesOrgchartMetadata(t *testing.T) {
 		t.Fatalf("available groups = %#v; want product", response.AvailableGroups)
 	}
 	member := response.Records[1]
-	if member.JobTitle != "Product Manager" || member.PositionLevel != 2 || member.PrimaryGroupID != "product" {
+	if member.JobTitle != "Product Manager" || member.PrimaryGroupID != "product" || member.SupervisorID != "user-admin" {
 		t.Fatalf("member org fields = %#v", member)
 	}
-	if strings.Join(member.ProjectIDs, ",") != "new-business" {
-		t.Fatalf("project ids = %#v", member.ProjectIDs)
-	}
-	if member.EmploymentStatus != orgchartEmploymentStatusActive || !member.IsOrgchartVisible {
-		t.Fatalf("status = %q visible = %t", member.EmploymentStatus, member.IsOrgchartVisible)
+	if member.PositionLevel != 0 || len(member.ProjectIDs) != 0 || member.TeamRole != "" || member.EmploymentStatus != "" || member.IsOrgchartVisible {
+		t.Fatalf("unsupported response fields = %#v; want omitted metadata", member)
 	}
 }
 
@@ -144,9 +140,6 @@ func TestLocalUsersResponseBodyFallsBackWhenOrgchartMetadataFails(t *testing.T) 
 	}
 	if len(response.Records) != 1 || response.Records[0].Email != "member@example.com" {
 		t.Fatalf("records = %#v; want original response", response.Records)
-	}
-	if !response.Records[0].IsOrgchartVisible {
-		t.Fatalf("isOrgchartVisible = false; want default visible fallback")
 	}
 }
 

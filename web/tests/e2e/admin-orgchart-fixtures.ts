@@ -7,14 +7,9 @@ export type UserRecord = {
 	role: 'admin' | 'operationsAdmin' | 'member';
 	jobTitle?: string;
 	group?: string;
-	positionLevel?: number;
 	primaryGroupID?: string;
 	groupIDs?: string[];
 	supervisorID?: string;
-	projectIDs?: string[];
-	teamRole?: string;
-	employmentStatus?: 'active' | 'leave' | 'resigned';
-	isOrgchartVisible?: boolean;
 };
 
 export type UsersResponse = {
@@ -27,14 +22,9 @@ export type OrgProfileUpdate = {
 	email: string;
 	jobTitle: string;
 	group?: string;
-	positionLevel?: number;
 	primaryGroupID?: string;
 	groupIDs?: string[];
 	supervisorID?: string;
-	projectIDs?: string[];
-	teamRole?: string;
-	employmentStatus?: 'active' | 'leave' | 'resigned';
-	isOrgchartVisible?: boolean;
 };
 
 export const initialUsersResponse: UsersResponse = {
@@ -52,9 +42,7 @@ export const initialUsersResponse: UsersResponse = {
 			role: 'admin',
 			jobTitle: 'Founder',
 			primaryGroupID: 'engineering',
-			groupIDs: ['engineering'],
-			employmentStatus: 'active',
-			isOrgchartVisible: true
+			groupIDs: ['engineering']
 		},
 		{
 			userID: 'user-grace',
@@ -65,10 +53,7 @@ export const initialUsersResponse: UsersResponse = {
 			role: 'member',
 			jobTitle: '',
 			primaryGroupID: '',
-			groupIDs: [],
-			projectIDs: [],
-			employmentStatus: 'active',
-			isOrgchartVisible: true
+			groupIDs: []
 		}
 	]
 };

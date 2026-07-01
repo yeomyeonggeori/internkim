@@ -22,6 +22,7 @@
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import NetworkIcon from '@lucide/svelte/icons/network';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { onMount } from 'svelte';
 
 	let userEmail = $state('');
@@ -40,6 +41,7 @@
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: '/orgchart/', label: text.orgchart, icon: UsersRoundIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 
@@ -57,6 +59,7 @@
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
 		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
+		{ href: '/orgchart/', label: text.orgchart, icon: UsersRoundIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon },
 		...workspace
 	]);

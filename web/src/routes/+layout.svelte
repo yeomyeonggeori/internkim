@@ -25,7 +25,7 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/files/', '/tasks/'].some(
+		return ['/admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
@@ -37,12 +37,13 @@
 		if (pathname.startsWith('/calendar')) return text.calendar;
 		if (pathname.startsWith('/mail')) return text.mail;
 		if (pathname.startsWith('/attendance')) return text.attendance;
+		if (pathname.startsWith('/orgchart')) return text.orgchart;
 		if (pathname.startsWith('/files')) return text.files;
 		return text.flow;
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/files/', '/tasks/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}

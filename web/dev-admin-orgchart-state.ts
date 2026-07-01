@@ -10,7 +10,7 @@ import {
 } from './dev-admin-mock';
 import { createDevAdminOrgchartGroups, createDevAdminOrgchartUsers } from './dev-admin-orgchart-fixture';
 import type { OrgProfileUpdate } from './src/routes/admin/admin-api';
-import type { OrgGroup, OrgchartEmploymentStatus, UserRecord, UsersResponse } from './src/routes/admin/admin-types';
+import type { OrgGroup, UserRecord, UsersResponse } from './src/routes/admin/admin-types';
 
 export type DevAdminOrgchartMockState = DevAdminMockState & {
 	groups: OrgGroup[];
@@ -50,6 +50,9 @@ export function createDevAdminOrgchartMockResponse(
 	if (request.method === 'GET' && request.pathname === '/admin/api/users') {
 		return { status: 200, body: usersResponse(state) };
 	}
+	if (request.method === 'GET' && request.pathname === '/orgchart/api/people') {
+		return { status: 200, body: publicOrgchartUsersResponse(state) };
+	}
 	if (request.method === 'PUT' && request.pathname === '/admin/api/org-groups') {
 		state.groups = normalizeOrgGroups(groupsFromBody(request.body));
 		return { status: 200, body: usersResponse(state) };
@@ -63,6 +66,7 @@ export function createDevAdminOrgchartMockResponse(
 
 export function shouldHandleDevAdminOrgchartMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/admin/api/users') return true;
+	if (method === 'GET' && pathname === '/orgchart/api/people') return true;
 	if (method === 'PUT' && pathname === '/admin/api/org-groups') return true;
 	if (method === 'POST' && pathname === '/admin/api/users/org-profiles') return true;
 	return shouldHandleDevAdminMockRequest(method, pathname);
@@ -71,8 +75,18 @@ export function shouldHandleDevAdminOrgchartMockRequest(method: string, pathname
 function usersResponse(state: DevAdminOrgchartMockState): UsersResponse {
 	return {
 		users: state.users.map((user) => user.email),
-		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])], projectIDs: [...(user.projectIDs ?? [])] })),
+		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])] })),
 		availableGroups: state.groups.map((group) => ({ ...group })),
+		availableCircles: []
+	};
+}
+
+function publicOrgchartUsersResponse(state: DevAdminOrgchartMockState): UsersResponse {
+	const visibleGroupIDs = new Set(state.users.flatMap((user) => [user.primaryGroupID ?? '', ...(user.groupIDs ?? [])].map((groupID) => groupID.trim()).filter(Boolean)));
+	return {
+		users: state.users.map((user) => user.email),
+		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])] })),
+		availableGroups: state.groups.filter((group) => visibleGroupIDs.has(group.id)).map((group) => ({ ...group })),
 		availableCircles: []
 	};
 }
@@ -120,14 +134,9 @@ function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
 				email,
 				jobTitle: stringFromUnknown(record.jobTitle),
 				group: optionalStringFromUnknown(record.group),
-				positionLevel: optionalNumberFromUnknown(record.positionLevel),
 				primaryGroupID: optionalStringFromUnknown(record.primaryGroupID),
 				groupIDs: stringArrayFromUnknown(record.groupIDs),
-				supervisorID: optionalStringFromUnknown(record.supervisorID),
-				projectIDs: stringArrayFromUnknown(record.projectIDs),
-				teamRole: optionalStringFromUnknown(record.teamRole),
-				employmentStatus: employmentStatusFromUnknown(record.employmentStatus),
-				isOrgchartVisible: optionalBooleanFromUnknown(record.isOrgchartVisible)
+				supervisorID: optionalStringFromUnknown(record.supervisorID)
 			}
 		];
 	});
@@ -142,14 +151,9 @@ function applyOrgProfileUpdates(users: UserRecord[], profiles: OrgProfileUpdate[
 			...user,
 			jobTitle: profile.jobTitle,
 			group: primaryGroupID,
-			positionLevel: profile.positionLevel ?? user.positionLevel,
 			primaryGroupID,
 			groupIDs: profile.groupIDs ?? (primaryGroupID ? [primaryGroupID] : []),
-			supervisorID: profile.supervisorID ?? user.supervisorID,
-			projectIDs: profile.projectIDs ?? user.projectIDs,
-			teamRole: profile.teamRole ?? user.teamRole,
-			employmentStatus: profile.employmentStatus ?? user.employmentStatus,
-			isOrgchartVisible: profile.isOrgchartVisible ?? user.isOrgchartVisible
+			supervisorID: profile.supervisorID ?? user.supervisorID
 		};
 	});
 }
@@ -167,20 +171,7 @@ function optionalStringFromUnknown(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
 }
 
-function optionalNumberFromUnknown(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function optionalBooleanFromUnknown(value: unknown): boolean | undefined {
-	return typeof value === 'boolean' ? value : undefined;
-}
-
 function stringArrayFromUnknown(value: unknown): string[] | undefined {
 	if (!Array.isArray(value)) return undefined;
 	return [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))];
-}
-
-function employmentStatusFromUnknown(value: unknown): OrgchartEmploymentStatus | undefined {
-	if (value === 'active' || value === 'leave' || value === 'resigned') return value;
-	return undefined;
 }
