@@ -23,10 +23,13 @@ type OpenRouterBackend struct {
 	HTTPClient          *http.Client
 }
 
+// DefaultActionModelName is the single source of truth for the model the agent
+// runs on. Every default-model reference across the codebase points here.
+const DefaultActionModelName = "google/gemini-3.1-flash-lite"
+
+// Action turns try the primary model first, then these degraded fallbacks.
 var DefaultOpenRouterActionFallbackModels = []string{
-	"google/gemini-3.5-flash",
-	"x-ai/grok-4.3",
-	"google/gemini-3.1-flash-lite",
+	DefaultActionModelName,
 	"z-ai/glm-5.2",
 }
 

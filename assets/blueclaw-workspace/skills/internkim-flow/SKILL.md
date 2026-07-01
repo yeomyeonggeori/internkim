@@ -8,7 +8,7 @@ when_to_use: Use when the user asks to add, record, request, find, update, chang
 
 Use the work capability operations when the user asks to add, record, request, find, update, or complete a work item.
 
-Run the work and calendar operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The runtime supplies requester identity and approval, so never put identity in the input. The work operations are `task.add`, `task.list`, `task.update`, `task.delete`; the calendar operations are `calendar.add`, `calendar.update`.
+Run the work and calendar operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The runtime supplies requester identity and approval, so never put identity in the input. The work operations are `task.add`, `task.list`, `task.update`, `task.delete`; the calendar operations are `calendar.add`, `calendar.list`, `calendar.update`, `calendar.delete`.
 
 Rules:
 
@@ -22,6 +22,7 @@ Rules:
 - Call `task.list` before update or completion when the matching work item is uncertain.
 - `task.list` lists the current week by default. Pass `weekFrom` and `weekTo` as week offsets from this week (0 this week, -1 last week, 1 next week) when the user asks for another period: 지난주 is `weekFrom -1, weekTo -1`; the last 4 weeks is `weekFrom -3, weekTo 0`; the whole history is a wide range such as `weekFrom -520`. Leave both unset for this week.
 - Call `task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the operation marks the item complete.
+- To update or delete, just call the operation with `query` set to the user's natural-language target, e.g. `query: "주간보고서"`. The deletion runs behind an approval step that shows what will be removed, so that confirmation is the safety net — do not interrogate the user beforehand. Never ask for an internal ID or the exact stored name; pass their wording as `query` and let the runtime resolve it. Only react to the operation's own result: if it reports multiple candidates, ask which one; if it reports the item is already gone, treat the deletion as done.
 - Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
 - Use `weekCode` only with `task.add`, `task.update`, or `task.delete` when the user names a specific work week. Use `weekFrom` and `weekTo` for `task.list`.
 - Do not add the requester as a participant by default when asking another person to do work. Include the requester only when the user implies joint work, such as 같이, 함께, 나랑, 저랑, 우리, with me, with us, together, joint, or collaborate.
