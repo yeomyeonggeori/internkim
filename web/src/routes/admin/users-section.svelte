@@ -229,6 +229,10 @@
 		}
 	}
 
+	async function submitUserRecord(record: UserRecord, role?: UserRole): Promise<void> {
+		await saveUserRecord(record, role);
+	}
+
 	async function saveUserNote(record: UserRecord, note: string): Promise<boolean> {
 		record.note = note.trim();
 		return saveUserRecord(record);
@@ -425,7 +429,7 @@
 				bind:userRecords
 				onRemoveUser={removeEmail}
 				onResetPassword={resetPassword}
-				onSaveUser={saveUserRecord}
+				onSaveUser={submitUserRecord}
 				onSaveNote={saveUserNote}
 			/>
 		{/if}

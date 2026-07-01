@@ -9,55 +9,21 @@
 		CalendarAccountStatusResponse,
 		CalendarSyncResponse
 	} from './calendar-layout-types';
+	import type { CalendarGoogleAccountText, CalendarLocaleText } from './text';
 
-	type CalendarSyncSheetText = {
-		accountStatusLoading: string;
-		accountStatusLoadFailed: string;
-		googleCalendarDisconnected: string;
-		googleCalendarConnected: string;
-		googleCalendarConnectedTemplate: string;
-		googleCalendarReauthRequired: string;
-		googleCalendarConnectAction: string;
-		googleCalendarReconnectAction: string;
-		googleCalendarReconnectHint: string;
-		googleCalendarReadyHint: string;
-		googleCalendarUnavailableHint: string;
-		googleOAuthClientUploadTitle: string;
-		googleOAuthClientUploadHint: string;
-		googleOAuthClientUploadAction: string;
-		googleOAuthClientUploading: string;
-		googleOAuthClientFileLabel: string;
-		googleOAuthClientChooseFile: string;
-		googleOAuthClientReplaceTitle: string;
-		googleOAuthClientReplaceHint: string;
-		googleOAuthClientGuide: {
-			title: string;
-			intro: string;
-			checklistTitle: string;
-			checks: string[];
-			stepsTitle: string;
-			steps: Array<{
-				title: string;
-				body: string;
-				action?: {
-					label: string;
-					url: string;
-				};
-			}>;
-			redirectURI: string;
-			javascriptOrigin: string;
-		};
-		saveError: string;
-		syncTitle: string;
-		syncDescription: string;
-		externalCalendarAccount: string;
-		subscriptionReady: string;
-		caldav: string;
-		username: string;
-		password: string;
-		ics: string;
-		rotate: string;
-	};
+	type CalendarSyncSheetText = CalendarGoogleAccountText &
+		Pick<
+			CalendarLocaleText,
+			| 'saveError'
+			| 'syncTitle'
+			| 'syncDescription'
+			| 'subscriptionReady'
+			| 'caldav'
+			| 'username'
+			| 'password'
+			| 'ics'
+			| 'rotate'
+		>;
 
 	let {
 		isOpen = $bindable(false),

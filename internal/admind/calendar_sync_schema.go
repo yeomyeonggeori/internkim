@@ -54,6 +54,12 @@ CREATE TABLE IF NOT EXISTS calendar_remote_accounts (
 	home_set_url TEXT NOT NULL DEFAULT '',
 	default_calendar_url TEXT NOT NULL DEFAULT '',
 	default_calendar_ctag TEXT NOT NULL DEFAULT '',
+	selected_calendar_id TEXT NOT NULL DEFAULT '',
+	selected_calendar_summary TEXT NOT NULL DEFAULT '',
+	selected_calendar_access_role TEXT NOT NULL DEFAULT '',
+	selected_calendar_url TEXT NOT NULL DEFAULT '',
+	selected_calendar_selected_at TEXT NOT NULL DEFAULT '',
+	initial_sync_completed_at TEXT NOT NULL DEFAULT '',
 	token_file_path TEXT NOT NULL DEFAULT '',
 	last_auth_error TEXT NOT NULL DEFAULT '',
 	last_auth_error_at TEXT NOT NULL DEFAULT '',
@@ -74,6 +80,24 @@ CREATE TABLE IF NOT EXISTS calendar_remote_accounts (
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "default_calendar_ctag", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "selected_calendar_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "selected_calendar_summary", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "selected_calendar_access_role", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "selected_calendar_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "selected_calendar_selected_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "initial_sync_completed_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "token_file_path", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
