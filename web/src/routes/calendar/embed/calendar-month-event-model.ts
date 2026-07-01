@@ -1,5 +1,10 @@
 import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
+import {
+	calendarEventDisplayOrderCandidate,
+	calendarEventLocalSortMetadataKey,
+	compareCalendarEventDisplayOrderCandidates
+} from './calendar-event-display-order';
 import { dateFromDateKey } from './calendar-month-selection';
 
 export type MonthEventWeek = {
@@ -31,7 +36,6 @@ type MonthEventLane = {
 };
 
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
-const localSortMetadataKey = 'localSortAt';
 
 export function monthEventSegments(events: DayFlowEvent[], weeks: MonthEventWeek[]): MonthEventSegment[] {
 	return weeks.flatMap((week) => segmentsForWeek(events, week));
@@ -54,7 +58,7 @@ export function moveMonthEventToDate(event: DayFlowEvent, targetDateKey: string,
 		calendarId: event.calendarId ?? 'internkim',
 		meta: {
 			...(event.meta ?? {}),
-			[localSortMetadataKey]: movedAtISO,
+			[calendarEventLocalSortMetadataKey]: movedAtISO,
 			updatedAt: movedAtISO
 		}
 	});
@@ -87,25 +91,16 @@ function segmentForEventAndWeek(event: DayFlowEvent, week: MonthEventWeek, event
 	const weekStartDateKey = week.dateKeys[0];
 	const weekEndDateKey = week.dateKeys[week.dateKeys.length - 1];
 	if (!weekStartDateKey || !weekEndDateKey) return [];
-	const eventStartDateKey = dateKey(localDayStart(eventStartDate(event)));
-	const eventEndDateKey = dateKey(displayEndDate(event));
-	if (eventEndDateKey < weekStartDateKey || eventStartDateKey > weekEndDateKey) return [];
-	const startDateKey = eventStartDateKey < weekStartDateKey ? weekStartDateKey : eventStartDateKey;
-	const endDateKey = eventEndDateKey > weekEndDateKey ? weekEndDateKey : eventEndDateKey;
+	const displayOrder = calendarEventDisplayOrderCandidate(event, eventIndex, weekStartDateKey, weekEndDateKey);
+	if (!displayOrder) return [];
 	return [
 		{
 			id: `${event.id}::month-segment::${week.id}`,
-			eventID: event.id,
 			weekID: week.id,
-			startDateKey,
-			endDateKey,
+			...displayOrder,
 			titleText: titleText(event),
 			titleOnlyText: titleOnlyText(event),
-			startTimeText: event.allDay ? '' : formatMonthEventTime(eventStartDate(event)),
-			isAllDay: event.allDay ?? false,
-			durationDays: inclusiveDurationDays(startDateKey, endDateKey),
-			sortTimestamp: eventSortTimestamp(event),
-			eventIndex
+			startTimeText: event.allDay ? '' : formatMonthEventTime(eventStartDate(event))
 		}
 	];
 }
@@ -117,41 +112,7 @@ function availableLane(lanes: MonthEventLane[], segment: MonthEventSegmentCandid
 }
 
 function compareMonthEventSegmentCandidates(firstSegment: MonthEventSegmentCandidate, secondSegment: MonthEventSegmentCandidate): number {
-	if (!areOverlappingMonthSegments(firstSegment, secondSegment)) {
-		const startComparison = firstSegment.startDateKey.localeCompare(secondSegment.startDateKey);
-		if (startComparison !== 0) return startComparison;
-	}
-	const durationComparison = secondSegment.durationDays - firstSegment.durationDays;
-	if (durationComparison !== 0) return durationComparison;
-	const timestampComparison = secondSegment.sortTimestamp - firstSegment.sortTimestamp;
-	if (timestampComparison !== 0) return timestampComparison;
-	const endComparison = secondSegment.endDateKey.localeCompare(firstSegment.endDateKey);
-	if (endComparison !== 0) return endComparison;
-	const allDayComparison = Number(secondSegment.isAllDay) - Number(firstSegment.isAllDay);
-	if (allDayComparison !== 0) return allDayComparison;
-	const insertionComparison = secondSegment.eventIndex - firstSegment.eventIndex;
-	if (insertionComparison !== 0) return insertionComparison;
-	return firstSegment.eventID.localeCompare(secondSegment.eventID);
-}
-
-function areOverlappingMonthSegments(firstSegment: MonthEventSegmentCandidate, secondSegment: MonthEventSegmentCandidate): boolean {
-	return firstSegment.startDateKey <= secondSegment.endDateKey && secondSegment.startDateKey <= firstSegment.endDateKey;
-}
-
-function inclusiveDurationDays(startDateKey: string, endDateKey: string): number {
-	const startDate = dateFromDateKey(startDateKey);
-	const endDate = dateFromDateKey(endDateKey);
-	return Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / millisecondsPerDay) + 1);
-}
-
-function eventSortTimestamp(event: DayFlowEvent): number {
-	return Math.max(metadataTimestamp(event.meta?.[localSortMetadataKey]), metadataTimestamp(event.meta?.updatedAt));
-}
-
-function metadataTimestamp(value: unknown): number {
-	if (typeof value !== 'string') return Number.NEGATIVE_INFINITY;
-	const timestamp = Date.parse(value);
-	return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+	return compareCalendarEventDisplayOrderCandidates(firstSegment, secondSegment);
 }
 
 function titleText(event: DayFlowEvent): string {
@@ -168,16 +129,6 @@ function titleOnlyText(event: DayFlowEvent): string {
 	return formatMonthEventTime(eventStartDate(event));
 }
 
-function displayEndDate(event: DayFlowEvent): Date {
-	const startDate = eventStartDate(event);
-	const endDate = eventEndDate(event);
-	if (event.allDay) return localDayStart(endDate);
-	if (!isLocalMidnight(endDate) || endDate.getTime() <= startDate.getTime()) return localDayStart(endDate);
-	const displayDate = localDayStart(endDate);
-	displayDate.setDate(displayDate.getDate() - 1);
-	return displayDate;
-}
-
 function shiftedDate(date: Date, dayDelta: number): Date {
 	const shifted = new Date(date);
 	shifted.setDate(shifted.getDate() + dayDelta);
@@ -186,14 +137,6 @@ function shiftedDate(date: Date, dayDelta: number): Date {
 
 function localDayStart(date: Date): Date {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function isLocalMidnight(date: Date): boolean {
-	return date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
-}
-
-function dateKey(date: Date): string {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function formatMonthEventTime(date: Date): string {

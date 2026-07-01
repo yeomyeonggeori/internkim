@@ -5,7 +5,6 @@ import { fetchCalendarEvents } from './calendar-event-persistence';
 type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
 	errorFallback: () => string;
-	isWorkCalendarVisible: () => boolean;
 	getCalendarEvents: () => DayFlowEvent[];
 	applyCalendarEventsChanges: (changes: { delete: string[]; add: DayFlowEvent[] }) => void;
 	triggerCalendarRender: () => void;
@@ -46,7 +45,7 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
 			context.setVisibleEvents(events);
 			context.setEventCount(events.length);
-			replaceCalendarEvents(context.isWorkCalendarVisible() ? events : [], startDate);
+			replaceCalendarEvents(events, startDate);
 			context.afterRenderEvents?.(events);
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
@@ -64,7 +63,7 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 
 	function renderVisibleEvents(events: DayFlowEvent[]): void {
 		if (!visibleRange) return;
-		replaceCalendarEvents(context.isWorkCalendarVisible() ? events : [], visibleRange.startDate);
+		replaceCalendarEvents(events, visibleRange.startDate);
 	}
 
 	function replaceCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date): void {

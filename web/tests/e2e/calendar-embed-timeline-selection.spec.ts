@@ -4,6 +4,7 @@ import {
 	expectCalendarEventSelectedBlue,
 	expectCalendarEventSelectedOnPointerDown,
 	expectCalendarEventTitleAndTime,
+	expectRightPanelEventContentCentered,
 	expectRightPanelEventCardsShareBlockStyle
 } from './calendar-embed-interaction-assertions';
 import { openCalendarEmbed } from './calendar-embed-interaction-helpers';
@@ -36,6 +37,8 @@ test.describe('embedded calendar timeline selection and card style', () => {
 		}
 
 		await expectRightPanelEventCardsShareBlockStyle(page, selectors);
+		await expectRightPanelEventContentCentered(page, selectors[0]);
+		await expectRightPanelEventContentCentered(page, selectors[3]);
 	});
 
 	test('selects the matching right panel all-day card from the all-day row', async ({ page }) => {

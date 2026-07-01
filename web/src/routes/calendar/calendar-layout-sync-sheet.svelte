@@ -85,6 +85,10 @@
 		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
 	} = $props();
 
+	function canManageGoogleOAuth(): boolean {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		return accountStatus?.canManageGoogleOAuth === true;
+	}
 </script>
 
 <Sheet.Root bind:open={isOpen}>
@@ -99,14 +103,16 @@
 				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{syncError}</p>
 			{/if}
 
-			<CalendarLayoutGoogleAccountCard
-				{text}
-				{accountStatus}
-				{accountStatusError}
-				{isLoadingAccountStatus}
-				{isUploadingGoogleOAuthClient}
-				{uploadGoogleOAuthClient}
-			/>
+			{#if canManageGoogleOAuth()}
+				<CalendarLayoutGoogleAccountCard
+					{text}
+					{accountStatus}
+					{accountStatusError}
+					{isLoadingAccountStatus}
+					{isUploadingGoogleOAuthClient}
+					{uploadGoogleOAuthClient}
+				/>
+			{/if}
 
 			<div class="space-y-3">
 				<p class="text-xs font-medium text-muted-foreground">{text.subscriptionReady}</p>
