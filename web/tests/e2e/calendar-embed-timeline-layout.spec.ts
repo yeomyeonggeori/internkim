@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import {
 	expectAllDayLabelAlignedWithTimeLabels,
@@ -226,4 +226,82 @@ test.describe('embedded calendar timeline layout', () => {
 		await navigateEmbeddedCalendar(page, '2026-06-17');
 		await expectWeekAllDayEventsCompactAndLabelCentered(page);
 	});
+
+	test('orders day and week all-day rows by the month event display order', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'all-day-order-1',
+				title: '1',
+				startISO: '2026-06-08T00:00:00+09:00',
+				endISO: '2026-06-09T00:00:00+09:00',
+				isAllDay: true,
+				updatedAt: '2026-06-01T00:00:00.000Z'
+			},
+			{
+				id: 'all-day-order-2',
+				title: '2',
+				startISO: '2026-06-08T00:00:00+09:00',
+				endISO: '2026-06-09T00:00:00+09:00',
+				isAllDay: true,
+				updatedAt: '2026-06-01T00:00:00.000Z'
+			},
+			{
+				id: 'all-day-order-3',
+				title: '3',
+				startISO: '2026-06-08T00:00:00+09:00',
+				endISO: '2026-06-09T00:00:00+09:00',
+				isAllDay: true,
+				updatedAt: '2026-06-01T00:00:00.000Z'
+			},
+			{
+				id: 'all-day-order-4',
+				title: '4',
+				startISO: '2026-06-08T00:00:00+09:00',
+				endISO: '2026-06-12T00:00:00+09:00',
+				isAllDay: true,
+				updatedAt: '2026-06-02T00:00:00.000Z'
+			}
+		]);
+
+		await openCalendarEmbed(page, '주');
+		await expectAllDayVisualOrder(page, '.df-week-all-day-event-layer', [
+			'all-day-order-4',
+			'all-day-order-3',
+			'all-day-order-2',
+			'all-day-order-1'
+		]);
+
+		await openCalendarEmbed(page, '일');
+		await expectAllDayVisualOrder(page, '.df-day-content-all-day-lane', [
+			'all-day-order-4',
+			'all-day-order-3',
+			'all-day-order-2',
+			'all-day-order-1'
+		]);
+	});
 });
+
+async function expectAllDayVisualOrder(page: Page, selector: string, eventIDs: string[]): Promise<void> {
+	await expect
+		.poll(async () =>
+			page.evaluate(
+				({ rootSelector, expectedEventIDs }) =>
+					expectedEventIDs
+						.map((eventID) => {
+							const element = document.querySelector<HTMLElement>(`${rootSelector} [data-event-id="${eventID}"]`);
+							if (!element) return null;
+							const rectangle = element.getBoundingClientRect();
+							return {
+								eventID,
+								top: Math.round(rectangle.top),
+								left: Math.round(rectangle.left)
+							};
+						})
+						.filter((measurement): measurement is { eventID: string; top: number; left: number } => Boolean(measurement))
+						.sort((firstMeasurement, secondMeasurement) => firstMeasurement.top - secondMeasurement.top || firstMeasurement.left - secondMeasurement.left)
+						.map((measurement) => measurement.eventID),
+				{ rootSelector: selector, expectedEventIDs: eventIDs }
+			)
+		)
+		.toEqual(eventIDs);
+}

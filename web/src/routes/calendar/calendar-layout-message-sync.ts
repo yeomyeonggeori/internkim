@@ -1,45 +1,28 @@
-import { calendarDateFromKey, calendarDateKey } from './calendar-layout-date';
+import { calendarDateFromKey } from './calendar-layout-date';
 import {
 	isCalendarEventsChangedMessage,
-	isCalendarViewMessage,
-	isCalendarViewValue,
-	isCalendarVisibleDateMessage,
-	type CalendarViewValue
+	isCalendarOpenSettingsMessage,
+	isCalendarRefreshMessage,
+	isCalendarVisibleDateMessage
 } from './calendar-navigation-message';
-import { calendarDateStorageKey, calendarViewStorageKey } from './calendar-storage-keys';
-import { calendarChannelName } from './refresh-signal.svelte';
-
-const calendarWorkVisibilityStorageKey = 'internkim.calendar.workVisible';
+import { calendarDateStorageKey } from './calendar-storage-keys';
 
 export type CalendarLayoutStoredState = {
 	visibleDate: Date | null;
-	view: CalendarViewValue | null;
-	isWorkVisible: boolean | null;
 };
 
 export type CalendarLayoutMessageSyncOptions = {
 	selectedDateKey: () => string;
 	applyVisibleDate: (date: Date) => void;
-	applyCalendarView: (view: CalendarViewValue) => void;
-	reloadMiniMonthEvents: () => void;
+	openSettings: () => void;
+	refreshCalendar: () => void;
 };
 
 export function loadCalendarLayoutStoredState(): CalendarLayoutStoredState {
 	const visibleDate = storedVisibleDate();
-	const view = storedCalendarView();
-	const storedVisibility = window.localStorage.getItem(calendarWorkVisibilityStorageKey);
 	return {
-		visibleDate,
-		view,
-		isWorkVisible: storedVisibility === null ? null : storedVisibility === 'true'
+		visibleDate
 	};
-}
-
-export function saveAndBroadcastCalendarWorkVisibility(isVisible: boolean): void {
-	window.localStorage.setItem(calendarWorkVisibilityStorageKey, String(isVisible));
-	const channel = new BroadcastChannel(calendarChannelName);
-	channel.postMessage({ type: 'calendar-visibility', work: isVisible });
-	channel.close();
 }
 
 export function installCalendarLayoutMessageSync(options: CalendarLayoutMessageSyncOptions): () => void {
@@ -53,21 +36,21 @@ export function installCalendarLayoutMessageSync(options: CalendarLayoutMessageS
 			options.applyVisibleDate(visibleDate);
 			return;
 		}
-		if (isCalendarViewMessage(message)) {
-			window.localStorage.setItem(calendarViewStorageKey, message.view);
-			options.applyCalendarView(message.view);
+		if (isCalendarOpenSettingsMessage(message)) {
+			options.openSettings();
 			return;
 		}
-		if (isCalendarEventsChangedMessage(message)) options.reloadMiniMonthEvents();
+		if (isCalendarRefreshMessage(message)) {
+			options.refreshCalendar();
+			return;
+		}
+		if (isCalendarEventsChangedMessage(message)) return;
 	};
 
 	const handleCalendarStorageChange = (event: StorageEvent) => {
 		if (event.key === calendarDateStorageKey && event.newValue) {
 			const visibleDate = new Date(event.newValue);
 			if (!Number.isNaN(visibleDate.getTime())) options.applyVisibleDate(visibleDate);
-		}
-		if (event.key === calendarViewStorageKey && event.newValue && isCalendarViewValue(event.newValue)) {
-			options.applyCalendarView(event.newValue);
 		}
 	};
 
@@ -84,14 +67,4 @@ function storedVisibleDate(): Date | null {
 	if (!savedVisibleDate) return null;
 	const visibleDate = new Date(savedVisibleDate);
 	return Number.isNaN(visibleDate.getTime()) ? null : visibleDate;
-}
-
-function storedCalendarView(): CalendarViewValue | null {
-	const savedCalendarView = window.localStorage.getItem(calendarViewStorageKey);
-	if (!savedCalendarView || !isCalendarViewValue(savedCalendarView)) return null;
-	return savedCalendarView;
-}
-
-export function initialSelectedDateKey(today: Date, visibleDate: Date | null): string {
-	return calendarDateKey(visibleDate ?? today);
 }

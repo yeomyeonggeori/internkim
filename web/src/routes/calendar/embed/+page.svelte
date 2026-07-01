@@ -26,7 +26,9 @@
 		visibleEventsWithPreservedLocalEvents
 	} from './calendar-visible-events';
 	import {
-		broadcastCalendarVisibleDate
+		broadcastCalendarVisibleDate,
+		requestCalendarRefresh,
+		requestCalendarSettingsOpen
 	} from '../refresh-signal.svelte';
 	import { createCalendarPageController } from './calendar-page-controller.svelte';
 	import { installCalendarPageEffects } from './calendar-page-effects.svelte';
@@ -82,13 +84,11 @@
 	} = controller;
 
 	const stageEvents = $derived(
-		state.calendarWorkVisible
-			? visibleEventsWithPreservedLocalEvents(
-					state.visibleEvents,
-					calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
-					(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
-				)
-			: []
+		visibleEventsWithPreservedLocalEvents(
+			state.visibleEvents,
+			calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
+			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
+		)
 	);
 
 	const selectedAuditEvent = $derived(
@@ -160,9 +160,6 @@
 			setToolbarView: (view) => {
 				state.toolbarView = view;
 			},
-			setWorkCalendarVisible: (isVisible) => {
-				state.calendarWorkVisible = isVisible;
-			},
 			syncCalendarThemeToDocument: () => syncCalendarThemeToDocument(calendar.app),
 			text
 		});
@@ -197,6 +194,14 @@
 		draftPopoverActions.createQuickDraftPopover(event);
 	}
 
+	function openCalendarSettings(): void {
+		requestCalendarSettingsOpen();
+	}
+
+	function refreshParentCalendar(): void {
+		requestCalendarRefresh();
+	}
+
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
 			state.participantCandidates = await fetchCalendarParticipants(text.error);
@@ -220,12 +225,13 @@
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
-	goToToday={pageNavigation.goToToday}
 	goToPrevious={pageNavigation.goToPrevious}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
 	navigateToSearchResult={pageNavigation.navigateToSearchResult}
 	{createQuickEvent}
+	openSettings={openCalendarSettings}
+	refreshCalendar={refreshParentCalendar}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
 	{localeCode}

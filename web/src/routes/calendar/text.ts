@@ -5,9 +5,6 @@ export type CalendarLocaleText = {
 	title: string;
 	subtitle: string;
 	work: string;
-	myCalendars: string;
-	moreOptions: string;
-	calendarVisibility: string;
 	previousMonth: string;
 	nextMonth: string;
 	pickMonthAndYear: string;
@@ -40,6 +37,7 @@ export type CalendarLocaleText = {
 	googleOAuthClientReplaceHint: string;
 	googleOAuthClientGuide: CalendarGoogleOAuthClientGuideText;
 	shared: string;
+	settings: string;
 	refresh: string;
 	syncTitle: string;
 	syncDescription: string;
@@ -118,9 +116,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: '일정',
 		subtitle: '팀 일정과 외부 일정 연동을 한 화면에서 다룹니다.',
 		work: '팀 일정',
-		myCalendars: '내 일정',
-		moreOptions: '일정 옵션 더보기',
-		calendarVisibility: '표시 여부',
 		previousMonth: '이전 달',
 		nextMonth: '다음 달',
 		pickMonthAndYear: '월과 연도 선택',
@@ -130,18 +125,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		nextTwelveYears: '다음 12년',
 		subscriptionSettings: '구독 설정',
 		subscriptionReady: 'CalDAV/ICS 구독 URL 준비됨',
-		externalCalendarAccount: '외부 캘린더 계정',
+		externalCalendarAccount: '연결된 Google 캘린더',
 		accountStatusLoading: '연결 상태 확인 중',
 		accountStatusLoadFailed: '연결 상태 확인 실패',
-		googleCalendarDisconnected: 'Google Calendar 미연결',
-		googleCalendarConnected: 'Google Calendar 연결됨',
-		googleCalendarConnectedTemplate: 'Google Calendar 연결됨: {email}',
-		googleCalendarReauthRequired: 'Google Calendar 재인증 필요',
-		googleCalendarConnectAction: 'Google Calendar 연결',
-		googleCalendarReconnectAction: 'Google Calendar 다시 연결',
-		googleCalendarReconnectHint: '외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.',
-		googleCalendarReadyHint: 'Google Calendar를 연결하세요.',
-		googleCalendarUnavailableHint: 'Google Calendar 연동은 아직 준비되지 않았습니다.\n사용이 필요하면 관리자에게 문의하세요.',
+		googleCalendarDisconnected: '미연결',
+		googleCalendarConnected: '연결됨',
+		googleCalendarConnectedTemplate: '연결됨: {email}',
+		googleCalendarReauthRequired: '재연결 필요',
+		googleCalendarConnectAction: '연결',
+		googleCalendarReconnectAction: '다시 연결',
+		googleCalendarReconnectHint: 'Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.',
+		googleCalendarReadyHint: 'Google 캘린더를 연결하세요.',
+		googleCalendarUnavailableHint: 'Google 캘린더 연동은 아직 준비되지 않았습니다.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: '여기에 client.json을 드롭하거나 파일을 선택하세요.',
 		googleOAuthClientUploadAction: '업로드',
@@ -153,9 +148,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleOAuthClientReplaceHint: '잘못된 프로젝트나 리디렉션 URI로 만든 파일을 올렸다면 새 client.json으로 교체하세요.',
 		googleOAuthClientGuide: googleOAuthClientGuideText.ko,
 		shared: '공유',
+		settings: '설정',
 		refresh: '새로고침',
-		syncTitle: '연동',
-		syncDescription: 'CalDAV/ICS 구독 URL과 외부 캘린더 계정 상태를 확인합니다.',
+		syncTitle: '설정',
+		syncDescription: 'CalDAV/ICS 구독 URL을 확인합니다.',
 		caldav: 'CalDAV',
 		username: '사용자 이름',
 		password: '비밀번호',
@@ -241,9 +237,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: 'Calendar',
 		subtitle: 'Team schedule and external calendar sync in one place.',
 		work: 'Work',
-		myCalendars: 'My calendars',
-		moreOptions: 'More calendar options',
-		calendarVisibility: 'calendar visibility',
 		previousMonth: 'Previous month',
 		nextMonth: 'Next month',
 		pickMonthAndYear: 'Pick month and year',
@@ -253,18 +246,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		nextTwelveYears: 'Next 12 years',
 		subscriptionSettings: 'Subscription settings',
 		subscriptionReady: 'CalDAV/ICS subscription ready',
-		externalCalendarAccount: 'External calendar account',
+		externalCalendarAccount: 'Connected Google Calendar',
 		accountStatusLoading: 'Checking connection status',
 		accountStatusLoadFailed: 'Could not check connection status',
-		googleCalendarDisconnected: 'Google Calendar not connected',
-		googleCalendarConnected: 'Google Calendar connected',
-		googleCalendarConnectedTemplate: 'Google Calendar connected: {email}',
-		googleCalendarReauthRequired: 'Google Calendar needs reauthorization',
-		googleCalendarConnectAction: 'Connect Google Calendar',
-		googleCalendarReconnectAction: 'Reconnect Google Calendar',
-		googleCalendarReconnectHint: 'Reconnect the account to resume remote calendar sync.',
-		googleCalendarReadyHint: 'Connect Google Calendar to start remote calendar sync.',
-		googleCalendarUnavailableHint: 'Google Calendar integration is not ready yet.\nContact an administrator if you need access.',
+		googleCalendarDisconnected: 'Not connected',
+		googleCalendarConnected: 'Connected',
+		googleCalendarConnectedTemplate: 'Connected: {email}',
+		googleCalendarReauthRequired: 'Reconnect required',
+		googleCalendarConnectAction: 'Connect',
+		googleCalendarReconnectAction: 'Reconnect',
+		googleCalendarReconnectHint: 'Reconnect the account to resume Google Calendar sync.',
+		googleCalendarReadyHint: 'Connect Google Calendar.',
+		googleCalendarUnavailableHint: 'Google Calendar sync is not ready yet.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: 'Drop client.json here or choose the file.',
 		googleOAuthClientUploadAction: 'Upload',
@@ -276,9 +269,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleOAuthClientReplaceHint: 'If the uploaded file came from the wrong project or redirect URI, replace it with a new client.json.',
 		googleOAuthClientGuide: googleOAuthClientGuideText.en,
 		shared: 'Shared',
+		settings: 'Settings',
 		refresh: 'Refresh',
-		syncTitle: 'Sync',
-		syncDescription: 'Review CalDAV/ICS subscription URLs and external calendar account status.',
+		syncTitle: 'Settings',
+		syncDescription: 'Review CalDAV/ICS subscription URLs.',
 		caldav: 'CalDAV',
 		username: 'Username',
 		password: 'Password',
