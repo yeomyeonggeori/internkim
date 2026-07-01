@@ -37,6 +37,9 @@ func (service *Service) withBlueclawCircles(ctx context.Context, responseBody []
 		usersResponse.Records[index].Circles = normalizeAdminUserCircles(circlesByEmail[email], usersResponse.Records[index].Role)
 		profile := profilesByEmail[email]
 		usersResponse.Records[index].UserID = firstNonEmpty(profile.PersonID, usersResponse.Records[index].UserID)
+		if profile.Note != "" {
+			usersResponse.Records[index].Note = profile.Note
+		}
 		usersResponse.Records[index].JobTitle = profile.JobTitle
 		usersResponse.Records[index].Group = profile.Group
 		usersResponse.Records[index].SupervisorID = profile.SupervisorID
@@ -91,6 +94,7 @@ func blueclawCirclesByEmail(policyDocument map[string]any) map[string][]string {
 
 type blueclawPersonProfile struct {
 	PersonID     string
+	Note         string
 	JobTitle     string
 	Group        string
 	SupervisorID string
@@ -124,6 +128,7 @@ func blueclawProfilesByEmail(policyDocument map[string]any) map[string]blueclawP
 		}
 		profile := blueclawPersonProfile{
 			PersonID:     strings.TrimSpace(mattermostPolicyString(person["personID"])),
+			Note:         strings.TrimSpace(mattermostPolicyString(person["note"])),
 			JobTitle:     strings.TrimSpace(mattermostPolicyString(person["jobTitle"])),
 			Group:        strings.TrimSpace(mattermostPolicyString(person["group"])),
 			SupervisorID: strings.TrimSpace(mattermostPolicyString(person["supervisorID"])),
