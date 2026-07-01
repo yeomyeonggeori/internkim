@@ -1,6 +1,6 @@
 import type { adminText } from './text';
 
-export type UserRole = 'admin' | 'member';
+export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 export type OrgchartEmploymentStatus = 'active' | 'leave' | 'resigned';
 export type WorkspaceLanguage = 'ko' | 'en';
 export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'orgchart' | 'settings' | 'network';
@@ -54,6 +54,7 @@ export type AdminSession = {
 	email: string;
 	claimedAdminEmail: string;
 	isAdmin: boolean;
+	role?: UserRole;
 	isClaimed: boolean;
 	bootstrapStatus: string;
 	bootstrapError?: string;

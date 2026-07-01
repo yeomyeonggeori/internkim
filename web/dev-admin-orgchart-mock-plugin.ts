@@ -8,14 +8,16 @@ import {
 	createDevAdminOrgchartMockState,
 	shouldHandleDevAdminOrgchartMockRequest
 } from './dev-admin-orgchart-state';
+import type { DevAdminMockUserRole } from './dev-admin-mock';
 
 type DevAdminOrgchartMockPluginOptions = {
 	isEnabled: boolean;
 	userEmail: string;
+	userRole?: DevAdminMockUserRole;
 };
 
 export function devAdminOrgchartMockPlugin(options: DevAdminOrgchartMockPluginOptions): Plugin {
-	const state = createDevAdminOrgchartMockState(options.userEmail);
+	const state = createDevAdminOrgchartMockState(options.userEmail, options.userRole);
 
 	return {
 		name: 'internkim-dev-admin-orgchart-mock',

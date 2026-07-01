@@ -1,4 +1,5 @@
 import type { OrgGroup, UserRecord } from './src/routes/admin/admin-types';
+import type { DevAdminMockUserRole } from './dev-admin-mock';
 
 export function createDevAdminOrgchartGroups(): OrgGroup[] {
 	return [
@@ -8,7 +9,7 @@ export function createDevAdminOrgchartGroups(): OrgGroup[] {
 	];
 }
 
-export function createDevAdminOrgchartUsers(userEmail: string): UserRecord[] {
+export function createDevAdminOrgchartUsers(userEmail: string, userRole: DevAdminMockUserRole = 'admin'): UserRecord[] {
 	return [
 		{
 			userID: 'dev-user-ada',
@@ -16,7 +17,7 @@ export function createDevAdminOrgchartUsers(userEmail: string): UserRecord[] {
 			name: '김인턴',
 			email: userEmail,
 			hireDate: '2026-01-03',
-			role: 'admin',
+			role: userRole,
 			jobTitle: 'Founder',
 			group: 'group-leadership',
 			primaryGroupID: 'group-leadership',
