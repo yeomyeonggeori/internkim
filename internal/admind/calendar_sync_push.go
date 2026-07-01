@@ -24,7 +24,10 @@ func (service *Service) pushPendingCalendarOutboxForProvider(ctx context.Context
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if !found || strings.TrimSpace(account.DefaultCalendarURL) == "" {
+	if !found || selectedRemoteCalendarTarget(account).CalendarURL == "" {
+		return nil, nil
+	}
+	if !remoteCalendarAccountCanWrite(account) {
 		return nil, nil
 	}
 	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
@@ -66,9 +69,19 @@ func (service *Service) pushCalendarOutboxForAccount(ctx context.Context, accoun
 
 func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, rows []calendarOutboxRow) (map[string]struct{}, error) {
 	pushedUIDs := map[string]struct{}{}
+	if !remoteCalendarAccountCanWrite(account) {
+		return pushedUIDs, nil
+	}
+	target := activeRemoteCalendarTarget(account)
 	hasAuthError := false
 	hasSuccessfulRemoteOperation := false
 	for _, row := range rows {
+		if !calendarOutboxPutTargetsRemoteTarget(row, target) {
+			if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
+				log.Printf("outbox retarget cleanup %d: %v", row.ID, errorValue)
+			}
+			continue
+		}
 		if row.AttemptCount >= calendarOutboxMaxAttempts {
 			log.Printf("calendar outbox row %d (event %s) dropped after %d attempts: %s",
 				row.ID, row.EventUID, row.AttemptCount, row.LastError)
@@ -181,7 +194,7 @@ func resolveCalendarPushTarget(account remoteCalendarAccount, row calendarOutbox
 	ifMatch := row.IfMatchETag
 	ifNoneMatch := ""
 	if strings.TrimSpace(objectPath) == "" {
-		objectPath = strings.TrimRight(account.DefaultCalendarURL, "/") + "/" + event.UID + ".ics"
+		objectPath = strings.TrimRight(activeRemoteCalendarTarget(account).CalendarURL, "/") + "/" + event.UID + ".ics"
 		ifNoneMatch = caldavWildcardETag
 		ifMatch = ""
 	}

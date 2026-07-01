@@ -21,6 +21,11 @@ export type CalendarLocaleText = {
 	googleCalendarConnected: string;
 	googleCalendarConnectedTemplate: string;
 	googleCalendarReauthRequired: string;
+	googleCalendarSelectedCalendarTemplate: string;
+	googleCalendarSelectionRequired: string;
+	googleCalendarWritePermissionRequired: string;
+	googleCalendarInitialSyncPending: string;
+	googleCalendarSyncReady: string;
 	googleCalendarConnectAction: string;
 	googleCalendarReconnectAction: string;
 	googleCalendarReconnectHint: string;
@@ -110,6 +115,36 @@ export type CalendarLocaleText = {
 	conflictField: Record<string, string>;
 };
 
+export type CalendarGoogleAccountText = Pick<
+	CalendarLocaleText,
+	| 'accountStatusLoading'
+	| 'accountStatusLoadFailed'
+	| 'googleCalendarDisconnected'
+	| 'googleCalendarConnected'
+	| 'googleCalendarConnectedTemplate'
+	| 'googleCalendarReauthRequired'
+	| 'googleCalendarSelectedCalendarTemplate'
+	| 'googleCalendarSelectionRequired'
+	| 'googleCalendarWritePermissionRequired'
+	| 'googleCalendarInitialSyncPending'
+	| 'googleCalendarSyncReady'
+	| 'googleCalendarConnectAction'
+	| 'googleCalendarReconnectAction'
+	| 'googleCalendarReconnectHint'
+	| 'googleCalendarReadyHint'
+	| 'googleCalendarUnavailableHint'
+	| 'googleOAuthClientUploadTitle'
+	| 'googleOAuthClientUploadHint'
+	| 'googleOAuthClientUploadAction'
+	| 'googleOAuthClientUploading'
+	| 'googleOAuthClientFileLabel'
+	| 'googleOAuthClientChooseFile'
+	| 'googleOAuthClientReplaceTitle'
+	| 'googleOAuthClientReplaceHint'
+	| 'googleOAuthClientGuide'
+	| 'externalCalendarAccount'
+>;
+
 export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 	ko: {
 		pageTitle: '일정 · 김인턴',
@@ -132,6 +167,11 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnected: '연결됨',
 		googleCalendarConnectedTemplate: '연결됨: {email}',
 		googleCalendarReauthRequired: '재연결 필요',
+		googleCalendarSelectedCalendarTemplate: '사용 중인 캘린더: {calendar}',
+		googleCalendarSelectionRequired: '캘린더 선택 필요',
+		googleCalendarWritePermissionRequired: '쓰기 권한 필요',
+		googleCalendarInitialSyncPending: '초기 동기화 중',
+		googleCalendarSyncReady: '동기화 가능',
 		googleCalendarConnectAction: '연결',
 		googleCalendarReconnectAction: '다시 연결',
 		googleCalendarReconnectHint: 'Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.',
@@ -253,6 +293,11 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnected: 'Connected',
 		googleCalendarConnectedTemplate: 'Connected: {email}',
 		googleCalendarReauthRequired: 'Reconnect required',
+		googleCalendarSelectedCalendarTemplate: 'Using calendar: {calendar}',
+		googleCalendarSelectionRequired: 'Calendar selection required',
+		googleCalendarWritePermissionRequired: 'Write permission required',
+		googleCalendarInitialSyncPending: 'Initial sync pending',
+		googleCalendarSyncReady: 'Ready to sync',
 		googleCalendarConnectAction: 'Connect',
 		googleCalendarReconnectAction: 'Reconnect',
 		googleCalendarReconnectHint: 'Reconnect the account to resume Google Calendar sync.',

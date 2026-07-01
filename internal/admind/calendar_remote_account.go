@@ -10,41 +10,51 @@ import (
 )
 
 type remoteCalendarAccount struct {
-	ID                  string `json:"id"`
-	Provider            string `json:"provider"`
-	AccountEmail        string `json:"accountEmail"`
-	PrincipalURL        string `json:"principalURL"`
-	HomeSetURL          string `json:"homeSetURL"`
-	DefaultCalendarURL  string `json:"defaultCalendarURL"`
-	DefaultCalendarCTag string `json:"defaultCalendarCTag"`
-	TokenFilePath       string `json:"-"`
-	LastAuthError       string `json:"lastAuthError,omitempty"`
-	LastAuthErrorAt     string `json:"lastAuthErrorAt,omitempty"`
-	CreatedAt           string `json:"createdAt"`
-	UpdatedAt           string `json:"updatedAt"`
+	ID                         string `json:"id"`
+	Provider                   string `json:"provider"`
+	AccountEmail               string `json:"accountEmail"`
+	PrincipalURL               string `json:"principalURL"`
+	HomeSetURL                 string `json:"homeSetURL"`
+	DefaultCalendarURL         string `json:"defaultCalendarURL"`
+	DefaultCalendarCTag        string `json:"defaultCalendarCTag"`
+	SelectedCalendarID         string `json:"selectedCalendarID,omitempty"`
+	SelectedCalendarSummary    string `json:"selectedCalendarSummary,omitempty"`
+	SelectedCalendarAccessRole string `json:"selectedCalendarAccessRole,omitempty"`
+	SelectedCalendarURL        string `json:"selectedCalendarURL,omitempty"`
+	SelectedCalendarSelectedAt string `json:"selectedCalendarSelectedAt,omitempty"`
+	InitialSyncCompletedAt     string `json:"initialSyncCompletedAt,omitempty"`
+	TokenFilePath              string `json:"-"`
+	LastAuthError              string `json:"lastAuthError,omitempty"`
+	LastAuthErrorAt            string `json:"lastAuthErrorAt,omitempty"`
+	CreatedAt                  string `json:"createdAt"`
+	UpdatedAt                  string `json:"updatedAt"`
 }
 
 func (service *Service) upsertRemoteCalendarAccount(ctx context.Context, account remoteCalendarAccount) (remoteCalendarAccount, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, errorValue
+	}
+	defer database.Close()
+	return upsertRemoteCalendarAccountWithRunner(ctx, database, account)
+}
+
+func upsertRemoteCalendarAccountWithRunner(ctx context.Context, queryRunner calendarSQLRunner, account remoteCalendarAccount) (remoteCalendarAccount, error) {
 	if strings.TrimSpace(account.ID) == "" {
 		return remoteCalendarAccount{}, errors.New("remote calendar account id is required")
 	}
 	if strings.TrimSpace(account.Provider) == "" {
 		return remoteCalendarAccount{}, errors.New("remote calendar account provider is required")
 	}
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return remoteCalendarAccount{}, errorValue
-	}
-	defer database.Close()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if account.CreatedAt == "" {
 		account.CreatedAt = now
 	}
 	account.UpdatedAt = now
-	_, errorValue = database.ExecContext(ctx, `
+	_, errorValue := queryRunner.ExecContext(ctx, `
 INSERT INTO calendar_remote_accounts (
-	id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, selected_calendar_id, selected_calendar_summary, selected_calendar_access_role, selected_calendar_url, selected_calendar_selected_at, initial_sync_completed_at, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	provider = excluded.provider,
 	account_email = excluded.account_email,
@@ -52,6 +62,12 @@ ON CONFLICT(id) DO UPDATE SET
 	home_set_url = excluded.home_set_url,
 	default_calendar_url = excluded.default_calendar_url,
 	default_calendar_ctag = excluded.default_calendar_ctag,
+	selected_calendar_id = excluded.selected_calendar_id,
+	selected_calendar_summary = excluded.selected_calendar_summary,
+	selected_calendar_access_role = excluded.selected_calendar_access_role,
+	selected_calendar_url = excluded.selected_calendar_url,
+	selected_calendar_selected_at = excluded.selected_calendar_selected_at,
+	initial_sync_completed_at = excluded.initial_sync_completed_at,
 	token_file_path = excluded.token_file_path,
 	last_auth_error = excluded.last_auth_error,
 	last_auth_error_at = excluded.last_auth_error_at,
@@ -63,6 +79,12 @@ ON CONFLICT(id) DO UPDATE SET
 		account.HomeSetURL,
 		account.DefaultCalendarURL,
 		account.DefaultCalendarCTag,
+		account.SelectedCalendarID,
+		account.SelectedCalendarSummary,
+		account.SelectedCalendarAccessRole,
+		account.SelectedCalendarURL,
+		account.SelectedCalendarSelectedAt,
+		account.InitialSyncCompletedAt,
 		account.TokenFilePath,
 		account.LastAuthError,
 		account.LastAuthErrorAt,
@@ -82,7 +104,7 @@ func (service *Service) readRemoteCalendarAccountByProvider(ctx context.Context,
 	}
 	defer database.Close()
 	row := database.QueryRowContext(ctx, `
-SELECT id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
+SELECT id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, selected_calendar_id, selected_calendar_summary, selected_calendar_access_role, selected_calendar_url, selected_calendar_selected_at, initial_sync_completed_at, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
 FROM calendar_remote_accounts
 WHERE provider = ?
 ORDER BY updated_at DESC
@@ -140,6 +162,12 @@ func scanRemoteCalendarAccount(scanner calendarEventScanner) (remoteCalendarAcco
 		&account.HomeSetURL,
 		&account.DefaultCalendarURL,
 		&account.DefaultCalendarCTag,
+		&account.SelectedCalendarID,
+		&account.SelectedCalendarSummary,
+		&account.SelectedCalendarAccessRole,
+		&account.SelectedCalendarURL,
+		&account.SelectedCalendarSelectedAt,
+		&account.InitialSyncCompletedAt,
 		&account.TokenFilePath,
 		&account.LastAuthError,
 		&account.LastAuthErrorAt,
