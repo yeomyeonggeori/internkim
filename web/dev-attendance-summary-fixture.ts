@@ -1,7 +1,7 @@
 import type { AttendanceSummary } from './src/routes/attendance/attendance-context.svelte';
 import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceAbsenceFixtures } from './dev-attendance-absence-fixtures';
-import { devAttendanceLocations, devAttendancePresences } from './dev-attendance-fixture-data';
+import { devAttendanceLocations, devAttendancePeople, devAttendancePresences } from './dev-attendance-fixture-data';
 import { buildAttendanceEventFixtures } from './dev-attendance-work-fixtures';
 
 export function buildAttendanceSummaryFixture(month: string): AttendanceSummary {
@@ -54,6 +54,11 @@ function buildSummary(
 		timeZone: 'Asia/Seoul',
 		events,
 		absences,
+		members: devAttendancePeople.map((person) => ({
+			email: person.email,
+			displayName: person.name,
+			mattermostUsername: person.mattermostUsername,
+		})),
 		todayStatus: '근무 중',
 		locations: devAttendanceLocations,
 		teamViewVisibleToAll: true,

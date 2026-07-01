@@ -2,12 +2,20 @@ import type { Page } from '@playwright/test';
 
 export type CalendarTestLocale = 'ko' | 'en';
 
+export type CalendarTestParticipant = {
+	personID: string;
+	name: string;
+	email?: string;
+	image?: string;
+};
+
 export type CalendarTestEvent = {
 	id: string;
 	title: string;
 	startISO: string;
 	endISO: string;
 	isAllDay: boolean;
+	participants?: CalendarTestParticipant[];
 	updatedAt?: string;
 };
 
@@ -21,6 +29,7 @@ export type CalendarEventUpdatePayload = {
 	timeZone: string;
 	isAllDay: boolean;
 	color: string;
+	participants: CalendarTestParticipant[];
 };
 
 type CalendarTestAccountStatus = {
@@ -47,6 +56,7 @@ export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLo
 		});
 	});
 	await routeCalendarBackgroundAPI(page);
+	await routeCalendarParticipants(page, []);
 	await routeCalendarLocale(page, locale);
 }
 
@@ -80,6 +90,17 @@ export async function routeCalendarLocale(page: Page, locale: CalendarTestLocale
 	});
 }
 
+export async function routeCalendarParticipants(page: Page, participants: CalendarTestParticipant[]): Promise<void> {
+	await page.unroute('**/calendar/api/participants');
+	await page.unroute('**/calendar/api/participants/*/image');
+	await page.route('**/calendar/api/participants', async (route) => {
+		await route.fulfill({ json: { participants } });
+	});
+	await page.route('**/calendar/api/participants/*/image', async (route) => {
+		await route.fulfill({ status: 204, body: '' });
+	});
+}
+
 export async function routeCalendarEvents(page: Page, events: CalendarTestEvent[]): Promise<void> {
 	await page.unroute('**/calendar/api/events?**');
 	await page.route('**/calendar/api/events?**', async (route) => {
@@ -98,6 +119,7 @@ export async function routeCalendarEvents(page: Page, events: CalendarTestEvent[
 					color: '#1677ff',
 					createdByEmail: 'test@example.com',
 					createdByName: 'Test User',
+					participants: event.participants ?? [],
 					updatedAt: event.updatedAt ?? '2026-06-08T00:00:00Z'
 				}))
 			}
@@ -126,6 +148,7 @@ export async function routeCalendarEventUpdates(page: Page): Promise<CalendarEve
 				timeZone: payload.timeZone,
 				isAllDay: payload.isAllDay,
 				color: payload.color,
+				participants: payload.participants,
 				createdByEmail: 'test@example.com',
 				createdByName: 'Test User',
 				updatedAt: '2026-06-08T00:00:00Z'
@@ -156,6 +179,7 @@ export async function routeCalendarEventCreates(page: Page): Promise<CalendarEve
 				timeZone: payload.timeZone,
 				isAllDay: payload.isAllDay,
 				color: payload.color,
+				participants: payload.participants,
 				createdByEmail: 'test@example.com',
 				createdByName: 'Test User',
 				updatedAt: '2026-06-08T00:00:00Z'
@@ -245,12 +269,26 @@ function isCalendarEventUpdatePayload(payload: unknown): payload is CalendarEven
 		typeof payload.endISO === 'string' &&
 		typeof payload.timeZone === 'string' &&
 		typeof payload.isAllDay === 'boolean' &&
-		typeof payload.color === 'string'
+		typeof payload.color === 'string' &&
+		Array.isArray(payload.participants) &&
+		payload.participants.every(isCalendarTestParticipant)
 	);
 }
 
 function isStringRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
+}
+
+function isCalendarTestParticipant(value: unknown): value is CalendarTestParticipant {
+	if (!isStringRecord(value)) return false;
+	const hasValidEmail = value.email === undefined || typeof value.email === 'string';
+	const hasValidImage = value.image === undefined || typeof value.image === 'string';
+	return (
+		typeof value.personID === 'string' &&
+		typeof value.name === 'string' &&
+		hasValidEmail &&
+		hasValidImage
+	);
 }
 
 export async function computedPseudoStyle(

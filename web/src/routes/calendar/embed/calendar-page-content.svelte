@@ -3,6 +3,7 @@
 	import type { useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
+	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
@@ -22,6 +23,7 @@
 		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
+		participantCandidates: CalendarParticipant[];
 		conflicts: CalendarConflict[];
 		createQuickEvent: (event: MouseEvent) => void;
 		currentMonthTitle: string;
@@ -29,7 +31,6 @@
 		dismissConflict: (conflictID: number) => void | Promise<void>;
 		goToNext: () => void;
 		goToPrevious: () => void;
-		goToToday: () => void;
 		isSaving: boolean;
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
@@ -39,8 +40,10 @@
 		navigateToDateKey: (dateKey: string) => void;
 		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
+		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
+		refreshCalendar: () => void;
 		repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
@@ -66,6 +69,7 @@
 		auditEvent,
 		calendar,
 		calendarOptions,
+		participantCandidates,
 		cancelPopover,
 		changeCalendarView,
 		clearSelectedEvent,
@@ -76,7 +80,6 @@
 		dismissConflict,
 		goToNext,
 		goToPrevious,
-		goToToday,
 		isSaving,
 		isMobileTwoDayWeekView,
 		localeCode,
@@ -86,8 +89,10 @@
 		navigateToDateKey,
 		navigateToSearchResult,
 		openEvent,
+		openSettings,
 		popover,
 		refreshConflicts,
+		refreshCalendar,
 		repositionPopover,
 		saveMovedEvent,
 		savePopover,
@@ -115,20 +120,25 @@
 	/>
 	<CalendarToolbar
 		{currentMonthTitle}
+		{toolbarDate}
 		bind:searchText
 		{searchResults}
 		{toolbarView}
+		{localeCode}
 		{changeCalendarView}
-		{goToToday}
 		{goToPrevious}
 		{goToNext}
+		{navigateToDateKey}
 		{navigateToSearchResult}
 		createQuickEvent={createQuickEvent}
+		{openSettings}
+		{refreshCalendar}
 	/>
 	<CalendarStage
 		{calendar}
 		{clearSelectedEvent}
 		events={stageEvents}
+		{participantCandidates}
 		{localeCode}
 		{isMobileTwoDayWeekView}
 		{text}
@@ -155,6 +165,7 @@
 		{popover}
 		{auditEvent}
 		{calendarOptions}
+		{participantCandidates}
 		{isSaving}
 		{localeCode}
 		{text}

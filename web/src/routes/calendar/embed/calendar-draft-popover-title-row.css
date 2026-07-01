@@ -1,7 +1,7 @@
 .calendar-page .draft-popover-title-row {
 	display: grid;
 	flex: 0 0 auto;
-	grid-template-columns: auto minmax(0, 1fr) 30px;
+	grid-template-columns: minmax(0, 1fr) 30px;
 	align-items: center;
 	gap: 9px;
 	margin-bottom: 10px;
@@ -14,14 +14,6 @@
 
 .calendar-page .draft-popover-can-scroll-up .draft-popover-title-row {
 	box-shadow: 0 16px 20px -20px rgba(15, 23, 42, 0.28);
-}
-
-.calendar-page .draft-popover-color-dot {
-	width: 9px;
-	height: 22px;
-	border-radius: 999px;
-	background: #3b82f6;
-	box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
 }
 
 .calendar-page .draft-popover-title-row input {
@@ -63,7 +55,7 @@
 
 @media (max-width: 520px) {
 	.calendar-page .draft-popover-title-row {
-		grid-template-columns: auto minmax(0, 1fr) 30px;
+		grid-template-columns: minmax(0, 1fr) 30px;
 		margin-bottom: 8px;
 		padding: 10px;
 	}

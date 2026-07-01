@@ -3,6 +3,8 @@ import { describe, expect, test } from 'bun:test';
 import {
 	isCalendarEventsChangedMessage,
 	isCalendarNavigationMessage,
+	isCalendarOpenSettingsMessage,
+	isCalendarRefreshMessage,
 	isCalendarViewMessage,
 	isCalendarVisibleDateMessage
 } from '../../../src/routes/calendar/calendar-navigation-message';
@@ -42,5 +44,12 @@ describe('calendar navigation messages', () => {
 
 	test('accepts events changed messages without extra payload requirements', () => {
 		expect(isCalendarEventsChangedMessage({ type: 'calendar-events-changed' })).toBe(true);
+	});
+
+	test('accepts calendar shell action messages without extra payload requirements', () => {
+		expect(isCalendarOpenSettingsMessage({ type: 'calendar-open-settings' })).toBe(true);
+		expect(isCalendarRefreshMessage({ type: 'calendar-refresh' })).toBe(true);
+		expect(isCalendarOpenSettingsMessage({ type: 'calendar-refresh' })).toBe(false);
+		expect(isCalendarRefreshMessage({ type: 'calendar-open-settings' })).toBe(false);
 	});
 });

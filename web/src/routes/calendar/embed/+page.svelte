@@ -26,7 +26,9 @@
 		visibleEventsWithPreservedLocalEvents
 	} from './calendar-visible-events';
 	import {
-		broadcastCalendarVisibleDate
+		broadcastCalendarVisibleDate,
+		requestCalendarRefresh,
+		requestCalendarSettingsOpen
 	} from '../refresh-signal.svelte';
 	import { createCalendarPageController } from './calendar-page-controller.svelte';
 	import { installCalendarPageEffects } from './calendar-page-effects.svelte';
@@ -35,6 +37,7 @@
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
+	import { fetchCalendarParticipants } from './calendar-participants';
 	import './calendar-page.css';
 
 	const text = createPageText(calendarText);
@@ -81,13 +84,11 @@
 	} = controller;
 
 	const stageEvents = $derived(
-		state.calendarWorkVisible
-			? visibleEventsWithPreservedLocalEvents(
-					state.visibleEvents,
-					calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
-					(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
-				)
-			: []
+		visibleEventsWithPreservedLocalEvents(
+			state.visibleEvents,
+			calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
+			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
+		)
 	);
 
 	const selectedAuditEvent = $derived(
@@ -116,6 +117,7 @@
 	});
 
 	onMount(() => {
+		void loadParticipantCandidates();
 		return installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
@@ -158,9 +160,6 @@
 			setToolbarView: (view) => {
 				state.toolbarView = view;
 			},
-			setWorkCalendarVisible: (isVisible) => {
-				state.calendarWorkVisible = isVisible;
-			},
 			syncCalendarThemeToDocument: () => syncCalendarThemeToDocument(calendar.app),
 			text
 		});
@@ -194,6 +193,22 @@
 		}
 		draftPopoverActions.createQuickDraftPopover(event);
 	}
+
+	function openCalendarSettings(): void {
+		requestCalendarSettingsOpen();
+	}
+
+	function refreshParentCalendar(): void {
+		requestCalendarRefresh();
+	}
+
+	async function loadParticipantCandidates(): Promise<void> {
+		try {
+			state.participantCandidates = await fetchCalendarParticipants(text.error);
+		} catch {
+			state.participantCandidates = [];
+		}
+	}
 </script>
 <svelte:head>
 	<title>{text.pageTitle}</title>
@@ -210,12 +225,13 @@
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
-	goToToday={pageNavigation.goToToday}
 	goToPrevious={pageNavigation.goToPrevious}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
 	navigateToSearchResult={pageNavigation.navigateToSearchResult}
 	{createQuickEvent}
+	openSettings={openCalendarSettings}
+	refreshCalendar={refreshParentCalendar}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
 	{localeCode}
@@ -234,6 +250,7 @@
 	popover={state.draftPopover}
 	auditEvent={selectedAuditEvent}
 	{calendarOptions}
+	participantCandidates={state.participantCandidates}
 	isSaving={state.isSaving}
 	{text}
 	updatePopover={draftPopoverActions.updateDraftPopover}

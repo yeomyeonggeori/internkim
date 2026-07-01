@@ -14,6 +14,7 @@ const (
 	calendarFieldTimeZone          = "timeZone"
 	calendarFieldIsAllDay          = "isAllDay"
 	calendarFieldColor             = "color"
+	calendarFieldParticipants      = "participants"
 	calendarFieldReminderLeadHours = "reminderLeadHours"
 )
 
@@ -39,6 +40,7 @@ func calendarAllUserEditableFields() []string {
 		calendarFieldTimeZone,
 		calendarFieldIsAllDay,
 		calendarFieldColor,
+		calendarFieldParticipants,
 		calendarFieldReminderLeadHours,
 	}
 }
@@ -72,6 +74,9 @@ func diffCalendarEventFields(previous calendarEvent, current calendarEvent) []st
 	if previous.Color != current.Color {
 		fields = append(fields, calendarFieldColor)
 	}
+	if !calendarParticipantsEqual(previous.Participants, current.Participants) {
+		fields = append(fields, calendarFieldParticipants)
+	}
 	if previous.ReminderLeadHours != current.ReminderLeadHours {
 		fields = append(fields, calendarFieldReminderLeadHours)
 	}
@@ -102,11 +107,30 @@ func mergeCalendarEventChanges(remote calendarEvent, local calendarEvent, change
 			merged.IsAllDay = local.IsAllDay
 		case calendarFieldColor:
 			merged.Color = local.Color
+		case calendarFieldParticipants:
+			merged.Participants = local.Participants
 		case calendarFieldReminderLeadHours:
 			merged.ReminderLeadHours = local.ReminderLeadHours
 		}
 	}
 	return merged
+}
+
+func preserveCalendarInternalParticipants(merged calendarEvent, local calendarEvent, changedFields []string) calendarEvent {
+	if calendarFieldListIncludes(changedFields, calendarFieldParticipants) {
+		return merged
+	}
+	merged.Participants = local.Participants
+	return merged
+}
+
+func calendarFieldListIncludes(fields []string, target string) bool {
+	for _, field := range fields {
+		if field == target {
+			return true
+		}
+	}
+	return false
 }
 
 func intersectCalendarFields(left []string, right []string) []string {

@@ -3,18 +3,22 @@
 	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
+	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarEventContent from './calendar-event-content.svelte';
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
+	import { dateKeyFromWeekHeaderTarget } from './calendar-month-selection';
 	import CalendarMonthScrollOverlay from './calendar-month-scroll-overlay.svelte';
 	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
 	import {
 		mobileEventEditorLocaleContextKey,
+		mobileEventEditorParticipantsContextKey,
 		mobileEventEditorPersistenceContextKey,
 		type MobileEventEditorLocaleContext,
+		type MobileEventEditorParticipantsContext,
 		type MobileEventEditorPersistenceContext
 	} from './calendar-mobile-event-editor-types';
 	import CalendarTimelineRangePreview from './calendar-timeline-range-preview.svelte';
@@ -32,6 +36,7 @@
 		calendar: ReturnType<typeof useCalendarApp>;
 		clearSelectedEvent: () => void;
 		events: DayFlowEvent[];
+		participantCandidates: CalendarParticipant[];
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
 		text: CalendarLocaleText;
@@ -59,6 +64,7 @@
 		calendar,
 		clearSelectedEvent,
 		events,
+		participantCandidates,
 		isMobileTwoDayWeekView,
 		localeCode,
 		text,
@@ -85,6 +91,9 @@
 	setContext<MobileEventEditorLocaleContext>(mobileEventEditorLocaleContextKey, {
 		getText: () => text
 	});
+	setContext<MobileEventEditorParticipantsContext>(mobileEventEditorParticipantsContextKey, {
+		getCandidates: () => participantCandidates
+	});
 
 	function handleMobileTwoDayWeekDateClick(event: MouseEvent): void {
 		if (!isMobileTwoDayWeekView || !stageElement) return;
@@ -97,12 +106,25 @@
 		navigateToDateKey(calendarMobileTwoDayWeekDateKeyForColumn(toolbarDate, columnIndex));
 	}
 
+	function handleWeekHeaderDateClick(event: MouseEvent): void {
+		if (toolbarView !== ViewType.WEEK || isMobileTwoDayWeekView || !stageElement) return;
+		if (!(event.target instanceof Element)) return;
+		const dateKey = dateKeyFromWeekHeaderTarget(stageElement, event.target, toolbarDate);
+		if (!dateKey) return;
+		navigateToDateKey(dateKey);
+	}
+
+	function handleStageDateClick(event: MouseEvent): void {
+		handleMobileTwoDayWeekDateClick(event);
+		handleWeekHeaderDateClick(event);
+	}
+
 	$effect(() => {
 		const currentStageElement = stageElement;
 		if (!currentStageElement) return;
-		currentStageElement.addEventListener('click', handleMobileTwoDayWeekDateClick, true);
+		currentStageElement.addEventListener('click', handleStageDateClick, true);
 		return () => {
-			currentStageElement.removeEventListener('click', handleMobileTwoDayWeekDateClick, true);
+			currentStageElement.removeEventListener('click', handleStageDateClick, true);
 		};
 	});
 

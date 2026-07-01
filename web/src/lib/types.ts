@@ -40,7 +40,7 @@ export interface Fleet {
 	ledgerRevision?: number;
 }
 
-export type UserRole = 'admin' | 'member';
+export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 
 export interface UserRecord {
 	userID: string;
@@ -48,6 +48,7 @@ export interface UserRecord {
 	name?: string;
 	email: string;
 	hireDate?: string;
+	note?: string;
 	role: UserRole;
 	mattermostUserID?: string;
 	mattermostUsername?: string;

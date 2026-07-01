@@ -1,3 +1,5 @@
+import { orgchartText } from './orgchart-text';
+
 export const adminText = {
 	ko: {
 		title: '김인턴',
@@ -173,12 +175,16 @@ export const adminText = {
 			description: '초대하면 Mattermost 계정과 임시 비밀번호가 만들어집니다. 비밀번호는 한 번만 표시됩니다.',
 			deviceOnly: '초대 목록은 등록된 기기 주소에서 관리할 수 있습니다.',
 			member: '일반',
+			operationsAdmin: '운영 관리자',
 			admin: '관리자',
 			handle: '핸들',
 			realName: '이름',
 			realNamePlaceholder: '홍길동',
 			email: '이메일',
 			hireDate: '입사일',
+			note: '메모',
+			noteEdit: '메모 편집',
+			notePlaceholder: '사람별 비고를 입력하세요.',
 			role: '권한',
 			groups: '그룹',
 			userCount: '사용자',
@@ -208,6 +214,7 @@ export const adminText = {
 			loading: '초대 목록을 불러오는 중...',
 			empty: '등록된 사용자가 없습니다.',
 			incomplete: '실명과 handle을 입력해 저장하세요.',
+			cancel: '취소',
 			save: '저장',
 			resetPassword: '비밀번호 리셋',
 			resetPasswordConfirm: 'Mattermost 비밀번호를 새로 만들고 이 사용자의 김인턴 DM 내역을 삭제합니다. 계속할까요?',
@@ -216,19 +223,7 @@ export const adminText = {
 			makeAdmin: '관리자로 변경',
 			remove: '삭제'
 		},
-		orgchart: {
-			title: '조직도',
-			description: '상급자 기준 보고 체계를 한눈에 보여줍니다. 편집을 켜면 그룹을 관리하고 직책·그룹·상급자를 바로 수정할 수 있습니다.',
-			jobTitle: '직책',
-			jobTitlePlaceholder: '백엔드 엔지니어',
-			group: '그룹',
-			groupPlaceholder: '엔지니어링',
-			manageGroups: '그룹 관리',
-			addGroup: '추가',
-			supervisor: '상급자',
-			editMode: '편집',
-			none: '없음'
-		}
+		orgchart: orgchartText.ko
 	},
 	en: {
 		title: 'intern kim',
@@ -404,12 +399,16 @@ export const adminText = {
 			description: 'Inviting a user creates a Mattermost account and one-time temporary password.',
 			deviceOnly: 'Invites can be managed from a registered device address.',
 			member: 'Member',
+			operationsAdmin: 'Operations Admin',
 			admin: 'Admin',
 			handle: 'Handle',
 			realName: 'Name',
 			realNamePlaceholder: 'Jane Kim',
 			email: 'Email',
 			hireDate: 'Hire date',
+			note: 'Note',
+			noteEdit: 'Edit note',
+			notePlaceholder: 'Add an internal note for this person.',
 			role: 'Role',
 			groups: 'Groups',
 			userCount: 'users',
@@ -439,6 +438,7 @@ export const adminText = {
 			loading: 'Loading invited users...',
 			empty: 'No users are registered.',
 			incomplete: 'Add a real name and handle, then save.',
+			cancel: 'Cancel',
 			save: 'Save',
 			resetPassword: 'Reset password',
 			resetPasswordConfirm: 'This creates a new Mattermost password and deletes this user’s Intern Kim DM history. Continue?',
@@ -447,18 +447,6 @@ export const adminText = {
 			makeAdmin: 'Make admin',
 			remove: 'Remove'
 		},
-		orgchart: {
-			title: 'Org chart',
-			description: 'See the reporting hierarchy at a glance. Turn on edit to change job titles, groups, and supervisors.',
-			jobTitle: 'Job title',
-			jobTitlePlaceholder: 'Backend engineer',
-			group: 'Group',
-			groupPlaceholder: 'Engineering',
-			manageGroups: 'Manage groups',
-			addGroup: 'Add',
-			supervisor: 'Supervisor',
-			editMode: 'Edit',
-			none: 'None'
-		}
+		orgchart: orgchartText.en
 	}
 } as const;

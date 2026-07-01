@@ -14,6 +14,7 @@ export {
 	expectCalendarEventSelectedBlue,
 	expectCalendarEventSelectedOnPointerDown,
 	expectCalendarEventTitleAndTime,
+	expectRightPanelEventContentCentered,
 	expectRightPanelEventCardsShareBlockStyle
 } from './calendar-embed-timeline-selection-assertions';
 export {

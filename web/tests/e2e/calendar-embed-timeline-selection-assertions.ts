@@ -56,6 +56,21 @@ export async function expectCalendarEventTitleAndTime(page: Page, selector: stri
 	await expect(event.locator('.calendar-event-time')).toHaveText(time);
 }
 
+export async function expectRightPanelEventContentCentered(page: Page, selector: string): Promise<void> {
+	const measurement = await page.evaluate((targetSelector) => {
+		const element = document.querySelector(targetSelector);
+		const contentElement = element?.querySelector('.calendar-event-content');
+		if (!(element instanceof HTMLElement) || !(contentElement instanceof HTMLElement)) return null;
+		const elementRectangle = element.getBoundingClientRect();
+		const contentRectangle = contentElement.getBoundingClientRect();
+		const elementCenterY = elementRectangle.top + elementRectangle.height / 2;
+		const contentCenterY = contentRectangle.top + contentRectangle.height / 2;
+		return Math.round(Math.abs(elementCenterY - contentCenterY));
+	}, selector);
+	expect(measurement).not.toBeNull();
+	expect(measurement).toBeLessThanOrEqual(1);
+}
+
 export async function expectRightPanelEventCardsShareBlockStyle(page: Page, selectors: string[]): Promise<void> {
 	const measurements = await page.evaluate((targetSelectors) => {
 		const styles = targetSelectors.map((targetSelector) => {

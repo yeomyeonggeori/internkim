@@ -55,6 +55,60 @@ test.describe('flow task quick add', () => {
 		await expect(closedLauncher).toBeVisible();
 	});
 
+	test('closes AI quick add after creation and restores launcher focus', async ({ page }) => {
+		await page.route('**/flow/api/tasks/quick', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ status: 'created', reason: '' })
+			});
+		});
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await openFlowBoard(page);
+
+		const launcher = page.getByRole('button', { name: 'AI로 업무 추가', exact: true });
+		await launcher.click();
+		const panel = page.getByRole('dialog', { name: 'AI로 업무 추가', exact: true });
+		await panel.getByPlaceholder('예: 10분 회의').fill('AI 성공 닫힘 확인');
+		await panel.getByRole('button', { name: 'AI로 업무 추가', exact: true }).click();
+
+		await expect(panel).toHaveCount(0);
+		await expect(launcher).toBeFocused();
+	});
+
+	test('keeps AI quick add open when the quick task is a duplicate', async ({ page }) => {
+		await page.route('**/flow/api/tasks/quick', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ status: 'skipped_duplicate', reason: 'duplicate' })
+			});
+		});
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await openFlowBoard(page);
+
+		await page.getByRole('button', { name: 'AI로 업무 추가', exact: true }).click();
+		const panel = page.getByRole('dialog', { name: 'AI로 업무 추가', exact: true });
+		await panel.getByPlaceholder('예: 10분 회의').fill('중복 유지 확인');
+		await panel.getByRole('button', { name: 'AI로 업무 추가', exact: true }).click();
+
+		await expect(panel).toBeVisible();
+		await expect(panel.getByText('이미 있는 업무로 보여 추가하지 않았습니다.', { exact: true })).toBeVisible();
+		await expect(panel.getByRole('button', { name: '그래도 추가', exact: true })).toBeVisible();
+	});
+
+	test('opens manual task editor from the list toolbar add button', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await openFlowBoard(page);
+
+		await page.getByRole('tab', { name: '목록', exact: true }).click();
+		const listToolbarAddButton = page.getByRole('button', { name: '업무 추가', exact: true });
+		await expect(listToolbarAddButton).toBeVisible();
+		await listToolbarAddButton.click();
+
+		await expect(page.getByRole('dialog', { name: '업무 요청', exact: true })).toBeVisible();
+	});
+
 	test('hides AI quick add while the task sidebar is open', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openFlowBoard(page);
