@@ -41,8 +41,5 @@ func (provider googleCalendarProvider) Discover(ctx context.Context, service *Se
 		return account, errors.New("account email required for google calendar discovery")
 	}
 	base := googleCalDAVBaseURL + "/" + email
-	account.PrincipalURL = base + "/user"
-	account.HomeSetURL = base + "/"
-	account.DefaultCalendarURL = base + "/events/"
-	return service.upsertRemoteCalendarAccount(ctx, account)
+	return service.saveCalendarDiscovery(ctx, account, base+"/user", base+"/", base+"/events/")
 }
