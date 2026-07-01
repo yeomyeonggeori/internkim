@@ -71,6 +71,19 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 	}
 }
 
+func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
+	for _, descriptor := range CalendarDescriptors() {
+		if descriptor.Name == "calendar.connection.start" {
+			t.Fatalf("expected personal calendar connection start to be absent, got %+v", descriptor)
+		}
+	}
+	for _, toolName := range DefaultToolNames() {
+		if toolName == "calendar.connection.start" {
+			t.Fatalf("expected default tools to omit personal calendar connection start, got %+v", DefaultToolNames())
+		}
+	}
+}
+
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete", "channel.update"} {
 		if !containsString(DefaultToolNames(), toolName) {
@@ -238,7 +251,6 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message.send", true)
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message.delete", true)
 	assertDescriptorApproval(t, MattermostDescriptors(), "channel.update", true)
-	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.connection.start", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.connection.start", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)

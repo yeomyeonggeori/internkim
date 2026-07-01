@@ -11,6 +11,7 @@
 	import QrCode from 'svelte-qrcode';
 	import { onMount } from 'svelte';
 	import { fetchAdminSession } from './admin/admin-api';
+	import { adminSessionRole, canViewAdminSection, firstVisibleAdminSection } from './admin/admin-role-policy';
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
@@ -64,17 +65,22 @@
 	}
 
 	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
+	const currentAdminRole = $derived(adminSessionRole(adminSession));
 
 	function adminSections(): { value: AdminSection; label: string }[] {
 		return adminSectionConfigurations
 			.filter((section) => showDeviceSection || !section.isDeviceManagedOnly)
+			.filter((section) => canViewAdminSection(currentAdminRole, section.value))
 			.map((section) => ({ value: section.value, label: text.sections[section.value] }));
 	}
 
 	$effect(() => {
-		if (!isVisibleAdminSection(activeAdminSection)) {
-			activeAdminSection = 'users';
-		}
+		if (isVisibleAdminSection(activeAdminSection)) return;
+		const visibleSection = firstVisibleAdminSection(
+			currentAdminRole,
+			adminSectionConfigurations.filter((section) => showDeviceSection || !section.isDeviceManagedOnly).map((section) => section.value)
+		);
+		if (visibleSection) activeAdminSection = visibleSection;
 	});
 
 	onMount(() => {
@@ -202,53 +208,55 @@
 			{/each}
 		</nav>
 
-		{#if activeAdminSection === 'users'}
-			<Separator />
-		{/if}
-
-		<section class="grid min-w-0 gap-5 py-6">
-			{#if activeAdminSection === 'device'}
-				<DeviceSection
-					adminBaseURL={adminBaseURL()}
-					adminSession={adminSession}
-					bind:fleetIdInput
-					bind:isDeviceReachable
-					text={text}
-					onFleetIDSaved={saveFleetID}
-				/>
-			{:else if activeAdminSection === 'bot'}
-				<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-			{:else if activeAdminSection === 'credentials'}
-				<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-			{:else if activeAdminSection === 'backup'}
-				<BackupSection
-					adminBaseURL={adminBaseURL()}
-					fleetID={fleetID()}
-					isDeviceHost={!!fleetIDFromHost()}
-					isDeviceReachable={isDeviceReachable}
-					text={text}
-				/>
-			{:else if activeAdminSection === 'users'}
-				<UsersSection
-					adminBaseURL={adminBaseURL()}
-					adminSession={adminSession}
-					fleetID={fleetID()}
-					isDeviceContext={!!fleetID()}
-					text={text}
-					onUserChanged={loadAdminSession}
-				/>
-			{:else if activeAdminSection === 'orgchart'}
-				<OrgchartSection
-					adminBaseURL={adminBaseURL()}
-					fleetID={fleetID()}
-					isDeviceContext={!!fleetID()}
-					text={text}
-				/>
-			{:else if activeAdminSection === 'settings'}
-				<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-			{:else if activeAdminSection === 'network'}
-				<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+		{#if isVisibleAdminSection(activeAdminSection)}
+			{#if activeAdminSection === 'users'}
+				<Separator />
 			{/if}
-		</section>
+
+			<section class="grid min-w-0 gap-5 py-6">
+				{#if activeAdminSection === 'device'}
+					<DeviceSection
+						adminBaseURL={adminBaseURL()}
+						adminSession={adminSession}
+						bind:fleetIdInput
+						bind:isDeviceReachable
+						text={text}
+						onFleetIDSaved={saveFleetID}
+					/>
+				{:else if activeAdminSection === 'bot'}
+					<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'credentials'}
+					<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'backup'}
+					<BackupSection
+						adminBaseURL={adminBaseURL()}
+						fleetID={fleetID()}
+						isDeviceHost={!!fleetIDFromHost()}
+						isDeviceReachable={isDeviceReachable}
+						text={text}
+					/>
+				{:else if activeAdminSection === 'users'}
+					<UsersSection
+						adminBaseURL={adminBaseURL()}
+						adminSession={adminSession}
+						fleetID={fleetID()}
+						isDeviceContext={!!fleetID()}
+						text={text}
+						onUserChanged={loadAdminSession}
+					/>
+				{:else if activeAdminSection === 'orgchart'}
+					<OrgchartSection
+						adminBaseURL={adminBaseURL()}
+						fleetID={fleetID()}
+						isDeviceContext={!!fleetID()}
+						text={text}
+					/>
+				{:else if activeAdminSection === 'settings'}
+					<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'network'}
+					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{/if}
+			</section>
+		{/if}
 	</div>
 </main>

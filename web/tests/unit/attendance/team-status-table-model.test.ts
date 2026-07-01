@@ -3,6 +3,7 @@ import type {
 	AttendanceAbsence,
 	AttendanceEvent,
 	AttendanceKind,
+	AttendanceMember,
 	AttendanceSummary
 } from '../../../src/routes/attendance/attendance-context.svelte';
 import { attendanceText } from '../../../src/routes/attendance/text';
@@ -176,8 +177,8 @@ describe('team status table model', () => {
 		});
 	});
 
-	test('excludes people who only have records outside the selected month', () => {
-		const summary = attendanceSummary(
+	test('shows registered members without selected month records', () => {
+		const summary = attendanceSummaryWithMembers(
 			[
 				attendanceEvent('kim-name', 'kim@example.com', '김철수', '2026-06-16', 'clock_in', '09:00'),
 			],
@@ -187,12 +188,21 @@ describe('team status table model', () => {
 					startDate: '2026-07-06',
 					endDate: '2026-07-06',
 				}),
+			],
+			[
+				attendanceMember('kim@example.com', '김철수', 'kim'),
+				attendanceMember('park@example.com', '박지민', 'park'),
 			]
 		);
 
 		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-20');
+		const park = rows.find((row) => row.email === 'park@example.com');
 
-		expect(rows.map((row) => row.email)).toEqual(['kim@example.com']);
+		expect(rows.map((row) => row.email)).toEqual(['kim@example.com', 'park@example.com']);
+		expect(park?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
+			label: '-',
+			tone: 'absent',
+		});
 	});
 
 	test('does not show absence labels on weekends', () => {
@@ -248,6 +258,17 @@ function attendanceSummary(events: AttendanceEvent[], absences: AttendanceAbsenc
 	return attendanceSummaryForMonth('2026-06', events, absences);
 }
 
+function attendanceSummaryWithMembers(
+	events: AttendanceEvent[],
+	absences: AttendanceAbsence[],
+	members: AttendanceMember[]
+): AttendanceSummary {
+	return {
+		...attendanceSummary(events, absences),
+		members,
+	};
+}
+
 function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceSummary {
 	return {
 		month,
@@ -256,6 +277,7 @@ function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], abs
 		timeZone: 'Asia/Seoul',
 		events,
 		absences,
+		members: attendanceMembersFromRecords(events, absences),
 		todayStatus: '근무 중',
 		locations: [
 			{ id: 'lab-a', name: 'Lab A', color: '#22c55e', isDefault: true },
@@ -266,6 +288,27 @@ function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], abs
 		teamViewBlocked: false,
 		presences: {},
 	};
+}
+
+function attendanceMember(email: string, displayName: string, mattermostUsername: string): AttendanceMember {
+	return { email, displayName, mattermostUsername };
+}
+
+function attendanceMembersFromRecords(events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceMember[] {
+	const members = new Map<string, AttendanceMember>();
+	for (const event of events) {
+		if (members.has(event.email)) continue;
+		members.set(event.email, attendanceMember(
+			event.email,
+			event.displayName || event.mattermostUsername || event.email,
+			event.mattermostUsername
+		));
+	}
+	for (const absence of absences) {
+		if (members.has(absence.email)) continue;
+		members.set(absence.email, attendanceMember(absence.email, absence.email, ''));
+	}
+	return [...members.values()].sort((first, second) => first.displayName.localeCompare(second.displayName));
 }
 
 function attendanceEvent(

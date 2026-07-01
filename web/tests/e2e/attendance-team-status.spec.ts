@@ -4,6 +4,33 @@ import { calendarEvent, flowStateFixture, flowTask, routePersonalDayContext } fr
 import { buildWideTooltipSummary, selectKorean, todayDateInSeoul } from './attendance-test-helpers';
 
 test.describe('attendance team status', () => {
+	test('shows registered members even when they have no attendance records', async ({ page }) => {
+		const summary = buildAttendanceSummaryFixture('2026-06');
+		const registeredMemberWithoutRecords = {
+			email: 'no-record@example.com',
+			displayName: '무기록',
+			mattermostUsername: 'no-record',
+		};
+
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? summary.month;
+			await route.fulfill({
+				json: month === summary.month
+					? { ...summary, members: [...summary.members, registeredMemberWithoutRecords] }
+					: buildAttendanceSummaryFixture(month)
+			});
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByPlaceholder('직원 검색').fill(registeredMemberWithoutRecords.displayName);
+
+		await expect(page.getByText(registeredMemberWithoutRecords.displayName)).toBeVisible();
+		await expect(page.getByTestId(`team-status-cell-${registeredMemberWithoutRecords.email}-2026-06-16`)).toBeVisible();
+	});
+
 	test('shows location bars and segment tooltip in a team status cell', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
