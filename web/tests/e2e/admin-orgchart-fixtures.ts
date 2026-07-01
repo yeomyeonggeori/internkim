@@ -4,7 +4,7 @@ export type UserRecord = {
 	name: string;
 	email: string;
 	hireDate: string;
-	role: 'admin' | 'member';
+	role: 'admin' | 'operationsAdmin' | 'member';
 	jobTitle?: string;
 	group?: string;
 	positionLevel?: number;

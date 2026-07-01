@@ -92,6 +92,12 @@ export type AttendanceAbsence = {
 	isChunkEnd?: boolean;
 };
 
+export type AttendanceMember = {
+	email: string;
+	displayName: string;
+	mattermostUsername: string;
+};
+
 export type AttendanceSummary = {
 	month: string;
 	currentUserEmail: string;
@@ -99,6 +105,7 @@ export type AttendanceSummary = {
 	timeZone: string;
 	events: AttendanceEvent[];
 	absences: AttendanceAbsence[];
+	members: AttendanceMember[];
 	todayStatus: string;
 	locations: AttendanceLocation[];
 	teamViewVisibleToAll: boolean;

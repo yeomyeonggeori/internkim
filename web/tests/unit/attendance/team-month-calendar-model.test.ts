@@ -160,6 +160,7 @@ function attendanceSummary(events: AttendanceEvent[], absences: AttendanceAbsenc
 		timeZone: 'Asia/Seoul',
 		events,
 		absences,
+		members: [],
 		todayStatus: '근무 중',
 		locations: [
 			{ id: 'office', name: '사무실', color: '#22c55e', isDefault: true },

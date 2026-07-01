@@ -366,20 +366,25 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
 	service.saveMattermostAttendanceEntryPostID("entry-post")
-	payload := mattermostInteractivePayload{
-		UserID:    "user-1",
-		PostID:    "entry-post",
-		ChannelID: "attendance-channel",
-		TeamID:    "team-1",
-		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
-	}
-	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	location, _ := service.workspaceTimeLocation()
+	eventDate := time.Now().In(location)
+	clockInTime := time.Date(eventDate.Year(), eventDate.Month(), 15, 9, 0, 0, 0, location)
+	clockOutTime := time.Date(eventDate.Year(), eventDate.Month(), 15, 18, 0, 0, 0, location)
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}
+	clockInEvent := service.createAttendanceEvent(userRecord, attendanceKindClockIn, clockInTime.UTC(), "team-1", "attendance-channel", "entry-post", "attendance-post-1", service.attendanceLocationByID("office"))
+	clockOutEvent := service.createAttendanceEvent(userRecord, attendanceKindClockOut, clockOutTime.UTC(), "team-1", "attendance-channel", "entry-post", "attendance-post-2", attendanceLocation{})
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	moveLatestAttendanceEventByDurationForTest(t, service, -time.Hour)
-	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	defer database.Close()
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, clockInEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, clockOutEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	*posts = append(*posts, attendanceActionPost{ID: "attendance-post-2", Message: "퇴근", RootID: "entry-post"})
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"18:30"}`))
 	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
 	response := httptest.NewRecorder()
@@ -389,15 +394,15 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 3 || (*posts)[1].Message != "퇴근 18:30" || !(*posts)[2].Deleted {
+	if len(*posts) != 2 || (*posts)[0].Message != "퇴근 18:30" || !(*posts)[1].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
-	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	events, errorValue := service.readAttendanceEvents(context.Background(), eventDate.Format("2006-01"), "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	clockOutEvent, found := findAttendanceEventByKind(events, attendanceKindClockOut)
-	if len(events) != 2 || !found || clockOutEvent.LocalTime != "18:30:00" {
+	updatedClockOutEvent, found := findAttendanceEventByKind(events, attendanceKindClockOut)
+	if len(events) != 2 || !found || updatedClockOutEvent.LocalTime != "18:30:00" {
 		t.Fatalf("events = %+v", events)
 	}
 }

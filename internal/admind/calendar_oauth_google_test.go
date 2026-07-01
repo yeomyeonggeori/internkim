@@ -135,35 +135,17 @@ func TestGoogleOAuthStartRejectsUnauthorizedRequest(t *testing.T) {
 	}
 }
 
-func TestCalendarConnectionStartReturnsDeviceAuthorizationURL(t *testing.T) {
+func TestCalendarConnectionStartIsNotAvailableToStaff(t *testing.T) {
 	service := newCalendarTestService(t)
-	service.Configuration.DeviceURLPath = writeTestFile(t, "https://device.example.com")
 	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
-	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/calendar/api/connection/start", nil)
-	request.RemoteAddr = "127.0.0.1:34567"
+	request := httptest.NewRequest(http.MethodPost, "http://admind.local/calendar/api/connection/start", nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "staff@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleCalendar(recorder, request)
 
-	if recorder.Code != http.StatusOK {
+	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
-	}
-	var response googleOAuthStartResponse
-	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "authorization_required" || response.Provider != "google" {
-		t.Fatalf("response = %#v", response)
-	}
-	if response.RedirectURI != "https://device.example.com"+googleOAuthCallbackPath {
-		t.Fatalf("redirectURI = %q", response.RedirectURI)
-	}
-	location, errorValue := url.Parse(response.AuthorizationURL)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if location.Query().Get("redirect_uri") != response.RedirectURI {
-		t.Fatalf("authorization redirect_uri = %q", location.Query().Get("redirect_uri"))
 	}
 }
 
