@@ -9,6 +9,11 @@ describe('calendar text', () => {
 		expect(calendarText.en.externalCalendarAccount).toBe('Connected Google Calendar');
 		expect(calendarText.en.googleCalendarDisconnected).toBe('Not connected');
 		expect(calendarText.en.googleCalendarConnectedTemplate).toBe('Connected: {email}');
+		expect(calendarText.en.googleCalendarSelectedCalendarTemplate).toBe('Using calendar: {calendar}');
+		expect(calendarText.en.googleCalendarSelectionRequired).toBe('Calendar selection required');
+		expect(calendarText.en.googleCalendarWritePermissionRequired).toBe('Write permission required');
+		expect(calendarText.en.googleCalendarInitialSyncPending).toBe('Initial sync pending');
+		expect(calendarText.en.googleCalendarSyncReady).toBe('Ready to sync');
 		expect(calendarText.en.googleCalendarConnectAction).toBe('Connect');
 		expect(calendarText.en.googleCalendarReconnectAction).toBe('Reconnect');
 		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume Google Calendar sync.');
@@ -50,6 +55,11 @@ describe('calendar text', () => {
 		expect(calendarText.ko.externalCalendarAccount).toBe('연결된 Google 캘린더');
 		expect(calendarText.ko.googleCalendarDisconnected).toBe('미연결');
 		expect(calendarText.ko.googleCalendarConnectedTemplate).toBe('연결됨: {email}');
+		expect(calendarText.ko.googleCalendarSelectedCalendarTemplate).toBe('사용 중인 캘린더: {calendar}');
+		expect(calendarText.ko.googleCalendarSelectionRequired).toBe('캘린더 선택 필요');
+		expect(calendarText.ko.googleCalendarWritePermissionRequired).toBe('쓰기 권한 필요');
+		expect(calendarText.ko.googleCalendarInitialSyncPending).toBe('초기 동기화 중');
+		expect(calendarText.ko.googleCalendarSyncReady).toBe('동기화 가능');
 		expect(calendarText.ko.googleCalendarConnectAction).toBe('연결');
 		expect(calendarText.ko.googleCalendarReconnectAction).toBe('다시 연결');
 		expect(calendarText.ko.googleCalendarReconnectHint).toBe('Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.');
