@@ -14,7 +14,7 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 ## Workflow
 
 1. Clarify only missing inputs that affect workbook structure, such as columns, source data, formulas, or output format.
-2. If the user refers to a workbook from an earlier task ("방금 만든", "그 파일", "the spreadsheet I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. Run `ls -t ~/documents`, then append to the newest name-matching `.xlsx` with the deterministic `scripts/edit_xlsx.py` (see Editing Existing Files) — do not hand-write Python for a simple append — save in place, and re-deliver from there.
+2. If the user refers to a workbook from an earlier task ("방금 만든", "그 파일", "the spreadsheet I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. Append with the deterministic `scripts/edit_xlsx.py` (see Editing Existing Files) — for "the spreadsheet I just made", pass no path and the script targets the newest `.xlsx` in `~/documents/` automatically — do not hand-write Python for a simple append — save in place, and re-deliver from there.
 3. Only when the user uploaded a NEW file in THIS conversation and you need to read it (summarize, extract, OCR — not edit a binary you made), call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 4. Work directly in `~/documents` (run `mkdir -p ~/documents` once first). Build, validate, and deliver the workbook there.
 5. For straightforward new workbooks, use inline arguments with `scripts/create_xlsx.py` (see Helper Scripts).
@@ -112,15 +112,17 @@ Normalize tabular text before creating the workbook. Handle malformed rows expli
 
 To edit a workbook you delivered in an earlier task, the source is the workspace file in `~/documents/` — not the delivered attachment.
 
-1. `ls -t ~/documents` and pick the newest file whose name matches what the user described ("the spreadsheet I just made" is the most recent one).
+1. For "the spreadsheet I just made" (most recently created .xlsx), pass no path — the script targets the newest `.xlsx` in `~/documents/` automatically. Only run `ls -t ~/documents` when the user names a specific older file and you need to confirm the exact filename.
 2. For the common case — append rows or a total row — run the deterministic editor. Do NOT hand-write Python or use `python -c`:
 
 ```json
 {
-  "command": "python3 /workspace/skills/xlsx/scripts/skill_runtime.py python /workspace/skills/xlsx/scripts/edit_xlsx.py ~/documents/<name>.xlsx --row \"항목,수량,단가,합계\" --row \"총계,,,=SUM(D2:D4)\"",
+  "command": "python3 /workspace/skills/xlsx/scripts/skill_runtime.py python /workspace/skills/xlsx/scripts/edit_xlsx.py --row \"항목,수량,단가,합계\" --row \"총계,,,=SUM(D2:D4)\"",
   "workingDirectoryPath": "~/documents"
 }
 ```
+
+For a specific older file named by the user, pass the path explicitly: `edit_xlsx.py ~/documents/<name>.xlsx --row ...`
 
 `edit_xlsx.py` opens the file, appends each `--row` (comma-split cells) in order, and saves back to the same path. Use `--sheet <name>` to target a specific sheet (creates it if missing). Use `--rows <json_path>` for many rows via a JSON file containing an array of arrays. Only write a task-local python script (through `scripts/skill_runtime.py python <file.py>`) when the change is beyond appending — a rewrite, deletion, cell update, or style change.
 3. Preserve existing sheet names, formulas, styles, and macros unless the user asks otherwise.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import json
 import os
 
@@ -8,11 +9,24 @@ from openpyxl import load_workbook
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Append rows to an existing XLSX workbook in place.")
-    parser.add_argument("workbook_path")
+    parser.add_argument("workbook_path", nargs="?", help="Path to the .xlsx; defaults to the newest .xlsx in ~/documents")
     parser.add_argument("--sheet", default=None, metavar="NAME", help="Sheet name (default: active sheet; created if missing)")
     parser.add_argument("--row", action="append", default=[], metavar="CELLS", help="Append one row; comma-separated cell values (repeatable)")
     parser.add_argument("--rows", metavar="JSON_PATH", help="Optional JSON file with an array of row arrays")
     return parser.parse_args()
+
+
+def resolve_workbook_path(given_path):
+    if given_path:
+        return os.path.expanduser(given_path)
+    documents = sorted(
+        glob.glob(os.path.expanduser("~/documents/*.xlsx")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    if not documents:
+        raise SystemExit("no .xlsx found in ~/documents; pass the workbook path explicitly")
+    return documents[0]
 
 
 def load_rows_from_json(rows_path):
@@ -37,7 +51,7 @@ def resolve_worksheet(workbook, sheet_name):
 
 def main():
     arguments = parse_arguments()
-    workbook_path = os.path.expanduser(arguments.workbook_path)
+    workbook_path = resolve_workbook_path(arguments.workbook_path)
     workbook = load_workbook(workbook_path)
     worksheet = resolve_worksheet(workbook, arguments.sheet)
     for row_string in arguments.row:

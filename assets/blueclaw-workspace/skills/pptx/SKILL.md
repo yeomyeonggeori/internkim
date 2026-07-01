@@ -16,7 +16,7 @@ Use this skill when the user provides an existing PPTX, asks for direct PowerPoi
 ## Workflow
 
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
-2. If the user refers to a deck from an earlier task ("방금 만든", "그 파일", "the deck I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. Run `ls -t ~/documents`, then for slide appends run `scripts/edit_pptx.py` directly (see Editing Existing Files); for other edits write a task-local Python file through `scripts/skill_runtime.py`. Save back to the SAME `~/documents/<name>.pptx` and re-deliver from there.
+2. If the user refers to a deck from an earlier task ("방금 만든", "그 파일", "the deck I just made"), the source is the workspace file in `~/documents/`, NOT the delivered attachment. Do NOT call `file.preview` or `file.read` on that attachment. For slide appends, run `scripts/edit_pptx.py` with no path; it targets the newest `.pptx` in `~/documents/` automatically (see Editing Existing Files). For other edits write a task-local Python file through `scripts/skill_runtime.py`. Save back to the SAME `~/documents/<name>.pptx` and re-deliver from there.
 3. Only when the user uploaded a NEW file in THIS conversation and you need to read it (summarize, extract, OCR — not edit a binary you made), call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 4. Work directly in `~/documents` (run `mkdir -p ~/documents` once first). Build and deliver the deck there.
 5. For straightforward direct-PPTX decks, run `scripts/create_pptx.py` with inline `--deck-title`/`--slide-title`/`--bullet` args. Pass `--spec <json_path>` for rich layouts, themes, or images.
@@ -81,15 +81,17 @@ When preserving design matters more than object editability, prefer `layout: "hy
 
 To edit a deck you delivered in an earlier task, the source is the workspace file in `~/documents/` — not the delivered attachment.
 
-1. `ls -t ~/documents` and pick the newest file whose name matches what the user described ("the deck I just made" is the most recent one).
+1. For "the deck I just made" (most recently created .pptx), pass no path — the script targets the newest `.pptx` in `~/documents/` automatically. Only run `ls -t ~/documents` when the user names a specific older file and you need to confirm the exact filename.
 2. To append one or more slides — the most common edit — run the bundled helper directly. Do NOT hand-write Python or use `python -c` for a simple append:
 
 ```json
 {
-  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/edit_pptx.py ~/documents/<name>.pptx --slide-title \"Q3 Results\" --bullet \"Revenue up 12%\" --bullet \"Cost down 8%\"",
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/edit_pptx.py --slide-title \"Q3 Results\" --bullet \"Revenue up 12%\" --bullet \"Cost down 8%\"",
   "workingDirectoryPath": "~/documents"
 }
 ```
+
+For a specific older file named by the user, pass the path explicitly: `edit_pptx.py ~/documents/<name>.pptx --slide-title ...`
 
    Each `--slide-title` starts a new appended slide; each `--bullet` attaches to the most recent `--slide-title`. Repeat `--slide-title`/`--bullet` pairs to append multiple slides in one call. For a JSON batch, write `[{"title": "...", "bullets": ["..."]}]` to a file and pass it with `--slides <file.json>`.
 
