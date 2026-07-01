@@ -83,8 +83,13 @@
 	function userRoleOptions() {
 		return [
 			{ value: 'member', label: text.users.member },
+			{ value: 'operationsAdmin', label: text.users.operationsAdmin },
 			{ value: 'admin', label: text.users.admin }
 		];
+	}
+
+	function userRoleLabel(role: UserRole) {
+		return userRoleOptions().find((option) => option.value === role)?.label ?? role;
 	}
 
 	function visibleCircles() {
@@ -500,7 +505,7 @@
 										<Input bind:value={record.hireDate} type="date" />
 									</Table.Cell>
 									<Table.Cell>
-										<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+										<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{userRoleLabel(record.role)}</Badge>
 									</Table.Cell>
 									<Table.Cell>
 										<div class="flex flex-wrap gap-1.5">
@@ -540,7 +545,7 @@
 										{/if}
 									</div>
 								</div>
-								<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+								<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{userRoleLabel(record.role)}</Badge>
 							</div>
 							<div class="grid gap-3 sm:grid-cols-3">
 								<label class="grid gap-1.5">

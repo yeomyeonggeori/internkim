@@ -13,7 +13,7 @@ type userActor struct {
 }
 
 func (actor userActor) isAdmin() bool {
-	return actor.Role == "admin"
+	return actor.Role == adminUserRoleAdmin
 }
 
 func (service *Service) resolveUserActorByEmail(ctx context.Context, email string) (userActor, bool, error) {

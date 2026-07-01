@@ -1173,11 +1173,20 @@ func newInternKimUserID() string {
 	return "user-" + randomHex(16)
 }
 
+const (
+	adminUserRoleAdmin           = "admin"
+	adminUserRoleMember          = "member"
+	adminUserRoleOperationsAdmin = "operationsAdmin"
+)
+
 func normalizeAdminUserRole(role string) string {
-	if strings.EqualFold(strings.TrimSpace(role), "admin") {
-		return "admin"
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "admin":
+		return adminUserRoleAdmin
+	case "operationsadmin":
+		return adminUserRoleOperationsAdmin
 	}
-	return "member"
+	return adminUserRoleMember
 }
 
 func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {
