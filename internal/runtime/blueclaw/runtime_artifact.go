@@ -206,5 +206,29 @@ func gitRevision(repositoryPath string) (string, error) {
 	if revision == "" {
 		return "", fmt.Errorf("empty git revision for %s", repositoryPath)
 	}
+	if suffix := workingTreeDirtySuffix(repositoryPath); suffix != "" {
+		revision = revision + "-" + suffix
+	}
 	return revision, nil
+}
+
+// A dirty working tree gets a content-derived suffix so a locally-built payload
+// (INTERNKIM_BLUECLAW_USE_LOCAL) deploys as a distinct release instead of colliding
+// with the committed HEAD SHA, which the OTA engine would skip as already deployed.
+// The suffix changes only when the working-tree content changes, so unchanged rebuilds
+// stay idempotent.
+func workingTreeDirtySuffix(repositoryPath string) string {
+	trackedDiff, errorValue := exec.Command("git", "-C", repositoryPath, "diff", "HEAD").Output()
+	if errorValue != nil {
+		return ""
+	}
+	untrackedList, errorValue := exec.Command("git", "-C", repositoryPath, "ls-files", "--others", "--exclude-standard").Output()
+	if errorValue != nil {
+		return ""
+	}
+	if len(strings.TrimSpace(string(trackedDiff))) == 0 && len(strings.TrimSpace(string(untrackedList))) == 0 {
+		return ""
+	}
+	hash := sha256.Sum256(append(trackedDiff, untrackedList...))
+	return "dirty-" + hex.EncodeToString(hash[:])[:12]
 }
