@@ -8,7 +8,6 @@ import type {
 	CircleRecord,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
-	OrgchartEmploymentStatus,
 	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
@@ -29,7 +28,6 @@ export class AdminApiError extends Error {
 }
 
 const fallbackAdminApiErrorMessages = new Set([
-	'employmentStatus must be active, leave, or resigned',
 	'supervisor hierarchy cannot contain cycles'
 ]);
 const fallbackNetworkErrorMessages = new Set(['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.', 'fetch failed']);
@@ -330,14 +328,9 @@ export type OrgProfileUpdate = {
 	email: string;
 	jobTitle: string;
 	group?: string;
-	positionLevel?: number;
 	primaryGroupID?: string;
 	groupIDs?: string[];
 	supervisorID?: string;
-	projectIDs?: string[];
-	teamRole?: string;
-	employmentStatus?: OrgchartEmploymentStatus;
-	isOrgchartVisible?: boolean;
 };
 
 export type RestoreCompletionRequest = {

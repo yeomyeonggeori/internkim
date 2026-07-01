@@ -21,18 +21,13 @@ func (errorValue orgchartProfileInvalidRequestError) Is(target error) bool {
 }
 
 type orgchartProfileRequest struct {
-	UserID            string    `json:"userID"`
-	Email             string    `json:"email"`
-	JobTitle          *string   `json:"jobTitle"`
-	Group             *string   `json:"group"`
-	PositionLevel     *int      `json:"positionLevel"`
-	PrimaryGroupID    *string   `json:"primaryGroupID"`
-	GroupIDs          *[]string `json:"groupIDs"`
-	SupervisorID      *string   `json:"supervisorID"`
-	ProjectIDs        *[]string `json:"projectIDs"`
-	TeamRole          *string   `json:"teamRole"`
-	EmploymentStatus  *string   `json:"employmentStatus"`
-	IsOrgchartVisible *bool     `json:"isOrgchartVisible"`
+	UserID         string    `json:"userID"`
+	Email          string    `json:"email"`
+	JobTitle       *string   `json:"jobTitle"`
+	Group          *string   `json:"group"`
+	PrimaryGroupID *string   `json:"primaryGroupID"`
+	GroupIDs       *[]string `json:"groupIDs"`
+	SupervisorID   *string   `json:"supervisorID"`
 }
 
 func (service *Service) handleOrgchartProfileUpdate(responseWriter http.ResponseWriter, request *http.Request) {
@@ -41,10 +36,6 @@ func (service *Service) handleOrgchartProfileUpdate(responseWriter http.Response
 	}
 	if errorValue := json.NewDecoder(request.Body).Decode(&profilesRequest); errorValue != nil {
 		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	if errorValue := validateOrgchartProfileRequests(profilesRequest.Profiles); errorValue != nil {
-		writeOrgchartProfileUpdateError(responseWriter, errorValue)
 		return
 	}
 	profiles, errorValue := service.orgchartProfilesFromRequest(request.Context(), profilesRequest.Profiles)
@@ -65,18 +56,6 @@ func writeOrgchartProfileUpdateError(responseWriter http.ResponseWriter, errorVa
 		return
 	}
 	http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-}
-
-func validateOrgchartProfileRequests(requestProfiles []orgchartProfileRequest) error {
-	for _, requestProfile := range requestProfiles {
-		if requestProfile.PositionLevel != nil && *requestProfile.PositionLevel < 1 {
-			return orgchartProfileInvalidRequestError("positionLevel must be greater than or equal to 1")
-		}
-		if requestProfile.EmploymentStatus != nil && !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
-			return orgchartProfileInvalidRequestError("employmentStatus must be active, leave, or resigned")
-		}
-	}
-	return nil
 }
 
 func (service *Service) handleOrgchartGroupsUpdate(responseWriter http.ResponseWriter, request *http.Request) {
@@ -176,9 +155,6 @@ func applyOrgchartProfileRequest(profile orgchartProfile, requestProfile orgchar
 	if requestProfile.JobTitle != nil {
 		profile.JobTitle = *requestProfile.JobTitle
 	}
-	if requestProfile.PositionLevel != nil {
-		profile.PositionLevel = *requestProfile.PositionLevel
-	}
 	if requestProfile.Group != nil {
 		profile.PrimaryGroupID = *requestProfile.Group
 	}
@@ -193,18 +169,6 @@ func applyOrgchartProfileRequest(profile orgchartProfile, requestProfile orgchar
 	}
 	if requestProfile.SupervisorID != nil {
 		profile.SupervisorID = *requestProfile.SupervisorID
-	}
-	if requestProfile.ProjectIDs != nil {
-		profile.ProjectIDs = *requestProfile.ProjectIDs
-	}
-	if requestProfile.TeamRole != nil {
-		profile.TeamRole = *requestProfile.TeamRole
-	}
-	if requestProfile.EmploymentStatus != nil {
-		profile.EmploymentStatus = *requestProfile.EmploymentStatus
-	}
-	if requestProfile.IsOrgchartVisible != nil {
-		profile.IsOrgchartVisible = *requestProfile.IsOrgchartVisible
 	}
 	return profile
 }
