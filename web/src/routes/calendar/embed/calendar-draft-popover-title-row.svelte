@@ -60,7 +60,6 @@
 </script>
 
 <label class="draft-popover-title-row">
-	<span class="draft-popover-color-dot" aria-hidden="true"></span>
 	<input
 		bind:this={titleInputElement}
 		value={popover.title}

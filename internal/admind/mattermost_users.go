@@ -22,31 +22,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
-type adminUserMutation struct {
-	UserID                 string   `json:"userID,omitempty"`
-	Handle                 string   `json:"handle,omitempty"`
-	Name                   string   `json:"name,omitempty"`
-	Email                  string   `json:"email"`
-	HireDate               string   `json:"hireDate,omitempty"`
-	Role                   string   `json:"role"`
-	Circles                []string `json:"circles,omitempty"`
-	JobTitle               string   `json:"jobTitle,omitempty"`
-	Group                  string   `json:"group,omitempty"`
-	PositionLevel          int      `json:"positionLevel,omitempty"`
-	PrimaryGroupID         string   `json:"primaryGroupID,omitempty"`
-	GroupIDs               []string `json:"groupIDs,omitempty"`
-	SupervisorID           string   `json:"supervisorID,omitempty"`
-	ProjectIDs             []string `json:"projectIDs,omitempty"`
-	TeamRole               string   `json:"teamRole,omitempty"`
-	EmploymentStatus       string   `json:"employmentStatus,omitempty"`
-	IsOrgchartVisible      bool     `json:"isOrgchartVisible"`
-	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
-	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
-	Status                 string   `json:"status,omitempty"`
-	TemporaryPassword      string   `json:"temporaryPassword,omitempty"`
-	TemporaryPasswordEmail string   `json:"temporaryPasswordEmail,omitempty"`
-}
-
 type mattermostUserRecord struct {
 	ID          string `json:"id"`
 	Email       string `json:"email"`

@@ -82,18 +82,31 @@ func orgchartGroupIDsWithPrimary(groupIDs []string, primaryGroupID string) []str
 }
 
 func normalizeOrgchartGroups(groups []orgGroupRecord) []orgGroupRecord {
+	result, _ := normalizeOrgchartGroupsWithAliases(groups)
+	return result
+}
+
+func normalizeOrgchartGroupsWithAliases(groups []orgGroupRecord) ([]orgGroupRecord, map[string]string) {
 	result := []orgGroupRecord{}
-	seen := map[string]bool{}
+	seenIDs := map[string]bool{}
+	groupIDsByName := map[string]string{}
+	aliases := map[string]string{}
 	for _, group := range groups {
 		id := strings.TrimSpace(group.ID)
 		name := strings.TrimSpace(group.Name)
-		if id == "" || name == "" || seen[id] {
+		nameKey := strings.ToLower(name)
+		if id == "" || name == "" || seenIDs[id] {
 			continue
 		}
-		seen[id] = true
+		seenIDs[id] = true
+		if existingID := groupIDsByName[nameKey]; existingID != "" {
+			aliases[id] = existingID
+			continue
+		}
+		groupIDsByName[nameKey] = id
 		result = append(result, orgGroupRecord{ID: id, Name: name})
 	}
-	return result
+	return result, aliases
 }
 
 func encodeOrgchartStringList(values []string) (string, error) {

@@ -96,6 +96,19 @@ test.describe('embedded calendar timeline drag interactions', () => {
 		await finishTimelineRangeDrag(page, '주');
 	});
 
+	test('clips week timeline range preview inside the visible scroller after scrolling', async ({ page }) => {
+		await openCalendarEmbed(page, '주');
+		const measurements = await startScrolledCrossDayWeekRangeDrag(page);
+
+		expect(measurements.length).toBeGreaterThan(1);
+		for (const measurement of measurements) {
+			expect(measurement.topOverflow).toBeLessThanOrEqual(1);
+			expect(measurement.bottomOverflow).toBeLessThanOrEqual(1);
+		}
+
+		await finishScrolledWeekRangeDrag(page);
+	});
+
 	test('keeps day timeline range preview inside the event column while dragging', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
 		await startTimelineRangeDrag(page, '일');
@@ -121,4 +134,73 @@ async function doubleClickAllDayCell(page: Page, viewLabel: '일' | '주'): Prom
 		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 	}, selector);
+}
+
+async function startScrolledCrossDayWeekRangeDrag(page: Page): Promise<{ topOverflow: number; bottomOverflow: number }[]> {
+	return page.evaluate(async () => {
+		const scroller = document.querySelector('.df-week-time-grid-scroller');
+		if (!(scroller instanceof HTMLElement)) throw new Error('Missing week timeline scroller');
+		scroller.scrollTop = 260;
+		scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+		await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		const scrollerRectangle = scroller.getBoundingClientRect();
+		const visibleRow = Array.from(document.querySelectorAll('.df-time-grid-row')).find(
+			(row): row is HTMLElement =>
+				row instanceof HTMLElement && row.getBoundingClientRect().bottom > scrollerRectangle.top + 220
+		);
+		if (!visibleRow) throw new Error('Missing visible week timeline row');
+		const startCell = visibleRow.querySelectorAll('.df-week-time-grid-cell')[3];
+		const endCell = visibleRow.querySelectorAll('.df-week-time-grid-cell')[4];
+		if (!(startCell instanceof HTMLElement) || !(endCell instanceof HTMLElement)) throw new Error('Missing week cells');
+		const startRectangle = startCell.getBoundingClientRect();
+		const endRectangle = endCell.getBoundingClientRect();
+		const pointerID = 93;
+		const startClientX = startRectangle.left + startRectangle.width / 2;
+		const endClientX = endRectangle.left + endRectangle.width / 2;
+		const startClientY = scrollerRectangle.top + 360;
+		const endClientY = startClientY + 144;
+		startCell.dispatchEvent(
+			new PointerEvent('pointerdown', {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+				pointerId: pointerID,
+				clientX: startClientX,
+				clientY: startClientY
+			})
+		);
+		document.dispatchEvent(
+			new PointerEvent('pointermove', {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+				pointerId: pointerID,
+				clientX: endClientX,
+				clientY: endClientY
+			})
+		);
+		await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		return Array.from(document.querySelectorAll('.timeline-range-preview')).map((preview) => {
+			const previewRectangle = preview.getBoundingClientRect();
+			return {
+				topOverflow: Math.round(scrollerRectangle.top - previewRectangle.top),
+				bottomOverflow: Math.round(previewRectangle.bottom - scrollerRectangle.bottom)
+			};
+		});
+	});
+}
+
+async function finishScrolledWeekRangeDrag(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		window.dispatchEvent(
+			new PointerEvent('pointerup', {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+				pointerId: 93,
+				clientX: 0,
+				clientY: 0
+			})
+		);
+	});
 }

@@ -193,6 +193,7 @@ type adminSessionResponse struct {
 	Email                  string `json:"email"`
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
+	Role                   string `json:"role"`
 	IsClaimed              bool   `json:"isClaimed"`
 	BootstrapStatus        string `json:"bootstrapStatus"`
 	BootstrapError         string `json:"bootstrapError,omitempty"`
@@ -702,7 +703,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if !service.isAuthorized(request) {
-		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		if !service.isOperationsAdminRequest(request, path) {
+			http.Error(responseWriter, "admin access required", http.StatusForbidden)
+			return
+		}
+	}
+	if service.rejectOperationsAdminRestrictedMutation(responseWriter, request, path) {
 		return
 	}
 
@@ -856,10 +862,12 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	claimedAdminEmail := service.claimedAdminEmail()
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	consoleEmail := service.adminConsoleActorEmail(request)
+	role := service.adminSessionRole(request.Context(), consoleEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
-		IsAdmin:           service.isFlowAdminEmail(request.Context(), consoleEmail),
+		IsAdmin:           role == adminUserRoleAdmin,
+		Role:              role,
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
@@ -912,234 +920,6 @@ func companionReleases() []companionRelease {
 	}
 }
 
-func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *http.Request) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
-		return
-	}
-	targetPath := strings.TrimPrefix(request.URL.Path, "/admin/api/users")
-	targetURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users" + targetPath
-	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
-		targetURL += "?fleet_id=" + url.QueryEscape(fleetID)
-	}
-	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
-		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
-			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
-		}
-	}
-	var removedUser *adminUserMutation
-	var upsertedEmail string
-	if request.Method == http.MethodDelete {
-		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		removedUser = userRecord
-		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
-			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-		} else if removedUser != nil {
-			if errorValue := service.deactivateMattermostUserByEmail(request.Context(), removedUser.Email); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-		}
-	}
-	body := request.Body
-	var temporaryPassword string
-	var temporaryPasswordEmail string
-	var upsertedName string
-	var upsertedRole string
-	var upsertedCircles []string
-	var upsertedMattermostUserID string
-	var upsertedUserID string
-	var hasExplicitCircleMutation bool
-	if request.Method == http.MethodPost {
-		var payload adminUserMutation
-		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-			http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		hasExplicitCircleMutation = payload.Circles != nil
-		payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
-		if payload.Email == "" {
-			http.Error(responseWriter, "email required", http.StatusBadRequest)
-			return
-		}
-		payload.Handle = normalizeMattermostHandle(firstNonEmpty(payload.Handle, mattermostUsernameBase(payload.Email)))
-		if !isValidMattermostHandle(payload.Handle) {
-			http.Error(responseWriter, "handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores", http.StatusBadRequest)
-			return
-		}
-		payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
-		payload.HireDate = strings.TrimSpace(payload.HireDate)
-		payload.Role = normalizeAdminUserRole(payload.Role)
-		userID, errorValue := service.userIDForAdminUserMutation(request.Context(), fleetID, fleetSecret, payload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		payload.UserID = userID
-		upsertedEmail = payload.Email
-		upsertedName = payload.Name
-		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
-			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
-			if errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-			for _, record := range records {
-				if record.Role == "admin" && strings.EqualFold(record.Email, payload.Email) {
-					payload.Role = "admin"
-					break
-				}
-			}
-		}
-		payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
-		upsertedUserID = strings.TrimSpace(payload.UserID)
-		upsertedRole = payload.Role
-		upsertedCircles = append([]string{}, payload.Circles...)
-		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		if isLastAdminDemotion {
-			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
-			return
-		}
-		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		payload.MattermostUserID = provisionResult.UserID
-		payload.MattermostUsername = provisionResult.Username
-		payload.Handle = provisionResult.Username
-		payload.Status = provisionResult.Status
-		upsertedMattermostUserID = payload.MattermostUserID
-		temporaryPassword = provisionResult.TemporaryPassword
-		temporaryPasswordEmail = payload.Email
-		proxyPayload := map[string]any{
-			"userID":             payload.UserID,
-			"handle":             payload.Handle,
-			"name":               payload.Name,
-			"hireDate":           payload.HireDate,
-			"fleet_id":           fleetID,
-			"email":              payload.Email,
-			"role":               payload.Role,
-			"mattermostUserID":   payload.MattermostUserID,
-			"mattermostUsername": payload.MattermostUsername,
-			"status":             payload.Status,
-		}
-		document, errorValue := json.Marshal(proxyPayload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
-		}
-		body = io.NopCloser(strings.NewReader(string(document)))
-	}
-	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), request.Method, targetURL, body)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	proxyRequest.Header.Set("Content-Type", "application/json")
-	proxyRequest.Header.Set("X-InternKim-Fleet-ID", fleetID)
-	proxyRequest.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
-	client := service.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	response, errorValue := client.Do(proxyRequest)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	defer response.Body.Close()
-	if contentType := response.Header.Get("Content-Type"); contentType != "" {
-		responseWriter.Header().Set("Content-Type", contentType)
-	}
-	responseBody, errorValue := io.ReadAll(response.Body)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		if request.Method == http.MethodPost {
-			upsertedUserID = firstNonEmpty(upsertedUserID, userIDFromAdminUsersResponse(responseBody, upsertedEmail))
-		}
-		if request.Method == http.MethodPost && temporaryPassword != "" {
-			var responseDocument map[string]any
-			if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
-				responseDocument["temporaryPassword"] = temporaryPassword
-				responseDocument["temporaryPasswordEmail"] = temporaryPasswordEmail
-				responseBody, _ = json.Marshal(responseDocument)
-			}
-		}
-		if upsertedEmail != "" {
-			var errorValue error
-			if hasExplicitCircleMutation {
-				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles)
-			} else {
-				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName)
-			}
-			if errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-			if hasExplicitCircleMutation {
-				if errorValue := service.syncMattermostUserCircleMemberships(request.Context(), adminUserMutation{
-					Email:            upsertedEmail,
-					Name:             upsertedName,
-					Role:             upsertedRole,
-					Circles:          upsertedCircles,
-					MattermostUserID: upsertedMattermostUserID,
-				}); errorValue != nil {
-					log.Printf("Mattermost circle membership sync failed: %v", errorValue)
-				}
-			}
-			service.triggerUsersSync(request.Context())
-		}
-		if request.Method == http.MethodDelete && removedUser != nil {
-			if errorValue := service.removeBlueclawPerson(request.Context(), removedUser.Email); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-			service.triggerUsersSync(request.Context())
-		}
-		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
-			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
-				responseBody = enhancedBody
-			} else {
-				log.Printf("Blueclaw circle merge failed: %v", errorValue)
-			}
-		}
-	}
-	if request.Method == http.MethodGet && response.StatusCode >= 200 && response.StatusCode < 300 {
-		if shouldIncludeBlueclawPolicy(request) {
-			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
-				responseBody = enhancedBody
-			} else {
-				log.Printf("Blueclaw circle merge failed: %v", errorValue)
-			}
-		}
-		var usersResponse pagesUsersResponse
-		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && len(usersResponse.Records) > 0 {
-			if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
-				log.Printf("Mattermost bot DM sync failed: %v", errorValue)
-			}
-		}
-	}
-	responseWriter.WriteHeader(response.StatusCode)
-	_, _ = responseWriter.Write(responseBody)
-}
-
 func userIDFromAdminUsersResponse(responseBody []byte, email string) string {
 	var responseDocument pagesUsersResponse
 	if json.Unmarshal(responseBody, &responseDocument) != nil {
@@ -1173,11 +953,20 @@ func newInternKimUserID() string {
 	return "user-" + randomHex(16)
 }
 
+const (
+	adminUserRoleAdmin           = "admin"
+	adminUserRoleMember          = "member"
+	adminUserRoleOperationsAdmin = "operationsAdmin"
+)
+
 func normalizeAdminUserRole(role string) string {
-	if strings.EqualFold(strings.TrimSpace(role), "admin") {
-		return "admin"
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "admin":
+		return adminUserRoleAdmin
+	case "operationsadmin":
+		return adminUserRoleOperationsAdmin
 	}
-	return "member"
+	return adminUserRoleMember
 }
 
 func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {
@@ -1191,8 +980,8 @@ func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
 		return
 	}
-	if circleID == "staff" {
-		http.Error(responseWriter, "staff circle is built in", http.StatusBadRequest)
+	if isReservedAdminCircleID(circleID) {
+		http.Error(responseWriter, "reserved group cannot be changed", http.StatusBadRequest)
 		return
 	}
 	var policyDocument map[string]any
@@ -1220,8 +1009,8 @@ func (service *Service) deleteBlueclawCircle(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
 		return
 	}
-	if circleID == "staff" {
-		http.Error(responseWriter, "staff circle cannot be removed", http.StatusBadRequest)
+	if isReservedAdminCircleID(circleID) {
+		http.Error(responseWriter, "reserved group cannot be removed", http.StatusBadRequest)
 		return
 	}
 	var policyDocument map[string]any
@@ -2186,65 +1975,6 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 	return emails
 }
 
-func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string, email string, name string) error {
-	normalizedUserID := strings.TrimSpace(userID)
-	if normalizedUserID == "" {
-		return fmt.Errorf("userID required")
-	}
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return fmt.Errorf("email required")
-	}
-	body := map[string]string{"personID": normalizedUserID, "email": normalizedEmail}
-	if strings.TrimSpace(name) != "" {
-		body["displayName"] = strings.TrimSpace(name)
-	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
-}
-
-func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string, email string, name string, role string, circles []string) error {
-	if errorValue := service.inviteBlueclawPerson(ctx, userID, email, name); errorValue != nil {
-		return errorValue
-	}
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	return service.updateBlueclawPersonCircles(ctx, normalizedEmail, name, role, circles)
-}
-
-func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email string, name string, role string, circles []string) error {
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return errorValue
-	}
-	people, _ := policyDocument["people"].([]any)
-	for _, value := range people {
-		person, isPerson := value.(map[string]any)
-		if !isPerson || !blueclawPersonHasEmail(person, email) {
-			continue
-		}
-		person["circles"] = normalizeAdminUserCircles(circles, role)
-		if strings.TrimSpace(name) != "" {
-			person["displayName"] = strings.TrimSpace(name)
-		}
-		if normalizeAdminUserRole(role) == "admin" {
-			person["isAdmin"] = true
-			person["securityLevelName"] = "admin"
-			person["securityLevelRank"] = 100
-			person["grantedClasses"] = []string{"internal", "executive"}
-		} else {
-			person["isAdmin"] = false
-			if strings.TrimSpace(mattermostPolicyString(person["securityLevelName"])) == "" || mattermostPolicyString(person["securityLevelName"]) == "admin" {
-				person["securityLevelName"] = "member"
-			}
-			if rank, _ := person["securityLevelRank"].(float64); rank == 0 || rank == 100 {
-				person["securityLevelRank"] = 10
-			}
-			person["grantedClasses"] = []string{"internal"}
-		}
-		break
-	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
-}
-
 func (service *Service) localUpdateOrgProfiles(responseWriter http.ResponseWriter, request *http.Request) {
 	service.handleOrgchartProfileUpdate(responseWriter, request)
 }
@@ -2489,6 +2219,22 @@ func (service *Service) isCurrentAdminEmail(ctx context.Context, callerEmail str
 	return false
 }
 
+func (service *Service) currentAdminUserRole(ctx context.Context, callerEmail string) string {
+	if strings.TrimSpace(callerEmail) == "" {
+		return adminUserRoleMember
+	}
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return adminUserRoleMember
+	}
+	for _, record := range records {
+		if strings.EqualFold(record.Email, callerEmail) {
+			return normalizeAdminUserRole(record.Role)
+		}
+	}
+	return adminUserRoleMember
+}
+
 func isLocalRequest(request *http.Request) bool {
 	host, _, splitError := net.SplitHostPort(request.RemoteAddr)
 	if splitError != nil {
@@ -2580,7 +2326,15 @@ func (service *Service) httpClient() *http.Client {
 	if service.HTTPClient != nil {
 		return service.HTTPClient
 	}
-	return http.DefaultClient
+	return admindHTTPClient
+}
+
+var admindHTTPClient = &http.Client{Transport: newAdmindHTTPTransport()}
+
+func newAdmindHTTPTransport() http.RoundTripper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	return transport
 }
 
 func (service *Service) runCommand(ctx context.Context, name string, arguments ...string) ([]byte, error) {

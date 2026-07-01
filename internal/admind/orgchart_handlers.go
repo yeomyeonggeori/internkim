@@ -3,10 +3,22 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"strings"
 )
+
+var errOrgchartProfileInvalidRequest = errors.New("invalid orgchart profile request")
+
+type orgchartProfileInvalidRequestError string
+
+func (errorValue orgchartProfileInvalidRequestError) Error() string {
+	return string(errorValue)
+}
+
+func (errorValue orgchartProfileInvalidRequestError) Is(target error) bool {
+	return target == errOrgchartProfileInvalidRequest
+}
 
 type orgchartProfileRequest struct {
 	UserID            string    `json:"userID"`
@@ -32,12 +44,12 @@ func (service *Service) handleOrgchartProfileUpdate(responseWriter http.Response
 		return
 	}
 	if errorValue := validateOrgchartProfileRequests(profilesRequest.Profiles); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeOrgchartProfileUpdateError(responseWriter, errorValue)
 		return
 	}
 	profiles, errorValue := service.orgchartProfilesFromRequest(request.Context(), profilesRequest.Profiles)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		writeOrgchartProfileUpdateError(responseWriter, errorValue)
 		return
 	}
 	if errorValue := service.writeOrgchartProfiles(request.Context(), profiles); errorValue != nil {
@@ -47,13 +59,21 @@ func (service *Service) handleOrgchartProfileUpdate(responseWriter http.Response
 	service.writeFullLocalUsersResponse(responseWriter, request)
 }
 
+func writeOrgchartProfileUpdateError(responseWriter http.ResponseWriter, errorValue error) {
+	if errors.Is(errorValue, errOrgchartProfileInvalidRequest) {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+}
+
 func validateOrgchartProfileRequests(requestProfiles []orgchartProfileRequest) error {
 	for _, requestProfile := range requestProfiles {
-		if requestProfile.EmploymentStatus == nil {
-			continue
+		if requestProfile.PositionLevel != nil && *requestProfile.PositionLevel < 1 {
+			return orgchartProfileInvalidRequestError("positionLevel must be greater than or equal to 1")
 		}
-		if !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
-			return fmt.Errorf("employmentStatus must be active, leave, or resigned")
+		if requestProfile.EmploymentStatus != nil && !isValidOrgchartEmploymentStatus(*requestProfile.EmploymentStatus) {
+			return orgchartProfileInvalidRequestError("employmentStatus must be active, leave, or resigned")
 		}
 	}
 	return nil
@@ -86,7 +106,52 @@ func (service *Service) orgchartProfilesFromRequest(ctx context.Context, request
 		profile = applyOrgchartProfileRequest(profile, requestProfile)
 		profiles = append(profiles, profile)
 	}
+	if errorValue := validateOrgchartSupervisorGraph(existingProfiles, profiles); errorValue != nil {
+		return nil, errorValue
+	}
 	return profiles, nil
+}
+
+func validateOrgchartSupervisorGraph(existingProfiles []orgchartProfile, updatedProfiles []orgchartProfile) error {
+	supervisorIDByUserID := map[string]string{}
+	setSupervisor := func(profile orgchartProfile) {
+		normalizedProfile := normalizeOrgchartProfile(profile)
+		if normalizedProfile.UserID == "" {
+			return
+		}
+		supervisorIDByUserID[normalizedProfile.UserID] = normalizedProfile.SupervisorID
+	}
+	for _, profile := range existingProfiles {
+		setSupervisor(profile)
+	}
+	for _, profile := range updatedProfiles {
+		setSupervisor(profile)
+	}
+	for userID := range supervisorIDByUserID {
+		if errorValue := validateOrgchartSupervisorChain(userID, supervisorIDByUserID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func validateOrgchartSupervisorChain(userID string, supervisorIDByUserID map[string]string) error {
+	visitedUserIDs := map[string]bool{}
+	currentUserID := userID
+	for {
+		supervisorID := supervisorIDByUserID[currentUserID]
+		if supervisorID == "" {
+			return nil
+		}
+		if supervisorID == userID || visitedUserIDs[supervisorID] {
+			return orgchartProfileInvalidRequestError("supervisor hierarchy cannot contain cycles")
+		}
+		if _, found := supervisorIDByUserID[supervisorID]; !found {
+			return nil
+		}
+		visitedUserIDs[currentUserID] = true
+		currentUserID = supervisorID
+	}
 }
 
 func orgchartProfileForRequest(requestProfile orgchartProfileRequest, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) orgchartProfile {

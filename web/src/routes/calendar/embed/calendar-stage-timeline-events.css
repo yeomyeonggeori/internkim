@@ -89,6 +89,11 @@
 		overflow: hidden !important;
 	}
 
+	.calendar-stage.calendar-stage-day .df-right-panel-event-card.df-day-event .calendar-event-content {
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
 	.calendar-stage.calendar-stage-day .df-day-event.df-event-timed.draft-empty-title-event,
 	.calendar-stage.calendar-stage-week .df-week-event.df-event-timed.draft-empty-title-event,
 	.calendar-stage .df-event.draft-empty-title-event {

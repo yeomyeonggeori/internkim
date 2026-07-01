@@ -89,6 +89,10 @@ ON CONFLICT(id) DO UPDATE SET
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if errorValue := replaceCalendarEventParticipants(ctx, transaction, event.ID, calendarParticipantIdentities(event.Participants)); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue

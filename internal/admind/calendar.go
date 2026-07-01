@@ -33,45 +33,47 @@ const (
 )
 
 type calendarEvent struct {
-	ID                string   `json:"id"`
-	UID               string   `json:"uid"`
-	Title             string   `json:"title"`
-	Description       string   `json:"description"`
-	Location          string   `json:"location"`
-	StartISO          string   `json:"startISO"`
-	EndISO            string   `json:"endISO"`
-	TimeZone          string   `json:"timeZone"`
-	IsAllDay          bool     `json:"isAllDay"`
-	Color             string   `json:"color"`
-	People            []string `json:"people"`
-	ReminderLeadHours int      `json:"reminderLeadHours"`
-	CreatedByEmail    string   `json:"createdByEmail"`
-	CreatedByName     string   `json:"createdByName"`
-	CreatedByImage    string   `json:"createdByImage,omitempty"`
-	UpdatedByEmail    string   `json:"updatedByEmail,omitempty"`
-	UpdatedByName     string   `json:"updatedByName,omitempty"`
-	UpdatedByImage    string   `json:"updatedByImage,omitempty"`
-	UpdatedByAt       string   `json:"updatedByAt,omitempty"`
-	UpdatedAt         string   `json:"updatedAt"`
-	MattermostPostID  string   `json:"mattermostPostID,omitempty"`
-	RemoteSource      string   `json:"remoteSource,omitempty"`
-	RemoteETag        string   `json:"remoteETag,omitempty"`
-	RemoteHref        string   `json:"remoteHref,omitempty"`
-	RawICS            string   `json:"-"`
+	ID                string                `json:"id"`
+	UID               string                `json:"uid"`
+	Title             string                `json:"title"`
+	Description       string                `json:"description"`
+	Location          string                `json:"location"`
+	StartISO          string                `json:"startISO"`
+	EndISO            string                `json:"endISO"`
+	TimeZone          string                `json:"timeZone"`
+	IsAllDay          bool                  `json:"isAllDay"`
+	Color             string                `json:"color"`
+	People            []string              `json:"people"`
+	Participants      []calendarParticipant `json:"participants,omitempty"`
+	ReminderLeadHours int                   `json:"reminderLeadHours"`
+	CreatedByEmail    string                `json:"createdByEmail"`
+	CreatedByName     string                `json:"createdByName"`
+	CreatedByImage    string                `json:"createdByImage,omitempty"`
+	UpdatedByEmail    string                `json:"updatedByEmail,omitempty"`
+	UpdatedByName     string                `json:"updatedByName,omitempty"`
+	UpdatedByImage    string                `json:"updatedByImage,omitempty"`
+	UpdatedByAt       string                `json:"updatedByAt,omitempty"`
+	UpdatedAt         string                `json:"updatedAt"`
+	MattermostPostID  string                `json:"mattermostPostID,omitempty"`
+	RemoteSource      string                `json:"remoteSource,omitempty"`
+	RemoteETag        string                `json:"remoteETag,omitempty"`
+	RemoteHref        string                `json:"remoteHref,omitempty"`
+	RawICS            string                `json:"-"`
 }
 
 type calendarEventWriteRequest struct {
-	EventID           string              `json:"eventID"`
-	Title             string              `json:"title"`
-	Description       string              `json:"description"`
-	Location          string              `json:"location"`
-	StartISO          string              `json:"startISO"`
-	EndISO            string              `json:"endISO"`
-	TimeZone          string              `json:"timeZone"`
-	IsAllDay          bool                `json:"isAllDay"`
-	Color             string              `json:"color"`
-	People            calendarPeopleInput `json:"people"`
-	ReminderLeadHours int                 `json:"reminderLeadHours"`
+	EventID           string                        `json:"eventID"`
+	Title             string                        `json:"title"`
+	Description       string                        `json:"description"`
+	Location          string                        `json:"location"`
+	StartISO          string                        `json:"startISO"`
+	EndISO            string                        `json:"endISO"`
+	TimeZone          string                        `json:"timeZone"`
+	IsAllDay          bool                          `json:"isAllDay"`
+	Color             string                        `json:"color"`
+	People            calendarPeopleInput           `json:"people"`
+	Participants      []calendarParticipantIdentity `json:"participants"`
+	ReminderLeadHours int                           `json:"reminderLeadHours"`
 }
 
 type calendarEventsResponse struct {
@@ -138,6 +140,10 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	switch {
 	case request.Method == http.MethodGet && path == "/events":
 		service.listCalendarEvents(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/participants":
+		service.listCalendarParticipants(responseWriter, request)
+	case request.Method == http.MethodGet && isCalendarParticipantImageAPIPath(path):
+		service.serveCalendarParticipantImage(responseWriter, request, path)
 	case request.Method == http.MethodGet && isCalendarActorImageAPIPath(path):
 		service.serveCalendarActorImage(responseWriter, request, path)
 	case request.Method == http.MethodPost && path == "/events":
@@ -152,8 +158,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.runCalendarRemoteSync(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/account-status":
 		service.serveCalendarAccountStatus(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/connection/start":
-		service.startCalendarConnection(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/google-oauth-client":
 		service.uploadGoogleOAuthClient(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/conflicts":
@@ -168,10 +172,20 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 }
 
 func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
+	if path == "/participants" {
+		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+	}
+	if isCalendarParticipantImageAPIPath(path) {
+		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+	}
 	if isCalendarActorImageAPIPath(path) {
 		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
 	}
 	return service.authorizeCalendarRequest(request)
+}
+
+func isCalendarParticipantImageAPIPath(path string) bool {
+	return strings.HasPrefix(path, "/participants/") && strings.HasSuffix(path, "/image")
 }
 
 func isCalendarActorImageAPIPath(path string) bool {
@@ -211,6 +225,7 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	events = service.calendarEventsWithParticipantImages(request, events)
 	service.writeJSON(responseWriter, calendarEventsResponse{Events: service.calendarEventsWithActorProfiles(request.Context(), events)})
 }
 
@@ -225,6 +240,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	responseWriter.WriteHeader(http.StatusCreated)
+	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }
 
@@ -244,6 +260,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	if !hasCalendarEventUserEditableChanges(existingEvent, event) {
+		existingEvent = service.calendarEventWithParticipantImages(request, existingEvent)
 		service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), existingEvent))
 		return
 	}
@@ -266,6 +283,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }
 
@@ -446,14 +464,17 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		id = randomHex(16)
 	}
 	people := normalizeCalendarPeople([]string(payload.People))
-	description := calendarDescriptionWithPeople(people, payload.Description)
+	participants := calendarParticipantsFromIdentities(payload.Participants)
+	if len(participants) == 0 && len(people) > 0 {
+		participants = calendarParticipantsFromPeople(people)
+	}
 	createdByEmail, createdByName := service.webStaffActorIdentity(request)
 	_, workspaceTimeZone := service.workspaceTimeLocation()
 	event := calendarEvent{
 		ID:                id,
 		UID:               id + "@internkim",
 		Title:             title,
-		Description:       description,
+		Description:       strings.TrimSpace(payload.Description),
 		Location:          strings.TrimSpace(payload.Location),
 		StartISO:          startTime.UTC().Format(time.RFC3339),
 		EndISO:            endTime.UTC().Format(time.RFC3339),
@@ -461,6 +482,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		IsAllDay:          payload.IsAllDay,
 		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
 		People:            people,
+		Participants:      participants,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
 		CreatedByEmail:    createdByEmail,
 		CreatedByName:     createdByName,
@@ -524,18 +546,6 @@ func normalizeCalendarPeople(values []string) []string {
 		people = append(people, trimmedValue)
 	}
 	return people
-}
-
-func calendarDescriptionWithPeople(people []string, description string) string {
-	trimmedDescription := strings.TrimSpace(description)
-	if len(people) == 0 {
-		return trimmedDescription
-	}
-	peopleLine := strings.Join(people, ", ")
-	if trimmedDescription == "" {
-		return peopleLine
-	}
-	return peopleLine + "\n" + trimmedDescription
 }
 
 func normalizeCalendarReminderLeadHours(value int) int {

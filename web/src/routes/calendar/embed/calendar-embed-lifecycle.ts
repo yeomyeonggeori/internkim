@@ -25,11 +25,9 @@ import type { DayFlowMiniCalendarPickerContext } from './calendar-dayflow-mini-c
 import { installDayFlowMiniCalendarDateSelection } from './calendar-dayflow-mini-calendar-enhancement';
 import { startOfMonthWindow, endOfMonthWindow } from './calendar-visible-range';
 import { calendarChannelName } from '../refresh-signal.svelte';
-import { loadSavedWorkCalendarVisibility } from './calendar-work-visibility';
 
 export type CalendarEmbedLifecycleOptions = {
 	stageElement: HTMLElement | null;
-	setWorkCalendarVisible: (isVisible: boolean) => void;
 	handleCalendarChannelMessage: (event: MessageEvent<unknown>) => void;
 	handleCalendarWindowMessage: (event: MessageEvent<unknown>) => void;
 	handleCalendarStorageMessage: (event: StorageEvent) => void;
@@ -59,9 +57,8 @@ export type CalendarEmbedLifecycleOptions = {
 };
 
 export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOptions): () => void {
-	options.setWorkCalendarVisible(loadSavedWorkCalendarVisibility(window.localStorage));
-	const visibilityChannel = new BroadcastChannel(calendarChannelName);
-	visibilityChannel.addEventListener('message', options.handleCalendarChannelMessage);
+	const calendarChannel = new BroadcastChannel(calendarChannelName);
+	calendarChannel.addEventListener('message', options.handleCalendarChannelMessage);
 	window.addEventListener('message', options.handleCalendarWindowMessage, { capture: true });
 	window.addEventListener('storage', options.handleCalendarStorageMessage, { capture: true });
 	const savedView = options.initialCalendarView();
@@ -79,10 +76,10 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 	const stopMiniCalendarDateSelection = installDayFlowMiniCalendarDateSelection(options.navigateToDateKey);
 	const stopMiniCalendarMonthPicker = installDayFlowMiniCalendarMonthPicker(options.miniCalendarMonthPicker);
 	return () => {
-		visibilityChannel.removeEventListener('message', options.handleCalendarChannelMessage);
+		calendarChannel.removeEventListener('message', options.handleCalendarChannelMessage);
 		window.removeEventListener('message', options.handleCalendarWindowMessage, { capture: true });
 		window.removeEventListener('storage', options.handleCalendarStorageMessage, { capture: true });
-		visibilityChannel.close();
+		calendarChannel.close();
 		themeObserver.disconnect();
 		draftTitleObserver.disconnect();
 		selectedDateObserver.disconnect();

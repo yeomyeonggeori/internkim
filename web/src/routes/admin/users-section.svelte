@@ -6,8 +6,6 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
-	import * as Table from '$lib/components/ui/table';
-	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -23,6 +21,15 @@
 		resetUserPassword,
 		saveUser
 	} from './admin-api';
+	import { adminSessionRole } from './admin-role-policy';
+	import UsersDirectory from './users-directory.svelte';
+	import {
+		isReservedCircleID,
+		isValidHandle,
+		normalizeHandle,
+		normalizeUserCircles,
+		userRoleOptions
+	} from './users-section-policy';
 	import type { AdminPageText, AdminSession, CircleRecord, UserRecord, UserRole, UsersResponse } from './admin-types';
 
 	type UsersSectionProps = {
@@ -56,6 +63,8 @@
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
 	let errorMessage = $state('');
+	const currentAdminRole = $derived(adminSessionRole(adminSession));
+	const canGrantAdminRole = $derived(currentAdminRole === 'admin');
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -74,44 +83,6 @@
 
 	function userCount() {
 		return userRecords.length;
-	}
-
-	function adminCount() {
-		return userRecords.filter((record) => record.role === 'admin').length;
-	}
-
-	function userRoleOptions() {
-		return [
-			{ value: 'member', label: text.users.member },
-			{ value: 'admin', label: text.users.admin }
-		];
-	}
-
-	function visibleCircles() {
-		return availableCircles.filter((circle) => circle.circleID !== 'admin');
-	}
-
-	function normalizeHandle(handle: string) {
-		return handle.trim().toLowerCase();
-	}
-
-	function isValidHandle(handle: string) {
-		return /^[a-z][a-z0-9._-]{2,21}$/.test(normalizeHandle(handle));
-	}
-
-	function isValidUserRecord(record: UserRecord) {
-		return isValidHandle(record.handle) && !!record.name?.trim() && !!record.email.trim();
-	}
-
-	function userRecordsByHireDate() {
-		return [...userRecords].sort((first, second) => {
-			if (first.hireDate || second.hireDate) {
-				if (!first.hireDate) return 1;
-				if (!second.hireDate) return -1;
-				if (first.hireDate !== second.hireDate) return first.hireDate.localeCompare(second.hireDate);
-			}
-			return (first.name || first.email).localeCompare(second.name || second.email);
-		});
 	}
 
 	function applyUsersResponse(response: UsersResponse) {
@@ -139,24 +110,6 @@
 				password: response.temporaryPassword
 			};
 		}
-	}
-
-	function normalizeUserCircles(circles: string[] | undefined, role: UserRole) {
-		const result = new Set(['staff', ...(circles ?? []).map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
-		if (role === 'admin') result.add('admin');
-		return [...result];
-	}
-
-	function hasUserCircle(record: UserRecord, circleID: string) {
-		return normalizeUserCircles(record.circles, record.role).includes(circleID);
-	}
-
-	function toggleUserCircle(record: UserRecord, circleID: string) {
-		if (circleID === 'staff') return;
-		const current = new Set(normalizeUserCircles(record.circles, record.role));
-		if (current.has(circleID)) current.delete(circleID);
-		else current.add(circleID);
-		record.circles = normalizeUserCircles([...current], record.role);
 	}
 
 	function usersErrorMessage(error: unknown, fallbackMessage: string, forbiddenMessage: string = text.messages.adminAuthRequiredOnDevice) {
@@ -205,7 +158,7 @@
 	}
 
 	async function removeCircle(circleID: string) {
-		if (!adminBaseURL || circleID === 'staff') return;
+		if (!adminBaseURL || isReservedCircleID(circleID)) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -243,8 +196,8 @@
 		}
 	}
 
-	async function saveUserRecord(record: UserRecord, role: UserRole = record.role) {
-		if (!fleetID || !adminBaseURL) return;
+	async function saveUserRecord(record: UserRecord, role: UserRole = record.role): Promise<boolean> {
+		if (!fleetID || !adminBaseURL) return false;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -257,6 +210,7 @@
 					handle: normalizeHandle(record.handle),
 					name: record.name?.trim() ?? '',
 					hireDate: record.hireDate ?? '',
+					note: record.note?.trim() ?? '',
 					email: record.email,
 					role,
 					circles: normalizeUserCircles(record.circles, role),
@@ -266,11 +220,18 @@
 				},
 				text.messages.userSaveError
 			));
+			return true;
 		} catch (error) {
 			errorMessage = usersErrorMessage(error, text.messages.userSaveError, text.messages.adminAuthRequired);
+			return false;
 		} finally {
 			isSavingUser = false;
 		}
+	}
+
+	async function saveUserNote(record: UserRecord, note: string): Promise<boolean> {
+		record.note = note.trim();
+		return saveUserRecord(record);
 	}
 
 	async function removeEmail(email: string) {
@@ -359,16 +320,16 @@
 					<Input bind:value={newHireDate} type="date" />
 				</label>
 				<label class="grid gap-1.5">
-					<Label>{text.users.role}</Label>
-					<Select.Root type="single" bind:value={newUserRole}>
-						<Select.Trigger class="w-full">
-							{userRoleOptions().find((option) => option.value === newUserRole)?.label ?? '-'}
-						</Select.Trigger>
-						<Select.Content>
-							{#each userRoleOptions() as option (option.value)}
-								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-							{/each}
-						</Select.Content>
+						<Label>{text.users.role}</Label>
+						<Select.Root type="single" bind:value={newUserRole}>
+							<Select.Trigger class="w-full">
+								{userRoleOptions(text, canGrantAdminRole).find((option) => option.value === newUserRole)?.label ?? '-'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each userRoleOptions(text, canGrantAdminRole) as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+								{/each}
+							</Select.Content>
 					</Select.Root>
 				</label>
 				<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)} class="gap-2">
@@ -412,14 +373,19 @@
 					<input type="checkbox" bind:checked={newCircleMattermostManaged} />
 					{text.users.mattermostManaged}
 				</label>
-				<Button type="submit" disabled={isSavingUser || !newCircleID.trim()}>{text.users.addGroup}</Button>
+				<Button type="submit" disabled={isSavingUser || !newCircleID.trim() || isReservedCircleID(newCircleID)}>{text.users.addGroup}</Button>
 			</form>
 			<div class="mt-3 flex flex-wrap gap-2">
 				{#each availableCircles as circle (circle.circleID)}
 					<Badge variant="outline" class="gap-2">
 						{circle.displayName || circle.circleID}
-						{#if circle.circleID !== 'staff'}
-							<button type="button" class="text-muted-foreground hover:text-destructive" onclick={() => removeCircle(circle.circleID)}>
+						{#if !isReservedCircleID(circle.circleID)}
+							<button
+								type="button"
+								class="text-muted-foreground hover:text-destructive"
+								onclick={() => removeCircle(circle.circleID)}
+								aria-label={`${text.users.remove} ${circle.displayName || circle.circleID}`}
+							>
 								<XIcon class="size-3" />
 							</button>
 						{/if}
@@ -446,181 +412,21 @@
 		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
 	{/if}
 
-	{#if isLoadingUsers}
-		<p class="text-muted-foreground text-sm">{text.users.loading}</p>
-	{:else if userRecords.length === 0}
-		<p class="text-muted-foreground text-sm">{text.users.empty}</p>
-	{:else}
-		<Card.Root class="overflow-hidden">
-			<Card.Header class="flex-row items-center justify-between gap-3 border-b">
-				<div>
-					<Card.Title class="text-sm">{text.users.directoryTitle}</Card.Title>
-					<Card.Description>{text.users.directoryDescription}</Card.Description>
-				</div>
-				<Badge variant="secondary">{adminCount()} {text.users.adminCount}</Badge>
-			</Card.Header>
-			<Card.Content class="p-0">
-				<div class="hidden overflow-x-auto lg:block">
-					<Table.Root class="min-w-[1260px]">
-						<Table.Header class="bg-muted/40">
-							<Table.Row class="hover:bg-transparent">
-								<Table.Head class="w-[250px]">{text.users.person}</Table.Head>
-								<Table.Head class="w-[160px]">{text.users.handle}</Table.Head>
-								<Table.Head class="w-[180px]">{text.users.realName}</Table.Head>
-								<Table.Head class="w-[150px]">{text.users.hireDate}</Table.Head>
-								<Table.Head class="w-[110px]">{text.users.role}</Table.Head>
-								<Table.Head class="w-[220px]">{text.users.groups}</Table.Head>
-								<Table.Head class="text-right">{text.users.actions}</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#each userRecordsByHireDate() as record (record.email)}
-								<Table.Row>
-									<Table.Cell>
-										<div class="flex min-w-0 items-center gap-3">
-											<PersonAvatar name={record.name} email={record.email} class="size-9" />
-											<div class="min-w-0">
-												<p class="truncate text-sm font-medium">{record.email}</p>
-												<p class="truncate text-xs text-muted-foreground">
-													{record.mattermostUsername ? `Mattermost: ${record.mattermostUsername}` : text.users.noMattermost}
-												</p>
-												{#if record.isIncomplete}
-													<p class="text-xs text-destructive">{text.users.incomplete}</p>
-												{/if}
-											</div>
-										</div>
-									</Table.Cell>
-									<Table.Cell>
-										<Input bind:value={record.handle} placeholder={text.users.handlePlaceholder} autocomplete="off" />
-									</Table.Cell>
-									<Table.Cell>
-										<Input bind:value={record.name} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
-									</Table.Cell>
-									<Table.Cell>
-										<Input bind:value={record.hireDate} type="date" />
-									</Table.Cell>
-									<Table.Cell>
-										<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
-									</Table.Cell>
-									<Table.Cell>
-										<div class="flex flex-wrap gap-1.5">
-											{#each visibleCircles() as circle (circle.circleID)}
-												<Button
-													type="button"
-													variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
-													size="sm"
-													disabled={circle.circleID === 'staff' || isSavingUser}
-													onclick={() => toggleUserCircle(record, circle.circleID)}
-													title={circle.isMattermostManaged ? text.users.mattermostManaged : ''}
-												>
-													{circle.displayName || circle.circleID}
-												</Button>
-											{/each}
-										</div>
-									</Table.Cell>
-									<Table.Cell>
-										{@render UserActions(record, 'desktop')}
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</div>
-				<div class="grid gap-0 lg:hidden">
-					{#each userRecordsByHireDate() as record (record.email)}
-						<div class="grid gap-3 border-b p-4 last:border-b-0">
-							<div class="flex min-w-0 items-start justify-between gap-3">
-								<div class="flex min-w-0 items-center gap-3">
-									<PersonAvatar name={record.name} email={record.email} class="size-10" />
-									<div class="min-w-0">
-										<p class="truncate text-sm font-medium">{record.name || record.email}</p>
-										<p class="truncate text-xs text-muted-foreground">{record.email}</p>
-										{#if record.mattermostUsername}
-											<p class="truncate text-xs text-muted-foreground">Mattermost: {record.mattermostUsername}</p>
-										{/if}
-									</div>
-								</div>
-								<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
-							</div>
-							<div class="grid gap-3 sm:grid-cols-3">
-								<label class="grid gap-1.5">
-									<Label>{text.users.handle}</Label>
-									<Input bind:value={record.handle} placeholder={text.users.handlePlaceholder} autocomplete="off" />
-								</label>
-								<label class="grid gap-1.5">
-									<Label>{text.users.realName}</Label>
-									<Input bind:value={record.name} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
-								</label>
-								<label class="grid gap-1.5">
-									<Label>{text.users.hireDate}</Label>
-									<Input bind:value={record.hireDate} type="date" />
-								</label>
-							</div>
-							<div class="flex flex-wrap gap-1.5">
-								{#each visibleCircles() as circle (circle.circleID)}
-									<Button
-										type="button"
-										variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
-										size="sm"
-										disabled={circle.circleID === 'staff' || isSavingUser}
-										onclick={() => toggleUserCircle(record, circle.circleID)}
-									>
-										{circle.displayName || circle.circleID}
-									</Button>
-								{/each}
-							</div>
-							{#if record.isIncomplete}
-								<p class="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{text.users.incomplete}</p>
-							{/if}
-							{@render UserActions(record, 'mobile')}
-						</div>
-					{/each}
-				</div>
-			</Card.Content>
-		</Card.Root>
-	{/if}
-{/if}
-
-{#snippet UserActions(record: UserRecord, layout: 'desktop' | 'mobile')}
-	<div class={layout === 'desktop' ? 'flex justify-end gap-2' : 'grid gap-2 sm:grid-cols-4'}>
-		<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUserRecord(record)}>
-			{text.users.save}
-		</Button>
-		<Button
-			class="gap-2"
-			variant="outline"
-			size="sm"
-			disabled={isSavingUser || !isValidUserRecord(record)}
-			onclick={() => resetPassword(record)}
-		>
-			<RefreshCwIcon class="size-4" />
-			{text.users.resetPassword}
-		</Button>
-		{#if record.role === 'admin'}
-			<Button
-				variant="outline"
-				size="sm"
-				disabled={isSavingUser || adminCount() <= 1 || !isValidUserRecord(record)}
-				onclick={() => saveUserRecord(record, 'member')}
-			>
-				{text.users.makeMember}
-			</Button>
+		{#if isLoadingUsers}
+			<p class="text-muted-foreground text-sm">{text.users.loading}</p>
+		{:else if userRecords.length === 0}
+			<p class="text-muted-foreground text-sm">{text.users.empty}</p>
 		{:else}
-			<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUserRecord(record, 'admin')}>
-				{text.users.makeAdmin}
-			</Button>
+			<UsersDirectory
+				{availableCircles}
+				{canGrantAdminRole}
+				{isSavingUser}
+				{text}
+				bind:userRecords
+				onRemoveUser={removeEmail}
+				onResetPassword={resetPassword}
+				onSaveUser={saveUserRecord}
+				onSaveNote={saveUserNote}
+			/>
 		{/if}
-		<Button
-			variant="ghost"
-			size={layout === 'desktop' ? 'icon-sm' : 'sm'}
-			disabled={isSavingUser || (record.role === 'admin' && adminCount() <= 1)}
-			onclick={() => removeEmail(record.email)}
-			aria-label={text.users.remove}
-		>
-			<XIcon class="size-4" />
-			{#if layout === 'mobile'}
-				<span>{text.users.remove}</span>
-			{/if}
-		</Button>
-	</div>
-{/snippet}
+	{/if}

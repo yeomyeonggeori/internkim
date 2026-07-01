@@ -2,6 +2,7 @@
 	import type { CalendarAuditRow } from './calendar-audit';
 	import { isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
+	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarDraftPopoverBody from './calendar-draft-popover-body.svelte';
 	import CalendarDraftPopoverFooter from './calendar-draft-popover-footer.svelte';
 	import CalendarDraftPopoverTitleRow from './calendar-draft-popover-title-row.svelte';
@@ -15,6 +16,7 @@
 	type Props = {
 		popover: DraftPopoverState;
 		calendarOptions: CalendarOption[];
+		participantCandidates: CalendarParticipant[];
 		auditRows: CalendarAuditRow[];
 		auditLabel: string;
 		localeCode: string;
@@ -30,6 +32,7 @@
 	let {
 		popover,
 		calendarOptions,
+		participantCandidates,
 		auditRows,
 		auditLabel,
 		localeCode,
@@ -99,6 +102,7 @@
 		popover.allDay;
 		popover.description;
 		popover.location;
+		popover.participants;
 		popover.position.left;
 		popover.position.top;
 		popover.position.width;
@@ -122,7 +126,17 @@
 >
 	<CalendarDraftPopoverTitleRow {popover} {text} {updatePopover} {savePopover} {cancelPopover} />
 
-	<CalendarDraftPopoverBody {popover} {calendarOptions} {auditRows} {auditLabel} {localeCode} {text} {updatePopover} {setScrollState} />
+	<CalendarDraftPopoverBody
+		{popover}
+		{calendarOptions}
+		{participantCandidates}
+		{auditRows}
+		{auditLabel}
+		{localeCode}
+		{text}
+		{updatePopover}
+		{setScrollState}
+	/>
 
 	<CalendarDraftPopoverFooter
 		{popover}
