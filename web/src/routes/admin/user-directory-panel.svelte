@@ -6,7 +6,6 @@
 	import type { AdminPageText, CircleRecord, UserRecord, UserRole } from './admin-types';
 	import UserDirectoryMobileCard from './user-directory-mobile-card.svelte';
 	import UserDirectoryRow from './user-directory-row.svelte';
-	import { noteEditorPositionFromButton, type NoteEditorPosition } from './user-note-position';
 
 	type UserDirectoryPanelProps = {
 		records: UserRecord[];
@@ -41,30 +40,6 @@
 		onResetPassword,
 		onRemove
 	}: UserDirectoryPanelProps = $props();
-
-	let openNoteEmail = $state('');
-	let noteDraft = $state('');
-	let noteEditorPosition = $state<NoteEditorPosition>({ left: 16, top: 16 });
-
-	function isNoteEditorOpen(record: UserRecord): boolean {
-		return openNoteEmail === record.email;
-	}
-
-	function openNoteEditor(record: UserRecord, event: MouseEvent): void {
-		openNoteEmail = record.email;
-		noteDraft = record.note ?? '';
-		noteEditorPosition = noteEditorPositionFromButton(event.currentTarget);
-	}
-
-	function cancelNoteEditor(): void {
-		openNoteEmail = '';
-		noteDraft = '';
-	}
-
-	async function saveNoteDraft(record: UserRecord): Promise<void> {
-		const didSave = await onSaveNote(record, noteDraft);
-		if (didSave) cancelNoteEditor();
-	}
 </script>
 
 {#if isLoading}
@@ -104,15 +79,9 @@
 								{hasUserCircle}
 								isSaving={isSaving}
 								isValid={isValidUserRecord(record)}
-								isNoteOpen={isNoteEditorOpen(record)}
-								{noteDraft}
-								{noteEditorPosition}
 								onRecordChange={onRecordChange}
 								onToggleCircle={onToggleCircle}
-								onOpenNote={openNoteEditor}
-								onNoteValueChange={(value) => (noteDraft = value)}
-								onCancelNote={cancelNoteEditor}
-								onSaveNote={saveNoteDraft}
+								{onSaveNote}
 								{onSave}
 								{onResetPassword}
 								{onRemove}
@@ -131,15 +100,9 @@
 						{hasUserCircle}
 						isSaving={isSaving}
 						isValid={isValidUserRecord(record)}
-						isNoteOpen={isNoteEditorOpen(record)}
-						{noteDraft}
-						{noteEditorPosition}
 						onRecordChange={onRecordChange}
 						onToggleCircle={onToggleCircle}
-						onOpenNote={openNoteEditor}
-						onNoteValueChange={(value) => (noteDraft = value)}
-						onCancelNote={cancelNoteEditor}
-						onSaveNote={saveNoteDraft}
+						{onSaveNote}
 						{onSave}
 						{onResetPassword}
 						{onRemove}

@@ -350,7 +350,7 @@ func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Conte
 		return nil
 	}
 	name := firstNonEmpty(userRecord.Nickname, userRecord.DisplayName, userRecord.Username)
-	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"staff"})
+	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"staff"}, nil)
 }
 
 func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID string, isAdmin bool) error {
@@ -369,7 +369,7 @@ func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID
 
 func (service *Service) localSaveBlueclawPerson(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) error {
 	if hasExplicitCircleMutation {
-		return service.upsertBlueclawPersonWithNote(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles, payload.Note)
+		return service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles, &payload.Note)
 	}
 	return service.inviteBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name)
 }
