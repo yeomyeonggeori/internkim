@@ -99,7 +99,7 @@ screenshot() { # case-name png-path
 	(cd "$ROOT/web" && \
 		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQUESTER_USER" INTERNKIM_ADMIN_PASSWORD="$REQUESTER_PASS" \
 		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_CHANNEL_PATH="$CHPATH" INTERNKIM_CRUD_SCREENSHOT="$2" \
-		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed >/dev/null 2>&1)
+		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed > "$EVID/$1-mm-screenshot.log" 2>&1)
 	[ -s "$2" ]
 }
 
@@ -111,7 +111,7 @@ site_screenshot() { # case-name public-url png-path mode expected-text absent-te
 		INTERNKIM_SITE_EVIDENCE_MODE="${4:-published}" \
 		INTERNKIM_SITE_EXPECT_TEXT="${5:-}" \
 		INTERNKIM_SITE_ABSENT_TEXT="${6:-}" \
-		bunx playwright test tests/e2e/site-evidence.spec.ts $headed >/dev/null 2>&1)
+		bunx playwright test tests/e2e/site-evidence.spec.ts $headed > "$EVID/$1-site-screenshot.log" 2>&1)
 	[ -s "$3" ]
 }
 
