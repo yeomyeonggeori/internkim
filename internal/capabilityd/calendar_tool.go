@@ -75,8 +75,6 @@ func (service Service) invokeCalendarTool(ctx context.Context, request capabilit
 		return service.invokeCalendarEventUpdate(ctx, request)
 	case "calendar.delete":
 		return service.invokeCalendarEventDelete(ctx, request)
-	case "calendar.connection.status":
-		return service.invokeCalendarConnectionStatus(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
 	}
@@ -211,14 +209,6 @@ func injectCalendarEventID(document json.RawMessage, eventID string) (json.RawMe
 	}
 	values["eventID"] = eventID
 	return json.Marshal(values)
-}
-
-func (service Service) invokeCalendarConnectionStatus(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, "/calendar/api/account-status", nil, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return calendarToolResponse(request.ToolName, "ok", result), nil
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {
