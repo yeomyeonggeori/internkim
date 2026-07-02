@@ -1,0 +1,26 @@
+{
+  "scaffoldSourceSHA256": "8cd566e75f5c3d13cf02cd38f51d1dd4cf57648505cf97b0405b92baf218c7b0",
+  "generatedAt": "2026-07-02T12:32:47.128058+00:00",
+  "files": [
+    "index.html",
+    "package.json",
+    "scripts/build.ts",
+    "src/App.tsx",
+    "src/components/ui/badge.tsx",
+    "src/components/ui/button.tsx",
+    "src/components/ui/card.tsx",
+    "src/components/ui/dialog.tsx",
+    "src/components/ui/input.tsx",
+    "src/components/ui/label.tsx",
+    "src/components/ui/separator.tsx",
+    "src/components/ui/table.tsx",
+    "src/components/ui/tabs.tsx",
+    "src/components/ui/textarea.tsx",
+    "src/index.css",
+    "src/lib/utils.ts",
+    "src/main.tsx",
+    "src/prototype-data.ts",
+    "tsconfig.json",
+    "vite.config.ts"
+  ]
+}
