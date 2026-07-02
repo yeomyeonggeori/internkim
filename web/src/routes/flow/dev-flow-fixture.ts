@@ -10,6 +10,11 @@ import {
 } from './dev-flow-fixture-metrics';
 import { buildDevFlowReportSnapshot } from './dev-flow-fixture-report';
 import { createFixtureTasks } from './dev-flow-fixture-tasks';
+import {
+	devPopupOverflowCompletedTaskTitles,
+	devPopupOverflowDate,
+	devPopupOverflowDisplayName
+} from '../../../dev-popup-overflow-fixture';
 import type { FlowDefinitions, FlowMember, FlowState, FlowSummary, FlowTask, FlowWeek, FlowWeeklySummary } from './flow-types';
 import type { FlowReportSnapshot } from './report/flow-report-data';
 
@@ -98,9 +103,42 @@ function createDevFlowDefinitions(): FlowDefinitions {
 
 function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
 	const weeks = [buildFlowWeek(currentWeek.previous), currentWeek, buildFlowWeek(currentWeek.next)];
-	return weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({ ...task, id: `${week.code}-${task.id}` })));
+	return [
+		...weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({ ...task, id: `${week.code}-${task.id}` }))),
+		...createPopupOverflowTasks()
+	];
 }
 
 function memberNameForEmail(members: FlowMember[], email: string): string {
 	return members.find((member) => member.email === email)?.name ?? email.split('@')[0] ?? '';
+}
+
+function createPopupOverflowTasks(): FlowTask[] {
+	return devPopupOverflowCompletedTaskTitles.map((title, index) =>
+		popupOverflowTask(`dev-popup-overflow-task-${index + 1}`, title, (index + 1) * 1024)
+	);
+}
+
+function popupOverflowTask(id: string, content: string, statusRank: number): FlowTask {
+	return {
+		id,
+		ownerID: 'kim-intern',
+		ownerName: devPopupOverflowDisplayName,
+		participantIDs: ['kim-intern'],
+		participantNames: [devPopupOverflowDisplayName],
+		business: '김인턴',
+		type: '검증',
+		content,
+		goal: '출결 월간 현황 팝업에서 완료 업무 overflow 상태를 확인한다.',
+		size: 'S',
+		status: '완료',
+		statusRank,
+		startDate: devPopupOverflowDate,
+		endDate: devPopupOverflowDate,
+		createdAt: `${devPopupOverflowDate}T09:00:00Z`,
+		weekCode: '26W25',
+		flag: 0,
+		requestReason: '',
+		decisionReason: ''
+	};
 }
