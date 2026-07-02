@@ -229,7 +229,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   fields and string arrays over repeated nested objects unless the extra
   structure is required for runtime correctness. When native tool calling uses a
   forced tool-call mode, treat schema depth and total parameter complexity as a
-  budget, not just function count.
+  budget, not just function count. Preserving `required` on tool input schemas
+  is provider-safe on the native tool path (verified live per model by
+  `internal/llmbackend/openrouter_required_strip_live_test.go`); treat
+  required-stripping as a size/complexity choice, not a compatibility
+  requirement.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.
