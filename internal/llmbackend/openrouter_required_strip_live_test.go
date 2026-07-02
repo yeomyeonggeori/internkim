@@ -14,7 +14,10 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-const experimentModelName = "google/gemini-3.1-flash-lite"
+func experimentModelName() string {
+	return testEnvValue("OPENROUTER_STRIP_EXPERIMENT_MODEL", "google/gemini-3.1-flash-lite")
+}
+
 const experimentTrialsPerCase = 10
 const experimentWorkerCount = 4
 const experimentTrialTimeout = 60 * time.Second
@@ -100,7 +103,7 @@ func experimentDescriptorRequiredFields(t *testing.T, descriptor capabilities.De
 
 func TestOpenRouterLiveNestedRequiredStripExperiment(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	backend.ModelName = experimentModelName
+	backend.ModelName = experimentModelName()
 
 	variants := experimentVariants()
 	scenarios := experimentScenarios(t)
@@ -172,7 +175,7 @@ func runExperimentTrial(backend OpenRouterBackend, schemaDocument json.RawMessag
 	seed := int64(trial)
 	temperature := 0.0
 	request := StructuredRequest{
-		Model:    experimentModelName,
+		Model:    experimentModelName(),
 		Messages: []Message{{Role: "user", Content: scenario.Prompt}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
