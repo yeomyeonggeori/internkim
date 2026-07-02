@@ -5,11 +5,15 @@ const adminEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
 const adminPassword = process.env.INTERNKIM_ADMIN_PASSWORD ?? '';
 const teamName = process.env.INTERNKIM_MATTERMOST_TEAM_NAME ?? 'internkim';
 const channelName = process.env.INTERNKIM_CRUD_CHANNEL ?? '';
+const channelPath = process.env.INTERNKIM_CRUD_CHANNEL_PATH ?? `/${teamName}/channels/${channelName}`;
 const screenshotPath = process.env.INTERNKIM_CRUD_SCREENSHOT ?? '';
 const minimumPostCount = Number(process.env.INTERNKIM_CRUD_MIN_POSTS ?? '2');
 
 test('capture 김인턴 conversation evidence', async ({ page }) => {
 	test.setTimeout(120000);
+	expect(adminEmail).not.toEqual('');
+	expect(adminPassword).not.toEqual('');
+	expect(screenshotPath).not.toEqual('');
 	await signInAsAdmin(page);
 	await openChannelOrRetry(page);
 	await dismissTutorial(page);
@@ -24,14 +28,14 @@ test('capture 김인턴 conversation evidence', async ({ page }) => {
 // fail loudly if the team never loads so no broken screenshot is mistaken for proof.
 async function openChannelOrRetry(page): Promise<void> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
-		await page.goto(mattermostPath(`/${teamName}/channels/${channelName}`), { waitUntil: 'domcontentloaded' });
+		await page.goto(mattermostPath(channelPath), { waitUntil: 'domcontentloaded' });
 		await dismissLandingPage(page);
 		await page.waitForTimeout(2000);
 		if ((await teamNotFoundCount(page)) === 0) return;
 		await signInAsAdmin(page);
 	}
 	if ((await teamNotFoundCount(page)) > 0) {
-		throw new Error(`Team Not Found for ${teamName}/${channelName}: requester login did not land inside the team`);
+		throw new Error(`Team Not Found for ${channelPath}: requester login did not land inside the team`);
 	}
 }
 
@@ -89,6 +93,8 @@ async function waitForRenderedPosts(page, minimum: number, timeoutMs: number): P
 		}
 		await page.waitForTimeout(1500);
 	}
+	const renderedPostCount = await postLocator.count();
+	throw new Error(`Expected at least ${minimum} rendered posts, found ${renderedPostCount}`);
 }
 
 function mattermostPath(path: string): string {
