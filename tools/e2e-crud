@@ -202,7 +202,7 @@ run_remote_approval_case() { # name prompt op timeout
 	case "$phase" in
 		terminal)
 			jq -cn --arg reason "deleted without approval question" --arg expectedOp "$op" \
-				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}' ;;
+				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
 		approval_pending)
 			approval_png="$EVID/$name-approval.png"; rm -f "$approval_png"
 			screenshot "$name-approval" "$approval_png" 1 || rm -f "$approval_png"
@@ -210,7 +210,7 @@ run_remote_approval_case() { # name prompt op timeout
 			remote_command run-case-finish "$CH" "$TOK" "$task_run_id" "$root_post_id" "$root_post_created_at" "$op" "$timeout" ;;
 		*)
 			jq -cn --arg reason "no approval prompt observed before timeout" --arg expectedOp "$op" \
-				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}' ;;
+				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
 	esac
 }
 
@@ -251,13 +251,17 @@ result_json_or_error() { # raw-result
 	fi
 	clipped_result="$(printf "%s" "$raw_result" | LC_ALL=C cut -c 1-400)"
 	jq -cn --arg reason "run-case returned non-JSON: $clipped_result" \
-		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}'
+		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}'
 }
 
-score_for() { # passed steps -> score
+score_for() { # passed steps recovered_error_count -> score
 	[ "$1" = true ] || { echo 0; return; }
-	local s="$2"; [ "$s" -lt 2 ] 2>/dev/null && { echo 100; return; }
-	local v=$((100 - (s - 2) * 8)); [ "$v" -lt 0 ] && v=0; echo "$v"
+	local s="$2" recovered_error_count="${3:-0}" v
+	if [ "$s" -lt 2 ] 2>/dev/null; then v=100; else v=$((100 - (s - 2) * 8)); fi
+	[ "$v" -lt 0 ] && v=0
+	v=$((v - recovered_error_count * 5))
+	[ "$v" -lt 0 ] && v=0
+	echo "$v"
 }
 
 PASS=0; TOTAL=0; TOTAL_SCORE=0
@@ -291,6 +295,7 @@ for entry in "${CASES[@]}"; do
 	fi
 	steps="$(echo "$res" | jq -r '.steps // 0')"
 	opok="$(echo "$res" | jq -r '.opOk // false')"
+	recovered_error_count="$(echo "$res" | jq -r '.recoveredErrorCount // 0')"
 	printf "%s" "$res" > "$EVID/$name-result.json"
 	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
 	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
@@ -327,7 +332,7 @@ for entry in "${CASES[@]}"; do
 		requires_no_terminal_run "$name" && [ "${terminal_run_count:-0}" -gt 0 ] 2>/dev/null && passed=false
 		is_approval_case "$name" && [ -z "$approval_png" ] && passed=false
 	fi
-	score="$(score_for "$passed" "$steps")"
+	score="$(score_for "$passed" "$steps" "$recovered_error_count")"
 	[ "$passed" = true ] && PASS=$((PASS + 1))
 	TOTAL_SCORE=$((TOTAL_SCORE + score))
 	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$(evidence_list "$png" "$site_png" "$downloaded_files" "$approval_png")"
