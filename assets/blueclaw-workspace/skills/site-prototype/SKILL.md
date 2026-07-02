@@ -11,7 +11,7 @@ completion:
 
 # Site Prototype
 
-Use this skill for website and web app prototypes. Run site, browser, and review operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The site operations are `site.create`, `site.preview`, `site.publish`, `site.status`, `site.history`, `site.diff`, `site.logs`, `site.rollback`, `site.unpublish`, `site.restore`, and `site.delete`; review is `artifact.review`. Build the app with `terminal.run` (`bun scripts/build.ts`), not a capability operation.
+Use this skill for website and web app prototypes. Run site, browser, and review operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The site operations are `site.create`, `site.preview`, `site.publish`, `site.status`, `site.history`, `site.diff`, `site.logs`, `site.rollback`, `site.unpublish`, `site.restore`, and `site.delete`; review is `artifact.review`. Basic creation and content edits need no build step; `terminal.run` (`bun scripts/build.ts`) is only for structural changes under `app/src/**` or scaffold config.
 
 Create validation prototypes, not production software. Do not claim production readiness, compliance, SLA, paid hosting, payment support, real customer workflows, or external integrations unless the user explicitly requests and confirms that path.
 
@@ -19,7 +19,7 @@ Create validation prototypes, not production software. Do not claim production r
 
 User-provided data is the source of truth. Preserve company names, products, people, dates, prices, menu items, locations, policies, and confirmation states exactly unless the user asks for translation or normalization. Do not invent missing vendors, reviews, discounts, delivery options, payment methods, addresses, phone numbers, integrations, or availability. If a useful value is missing, render the user's-language equivalent of "Not provided".
 
-Source-backed facts must appear in the rendered UI, not only in `prototype-data.ts` or the final reply. Keep a source checklist in `.internkim/artifact-brief.md` and verify it against rendered text before publish.
+Source-backed facts must appear in the rendered UI, not only in `app/public/site-content.json` or the final reply. Keep a source checklist in `.internkim/artifact-brief.md` and verify it against rendered text before publish.
 
 ## Stack
 
@@ -36,16 +36,16 @@ Website creation and update requests are incomplete until the site.publish opera
 
 1. Call the site.status operation with the known `siteID`, slug, or empty input for the current conversation.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
-3. If no site is resolved, call the site.create operation with a DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords; then call status.
+3. If no site is resolved, call the site.create operation with a DNS-safe slug, title, description, idea, purpose, audience, archetype, domain keywords, and the site content (siteName, tagline, heroActionLabel, heroActionHref, sections); then call status. A basic create needs no build step.
 4. If `workspaceHealth` is `missing` or `permission_problem`, call the site.status operation again to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
 5. Choose the UI archetype before editing: landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell.
 6. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 7. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
 8. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
-9. Put the request content in `app/src/prototype-data.ts` (site name, tagline, sections, contact, and any source-backed data). This is the main customization step; the template renders from it.
-10. Adjust `app/src/App.tsx` sections and `app/src/index.css` to fit the request, reusing the shadcn primitives. Write a request-specific `DESIGN.md` when the visual direction matters.
-11. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`.
-12. Build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`.
+9. For a content-only change — copy, tagline, sections, hero action, or contact info, with no layout change — write `app/public/site-content.json` directly: `siteName` (required), optional `tagline`/`heroActionLabel`/`heroActionHref`, and a non-empty `sections` array of `{ title, body }`. Then skip straight to step 16 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
+10. For a structural change — new components, layout, or visual direction — edit `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives. Write a request-specific `DESIGN.md` when the visual direction matters.
+11. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
+12. Only after a structural change (step 10) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 9) needs no build step.
 13. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
 14. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
 15. Write `.internkim/review-log.json` with attempts, reviewed artifacts, issues, changes made, remaining notes, and screenshot paths or `visualReviewUnavailable: true`.
@@ -54,7 +54,7 @@ Website creation and update requests are incomplete until the site.publish opera
 18. Call the site.status operation again and confirm `status` is `published`.
 19. Reply with the public URL, what changed, how to try the main workflow, rollback availability, and test credentials only when login exists.
 
-Use this terminal shape when the fallback build is needed:
+Use this terminal shape when a structural change needs the fallback build:
 
 ```json
 {
@@ -77,7 +77,7 @@ If login, saved records, files, realtime, reservations, admin state, or CRUD is 
 
 ## Follow-Ups
 
-For feedback in the same conversation, call the site.status operation with empty input or the known slug. Update the resolved site and publish the same URL. Read existing `DESIGN.md`, `app/src/prototype-data.ts`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present.
+For feedback in the same conversation, call the site.status operation with empty input or the known slug. Update the resolved site and publish the same URL. Read existing `DESIGN.md`, `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present.
 
 Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from site.status when deciding whether a follow-up should update an existing site.
 
