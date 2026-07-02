@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Command = {
 	name: string;
@@ -121,7 +121,24 @@ function writeBuildQuality(issues: QualityIssue[]): void {
 }
 
 async function buildVite(): Promise<void> {
+	const slowBuildDiagnostic = setTimeout(reportGuestProcessState, 45_000);
 	await runCommand({ name: "bun", arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build", "--logLevel", "info"] });
+	clearTimeout(slowBuildDiagnostic);
+}
+
+function reportGuestProcessState(): void {
+	logBuildStage("vite still running after 45s; guest process state follows");
+	logBuildStage("loadavg " + readSource("/proc/loadavg").trim());
+	logBuildStage("meminfo " + readSource("/proc/meminfo").split("\n").slice(0, 3).join(" | "));
+	for (const entry of readdirSync("/proc")) {
+		if (!/^[0-9]+$/.test(entry)) continue;
+		const stat = readSource(`/proc/${entry}/stat`);
+		if (stat === "") continue;
+		const fields = stat.split(" ");
+		const utime = Number(fields[13]) + Number(fields[14]);
+		if (utime < 100) continue;
+		logBuildStage(`pid ${entry} comm ${fields[1]} state ${fields[2]} cpuTicks ${utime} cmdline ${readSource(`/proc/${entry}/cmdline`).replaceAll("\0", " ").slice(0, 120)}`);
+	}
 }
 
 function logBuildStage(stage: string): void {
