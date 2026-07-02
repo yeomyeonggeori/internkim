@@ -88,6 +88,72 @@ invite_person() { # mm_user_id email [display_name]
 
 task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
 
+post_channel_message() { # channel_id token message [root_post_id]
+	local channel_id="$1" token="$2" message="$3" root_post_id="${4:-}"
+	mm POST "/api/v4/posts" "$token" "$(jq -cn --arg channel_id "$channel_id" --arg message "$message" --arg root_id "$root_post_id" '
+		{channel_id:$channel_id,message:$message} + (if $root_id == "" then {} else {root_id:$root_id} end)')"
+}
+
+latest_bot_post() { # channel_id root_post_id root_post_created_at token
+	local channel_id="$1" root_post_id="$2" root_post_created_at="$3" token="$4" bot_id thread post
+	bot_id="$(user_id_by_name "$BOT_USERNAME" "$token")"
+	thread="$(mm GET "/api/v4/posts/$root_post_id/thread" "$token")"
+	post="$(printf "%s" "$thread" | jq -c --arg bot_id "$bot_id" '[((.posts // {})[]) | select(.user_id == $bot_id)] | sort_by(.create_at) | last // {}')"
+	if [ "$(printf "%s" "$post" | jq -r '.id // empty')" != "" ]; then
+		printf "%s" "$post"
+		return
+	fi
+	mm GET "/api/v4/channels/$channel_id/posts?per_page=80" "$token" | jq -c --arg bot_id "$bot_id" --argjson posted_after "${root_post_created_at:-0}" \
+		'[.posts[] | select(.user_id == $bot_id and (.create_at >= $posted_after))] | sort_by(.create_at) | last // {}'
+}
+
+download_post_files() { # token post-json
+	local token="$1" post_json="$2" downloaded_files_file file_id file_info filename content_type attachment_file content_base64_file next_downloaded_files_file
+	downloaded_files_file="$(mktemp)"
+	printf '[]' > "$downloaded_files_file"
+	for file_id in $(printf "%s" "$post_json" | jq -r '.file_ids[]?'); do
+		file_info="$(mm GET "/api/v4/files/$file_id/info" "$token")"
+		filename="$(printf "%s" "$file_info" | jq -r --arg file_id "$file_id" '.name // .filename // $file_id')"
+		content_type="$(printf "%s" "$file_info" | jq -r '.mime_type // .content_type // ""')"
+		attachment_file="$(mktemp)"
+		content_base64_file="$(mktemp)"
+		if ! curl -s --fail -H "Authorization: Bearer $token" "$MATTERMOST/api/v4/files/$file_id" -o "$attachment_file"; then
+			rm -f "$attachment_file" "$content_base64_file"
+			continue
+		fi
+		base64 -w 0 "$attachment_file" > "$content_base64_file" 2>/dev/null || base64 "$attachment_file" | tr -d '\n' > "$content_base64_file"
+		next_downloaded_files_file="$(mktemp)"
+		jq \
+			--arg file_id "$file_id" \
+			--arg filename "$filename" \
+			--arg content_type "$content_type" \
+			--rawfile content_base64 "$content_base64_file" \
+			'. + [{fileID:$file_id, filename:$filename, contentType:$content_type, contentBase64:$content_base64}]' \
+			"$downloaded_files_file" > "$next_downloaded_files_file"
+		mv "$next_downloaded_files_file" "$downloaded_files_file"
+		rm -f "$attachment_file" "$content_base64_file"
+	done
+	cat "$downloaded_files_file"
+	rm -f "$downloaded_files_file"
+}
+
+extract_public_url() { # bot-post-json task-detail-json
+	local bot_post="$1" detail="$2" public_url
+	public_url="$(printf "%s" "$bot_post" | jq -r '.message // ""' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | head -1 || true)"
+	if [ -n "$public_url" ]; then
+		printf "%s" "$public_url"
+		return
+	fi
+	printf "%s" "$detail" | jq -r '.. | strings' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | head -1 || true
+}
+
+pending_approval_operation() { # task-detail-json
+	printf "%s" "$1" | jq -r '
+		[.taskEvents[]? | select(.name == "approval.pending_call") | (.body | fromjson? // {})] |
+		last |
+		(.toolInput.operation // .toolName // "")'
+}
+
 setup() {
 	local token team_id channel_id bot_id e2e_id e2e_token admin_id
 	# Skip the global admind/entity reset for parallel-safe runs (a fresh person+channel
@@ -119,23 +185,34 @@ setup() {
 
 run_case() { # channel_id e2e_token prompt expected_op timeout
 	local channel_id="$1" e2e_token="$2" prompt="$3" expected_op="$4" timeout="${5:-240}"
-	local before after task_run_id detail steps status op_ok root_post_id
-	before="$(task_count)"
-	root_post_id="$(mm POST "/api/v4/posts" "$e2e_token" "$(jq -cn --arg channel_id "$channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')" | jq -r '.id // empty')"
-	for _ in $(seq 1 "$timeout"); do
-		[ "$(task_count)" -ge "$((before + 1))" ] && break
-		sleep 1
-	done
+	local task_run_id detail steps status op_ok root_post_id root_post root_post_created_at expected_operation_observed operation_failure_free message pending_operation attempt reposted
+	message="@$BOT_USERNAME $prompt"
+	root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
+	root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
+	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
 	local confirmed=0
-	for _ in $(seq 1 "$timeout"); do
-		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg p "$prompt" '[.[]|select(.prompt==$p)]|sort_by(.createdAt)|last|.taskRunID // empty')"
-		[ -n "$task_run_id" ] || { sleep 1; continue; }
-		status="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id" | jq -r '.taskRun.status')"
+	reposted=0
+	for attempt in $(seq 1 "$timeout"); do
+		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg p "$prompt" --arg m "$message" --arg root "$root_post_id" '[.[]|select(.prompt==$p or .prompt==$m or ((.prompt // "")|endswith($p)) or ($root != "" and ((.originConversationID // "")|contains($root))))]|sort_by(.createdAt)|last|.taskRunID // empty')"
+		if [ -z "$task_run_id" ]; then
+			if [ "$reposted" = 0 ] && [ "$attempt" -ge 45 ]; then
+				root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
+				root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
+				root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
+				reposted=1
+			fi
+			sleep 1
+			continue
+		fi
+		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
 		case "$status" in
 			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
 			waiting_user_input|waiting_approval|blocked)
 				if [ "$confirmed" = 0 ]; then
-					mm POST "/api/v4/posts" "$e2e_token" "$(jq -cn --arg channel_id "$channel_id" --arg root_id "$root_post_id" --arg message "응 확인했어, 진행해줘" '{channel_id:$channel_id,root_id:$root_id,message:$message}')" >/dev/null
+					pending_operation="$(pending_approval_operation "$detail")"
+					[ -z "$pending_operation" ] || [ "$pending_operation" = "$expected_op" ] || break
+					post_channel_message "$channel_id" "$e2e_token" "@$BOT_USERNAME 응 확인했어, 진행해줘" "$root_post_id" >/dev/null
 					confirmed=1
 				fi
 				sleep 2 ;;
@@ -146,11 +223,27 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 	status="$(printf '%s' "$detail" | jq -r '.taskRun.status')"
 	reason="$(printf '%s' "$detail" | jq -r '.taskRun.failureReason // ""')"
 	steps="$(printf '%s' "$detail" | jq -r '[.taskSteps[]|select(.taskStepID|test("turn-"))]|length')"
-	op_ok="$(printf '%s' "$detail" | jq -r '
+	expected_operation_observed="$(printf '%s' "$detail" | jq -r --arg expected_op "$expected_op" '
+		any((.taskEvents // [])[];
+			(.name == ("tool." + $expected_op + ".requested")) or
+			(.name == "tool.capability.invoke.requested" and ((.body // "") | tostring | contains("\"operation\":\"" + $expected_op + "\"")))
+		)')"
+	operation_failure_free="$(printf '%s' "$detail" | jq -r '
 		[.taskSteps[].output // ""]
 		| (map(select(test("operation_failed|not configured|is required|capability tool is not configured")))|length) == 0')"
-	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" \
-		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,opOk:$opOk}'
+	if [ "$expected_operation_observed" = true ] && [ "$operation_failure_free" = true ]; then op_ok=true; else op_ok=false; fi
+	local bot_post file_ids downloaded_files public_url
+	bot_post="{}"
+	for _ in $(seq 1 20); do
+		bot_post="$(latest_bot_post "$channel_id" "$root_post_id" "$root_post_created_at" "$e2e_token")"
+		[ "$(printf "%s" "$bot_post" | jq -r '.id // empty')" != "" ] && break
+		sleep 1
+	done
+	file_ids="$(printf "%s" "$bot_post" | jq -c '.file_ids // []')"
+	downloaded_files="$(download_post_files "$e2e_token" "$bot_post")"
+	public_url="$(extract_public_url "$bot_post" "$detail")"
+	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
+		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
 }
 
 set_model() { # model

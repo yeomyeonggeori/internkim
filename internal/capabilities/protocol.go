@@ -143,7 +143,7 @@ func SiteAppDescriptors() []Descriptor {
 		{Name: "site.unpublish", Description: "Take a site offline so it is no longer publicly accessible. The source and revision history are preserved. Requires approval.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.unpublish", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.restore", Description: "Restore the editable source files of a site from a prior revision into the workspace. Use this to recover from a bad edit or to undo source changes without republishing.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.restore", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.repair", Description: "Re-create any missing managed scaffold files in a site's editable workspace without overwriting existing edits. Use this when site.status reports the workspace is missing or unhealthy.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.repair", SideEffectClass: "workspace_write"},
-		{Name: "site.delete", Description: "Permanently delete a site and all its revisions. Requires both the confirm field (set to the site slug) and userConfirmed=true to prevent accidental deletion. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.delete", Description: "Permanently delete a site and all its revisions. Requires confirm set to DELETE and userConfirmed=true after explicit user approval. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 	}
 }
 
@@ -511,7 +511,7 @@ func siteAppLifecycleInputSchema() json.RawMessage {
 		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
 		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for this lifecycle action, e.g. 'reverting bad CSS change'. Shown in the approval prompt.")),
 		jsonschema.Field("revision", jsonschema.String().WithDescription("Target revision identifier from a prior site.history result. Required for rollback; omit for unpublish/restore.")),
-		jsonschema.Field("confirm", jsonschema.String().WithDescription("Confirmation token. For destructive actions set this to the site slug to confirm intent.")),
+		jsonschema.Field("confirm", jsonschema.String().WithDescription("Confirmation token. For owner override on rollback, unpublish, or restore set this to CONFIRM after explicit user approval.")),
 		jsonschema.Field("userConfirmed", jsonschema.Boolean().WithDescription("Set to true when the user has explicitly confirmed the action. Required alongside confirm for destructive operations.")),
 	).RawMessage()
 }
@@ -525,7 +525,7 @@ func siteAppDeleteInputSchema() json.RawMessage {
 		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.status result. Provide either siteID or slug.")),
 		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
 		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for deleting the site. Shown in the approval prompt.")),
-		jsonschema.Required("confirm", jsonschema.String().WithDescription("Must be set to the exact site slug (e.g. 'team-dashboard') to confirm the deletion. This prevents accidental deletes.")),
+		jsonschema.Required("confirm", jsonschema.String().WithDescription(`Must be set to the exact string "DELETE" after explicit user approval. This prevents accidental deletes.`)),
 		jsonschema.Required("userConfirmed", jsonschema.Boolean().WithDescription("Must be set to true when the user has explicitly confirmed the deletion. Both confirm and userConfirmed are required.")),
 	).RawMessage()
 }
