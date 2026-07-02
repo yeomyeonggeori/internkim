@@ -274,7 +274,8 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		return
 	fi
 	local confirmed=0
-	for attempt in $(seq 1 "$timeout"); do
+	local deadline=$((SECONDS + timeout))
+	while [ "$SECONDS" -lt "$deadline" ]; do
 		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
 		if [ -z "$task_run_id" ]; then
 			sleep 1
@@ -324,7 +325,8 @@ run_case_start() { # channel_id e2e_token prompt timeout
 		return
 	fi
 	task_run_id=""
-	for attempt in $(seq 1 "$timeout"); do
+	local deadline=$((SECONDS + timeout))
+	while [ "$SECONDS" -lt "$deadline" ]; do
 		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
 		if [ -z "$task_run_id" ]; then
 			sleep 1
@@ -374,7 +376,8 @@ run_case_approve() { # channel_id e2e_token root_post_id
 run_case_finish() { # channel_id e2e_token task_run_id root_post_id root_post_created_at expected_op timeout
 	local channel_id="$1" e2e_token="$2" task_run_id="$3" root_post_id="$4" root_post_created_at="$5" expected_op="$6" timeout="${7:-240}"
 	local detail status attempt
-	for attempt in $(seq 1 "$timeout"); do
+	local deadline=$((SECONDS + timeout))
+	while [ "$SECONDS" -lt "$deadline" ]; do
 		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
 		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
 		case "$status" in
