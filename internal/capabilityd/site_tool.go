@@ -220,12 +220,22 @@ func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInp
 		}
 		return json.Marshal(map[string]any{"status": "ok", "sites": siteAppCompactRecords(sites)})
 	}
-	if input.SiteID != "" || input.Slug != "" {
-		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
+	if input.SiteID != "" {
+		return service.getAdmindSiteStatusByID(ctx, strings.TrimSpace(input.SiteID), input)
+	}
+	if input.Slug != "" {
+		sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		return service.getAdmindSiteStatusByID(ctx, siteID, input)
+		switch len(sites) {
+		case 0:
+			return json.Marshal(map[string]any{"status": "not_found", "slug": input.Slug, "candidates": []siteAppRecord{}})
+		case 1:
+			return service.getAdmindSiteStatusByID(ctx, sites[0].SiteID, input)
+		default:
+			return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites)})
+		}
 	}
 	sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
 	if errorValue != nil {
@@ -394,10 +404,13 @@ func (service Service) listMatchingSiteAppRecords(ctx context.Context, input sit
 
 func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRecord {
 	matches := []siteAppRecord{}
-	for _, site := range sites {
-		if input.Slug != "" && strings.EqualFold(site.Slug, input.Slug) {
-			return []siteAppRecord{site}
+	if input.Slug != "" {
+		for _, site := range sites {
+			if strings.EqualFold(site.Slug, input.Slug) {
+				return []siteAppRecord{site}
+			}
 		}
+		return matches
 	}
 	for _, site := range sites {
 		if input.Scope == "mine" {
