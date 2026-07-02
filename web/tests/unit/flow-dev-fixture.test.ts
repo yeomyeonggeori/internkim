@@ -1,4 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import {
+	devPopupOverflowCompletedTaskTitles,
+	devPopupOverflowDate,
+	devPopupOverflowDisplayName
+} from '../../dev-popup-overflow-fixture';
 import { createDevFlowSummary } from '../../src/routes/flow/dev-flow-fixture';
 import { buildDevFlowMemberScoreDetails } from '../../src/routes/flow/dev-flow-fixture-score';
 
@@ -63,6 +68,15 @@ describe('createDevFlowSummary', () => {
 		expect(previousWeek.weeklyTasks?.every((task) => task.weekCode === '26W22')).toBe(true);
 		expect(currentWeek.weeklyTasks?.every((task) => task.weekCode === '26W23')).toBe(true);
 		expect(nextWeek.weeklyTasks?.every((task) => task.weekCode === '26W24')).toBe(true);
+	});
+
+	test('includes four completed June popup overflow tasks for 김철수', () => {
+		const summary = createDevFlowSummary('26W25', 'admin@example.com');
+		const tasks = summary.tasks
+			.filter((task) => task.ownerName === devPopupOverflowDisplayName && task.status === '완료' && task.endDate === devPopupOverflowDate)
+			.map((task) => task.content);
+
+		expect(tasks).toEqual(devPopupOverflowCompletedTaskTitles);
 	});
 
 	test('scores member growth against the recent five period baseline', () => {
