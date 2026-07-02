@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const mattermostURL = process.env.INTERNKIM_MATTERMOST_URL ?? 'http://127.0.0.1:8065';
 const adminEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
@@ -24,11 +24,7 @@ test('capture 김인턴 conversation evidence', async ({ page }) => {
 	await page.screenshot({ path: screenshotPath, fullPage: true });
 });
 
-// The requester login must actually land inside the team before we screenshot; a
-// silently failed login leaves an anonymous session that renders "Team Not Found",
-// which used to be saved as bogus evidence. Retry the whole login+navigation, and
-// fail loudly if the team never loads so no broken screenshot is mistaken for proof.
-async function openChannelOrRetry(page): Promise<void> {
+async function openChannelOrRetry(page: Page): Promise<void> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		await page.goto(mattermostPath(channelPath), { waitUntil: 'domcontentloaded' });
 		await dismissLandingPage(page);
@@ -41,11 +37,11 @@ async function openChannelOrRetry(page): Promise<void> {
 	}
 }
 
-async function teamNotFoundCount(page): Promise<number> {
+async function teamNotFoundCount(page: Page): Promise<number> {
 	return page.getByText(/team not found|팀을 찾을 수 없/i).count();
 }
 
-async function signInAsAdmin(page): Promise<void> {
+async function signInAsAdmin(page: Page): Promise<void> {
 	await page.goto(mattermostURL, { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await page.goto(mattermostPath('/login'), { waitUntil: 'domcontentloaded' });
@@ -59,10 +55,10 @@ async function signInAsAdmin(page): Promise<void> {
 	await loginInput.fill(adminEmail);
 	await page.locator('input[type="password"]').first().fill(adminPassword);
 	await page.getByRole('button', { name: /^\s*(log in|sign in|로그인)\s*$/i }).first().click();
-	await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 });
+	await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 30000 });
 }
 
-async function dismissLandingPage(page): Promise<void> {
+async function dismissLandingPage(page: Page): Promise<void> {
 	const viewInBrowser = page.getByRole('link', { name: /view in browser/i }).first();
 	if ((await viewInBrowser.count()) > 0 && (await viewInBrowser.isVisible().catch(() => false))) {
 		await viewInBrowser.click().catch(() => {});
@@ -70,14 +66,14 @@ async function dismissLandingPage(page): Promise<void> {
 	}
 }
 
-async function dismissTutorial(page): Promise<void> {
+async function dismissTutorial(page: Page): Promise<void> {
 	const skip = page.getByText(/no thanks|figure it out myself|건너뛰기|나중에/i).first();
 	if ((await skip.count()) > 0 && (await skip.isVisible().catch(() => false))) {
 		await skip.click().catch(() => {});
 	}
 }
 
-async function openLatestThread(page): Promise<void> {
+async function openLatestThread(page: Page): Promise<void> {
 	const replyLink = page.getByText(/\d+\s*(repl(y|ies)|개의 답글|답글)/i).last();
 	if ((await replyLink.count()) > 0 && (await replyLink.isVisible().catch(() => false))) {
 		await replyLink.click().catch(() => {});
@@ -85,11 +81,7 @@ async function openLatestThread(page): Promise<void> {
 	}
 }
 
-// The approval reply lands in-thread and can arrive a beat after the runtime-side
-// approval.pending_call event the tester polled for, so retry opening the thread and
-// re-checking rather than asserting once. Tolerant of either delivery shape: a rendered
-// interactive control (ephemeral confirm button) or a plain-text confirmation question.
-async function assertPendingApprovalVisible(page): Promise<void> {
+async function assertPendingApprovalVisible(page: Page): Promise<void> {
 	const deadline = Date.now() + 20000;
 	while (Date.now() < deadline) {
 		if (await hasApprovalControl(page)) return;
@@ -100,21 +92,21 @@ async function assertPendingApprovalVisible(page): Promise<void> {
 	throw new Error(`Expected a pending approval control or confirmation question in the latest post before screenshot, got: ${await lastPostText(page)}`);
 }
 
-async function hasApprovalControl(page): Promise<boolean> {
+async function hasApprovalControl(page: Page): Promise<boolean> {
 	const confirmButton = page.getByRole('button', { name: /^\s*(확인|approve|confirm)\s*$/i }).last();
 	return (await confirmButton.count()) > 0 && (await confirmButton.isVisible().catch(() => false));
 }
 
-async function hasApprovalQuestionText(page): Promise<boolean> {
+async function hasApprovalQuestionText(page: Page): Promise<boolean> {
 	const messageText = await lastPostText(page);
 	return /\?|진행할까요|승인할까요|삭제할까요|확인해/.test(messageText);
 }
 
-async function lastPostText(page): Promise<string> {
+async function lastPostText(page: Page): Promise<string> {
 	return page.locator('[data-testid="postView"], .post-message__text, .post').last().innerText().catch(() => '');
 }
 
-async function waitForRenderedPosts(page, minimum: number, timeoutMs: number): Promise<void> {
+async function waitForRenderedPosts(page: Page, minimum: number, timeoutMs: number): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	const postLocator = page.locator('[data-testid="postView"], .post-message__text, .post');
 	while (Date.now() < deadline) {
