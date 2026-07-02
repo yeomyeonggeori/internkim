@@ -121,14 +121,24 @@ function writeBuildQuality(issues: QualityIssue[]): void {
 }
 
 async function buildVite(): Promise<void> {
-	await runCommand({ name: "bun", arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"] });
+	await runCommand({ name: "bun", arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build", "--logLevel", "info"] });
 }
 
+function logBuildStage(stage: string): void {
+	console.error(`[build.ts ${new Date().toISOString()}] ${stage}`);
+}
+
+logBuildStage("start");
 const qualityIssues = [...collectDesignQualityIssues(), ...collectQualityIssues()];
 writeBuildQuality(qualityIssues);
+logBuildStage("quality written");
 
 if (!existsSync("node_modules/vite/bin/vite.js")) {
+	logBuildStage("install starting");
 	await runCommand({ name: "bun", arguments: ["install", "--prefer-offline"] });
+	logBuildStage("install finished");
 }
+logBuildStage("vite build starting");
 await buildVite();
+logBuildStage("vite build finished");
 writeBuildQuality(qualityIssues);
