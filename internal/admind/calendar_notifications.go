@@ -137,16 +137,19 @@ func (service *Service) calendarMattermostLogMessage(event calendarEvent) string
 
 func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
 	workspaceLocation, _ := service.workspaceTimeLocation()
-	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event, workspaceLocation), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
+	lines := []string{}
 	if mentionText := calendarMattermostMentionText(event, mattermostUsers); mentionText != "" {
 		lines = append(lines, mentionText)
 	}
-	if strings.TrimSpace(event.Location) != "" {
-		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
-	}
-	if note := calendarMattermostNoteText(event.Description); note != "" {
-		lines = append(lines, "메모: "+note)
-	}
+	lines = append(lines, mattermostMarkdownTable(
+		[]string{"일시", "일정", "장소", "메모"},
+		[][]string{{
+			calendarMattermostEventDateText(event, workspaceLocation),
+			mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)),
+			event.Location,
+			calendarMattermostNoteText(event.Description),
+		}},
+	))
 	return strings.Join(lines, "\n")
 }
 

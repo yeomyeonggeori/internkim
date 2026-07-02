@@ -88,17 +88,24 @@ CASES=(
 	"schedule-delete|주간보고 리마인드 예약 삭제해줘|schedule.cancel|220"
 	"site-create|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 먼저 빈 입력으로 site.status를 확인하고 status가 not_found이면 site.create에서 slug local-fleet-studio-$RUN_NONCE 로 새 사이트를 만들어줘. 기존 사이트는 삭제하거나 덮어쓰지 마. 'Local Fleet Studio $RUN_NONCE'라는 단일 페이지 회사 소개 웹사이트를 배포해줘. 첫 화면 제목은 'Local Fleet Studio $RUN_NONCE', 보조 문구는 '로컬 플릿 웹사이트 CRUD 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘.|site.create|600"
 	"site-edit|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 웹사이트의 첫 화면 제목을 'Local Fleet Studio $RUN_NONCE 수정됨'으로 바꾸고 보조 문구 '재배포 확인 문구 $RUN_NONCE'를 추가한 뒤 같은 사이트를 다시 배포해줘. 새 사이트는 만들지 마.|site.publish|600"
-	"site-delete|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 테스트 웹사이트를 삭제해줘. 삭제 확인을 물으면 승인할게.|site.delete|260"
+	"site-delete|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 테스트 웹사이트를 삭제해줘.|site.delete|260"
 	"dm-send|길동이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
 )
 
-screenshot() { # case-name png-path
+# Cases whose op descriptor sets RequiresApproval:true in internal/capabilities/protocol.go
+# (task.delete, calendar.delete, site.delete) — a live approval question must be visible
+# before these run to completion, so they use the resumable start/approve/finish flow
+# below instead of run_case's single-shot auto-approve.
+APPROVAL_CASES=(task-delete calendar-delete site-delete)
+
+screenshot() { # case-name png-path [expect-approval]
 	# Headed by default so the run is watchable; set INTERNKIM_E2E_HEADLESS=1 to hide it.
 	local headed=--headed; [ "${INTERNKIM_E2E_HEADLESS:-}" = 1 ] && headed=
 	# Log in as the requester so requester-only ephemeral approval buttons are visible.
 	(cd "$ROOT/web" && \
 		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQUESTER_USER" INTERNKIM_ADMIN_PASSWORD="$REQUESTER_PASS" \
 		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_CHANNEL_PATH="$CHPATH" INTERNKIM_CRUD_SCREENSHOT="$2" \
+		INTERNKIM_CRUD_EXPECT_APPROVAL="${3:-}" \
 		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed > "$EVID/$1-mm-screenshot.log" 2>&1)
 	[ -s "$2" ]
 }
@@ -171,9 +178,54 @@ requires_no_terminal_run() { # case-name -- basic sites publish from the prebuil
 	[ "$1" = site-create ] || [ "$1" = site-edit ]
 }
 
-evidence_list() { # mattermost-png site-png downloaded-file-list
-	local mattermost_png="$1" site_png="$2" downloaded_files="$3" files=() file
+is_approval_case() { # case-name -- membership check against APPROVAL_CASES
+	local candidate
+	for candidate in "${APPROVAL_CASES[@]}"; do
+		[ "$candidate" = "$1" ] && return 0
+	done
+	return 1
+}
+
+# Approval cases split the run into start -> BEFORE screenshot -> approve -> finish so
+# the approval question is captured on screen before it is answered. A destructive op
+# reaching a terminal status without ever asking for approval is a bug the harness must
+# catch, not silently pass, so that path returns a failing result instead of running finish.
+run_remote_approval_case() { # name prompt op timeout
+	local name="$1" prompt="$2" op="$3" timeout="$4"
+	local start_result phase task_run_id root_post_id root_post_created_at approval_png
+	start_result="$(remote_command run-case-start "$CH" "$TOK" "$prompt" "$timeout")"
+	phase="$(echo "$start_result" | jq -r '.phase // "not_started"')"
+	task_run_id="$(echo "$start_result" | jq -r '.taskRunID // ""')"
+	root_post_id="$(echo "$start_result" | jq -r '.rootPostID // ""')"
+	root_post_created_at="$(echo "$start_result" | jq -r '.rootPostCreatedAt // 0')"
+	case "$phase" in
+		terminal)
+			jq -cn --arg reason "deleted without approval question" --arg expectedOp "$op" \
+				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}' ;;
+		approval_pending)
+			approval_png="$EVID/$name-approval.png"; rm -f "$approval_png"
+			screenshot "$name-approval" "$approval_png" 1 || rm -f "$approval_png"
+			remote_command run-case-approve "$CH" "$TOK" "$root_post_id" >/dev/null
+			remote_command run-case-finish "$CH" "$TOK" "$task_run_id" "$root_post_id" "$root_post_created_at" "$op" "$timeout" ;;
+		*)
+			jq -cn --arg reason "no approval prompt observed before timeout" --arg expectedOp "$op" \
+				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}' ;;
+	esac
+}
+
+run_remote_case() { # name prompt op timeout
+	local name="$1" prompt="$2" op="$3" timeout="$4"
+	if is_approval_case "$name"; then
+		run_remote_approval_case "$name" "$prompt" "$op" "$timeout"
+	else
+		remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout"
+	fi
+}
+
+evidence_list() { # mattermost-png site-png downloaded-file-list approval-png
+	local mattermost_png="$1" site_png="$2" downloaded_files="$3" approval_png="${4:-}" files=() file
 	local downloaded_file_array=()
+	[ -n "$approval_png" ] && [ -f "$approval_png" ] && files+=("$(basename "$approval_png")")
 	[ -f "$mattermost_png" ] && files+=("$(basename "$mattermost_png")")
 	[ -n "$site_png" ] && [ -f "$site_png" ] && files+=("$(basename "$site_png")")
 	if [ -n "$downloaded_files" ]; then
@@ -225,13 +277,13 @@ for entry in "${CASES[@]}"; do
 	IFS='|' read -r name prompt op timeout <<< "$entry"
 	matches_filter "$name" || continue
 	TOTAL=$((TOTAL + 1))
-	raw_result="$(remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout")"
+	raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
 	res="$(result_json_or_error "$raw_result")"
 	status="$(echo "$res" | jq -r '.status // "error"')"
 	reason="$(echo "$res" | jq -r '.reason // ""')"
 	if [ "$status" != completed ] && echo "$reason" | grep -qiE "429|rate.?limit|timeout|HTTP 5[0-9][0-9]|context deadline"; then
 		sleep 45
-		raw_result="$(remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout")"
+		raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
 		res="$(result_json_or_error "$raw_result")"
 		status="$(echo "$res" | jq -r '.status // "error"')"
 	fi
@@ -239,6 +291,8 @@ for entry in "${CASES[@]}"; do
 	opok="$(echo "$res" | jq -r '.opOk // false')"
 	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
 	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
+	approval_png=""
+	is_approval_case "$name" && [ -f "$EVID/$name-approval.png" ] && approval_png="$EVID/$name-approval.png"
 	png="$EVID/$name.png"; rm -f "$png"
 	if [ -n "$bot_post_id" ]; then
 		screenshot "$name" "$png" || rm -f "$png"
@@ -268,11 +322,12 @@ for entry in "${CASES[@]}"; do
 		requires_deleted_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
 		requires_downloaded_file "$name" && [ -z "$downloaded_files" ] && passed=false
 		requires_no_terminal_run "$name" && [ "${terminal_run_count:-0}" -gt 0 ] 2>/dev/null && passed=false
+		is_approval_case "$name" && [ -z "$approval_png" ] && passed=false
 	fi
 	score="$(score_for "$passed" "$steps")"
 	[ "$passed" = true ] && PASS=$((PASS + 1))
 	TOTAL_SCORE=$((TOTAL_SCORE + score))
-	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$(evidence_list "$png" "$site_png" "$downloaded_files")"
+	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$(evidence_list "$png" "$site_png" "$downloaded_files" "$approval_png")"
 	sleep "${INTERNKIM_E2E_PACE_SECONDS:-40}"
 done
 printf -- "------------------------------------------------------------\n"

@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -147,17 +146,17 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 }
 
 func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
-	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)))}
-	if task.Type != "" || task.Size != "" {
-		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
-	}
-	if len(task.ParticipantNames) > 0 {
-		lines = append(lines, "참여자: "+strings.Join(task.ParticipantNames, ", "))
-	}
-	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
-		lines = append(lines, "사유: "+strings.TrimSpace(reason))
-	}
-	return strings.Join(lines, "\n")
+	return mattermostMarkdownTable(
+		[]string{"상태", "담당", "업무", "유형·크기", "참여자", "사유"},
+		[][]string{{
+			task.Status,
+			task.OwnerName,
+			mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)),
+			strings.TrimSpace(task.Type + " " + task.Size),
+			strings.Join(task.ParticipantNames, ", "),
+			firstNonEmpty(task.RequestReason, task.DecisionReason),
+		}},
+	)
 }
 
 func flowMattermostNotificationProps(task flowTask) map[string]any {
