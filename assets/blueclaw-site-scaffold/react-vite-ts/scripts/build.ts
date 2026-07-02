@@ -84,14 +84,27 @@ function collectQualityIssues(): QualityIssue[] {
 	const appSource = readSource("src/App.tsx");
 	const styleSource = readSource("src/index.css");
 	const issues: QualityIssue[] = [];
-	if (!existsSync("src/prototype-data.ts")) {
+	const contentPath = "public/site-content.json";
+	if (!existsSync(contentPath)) {
 		issues.push({
 			severity: "blocking",
 			category: "contentModel",
-			target: "src/prototype-data.ts",
-			message: "Create domain-specific prototype data before building the site.",
-			suggestedFix: "Add realistic domain data in src/prototype-data.ts and render that data from App.tsx.",
+			target: contentPath,
+			message: "Create domain-specific site content before building the site.",
+			suggestedFix: "Write realistic domain content to public/site-content.json matching the SiteContent schema.",
 		});
+	} else {
+		try {
+			JSON.parse(readSource(contentPath));
+		} catch {
+			issues.push({
+				severity: "blocking",
+				category: "contentModel",
+				target: contentPath,
+				message: "public/site-content.json must be valid JSON.",
+				suggestedFix: "Fix the JSON syntax in public/site-content.json so it matches the SiteContent schema.",
+			});
+		}
 	}
 	if (sourceContainsAny(appSource + styleSource, [
 		"INTERNKIM_SITE_STARTER_REPLACE_ME",
