@@ -47,6 +47,55 @@ func TestSaveGoogleOAuthTokenAndAccountResetsDiscoveryForDifferentEmail(t *testi
 	}
 }
 
+func TestDifferentGoogleAccountSelectionBackfillsExistingEvents(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	existingEvent := newLocalTestCalendarEvent("existing-from-old-account", "Existing From Old Account")
+	existingEvent.RemoteSource = remoteCalendarProviderGoogle
+	existingEvent.RemoteHref = "/calendars/old-account/existing-from-old-account.ics"
+	existingEvent.RemoteETag = `"old-etag"`
+	if errorValue := service.writeCalendarEventWithSource(ctx, existingEvent, calendarSourcePull); errorValue != nil {
+		t.Fatalf("write existing event: %v", errorValue)
+	}
+	oldAccount := remoteCalendarAccount{
+		ID:                         googleOAuthAccountPrefix + "old_example_com",
+		Provider:                   remoteCalendarProviderGoogle,
+		AccountEmail:               "old@example.com",
+		TokenFilePath:              "/tmp/old-google-token.enc",
+		SelectedCalendarID:         "old@example.com",
+		SelectedCalendarAccessRole: "writer",
+		SelectedCalendarURL:        "/calendars/old-account/",
+	}
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, oldAccount); errorValue != nil {
+		t.Fatalf("seed old account: %v", errorValue)
+	}
+	token := &oauth2.Token{
+		AccessToken:  "new-access-token",
+		RefreshToken: "new-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().UTC().Add(time.Hour),
+	}
+	newAccount, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, token, "new@example.com")
+	if errorValue != nil {
+		t.Fatalf("save new account: %v", errorValue)
+	}
+
+	if _, errorValue := service.saveSelectedCalendar(ctx, newAccount, "company@example.com", "Company", "writer", "/calendars/new-company/", time.Now()); errorValue != nil {
+		t.Fatalf("save new selected calendar: %v", errorValue)
+	}
+
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, newAccount.ID)
+	if errorValue != nil {
+		t.Fatalf("list new account outbox: %v", errorValue)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("new account backfill rows: got %d, want 1", len(rows))
+	}
+	if rows[0].EventID != existingEvent.ID || rows[0].RemoteHref != "" || rows[0].IfMatchETag != "" {
+		t.Fatalf("new account should add existing event as fresh put: %+v", rows[0])
+	}
+}
+
 func TestSaveGoogleOAuthTokenAndAccountPreservesSelectedCalendarForSameEmail(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
