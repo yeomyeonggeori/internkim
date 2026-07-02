@@ -124,6 +124,61 @@ test.describe('calendar route Google OAuth setup', () => {
 		await expect(page.getByText('secret-2')).toHaveCount(0);
 	});
 
+	test('shows selected Google Calendar sync readiness', async ({ page }) => {
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company@example.com',
+					selectedCalendarName: '회사 일정',
+					selectedCalendarAccessRole: 'writer',
+					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: true,
+					calendarSyncReady: true,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		await expect(page.getByText('연결됨: calendar-admin@example.com')).toBeVisible();
+		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
+		await expect(page.getByText('동기화 가능')).toBeVisible();
+	});
+
+	test('shows write permission requirement for read-only selected calendars', async ({ page }) => {
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company@example.com',
+					selectedCalendarName: '회사 일정',
+					selectedCalendarAccessRole: 'reader',
+					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: true,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
+		await expect(page.getByText('쓰기 권한 필요')).toBeVisible();
+	});
+
 	test('keeps Google OAuth client file selected when upload fails', async ({ page }) => {
 		const longClientFileName =
 			'client_secret_2_220769313118-b9pi9vbfv1lvuc6qbb2k8kn9tq2sg3jp.apps.googleusercontent.com.json';

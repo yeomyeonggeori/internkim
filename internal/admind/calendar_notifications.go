@@ -152,8 +152,11 @@ func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEven
 
 func calendarMattermostMentionText(event calendarEvent, mattermostUsers []mattermostUserRecord) string {
 	people, hasPeople := calendarNotificationPeople(event)
-	if !hasPeople || calendarPeopleIncludesAll(people) {
+	if calendarPeopleIncludesAll(people) {
 		return "@all"
+	}
+	if !hasPeople {
+		return ""
 	}
 	return strings.Join(calendarMattermostMentionsForPeople(people, mattermostUsers), " ")
 }
