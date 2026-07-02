@@ -1,0 +1,16 @@
+{
+	"siteName": "__SITE_TITLE__",
+	"tagline": "이 사이트가 무엇에 대한 것인지 한 줄로 소개하세요.",
+	"heroActionLabel": "자세히 보기",
+	"heroActionHref": "#section-1",
+	"sections": [
+		{
+			"title": "소개",
+			"body": "이 섹션에 요청에 맞는 소개 내용을 채워 주세요."
+		},
+		{
+			"title": "연락처",
+			"body": "이메일, 전화 등 연락 방법을 적어 주세요."
+		}
+	]
+}

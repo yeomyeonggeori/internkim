@@ -1,16 +1,39 @@
-import { prototypeData } from "./prototype-data";
+import { useEffect, useState } from "react";
+import { fallbackContent, loadSiteContent, type SiteContent } from "./site-content";
+
+function sectionAnchor(index: number): string {
+	return `section-${index + 1}`;
+}
 
 function App() {
-	const { siteName, tagline, heroAction, sections } = prototypeData;
+	const [content, setContent] = useState<SiteContent>(fallbackContent);
+
+	useEffect(() => {
+		let isMounted = true;
+		loadSiteContent().then((loadedContent) => {
+			if (isMounted) setContent(loadedContent);
+		});
+		return () => {
+			isMounted = false;
+		};
+	}, []);
+
+	useEffect(() => {
+		document.title = content.siteName;
+	}, [content.siteName]);
+
+	const { siteName, tagline, heroActionLabel, heroActionHref, sections } = content;
+	const resolvedHeroActionHref = heroActionHref ?? (heroActionLabel ? "#section-1" : undefined);
+
 	return (
 		<div className="min-h-screen bg-background text-foreground antialiased">
 			<header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
 				<span className="text-sm font-semibold tracking-tight">{siteName}</span>
 				<nav className="hidden gap-6 text-sm text-muted-foreground sm:flex">
-					{sections.map((section) => (
+					{sections.map((section, index) => (
 						<a
-							key={section.id}
-							href={"#" + section.id}
+							key={sectionAnchor(index)}
+							href={"#" + sectionAnchor(index)}
 							className="transition-colors hover:text-foreground"
 						>
 							{section.title}
@@ -25,18 +48,18 @@ function App() {
 						{siteName}
 					</h1>
 					<p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">{tagline}</p>
-					{heroAction && heroAction.label ? (
+					{heroActionLabel ? (
 						<a
-							href={heroAction.href}
+							href={resolvedHeroActionHref}
 							className="mt-8 inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
 						>
-							{heroAction.label}
+							{heroActionLabel}
 						</a>
 					) : null}
 				</section>
 
-				{sections.map((section) => (
-					<section key={section.id} id={section.id} className="border-t border-border py-16">
+				{sections.map((section, index) => (
+					<section key={sectionAnchor(index)} id={sectionAnchor(index)} className="border-t border-border py-16">
 						<h2 className="text-2xl font-semibold tracking-tight">{section.title}</h2>
 						<p className="mt-4 max-w-2xl whitespace-pre-line leading-relaxed text-muted-foreground">
 							{section.body}
