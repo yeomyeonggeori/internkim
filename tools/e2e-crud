@@ -291,6 +291,7 @@ for entry in "${CASES[@]}"; do
 	fi
 	steps="$(echo "$res" | jq -r '.steps // 0')"
 	opok="$(echo "$res" | jq -r '.opOk // false')"
+	printf "%s" "$res" > "$EVID/$name-result.json"
 	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
 	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
 	approval_png=""
