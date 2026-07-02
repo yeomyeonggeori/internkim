@@ -8,6 +8,7 @@
 #   Bring up a fleet first, e.g.: internkim test --keep "warmup" (leaves the VM up).
 #   INTERNKIM_E2E_CONFIG overrides the fleet run config path.
 set -uo pipefail
+trap 'echo "e2e-crud aborted at line $LINENO (last command: $BASH_COMMAND)" >&2' ERR
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FILTER="${1:-}"
@@ -16,7 +17,7 @@ CFG="${INTERNKIM_E2E_CONFIG:-$(ls -dt "$ROOT"/.local/local-fleet/runs/*/config.j
 
 vmssh() { "$ROOT/internkim" lab vm-ssh --config "$CFG" "$@" 2>/dev/null; }
 shell_quote() { printf "%q" "$1"; }
-remote() { vmssh "bash -s -- $*" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1; }
+remote() { timeout "${REMOTE_TIMEOUT:-120}" "$ROOT/internkim" lab vm-ssh --config "$CFG" "bash -s -- $*" < "$ROOT/tools/e2e-crud-remote.sh" 2>/dev/null | tail -1; }
 remote_command() {
 	local command="" argument
 	for argument in "$@"; do
@@ -216,9 +217,9 @@ run_remote_approval_case() { # name prompt op timeout
 run_remote_case() { # name prompt op timeout
 	local name="$1" prompt="$2" op="$3" timeout="$4"
 	if is_approval_case "$name"; then
-		run_remote_approval_case "$name" "$prompt" "$op" "$timeout"
+		REMOTE_TIMEOUT="$((timeout + 90))" run_remote_approval_case "$name" "$prompt" "$op" "$timeout"
 	else
-		remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout"
+		REMOTE_TIMEOUT="$((timeout + 90))" remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout"
 	fi
 }
 
@@ -277,6 +278,7 @@ for entry in "${CASES[@]}"; do
 	IFS='|' read -r name prompt op timeout <<< "$entry"
 	matches_filter "$name" || continue
 	TOTAL=$((TOTAL + 1))
+	echo "[$(date +%H:%M:%S)] case $name starting (timeout ${timeout}s)" >&2
 	raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
 	res="$(result_json_or_error "$raw_result")"
 	status="$(echo "$res" | jq -r '.status // "error"')"

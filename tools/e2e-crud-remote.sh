@@ -284,7 +284,16 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
 		case "$status" in
 			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
-			waiting_user_input|waiting_approval|blocked)
+			blocked)
+				pending_operation="$(pending_approval_operation "$detail")"
+				[ -n "$pending_operation" ] || break
+				if [ "$confirmed" = 0 ]; then
+					[ "$pending_operation" = "$expected_op" ] || break
+					post_approval_reply "$channel_id" "$e2e_token" "$root_post_id"
+					confirmed=1
+				fi
+				sleep 2 ;;
+			waiting_user_input|waiting_approval)
 				if [ "$confirmed" = 0 ]; then
 					pending_operation="$(pending_approval_operation "$detail")"
 					[ -z "$pending_operation" ] || [ "$pending_operation" = "$expected_op" ] || break
@@ -328,7 +337,17 @@ run_case_start() { # channel_id e2e_token prompt timeout
 				jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" \
 					'{phase:"terminal",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:""}'
 				return ;;
-			waiting_user_input|waiting_approval|blocked)
+			blocked)
+				pending_operation="$(pending_approval_operation "$detail")"
+				if [ -n "$pending_operation" ]; then
+					jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" --arg pendingOperation "$pending_operation" \
+						'{phase:"approval_pending",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:$pendingOperation}'
+					return
+				fi
+				jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" \
+					'{phase:"terminal",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:""}'
+				return ;;
+			waiting_user_input|waiting_approval)
 				pending_operation="$(pending_approval_operation "$detail")"
 				if [ -n "$pending_operation" ]; then
 					jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" --arg pendingOperation "$pending_operation" \
