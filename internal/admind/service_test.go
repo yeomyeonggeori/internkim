@@ -2792,7 +2792,7 @@ func TestFlowMattermostNotificationCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if task.MattermostPostID != "flow-post-1" {
 		t.Fatalf("created post id = %q", task.MattermostPostID)
 	}
-	if requests.createdMessages[0] == "" || !strings.Contains(requests.createdMessages[0], "요청 · 김민수 · [10분 회의](") || !strings.Contains(requests.createdMessages[0], "task=task-1") || strings.Contains(requests.createdMessages[0], "업무 열기") {
+	if requests.createdMessages[0] == "" || !strings.Contains(requests.createdMessages[0], "| 요청 | 김민수 | [10분 회의](") || !strings.Contains(requests.createdMessages[0], "task=task-1") || strings.Contains(requests.createdMessages[0], "업무 열기") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 
@@ -2805,7 +2805,7 @@ func TestFlowMattermostNotificationCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if len(requests.createdMessages) != 1 {
 		t.Fatalf("expected one created post, got %+v", requests.createdMessages)
 	}
-	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "완료 · 김민수 · [회의 완료](") || !strings.Contains(requests.updatedMessages[0], "task=task-1") || strings.Contains(requests.updatedMessages[0], "업무 열기") {
+	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "| 완료 | 김민수 | [회의 완료](") || !strings.Contains(requests.updatedMessages[0], "task=task-1") || strings.Contains(requests.updatedMessages[0], "업무 열기") {
 		t.Fatalf("updated messages = %+v", requests.updatedMessages)
 	}
 

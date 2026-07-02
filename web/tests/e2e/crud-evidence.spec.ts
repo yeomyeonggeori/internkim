@@ -8,6 +8,7 @@ const channelName = process.env.INTERNKIM_CRUD_CHANNEL ?? '';
 const channelPath = process.env.INTERNKIM_CRUD_CHANNEL_PATH ?? `/${teamName}/channels/${channelName}`;
 const screenshotPath = process.env.INTERNKIM_CRUD_SCREENSHOT ?? '';
 const minimumPostCount = Number(process.env.INTERNKIM_CRUD_MIN_POSTS ?? '2');
+const expectApproval = process.env.INTERNKIM_CRUD_EXPECT_APPROVAL === '1';
 
 test('capture 김인턴 conversation evidence', async ({ page }) => {
 	test.setTimeout(120000);
@@ -19,6 +20,7 @@ test('capture 김인턴 conversation evidence', async ({ page }) => {
 	await dismissTutorial(page);
 	await waitForRenderedPosts(page, minimumPostCount, 30000);
 	await openLatestThread(page);
+	if (expectApproval) await assertPendingApprovalVisible(page);
 	await page.screenshot({ path: screenshotPath, fullPage: true });
 });
 
@@ -81,6 +83,35 @@ async function openLatestThread(page): Promise<void> {
 		await replyLink.click().catch(() => {});
 		await page.waitForTimeout(2500);
 	}
+}
+
+// The approval reply lands in-thread and can arrive a beat after the runtime-side
+// approval.pending_call event the harness polled for, so retry opening the thread and
+// re-checking rather than asserting once. Tolerant of either delivery shape: a rendered
+// interactive control (ephemeral confirm button) or a plain-text confirmation question.
+async function assertPendingApprovalVisible(page): Promise<void> {
+	const deadline = Date.now() + 20000;
+	while (Date.now() < deadline) {
+		if (await hasApprovalControl(page)) return;
+		if (await hasApprovalQuestionText(page)) return;
+		await openLatestThread(page);
+		await page.waitForTimeout(1500);
+	}
+	throw new Error(`Expected a pending approval control or confirmation question in the latest post before screenshot, got: ${await lastPostText(page)}`);
+}
+
+async function hasApprovalControl(page): Promise<boolean> {
+	const confirmButton = page.getByRole('button', { name: /^\s*(확인|approve|confirm)\s*$/i }).last();
+	return (await confirmButton.count()) > 0 && (await confirmButton.isVisible().catch(() => false));
+}
+
+async function hasApprovalQuestionText(page): Promise<boolean> {
+	const messageText = await lastPostText(page);
+	return /\?|진행할까요|승인할까요|삭제할까요|확인해/.test(messageText);
+}
+
+async function lastPostText(page): Promise<string> {
+	return page.locator('[data-testid="postView"], .post-message__text, .post').last().innerText().catch(() => '');
 }
 
 async function waitForRenderedPosts(page, minimum: number, timeoutMs: number): Promise<void> {
