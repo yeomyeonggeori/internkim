@@ -19,7 +19,7 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 
 	errorValue := runDevArguments([]string{
 		"simulate",
-		"--scenario", "site_prototype_acceptance",
+		"--scenario", "site_artifact_acceptance",
 		"--record-cassette", "cassette.json",
 		"--seed", "42",
 		"--temperature", "0.2",
@@ -27,7 +27,7 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected dev simulate to pass: %v", errorValue)
 	}
-	if invocation.ScenarioName != "site_prototype_acceptance" {
+	if invocation.ScenarioName != "site_artifact_acceptance" {
 		t.Fatalf("expected scenario to be forwarded, got %q", invocation.ScenarioName)
 	}
 	if invocation.RecordCassettePath != "cassette.json" {
