@@ -215,7 +215,7 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
 	if [ -z "$root_post_id" ]; then
 		jq -cn --arg status "error" --arg reason "failed to post Mattermost message" --arg expectedOp "$expected_op" \
-			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[]}'
+			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}'
 		return
 	fi
 	local confirmed=0
@@ -253,13 +253,13 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 	downloaded_files="$(download_post_files "$e2e_token" "$bot_post")"
 	if [ -z "$task_run_id" ]; then
 		jq -cn --arg status "not_started" --arg reason "no Blueclaw task was created from Mattermost message before timeout" --arg expectedOp "$expected_op" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
-			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles,terminalRunCount:0}'
 		return
 	fi
 	detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
 	if ! printf "%s" "$detail" | jq -e . >/dev/null 2>&1; then
 		jq -cn --arg id "$task_run_id" --arg status "error" --arg reason "Blueclaw task detail returned non-JSON" --arg expectedOp "$expected_op" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
-			'{taskRunID:$id,status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+			'{taskRunID:$id,status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles,terminalRunCount:0}'
 		return
 	fi
 	status="$(printf '%s' "$detail" | jq -r '.taskRun.status')"
@@ -275,8 +275,10 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		| (map(select(test("operation_failed|not configured|is required|capability tool is not configured")))|length) == 0')"
 	if [ "$expected_operation_observed" = true ] && [ "$operation_failure_free" = true ]; then op_ok=true; else op_ok=false; fi
 	public_url="$(extract_public_url "$bot_post" "$detail")"
-	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
-		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+	local terminal_run_count
+	terminal_run_count="$(printf '%s' "$detail" | jq -r '[(.taskEvents // [])[]|select(.name == "tool.terminal.run.requested")]|length')"
+	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" --argjson terminalRunCount "${terminal_run_count:-0}" \
+		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles,terminalRunCount:$terminalRunCount}'
 }
 
 set_model() { # model
