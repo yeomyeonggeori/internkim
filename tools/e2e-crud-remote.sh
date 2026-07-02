@@ -159,12 +159,17 @@ download_post_files() { # token post-json
 
 extract_public_url() { # bot-post-json task-detail-json
 	local bot_post="$1" detail="$2" public_url
-	public_url="$(printf "%s" "$bot_post" | jq -r '.message // ""' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | head -1 || true)"
+	public_url="$(printf "%s" "$detail" | jq -r '[.taskEvents[]? | select(.name == "tool.capability.invoke.result") | (.body | fromjson? // {}) | .output.content // "" | fromjson? // {} | .publishedURL // empty] | last // empty' 2>/dev/null || true)"
 	if [ -n "$public_url" ]; then
 		printf "%s" "$public_url"
 		return
 	fi
-	printf "%s" "$detail" | jq -r '.. | strings' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | head -1 || true
+	public_url="$(printf "%s" "$bot_post" | jq -r '.message // ""' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | grep -Ev '/tasks/|/login|/flow/|:8065' | head -1 || true)"
+	if [ -n "$public_url" ]; then
+		printf "%s" "$public_url"
+		return
+	fi
+	printf "%s" "$detail" | jq -r '.. | strings' | grep -Eo 'https?://[^[:space:])>]+' | sed -E 's/[).,;:!?*\\"]+$//' | grep -E 'intern\.kim|localhost|127\.0\.0\.1' | grep -Ev '/tasks/|/login|/flow/|:8065' | head -1 || true
 }
 
 pending_approval_operation() { # task-detail-json
@@ -206,41 +211,17 @@ setup() {
 		'{channelID:$channel_id,e2eToken:$e2e_token,channelName:$channel_name,channelPath:$channel_path,e2eUsername:$e2e_username,e2ePassword:$e2e_password}'
 }
 
-run_case() { # channel_id e2e_token prompt expected_op timeout
-	local channel_id="$1" e2e_token="$2" prompt="$3" expected_op="$4" timeout="${5:-240}"
-	local task_run_id detail steps status op_ok root_post_id root_post root_post_created_at expected_operation_observed operation_failure_free message pending_operation attempt
-	message="@$BOT_USERNAME $prompt"
-	root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
-	root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
-	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
-	if [ -z "$root_post_id" ]; then
-		jq -cn --arg status "error" --arg reason "failed to post Mattermost message" --arg expectedOp "$expected_op" \
-			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}'
-		return
-	fi
-	local confirmed=0
-	for attempt in $(seq 1 "$timeout"); do
-		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
-		if [ -z "$task_run_id" ]; then
-			sleep 1
-			continue
-		fi
-		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
-		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
-		case "$status" in
-			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
-			waiting_user_input|waiting_approval|blocked)
-				if [ "$confirmed" = 0 ]; then
-					pending_operation="$(pending_approval_operation "$detail")"
-					[ -z "$pending_operation" ] || [ "$pending_operation" = "$expected_op" ] || break
-					post_channel_message "$channel_id" "$e2e_token" "@$BOT_USERNAME 응 확인했어, 진행해줘" "$root_post_id" >/dev/null
-					confirmed=1
-				fi
-				sleep 2 ;;
-			*) sleep 1 ;;
-		esac
-	done
-	local bot_post file_ids downloaded_files public_url bot_post_id bot_message
+post_approval_reply() { # channel_id e2e_token root_post_id
+	post_channel_message "$1" "$2" "@$BOT_USERNAME 응 확인했어, 진행해줘" "$3" >/dev/null
+}
+
+# Builds the same result JSON shape run_case has always returned, from a task_run_id
+# that has already reached (or timed out short of) a terminal status. Shared by
+# run_case (single-shot, non-approval cases) and run_case_finish (the second half of
+# the resumable approval flow) so the result contract never drifts between the two.
+build_case_result() { # channel_id e2e_token task_run_id root_post_id root_post_created_at expected_op
+	local channel_id="$1" e2e_token="$2" task_run_id="$3" root_post_id="$4" root_post_created_at="$5" expected_op="$6"
+	local bot_post file_ids downloaded_files public_url bot_post_id bot_message detail status reason steps expected_operation_observed operation_failure_free op_ok terminal_run_count
 	bot_post="{}"
 	for _ in $(seq 1 20); do
 		bot_post="$(latest_bot_post "$channel_id" "$root_post_id" "$root_post_created_at" "$e2e_token")"
@@ -275,10 +256,114 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		| (map(select(test("operation_failed|not configured|is required|capability tool is not configured")))|length) == 0')"
 	if [ "$expected_operation_observed" = true ] && [ "$operation_failure_free" = true ]; then op_ok=true; else op_ok=false; fi
 	public_url="$(extract_public_url "$bot_post" "$detail")"
-	local terminal_run_count
 	terminal_run_count="$(printf '%s' "$detail" | jq -r '[(.taskEvents // [])[]|select(.name == "tool.terminal.run.requested")]|length')"
 	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" --argjson terminalRunCount "${terminal_run_count:-0}" \
 		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles,terminalRunCount:$terminalRunCount}'
+}
+
+run_case() { # channel_id e2e_token prompt expected_op timeout
+	local channel_id="$1" e2e_token="$2" prompt="$3" expected_op="$4" timeout="${5:-240}"
+	local task_run_id detail status root_post_id root_post root_post_created_at pending_operation attempt message
+	message="@$BOT_USERNAME $prompt"
+	root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
+	root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
+	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
+	if [ -z "$root_post_id" ]; then
+		jq -cn --arg status "error" --arg reason "failed to post Mattermost message" --arg expectedOp "$expected_op" \
+			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}'
+		return
+	fi
+	local confirmed=0
+	for attempt in $(seq 1 "$timeout"); do
+		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
+		if [ -z "$task_run_id" ]; then
+			sleep 1
+			continue
+		fi
+		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
+		case "$status" in
+			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
+			waiting_user_input|waiting_approval|blocked)
+				if [ "$confirmed" = 0 ]; then
+					pending_operation="$(pending_approval_operation "$detail")"
+					[ -z "$pending_operation" ] || [ "$pending_operation" = "$expected_op" ] || break
+					post_approval_reply "$channel_id" "$e2e_token" "$root_post_id"
+					confirmed=1
+				fi
+				sleep 2 ;;
+			*) sleep 1 ;;
+		esac
+	done
+	build_case_result "$channel_id" "$e2e_token" "$task_run_id" "$root_post_id" "$root_post_created_at" "$expected_op"
+}
+
+# Phase 1 of the resumable approval flow: post the prompt and poll until either a
+# specific approval is pending (reuses pending_approval_operation, same signal
+# run_case uses to decide whether to auto-confirm), the task reaches a terminal
+# status without ever asking (a destructive op skipping approval — a bug to catch),
+# or the poll window times out before either happens.
+run_case_start() { # channel_id e2e_token prompt timeout
+	local channel_id="$1" e2e_token="$2" prompt="$3" timeout="${4:-240}"
+	local message root_post root_post_id root_post_created_at task_run_id detail status pending_operation attempt
+	message="@$BOT_USERNAME $prompt"
+	root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
+	root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
+	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
+	if [ -z "$root_post_id" ]; then
+		jq -cn '{phase:"not_started",taskRunID:"",rootPostID:"",rootPostCreatedAt:0,pendingOperation:""}'
+		return
+	fi
+	task_run_id=""
+	for attempt in $(seq 1 "$timeout"); do
+		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
+		if [ -z "$task_run_id" ]; then
+			sleep 1
+			continue
+		fi
+		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
+		case "$status" in
+			completed|failed|cancelled|canceled|error|timed_out|timeout)
+				jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" \
+					'{phase:"terminal",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:""}'
+				return ;;
+			waiting_user_input|waiting_approval|blocked)
+				pending_operation="$(pending_approval_operation "$detail")"
+				if [ -n "$pending_operation" ]; then
+					jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" --arg pendingOperation "$pending_operation" \
+						'{phase:"approval_pending",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:$pendingOperation}'
+					return
+				fi
+				sleep 2 ;;
+			*) sleep 1 ;;
+		esac
+	done
+	jq -cn --arg taskRunID "$task_run_id" --arg rootPostID "$root_post_id" --argjson rootPostCreatedAt "${root_post_created_at:-0}" \
+		'{phase:"not_started",taskRunID:$taskRunID,rootPostID:$rootPostID,rootPostCreatedAt:$rootPostCreatedAt,pendingOperation:""}'
+}
+
+# Phase 2: post the approval reply in-thread, nothing else. The caller takes the
+# BEFORE screenshot between run_case_start returning approval_pending and calling
+# this, so the approval question is still visible when captured.
+run_case_approve() { # channel_id e2e_token root_post_id
+	post_approval_reply "$1" "$2" "$3"
+}
+
+# Phase 3: resume polling an already-approved task to a terminal status, then build
+# the same result JSON run_case returns for the non-approval path.
+run_case_finish() { # channel_id e2e_token task_run_id root_post_id root_post_created_at expected_op timeout
+	local channel_id="$1" e2e_token="$2" task_run_id="$3" root_post_id="$4" root_post_created_at="$5" expected_op="$6" timeout="${7:-240}"
+	local detail status attempt
+	for attempt in $(seq 1 "$timeout"); do
+		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
+		case "$status" in
+			completed|failed|cancelled|canceled|error|timed_out|timeout) break ;;
+			*) sleep 2 ;;
+		esac
+	done
+	build_case_result "$channel_id" "$e2e_token" "$task_run_id" "$root_post_id" "$root_post_created_at" "$expected_op"
 }
 
 set_model() { # model
@@ -326,6 +411,9 @@ case "${1:-}" in
 	restart-blueclaw) restart_blueclaw ;;
 	setup) setup ;;
 	run-case) run_case "$2" "$3" "$4" "$5" "${6:-240}" ;;
+	run-case-start) run_case_start "$2" "$3" "$4" "${5:-240}" ;;
+	run-case-approve) run_case_approve "$2" "$3" "$4" ;;
+	run-case-finish) run_case_finish "$2" "$3" "$4" "$5" "$6" "$7" "${8:-240}" ;;
 	find-status) find_status "$2" ;;
-	*) echo "usage: $0 set-model <model> | restart-blueclaw | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout] | find-status <prompt>" >&2; exit 2 ;;
+	*) echo "usage: $0 set-model <model> | restart-blueclaw | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout] | run-case-start <channel_id> <e2e_token> <prompt> [timeout] | run-case-approve <channel_id> <e2e_token> <root_post_id> | run-case-finish <channel_id> <e2e_token> <task_run_id> <root_post_id> <root_post_created_at> <expected_op> [timeout] | find-status <prompt>" >&2; exit 2 ;;
 esac
