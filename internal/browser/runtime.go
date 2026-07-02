@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,14 +47,6 @@ type AgentBrowserRuntime struct {
 	Sleep                func(context.Context, time.Duration) error
 	DisableHumanPacing   bool
 	OpenCommandTimeout   time.Duration
-}
-
-type NativeHandoffRuntime struct {
-	EngineExecutablePath string
-	ProfilePath          string
-	SessionName          string
-	Runner               CommandRunner
-	Now                  func() time.Time
 }
 
 const browserOpenCommandTimeout = 8 * time.Second
@@ -274,95 +265,6 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 		InteractiveRefs: observation.InteractiveRefs,
 		CapturedAt:      observation.CapturedAt,
 	}, nil
-}
-
-func (runtime NativeHandoffRuntime) StartSession(ctx context.Context, request SessionStartRequest) (SessionStartResult, error) {
-	targetURL := firstNonEmpty(request.URL, request.StartURL)
-	if targetURL == "" {
-		return SessionStartResult{}, errors.New("browser handoff url is required")
-	}
-	if errorValue := ValidateWebURL(targetURL); errorValue != nil {
-		return SessionStartResult{}, errorValue
-	}
-	commandPath, arguments, errorValue := runtime.openCommand(targetURL)
-	if errorValue != nil {
-		return SessionStartResult{}, errorValue
-	}
-	runner := runtime.Runner
-	if runner == nil {
-		runner = OSCommandRunner{}
-	}
-	if _, errorValue := runner.Run(ctx, commandPath, arguments); errorValue != nil {
-		return SessionStartResult{}, errors.New("companion browser handoff open failed")
-	}
-	return SessionStartResult{
-		SessionID:    firstNonEmpty(runtime.SessionName, "internkim"),
-		Opened:       true,
-		URL:          targetURL,
-		RequestedURL: targetURL,
-		CapturedAt:   runtime.now().UTC().Format(time.RFC3339),
-	}, nil
-}
-
-func (runtime NativeHandoffRuntime) Navigate(ctx context.Context, request NavigateRequest) (NavigateResult, error) {
-	_ = ctx
-	_ = request
-	return NavigateResult{}, errors.New("native browser handoff runtime does not support navigation")
-}
-
-func (runtime NativeHandoffRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
-	_ = ctx
-	_ = request
-	return ObserveResult{}, errors.New("native browser handoff runtime does not support snapshots")
-}
-
-func (runtime NativeHandoffRuntime) Screenshot(ctx context.Context, request ScreenshotRequest) (ScreenshotResult, error) {
-	_ = ctx
-	_ = request
-	return ScreenshotResult{}, errors.New("native browser handoff runtime does not support screenshots")
-}
-
-func (runtime NativeHandoffRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {
-	_ = ctx
-	_ = request
-	return ActionResult{}, errors.New("native browser handoff runtime does not support clicks")
-}
-
-func (runtime NativeHandoffRuntime) Fill(ctx context.Context, request FillRequest) (ActionResult, error) {
-	_ = ctx
-	_ = request
-	return ActionResult{}, errors.New("native browser handoff runtime does not support fills")
-}
-
-func (runtime NativeHandoffRuntime) Select(ctx context.Context, request SelectRequest) (ActionResult, error) {
-	_ = ctx
-	_ = request
-	return ActionResult{}, errors.New("native browser handoff runtime does not support selects")
-}
-
-func (runtime NativeHandoffRuntime) Press(ctx context.Context, request PressRequest) (ActionResult, error) {
-	_ = ctx
-	_ = request
-	return ActionResult{}, errors.New("native browser handoff runtime does not support key presses")
-}
-
-func (runtime NativeHandoffRuntime) Wait(ctx context.Context, request WaitRequest) (ActionResult, error) {
-	_ = ctx
-	_ = request
-	return ActionResult{}, errors.New("native browser handoff runtime does not support waits")
-}
-
-func (runtime NativeHandoffRuntime) CloseSession(ctx context.Context) error {
-	commandPath, arguments, ok := runtime.closeCommand()
-	if !ok {
-		return nil
-	}
-	runner := runtime.Runner
-	if runner == nil {
-		runner = OSCommandRunner{}
-	}
-	_, _ = runner.Run(ctx, commandPath, arguments)
-	return nil
 }
 
 func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request NavigateRequest) (NavigateResult, error) {
@@ -777,55 +679,6 @@ func (runtime AgentBrowserRuntime) browserRuntimeLabel() string {
 	return "companion browser"
 }
 
-func (runtime NativeHandoffRuntime) openCommand(targetURL string) (string, []string, error) {
-	executablePath := strings.TrimSpace(runtime.EngineExecutablePath)
-	profilePath := strings.TrimSpace(runtime.ProfilePath)
-	switch goruntime.GOOS {
-	case "darwin":
-		applicationPath := firstNonEmpty(macosApplicationPath(executablePath), "Google Chrome")
-		if profilePath == "" {
-			return "open", []string{"-a", applicationPath, targetURL}, nil
-		}
-		return "open", []string{"-na", applicationPath, "--args", "--user-data-dir=" + profilePath, "--no-first-run", targetURL}, nil
-	case "windows":
-		if executablePath == "" {
-			return "", nil, errors.New("Google Chrome is not installed")
-		}
-		return executablePath, append(nativeChromeProfileArguments(profilePath), targetURL), nil
-	case "linux":
-		if executablePath == "" {
-			return "", nil, errors.New("Google Chrome is not installed")
-		}
-		return executablePath, append(nativeChromeProfileArguments(profilePath), targetURL), nil
-	default:
-		return "", nil, errors.New("browser handoff native open is unsupported on this operating system")
-	}
-}
-
-func nativeChromeProfileArguments(profilePath string) []string {
-	if strings.TrimSpace(profilePath) == "" {
-		return []string{}
-	}
-	return []string{"--user-data-dir=" + strings.TrimSpace(profilePath), "--no-first-run"}
-}
-
-func (runtime NativeHandoffRuntime) closeCommand() (string, []string, bool) {
-	profilePath := strings.TrimSpace(runtime.ProfilePath)
-	if profilePath == "" {
-		return "", nil, false
-	}
-	profilePattern := "--user-data-dir=" + profilePath
-	switch goruntime.GOOS {
-	case "darwin", "linux":
-		return "pkill", []string{"-f", "--", profilePattern}, true
-	case "windows":
-		script := "$profile = " + strconv.Quote(profilePath) + "; Get-CimInstance Win32_Process -Filter \"name = 'chrome.exe'\" | Where-Object { $_.CommandLine -like \"*--user-data-dir=$profile*\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
-		return "powershell", []string{"-NoProfile", "-Command", script}, true
-	default:
-		return "", nil, false
-	}
-}
-
 func macosApplicationPath(executablePath string) string {
 	trimmedPath := strings.TrimSpace(executablePath)
 	if trimmedPath == "" {
@@ -836,13 +689,6 @@ func macosApplicationPath(executablePath string) string {
 		return trimmedPath
 	}
 	return trimmedPath[:applicationIndex+len(".app")]
-}
-
-func (runtime NativeHandoffRuntime) now() time.Time {
-	if runtime.Now != nil {
-		return runtime.Now()
-	}
-	return time.Now()
 }
 
 func (runtime AgentBrowserRuntime) browserEngine() string {

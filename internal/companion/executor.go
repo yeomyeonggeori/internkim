@@ -35,8 +35,13 @@ type DirectoryPicker interface {
 	PickDirectory(ctx context.Context, request DirectoryPickRequest) (PickedDirectory, error)
 }
 
-type browserSessionCloser interface {
-	CloseSession(ctx context.Context) error
+// browserHandoffPauser is implemented by browser.ExtensionInputRuntime.
+// Pausing stops OS-level input synthesis on the runtime's already-open
+// browser window so a human can take over without a second window being
+// opened; resuming restores normal automation once the handoff completes.
+type browserHandoffPauser interface {
+	Pause(ctx context.Context) error
+	Resume(ctx context.Context) error
 }
 
 type BrowserActionFailureResult struct {
@@ -57,20 +62,18 @@ type FileUploader interface {
 }
 
 type Executor struct {
-	DevMockLLM            bool
-	LLMChain              llmbackend.Provider
-	EmbeddingChain        llmbackend.EmbeddingProvider
-	BrowserRuntime        browserruntime.Runtime
-	HandoffBrowserRuntime browserruntime.Runtime
-	HandoffResumeRuntime  browserruntime.Runtime
-	HandoffStore          *BrowserHandoffStore
-	PromptHandler         PromptHandler
-	FilePicker            FilePicker
-	DirectoryPicker       DirectoryPicker
-	FileUploader          FileUploader
-	MountStore            *MountStore
-	ApprovalHandler       ApprovalHandler
-	GrantStore            *MemoryGrantStore
+	DevMockLLM      bool
+	LLMChain        llmbackend.Provider
+	EmbeddingChain  llmbackend.EmbeddingProvider
+	BrowserRuntime  browserruntime.Runtime
+	HandoffStore    *BrowserHandoffStore
+	PromptHandler   PromptHandler
+	FilePicker      FilePicker
+	DirectoryPicker DirectoryPicker
+	FileUploader    FileUploader
+	MountStore      *MountStore
+	ApprovalHandler ApprovalHandler
+	GrantStore      *MemoryGrantStore
 }
 
 type TerminalPromptHandler struct {
@@ -470,8 +473,7 @@ func (executor Executor) executeBrowserScreenshot(ctx context.Context, envelope 
 }
 
 func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	handoffBrowserRuntime := executor.handoffBrowserRuntime()
-	if handoffBrowserRuntime == nil {
+	if executor.BrowserRuntime == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
 	}
 	if isUnsupportedWaylandSession() {
@@ -487,61 +489,55 @@ func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope Job
 	if strings.TrimSpace(input.URL) == "" {
 		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff url is required")
 	}
-	if response, ok := executor.probeBrowserHandoffAutomation(ctx, request.ToolName, input); ok {
-		return response, nil
+	if !executor.HandoffStore.Snapshot().Active {
+		if response, ok := executor.probeBrowserHandoffAutomation(ctx, request.ToolName, input); ok {
+			return response, nil
+		}
 	}
 	handoff, reused, errorValue := executor.HandoffStore.BeginOrReuse(input, firstNonEmpty(input.SessionID, "internkim"))
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if reused {
-		return executor.waitForBrowserHandoff(ctx, request.ToolName, input, handoff)
-	}
-	executor.closeAutomationBrowserSession(ctx)
-	startResult, errorValue := handoffBrowserRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: input.URL})
-	if errorValue != nil {
-		executor.HandoffStore.End(handoff.HandoffID, HandoffStateDenied)
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if strings.TrimSpace(startResult.SessionID) != "" {
-		if errorValue := executor.HandoffStore.UpdateSessionID(handoff.HandoffID, startResult.SessionID); errorValue != nil {
+	if !reused {
+		if errorValue := executor.pauseBrowserRuntimeForHandoff(ctx); errorValue != nil {
+			executor.HandoffStore.End(handoff.HandoffID, HandoffStateDenied)
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
-		handoff.SessionID = startResult.SessionID
 	}
 	return executor.waitForBrowserHandoff(ctx, request.ToolName, input, handoff)
 }
 
+// probeBrowserHandoffAutomation navigates the already-open, already-driven
+// browser session directly to the target URL: if that session's profile
+// turns out to already be signed in (no Google login wall), the handoff is
+// skipped entirely instead of pausing for a human who has nothing to do.
 func (executor Executor) probeBrowserHandoffAutomation(ctx context.Context, toolName string, input BrowserHandoffRequest) (capabilities.ToolInvokeResponse, bool) {
-	if executor.HandoffResumeRuntime == nil || !shouldProbeBrowserHandoffAutomation(input.URL) {
+	if !shouldProbeBrowserHandoffAutomation(input.URL) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	result, errorValue := executor.HandoffResumeRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: input.URL})
+	result, errorValue := executor.BrowserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: input.URL})
 	if errorValue != nil || browserHandoffNeedsNativeLogin(result.URL, result.Title, result.SnapshotText) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	response, errorValue := browserHandoffAutomationResponse(toolName, input.URL, result)
+	sessionID := firstNonEmpty(input.SessionID, "internkim")
+	response, errorValue := browserHandoffAutomationResponse(toolName, input.URL, sessionID, result)
 	return response, errorValue == nil
 }
 
-func (executor Executor) closeAutomationBrowserSession(ctx context.Context) {
-	if executor.BrowserRuntime == nil || executor.HandoffBrowserRuntime == nil {
-		return
+func (executor Executor) pauseBrowserRuntimeForHandoff(ctx context.Context) error {
+	pauser, ok := executor.BrowserRuntime.(browserHandoffPauser)
+	if !ok {
+		return errors.New("companion browser runtime does not support a human handoff")
 	}
-	closer, ok := executor.BrowserRuntime.(browserSessionCloser)
+	return pauser.Pause(ctx)
+}
+
+func (executor Executor) resumeBrowserRuntimeAfterHandoff(ctx context.Context) {
+	pauser, ok := executor.BrowserRuntime.(browserHandoffPauser)
 	if !ok {
 		return
 	}
-	closeContext, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	_ = closer.CloseSession(closeContext)
-}
-
-func (executor Executor) handoffBrowserRuntime() browserruntime.Runtime {
-	if executor.HandoffBrowserRuntime != nil {
-		return executor.HandoffBrowserRuntime
-	}
-	return executor.BrowserRuntime
+	_ = pauser.Resume(ctx)
 }
 
 func isUnsupportedWaylandSession() bool {
@@ -560,43 +556,36 @@ func (executor Executor) waitForBrowserHandoff(ctx context.Context, toolName str
 	completion, errorValue := executor.HandoffStore.Wait(waitContext, handoff.HandoffID)
 	if errorValue != nil {
 		executor.HandoffStore.End(handoff.HandoffID, HandoffStateTimedOut)
+		executor.resumeBrowserRuntimeAfterHandoff(ctx)
 		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff timed out")
 	}
-	executor.closeNativeHandoffBrowserSession(ctx)
-	completion = executor.resumeBrowserAutomationAfterHandoff(ctx, input, completion)
+	completion = executor.resumeBrowserAutomationAfterHandoff(ctx, completion)
 	return browserHandoffCompletedResponse(toolName, handoff, completion)
 }
 
-func (executor Executor) closeNativeHandoffBrowserSession(ctx context.Context) {
-	closer, ok := executor.HandoffBrowserRuntime.(browserSessionCloser)
-	if !ok {
-		return
-	}
-	closeContext, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	_ = closer.CloseSession(closeContext)
-}
-
-func (executor Executor) resumeBrowserAutomationAfterHandoff(ctx context.Context, input BrowserHandoffRequest, completion HandoffCompletion) HandoffCompletion {
-	if executor.HandoffResumeRuntime == nil {
+// resumeBrowserAutomationAfterHandoff resumes OS input synthesis on the same
+// runtime the human just used, then re-observes the page so the completion
+// result reflects whatever state the human left the browser in.
+func (executor Executor) resumeBrowserAutomationAfterHandoff(ctx context.Context, completion HandoffCompletion) HandoffCompletion {
+	executor.resumeBrowserRuntimeAfterHandoff(ctx)
+	if executor.BrowserRuntime == nil {
 		return completion
 	}
-	resumeResult, errorValue := executor.HandoffResumeRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: input.URL})
+	observation, errorValue := executor.BrowserRuntime.Observe(ctx, browserruntime.ObserveRequest{})
 	if errorValue != nil {
 		return completion
 	}
-	completion.SessionID = firstNonEmpty(resumeResult.SessionID, completion.SessionID)
-	completion.URL = firstNonEmpty(resumeResult.URL, completion.URL)
-	completion.Title = firstNonEmpty(resumeResult.Title, completion.Title)
-	completion.SnapshotText = firstNonEmpty(resumeResult.SnapshotText, completion.SnapshotText)
-	completion.InteractiveRefs = firstNonEmptyStringSlice(resumeResult.InteractiveRefs, completion.InteractiveRefs)
-	completion.CapturedAt = firstNonEmpty(resumeResult.CapturedAt, completion.CapturedAt)
+	completion.URL = firstNonEmpty(observation.URL, completion.URL)
+	completion.Title = firstNonEmpty(observation.Title, completion.Title)
+	completion.SnapshotText = firstNonEmpty(observation.SnapshotText, completion.SnapshotText)
+	completion.InteractiveRefs = firstNonEmptyStringSlice(observation.InteractiveRefs, completion.InteractiveRefs)
+	completion.CapturedAt = firstNonEmpty(observation.CapturedAt, completion.CapturedAt)
 	return completion
 }
 
-func browserHandoffAutomationResponse(toolName string, pageURL string, result browserruntime.SessionStartResult) (capabilities.ToolInvokeResponse, error) {
+func browserHandoffAutomationResponse(toolName string, pageURL string, sessionID string, result browserruntime.NavigateResult) (capabilities.ToolInvokeResponse, error) {
 	response, errorValue := toolResponse(toolName, BrowserHandoffResult{
-		SessionID:       result.SessionID,
+		SessionID:       sessionID,
 		URL:             firstNonEmpty(result.URL, pageURL),
 		Origin:          webOriginOrEmpty(firstNonEmpty(result.URL, pageURL)),
 		Title:           result.Title,
