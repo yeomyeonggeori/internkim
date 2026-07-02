@@ -2228,9 +2228,111 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	}
 }
 
+func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
+	logoutRequest.RemoteAddr = "198.51.100.10:443"
+	logoutRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	logoutResponse := httptest.NewRecorder()
+
+	service.router().ServeHTTP(logoutResponse, logoutRequest)
+
+	if logoutResponse.Code != http.StatusOK {
+		t.Fatalf("logout status = %d body = %s", logoutResponse.Code, logoutResponse.Body.String())
+	}
+	var logout webLogoutResponse
+	if errorValue := json.NewDecoder(logoutResponse.Body).Decode(&logout); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !logout.OK || logout.RedirectURL != "/tasks/" {
+		t.Fatalf("logout = %+v", logout)
+	}
+	logoutCookies := logoutResponse.Result().Cookies()
+	if responseCookieByNameForTest(t, logoutCookies, webSessionCookieName).MaxAge != -1 {
+		t.Fatalf("logout cookies = %#v", logoutCookies)
+	}
+	if responseCookieByNameForTest(t, logoutCookies, webLogoutMarkerCookieName).Value != "1" {
+		t.Fatalf("logout cookies = %#v", logoutCookies)
+	}
+
+	sessionRequest := httptest.NewRequest(http.MethodGet, "/auth/session?return=/tasks/", nil)
+	sessionRequest.RemoteAddr = "198.51.100.10:443"
+	sessionRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	for _, cookie := range logoutCookies {
+		sessionRequest.AddCookie(cookie)
+	}
+	sessionResponse := httptest.NewRecorder()
+
+	service.router().ServeHTTP(sessionResponse, sessionRequest)
+
+	if sessionResponse.Code != http.StatusOK {
+		t.Fatalf("session status = %d body = %s", sessionResponse.Code, sessionResponse.Body.String())
+	}
+	var session webSessionResponse
+	if errorValue := json.NewDecoder(sessionResponse.Body).Decode(&session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if session.Authenticated || session.MattermostLoginURL != "/auth/mattermost/start?return=%2Ftasks%2F" {
+		t.Fatalf("session = %+v", session)
+	}
+}
+
+func TestWebLogoutSuppressesMattermostSessionCookie(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/flow/", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.AddCookie(&http.Cookie{Name: "MMAUTHTOKEN", Value: "session-token"})
+	request.AddCookie(webLogoutMarkerCookie())
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("session status = %d body = %s", response.Code, response.Body.String())
+	}
+	var session webSessionResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if session.Authenticated {
+		t.Fatalf("session = %+v", session)
+	}
+}
+
+func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
+	adminUIPath := t.TempDir()
+	writeFile(t, filepath.Join(adminUIPath, "index.html"), "application shell")
+	service := NewService(Configuration{
+		AdminUIPath:       adminUIPath,
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/tasks/run-1", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "application shell" {
+		t.Fatalf("tasks page status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestTasksPageRedirectsBarePath(t *testing.T) {
+	service := NewService(Configuration{AdminUIPath: t.TempDir()})
+	request := httptest.NewRequest(http.MethodGet, "/tasks", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusFound || response.Header().Get("Location") != "/tasks/" {
+		t.Fatalf("tasks redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
+	}
+}
+
 func TestMattermostOAuthStartRejectsUnsafeReturn(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	for _, returnPath := range []string{"https://example.com/flow/", "//example.com/flow/", "/admin/", "/flow/api/summary"} {
+	for _, returnPath := range []string{"https://example.com/flow/", "//example.com/flow/", "/admin/", "/flow/api/summary", "/tasks/api/runs"} {
 		request := httptest.NewRequest(http.MethodGet, "/auth/mattermost/start?return="+url.QueryEscape(returnPath), nil)
 		response := httptest.NewRecorder()
 
@@ -2419,8 +2521,13 @@ func TestMattermostOAuthCallbackIssuesWebSession(t *testing.T) {
 		t.Fatalf("location = %q", response.Header().Get("Location"))
 	}
 	cookies := response.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Name != webSessionCookieName || !cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].SameSite != http.SameSiteLaxMode {
-		t.Fatalf("cookies = %#v", cookies)
+	sessionCookie := responseCookieByNameForTest(t, cookies, webSessionCookieName)
+	if !sessionCookie.HttpOnly || !sessionCookie.Secure || sessionCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("session cookie = %#v", sessionCookie)
+	}
+	logoutMarkerCookie := responseCookieByNameForTest(t, cookies, webLogoutMarkerCookieName)
+	if logoutMarkerCookie.MaxAge != -1 {
+		t.Fatalf("logout marker cookie = %#v", logoutMarkerCookie)
 	}
 }
 
@@ -2440,8 +2547,13 @@ func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 		t.Fatalf("location = %q", response.Header().Get("Location"))
 	}
 	cookies := response.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Name != webSessionCookieName || !cookies[0].HttpOnly {
-		t.Fatalf("cookies = %#v", cookies)
+	sessionCookie := responseCookieByNameForTest(t, cookies, webSessionCookieName)
+	if !sessionCookie.HttpOnly {
+		t.Fatalf("session cookie = %#v", sessionCookie)
+	}
+	logoutMarkerCookie := responseCookieByNameForTest(t, cookies, webLogoutMarkerCookieName)
+	if logoutMarkerCookie.MaxAge != -1 {
+		t.Fatalf("logout marker cookie = %#v", logoutMarkerCookie)
 	}
 }
 
@@ -2598,6 +2710,17 @@ func TestMattermostOAuthProvisioningReplacesRemoteCallbackMismatch(t *testing.T)
 	if clientFile.AppID != "oauth-app-2" || clientFile.ClientID != "client-2" || clientFile.CallbackURL != "https://device.example/auth/mattermost/callback" {
 		t.Fatalf("client file = %#v", clientFile)
 	}
+}
+
+func responseCookieByNameForTest(t *testing.T, cookies []*http.Cookie, name string) *http.Cookie {
+	t.Helper()
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	t.Fatalf("cookie %q not found in %#v", name, cookies)
+	return nil
 }
 
 func webSessionCookieForTest(t *testing.T, service *Service, email string) string {
