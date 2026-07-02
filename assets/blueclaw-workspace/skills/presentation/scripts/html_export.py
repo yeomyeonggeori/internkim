@@ -610,7 +610,7 @@ def resolve_resource_path(resource_url: str, base_path: pathlib.Path) -> pathlib
 
 def resolve_skill_asset_path(resource_path: pathlib.Path) -> pathlib.Path | None:
     path_text = str(resource_path)
-    marker = "simple-slides/assets/"
+    marker = "presentation/assets/"
     if marker not in path_text:
         return None
     asset_relative_text = path_text.split(marker, 1)[1].lstrip("/")

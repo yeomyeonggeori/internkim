@@ -100,7 +100,7 @@ func TestCapabilityToolAssetExistsAndIsExecutable(t *testing.T) {
 
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillNames := []string{"docx", "xlsx", "pptx", "simple-slides", "pdf"}
+	skillNames := []string{"docx", "xlsx", "presentation", "pdf"}
 	for _, skillName := range skillNames {
 		path := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
 		document, errorValue := os.ReadFile(path)
@@ -122,7 +122,7 @@ func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 		AgentsPath(repositoryRootPath),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "skill-management", "SKILL.md"),
 	}
 	for _, documentPath := range documentPaths {
@@ -197,8 +197,7 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"),
 	}
 	for _, documentPath := range documentPaths {
@@ -254,7 +253,7 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillNames := []string{"docx", "xlsx", "pptx"}
+	skillNames := []string{"docx", "xlsx"}
 	for _, skillName := range skillNames {
 		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName)
 		runtimePath := filepath.Join(skillPath, "scripts", "skill_runtime.py")
@@ -416,25 +415,25 @@ func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
 	}
 }
 
-func TestSimpleSlidesBundlesPackageManifest(t *testing.T) {
+func TestPresentationBundlesPackageManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	packageDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "package.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	packageContent := string(packageDocument)
 	if !strings.Contains(packageContent, "playwright-core") {
-		t.Fatal("simple-slides package manifest must include Playwright Core")
+		t.Fatal("presentation package manifest must include Playwright Core")
 	}
 	if strings.Contains(packageContent, "@marp-team/marp-cli") {
-		t.Fatal("simple-slides package manifest must not include Marp CLI")
+		t.Fatal("presentation package manifest must not include Marp CLI")
 	}
 }
 
-func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
+func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
 	for _, fileName := range []string{
 		"Paperlogy-4Regular.woff2",
@@ -445,7 +444,7 @@ func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 		"README.md",
 	} {
 		if _, errorValue := os.Stat(filepath.Join(fontPath, fileName)); errorValue != nil {
-			t.Fatalf("simple-slides must vendor Paperlogy asset %s: %v", fileName, errorValue)
+			t.Fatalf("presentation must vendor Paperlogy asset %s: %v", fileName, errorValue)
 		}
 	}
 
@@ -473,9 +472,9 @@ func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	}
 }
 
-func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
+func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -503,32 +502,32 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"HTML-first",
 	} {
 		if !strings.Contains(content, expectedText) {
-			t.Fatalf("simple-slides must document beautiful deck contract %q", expectedText)
+			t.Fatalf("presentation must document beautiful deck contract %q", expectedText)
 		}
 	}
 }
 
-func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
+func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	skillDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	for _, forbiddenText := range []string{"cp /workspace/skills/simple-slides", "/workspace/skills/simple-slides/assets/build.sh", " ./build.sh", "mkdir artifacts"} {
+	for _, forbiddenText := range []string{"cp /workspace/skills/presentation", "/workspace/skills/presentation/assets/build.sh", " ./build.sh", "mkdir artifacts"} {
 		if strings.Contains(skillContent, forbiddenText) {
-			t.Fatalf("simple-slides must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
+			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{"/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
-			t.Fatalf("simple-slides must document %q", expectedText)
+			t.Fatalf("presentation must document %q", expectedText)
 		}
 	}
 
 	if _, errorValue := os.Stat(filepath.Join(skillPath, "assets", "build.sh")); !os.IsNotExist(errorValue) {
-		t.Fatal("simple-slides build script must live under scripts, not assets")
+		t.Fatal("presentation build script must live under scripts, not assets")
 	}
 
 	buildPath := filepath.Join(skillPath, "scripts", "build.sh")
@@ -537,7 +536,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if buildInfo.Mode()&0111 == 0 {
-		t.Fatal("simple-slides build script must be executable")
+		t.Fatal("presentation build script must be executable")
 	}
 
 	buildScript, errorValue := os.ReadFile(buildPath)
@@ -546,26 +545,26 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	}
 	buildContent := string(buildScript)
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
-		t.Fatal("simple-slides build script must run against the caller's task workspace")
+		t.Fatal("presentation build script must run against the caller's task workspace")
 	}
 	if strings.Contains(buildContent, "command -v marp") {
-		t.Fatal("simple-slides build script must not select ambiguous global Marp")
+		t.Fatal("presentation build script must not select ambiguous global Marp")
 	}
-	for _, expectedText := range []string{"slides.html", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/simple-slides`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
+	for _, expectedText := range []string{"slides.html", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
 		if !strings.Contains(buildContent, expectedText) {
-			t.Fatalf("simple-slides build script must contain %q", expectedText)
+			t.Fatalf("presentation build script must contain %q", expectedText)
 		}
 	}
 	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md"} {
 		if strings.Contains(buildContent, forbiddenText) {
-			t.Fatalf("simple-slides build script must not contain old workflow fragment %q", forbiddenText)
+			t.Fatalf("presentation build script must not contain old workflow fragment %q", forbiddenText)
 		}
 	}
 }
 
-func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
+func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	htmlExportScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_export.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -573,15 +572,15 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	htmlExportContent := string(htmlExportScript)
 	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "inject_vendored_paperlogy_fallback", "PaperlogyLocal", "add_paperlogy_local_to_font_family_lists", "write_image_backed_pptx", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
 		if !strings.Contains(htmlExportContent, expectedText) {
-			t.Fatalf("simple-slides HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
+			t.Fatalf("presentation HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
 		}
 	}
 	if strings.Contains(htmlExportContent, "@layer internkim-fonts") {
-		t.Fatal("simple-slides font fallback must use plain @font-face rules for browser compatibility")
+		t.Fatal("presentation font fallback must use plain @font-face rules for browser compatibility")
 	}
 	for _, forbiddenText := range []string{"is older than DESIGN.md"} {
 		if strings.Contains(htmlExportContent, forbiddenText) {
-			t.Fatalf("simple-slides HTML export script must not contain old workflow fragment %q", forbiddenText)
+			t.Fatalf("presentation HTML export script must not contain old workflow fragment %q", forbiddenText)
 		}
 	}
 
@@ -592,7 +591,7 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	htmlRenderContent := string(htmlRenderScript)
 	for _, expectedText := range []string{"page.pdf", "preferCSSPageSize", "printBackground", "document.fonts.ready", "locator(\"section\")"} {
 		if !strings.Contains(htmlRenderContent, expectedText) {
-			t.Fatalf("simple-slides HTML render script must render text-preserving PDF and slide PNGs with %q", expectedText)
+			t.Fatalf("presentation HTML render script must render text-preserving PDF and slide PNGs with %q", expectedText)
 		}
 	}
 
@@ -643,35 +642,9 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	}
 }
 
-func TestPPTXSkillRoutesBeautifulNewDecksToSimpleSlides(t *testing.T) {
+func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx")
-	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy", "hybrid deck", "backgroundImage", "editableTexts", "artifact.review"} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("pptx skill must document routing and editability policy %q", expectedText)
-		}
-	}
-}
-
-func TestPPTXScriptsUsePaperlogyAndDesignWarnings(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx")
-	createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "create_pptx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	createContent := string(createScript)
-	for _, expectedText := range []string{"Paperlogy", "DEFAULT_COLORS", "comparison", "matrix", "timeline", "backgroundImage", "editableTexts"} {
-		if !strings.Contains(createContent, expectedText) {
-			t.Fatalf("pptx create script must include Paperlogy layout helper %q", expectedText)
-		}
-	}
-
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
 	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate_pptx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -679,7 +652,7 @@ func TestPPTXScriptsUsePaperlogyAndDesignWarnings(t *testing.T) {
 	validateContent := string(validateScript)
 	for _, expectedText := range []string{"slide appears empty", "slide is missing a title", "Aptos", "Calibri", "excessive shape count", "hybrid background", "editable overlay out of bounds"} {
 		if !strings.Contains(validateContent, expectedText) {
-			t.Fatalf("pptx validator must report design warning %q", expectedText)
+			t.Fatalf("presentation validate_pptx.py must report design warning %q", expectedText)
 		}
 	}
 }
