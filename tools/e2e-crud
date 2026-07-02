@@ -165,6 +165,12 @@ requires_downloaded_file() { # case-name
 	[ "$1" = docx-create ] || [ "$1" = pdf-create ] || [ "$1" = xlsx-create ]
 }
 
+requires_no_terminal_run() { # case-name -- basic sites publish from the prebuilt
+	# scaffold dist and must never shell out to build; a terminal.run means the
+	# agent fell back to a build it should not need.
+	[ "$1" = site-create ] || [ "$1" = site-edit ]
+}
+
 evidence_list() { # mattermost-png site-png downloaded-file-list
 	local mattermost_png="$1" site_png="$2" downloaded_files="$3" files=() file
 	local downloaded_file_array=()
@@ -192,7 +198,7 @@ result_json_or_error() { # raw-result
 	fi
 	clipped_result="$(printf "%s" "$raw_result" | LC_ALL=C cut -c 1-400)"
 	jq -cn --arg reason "run-case returned non-JSON: $clipped_result" \
-		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[]}'
+		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0}'
 }
 
 score_for() { # passed steps -> score
@@ -231,6 +237,7 @@ for entry in "${CASES[@]}"; do
 	fi
 	steps="$(echo "$res" | jq -r '.steps // 0')"
 	opok="$(echo "$res" | jq -r '.opOk // false')"
+	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
 	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
 	png="$EVID/$name.png"; rm -f "$png"
 	if [ -n "$bot_post_id" ]; then
@@ -260,6 +267,7 @@ for entry in "${CASES[@]}"; do
 		requires_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
 		requires_deleted_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
 		requires_downloaded_file "$name" && [ -z "$downloaded_files" ] && passed=false
+		requires_no_terminal_run "$name" && [ "${terminal_run_count:-0}" -gt 0 ] 2>/dev/null && passed=false
 	fi
 	score="$(score_for "$passed" "$steps")"
 	[ "$passed" = true ] && PASS=$((PASS + 1))
