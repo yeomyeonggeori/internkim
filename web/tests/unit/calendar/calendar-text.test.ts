@@ -19,6 +19,11 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume Google Calendar sync.');
 		expect(calendarText.en.googleCalendarReadyHint).toBe('Connect Google Calendar.');
 		expect(calendarText.en.googleCalendarUnavailableHint).toBe('Google Calendar sync is not ready yet.');
+		expect(calendarText.en.googleCalendarConnectionComplete).toBe('Google Calendar is connected.');
+		expect(calendarText.en.googleCalendarConnectionFailed).toBe('Google Calendar connection failed.');
+		expect(calendarText.en.googleCalendarSelectLabel).toBe('Calendar to use');
+		expect(calendarText.en.googleCalendarListEmpty).toBe('No writable calendars are available.');
+		expect(calendarText.en.googleCalendarSelectionSaveAction).toBe('Save calendar');
 		expect(calendarText.en.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.en.googleOAuthClientUploadHint).toBe('Drop client.json here or choose the file.');
 		expect(calendarText.en.googleOAuthClientUploadAction).toBe('Upload');
@@ -65,6 +70,11 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleCalendarReconnectHint).toBe('Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.');
 		expect(calendarText.ko.googleCalendarReadyHint).toBe('Google 캘린더를 연결하세요.');
 		expect(calendarText.ko.googleCalendarUnavailableHint).toBe('Google 캘린더 연동은 아직 준비되지 않았습니다.');
+		expect(calendarText.ko.googleCalendarConnectionComplete).toBe('Google 캘린더가 연결됐습니다.');
+		expect(calendarText.ko.googleCalendarConnectionFailed).toBe('Google 캘린더 연결에 실패했습니다.');
+		expect(calendarText.ko.googleCalendarSelectLabel).toBe('사용할 캘린더');
+		expect(calendarText.ko.googleCalendarListEmpty).toBe('쓰기 권한이 있는 캘린더가 없습니다.');
+		expect(calendarText.ko.googleCalendarSelectionSaveAction).toBe('캘린더 저장');
 		expect(calendarText.ko.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.ko.googleOAuthClientUploadHint).toBe('여기에 client.json을 드롭하거나 파일을 선택하세요.');
 		expect(calendarText.ko.googleOAuthClientUploadAction).toBe('업로드');
