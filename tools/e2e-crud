@@ -241,7 +241,7 @@ for entry in "${CASES[@]}"; do
 	site_png=""
 	if requires_site_screenshot "$name"; then
 		case "$name" in
-			site-create) expected_site_text="Local Fleet Studio $RUN_NONCE" ;;
+			site-create) expected_site_text="로컬 플릿 웹사이트 CRUD 테스트" ;;
 			site-edit) expected_site_text="Local Fleet Studio $RUN_NONCE 수정됨" ;;
 			*) expected_site_text="" ;;
 		esac
