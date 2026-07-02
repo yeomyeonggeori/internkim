@@ -62,12 +62,6 @@ export function approvalResponse(isAllowed: boolean, userReason: string, remembe
 	};
 }
 
-export function promptTitle(prompt: PromptRequest): string {
-	if (prompt.kind === 'confirm') return 'Confirmation needed';
-	if (prompt.kind === 'approval') return 'Permission needed';
-	return 'Input needed';
-}
-
 function normalizeResourceScope(value: unknown): { kind?: string; value?: string } | undefined {
 	if (!isRecord(value)) return undefined;
 	return {

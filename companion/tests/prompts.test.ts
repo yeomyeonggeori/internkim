@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle } from '../src/lib/prompts';
+import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest } from '../src/lib/prompts';
 
 describe('prompt bridge payloads', () => {
 	test('normalizes Tauri prompt event payloads', () => {
@@ -54,11 +54,5 @@ describe('prompt bridge payloads', () => {
 			allowed: true,
 			rememberSession: true
 		});
-	});
-
-	test('labels prompt cards', () => {
-		expect(promptTitle({ requestID: 'prompt-1', kind: 'confirm', message: 'Continue?' })).toBe('Confirmation needed');
-		expect(promptTitle({ requestID: 'prompt-2', kind: 'input', message: 'Name?' })).toBe('Input needed');
-		expect(promptTitle({ requestID: 'prompt-3', kind: 'approval', message: 'Allow?' })).toBe('Permission needed');
 	});
 });

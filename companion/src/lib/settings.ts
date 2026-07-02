@@ -45,33 +45,6 @@ export async function saveCompanionSettings(
 	return await invoke<CompanionSettings>('set_settings', { settings });
 }
 
-export function settingsToSidecarArguments(settings: CompanionSettings): string[] {
-	const flags: string[] = [];
-	if (settings.preferCompanionBrowser) {
-		flags.push('--prefer-companion-browser');
-	}
-	if (!settings.enableLocalLLM) {
-		return flags;
-	}
-	flags.push('--enable-local-llm');
-	flags.push('--local-backend-order', settings.localBackendOrder.join(','));
-	flags.push('--ollama-base-url', settings.ollama.baseURL);
-	if (settings.ollama.model) {
-		flags.push('--ollama-model', settings.ollama.model);
-	}
-	flags.push('--llamacpp-base-url', settings.llamacpp.baseURL);
-	flags.push('--llamacpp-embedding-base-url', settings.llamacpp.baseURL);
-	flags.push('--llamacpp-embedding-model', settings.llamacpp.embeddingModel || 'embeddinggemma');
-	if (settings.llamacpp.model) {
-		flags.push('--llamacpp-model', settings.llamacpp.model);
-	}
-	flags.push('--mlx-base-url', settings.mlx.baseURL);
-	if (settings.mlx.model) {
-		flags.push('--mlx-model', settings.mlx.model);
-	}
-	return flags;
-}
-
 export async function fetchBackendModels(
 	backendName: string,
 	baseURL: string
