@@ -35,7 +35,10 @@
 	</Sheet.Root>
 {:else}
 	<Dialog.Root bind:open={isOpen}>
-		<Dialog.Content class="max-w-md" data-testid="team-status-day-detail-dialog">
+		<Dialog.Content
+			class="max-h-[calc(100vh-2rem)] max-w-md grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+			data-testid="team-status-day-detail-dialog"
+		>
 			{#if detail}
 				<Dialog.Header>
 					<Dialog.Title>{detail.displayName} · {detail.day.date}</Dialog.Title>
