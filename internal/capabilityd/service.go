@@ -57,6 +57,7 @@ type Configuration struct {
 	OpenRouterWebBaseURL           string
 	OpenRouterEmbeddingBaseURL     string
 	OpenRouterEmbeddingModel       string
+	OpenRouterImageModel           string
 	EmbeddingProviderOrder         []string
 	OllamaBaseURL                  string
 	OllamaModel                    string
@@ -231,6 +232,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       "openai/text-embedding-3-small",
+		OpenRouterImageModel:           "google/gemini-3.1-flash-lite-image",
 		EmbeddingProviderOrder:         llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:                  "http://127.0.0.1:11434",
 		OllamaModel:                    "gemma3:1b",
@@ -1957,6 +1959,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterEmbeddingModel == "" {
 		configuration.OpenRouterEmbeddingModel = defaultConfiguration.OpenRouterEmbeddingModel
+	}
+	if configuration.OpenRouterImageModel == "" {
+		configuration.OpenRouterImageModel = defaultConfiguration.OpenRouterImageModel
 	}
 	if len(configuration.EmbeddingProviderOrder) == 0 {
 		configuration.EmbeddingProviderOrder = append([]string{}, defaultConfiguration.EmbeddingProviderOrder...)
