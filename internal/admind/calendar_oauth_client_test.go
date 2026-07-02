@@ -185,6 +185,22 @@ func TestUploadGoogleOAuthClientFileStoresValidClientJSON(t *testing.T) {
 	}
 }
 
+func TestUploadGoogleOAuthClientFileAllowsOperationsAdmin(t *testing.T) {
+	service := newCalendarTestService(t)
+	configureCalendarTestUsers(t, service, `[{"email":"operator@example.com","role":"operationsAdmin"}]`)
+	body, contentType := buildGoogleOAuthClientUploadBody(t, `{"web":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodPost, "http://admind.local/calendar/api/google-oauth-client", body)
+	request.Header.Set("Content-Type", contentType)
+	request.Header.Set("X-Forwarded-Email", "operator@example.com")
+	recorder := httptest.NewRecorder()
+
+	service.handleCalendar(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestUploadGoogleOAuthClientFileRequiresAdmin(t *testing.T) {
 	service := newCalendarTestService(t)
 	body, contentType := buildGoogleOAuthClientUploadBody(t, `{"web":{"client_id":"client-1","client_secret":"secret-1"}}`)

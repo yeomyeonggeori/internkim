@@ -15,7 +15,7 @@ type googleOAuthClientUploadResponse struct {
 }
 
 func (service *Service) uploadGoogleOAuthClient(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
+	if !service.canManageGoogleOAuthClient(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
