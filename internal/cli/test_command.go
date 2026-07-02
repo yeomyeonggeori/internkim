@@ -195,11 +195,32 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeTestResultJSON(configuration.ResultJSONPath, verificationOutput, downloadedFilePaths); errorValue != nil {
+	taskDetail, taskDetailError := fetchTestTaskDetailJSON(target, verificationOutput.TaskRunID)
+	if errorValue := writeTestResultJSON(configuration.ResultJSONPath, verificationOutput, downloadedFilePaths, taskDetail, taskDetailError); errorValue != nil {
 		return errorValue
 	}
 	printTestResult(verificationOutput, downloadedFilePaths)
 	return openDownloadedTestFiles(downloadedFilePaths, configuration.ShouldOpenFiles)
+}
+
+func fetchTestTaskDetailJSON(target verifyTarget, taskRunID string) (json.RawMessage, string) {
+	trimmedTaskRunID := strings.TrimSpace(taskRunID)
+	if trimmedTaskRunID == "" {
+		return nil, "no taskRunID was returned by the Mattermost verification"
+	}
+	command := "curl -s --max-time 20 'http://127.0.0.1:8080/admin/api/task/detail?taskRunID=" + trimmedTaskRunID + "'"
+	output, errorValue := target.sshClient.runResultWithTimeout(command, 30*time.Second)
+	if errorValue != nil {
+		return nil, "fetch task detail over SSH: " + errorValue.Error()
+	}
+	trimmedOutput := strings.TrimSpace(output)
+	if trimmedOutput == "" {
+		return nil, "task detail admin endpoint returned an empty response"
+	}
+	if !json.Valid([]byte(trimmedOutput)) {
+		return nil, "task detail admin endpoint did not return valid JSON"
+	}
+	return json.RawMessage(trimmedOutput), ""
 }
 
 func formatTestFloat(value float64) string {
@@ -294,7 +315,7 @@ func openDownloadedTestFiles(downloadedFilePaths []string, shouldOpenFiles bool)
 	return nil
 }
 
-func writeTestResultJSON(resultJSONPath string, verificationOutput mattermostVerificationOutput, downloadedFilePaths []string) error {
+func writeTestResultJSON(resultJSONPath string, verificationOutput mattermostVerificationOutput, downloadedFilePaths []string, taskDetail json.RawMessage, taskDetailError string) error {
 	normalizedPath := strings.TrimSpace(resultJSONPath)
 	if normalizedPath == "" {
 		return nil
@@ -307,10 +328,14 @@ func writeTestResultJSON(resultJSONPath string, verificationOutput mattermostVer
 	}
 	document := struct {
 		mattermostVerificationOutput
-		DownloadedFilePaths []string `json:"downloadedFilePaths"`
+		DownloadedFilePaths []string        `json:"downloadedFilePaths"`
+		TaskDetail          json.RawMessage `json:"taskDetail,omitempty"`
+		TaskDetailError     string          `json:"taskDetailError,omitempty"`
 	}{
 		mattermostVerificationOutput: verificationOutput,
 		DownloadedFilePaths:          downloadedFilePaths,
+		TaskDetail:                   taskDetail,
+		TaskDetailError:              taskDetailError,
 	}
 	content, errorValue := json.MarshalIndent(document, "", "  ")
 	if errorValue != nil {

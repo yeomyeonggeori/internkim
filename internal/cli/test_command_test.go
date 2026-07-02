@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,7 +156,7 @@ func TestWriteTestResultJSONIncludesDownloadedFilePaths(t *testing.T) {
 		},
 		DownloadedFiles: []downloadedMattermostFile{{FileID: "file-1", Filename: "report.pdf", ContentBase64: "cGRm"}},
 	}
-	errorValue := writeTestResultJSON(resultJSONPath, verificationOutput, []string{"/tmp/report.pdf"})
+	errorValue := writeTestResultJSON(resultJSONPath, verificationOutput, []string{"/tmp/report.pdf"}, nil, "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -168,5 +169,39 @@ func TestWriteTestResultJSONIncludesDownloadedFilePaths(t *testing.T) {
 		if !strings.Contains(document, expectedText) {
 			t.Fatalf("result JSON missing %q: %s", expectedText, document)
 		}
+	}
+}
+
+func TestWriteTestResultJSONIncludesTaskDetailOrFailSoftReason(t *testing.T) {
+	verificationOutput := mattermostVerificationOutput{BotMessage: "done"}
+
+	withDetailPath := filepath.Join(t.TempDir(), "with-detail.json")
+	if errorValue := writeTestResultJSON(withDetailPath, verificationOutput, nil, json.RawMessage(`{"taskRun":{"status":"completed"}}`), ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	withDetailContent, errorValue := os.ReadFile(withDetailPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(withDetailContent), `"status": "completed"`) {
+		t.Fatalf("result JSON missing taskDetail: %s", string(withDetailContent))
+	}
+	if strings.Contains(string(withDetailContent), "taskDetailError") {
+		t.Fatalf("result JSON should omit taskDetailError when detail was fetched: %s", string(withDetailContent))
+	}
+
+	withoutDetailPath := filepath.Join(t.TempDir(), "without-detail.json")
+	if errorValue := writeTestResultJSON(withoutDetailPath, verificationOutput, nil, nil, "no taskRunID was returned by the Mattermost verification"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	withoutDetailContent, errorValue := os.ReadFile(withoutDetailPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(withoutDetailContent), "no taskRunID was returned by the Mattermost verification") {
+		t.Fatalf("result JSON missing taskDetailError: %s", string(withoutDetailContent))
+	}
+	if strings.Contains(string(withoutDetailContent), `"taskDetail"`) {
+		t.Fatalf("result JSON should omit taskDetail when fetch failed: %s", string(withoutDetailContent))
 	}
 }
