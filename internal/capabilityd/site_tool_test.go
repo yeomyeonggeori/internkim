@@ -162,6 +162,37 @@ func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
 	}
 }
 
+func TestSiteAppStatusReturnsNotFoundForUnknownSlug(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"existing","platform":"mattermost","conversationID":"thread-1","status":"draft"}]}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.status",
+		Input:    json.RawMessage(`{"slug":"brand-new-site"}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, `"status":"not_found"`) || !strings.Contains(result, `"slug":"brand-new-site"`) {
+		t.Fatalf("expected not_found status for unknown slug, got %s", result)
+	}
+}
+
 func TestSiteAppStatusReturnsAmbiguousCandidates(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
