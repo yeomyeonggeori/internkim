@@ -189,7 +189,7 @@ is_approval_case() { # case-name -- membership check against APPROVAL_CASES
 
 # Approval cases split the run into start -> BEFORE screenshot -> approve -> finish so
 # the approval question is captured on screen before it is answered. A destructive op
-# reaching a terminal status without ever asking for approval is a bug the harness must
+# reaching a terminal status without ever asking for approval is a bug the tester must
 # catch, not silently pass, so that path returns a failing result instead of running finish.
 run_remote_approval_case() { # name prompt op timeout
 	local name="$1" prompt="$2" op="$3" timeout="$4"
