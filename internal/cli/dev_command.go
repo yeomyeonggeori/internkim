@@ -171,7 +171,8 @@ func runDevFleetReprovision() error {
 	command.Env = append(os.Environ(),
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5")
+		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5",
+		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
 		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
 	}
