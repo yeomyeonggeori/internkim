@@ -21,7 +21,9 @@
 	--input: #d1d5db;
 	--ring: #111111;
 	--radius: 0.5rem;
-	font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	--font-heading: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	--font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	font-family: var(--font-body);
 	color: var(--foreground);
 	background: var(--background);
 }
@@ -49,6 +51,8 @@
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: var(--radius);
 	--radius-lg: calc(var(--radius) + 4px);
+	--font-heading: var(--font-heading);
+	--font-body: var(--font-body);
 }
 
 * {
@@ -60,6 +64,15 @@ body {
 	margin: 0;
 	min-width: 320px;
 	min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--font-heading);
 }
 
 button,
