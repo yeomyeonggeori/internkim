@@ -23,7 +23,7 @@ const secondConflict: CalendarConflict = {
 	eventUID: 'event-2@internkim'
 };
 
-function createConflictActionHarness(initialConflicts: CalendarConflict[] = [], isBrowser = true) {
+function createConflictActionTester(initialConflicts: CalendarConflict[] = [], isBrowser = true) {
 	let conflicts = initialConflicts;
 	let errorMessage = '';
 	const calls: string[] = [];
@@ -52,79 +52,79 @@ function createConflictActionHarness(initialConflicts: CalendarConflict[] = [], 
 }
 
 test('loads conflicts through the action boundary', async () => {
-	const harness = createConflictActionHarness();
-	const actions = createCalendarConflictActions(harness.context, {
+	const tester = createConflictActionTester();
+	const actions = createCalendarConflictActions(tester.context, {
 		fetchCalendarConflicts: async () => {
-			harness.calls.push('fetch');
+			tester.calls.push('fetch');
 			return [firstConflict];
 		}
 	});
 
 	await actions.loadCalendarConflicts();
 
-	expect(harness.calls).toEqual(['fetch', 'set:1']);
-	expect(harness.currentConflicts()).toEqual([firstConflict]);
+	expect(tester.calls).toEqual(['fetch', 'set:1']);
+	expect(tester.currentConflicts()).toEqual([firstConflict]);
 });
 
 test('skips loading conflicts outside the browser', async () => {
-	const harness = createConflictActionHarness([], false);
-	const actions = createCalendarConflictActions(harness.context, {
+	const tester = createConflictActionTester([], false);
+	const actions = createCalendarConflictActions(tester.context, {
 		fetchCalendarConflicts: async () => {
-			harness.calls.push('fetch');
+			tester.calls.push('fetch');
 			return [firstConflict];
 		}
 	});
 
 	await actions.loadCalendarConflicts();
 
-	expect(harness.calls).toEqual([]);
-	expect(harness.currentConflicts()).toEqual([]);
+	expect(tester.calls).toEqual([]);
+	expect(tester.currentConflicts()).toEqual([]);
 });
 
 test('dismisses one conflict and updates local state', async () => {
-	const harness = createConflictActionHarness([firstConflict, secondConflict]);
-	const actions = createCalendarConflictActions(harness.context, {
+	const tester = createConflictActionTester([firstConflict, secondConflict]);
+	const actions = createCalendarConflictActions(tester.context, {
 		dismissCalendarConflictOnServer: async (conflictID) => {
-			harness.calls.push(`dismiss:${conflictID}`);
+			tester.calls.push(`dismiss:${conflictID}`);
 		}
 	});
 
 	await actions.dismissCalendarConflict(1);
 
-	expect(harness.calls).toEqual(['dismiss:1', 'set:1']);
-	expect(harness.currentConflicts()).toEqual([secondConflict]);
+	expect(tester.calls).toEqual(['dismiss:1', 'set:1']);
+	expect(tester.currentConflicts()).toEqual([secondConflict]);
 });
 
 test('dismisses all conflicts then delegates remote sync refresh', async () => {
-	const harness = createConflictActionHarness([firstConflict]);
-	const actions = createCalendarConflictActions(harness.context, {
+	const tester = createConflictActionTester([firstConflict]);
+	const actions = createCalendarConflictActions(tester.context, {
 		dismissCalendarConflictsOnServer: async (conflictIDs) => {
-			harness.calls.push(`dismiss-all:${conflictIDs.join(',')}`);
+			tester.calls.push(`dismiss-all:${conflictIDs.join(',')}`);
 		}
 	});
 
 	await actions.dismissAllConflictsAndRefresh();
 
-	expect(harness.calls).toEqual(['dismiss-all:1', 'set:0', 'sync']);
-	expect(harness.currentConflicts()).toEqual([]);
+	expect(tester.calls).toEqual(['dismiss-all:1', 'set:0', 'sync']);
+	expect(tester.currentConflicts()).toEqual([]);
 });
 
 test('reloads conflicts after dismiss-all fails', async () => {
-	const harness = createConflictActionHarness([firstConflict]);
-	const actions = createCalendarConflictActions(harness.context, {
+	const tester = createConflictActionTester([firstConflict]);
+	const actions = createCalendarConflictActions(tester.context, {
 		dismissCalendarConflictsOnServer: async () => {
-			harness.calls.push('dismiss-all');
+			tester.calls.push('dismiss-all');
 			throw new Error('Dismiss failed');
 		},
 		fetchCalendarConflicts: async () => {
-			harness.calls.push('fetch');
+			tester.calls.push('fetch');
 			return [firstConflict];
 		}
 	});
 
 	await actions.dismissAllConflictsAndRefresh();
 
-	expect(harness.calls).toEqual(['dismiss-all', 'error:Dismiss failed', 'fetch', 'set:1']);
-	expect(harness.errorMessage()).toBe('Dismiss failed');
-	expect(harness.currentConflicts()).toEqual([firstConflict]);
+	expect(tester.calls).toEqual(['dismiss-all', 'error:Dismiss failed', 'fetch', 'set:1']);
+	expect(tester.errorMessage()).toBe('Dismiss failed');
+	expect(tester.currentConflicts()).toEqual([firstConflict]);
 });
