@@ -1,5 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { routeCalendarShellAPI } from './calendar-route-shell-test-utils';
+import {
+	routeCalendarShellAPI,
+	routeConnectedGoogleCalendarAccount,
+	routeWritableGoogleCalendars
+} from './calendar-route-shell-test-utils';
 
 test.describe('calendar route Google OAuth setup', () => {
 	test.beforeEach(async ({ page }) => {
@@ -86,7 +90,11 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.getByRole('button', { name: '업로드' }).click();
 
 		await expect(page.getByText('Google 캘린더를 연결하세요.')).toBeVisible();
-		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
+		const googleOAuthLink = page.getByRole('link', { name: '연결' });
+		await expect(googleOAuthLink).toBeVisible();
+		await expect(googleOAuthLink).toHaveAttribute('target', '_blank');
+		await expect(googleOAuthLink).toHaveAttribute('rel', /noopener/);
+		await expect(googleOAuthLink).toHaveAttribute('rel', /noreferrer/);
 		await expect(page.getByText('secret-1')).toHaveCount(0);
 	});
 
@@ -96,8 +104,15 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.route('**/calendar/api/account-status', async (route) => {
 			await route.fulfill({
 				json: {
-					connected: false,
-					needsReauth: false,
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company@example.com',
+					selectedCalendarName: '회사 일정',
+					selectedCalendarAccessRole: 'writer',
+					needsReauth: uploadedClientFile,
+					needsCalendarSelection: false,
+					initialSyncCompleted: !uploadedClientFile,
+					calendarSyncReady: !uploadedClientFile,
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -111,7 +126,7 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.goto('/calendar/');
 		await openCalendarSettings(page);
 
-		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
+		await expect(page.getByText('연결됨: calendar-admin@example.com')).toBeVisible();
 		await page.getByText('client.json 교체').click();
 		await page.getByLabel('client.json 파일 선택').setInputFiles({
 			name: 'client.json',
@@ -121,6 +136,8 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.getByRole('button', { name: '업로드' }).click();
 
 		expect(uploadedClientFile).toBe(true);
+		await expect(page.getByText('재연결 필요').first()).toBeVisible();
+		await expect(page.getByRole('link', { name: '다시 연결' })).toBeVisible();
 		await expect(page.getByText('secret-2')).toHaveCount(0);
 	});
 
@@ -150,6 +167,241 @@ test.describe('calendar route Google OAuth setup', () => {
 		await expect(page.getByText('연결됨: calendar-admin@example.com')).toBeVisible();
 		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
 		await expect(page.getByText('동기화 가능')).toBeVisible();
+	});
+
+	test('shows reconnect state when Google calendar selection requires reauth', async ({ page }) => {
+		let didFailCalendarSelection = false;
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: '',
+					selectedCalendarName: '',
+					selectedCalendarAccessRole: '',
+					needsReauth: didFailCalendarSelection,
+					needsCalendarSelection: !didFailCalendarSelection,
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+		await page.route('**/calendar/api/google-calendars**', async (route) => {
+			if (route.request().method() === 'GET') {
+				await route.fulfill({
+					json: {
+						accountEmail: 'calendar-admin@example.com',
+						calendars: [
+							{
+								calendarID: 'company@example.com',
+								summary: '회사 일정',
+								accessRole: 'writer',
+								primary: false,
+								backgroundColor: '#0ea5e9'
+							}
+						]
+					}
+				});
+				return;
+			}
+			didFailCalendarSelection = true;
+			await route.fulfill({
+				status: 502,
+				body: 'google calendar readiness status 401: Unauthorized'
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+		await page.getByLabel('사용할 캘린더').selectOption('company@example.com');
+		await page.getByRole('button', { name: '캘린더 저장' }).click();
+
+		await expect.poll(() => didFailCalendarSelection).toBe(true);
+		await expect(page.getByText('재연결 필요').first()).toBeVisible();
+		await expect(page.getByRole('link', { name: '다시 연결' })).toBeVisible();
+		await expect(page.getByLabel('사용할 캘린더')).toHaveCount(0);
+	});
+
+	test('shows writable Google calendars and saves the selected calendar', async ({ page }) => {
+		let selectedCalendarID = '';
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID,
+					selectedCalendarName: selectedCalendarID ? '가족' : '',
+					selectedCalendarAccessRole: selectedCalendarID ? 'owner' : '',
+					needsReauth: false,
+					needsCalendarSelection: selectedCalendarID === '',
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+		await routeWritableGoogleCalendars(page, {
+			setSelectedCalendarID: (calendarID) => {
+				selectedCalendarID = calendarID;
+			}
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		await expect(page.getByText('캘린더 선택 필요')).toBeVisible();
+		await expect(page.getByLabel('사용할 캘린더')).toBeVisible();
+		await expect(page.getByLabel('사용할 캘린더')).toContainText('가족');
+		await page.getByLabel('사용할 캘린더').selectOption('family@example.com');
+		await page.getByRole('button', { name: '캘린더 저장' }).click();
+
+		await expect(page.getByText('사용 중인 캘린더: 가족')).toBeVisible();
+		expect(selectedCalendarID).toBe('family@example.com');
+	});
+
+	test('keeps the calendar selector visible while saving a selected calendar', async ({ page }) => {
+		let selectedCalendarID = '';
+		let shouldDelayAccountStatusReload = false;
+		let didStartDelayedAccountStatusReload = false;
+		let releaseAccountStatusReload: () => void = () => {};
+		const accountStatusReloadGate = new Promise<void>((resolve) => {
+			releaseAccountStatusReload = resolve;
+		});
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			if (shouldDelayAccountStatusReload) {
+				didStartDelayedAccountStatusReload = true;
+				await accountStatusReloadGate;
+			}
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID,
+					selectedCalendarName: selectedCalendarID ? '가족' : '',
+					selectedCalendarAccessRole: selectedCalendarID ? 'owner' : '',
+					needsReauth: false,
+					needsCalendarSelection: selectedCalendarID === '',
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+		await routeWritableGoogleCalendars(page, {
+			setSelectedCalendarID: (calendarID) => {
+				selectedCalendarID = calendarID;
+			},
+			calendars: [
+				{
+					calendarID: 'family@example.com',
+					summary: '가족',
+					accessRole: 'owner',
+					primary: false,
+					backgroundColor: '#0ea5e9'
+				}
+			]
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+		await expect(page.getByLabel('사용할 캘린더')).toBeVisible();
+
+		shouldDelayAccountStatusReload = true;
+		await page.getByRole('button', { name: '캘린더 저장' }).click();
+		await expect.poll(() => didStartDelayedAccountStatusReload).toBe(true);
+
+		await expect(page.getByLabel('사용할 캘린더')).toBeVisible();
+		await expect(page.getByRole('button', { name: '저장 중' })).toBeVisible();
+
+		releaseAccountStatusReload();
+		await expect(page.getByText('사용 중인 캘린더: 가족')).toBeVisible();
+	});
+
+	test('opens settings with a connection notice after Google OAuth returns', async ({ page }) => {
+		await routeConnectedGoogleCalendarAccount(page);
+		await page.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({
+				json: {
+					accountEmail: 'calendar-admin@example.com',
+					calendars: []
+				}
+			});
+		});
+
+		await page.goto('/calendar/?googleOAuth=connected');
+
+		await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+		await expect(page.getByText('Google 캘린더가 연결됐습니다.')).toBeVisible();
+		await expect(page).toHaveURL(/\/calendar\/?$/);
+	});
+
+	test('opens settings with a connection failure notice after Google OAuth fails', async ({ page }) => {
+		await routeConnectedGoogleCalendarAccount(page);
+		await page.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({
+				json: {
+					accountEmail: 'calendar-admin@example.com',
+					calendars: []
+				}
+			});
+		});
+
+		await page.goto('/calendar/?googleOAuth=failed');
+
+		await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+		const failureNotice = page.getByText('Google 캘린더 연결에 실패했습니다.');
+		await expect(failureNotice).toBeVisible();
+		await expect(failureNotice).toHaveClass(/text-destructive/);
+		await expect(page).toHaveURL(/\/calendar\/?$/);
+	});
+
+	test('notifies the existing calendar tab when Google OAuth returns in a new tab', async ({ page, context }) => {
+		await routeConnectedGoogleCalendarAccount(page);
+		await page.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({ json: { accountEmail: 'calendar-admin@example.com', calendars: [] } });
+		});
+		await page.goto('/calendar/');
+		await expect(page.getByRole('heading', { name: '설정' })).toHaveCount(0);
+
+		const callbackPage = await context.newPage();
+		await routeCalendarShellAPI(callbackPage);
+		await routeConnectedGoogleCalendarAccount(callbackPage);
+		await callbackPage.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({ json: { accountEmail: 'calendar-admin@example.com', calendars: [] } });
+		});
+		await callbackPage.goto('/calendar/?googleOAuth=connected');
+
+		await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+		await expect(page.getByText('Google 캘린더가 연결됐습니다.')).toBeVisible();
+		await callbackPage.close();
+	});
+
+	test('notifies the existing calendar tab when Google OAuth fails in a new tab', async ({ page, context }) => {
+		await routeConnectedGoogleCalendarAccount(page);
+		await page.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({ json: { accountEmail: 'calendar-admin@example.com', calendars: [] } });
+		});
+		await page.goto('/calendar/');
+		await expect(page.getByRole('heading', { name: '설정' })).toHaveCount(0);
+
+		const callbackPage = await context.newPage();
+		await routeCalendarShellAPI(callbackPage);
+		await routeConnectedGoogleCalendarAccount(callbackPage);
+		await callbackPage.route('**/calendar/api/google-calendars', async (route) => {
+			await route.fulfill({ json: { accountEmail: 'calendar-admin@example.com', calendars: [] } });
+		});
+		await callbackPage.goto('/calendar/?googleOAuth=failed');
+
+		await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+		await expect(page.getByText('Google 캘린더 연결에 실패했습니다.')).toBeVisible();
+		await callbackPage.close();
 	});
 
 	test('shows write permission requirement for read-only selected calendars', async ({ page }) => {
