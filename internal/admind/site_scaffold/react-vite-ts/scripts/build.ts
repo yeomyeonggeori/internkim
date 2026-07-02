@@ -128,6 +128,7 @@ async function buildVite(): Promise<void> {
 
 function reportGuestProcessState(): void {
 	logBuildStage("vite still running after 45s; guest process state follows");
+	logBuildStage("BUN_INSTALL_CACHE_DIR=" + (Bun.env.BUN_INSTALL_CACHE_DIR ?? "(unset)"));
 	logBuildStage("loadavg " + readSource("/proc/loadavg").trim());
 	logBuildStage("meminfo " + readSource("/proc/meminfo").split("\n").slice(0, 3).join(" | "));
 	for (const entry of readdirSync("/proc")) {
