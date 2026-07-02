@@ -80,10 +80,30 @@ join_team() { mm POST "/api/v4/teams/$1/members" "$2" "$(jq -cn --arg team_id "$
 
 join_channel() { mm POST "/api/v4/channels/$1/members" "$2" "$(jq -cn --arg user_id "$3" '{user_id:$user_id}')" >/dev/null; }
 
+ensure_direct_channel() { # token first_user_id second_user_id -> channel_id
+	mm POST "/api/v4/channels/direct" "$1" "$(jq -cn --arg first "$2" --arg second "$3" '[$first,$second]')" | jq -r '.id'
+}
+
 invite_person() { # mm_user_id email [display_name]
-	curl -s -X POST -H "Content-Type: application/json" "$BLUECLAW/admin/api/people/invite" \
+	local response_file status_code
+	response_file="$(mktemp)"
+	if ! status_code="$(curl -s -o "$response_file" -w "%{http_code}" -X POST -H "Content-Type: application/json" "$BLUECLAW/admin/api/people/invite" \
 		-d "$(jq -cn --arg personID "$1" --arg email "$2" --arg name "${3:-}" \
-			'{personID:$personID,email:$email} + (if $name == "" then {} else {displayName:$name} end)')" >/dev/null || true
+			'{personID:$personID,email:$email} + (if $name == "" then {} else {displayName:$name} end)')")"; then
+		echo "Blueclaw invite request failed for $2" >&2
+		rm -f "$response_file"
+		return 1
+	fi
+	if [ "$status_code" -lt 200 ] || [ "$status_code" -ge 300 ]; then
+		echo "Blueclaw invite failed for $2 ($status_code): $(cat "$response_file")" >&2
+		rm -f "$response_file"
+		return 1
+	fi
+	rm -f "$response_file"
+}
+
+assert_invited_person() { # email
+	curl -s "$BLUECLAW/admin/api/policy" | jq -e --arg email "$1" 'any(.people[]?; any((.emails // [])[]?; . == $email))' >/dev/null
 }
 
 task_count() { curl -s "$BLUECLAW/admin/api/task" | jq 'length'; }
@@ -155,7 +175,7 @@ pending_approval_operation() { # task-detail-json
 }
 
 setup() {
-	local token team_id channel_id bot_id e2e_id e2e_token admin_id
+	local token team_id channel_id direct_channel_id bot_id e2e_id e2e_token admin_id
 	# Skip the global admind/entity reset for parallel-safe runs (a fresh person+channel
 	# per run already isolates state; the reset restarts admind and would stomp peers).
 	[ "${E2E_SKIP_RESET:-}" = 1 ] || reset_entity_state
@@ -171,36 +191,37 @@ setup() {
 	join_channel "$channel_id" "$token" "$bot_id"
 	join_channel "$channel_id" "$token" "$e2e_id"
 	invite_person "$e2e_id" "$E2E_EMAIL"
+	assert_invited_person "$E2E_EMAIL"
 	# DM recipient: 홍길동, resolvable by the given name 길동 for message.send cases.
 	local recipient_id
 	recipient_id="$(ensure_user "gildong@internkim.test" "gildong" "$token" "길동" "홍" "홍길동")"
 	join_team "$team_id" "$token" "$recipient_id"
 	invite_person "$recipient_id" "gildong@internkim.test" "홍길동"
+	assert_invited_person "gildong@internkim.test"
 	e2e_token="$(curl -s -i -d "$(jq -cn --arg login_id "$E2E_USERNAME" --arg password "$E2E_PASSWORD" '{login_id:$login_id,password:$password}')" \
 		"$MATTERMOST/api/v4/users/login" | awk '/^[Tt]oken:/{print $2}' | tr -d '\r')"
-	jq -cn --arg channel_id "$channel_id" --arg e2e_token "$e2e_token" --arg channel_name "$E2E_CHANNEL_NAME" \
+	direct_channel_id="$(ensure_direct_channel "$e2e_token" "$e2e_id" "$bot_id")"
+	jq -cn --arg channel_id "$direct_channel_id" --arg e2e_token "$e2e_token" --arg channel_name "$E2E_CHANNEL_NAME" --arg channel_path "/$TEAM_NAME/messages/@$BOT_USERNAME" \
 		--arg e2e_username "$E2E_USERNAME" --arg e2e_password "$E2E_PASSWORD" \
-		'{channelID:$channel_id,e2eToken:$e2e_token,channelName:$channel_name,e2eUsername:$e2e_username,e2ePassword:$e2e_password}'
+		'{channelID:$channel_id,e2eToken:$e2e_token,channelName:$channel_name,channelPath:$channel_path,e2eUsername:$e2e_username,e2ePassword:$e2e_password}'
 }
 
 run_case() { # channel_id e2e_token prompt expected_op timeout
 	local channel_id="$1" e2e_token="$2" prompt="$3" expected_op="$4" timeout="${5:-240}"
-	local task_run_id detail steps status op_ok root_post_id root_post root_post_created_at expected_operation_observed operation_failure_free message pending_operation attempt reposted
+	local task_run_id detail steps status op_ok root_post_id root_post root_post_created_at expected_operation_observed operation_failure_free message pending_operation attempt
 	message="@$BOT_USERNAME $prompt"
 	root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
 	root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
 	root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
+	if [ -z "$root_post_id" ]; then
+		jq -cn --arg status "error" --arg reason "failed to post Mattermost message" --arg expectedOp "$expected_op" \
+			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[]}'
+		return
+	fi
 	local confirmed=0
-	reposted=0
 	for attempt in $(seq 1 "$timeout"); do
-		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg p "$prompt" --arg m "$message" --arg root "$root_post_id" '[.[]|select(.prompt==$p or .prompt==$m or ((.prompt // "")|endswith($p)) or ($root != "" and ((.originConversationID // "")|contains($root))))]|sort_by(.createdAt)|last|.taskRunID // empty')"
+		task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg root "$root_post_id" '[.[]|select((.originConversationID // "")|contains($root))]|sort_by(.createdAt)|last|.taskRunID // empty')"
 		if [ -z "$task_run_id" ]; then
-			if [ "$reposted" = 0 ] && [ "$attempt" -ge 45 ]; then
-				root_post="$(post_channel_message "$channel_id" "$e2e_token" "$message")"
-				root_post_id="$(printf "%s" "$root_post" | jq -r '.id // empty')"
-				root_post_created_at="$(printf "%s" "$root_post" | jq -r '.create_at // 0')"
-				reposted=1
-			fi
 			sleep 1
 			continue
 		fi
@@ -219,7 +240,28 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 			*) sleep 1 ;;
 		esac
 	done
+	local bot_post file_ids downloaded_files public_url bot_post_id bot_message
+	bot_post="{}"
+	for _ in $(seq 1 20); do
+		bot_post="$(latest_bot_post "$channel_id" "$root_post_id" "$root_post_created_at" "$e2e_token")"
+		[ "$(printf "%s" "$bot_post" | jq -r '.id // empty')" != "" ] && break
+		sleep 1
+	done
+	bot_post_id="$(printf "%s" "$bot_post" | jq -r '.id // empty')"
+	bot_message="$(printf "%s" "$bot_post" | jq -r '.message // ""')"
+	file_ids="$(printf "%s" "$bot_post" | jq -c '.file_ids // []')"
+	downloaded_files="$(download_post_files "$e2e_token" "$bot_post")"
+	if [ -z "$task_run_id" ]; then
+		jq -cn --arg status "not_started" --arg reason "no Blueclaw task was created from Mattermost message before timeout" --arg expectedOp "$expected_op" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
+			'{taskRunID:"",status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+		return
+	fi
 	detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
+	if ! printf "%s" "$detail" | jq -e . >/dev/null 2>&1; then
+		jq -cn --arg id "$task_run_id" --arg status "error" --arg reason "Blueclaw task detail returned non-JSON" --arg expectedOp "$expected_op" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
+			'{taskRunID:$id,status:$status,reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+		return
+	fi
 	status="$(printf '%s' "$detail" | jq -r '.taskRun.status')"
 	reason="$(printf '%s' "$detail" | jq -r '.taskRun.failureReason // ""')"
 	steps="$(printf '%s' "$detail" | jq -r '[.taskSteps[]|select(.taskStepID|test("turn-"))]|length')"
@@ -232,18 +274,9 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 		[.taskSteps[].output // ""]
 		| (map(select(test("operation_failed|not configured|is required|capability tool is not configured")))|length) == 0')"
 	if [ "$expected_operation_observed" = true ] && [ "$operation_failure_free" = true ]; then op_ok=true; else op_ok=false; fi
-	local bot_post file_ids downloaded_files public_url
-	bot_post="{}"
-	for _ in $(seq 1 20); do
-		bot_post="$(latest_bot_post "$channel_id" "$root_post_id" "$root_post_created_at" "$e2e_token")"
-		[ "$(printf "%s" "$bot_post" | jq -r '.id // empty')" != "" ] && break
-		sleep 1
-	done
-	file_ids="$(printf "%s" "$bot_post" | jq -c '.file_ids // []')"
-	downloaded_files="$(download_post_files "$e2e_token" "$bot_post")"
 	public_url="$(extract_public_url "$bot_post" "$detail")"
-	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
-		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
+	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" \
+		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles}'
 }
 
 set_model() { # model
@@ -260,6 +293,20 @@ set_model() { # model
 	echo "model set but capabilityd not active: $model" >&2
 }
 
+restart_blueclaw() {
+	sudo systemctl restart blueclaw
+	local attempt
+	for attempt in $(seq 1 60); do
+		if [ "$(systemctl is-active blueclaw 2>/dev/null)" = active ] && curl -fsS "$BLUECLAW/admin/api/policy" >/dev/null 2>&1; then
+			echo "blueclaw restarted"
+			return
+		fi
+		sleep 2
+	done
+	echo "blueclaw restart did not become active" >&2
+	return 1
+}
+
 find_status() { # prompt -> latest matching task run status + steps
 	local prompt="$1" task_run_id detail
 	task_run_id="$(curl -s "$BLUECLAW/admin/api/task" | jq -r --arg p "$prompt" '[.[]|select(.prompt==$p)]|sort_by(.createdAt)|last|.taskRunID // empty')"
@@ -274,8 +321,9 @@ find_status() { # prompt -> latest matching task run status + steps
 
 case "${1:-}" in
 	set-model) set_model "$2" ;;
+	restart-blueclaw) restart_blueclaw ;;
 	setup) setup ;;
 	run-case) run_case "$2" "$3" "$4" "$5" "${6:-240}" ;;
 	find-status) find_status "$2" ;;
-	*) echo "usage: $0 set-model <model> | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout] | find-status <prompt>" >&2; exit 2 ;;
+	*) echo "usage: $0 set-model <model> | restart-blueclaw | setup | run-case <channel_id> <e2e_token> <prompt> <expected_op> [timeout] | find-status <prompt>" >&2; exit 2 ;;
 esac
