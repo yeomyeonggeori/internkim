@@ -86,7 +86,7 @@ test.describe('admin role tabs', () => {
 		await expect(main.getByRole('button', { name: '봇' })).toHaveCount(0);
 		await expect(main.getByRole('button', { name: '네트워크' })).toHaveCount(0);
 		await main.getByText('일반', { exact: true }).first().click();
-		await expect(page.getByRole('option', { name: '운영 관리자', exact: true })).toBeVisible();
+		await expect(page.getByRole('option', { name: '운영자', exact: true })).toBeVisible();
 		await expect(page.getByRole('option', { name: '관리자', exact: true })).toHaveCount(0);
 		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
 		await expect(adminRow.getByRole('button', { name: '저장' })).toBeDisabled();

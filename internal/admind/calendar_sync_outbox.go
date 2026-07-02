@@ -13,7 +13,7 @@ func (service *Service) enqueueCalendarOutboxForWrite(ctx context.Context, event
 	if !found {
 		return nil
 	}
-	if strings.TrimSpace(account.DefaultCalendarURL) == "" {
+	if activeRemoteCalendarTarget(account).CalendarURL == "" {
 		return nil
 	}
 	if len(changedFields) == 0 {
@@ -42,7 +42,7 @@ func (service *Service) enqueueCalendarOutboxForDelete(ctx context.Context, even
 	if !found {
 		return nil
 	}
-	if strings.TrimSpace(event.RemoteHref) == "" && strings.TrimSpace(account.DefaultCalendarURL) == "" {
+	if strings.TrimSpace(event.RemoteHref) == "" && activeRemoteCalendarTarget(account).CalendarURL == "" {
 		return nil
 	}
 	if errorValue := service.enqueueCalendarOutbox(ctx, calendarOutboxRow{
