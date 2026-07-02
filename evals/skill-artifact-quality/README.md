@@ -4,7 +4,7 @@ These evals measure output quality for the bundled `docx`, `pdf`, `xlsx`, and `s
 
 Each evaluation is self-contained. `evals.json` stores the fixed instruction, and `fixtures/` stores the fixed source data. The runner combines them into the exact prompt saved in each run directory.
 
-Do not edit an existing instruction or fixture to improve a score. Add a new evaluation ID when the task or source data needs to change. If the shared harness rules or scoring criteria change, bump `version` in `evals.json` so new scores are not confused with older baselines.
+Do not edit an existing instruction or fixture to improve a score. Add a new evaluation ID when the task or source data needs to change. If the shared runner rules or scoring criteria change, bump `version` in `evals.json` so new scores are not confused with older baselines.
 
 Run all fixed evals:
 
