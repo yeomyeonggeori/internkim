@@ -484,7 +484,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 		t.Fatalf("site package manifest must pin exact dependency versions")
 	}
 	buildScript := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "scripts", "build.ts")
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
+	for _, expectedText := range []string{`arguments: ["install", "--prefer-offline"]`, `existsSync("node_modules/vite/bin/vite.js")`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(buildScript, expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
