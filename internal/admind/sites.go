@@ -123,8 +123,24 @@ type siteCreateRequest struct {
 }
 
 type siteContentSection struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
+	Title string          `json:"title"`
+	Body  siteContentText `json:"body"`
+}
+
+type siteContentText string
+
+func (text *siteContentText) UnmarshalJSON(document []byte) error {
+	var single string
+	if errorValue := json.Unmarshal(document, &single); errorValue == nil {
+		*text = siteContentText(single)
+		return nil
+	}
+	var lines []string
+	if errorValue := json.Unmarshal(document, &lines); errorValue != nil {
+		return errors.New("body must be a string or an array of strings")
+	}
+	*text = siteContentText(strings.Join(lines, "\n\n"))
+	return nil
 }
 
 type siteContent struct {
@@ -2954,7 +2970,7 @@ func defaultSiteContent(site *SiteRecord) *siteContent {
 		SiteName: title,
 		Tagline:  tagline,
 		Sections: []siteContentSection{
-			{Title: title, Body: firstNonEmpty(tagline, "This site is ready to customize.")},
+			{Title: title, Body: siteContentText(firstNonEmpty(tagline, "This site is ready to customize."))},
 		},
 	}
 }
@@ -2981,7 +2997,7 @@ func validateSiteContent(content *siteContent) error {
 		if strings.TrimSpace(section.Title) == "" {
 			return fmt.Errorf("sections[%d].title is required", index)
 		}
-		if strings.TrimSpace(section.Body) == "" {
+		if strings.TrimSpace(string(section.Body)) == "" {
 			return fmt.Errorf("sections[%d].body is required", index)
 		}
 	}
