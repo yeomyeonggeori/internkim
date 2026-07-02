@@ -43,6 +43,7 @@ build-mattermost-ephemeral-plugin:
 
 check: build build-companion
 	cd companion && bun run check
+	cd companion && bun run test
 	cd web && bun run check
 	cd web && bun run test:unit
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
