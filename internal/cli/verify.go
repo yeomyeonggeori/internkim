@@ -90,6 +90,9 @@ func runVerifyMattermost(arguments []string) error {
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
+	if strings.TrimSpace(*prompt) != "" && isMattermostSiteVerification(*expectPublicURL, expectedTools.Values()) && !hasExplicitVerifyTargetArgument(arguments) {
+		return errors.New("Mattermost site verification defaults to the saved physical board; use `internkim test \"<prompt>\" --expect-public-url` for Local Fleet verification or pass an explicit target")
+	}
 
 	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
@@ -125,14 +128,19 @@ func runVerifyMattermost(arguments []string) error {
 	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostScript(), 6*time.Minute)
 }
 
+const defaultVerifySitePrompt = "테스트용 'Local Fleet Studio' 단일 페이지 소개 웹사이트를 만들어서 배포해줘. 첫 화면 제목은 'Local Fleet Studio', 보조 문구는 '로컬 플릿 웹사이트 생성 배포 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘."
+
 func runVerifySite(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify site", flag.ContinueOnError)
-	prompt := flagSet.String("prompt", "개인 홈페이지 하나 만들어서 배포해줘.", "Post this site creation prompt through Mattermost")
+	prompt := flagSet.String("prompt", defaultVerifySitePrompt, "Post this site creation prompt through Mattermost")
 	keep := flagSet.Bool("keep", false, "Keep probe messages, users, and site for inspection")
 	timeoutSeconds := flagSet.Int("timeout", 420, "Seconds to wait for the site deployment task")
 	target := registerTargetFlags(flagSet)
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
+	}
+	if !hasExplicitVerifyTargetArgument(arguments) {
+		return errors.New("verify site defaults to the saved physical board; use `internkim test \"<prompt>\" --expect-public-url` for Local Fleet verification or pass an explicit target")
 	}
 
 	verifyTarget, errorValue := target.resolveVerifyTarget()
@@ -140,8 +148,29 @@ func runVerifySite(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
-	expectedTools := []string{"site.create", "site.build", "site.publish"}
+	expectedTools := []string{"site.create", "terminal.run", "site.publish"}
 	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptSSHTimeout(*timeoutSeconds))
+}
+
+func isMattermostSiteVerification(expectPublicURL bool, expectedTools []string) bool {
+	if expectPublicURL {
+		return true
+	}
+	for _, toolName := range expectedTools {
+		if strings.HasPrefix(strings.TrimSpace(toolName), "site.") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasExplicitVerifyTargetArgument(arguments []string) bool {
+	for _, flagName := range []string{"--host", "--node", "--board", "--cloudflare-ssh", "--sim"} {
+		if hasCommandArgument(arguments, flagName) {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {

@@ -87,8 +87,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   same scenario fails on the base revision and passes on the current checkout.
 - Run real Mattermost smoke only after the virtual-session and Mattermost-free
   Linux gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
-  Disposable local fleet runs clean themselves up by default; use
-  `./internkim dev fleet reset` after `--reuse` runs.
+  Disposable local fleet runs stop and remove their VM by default while keeping
+  gitignored evidence under `.local/local-fleet/runs/<runID>` and
+  `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
+  `--reuse` runs.
 
 ## Blueclaw Skill Size Budget
 
