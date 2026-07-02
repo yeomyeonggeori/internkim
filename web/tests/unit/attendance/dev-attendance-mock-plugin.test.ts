@@ -3,6 +3,12 @@ import {
 	createDevAttendanceMockResponse,
 	createDevAttendanceMockState
 } from '../../../dev-attendance-mock-plugin';
+import {
+	devPopupOverflowAttendanceRows,
+	devPopupOverflowDate,
+	devPopupOverflowEmail,
+	devPopupOverflowMonth
+} from '../../../dev-popup-overflow-fixture';
 import { todayDateInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
 import type { AttendanceAbsence, AttendanceSummary } from '../../../src/routes/attendance/attendance-context.svelte';
 
@@ -94,6 +100,31 @@ describe('dev attendance mock plugin', () => {
 			{ kind: 'clock_in', localTime: '13:00', locationID: 'outside' },
 			{ kind: 'clock_out', localTime: '17:30', locationID: 'outside' }
 		]);
+	});
+
+	test('includes a four-segment June workday fixture for popup overflow checks', async () => {
+		const state = createDevAttendanceMockState('kim@example.com');
+		const response = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/attendance/api/summary',
+			searchParams: new URLSearchParams(`month=${devPopupOverflowMonth}`)
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as AttendanceSummary | undefined;
+		const events = body?.events
+			.filter((event) => event.email === devPopupOverflowEmail && event.localDate === devPopupOverflowDate)
+			.map((event) => ({
+				kind: event.kind,
+				localTime: event.localTime,
+				locationID: event.locationID
+			}));
+
+		expect(events).toEqual(devPopupOverflowAttendanceRows.map((row) => ({
+			kind: row.kind,
+			localTime: row.localTime,
+			locationID: row.locationID
+		})));
 	});
 
 	test('includes varied short and multi-day absence fixture records', async () => {
