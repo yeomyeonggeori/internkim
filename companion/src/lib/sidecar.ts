@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { resolveResource } from '@tauri-apps/api/path';
 import type { Child } from '@tauri-apps/plugin-shell';
 import { Command } from '@tauri-apps/plugin-shell';
 import { isCompanionVerified, stalePairingMessage, type CompanionStatus, type PairingPayload } from './pairing';
@@ -105,6 +106,7 @@ export async function startCompanionRuntime(): Promise<void> {
 	shouldRestartRuntime = true;
 	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const settings = await loadCompanionSettings();
+	const browserExtensionPath = await resolveResource('browser-extension');
 	const baseArguments = [
 		'run',
 		'--shell-bridge-url',
@@ -112,7 +114,9 @@ export async function startCompanionRuntime(): Promise<void> {
 		'--shell-bridge-token',
 		shellBridge.token,
 		'--control-listen',
-		'127.0.0.1:7983'
+		'127.0.0.1:7983',
+		'--browser-extension-path',
+		browserExtensionPath
 	];
 	const command = Command.sidecar('binaries/internkim-companion', [
 		...baseArguments,
