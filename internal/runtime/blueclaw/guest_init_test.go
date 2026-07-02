@@ -58,6 +58,9 @@ func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 		"chmod 0711 /workspace/circles /workspace/private /workspace/private/people",
 		"chmod 0755 /workspace/shared /workspace/shared/public",
 		"shared/cache/dependencies",
+		"shared/cache/dependencies/bun",
+		"seed_blueclaw_bun_cache",
+		"/opt/blueclaw/bun-cache",
 	} {
 		if !strings.Contains(document, expectedFragment) {
 			t.Fatalf("expected guest init to contain %q", expectedFragment)

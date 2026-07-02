@@ -41,7 +41,8 @@ prepare_blueclaw_workspace() {
     /workspace/circles/hr-compensation \
     /workspace/private/people \
     /workspace/shared/public \
-    /workspace/shared/cache/dependencies
+    /workspace/shared/cache/dependencies \
+    /workspace/shared/cache/dependencies/bun
 
   rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
 
@@ -69,6 +70,19 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/runtime \
     /workspace/.blueclaw/tmp
   find /workspace/.blueclaw/config -type f -exec chmod 0640 {} +
+}
+
+seed_blueclaw_bun_cache() {
+  if [ ! -d /opt/blueclaw/bun-cache ]; then
+    return
+  fi
+  if [ -n "$(ls -A /workspace/shared/cache/dependencies/bun 2>/dev/null)" ]; then
+    return
+  fi
+  cp -a /opt/blueclaw/bun-cache/. /workspace/shared/cache/dependencies/bun/
+  chown -R blueclaw:bc_shared /workspace/shared/cache/dependencies/bun 2>/dev/null \
+    || chown -R blueclaw:blueclaw /workspace/shared/cache/dependencies/bun
+  chmod -R g+rwX /workspace/shared/cache/dependencies/bun
 }
 
 sync_blueclaw_posix_policy() {
@@ -188,6 +202,8 @@ prepare_blueclaw_workspace
 log_guest_init "workspace prepared"
 sync_blueclaw_posix_policy
 log_guest_init "posix policy synchronized"
+seed_blueclaw_bun_cache
+log_guest_init "bun cache seeded"
 check_blueclaw_posix_helper
 log_guest_init "posix helper ready"
 
