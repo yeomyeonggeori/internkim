@@ -2,7 +2,7 @@
 	"$schema": "../gen/schemas/desktop-schema.json",
 	"identifier": "main-capability",
 	"description": "Main companion shell permissions",
-	"windows": ["main", "browser-handoff-overlay"],
+	"windows": ["main"],
 	"permissions": [
 		"core:default",
 		"core:event:default",

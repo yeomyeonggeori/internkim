@@ -11,15 +11,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 func main() {
@@ -93,14 +90,16 @@ func runServer(arguments []string) error {
 }
 
 type companionStatusDocument struct {
-	Paired               bool                      `json:"paired"`
-	AuthStatus           string                    `json:"authStatus"`
-	DeviceURL            string                    `json:"deviceURL,omitempty"`
-	CompanionID          string                    `json:"companionID,omitempty"`
-	LocalOnly            bool                      `json:"localOnly,omitempty"`
-	Capabilities         []capabilities.Descriptor `json:"capabilities,omitempty"`
-	BrowserRuntimeStatus string                    `json:"browserRuntimeStatus,omitempty"`
-	BrowserRuntimeError  string                    `json:"browserRuntimeError,omitempty"`
+	Paired                    bool                      `json:"paired"`
+	AuthStatus                string                    `json:"authStatus"`
+	DeviceURL                 string                    `json:"deviceURL,omitempty"`
+	CompanionID               string                    `json:"companionID,omitempty"`
+	LocalOnly                 bool                      `json:"localOnly,omitempty"`
+	Capabilities              []capabilities.Descriptor `json:"capabilities,omitempty"`
+	ExtensionAutomationStatus string                    `json:"extensionAutomationStatus,omitempty"`
+	ExtensionAutomationError  string                    `json:"extensionAutomationError,omitempty"`
+	AgentBrowserCLIStatus     string                    `json:"agentBrowserCLIStatus,omitempty"`
+	AgentBrowserCLIPath       string                    `json:"agentBrowserCLIPath,omitempty"`
 }
 
 const (
@@ -122,6 +121,10 @@ func (handler browserAutoApprovalHandler) Approve(ctx context.Context, request c
 	return companionruntime.ApprovalDecision{Allowed: false, SuggestedConstraint: "automatic approval is limited to browser grants"}, nil
 }
 
+func registerStateFlag(flags *flag.FlagSet) *string {
+	return flags.String("state", defaultStatePath(), "companion state path")
+}
+
 func runPair(arguments []string, httpClient *http.Client) error {
 	return runPairWithStore(arguments, httpClient, companionruntime.NewDefaultSecureStore())
 }
@@ -130,7 +133,7 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	flags := flag.NewFlagSet("pair", flag.ContinueOnError)
 	deviceURL := flags.String("device-url", "", "InternKim device URL")
 	code := flags.String("code", "", "pairing code")
-	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	statePath := registerStateFlag(flags)
 	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "advertise development mock LLM")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
@@ -188,7 +191,7 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 
 func runDisconnect(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("disconnect", flag.ContinueOnError)
-	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	statePath := registerStateFlag(flags)
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -216,9 +219,12 @@ func runDisconnect(arguments []string, httpClient *http.Client, secureStore comp
 
 func runStatus(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
-	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	statePath := registerStateFlag(flags)
 	jsonOutput := flags.Bool("json", false, "print machine-readable status")
 	verifyAuth := flags.Bool("verify-auth", false, "verify companion auth with the paired device")
+	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
+	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
+	agentBrowserPath := flags.String("agent-browser-path", "", "legacy agent-browser CLI path (status-only; browser automation no longer uses it)")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -230,29 +236,33 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 		}
 		return errorValue
 	}
+	report := companionBrowserAutomationReadiness(*browserExecutablePath, *browserExtensionPath, *agentBrowserPath)
+	authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
+	document := companionStatusFromState(state, report.Extension, authStatus)
+	document.AgentBrowserCLIPath = report.AgentBrowserPath
+	document.AgentBrowserCLIStatus = agentBrowserCLIStatusLabel(report.AgentBrowserFound)
 	if *jsonOutput {
-		agentBrowserPath := resolveAgentBrowserPath("")
-		readiness := browserruntime.AgentBrowserRuntime{
-			CommandPath:          agentBrowserPath,
-			Engine:               browserruntime.BrowserEngineChrome,
-			EngineExecutablePath: defaultBrowserExecutablePath(),
-		}.Check(context.Background())
-		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
-		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
+		writeJSONDocument(os.Stdout, document)
 		return nil
 	}
+	printCompanionStatusText(state, document)
+	return nil
+}
+
+func agentBrowserCLIStatusLabel(found bool) string {
+	if found {
+		return "found"
+	}
+	return "not_found"
+}
+
+func printCompanionStatusText(state companionruntime.State, document companionStatusDocument) {
 	fmt.Println("device: " + state.DeviceURL)
 	fmt.Println("companion: " + state.CompanionID)
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
-	agentBrowserPath := resolveAgentBrowserPath("")
-	readiness := browserruntime.AgentBrowserRuntime{
-		CommandPath:          agentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
-		EngineExecutablePath: defaultBrowserExecutablePath(),
-	}.Check(context.Background())
-	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
-	return nil
+	fmt.Println("extension automation: " + firstNonEmpty(document.ExtensionAutomationStatus, "unknown"))
+	fmt.Println("agent-browser CLI (legacy/status-only): " + document.AgentBrowserCLIStatus)
 }
 
 func companionAuthStatusFromState(state companionruntime.State, shouldVerify bool, statePath string, httpClient *http.Client, secureStore companionruntime.SecureStore) string {
@@ -288,16 +298,16 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 
 func runCompanionWithStore(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	statePath := registerStateFlag(flags)
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
 	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
-	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
+	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
 	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
@@ -317,29 +327,19 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if *devMockLLM {
 		state.Capabilities = companionruntime.DefaultCapabilities(state.LocalOnly, true)
 	}
-	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
-	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath:          resolvedAgentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
-		EngineExecutablePath: *browserExecutablePath,
+	resolvedBrowserExtensionPath := resolveBrowserExtensionPath(*browserExtensionPath)
+	inputSynthesizer, errorValue := browserruntime.NewPlatformInputSynthesizer()
+	if errorValue != nil {
+		return errorValue
+	}
+	browserRuntime := &browserruntime.ExtensionInputRuntime{
+		ChromeExecutablePath: *browserExecutablePath,
+		ExtensionPath:        resolvedBrowserExtensionPath,
 		ProfilePath:          *browserProfilePath,
 		SessionName:          "internkim",
-		Headed:               true,
+		InputSynthesizer:     inputSynthesizer,
 	}
-	handoffBrowserRuntime := browserruntime.NativeHandoffRuntime{
-		EngineExecutablePath: *browserExecutablePath,
-		ProfilePath:          *browserProfilePath,
-		SessionName:          "internkim",
-	}
-	handoffResumeRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath:          resolvedAgentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
-		EngineExecutablePath: *browserExecutablePath,
-		ProfilePath:          *browserProfilePath,
-		SessionName:          "internkim",
-		Headed:               true,
-	}
-	readiness := browserRuntime.EnsureInstalled(context.Background())
+	readiness := extensionBrowserRuntimeReadiness(*browserExecutablePath, resolvedBrowserExtensionPath)
 	if readiness.Status != "ready" {
 		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
@@ -350,24 +350,13 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
 	}
-	_ = preferCompanionBrowser
-	executor := companionruntime.Executor{
-		DevMockLLM:            *devMockLLM,
-		LLMChain:              localLLM,
-		EmbeddingChain:        localLLM,
-		BrowserRuntime:        browserRuntime,
-		HandoffBrowserRuntime: handoffBrowserRuntime,
-		HandoffResumeRuntime:  handoffResumeRuntime,
-		HandoffStore:          handoffStore,
-		GrantStore:            grantStore,
-		MountStore:            mountStore,
-	}
+	executor := companionruntime.NewExecutor(*devMockLLM, localLLM, localLLM, browserRuntime, handoffStore, mountStore, grantStore)
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
 	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
 	handoffCompletionHandler := companionruntime.JobRunner{DeviceClient: deviceClient}.CompleteHandoff
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, nil, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, executor.BrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -406,202 +395,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		go jobRunner.RunHeartbeatLoop(heartbeatContext)
 	}
 	return jobRunner.Run(context.Background())
-}
-
-func llmHandler(settings *dynamicLocalLLM, devMock bool, isStructured bool) http.HandlerFunc {
-	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		if devMock {
-			respondWithDevMock(responseWriter, request, isStructured)
-			return
-		}
-		if !settings.currentSettings().Enabled {
-			notImplemented(responseWriter, request)
-			return
-		}
-		if isStructured {
-			handleStructuredLLM(responseWriter, request, settings)
-			return
-		}
-		handleTextLLM(responseWriter, request, settings)
-	}
-}
-
-func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Request, isStructured bool) {
-	response := map[string]any{
-		"provider":        "companion",
-		"model":           "mock-local",
-		"selectedBackend": capabilities.LLMBackendCompanionLocal,
-		"constraintMode":  llmbackend.ConstraintModeOpenAIJSONSchema,
-		"content":         "ok",
-	}
-	if isStructured {
-		document, _ := io.ReadAll(request.Body)
-		response["content"] = companionruntime.MockStructuredContent(document)
-	}
-	writeJSON(responseWriter, response)
-}
-
-func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
-	var structuredRequest llmbackend.StructuredRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	providerSet, isEnabled := settings.providerSetFor(structuredRequest.Provider, structuredRequest.Accelerator)
-	if !isEnabled {
-		notImplemented(responseWriter, request)
-		return
-	}
-	response, errorValue := providerSet.Provider.CompleteStructured(request.Context(), structuredRequest)
-	if errorValue != nil {
-		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
-		return
-	}
-	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
-	writeJSON(responseWriter, response)
-}
-
-func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
-	var textRequest llmbackend.TextRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	providerSet, isEnabled := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
-	if !isEnabled {
-		notImplemented(responseWriter, request)
-		return
-	}
-	response, errorValue := providerSet.Provider.CompleteText(request.Context(), textRequest)
-	if errorValue != nil {
-		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
-		return
-	}
-	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
-	writeJSON(responseWriter, response)
-}
-
-func embeddingHandler(settings *dynamicLocalLLM, devMock bool) http.HandlerFunc {
-	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		if devMock {
-			writeJSON(responseWriter, map[string]any{
-				"provider":        "companion",
-				"model":           llmbackend.DefaultEmbeddingGemmaModel,
-				"selectedBackend": capabilities.LLMBackendCompanionLocal,
-				"embedding":       []float64{1, 0, 0},
-			})
-			return
-		}
-		if !settings.currentSettings().Enabled {
-			notImplemented(responseWriter, request)
-			return
-		}
-		handleEmbedding(responseWriter, request, settings)
-	}
-}
-
-func handleEmbedding(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
-	var embeddingRequest llmbackend.EmbeddingRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&embeddingRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	providerSet, isEnabled := settings.embeddingProviderSetFor(embeddingRequest.Provider)
-	if !isEnabled {
-		notImplemented(responseWriter, request)
-		return
-	}
-	response, errorValue := providerSet.Provider.CreateEmbedding(request.Context(), embeddingRequest)
-	if errorValue != nil {
-		respondWithEmbeddingBackendError(responseWriter, errorValue, providerSet.Backends)
-		return
-	}
-	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
-	writeJSON(responseWriter, response)
-}
-
-func respondWithBackendError(responseWriter http.ResponseWriter, errorValue error, backends []llmbackend.Backend) {
-	hint := buildBackendHint(backends)
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.WriteHeader(http.StatusServiceUnavailable)
-	writeJSONDocument(responseWriter, map[string]any{
-		"error": errorValue.Error(),
-		"hint":  hint,
-	})
-}
-
-func respondWithEmbeddingBackendError(responseWriter http.ResponseWriter, errorValue error, backends []llmbackend.EmbeddingBackend) {
-	hint := buildEmbeddingBackendHint(backends)
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.WriteHeader(http.StatusServiceUnavailable)
-	writeJSONDocument(responseWriter, map[string]any{
-		"error": errorValue.Error(),
-		"hint":  hint,
-	})
-}
-
-func buildBackendHint(backends []llmbackend.Backend) string {
-	if len(backends) == 0 {
-		return "no local backend configured"
-	}
-	return "check that one of these backends is reachable: " + localLLMProviderNames(backends)
-}
-
-func buildEmbeddingBackendHint(backends []llmbackend.EmbeddingBackend) string {
-	if len(backends) == 0 {
-		return "no local embedding backend configured"
-	}
-	return "check that one of these embedding backends is reachable: " + localEmbeddingProviderNames(backends)
-}
-
-func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
-	_ = request
-	http.Error(responseWriter, "companion capability is not implemented in this daemon slice", http.StatusNotImplemented)
-}
-
-func reservedNotImplemented(responseWriter http.ResponseWriter, request *http.Request) {
-	_ = request
-	http.Error(responseWriter, "reserved endpoint; not yet implemented", http.StatusNotImplemented)
-}
-
-func llmStreamHandler(settings *dynamicLocalLLM) http.HandlerFunc {
-	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		var textRequest llmbackend.TextRequest
-		if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		providerSet, isEnabled := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
-		if !isEnabled {
-			notImplemented(responseWriter, request)
-			return
-		}
-		flusher, supportsFlush := responseWriter.(http.Flusher)
-		if !supportsFlush {
-			http.Error(responseWriter, "streaming not supported by responder", http.StatusInternalServerError)
-			return
-		}
-		responseWriter.Header().Set("Content-Type", "text/event-stream")
-		responseWriter.Header().Set("Cache-Control", "no-cache")
-		responseWriter.Header().Set("Connection", "keep-alive")
-		errorValue := llmbackend.StreamFirstStreamingBackend(request.Context(), providerSet.Backends, textRequest, func(token string) {
-			payload, _ := json.Marshal(map[string]string{"token": token})
-			_, _ = responseWriter.Write([]byte("data: "))
-			_, _ = responseWriter.Write(payload)
-			_, _ = responseWriter.Write([]byte("\n\n"))
-			flusher.Flush()
-		})
-		if errorValue != nil {
-			payload, _ := json.Marshal(map[string]string{"error": errorValue.Error()})
-			_, _ = responseWriter.Write([]byte("event: error\ndata: "))
-			_, _ = responseWriter.Write(payload)
-			_, _ = responseWriter.Write([]byte("\n\n"))
-			flusher.Flush()
-			return
-		}
-		_, _ = responseWriter.Write([]byte("event: done\ndata: {}\n\n"))
-		flusher.Flush()
-	}
 }
 
 func writeJSON(responseWriter http.ResponseWriter, response any) {
@@ -683,14 +476,14 @@ func companionStatusFromState(state companionruntime.State, readiness browserrun
 		capabilityList = companionruntime.CapabilitiesWithoutBrowser(capabilityList)
 	}
 	return companionStatusDocument{
-		Paired:               state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
-		AuthStatus:           firstNonEmpty(authStatus, companionAuthStatusUnknown),
-		DeviceURL:            state.DeviceURL,
-		CompanionID:          state.CompanionID,
-		LocalOnly:            state.LocalOnly,
-		Capabilities:         capabilityList,
-		BrowserRuntimeStatus: readiness.Status,
-		BrowserRuntimeError:  readiness.Error,
+		Paired:                    state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
+		AuthStatus:                firstNonEmpty(authStatus, companionAuthStatusUnknown),
+		DeviceURL:                 state.DeviceURL,
+		CompanionID:               state.CompanionID,
+		LocalOnly:                 state.LocalOnly,
+		Capabilities:              capabilityList,
+		ExtensionAutomationStatus: readiness.Status,
+		ExtensionAutomationError:  readiness.Error,
 	}
 }
 
@@ -724,132 +517,6 @@ func defaultHandoffStatePath(statePath string) string {
 		return ".internkim-companion-browser-handoff.json"
 	}
 	return filepath.Join(homeDirectory, ".internkim-companion", "browser-handoff.json")
-}
-
-func defaultBrowserProfilePath() string {
-	configurationDirectory, errorValue := os.UserConfigDir()
-	if errorValue == nil && strings.TrimSpace(configurationDirectory) != "" {
-		return filepath.Join(configurationDirectory, "InternKim", "BrowserProfile")
-	}
-	homeDirectory, homeError := os.UserHomeDir()
-	if homeError == nil && strings.TrimSpace(homeDirectory) != "" {
-		return filepath.Join(homeDirectory, ".internkim-companion", "browser-profile")
-	}
-	return filepath.Join(os.TempDir(), "internkim-companion-browser-profile")
-}
-
-func defaultBrowserExecutablePath() string {
-	for _, value := range []string{
-		os.Getenv("INTERNKIM_BROWSER_EXECUTABLE_PATH"),
-		os.Getenv("AGENT_BROWSER_EXECUTABLE_PATH"),
-	} {
-		if path := executableBrowserPath(value); path != "" {
-			return path
-		}
-	}
-	for _, path := range defaultBrowserExecutableCandidates() {
-		if executablePath := executableBrowserPath(path); executablePath != "" {
-			return executablePath
-		}
-	}
-	return ""
-}
-
-func defaultBrowserExecutableCandidates() []string {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			filepath.Join(os.Getenv("HOME"), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
-		}
-	case "windows":
-		return []string{
-			filepath.Join(os.Getenv("PROGRAMFILES"), "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(os.Getenv("PROGRAMFILES(X86)"), "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "Application", "chrome.exe"),
-		}
-	default:
-		candidates := []string{}
-		for _, name := range []string{"google-chrome", "google-chrome-stable"} {
-			if path, errorValue := exec.LookPath(name); errorValue == nil {
-				candidates = append(candidates, path)
-			}
-		}
-		return candidates
-	}
-}
-
-func executableBrowserPath(path string) string {
-	trimmedPath := strings.TrimSpace(path)
-	if trimmedPath == "" {
-		return ""
-	}
-	if isExecutableFile(trimmedPath) {
-		return trimmedPath
-	}
-	return ""
-}
-
-func resolveAgentBrowserPath(flagValue string) string {
-	if strings.TrimSpace(flagValue) != "" {
-		return strings.TrimSpace(flagValue)
-	}
-	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_AGENT_BROWSER_PATH")); environmentValue != "" {
-		return environmentValue
-	}
-	if bundledPath := bundledAgentBrowserPath(); bundledPath != "" {
-		return bundledPath
-	}
-	if lookupPath, errorValue := exec.LookPath("agent-browser"); errorValue == nil {
-		return lookupPath
-	}
-	return "agent-browser"
-}
-
-func bundledAgentBrowserPath() string {
-	executablePath, errorValue := os.Executable()
-	if errorValue != nil || strings.TrimSpace(executablePath) == "" {
-		return ""
-	}
-	executableDirectory := filepath.Dir(executablePath)
-	for _, filename := range bundledAgentBrowserFilenames() {
-		path := filepath.Join(executableDirectory, filename)
-		if isExecutableFile(path) {
-			return path
-		}
-	}
-	return ""
-}
-
-func bundledAgentBrowserFilenames() []string {
-	names := []string{"agent-browser"}
-	switch runtime.GOOS {
-	case "darwin":
-		if runtime.GOARCH == "arm64" {
-			names = append(names, "agent-browser-aarch64-apple-darwin", "agent-browser-darwin-arm64")
-		} else {
-			names = append(names, "agent-browser-x86_64-apple-darwin", "agent-browser-darwin-x64")
-		}
-	case "linux":
-		if runtime.GOARCH == "arm64" {
-			names = append(names, "agent-browser-aarch64-unknown-linux-gnu", "agent-browser-linux-arm64")
-		} else {
-			names = append(names, "agent-browser-x86_64-unknown-linux-gnu", "agent-browser-linux-x64")
-		}
-	case "windows":
-		names = append(names, "agent-browser.exe", "agent-browser-x86_64-pc-windows-msvc.exe", "agent-browser-win32-x64.exe")
-	}
-	return names
-}
-
-func isExecutableFile(path string) bool {
-	information, errorValue := os.Stat(path)
-	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
-}
-
-func isDirectory(path string) bool {
-	information, errorValue := os.Stat(path)
-	return errorValue == nil && information.IsDir()
 }
 
 func companionPrivateKeyID(companionID string) string {
