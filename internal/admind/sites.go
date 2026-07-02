@@ -1413,7 +1413,10 @@ func (service *Service) materializeSiteFrontendDist(site *SiteRecord, frontendDi
 			return errorValue
 		}
 	}
-	return service.overlaySiteApplicationPublicDirectory(site, frontendDistPath)
+	if errorValue := service.overlaySiteApplicationPublicDirectory(site, frontendDistPath); errorValue != nil {
+		return errorValue
+	}
+	return applySiteDesignTheme(site.HostSourcePath, frontendDistPath)
 }
 
 func (service *Service) materializeCanonicalSiteFrontendDist(site *SiteRecord, frontendDistPath string) error {
