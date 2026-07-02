@@ -21,6 +21,8 @@ User-provided data is the source of truth. Preserve company names, products, peo
 
 Source-backed facts must appear in the rendered text, not only in `app/public/site-content.json` or the final reply. Keep a source checklist in `.internkim/artifact-brief.md` and verify it against rendered text before publish.
 
+Block copy must be realistic, specific prose for the requested business — real service names, concrete benefits, outcome-focused calls to action. Placeholder or numbered filler such as `서비스 1`/`설명 1`, `Service 1`, or `Lorem ipsum` is never acceptable. When the request gives a hero tagline (보조 문구), use it verbatim as the hero block's tagline; do not paraphrase or drop it.
+
 ## Stack
 
 - The scaffold is a working React + Tailwind + shadcn black-on-white template composed from reusable blocks. Start from it and customize content; the build installs npm dependencies online.
@@ -47,7 +49,7 @@ Website creation and update requests are incomplete until the site.publish opera
 
 1. Call the site.status operation with the known `siteID`, slug, or empty input for the current conversation.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
-3. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`.
+3. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. The front matter is not a note to self — publish renders `colors` and `typography` into `theme.css`, so picking them is required on every create or update, not only for unusual requests.
 4. Call the site.create operation with a DNS-safe slug, title, description, idea, purpose, audience, archetype, domain keywords, and simple bootstrap content; then call status. A basic create needs no build step.
 5. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided.
 6. If `workspaceHealth` is `missing` or `permission_problem`, call the site.status operation again to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
@@ -79,9 +81,15 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 ## Design Quality
 
-`DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices.
+`DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme: publish renders them into `theme.css`, so an unconsidered front matter ships as the visible site.
 
-Default to black-on-white minimal styling unless the request clearly calls for another direction. Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
+Default to black-on-white minimal styling unless the request clearly calls for another direction; even then, pick a palette deliberately, for example:
+
+- Editorial/portfolio: primary `#111111`, background `#ffffff`, accent `#2f6f4f`, heading serif / body sans
+- Consumer/playful: primary `#ff6b4a`, background `#fffaf3`, accent `#1c3b52`, heading rounded-sans / body sans
+- Technical/dashboard: primary `#2563eb`, background `#f8fafc`, accent `#0f172a`, heading sans / body sans
+
+Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
 
 The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, calculator, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport. Verify desktop and mobile screenshots for overlap, clipping, horizontal scroll, excessive whitespace, one-note palette, and missing app-owned control styles.
 
