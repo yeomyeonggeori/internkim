@@ -79,6 +79,7 @@ func FileDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "document.read", Description: "Read a workspace document (PDF, Office, HTML, text, etc.) and return its content as Markdown. Use this to read files at /workspace paths; do not run a shell command to cat files. For image files use image.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read"},
 		{Name: "image.read", Description: "Read a workspace image file (PNG, JPG, etc.) and return it as a base64-encoded attachment for vision analysis. Use this for image files at /workspace paths; for text/document files use document.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read"},
+		{Name: "image.generate", Description: "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image.read instead if you need to read an existing image file.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: imageGenerateInputSchema(), PolicyResource: "tool:image.generate", SideEffectClass: "external_write"},
 	}
 }
 
@@ -250,6 +251,14 @@ func imageReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
 		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the image file, e.g. /workspace/shared/logo.png. Supported formats: PNG, JPG, WEBP. Maximum file size 8 MB.")),
+	).RawMessage()
+}
+
+func imageGenerateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("prompt", jsonschema.String().WithDescription("Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list.")),
+		jsonschema.Required("path", jsonschema.String().WithDescription("Absolute workspace path to save the generated PNG, e.g. /workspace/shared/logo.png. Must be under /workspace and end in .png.")),
+		jsonschema.Field("aspectRatio", jsonschema.StringEnum("1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3").WithDescription("Output aspect ratio. Defaults to 1:1 if omitted.")),
 	).RawMessage()
 }
 
