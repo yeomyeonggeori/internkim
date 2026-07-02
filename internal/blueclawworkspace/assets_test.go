@@ -220,7 +220,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"dependency-free TypeScript + CSS", "offline-first", "UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
+	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
@@ -240,14 +240,14 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"preview": "bun scripts/preview.ts"`} {
+	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"preview": "vite preview --host 0.0.0.0 --port 4173"`, `"dependencies"`, `"devDependencies"`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"latest", `"dependencies"`, `"devDependencies"`, `"react"`, `"vite"`, "@google/design.md", `": "^`} {
+	for _, forbiddenText := range []string{`"latest"`, "@google/design.md", `": "^`} {
 		if strings.Contains(content, forbiddenText) {
-			t.Fatalf("vendored site scaffold package manifest must not require network dependency %q", forbiddenText)
+			t.Fatalf("vendored site scaffold package manifest must not use an unpinned version %q", forbiddenText)
 		}
 	}
 }
