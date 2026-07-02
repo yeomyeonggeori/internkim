@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const mattermostURL = process.env.INTERNKIM_MATTERMOST_URL ?? 'http://127.0.0.1:8065';
 const requesterLogin = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
@@ -10,9 +10,6 @@ const buttonLabel = process.env.INTERNKIM_APPROVE_BUTTON ?? '확인';
 const screenshotPath = process.env.INTERNKIM_CRUD_SCREENSHOT ?? '';
 const buttonTimeoutMs = Number(process.env.INTERNKIM_APPROVE_TIMEOUT_MS ?? '150000');
 
-// Verifies the ephemeral ask button actually works when pressed: the requester's
-// live session must be open BEFORE the task pauses so the websocket-only ephemeral
-// control arrives, then a real DOM click drives the admind -> blueclaw resume path.
 test('press the ephemeral ask button and resume the task', async ({ page }) => {
 	test.setTimeout(buttonTimeoutMs + 60000);
 	await signIn(page);
@@ -25,7 +22,7 @@ test('press the ephemeral ask button and resume the task', async ({ page }) => {
 	if (screenshotPath) await page.screenshot({ path: screenshotPath, fullPage: true });
 });
 
-async function postMessage(page, text: string): Promise<void> {
+async function postMessage(page: Page, text: string): Promise<void> {
 	const box = page.locator('#post_textbox, [data-testid="post_textbox"], textarea[placeholder]').first();
 	await box.waitFor({ state: 'visible', timeout: 20000 });
 	await box.click();
@@ -33,7 +30,7 @@ async function postMessage(page, text: string): Promise<void> {
 	await box.press('Enter');
 }
 
-async function openChannel(page): Promise<void> {
+async function openChannel(page: Page): Promise<void> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		await page.goto(channelPath(`/${teamName}/channels/${channelName}`), { waitUntil: 'domcontentloaded' });
 		await dismissLandingPage(page);
@@ -44,7 +41,7 @@ async function openChannel(page): Promise<void> {
 	throw new Error(`Team Not Found for ${teamName}/${channelName}`);
 }
 
-async function signIn(page): Promise<void> {
+async function signIn(page: Page): Promise<void> {
 	await page.goto(mattermostURL, { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await page.goto(channelPath('/login'), { waitUntil: 'domcontentloaded' });
@@ -58,10 +55,10 @@ async function signIn(page): Promise<void> {
 	await loginInput.fill(requesterLogin);
 	await page.locator('input[type="password"]').first().fill(requesterPassword);
 	await page.getByRole('button', { name: /^\s*(log in|sign in|로그인)\s*$/i }).first().click();
-	await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 }).catch(() => {});
+	await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 30000 }).catch(() => {});
 }
 
-async function dismissLandingPage(page): Promise<void> {
+async function dismissLandingPage(page: Page): Promise<void> {
 	const viewInBrowser = page.getByRole('link', { name: /view in browser/i }).first();
 	if ((await viewInBrowser.count()) > 0 && (await viewInBrowser.isVisible().catch(() => false))) {
 		await viewInBrowser.click().catch(() => {});

@@ -1,4 +1,39 @@
-import { test } from '@playwright/test';
+import { test, type APIRequestContext, type Page } from '@playwright/test';
+
+type MattermostPost = {
+	message?: string;
+	props?: {
+		attachments?: unknown;
+	};
+};
+
+type MattermostProfile = {
+	username?: string;
+};
+
+type MattermostWindow = Window & {
+	store?: {
+		getState?: () => {
+			entities?: {
+				posts?: {
+					posts?: Record<string, MattermostPost>;
+				};
+				users?: {
+					currentUserId?: string;
+					profiles?: Record<string, MattermostProfile>;
+				};
+			};
+		};
+	};
+};
+
+type EphemeralPost = {
+	channel_id: string;
+	message: string;
+	props?: {
+		attachments: unknown;
+	};
+};
 
 const mattermostURL = process.env.INTERNKIM_MATTERMOST_URL ?? 'http://127.0.0.1:8065';
 const requesterEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
@@ -37,8 +72,8 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 	const channelID = await apiJson(request, `/api/v4/teams/${teamID}/channels/name/${channelName}`, 'id');
 	const userID = await apiJson(request, `/api/v4/users/username/${targetUsername}`, 'id');
 	const webappUserID = await page.evaluate(() => {
-		const store = (window as any).store;
-		const state = store?.getState();
+		const store = (window as MattermostWindow).store;
+		const state = store?.getState?.();
 		const currentUserID = state?.entities?.users?.currentUserId ?? 'NONE';
 		const username = state?.entities?.users?.profiles?.[currentUserID]?.username ?? 'NONE';
 		return `${currentUserID}:${username}`;
@@ -57,9 +92,9 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 	let attachDelivered = false;
 	for (let elapsed = 0; elapsed < 20 && (!plainDelivered || !attachDelivered); elapsed += 2) {
 		const probe = await page.evaluate(() => {
-			const store = (window as any).store;
+			const store = (window as MattermostWindow).store;
 			if (!store) return { plain: false, attach: false };
-			const posts: any[] = Object.values(store.getState()?.entities?.posts?.posts ?? {});
+			const posts = Object.values(store.getState?.()?.entities?.posts?.posts ?? {});
 			return {
 				plain: posts.some((post) => (post.message || '').includes('MANUAL_PLAIN_EPHEMERAL') || (post.message || '').includes('MANUAL_BUTTON_EPHEMERAL')),
 				attach: posts.some((post) => Boolean(post.props?.attachments)),
@@ -75,8 +110,15 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 	console.log(`WEBAPP_WS_FRAME_RECEIVED=${ephemeralFrameReceived} PLAIN_DELIVERED=${plainDelivered} ATTACH_DELIVERED=${attachDelivered} BUTTON_RENDERED=${rendered}`);
 });
 
-async function postEphemeral(request, token: string, userID: string, channelID: string, message: string, attachments: unknown): Promise<number> {
-	const post: any = { channel_id: channelID, message };
+async function postEphemeral(
+	request: APIRequestContext,
+	token: string,
+	userID: string,
+	channelID: string,
+	message: string,
+	attachments: unknown
+): Promise<number> {
+	const post: EphemeralPost = { channel_id: channelID, message };
 	if (attachments) post.props = { attachments };
 	const response = await request.post(mattermostPath('/api/v4/posts/ephemeral'), {
 		headers: { Authorization: `Bearer ${token}` },
@@ -85,13 +127,16 @@ async function postEphemeral(request, token: string, userID: string, channelID: 
 	return response.status();
 }
 
-async function apiJson(request, path: string, field: string): Promise<string> {
+async function apiJson(request: APIRequestContext, path: string, field: string): Promise<string> {
 	const response = await request.get(mattermostPath(path), { headers: { Authorization: `Bearer ${botToken}` } });
-	const body = await response.json();
+	const body: unknown = await response.json();
+	if (!isRecord(body) || typeof body[field] !== 'string') {
+		throw new Error(`Mattermost API response did not include string field "${field}" for ${path}`);
+	}
 	return body[field];
 }
 
-async function signIn(page): Promise<void> {
+async function signIn(page: Page): Promise<void> {
 	await page.goto(mattermostURL, { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await page.goto(mattermostPath('/login'), { waitUntil: 'domcontentloaded' });
@@ -104,10 +149,10 @@ async function signIn(page): Promise<void> {
 	await loginInput.fill(requesterEmail);
 	await page.locator('input[type="password"]').first().fill(requesterPassword);
 	await page.getByRole('button', { name: /^\s*(log in|sign in|로그인)\s*$/i }).first().click();
-	await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
+	await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
 }
 
-async function dismissLandingPage(page): Promise<void> {
+async function dismissLandingPage(page: Page): Promise<void> {
 	const viewInBrowser = page.getByRole('link', { name: /view in browser/i }).first();
 	if ((await viewInBrowser.count()) > 0 && (await viewInBrowser.isVisible().catch(() => false))) {
 		await viewInBrowser.click().catch(() => {});
@@ -119,4 +164,8 @@ function mattermostPath(path: string): string {
 	const url = new URL(mattermostURL);
 	url.pathname = path;
 	return url.toString();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
