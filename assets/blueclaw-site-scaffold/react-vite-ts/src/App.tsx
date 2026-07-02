@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react";
 import { resolveBlockComponent } from "./blocks";
-import { fallbackContent, loadSiteContent, type SiteContent } from "./site-content";
+import { fallbackContent, loadSiteContent, type Block, type SiteContent } from "./site-content";
 
 function blockAnchor(index: number): string {
 	return `block-${index + 1}`;
+}
+
+type NavItem = {
+	anchorID: string;
+	title: string;
+};
+
+function navItemsFrom(blocks: Block[], siteName: string): NavItem[] {
+	const seenTitles = new Set<string>();
+	const navItems: NavItem[] = [];
+	blocks.forEach((block, index) => {
+		if (block.variant === "hero") return;
+		if (!block.title || block.title === siteName) return;
+		if (seenTitles.has(block.title)) return;
+		seenTitles.add(block.title);
+		navItems.push({ anchorID: blockAnchor(index), title: block.title });
+	});
+	return navItems;
 }
 
 function App() {
@@ -24,23 +42,22 @@ function App() {
 	}, [content.siteName]);
 
 	const { siteName, blocks } = content;
+	const navItems = navItemsFrom(blocks, siteName);
 
 	return (
 		<div className="min-h-screen bg-background text-foreground antialiased">
 			<header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
 				<span className="text-sm font-semibold tracking-tight">{siteName}</span>
 				<nav className="hidden gap-6 text-sm text-muted-foreground sm:flex">
-					{blocks.map((block, index) =>
-						block.title ? (
-							<a
-								key={blockAnchor(index)}
-								href={"#" + blockAnchor(index)}
-								className="transition-colors hover:text-foreground"
-							>
-								{block.title}
-							</a>
-						) : null,
-					)}
+					{navItems.map((navItem) => (
+						<a
+							key={navItem.anchorID}
+							href={"#" + navItem.anchorID}
+							className="transition-colors hover:text-foreground"
+						>
+							{navItem.title}
+						</a>
+					))}
 				</nav>
 			</header>
 

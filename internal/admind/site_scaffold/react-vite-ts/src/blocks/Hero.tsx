@@ -9,7 +9,7 @@ type HeroProps = {
 
 export function Hero({ block, anchorID }: HeroProps) {
 	return (
-		<section id={anchorID} className="py-20">
+		<section id={anchorID} className="pt-20 pb-12">
 			{block.title ? (
 				<h1 className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight">{block.title}</h1>
 			) : null}
