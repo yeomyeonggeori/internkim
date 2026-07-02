@@ -281,7 +281,7 @@ for entry in "${CASES[@]}"; do
 	res="$(result_json_or_error "$raw_result")"
 	status="$(echo "$res" | jq -r '.status // "error"')"
 	reason="$(echo "$res" | jq -r '.reason // ""')"
-	if [ "$status" != completed ] && echo "$reason" | grep -qiE "429|rate.?limit|timeout|HTTP 5[0-9][0-9]|context deadline"; then
+	if [ "$status" != completed ] && [ -z "$(echo "$res" | jq -r '.taskRunID // ""')" ] && echo "$reason" | grep -qiE "429|rate.?limit|HTTP 5[0-9][0-9]|context deadline"; then
 		sleep 45
 		raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
 		res="$(result_json_or_error "$raw_result")"
