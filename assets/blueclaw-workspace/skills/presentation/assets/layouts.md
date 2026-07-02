@@ -1,4 +1,4 @@
-# Simple Slides Layouts
+# Presentation Layouts
 
 Use these as authoring patterns for `slides.html`. They are not templates to copy wholesale; choose the structure that fits each slide and write concise CSS classes in the deck style block.
 
