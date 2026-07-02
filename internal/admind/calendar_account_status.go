@@ -8,6 +8,7 @@ import (
 )
 
 type calendarAccountStatusResponse struct {
+	WorkspaceCalendarReady     bool   `json:"workspaceCalendarReady"`
 	Connected                  bool   `json:"connected"`
 	Provider                   string `json:"provider,omitempty"`
 	AccountEmail               string `json:"accountEmail,omitempty"`
@@ -33,9 +34,10 @@ func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, r
 		return
 	}
 	response := calendarAccountStatusResponse{
-		Connected:             found,
-		GoogleOAuthConfigured: service.isGoogleOAuthConfigured(),
-		CanManageGoogleOAuth:  service.isAuthorized(request),
+		WorkspaceCalendarReady: true,
+		Connected:              found,
+		GoogleOAuthConfigured:  service.isGoogleOAuthConfigured(),
+		CanManageGoogleOAuth:   service.isAuthorized(request),
 	}
 	if found {
 		response.Provider = account.Provider
