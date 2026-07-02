@@ -295,9 +295,9 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
 	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
-	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
+	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
 	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
@@ -317,29 +317,19 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if *devMockLLM {
 		state.Capabilities = companionruntime.DefaultCapabilities(state.LocalOnly, true)
 	}
-	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
-	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath:          resolvedAgentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
-		EngineExecutablePath: *browserExecutablePath,
+	resolvedBrowserExtensionPath := resolveBrowserExtensionPath(*browserExtensionPath)
+	inputSynthesizer, errorValue := browserruntime.NewPlatformInputSynthesizer()
+	if errorValue != nil {
+		return errorValue
+	}
+	browserRuntime := &browserruntime.ExtensionInputRuntime{
+		ChromeExecutablePath: *browserExecutablePath,
+		ExtensionPath:        resolvedBrowserExtensionPath,
 		ProfilePath:          *browserProfilePath,
 		SessionName:          "internkim",
-		Headed:               true,
+		InputSynthesizer:     inputSynthesizer,
 	}
-	handoffBrowserRuntime := browserruntime.NativeHandoffRuntime{
-		EngineExecutablePath: *browserExecutablePath,
-		ProfilePath:          *browserProfilePath,
-		SessionName:          "internkim",
-	}
-	handoffResumeRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath:          resolvedAgentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
-		EngineExecutablePath: *browserExecutablePath,
-		ProfilePath:          *browserProfilePath,
-		SessionName:          "internkim",
-		Headed:               true,
-	}
-	readiness := browserRuntime.EnsureInstalled(context.Background())
+	readiness := extensionBrowserRuntimeReadiness(*browserExecutablePath, resolvedBrowserExtensionPath)
 	if readiness.Status != "ready" {
 		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
@@ -352,22 +342,20 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
-		DevMockLLM:            *devMockLLM,
-		LLMChain:              localLLM,
-		EmbeddingChain:        localLLM,
-		BrowserRuntime:        browserRuntime,
-		HandoffBrowserRuntime: handoffBrowserRuntime,
-		HandoffResumeRuntime:  handoffResumeRuntime,
-		HandoffStore:          handoffStore,
-		GrantStore:            grantStore,
-		MountStore:            mountStore,
+		DevMockLLM:     *devMockLLM,
+		LLMChain:       localLLM,
+		EmbeddingChain: localLLM,
+		BrowserRuntime: browserRuntime,
+		HandoffStore:   handoffStore,
+		GrantStore:     grantStore,
+		MountStore:     mountStore,
 	}
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
 	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
 	handoffCompletionHandler := companionruntime.JobRunner{DeviceClient: deviceClient}.CompleteHandoff
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, nil, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, executor.BrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -786,6 +774,68 @@ func executableBrowserPath(path string) string {
 	}
 	if isExecutableFile(trimmedPath) {
 		return trimmedPath
+	}
+	return ""
+}
+
+// extensionBrowserRuntimeReadiness checks the two local prerequisites for
+// browserruntime.ExtensionInputRuntime: a Chrome binary to launch with
+// --load-extension, and the unpacked extension directory that flag points
+// to. There is no agent-browser doctor/install step to run here (unlike
+// AgentBrowserRuntime.EnsureInstalled) since neither piece is a companion-
+// managed download.
+func extensionBrowserRuntimeReadiness(chromeExecutablePath string, extensionPath string) browserruntime.RuntimeReadiness {
+	if !isExecutableFile(chromeExecutablePath) {
+		return browserruntime.RuntimeReadiness{Status: "not_ready", Error: "Google Chrome is not installed"}
+	}
+	if !isDirectory(extensionPath) {
+		return browserruntime.RuntimeReadiness{Status: "not_ready", Error: "companion browser extension is not bundled"}
+	}
+	return browserruntime.RuntimeReadiness{Status: "ready"}
+}
+
+// resolveBrowserExtensionPath locates the unpacked companion/browser-extension
+// directory. The Tauri shell (companion/src/lib/sidecar.ts) resolves the
+// bundled resource path via resolveResource() and always passes it through
+// --browser-extension-path, so this fallback chain only matters when the
+// companion binary runs outside the Tauri shell (packaged binary invoked
+// directly, or a repository-checkout dev run).
+func resolveBrowserExtensionPath(flagValue string) string {
+	if strings.TrimSpace(flagValue) != "" {
+		return strings.TrimSpace(flagValue)
+	}
+	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_BROWSER_EXTENSION_PATH")); environmentValue != "" {
+		return environmentValue
+	}
+	if bundledPath := bundledBrowserExtensionPath(); bundledPath != "" {
+		return bundledPath
+	}
+	if developmentPath := filepath.Join("companion", "browser-extension"); isDirectory(developmentPath) {
+		return developmentPath
+	}
+	return ""
+}
+
+// bundledBrowserExtensionPath checks the packaged-app locations where Tauri's
+// bundle.resources places companion/browser-extension: next to the executable
+// (Windows NSIS/MSI and Linux AppImage put resources alongside the binary,
+// matching how bundledAgentBrowserPath finds sidecars), and one level up under
+// Resources/ (the macOS .app bundle keeps Contents/MacOS/<binary> separate
+// from Contents/Resources/<resource>).
+func bundledBrowserExtensionPath() string {
+	executablePath, errorValue := os.Executable()
+	if errorValue != nil || strings.TrimSpace(executablePath) == "" {
+		return ""
+	}
+	executableDirectory := filepath.Dir(executablePath)
+	candidatePaths := []string{
+		filepath.Join(executableDirectory, "browser-extension"),
+		filepath.Join(executableDirectory, "..", "Resources", "browser-extension"),
+	}
+	for _, candidatePath := range candidatePaths {
+		if isDirectory(candidatePath) {
+			return candidatePath
+		}
 	}
 	return ""
 }

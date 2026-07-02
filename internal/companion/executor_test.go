@@ -61,13 +61,30 @@ type fakeBrowserRuntime struct {
 	waitRequest     browserruntime.WaitRequest
 	observeResult   browserruntime.ObserveResult
 	startResults    []browserruntime.SessionStartResult
+	navigateResults []browserruntime.NavigateResult
 	observeCount    int
 	startCount      int
+	navigateCount   int
 	closeCount      int
+	pauseCount      int
+	resumeCount     int
+	pauseError      error
 	screenshot      browserruntime.ScreenshotResult
 	errorValue      error
 	actionError     error
 	observeError    error
+}
+
+func (runtime *fakeBrowserRuntime) Pause(ctx context.Context) error {
+	_ = ctx
+	runtime.pauseCount++
+	return runtime.pauseError
+}
+
+func (runtime *fakeBrowserRuntime) Resume(ctx context.Context) error {
+	_ = ctx
+	runtime.resumeCount++
+	return nil
 }
 
 type fakeFilePicker struct {
@@ -109,8 +126,12 @@ func (runtime *fakeBrowserRuntime) CloseSession(ctx context.Context) error {
 func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browserruntime.NavigateRequest) (browserruntime.NavigateResult, error) {
 	_ = ctx
 	runtime.navigateRequest = request
+	runtime.navigateCount++
 	if runtime.errorValue != nil {
 		return browserruntime.NavigateResult{}, runtime.errorValue
+	}
+	if runtime.navigateCount <= len(runtime.navigateResults) {
+		return runtime.navigateResults[runtime.navigateCount-1], nil
 	}
 	return browserruntime.NavigateResult{URL: request.URL}, nil
 }
@@ -433,9 +454,15 @@ func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffWaitsForUserCompletion(t *testing.T) {
+func TestBrowserHandoffPausesRuntimeAndResumesAfterUserCompletion(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{}
+	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://example.com/app",
+		Title:           "Example",
+		SnapshotText:    "- button \"Continue\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-05-07T00:00:01Z",
+	}}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com/app")
 
@@ -458,13 +485,58 @@ func TestBrowserHandoffWaitsForUserCompletion(t *testing.T) {
 		t.Fatalf("unexpected handoff result: response=%+v result=%+v", response, result)
 	}
 	if result.HandoffID == "" || result.URL != "https://example.com/app" || handoffStore.Snapshot().Active {
-		t.Fatalf("expected active handoff with id, got %+v snapshot=%+v", result, handoffStore.Snapshot())
+		t.Fatalf("expected completed handoff, got %+v snapshot=%+v", result, handoffStore.Snapshot())
 	}
-	if browserRuntime.observeCount != 0 {
-		t.Fatalf("expected no automatic handoff snapshot, got %d", browserRuntime.observeCount)
+	if result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
+		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
 	}
-	if browserRuntime.startCount != 1 {
-		t.Fatalf("expected one browser open, got %d", browserRuntime.startCount)
+	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 {
+		t.Fatalf("expected exactly one pause and one resume, got pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
+	}
+	if browserRuntime.startCount != 0 {
+		t.Fatalf("expected no second browser window to open, got %d", browserRuntime.startCount)
+	}
+}
+
+func TestBrowserHandoffTimeoutResumesRuntime(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	browserRuntime := &fakeBrowserRuntime{}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, errorValue := executor.ExecuteJob(ctx, JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "timed out") {
+		t.Fatalf("expected browser handoff timeout error, got %v", errorValue)
+	}
+	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 {
+		t.Fatalf("expected pause then resume even on timeout, pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
+	}
+	if handoffStore.Snapshot().Active {
+		t.Fatal("expected handoff store to clear the active handoff after timeout")
+	}
+}
+
+func TestBrowserHandoffSurfacesPauseFailureWithoutStrandingTheHandoff(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	browserRuntime := &fakeBrowserRuntime{pauseError: errors.New("runtime does not support a human handoff")}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
+	})
+	if errorValue == nil {
+		t.Fatal("expected the handoff to fail when the runtime cannot pause")
+	}
+	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 0 {
+		t.Fatalf("expected exactly one failed pause attempt and no resume, pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
+	}
+	if handoffStore.Snapshot().Active {
+		t.Fatal("expected the handoff store to clear the handoff rather than leaving it stranded as active")
 	}
 }
 
@@ -487,22 +559,16 @@ func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffUsesAutomationWhenGoogleProfileIsSignedIn(t *testing.T) {
+func TestBrowserHandoffSkipsPauseWhenAlreadySignedIn(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
-	nativeRuntime := &fakeBrowserRuntime{}
-	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+	browserRuntime := &fakeBrowserRuntime{navigateResults: []browserruntime.NavigateResult{{
 		URL:             "https://console.cloud.google.com/project",
 		Title:           "Google Cloud",
 		SnapshotText:    "- button \"Create\" [ref=e1]",
 		InteractiveRefs: []string{"@e1"},
 		CapturedAt:      "2026-05-07T00:00:00Z",
-	}}
-	executor := Executor{
-		BrowserRuntime:        &fakeBrowserRuntime{},
-		HandoffBrowserRuntime: nativeRuntime,
-		HandoffResumeRuntime:  resumeRuntime,
-		HandoffStore:          handoffStore,
-	}
+	}}}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
@@ -519,39 +585,29 @@ func TestBrowserHandoffUsesAutomationWhenGoogleProfileIsSignedIn(t *testing.T) {
 	if response.Status != HandoffStateCompleted || result.CompletedByUser || result.SnapshotText == "" {
 		t.Fatalf("expected completed automation result without user handoff, response=%+v result=%+v", response, result)
 	}
-	if nativeRuntime.startCount != 0 || resumeRuntime.startCount != 1 || handoffStore.Snapshot().Active {
-		t.Fatalf("expected automation probe only, native=%d resume=%d snapshot=%+v", nativeRuntime.startCount, resumeRuntime.startCount, handoffStore.Snapshot())
+	if browserRuntime.pauseCount != 0 || browserRuntime.navigateCount != 1 || handoffStore.Snapshot().Active {
+		t.Fatalf("expected an automation probe only, pause=%d navigate=%d snapshot=%+v", browserRuntime.pauseCount, browserRuntime.navigateCount, handoffStore.Snapshot())
 	}
 }
 
-func TestBrowserHandoffFallsBackToNativeWhenGoogleProfileNeedsLogin(t *testing.T) {
+func TestBrowserHandoffPausesWhenGoogleProfileNeedsLogin(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
-	nativeRuntime := &fakeBrowserRuntime{}
-	resumeRuntime := &fakeBrowserRuntime{startResults: []browserruntime.SessionStartResult{
-		{
-			SessionID:    "internkim",
-			Opened:       true,
+	browserRuntime := &fakeBrowserRuntime{
+		navigateResults: []browserruntime.NavigateResult{{
 			URL:          "https://accounts.google.com/v3/signin/identifier",
 			Title:        "Sign in",
 			SnapshotText: "Sign in with Google",
 			CapturedAt:   "2026-05-07T00:00:00Z",
-		},
-		{
-			SessionID:       "internkim",
-			Opened:          true,
+		}},
+		observeResult: browserruntime.ObserveResult{
 			URL:             "https://console.cloud.google.com/project",
 			Title:           "Google Cloud",
 			SnapshotText:    "- button \"Create\" [ref=e1]",
 			InteractiveRefs: []string{"@e1"},
 			CapturedAt:      "2026-05-07T00:00:01Z",
 		},
-	}}
-	executor := Executor{
-		BrowserRuntime:        &fakeBrowserRuntime{},
-		HandoffBrowserRuntime: nativeRuntime,
-		HandoffResumeRuntime:  resumeRuntime,
-		HandoffStore:          handoffStore,
 	}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
@@ -562,7 +618,7 @@ func TestBrowserHandoffFallsBackToNativeWhenGoogleProfileNeedsLogin(t *testing.T
 		t.Fatalf("expected handoff completion: %v", completionError)
 	}
 	if errorValue != nil {
-		t.Fatalf("expected native handoff fallback response: %v", errorValue)
+		t.Fatalf("expected paused handoff response: %v", errorValue)
 	}
 
 	var result BrowserHandoffResult
@@ -570,10 +626,10 @@ func TestBrowserHandoffFallsBackToNativeWhenGoogleProfileNeedsLogin(t *testing.T
 		t.Fatal(errorValue)
 	}
 	if !result.CompletedByUser || result.SnapshotText == "" {
-		t.Fatalf("expected user-completed native fallback with resumed snapshot, got %+v", result)
+		t.Fatalf("expected user-completed handoff with resumed snapshot, got %+v", result)
 	}
-	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 2 {
-		t.Fatalf("expected probe, native handoff, and resume; native=%+v resume=%+v", nativeRuntime, resumeRuntime)
+	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 || browserRuntime.startCount != 0 {
+		t.Fatalf("expected the runtime to pause/resume in place without opening a second window, pause=%d resume=%d start=%d", browserRuntime.pauseCount, browserRuntime.resumeCount, browserRuntime.startCount)
 	}
 }
 
@@ -610,47 +666,6 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 	}
 	if browserRuntime.startCount != 0 {
 		t.Fatalf("expected active handoff reuse not to reopen browser, got %d opens", browserRuntime.startCount)
-	}
-}
-
-func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	nativeRuntime := &fakeBrowserRuntime{}
-	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
-		URL:             "https://example.com/app",
-		Title:           "Example",
-		SnapshotText:    "- button \"Create\" [ref=e1]",
-		InteractiveRefs: []string{"@e1"},
-		CapturedAt:      "2026-05-07T00:00:00Z",
-	}}
-	executor := Executor{
-		BrowserRuntime:        &fakeBrowserRuntime{},
-		HandoffBrowserRuntime: nativeRuntime,
-		HandoffResumeRuntime:  resumeRuntime,
-		HandoffStore:          handoffStore,
-	}
-	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com")
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/app","message":"로그인 후 계속을 눌러주세요."}`),
-	})
-	if completionError := <-completionErrors; completionError != nil {
-		t.Fatalf("expected handoff completion: %v", completionError)
-	}
-	if errorValue != nil {
-		t.Fatalf("expected resumed handoff response: %v", errorValue)
-	}
-
-	var result BrowserHandoffResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 1 {
-		t.Fatalf("expected native open/close and automation resume, native=%+v resume=%+v", nativeRuntime, resumeRuntime)
-	}
-	if result.URL != "https://example.com/app" || result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
-		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
 	}
 }
 
