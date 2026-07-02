@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -122,6 +123,65 @@ func TestGoogleOAuthStartRedirectsWithStateAndScope(t *testing.T) {
 	}
 }
 
+func TestGoogleOAuthStartIgnoresExternalReturnURL(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:18180"+googleOAuthStartPath+"?returnTo="+url.QueryEscape("//evil.example/calendar/"), nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	recorder := httptest.NewRecorder()
+	service.handleGoogleOAuthStart(recorder, request)
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status: got %d, want %d", recorder.Code, http.StatusFound)
+	}
+	location, errorValue := url.Parse(recorder.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatalf("parse location: %v", errorValue)
+	}
+	state := location.Query().Get("state")
+	recordRaw, found := service.googleOAuthStates.Load(state)
+	if !found {
+		t.Fatalf("state %q not stored", state)
+	}
+	record, ok := recordRaw.(*googleOAuthStateRecord)
+	if !ok {
+		t.Fatalf("state record type: %T", recordRaw)
+	}
+	if record.ReturnURL != googleOAuthDefaultReturnURL {
+		t.Errorf("return URL: got %q", record.ReturnURL)
+	}
+}
+
+func TestGoogleOAuthStartIgnoresExternalReturnURLFromReferer(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	request := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:18180"+googleOAuthStartPath+"?returnTo="+url.QueryEscape("https://evil.example/calendar/"), nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	request.Header.Set("Referer", "https://evil.example/source")
+	recorder := httptest.NewRecorder()
+	service.handleGoogleOAuthStart(recorder, request)
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status: got %d, want %d", recorder.Code, http.StatusFound)
+	}
+	location, errorValue := url.Parse(recorder.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatalf("parse location: %v", errorValue)
+	}
+	state := location.Query().Get("state")
+	recordRaw, found := service.googleOAuthStates.Load(state)
+	if !found {
+		t.Fatalf("state %q not stored", state)
+	}
+	record, ok := recordRaw.(*googleOAuthStateRecord)
+	if !ok {
+		t.Fatalf("state record type: %T", recordRaw)
+	}
+	if record.ReturnURL != googleOAuthDefaultReturnURL {
+		t.Errorf("return URL: got %q", record.ReturnURL)
+	}
+}
+
 func TestGoogleOAuthStartRejectsUnauthorizedRequest(t *testing.T) {
 	service := newCalendarTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthStartPath, nil)
@@ -182,6 +242,49 @@ func TestUploadGoogleOAuthClientFileStoresValidClientJSON(t *testing.T) {
 	}
 	if directoryInformation.Mode().Perm() != 0o700 {
 		t.Fatalf("secrets directory mode = %o", directoryInformation.Mode().Perm())
+	}
+}
+
+func TestUploadGoogleOAuthClientFileRequiresExistingAccountReconnect(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	token := &oauth2.Token{
+		AccessToken:  "access-1",
+		RefreshToken: "refresh-1",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().UTC().Add(time.Hour),
+	}
+	account, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, token, "admin@example.com")
+	if errorValue != nil {
+		t.Fatalf("save google account: %v", errorValue)
+	}
+	account = seedSelectedCalendar(t, service, ctx, account, "writer", true)
+	body, contentType := buildGoogleOAuthClientUploadBody(t, `{"web":{"client_id":"client-2","client_secret":"secret-2"}}`)
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/calendar/api/google-oauth-client", body)
+	request.RemoteAddr = "127.0.0.1:34567"
+	request.Header.Set("Content-Type", contentType)
+	recorder := httptest.NewRecorder()
+
+	service.handleCalendar(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d body: %s", recorder.Code, recorder.Body.String())
+	}
+	reloaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("google account should remain stored")
+	}
+	if !strings.Contains(reloaded.LastAuthError, "google oauth client changed") {
+		t.Fatalf("LastAuthError = %q", reloaded.LastAuthError)
+	}
+	if reloaded.LastAuthErrorAt == "" {
+		t.Fatal("LastAuthErrorAt should be populated")
+	}
+	if reloaded.SelectedCalendarID != account.SelectedCalendarID {
+		t.Fatalf("SelectedCalendarID = %q, want %q", reloaded.SelectedCalendarID, account.SelectedCalendarID)
 	}
 }
 
