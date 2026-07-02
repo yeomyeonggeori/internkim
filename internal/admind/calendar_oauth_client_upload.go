@@ -1,13 +1,16 @@
 package admind
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 )
 
 const googleOAuthClientUploadMaxBytes = 1 << 20
+const googleOAuthClientChangedAuthError = "google oauth client changed; reconnect required"
 
 type googleOAuthClientUploadResponse struct {
 	Configured bool   `json:"configured"`
@@ -33,10 +36,23 @@ func (service *Service) uploadGoogleOAuthClient(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "failed to store google oauth client", http.StatusInternalServerError)
 		return
 	}
+	service.markGoogleOAuthAccountReconnectRequired(request.Context())
 	service.writeJSON(responseWriter, googleOAuthClientUploadResponse{
 		Configured: true,
 		ClientID:   clientID,
 	})
+}
+
+func (service *Service) markGoogleOAuthAccountReconnectRequired(ctx context.Context) {
+	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		log.Printf("google oauth client upload account read: %v", errorValue)
+		return
+	}
+	if !found {
+		return
+	}
+	service.markRemoteCalendarAccountAuthError(ctx, account, errors.New(googleOAuthClientChangedAuthError))
 }
 
 func readGoogleOAuthClientUpload(request *http.Request) ([]byte, error) {

@@ -49,6 +49,7 @@ type googleOAuthClientCredentials struct {
 type googleOAuthStateRecord struct {
 	CreatedAt   time.Time
 	RedirectURI string
+	ReturnURL   string
 }
 
 type googleOAuthStartResponse struct {
@@ -56,6 +57,7 @@ type googleOAuthStartResponse struct {
 	Status           string `json:"status"`
 	AuthorizationURL string `json:"authorizationURL"`
 	RedirectURI      string `json:"redirectURI"`
+	ReturnURL        string `json:"returnURL"`
 }
 
 type googleOAuthStartError struct {
@@ -159,22 +161,17 @@ func (service *Service) handleGoogleOAuthStart(writer http.ResponseWriter, reque
 	}
 	service.cleanupExpiredGoogleOAuthStates(time.Now())
 	redirectURI := googleOAuthRedirectURIFromRequest(request)
-	response, errorValue := service.createGoogleOAuthStartResponse(redirectURI)
+	returnURL := googleOAuthReturnURLFromRequest(request)
+	response, errorValue := service.createGoogleOAuthStartResponse(redirectURI, returnURL)
 	if errorValue != nil {
 		log.Printf("google oauth start: %v", errorValue)
-		text := googleOAuthResponseTextForRequest(request)
-		var startError googleOAuthStartError
-		if errors.As(errorValue, &startError) && startError.Stage == "client_configuration" {
-			respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.ClientConfigurationError)
-			return
-		}
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.StateGenerationError)
+		redirectGoogleOAuthResult(writer, request, returnURL, googleOAuthReturnStatusFailed)
 		return
 	}
 	http.Redirect(writer, request, response.AuthorizationURL, http.StatusFound)
 }
 
-func (service *Service) createGoogleOAuthStartResponse(redirectURI string) (googleOAuthStartResponse, error) {
+func (service *Service) createGoogleOAuthStartResponse(redirectURI string, returnURL string) (googleOAuthStartResponse, error) {
 	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
 	if errorValue != nil {
 		return googleOAuthStartResponse{}, googleOAuthStartError{Stage: "client_configuration", Cause: errorValue}
@@ -186,6 +183,7 @@ func (service *Service) createGoogleOAuthStartResponse(redirectURI string) (goog
 	service.googleOAuthStates.Store(state, &googleOAuthStateRecord{
 		CreatedAt:   time.Now().UTC(),
 		RedirectURI: redirectURI,
+		ReturnURL:   returnURL,
 	})
 	authorizationURL := configuration.AuthCodeURL(state,
 		oauth2.AccessTypeOffline,
@@ -197,11 +195,16 @@ func (service *Service) createGoogleOAuthStartResponse(redirectURI string) (goog
 		Status:           "authorization_required",
 		AuthorizationURL: authorizationURL,
 		RedirectURI:      redirectURI,
+		ReturnURL:        returnURL,
 	}, nil
 }
 
 func (service *Service) handleGoogleOAuthCallback(writer http.ResponseWriter, request *http.Request) {
 	service.cleanupExpiredGoogleOAuthStates(time.Now())
+	if callbackError := strings.TrimSpace(request.URL.Query().Get("error")); callbackError != "" {
+		service.redirectGoogleOAuthCallbackError(writer, request, callbackError)
+		return
+	}
 	state, code, ok := readGoogleOAuthCallbackParams(writer, request)
 	if !ok {
 		return
@@ -210,21 +213,17 @@ func (service *Service) handleGoogleOAuthCallback(writer http.ResponseWriter, re
 	if !ok {
 		return
 	}
-	account, ok := service.completeGoogleOAuthExchange(writer, request, record, code)
-	if !ok {
+	_, exchangeOK := service.completeGoogleOAuthExchange(writer, request, record, code)
+	if !exchangeOK {
+		redirectGoogleOAuthResult(writer, request, record.ReturnURL, googleOAuthReturnStatusFailed)
 		return
 	}
-	respondGoogleOAuthSuccessHTML(writer, request, account.AccountEmail)
+	redirectGoogleOAuthResult(writer, request, record.ReturnURL, googleOAuthReturnStatusConnected)
 }
 
 func readGoogleOAuthCallbackParams(writer http.ResponseWriter, request *http.Request) (string, string, bool) {
 	query := request.URL.Query()
 	text := googleOAuthResponseTextForRequest(request)
-	if callbackError := strings.TrimSpace(query.Get("error")); callbackError != "" {
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusBadRequest,
-			fmt.Sprintf(text.GoogleReturnedErrorTemplate, callbackError))
-		return "", "", false
-	}
 	state := strings.TrimSpace(query.Get("state"))
 	code := strings.TrimSpace(query.Get("code"))
 	if state == "" || code == "" {
@@ -232,6 +231,21 @@ func readGoogleOAuthCallbackParams(writer http.ResponseWriter, request *http.Req
 		return "", "", false
 	}
 	return state, code, true
+}
+
+func (service *Service) redirectGoogleOAuthCallbackError(writer http.ResponseWriter, request *http.Request, callbackError string) {
+	text := googleOAuthResponseTextForRequest(request)
+	state := strings.TrimSpace(request.URL.Query().Get("state"))
+	if state == "" {
+		respondGoogleOAuthErrorHTML(writer, request, http.StatusBadRequest,
+			fmt.Sprintf(text.GoogleReturnedErrorTemplate, callbackError))
+		return
+	}
+	record, ok := service.consumeGoogleOAuthState(writer, request, state)
+	if !ok {
+		return
+	}
+	redirectGoogleOAuthResult(writer, request, record.ReturnURL, googleOAuthReturnStatusFailed)
 }
 
 func (service *Service) consumeGoogleOAuthState(writer http.ResponseWriter, request *http.Request, state string) (*googleOAuthStateRecord, bool) {
@@ -250,35 +264,33 @@ func (service *Service) consumeGoogleOAuthState(writer http.ResponseWriter, requ
 		respondGoogleOAuthErrorHTML(writer, request, http.StatusBadRequest, text.ExpiredState)
 		return nil, false
 	}
+	if strings.TrimSpace(record.ReturnURL) == "" {
+		record.ReturnURL = googleOAuthDefaultReturnURL
+	}
 	return record, true
 }
 
 func (service *Service) completeGoogleOAuthExchange(writer http.ResponseWriter, request *http.Request, record *googleOAuthStateRecord, code string) (remoteCalendarAccount, bool) {
 	ctx := request.Context()
-	text := googleOAuthResponseTextForRequest(request)
 	configuration, errorValue := service.buildGoogleOAuthConfig(record.RedirectURI)
 	if errorValue != nil {
 		log.Printf("google oauth callback config: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.OAuthConfigurationError)
 		return remoteCalendarAccount{}, false
 	}
 	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, service.googleOAuthHTTPClient())
 	token, errorValue := configuration.Exchange(exchangeCtx, code)
 	if errorValue != nil {
 		log.Printf("google oauth exchange: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusBadGateway, text.TokenExchangeError)
 		return remoteCalendarAccount{}, false
 	}
 	email, errorValue := service.fetchGoogleUserEmail(ctx, token)
 	if errorValue != nil {
 		log.Printf("google oauth userinfo: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusBadGateway, text.UserinfoError)
 		return remoteCalendarAccount{}, false
 	}
 	account, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, token, email)
 	if errorValue != nil {
 		log.Printf("google oauth save: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.TokenSaveError)
 		return remoteCalendarAccount{}, false
 	}
 	return account, true
