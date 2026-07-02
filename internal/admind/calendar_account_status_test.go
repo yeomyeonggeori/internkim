@@ -87,7 +87,24 @@ func TestServeCalendarAccountStatusReportsGoogleOAuthManagePermission(t *testing
 		t.Error("CanManageGoogleOAuth should be true for admin requests")
 	}
 
+	configureCalendarTestUsers(t, service, `[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"staff@example.com","role":"member"}]`)
+	operationsAdminRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	operationsAdminRequest.Header.Set("X-Forwarded-Email", "operator@example.com")
+	operationsAdminRecorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(operationsAdminRecorder, operationsAdminRequest)
+	if operationsAdminRecorder.Code != http.StatusOK {
+		t.Fatalf("operations admin status: %d", operationsAdminRecorder.Code)
+	}
+	var operationsAdminBody calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(operationsAdminRecorder.Body.Bytes(), &operationsAdminBody); errorValue != nil {
+		t.Fatalf("decode operations admin: %v", errorValue)
+	}
+	if !operationsAdminBody.CanManageGoogleOAuth {
+		t.Error("CanManageGoogleOAuth should be true for operations admin requests")
+	}
+
 	staffRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	staffRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
 	staffRecorder := httptest.NewRecorder()
 	service.serveCalendarAccountStatus(staffRecorder, staffRequest)
 	if staffRecorder.Code != http.StatusOK {

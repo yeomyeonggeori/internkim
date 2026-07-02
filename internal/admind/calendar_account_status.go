@@ -37,7 +37,7 @@ func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, r
 		WorkspaceCalendarReady: true,
 		Connected:              found,
 		GoogleOAuthConfigured:  service.isGoogleOAuthConfigured(),
-		CanManageGoogleOAuth:   service.isAuthorized(request),
+		CanManageGoogleOAuth:   service.canManageGoogleOAuthClient(request),
 	}
 	if found {
 		response.Provider = account.Provider
