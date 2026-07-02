@@ -48,6 +48,9 @@
 			"icons/icon.icns"
 		],
 		"externalBin": ["binaries/internkim-companion", "binaries/agent-browser"],
+		"resources": {
+			"../browser-extension": "browser-extension"
+		},
 		"macOS": {
 			"signingIdentity": null
 		}

@@ -10,12 +10,25 @@ describe('handoff overlay', () => {
 		expect(resources).not.toContain('../browser-extension');
 	});
 
-	it('uses the native overlay window for completion', () => {
-		const source = readFileSync(resolve(process.cwd(), 'src/App.svelte'), 'utf8');
+	it('routes the browser-handoff-overlay window to its own entry component', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8');
 
-		expect(source).toContain("currentWindow.label === 'browser-handoff-overlay'");
+		expect(source).toContain("getCurrentWindow().label === 'browser-handoff-overlay'");
+		expect(source).toContain('HandoffOverlay');
+	});
+
+	it('uses the native overlay window for completion', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/HandoffOverlay.svelte'), 'utf8');
+
 		expect(source).toContain("invoke('sync_handoff_overlay'");
 		expect(source).toContain('`${handoffBridgeURL}/complete`');
 		expect(source).toContain('완료');
+	});
+
+	it('keeps the overlay concern out of the main window App component', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.svelte'), 'utf8');
+
+		expect(source).not.toContain('browser-handoff-overlay');
+		expect(source).not.toContain('handoffBridgeURL');
 	});
 });
