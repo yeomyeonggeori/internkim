@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
-	import type { CalendarAccountStatusResponse } from './calendar-layout-types';
+	import CalendarGoogleCalendarSelector from './calendar-google-calendar-selector.svelte';
+	import type { CalendarAccountStatusResponse, GoogleCalendarListEntry } from './calendar-layout-types';
 	import type { CalendarGoogleAccountText } from './text';
 
 	let {
@@ -10,14 +12,24 @@
 		accountStatus,
 		accountStatusError,
 		isLoadingAccountStatus,
+		googleCalendars,
+		isLoadingGoogleCalendars,
+		isSelectingGoogleCalendar,
 		isUploadingGoogleOAuthClient,
+		googleCalendarSelectionError,
+		selectGoogleCalendar,
 		uploadGoogleOAuthClient
 	}: {
 		text: CalendarGoogleAccountText;
 		accountStatus: CalendarAccountStatusResponse | null;
 		accountStatusError: boolean;
 		isLoadingAccountStatus: boolean;
+		googleCalendars: GoogleCalendarListEntry[];
+		isLoadingGoogleCalendars: boolean;
+		isSelectingGoogleCalendar: boolean;
 		isUploadingGoogleOAuthClient: boolean;
+		googleCalendarSelectionError: string;
+		selectGoogleCalendar: (calendarID: string) => Promise<boolean>;
 		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
 	} = $props();
 
@@ -25,9 +37,15 @@
 	let isGoogleOAuthClientDropActive = $state(false);
 	const googleOAuthJavascriptOrigin = 'https://{본인 서버 URL}';
 	const googleOAuthRedirectURI = `${googleOAuthJavascriptOrigin}/calendar/oauth/google/callback`;
+	const googleOAuthReturnURL = $derived(`${page.url.origin}/calendar/`);
+	const googleOAuthStartURL = $derived(`/calendar/oauth/google/start?returnTo=${encodeURIComponent(googleOAuthReturnURL)}`);
+
+	function isWaitingForInitialAccountStatus() {
+		return isLoadingAccountStatus && !accountStatus;
+	}
 
 	function accountStatusLabel() {
-		if (isLoadingAccountStatus) return text.accountStatusLoading;
+		if (isWaitingForInitialAccountStatus()) return text.accountStatusLoading;
 		if (accountStatusError) return text.accountStatusLoadFailed;
 		if (!accountStatus?.connected) return text.googleCalendarDisconnected;
 		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
@@ -38,25 +56,25 @@
 	}
 
 	function shouldShowGoogleOAuthAction() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (isWaitingForInitialAccountStatus() || accountStatusError) return false;
 		if (accountStatus?.googleOAuthConfigured !== true) return false;
 		return !accountStatus.connected || accountStatus.needsReauth;
 	}
 
 	function shouldShowGoogleOAuthUnavailableHint() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (isWaitingForInitialAccountStatus() || accountStatusError) return false;
 		if (accountStatus?.googleOAuthConfigured !== false) return false;
 		return !accountStatus.connected || accountStatus.needsReauth;
 	}
 
 	function shouldShowGoogleOAuthReadyHint() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (isWaitingForInitialAccountStatus() || accountStatusError) return false;
 		if (accountStatus?.googleOAuthConfigured !== true) return false;
 		return !accountStatus.connected && !accountStatus.needsReauth;
 	}
 
 	function canManageGoogleOAuth() {
-		if (isLoadingAccountStatus || accountStatusError) return false;
+		if (isWaitingForInitialAccountStatus() || accountStatusError) return false;
 		return accountStatus?.canManageGoogleOAuth === true;
 	}
 
@@ -68,6 +86,12 @@
 	function shouldShowGoogleOAuthReplacementUpload() {
 		if (!canManageGoogleOAuth()) return false;
 		return accountStatus?.googleOAuthConfigured === true;
+	}
+
+	function shouldShowGoogleCalendarSelector() {
+		if (!canManageGoogleOAuth()) return false;
+		if (!accountStatus?.connected || accountStatus.needsReauth) return false;
+		return accountStatus.googleOAuthConfigured === true;
 	}
 
 	function googleOAuthActionLabel() {
@@ -85,7 +109,7 @@
 	}
 
 	function calendarConnectionStateLabel() {
-		if (isLoadingAccountStatus || accountStatusError || !accountStatus?.connected) return '';
+		if (isWaitingForInitialAccountStatus() || accountStatusError || !accountStatus?.connected) return '';
 		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
 		if (accountStatus.needsCalendarSelection) return text.googleCalendarSelectionRequired;
 		if (!hasWritableSelectedCalendar()) return text.googleCalendarWritePermissionRequired;
@@ -250,10 +274,27 @@
 		{@render googleOAuthClientUploadPanel()}
 	{/if}
 	{#if shouldShowGoogleOAuthAction()}
-		<Button href="/calendar/oauth/google/start" variant="outline" class="w-full justify-center gap-2">
+		<Button
+			href={googleOAuthStartURL}
+			target="_blank"
+			rel="noopener noreferrer"
+			variant="outline"
+			class="w-full justify-center gap-2"
+		>
 			<RefreshCwIcon class="size-4" />
 			<span>{googleOAuthActionLabel()}</span>
 		</Button>
+	{/if}
+	{#if shouldShowGoogleCalendarSelector()}
+		<CalendarGoogleCalendarSelector
+			{text}
+			calendars={googleCalendars}
+			selectedCalendarID={accountStatus?.selectedCalendarID ?? ''}
+			{isLoadingGoogleCalendars}
+			{isSelectingGoogleCalendar}
+			selectionError={googleCalendarSelectionError}
+			{selectGoogleCalendar}
+		/>
 	{/if}
 	{#if shouldShowGoogleOAuthReplacementUpload()}
 		<details class="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">

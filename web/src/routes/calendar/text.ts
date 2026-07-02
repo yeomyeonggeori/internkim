@@ -31,6 +31,16 @@ export type CalendarLocaleText = {
 	googleCalendarReconnectHint: string;
 	googleCalendarReadyHint: string;
 	googleCalendarUnavailableHint: string;
+	googleCalendarConnectionComplete: string;
+	googleCalendarConnectionFailed: string;
+	googleCalendarSelectLabel: string;
+	googleCalendarPrimaryLabel: string;
+	googleCalendarListLoading: string;
+	googleCalendarListEmpty: string;
+	googleCalendarListLoadError: string;
+	googleCalendarSelectionSaveAction: string;
+	googleCalendarSelectionSaving: string;
+	googleCalendarSelectionSaveError: string;
 	googleOAuthClientUploadTitle: string;
 	googleOAuthClientUploadHint: string;
 	googleOAuthClientUploadAction: string;
@@ -133,6 +143,15 @@ export type CalendarGoogleAccountText = Pick<
 	| 'googleCalendarReconnectHint'
 	| 'googleCalendarReadyHint'
 	| 'googleCalendarUnavailableHint'
+	| 'googleCalendarConnectionComplete'
+	| 'googleCalendarSelectLabel'
+	| 'googleCalendarPrimaryLabel'
+	| 'googleCalendarListLoading'
+	| 'googleCalendarListEmpty'
+	| 'googleCalendarListLoadError'
+	| 'googleCalendarSelectionSaveAction'
+	| 'googleCalendarSelectionSaving'
+	| 'googleCalendarSelectionSaveError'
 	| 'googleOAuthClientUploadTitle'
 	| 'googleOAuthClientUploadHint'
 	| 'googleOAuthClientUploadAction'
@@ -177,6 +196,16 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarReconnectHint: 'Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.',
 		googleCalendarReadyHint: 'Google 캘린더를 연결하세요.',
 		googleCalendarUnavailableHint: 'Google 캘린더 연동은 아직 준비되지 않았습니다.',
+		googleCalendarConnectionComplete: 'Google 캘린더가 연결됐습니다.',
+		googleCalendarConnectionFailed: 'Google 캘린더 연결에 실패했습니다.',
+		googleCalendarSelectLabel: '사용할 캘린더',
+		googleCalendarPrimaryLabel: '기본',
+		googleCalendarListLoading: '캘린더 목록 불러오는 중',
+		googleCalendarListEmpty: '쓰기 권한이 있는 캘린더가 없습니다.',
+		googleCalendarListLoadError: 'Google 캘린더 목록을 불러오지 못했습니다.',
+		googleCalendarSelectionSaveAction: '캘린더 저장',
+		googleCalendarSelectionSaving: '저장 중',
+		googleCalendarSelectionSaveError: 'Google 캘린더 선택을 저장하지 못했습니다.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: '여기에 client.json을 드롭하거나 파일을 선택하세요.',
 		googleOAuthClientUploadAction: '업로드',
@@ -303,6 +332,16 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarReconnectHint: 'Reconnect the account to resume Google Calendar sync.',
 		googleCalendarReadyHint: 'Connect Google Calendar.',
 		googleCalendarUnavailableHint: 'Google Calendar sync is not ready yet.',
+		googleCalendarConnectionComplete: 'Google Calendar is connected.',
+		googleCalendarConnectionFailed: 'Google Calendar connection failed.',
+		googleCalendarSelectLabel: 'Calendar to use',
+		googleCalendarPrimaryLabel: 'Primary',
+		googleCalendarListLoading: 'Loading calendar list',
+		googleCalendarListEmpty: 'No writable calendars are available.',
+		googleCalendarListLoadError: 'Could not load Google calendars.',
+		googleCalendarSelectionSaveAction: 'Save calendar',
+		googleCalendarSelectionSaving: 'Saving',
+		googleCalendarSelectionSaveError: 'Could not save the Google Calendar selection.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: 'Drop client.json here or choose the file.',
 		googleOAuthClientUploadAction: 'Upload',
