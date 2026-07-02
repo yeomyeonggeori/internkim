@@ -1,5 +1,7 @@
 import type {
 	CalendarAccountStatusResponse,
+	GoogleCalendarListResponse,
+	GoogleCalendarSelectionResponse,
 	CalendarSyncResponse
 } from './calendar-layout-types';
 
@@ -36,4 +38,29 @@ export async function uploadGoogleOAuthClient(file: File, errorMessage: string):
 		const responseText = (await response.text()).trim();
 		throw new Error(responseText || errorMessage);
 	}
+}
+
+export async function fetchGoogleCalendarList(errorMessage: string): Promise<GoogleCalendarListResponse> {
+	const response = await fetch('/calendar/api/google-calendars', { credentials: 'include' });
+	if (!response.ok) {
+		const responseText = (await response.text()).trim();
+		throw new Error(responseText || errorMessage);
+	}
+	return (await response.json()) as GoogleCalendarListResponse;
+}
+
+export async function saveGoogleCalendarSelection(calendarID: string, errorMessage: string): Promise<GoogleCalendarSelectionResponse> {
+	const response = await fetch('/calendar/api/google-calendars/selection', {
+		method: 'POST',
+		credentials: 'include',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ calendarID })
+	});
+	if (!response.ok) {
+		const responseText = (await response.text()).trim();
+		throw new Error(responseText || errorMessage);
+	}
+	return (await response.json()) as GoogleCalendarSelectionResponse;
 }
