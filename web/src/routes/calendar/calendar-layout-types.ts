@@ -20,3 +20,22 @@ export type CalendarAccountStatusResponse = {
 	googleOAuthConfigured: boolean;
 	canManageGoogleOAuth: boolean;
 };
+
+export type GoogleCalendarListEntry = {
+	calendarID: string;
+	summary: string;
+	accessRole: string;
+	primary: boolean;
+	backgroundColor?: string;
+};
+
+export type GoogleCalendarListResponse = {
+	accountEmail: string;
+	calendars: GoogleCalendarListEntry[];
+};
+
+export type GoogleCalendarSelectionResponse = {
+	accountEmail: string;
+	selectedCalendar: GoogleCalendarListEntry;
+	calendarURL: string;
+};
