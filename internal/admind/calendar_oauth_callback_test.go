@@ -37,6 +37,7 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	const issuedAccessToken = "access-from-google"
 	const issuedRefreshToken = "refresh-from-google"
 	const issuedEmail = "user@example.com"
+	const admindLocalURL = "http://127.0.0.1:18180"
 
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if errorValue := request.ParseForm(); errorValue != nil {
@@ -68,7 +69,9 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	t.Setenv(googleTokenURLOverrideEnv, tokenServer.URL)
 	t.Setenv(googleUserinfoURLOverrideEnv, userinfoServer.URL)
 
-	startRequest := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthStartPath, nil)
+	const calendarReturnURL = "http://127.0.0.1:5174/calendar/"
+	startRequest := httptest.NewRequest(http.MethodGet,
+		admindLocalURL+googleOAuthStartPath+"?returnTo="+url.QueryEscape(calendarReturnURL), nil)
 	startRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
 	startRecorder := httptest.NewRecorder()
 	service.handleGoogleOAuthStart(startRecorder, startRequest)
@@ -84,18 +87,16 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 		t.Fatal("state missing from start")
 	}
 
-	callbackURL := "http://admind.local" + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&code=auth-code-1"
+	callbackURL := admindLocalURL + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&code=auth-code-1"
 	callbackRequest := httptest.NewRequest(http.MethodGet, callbackURL, nil)
 	callbackRequest.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	callbackRecorder := httptest.NewRecorder()
 	service.handleGoogleOAuthCallback(callbackRecorder, callbackRequest)
-	if callbackRecorder.Code != http.StatusOK {
+	if callbackRecorder.Code != http.StatusSeeOther {
 		t.Fatalf("callback status: %d, body: %s", callbackRecorder.Code, callbackRecorder.Body.String())
 	}
-	if !strings.Contains(callbackRecorder.Body.String(), issuedEmail) ||
-		!strings.Contains(callbackRecorder.Body.String(), `<html lang="en">`) ||
-		!strings.Contains(callbackRecorder.Body.String(), "Google Calendar connected") {
-		t.Errorf("success page missing email: %s", callbackRecorder.Body.String())
+	if location := callbackRecorder.Header().Get("Location"); location != calendarReturnURL+"?googleOAuth=connected" {
+		t.Errorf("callback redirect location: got %q", location)
 	}
 	if _, stillStored := service.googleOAuthStates.Load(state); stillStored {
 		t.Error("state should be consumed after callback")
@@ -129,6 +130,40 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	}
 	if payload.RefreshToken != issuedRefreshToken {
 		t.Errorf("refresh token: got %q", payload.RefreshToken)
+	}
+}
+
+func TestGoogleOAuthCallbackRedirectsGoogleErrorToReturnURL(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	const admindLocalURL = "http://127.0.0.1:18180"
+	const calendarReturnURL = "http://127.0.0.1:5174/calendar/"
+	startRequest := httptest.NewRequest(http.MethodGet,
+		admindLocalURL+googleOAuthStartPath+"?returnTo="+url.QueryEscape(calendarReturnURL), nil)
+	startRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	startRecorder := httptest.NewRecorder()
+	service.handleGoogleOAuthStart(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusFound {
+		t.Fatalf("start status: %d", startRecorder.Code)
+	}
+	startLocation, errorValue := url.Parse(startRecorder.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatalf("parse start location: %v", errorValue)
+	}
+	state := startLocation.Query().Get("state")
+	if state == "" {
+		t.Fatal("state missing from start")
+	}
+
+	callbackURL := admindLocalURL + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&error=access_denied"
+	callbackRequest := httptest.NewRequest(http.MethodGet, callbackURL, nil)
+	callbackRecorder := httptest.NewRecorder()
+	service.handleGoogleOAuthCallback(callbackRecorder, callbackRequest)
+	if callbackRecorder.Code != http.StatusSeeOther {
+		t.Fatalf("callback status: %d, body: %s", callbackRecorder.Code, callbackRecorder.Body.String())
+	}
+	if location := callbackRecorder.Header().Get("Location"); location != calendarReturnURL+"?googleOAuth=failed" {
+		t.Errorf("callback redirect location: got %q", location)
 	}
 }
 
