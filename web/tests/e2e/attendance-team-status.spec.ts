@@ -1,6 +1,14 @@
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
 import { expect, test } from './attendance-page-test-fixture';
-import { calendarEvent, flowStateFixture, flowTask, routePersonalDayContext } from './attendance-team-status-fixtures';
+import {
+	calendarEvent,
+	flowStateFixture,
+	flowTask,
+	overflowTargetDate,
+	routeOverflowStatusDay,
+	routePersonalDayContext,
+	routeSourceSeparatedDayContext
+} from './attendance-team-status-fixtures';
 import { buildWideTooltipSummary, selectKorean, todayDateInSeoul } from './attendance-test-helpers';
 
 test.describe('attendance team status', () => {
@@ -116,6 +124,10 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('김철수')).toBeVisible();
 		await expect(dialog.getByText('상태')).toHaveCount(0);
 		await expect(dialog.getByText('3시간 25분')).toBeVisible();
+		await expect(dialog.getByText('근무 구간')).toHaveCount(0);
+		const workHeader = dialog.getByTestId('team-status-work-record-header');
+		await expect(workHeader.getByText('근무 기록', { exact: true })).toBeVisible();
+		await expect(workHeader.getByText('3시간 25분')).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();
@@ -125,7 +137,8 @@ test.describe('attendance team status', () => {
 	});
 
 	test('shows personal calendar events and completed work in status day details', async ({ page }) => {
-		const targetDate = '2026-06-16';
+		await page.setViewportSize({ width: 1280, height: 720 });
+		const targetDate = '2026-06-17';
 		const summary = buildAttendanceSummaryFixture('2026-06');
 		let calendarRequests = 0;
 		let flowRequests = 0;
@@ -179,8 +192,137 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('박지민')).toBeVisible();
 		await expect(dialog.getByText('아직 예정 업무')).toHaveCount(0);
 		await expect(dialog.getByText('다른 사람 완료 업무')).toHaveCount(0);
+		await expect(dialog.getByTestId('team-status-section-scroll-fade')).toHaveCount(0);
 		expect(calendarRequests).toBe(1);
 		expect(flowRequests).toBe(1);
+	});
+
+	test('keeps calendar events and completed flow tasks separated by source', async ({ page }) => {
+		const targetDate = '2026-06-16';
+		const summary = buildAttendanceSummaryFixture('2026-06');
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: summary });
+		});
+		await routeSourceSeparatedDayContext(page, targetDate);
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${targetDate}`).click();
+
+		const dialog = page.getByTestId('team-status-day-detail-dialog');
+		const calendarItems = dialog.getByTestId('team-status-calendar-event');
+		const completedTaskItems = dialog.getByTestId('team-status-completed-task');
+		await expect(calendarItems.filter({ hasText: '완료 업무처럼 보이는 캘린더' })).toBeVisible();
+		await expect(calendarItems.filter({ hasText: '캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(0);
+		await expect(calendarItems.filter({ hasText: '다른 사람 완료 업무처럼 보이는 캘린더' })).toHaveCount(0);
+		await expect(completedTaskItems.filter({ hasText: '캘린더 일정처럼 보이는 완료 업무' })).toBeVisible();
+		await expect(completedTaskItems.filter({ hasText: '완료 업무처럼 보이는 캘린더' })).toHaveCount(0);
+		await expect(completedTaskItems.filter({ hasText: '캘린더 일정처럼 보이는 예정 업무' })).toHaveCount(0);
+		await expect(completedTaskItems.filter({ hasText: '다른 사람 캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(0);
+	});
+
+	test('limits desktop status day details with independent section scroll areas', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 720 });
+		await routeOverflowStatusDay(page);
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${overflowTargetDate}`).click();
+
+		const dialog = page.getByTestId('team-status-day-detail-dialog');
+		await expect(dialog).toBeVisible();
+		const layout = await dialog.evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			return {
+				top: bounds.top,
+				bottom: bounds.bottom,
+				height: bounds.height,
+				viewportHeight: window.innerHeight
+			};
+		});
+		expect(layout.top).toBeGreaterThanOrEqual(16);
+		expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight - 16);
+		expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight - 32);
+
+		const sectionLists = [
+			dialog.getByTestId('team-status-work-record-list'),
+			dialog.getByTestId('team-status-calendar-event-list'),
+			dialog.getByTestId('team-status-completed-task-list')
+		];
+		for (const sectionList of sectionLists) {
+			const metrics = await sectionList.evaluate((element) => ({
+				clientHeight: element.clientHeight,
+				scrollHeight: element.scrollHeight,
+				overflowY: getComputedStyle(element).overflowY
+			}));
+			expect(metrics.clientHeight).toBeGreaterThanOrEqual(130);
+			expect(metrics.clientHeight).toBeLessThanOrEqual(220);
+			expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+			expect(metrics.overflowY).toBe('auto');
+		}
+		const fades = dialog.getByTestId('team-status-section-scroll-fade');
+		await expect(fades).toHaveCount(3);
+		const fadeStyles = await fades.evaluateAll((elements) =>
+			elements.map((element) => {
+				const style = getComputedStyle(element);
+				return {
+					backgroundImage: style.backgroundImage,
+					height: style.height,
+					pointerEvents: style.pointerEvents
+				};
+			})
+		);
+		expect(fadeStyles.every((style) => style.backgroundImage.includes('linear-gradient'))).toBe(true);
+		expect(fadeStyles.every((style) => style.height === '12px')).toBe(true);
+		expect(fadeStyles.every((style) => style.pointerEvents === 'none')).toBe(true);
+
+		const cardStyle = await dialog.getByTestId('team-status-calendar-event').first().evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				backgroundColor: style.backgroundColor,
+				boxShadow: style.boxShadow,
+				borderColor: style.borderTopColor
+			};
+		});
+		expect(cardStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+		expect(cardStyle.boxShadow).not.toBe('none');
+		expect(cardStyle.borderColor).not.toBe('rgb(228, 228, 231)');
+	});
+
+	test('uses the bottom sheet as the only mobile scroll area for long status day details', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 640 });
+		await routeOverflowStatusDay(page);
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByRole('tab', { name: '팀 현황' }).click();
+		await page.getByTestId(`team-status-cell-kim@example.com-${overflowTargetDate}`).click();
+
+		const sheet = page.getByTestId('team-status-day-detail-sheet');
+		await expect(sheet).toBeVisible();
+		const sheetMetrics = await sheet.evaluate((element) => ({
+			clientHeight: element.clientHeight,
+			scrollHeight: element.scrollHeight,
+			overflowY: getComputedStyle(element).overflowY
+		}));
+		expect(sheetMetrics.scrollHeight).toBeGreaterThan(sheetMetrics.clientHeight);
+		expect(sheetMetrics.overflowY).toBe('auto');
+
+		const sectionLists = [
+			sheet.getByTestId('team-status-work-record-list'),
+			sheet.getByTestId('team-status-calendar-event-list'),
+			sheet.getByTestId('team-status-completed-task-list')
+		];
+		for (const sectionList of sectionLists) {
+			const metrics = await sectionList.evaluate((element) => ({
+				clientHeight: element.clientHeight,
+				scrollHeight: element.scrollHeight,
+				overflowY: getComputedStyle(element).overflowY
+			}));
+			expect(metrics.scrollHeight).toBe(metrics.clientHeight);
+			expect(metrics.overflowY).toBe('visible');
+		}
 	});
 
 	test('shows context load failures instead of empty states', async ({ page }) => {
