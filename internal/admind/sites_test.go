@@ -847,7 +847,8 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	}
 	sourceWorkspacePath := t.TempDir()
 	writeTestSourceBuild(t, sourceWorkspacePath, "bundle publish")
-	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), "custom source design")
+	customSourceDesignMarkdown := validSiteDesignMarkdownWithMarker("custom source design")
+	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), customSourceDesignMarkdown)
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:              site.SiteID,
 		RequestedBy:         "owner@example.com",
@@ -859,7 +860,7 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md")) != "custom source design" {
+	if readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md")) != strings.TrimSpace(customSourceDesignMarkdown) {
 		t.Fatalf("host staging should be materialized from editable source")
 	}
 	response := serveSiteRequest(service, "source-bundle.device.example.test", "/")
