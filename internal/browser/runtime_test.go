@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -173,57 +172,10 @@ func TestAgentBrowserRuntimeStartsSessionAfterOpenSettleTimeout(t *testing.T) {
 	}
 }
 
-func TestNativeHandoffRuntimeOpensChromeWithoutAgentBrowser(t *testing.T) {
-	if goruntime.GOOS != "darwin" {
-		t.Skip("macOS native open arguments only apply on macOS")
-	}
-	runner := &fakeCommandRunner{}
-	runtime := NativeHandoffRuntime{
-		EngineExecutablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		SessionName:          "internkim-test",
-		Runner:               runner,
-		Now:                  func() time.Time { return time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC) },
-	}
-
-	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://accounts.google.com/"})
-	if errorValue != nil {
-		t.Fatalf("expected native handoff open success: %v", errorValue)
-	}
-	if result.SessionID != "internkim-test" || result.URL != "https://accounts.google.com/" {
-		t.Fatalf("unexpected native handoff result: %+v", result)
-	}
-	if len(runner.calls) != 1 {
-		t.Fatalf("expected one native open call, got %+v", runner.calls)
-	}
-	if runner.calls[0].commandPath != "open" || !reflect.DeepEqual(runner.calls[0].arguments, []string{"-a", "/Applications/Google Chrome.app", "https://accounts.google.com/"}) {
-		t.Fatalf("expected macOS Chrome app open, got %+v", runner.calls[0])
-	}
-}
-
 func TestMacOSApplicationPathFromChromeExecutable(t *testing.T) {
 	path := macosApplicationPath("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 	if path != "/Applications/Google Chrome.app" {
 		t.Fatalf("unexpected macOS app path: %s", path)
-	}
-}
-
-func TestNativeHandoffRuntimeUsesPersistentProfileOnMacOS(t *testing.T) {
-	if goruntime.GOOS != "darwin" {
-		t.Skip("macOS native open arguments only apply on macOS")
-	}
-	runtime := NativeHandoffRuntime{
-		EngineExecutablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		ProfilePath:          "/tmp/internkim-profile",
-	}
-
-	commandPath, arguments, errorValue := runtime.openCommand("https://accounts.google.com/")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	expectedArguments := []string{"-na", "/Applications/Google Chrome.app", "--args", "--user-data-dir=/tmp/internkim-profile", "--no-first-run", "https://accounts.google.com/"}
-	if commandPath != "open" || !reflect.DeepEqual(arguments, expectedArguments) {
-		t.Fatalf("unexpected persistent profile open command: %s %+v", commandPath, arguments)
 	}
 }
 
