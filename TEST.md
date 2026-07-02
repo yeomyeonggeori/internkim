@@ -202,7 +202,7 @@ lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-lab
 배포 전 기능별 확인:
 
 - 스케줄링: `./internkim dev fleet run --without-mattermost --scenario schedule_lifecycle_acceptance`
-- 웹사이트: `./internkim dev fleet run --without-mattermost --scenario site_prototype_acceptance`
+- 웹사이트: `./internkim dev fleet run --without-mattermost --scenario site_artifact_acceptance`
 - Mattermost DM: `./internkim dev fleet run --scenario mattermost-direct-message-send`
 
 ## 단계별 검증 모델

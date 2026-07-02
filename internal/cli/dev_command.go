@@ -566,7 +566,7 @@ func scenarioExecutableDependencies(scenarioName string) []string {
 	switch normalizedScenarioName {
 	case "slides", "slides_local_multiturn_success":
 		return []string{"bun", "python3"}
-	case "site", "site_prototype_acceptance":
+	case "site", "site_artifact_acceptance":
 		return []string{"bun"}
 	default:
 		return nil
