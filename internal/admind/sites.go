@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,6 +119,20 @@ type siteCreateRequest struct {
 	Requester           siteIdentity       `json:"requester"`
 	Platform            string             `json:"platform"`
 	ConversationID      string             `json:"conversationID"`
+	Content             *siteContent       `json:"content"`
+}
+
+type siteContentSection struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+type siteContent struct {
+	SiteName        string               `json:"siteName"`
+	Tagline         string               `json:"tagline,omitempty"`
+	HeroActionLabel string               `json:"heroActionLabel,omitempty"`
+	HeroActionHref  string               `json:"heroActionHref,omitempty"`
+	Sections        []siteContentSection `json:"sections"`
 }
 
 type sitePublishRequest struct {
@@ -424,11 +440,11 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		}
 		site = createdSite
 	}
-	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site); errorValue != nil {
+	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site, payload.Content); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeSiteCreateRecord(responseWriter, site)
+	service.writeSiteCreateRecord(responseWriter, site, payload.Content)
 }
 
 // reusableSiteForCreate returns the conversation's existing site so repeated
@@ -450,9 +466,11 @@ func (service *Service) reusableSiteForCreate(payload siteCreateRequest) *SiteRe
 
 // materializeSiteSourceWorkspace provisions the managed scaffold and the editable
 // staff-circle workspace for a site. Blueclaw no longer writes site source; the
-// admin service owns the scaffold and the editable workspace.
-func (service *Service) materializeSiteSourceWorkspace(ctx context.Context, site *SiteRecord) error {
-	if errorValue := service.prepareSiteWorkspace(ctx, site); errorValue != nil {
+// admin service owns the scaffold and the editable workspace. content is only
+// applied when explicitly provided (create); repair passes nil so existing
+// edits are never overwritten.
+func (service *Service) materializeSiteSourceWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) error {
+	if errorValue := service.prepareSiteWorkspace(ctx, site, content); errorValue != nil {
 		return errorValue
 	}
 	return service.migrateSiteSourceToStaffCircle(site)
@@ -466,7 +484,7 @@ func (service *Service) repairSiteFromRequest(responseWriter http.ResponseWriter
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site); errorValue != nil {
+	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site, nil); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1326,15 +1344,7 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if errorValue := os.MkdirAll(versionPath, 0o700); errorValue != nil {
 		return errorValue
 	}
-	frontendBuildPath := filepath.Join(site.HostSourcePath, "app", "dist")
-	if !isDirectory(frontendBuildPath) {
-		return errors.New("site workspace must contain app/dist; build in Blueclaw before publishing")
-	}
-	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
-		return errorValue
-	}
-	service.updateSiteBuildQualitySummary(site)
-	if errorValue := materializeDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
+	if errorValue := service.materializeSiteFrontendDist(site, filepath.Join(versionPath, "frontend", "dist"), "publishing"); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := copyOptionalDirectory(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), filepath.Join(versionPath, "pb_migrations")); errorValue != nil {
@@ -1354,15 +1364,70 @@ func (service *Service) prepareSitePreview(site *SiteRecord, previewID string) e
 	if errorValue := os.MkdirAll(previewPath, 0o700); errorValue != nil {
 		return errorValue
 	}
-	frontendBuildPath := filepath.Join(site.HostSourcePath, "app", "dist")
-	if !isDirectory(frontendBuildPath) {
-		return errors.New("site workspace must contain app/dist; build in Blueclaw before preview")
-	}
-	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
+	return service.materializeSiteFrontendDist(site, filepath.Join(previewPath, "frontend", "dist"), "preview")
+}
+
+// materializeSiteFrontendDist fills frontendDistPath with the site's published
+// frontend. When the editable app/ source still matches the scaffold-app
+// manifest (i.e. only content was edited, never app/src or the build config),
+// it uses the canonical embedded dist directly and skips the build-freshness
+// check entirely — basic sites publish without a Blueclaw build. Otherwise it
+// falls back to the legacy fresh-build requirement. Both paths validate and
+// overlay app/public/** (including site-content.json) onto the result, so
+// content-only edits always take effect regardless of which path was used.
+func (service *Service) materializeSiteFrontendDist(site *SiteRecord, frontendDistPath string, actionLabel string) error {
+	if errorValue := validateSiteApplicationContentFile(site.HostSourcePath); errorValue != nil {
 		return errorValue
 	}
-	service.updateSiteBuildQualitySummary(site)
-	return materializeDirectory(frontendBuildPath, filepath.Join(previewPath, "frontend", "dist"))
+	if siteAppMatchesScaffoldManifest(site.HostSourcePath) {
+		if errorValue := service.materializeCanonicalSiteFrontendDist(site, frontendDistPath); errorValue != nil {
+			return errorValue
+		}
+		service.markSiteBuildQualityPassedPrebuilt(site)
+	} else {
+		frontendBuildPath := filepath.Join(site.HostSourcePath, "app", "dist")
+		if !isDirectory(frontendBuildPath) {
+			return fmt.Errorf("site workspace must contain app/dist; content-only edits via %s never need a build — a build (bun scripts/build.ts in the app workspace) is needed only after app/src or app config changes; run it in Blueclaw before %s", siteApplicationContentPath, actionLabel)
+		}
+		if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
+			return errorValue
+		}
+		service.updateSiteBuildQualitySummary(site)
+		if errorValue := materializeDirectory(frontendBuildPath, frontendDistPath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return service.overlaySiteApplicationPublicDirectory(site, frontendDistPath)
+}
+
+func (service *Service) materializeCanonicalSiteFrontendDist(site *SiteRecord, frontendDistPath string) error {
+	if errorValue := os.RemoveAll(frontendDistPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(frontendDistPath, 0o755); errorValue != nil {
+		return errorValue
+	}
+	for _, file := range siteScaffoldCanonicalDistFiles(site) {
+		path := filepath.Join(frontendDistPath, filepath.FromSlash(file.Path))
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := os.WriteFile(path, []byte(file.Document), 0o644); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) overlaySiteApplicationPublicDirectory(site *SiteRecord, frontendDistPath string) error {
+	return copyOptionalDirectory(filepath.Join(site.HostSourcePath, "app", "public"), frontendDistPath)
+}
+
+func (service *Service) markSiteBuildQualityPassedPrebuilt(site *SiteRecord) {
+	site.QualityStatus = "passed_prebuilt"
+	site.QualityIssueCount = 0
+	site.QualitySummary = []string{}
+	site.QualityReportPath = filepath.Join(site.HostSourcePath, ".internkim", "build-quality.json")
 }
 
 func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath string) error {
@@ -1379,7 +1444,7 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 		return errors.New("site workspace app/dist must contain build files")
 	}
 	if latestSourceModTime.After(earliestBuildModTime) {
-		return errors.New("site workspace app/dist is stale; run bun scripts/build.ts in app before publishing")
+		return fmt.Errorf("site workspace app/dist is stale; content-only edits via %s never need a build — a build (bun scripts/build.ts in the app workspace) is needed only after app/src or app config changes; run it before publishing", siteApplicationContentPath)
 	}
 	return nil
 }
@@ -1486,7 +1551,6 @@ func siteBuildQualityLines(issues []siteBuildQualityIssue) []string {
 	return lines
 }
 
-
 func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
 	latestModTime := time.Time{}
 	errorValue := filepath.Walk(applicationPath, func(path string, information os.FileInfo, walkError error) error {
@@ -1509,6 +1573,9 @@ func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
 }
 
 func frontendSourcePathIsIgnored(relativePath string) bool {
+	if frontendSourceTopLevelPathIsIgnored(relativePath) {
+		return true
+	}
 	for _, component := range strings.Split(filepath.Clean(relativePath), string(os.PathSeparator)) {
 		switch component {
 		case "dist", "node_modules":
@@ -1516,6 +1583,16 @@ func frontendSourcePathIsIgnored(relativePath string) bool {
 		}
 	}
 	return false
+}
+
+// frontendSourceTopLevelPathIsIgnored excludes the top-level app/public
+// directory from staleness checks — content-only edits there (e.g.
+// site-content.json) never require a rebuild. This is a prefix check rather
+// than an any-component match so a nested directory named "public" deeper in
+// app/src is still tracked.
+func frontendSourceTopLevelPathIsIgnored(relativePath string) bool {
+	cleanRelativePath := filepath.ToSlash(filepath.Clean(relativePath))
+	return cleanRelativePath == "public" || strings.HasPrefix(cleanRelativePath, "public/")
 }
 
 func earliestRegularFileModTime(rootPath string) (time.Time, error) {
@@ -1840,7 +1917,7 @@ func siteModificationAllowed(site *SiteRecord, requestedBy string, requester sit
 	return hasAdminConfirmation
 }
 
-func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord) error {
+func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) error {
 	if errorValue := os.MkdirAll(filepath.Dir(site.HostSourcePath), 0o770); errorValue != nil {
 		return errorValue
 	}
@@ -1856,7 +1933,7 @@ func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteReco
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks"), 0o770); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.writeSiteWorkspaceTemplate(site); errorValue != nil {
+	if errorValue := service.writeSiteWorkspaceTemplate(site, content); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := service.initializeSiteGitRepository(ctx, site); errorValue != nil {
@@ -1902,11 +1979,11 @@ func materializeDirectory(sourceRoot string, targetRoot string) error {
 	})
 }
 
-func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
-	files := service.siteScaffoldFiles(site)
+func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord, content *siteContent) error {
+	files := service.siteScaffoldFiles(site, content)
 	for _, file := range files {
 		path := filepath.Join(site.HostSourcePath, file.Path)
-		if isRegularFile(path) {
+		if isRegularFile(path) && !file.Overwrite {
 			continue
 		}
 		if errorValue := os.MkdirAll(filepath.Dir(path), 0o750); errorValue != nil {
@@ -1937,8 +2014,9 @@ func (service *Service) writeSiteMetadataMirror(site *SiteRecord) error {
 }
 
 type siteTemplateFile struct {
-	Path     string
-	Document string
+	Path      string
+	Document  string
+	Overwrite bool
 }
 
 func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
@@ -2827,18 +2905,204 @@ type siteCreateAPIResponse struct {
 	SourceFiles []siteSourceFile `json:"sourceFiles,omitempty"`
 }
 
-func (service *Service) siteScaffoldFiles(site *SiteRecord) []siteTemplateFile {
+const siteScaffoldAppManifestPath = ".internkim/scaffold-app-manifest.json"
+const siteApplicationContentPath = "app/public/site-content.json"
+const siteApplicationContentDistPath = "site-content.json"
+
+func (service *Service) siteScaffoldFiles(site *SiteRecord, content *siteContent) []siteTemplateFile {
+	renderedContent := siteContentOrDefault(content, site)
+	contentDocument := siteContentJSONDocument(renderedContent)
+	appSourceFiles := siteAppScaffoldTemplateFiles(site)
 	files := []siteTemplateFile{
 		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
 		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
 		{Path: "DESIGN.md", Document: siteDesignMD(site)},
-		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
+		{Path: siteApplicationContentPath, Document: contentDocument, Overwrite: content != nil},
+		{Path: siteScaffoldAppManifestPath, Document: siteScaffoldAppManifestDocument(appSourceFiles)},
 	}
-	return append(files, siteAppScaffoldTemplateFiles(site)...)
+	files = append(files, appSourceFiles...)
+	files = append(files, siteScaffoldDistFilesWithRenderedContent(site, contentDocument)...)
+	return files
 }
 
-func (service *Service) siteScaffoldSourceFiles(site *SiteRecord) []siteSourceFile {
-	templateFiles := service.siteScaffoldFiles(site)
+// siteScaffoldDistFilesWithRenderedContent mirrors the embedded canonical dist
+// into the workspace, overwriting dist/site-content.json with the rendered
+// content when the dist ships one so the freshly-created workspace already
+// reflects the requested content.
+func siteScaffoldDistFilesWithRenderedContent(site *SiteRecord, contentDocument string) []siteTemplateFile {
+	distFiles := siteScaffoldDistTemplateFiles(site)
+	distContentPath := filepath.ToSlash(filepath.Join("app", "dist", siteApplicationContentDistPath))
+	for index, file := range distFiles {
+		if file.Path == distContentPath {
+			distFiles[index].Document = contentDocument
+		}
+	}
+	return distFiles
+}
+
+func siteContentOrDefault(content *siteContent, site *SiteRecord) *siteContent {
+	if content != nil {
+		return content
+	}
+	return defaultSiteContent(site)
+}
+
+func defaultSiteContent(site *SiteRecord) *siteContent {
+	title := firstNonEmpty(strings.TrimSpace(site.Title), site.Slug)
+	tagline := strings.TrimSpace(site.Description)
+	return &siteContent{
+		SiteName: title,
+		Tagline:  tagline,
+		Sections: []siteContentSection{
+			{Title: title, Body: firstNonEmpty(tagline, "This site is ready to customize.")},
+		},
+	}
+}
+
+func siteContentJSONDocument(content *siteContent) string {
+	document, errorValue := json.MarshalIndent(content, "", "  ")
+	if errorValue != nil {
+		return "{}\n"
+	}
+	return string(document) + "\n"
+}
+
+func validateSiteContent(content *siteContent) error {
+	if content == nil {
+		return errors.New("content is required")
+	}
+	if strings.TrimSpace(content.SiteName) == "" {
+		return errors.New("siteName is required")
+	}
+	if len(content.Sections) == 0 {
+		return errors.New("sections must include at least one section")
+	}
+	for index, section := range content.Sections {
+		if strings.TrimSpace(section.Title) == "" {
+			return fmt.Errorf("sections[%d].title is required", index)
+		}
+		if strings.TrimSpace(section.Body) == "" {
+			return fmt.Errorf("sections[%d].body is required", index)
+		}
+	}
+	return nil
+}
+
+// validateSiteApplicationContentFile validates app/public/site-content.json
+// against the shared content schema when present. A missing file is not an
+// error — legacy sites and sites that only edit app/src never write one.
+func validateSiteApplicationContentFile(hostSourcePath string) error {
+	document, errorValue := os.ReadFile(filepath.Join(hostSourcePath, siteApplicationContentPath))
+	if errorValue != nil {
+		return nil
+	}
+	var content siteContent
+	if errorValue := json.Unmarshal(document, &content); errorValue != nil {
+		return fmt.Errorf("%s is invalid: %s; fix the JSON and publish again — no build is needed", siteApplicationContentPath, errorValue.Error())
+	}
+	if errorValue := validateSiteContent(&content); errorValue != nil {
+		return fmt.Errorf("%s is invalid: %s; fix the JSON and publish again — no build is needed", siteApplicationContentPath, errorValue.Error())
+	}
+	return nil
+}
+
+func siteScaffoldAppManifestDocument(appSourceFiles []siteTemplateFile) string {
+	manifest := map[string]string{}
+	for _, file := range appSourceFiles {
+		manifest[file.Path] = sha256Hex(file.Document)
+	}
+	document, errorValue := json.MarshalIndent(manifest, "", "  ")
+	if errorValue != nil {
+		return "{}\n"
+	}
+	return string(document) + "\n"
+}
+
+// siteAppMatchesScaffoldManifest reports whether a site's editable app/ source
+// still matches the scaffold-app-manifest.json recorded at create time — i.e.
+// the requester never touched app/src or the build configuration. A pristine
+// match lets publish/preview use the canonical embedded dist directly instead
+// of requiring a Blueclaw build.
+func siteAppMatchesScaffoldManifest(hostSourcePath string) bool {
+	manifest, isPresent := readSiteScaffoldAppManifest(hostSourcePath)
+	if !isPresent {
+		return false
+	}
+	for relativePath, expectedSHA256 := range manifest {
+		actualSHA256, errorValue := fileSHA256Hex(filepath.Join(hostSourcePath, relativePath))
+		if errorValue != nil || actualSHA256 != expectedSHA256 {
+			return false
+		}
+	}
+	return !siteApplicationHasUntrackedFiles(hostSourcePath, manifest)
+}
+
+func readSiteScaffoldAppManifest(hostSourcePath string) (map[string]string, bool) {
+	document, errorValue := os.ReadFile(filepath.Join(hostSourcePath, siteScaffoldAppManifestPath))
+	if errorValue != nil {
+		return nil, false
+	}
+	var manifest map[string]string
+	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
+		return nil, false
+	}
+	return manifest, true
+}
+
+func siteApplicationHasUntrackedFiles(hostSourcePath string, manifest map[string]string) bool {
+	applicationPath := filepath.Join(hostSourcePath, "app")
+	foundUntrackedFile := false
+	_ = filepath.Walk(applicationPath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil || foundUntrackedFile {
+			return walkError
+		}
+		relativePath, relativeError := filepath.Rel(hostSourcePath, path)
+		if relativeError != nil || relativePath == "app" {
+			return relativeError
+		}
+		slashRelativePath := filepath.ToSlash(relativePath)
+		if information.IsDir() {
+			if siteApplicationTopLevelDirectoryIsExcluded(slashRelativePath) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if _, isTracked := manifest[slashRelativePath]; !isTracked {
+			foundUntrackedFile = true
+		}
+		return nil
+	})
+	return foundUntrackedFile
+}
+
+func siteApplicationTopLevelDirectoryIsExcluded(relativePath string) bool {
+	components := strings.SplitN(relativePath, "/", 3)
+	if len(components) < 2 {
+		return false
+	}
+	switch components[1] {
+	case "dist", "public", "node_modules":
+		return true
+	default:
+		return false
+	}
+}
+
+func sha256Hex(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+func fileSHA256Hex(path string) (string, error) {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return sha256Hex(string(document)), nil
+}
+
+func (service *Service) siteScaffoldSourceFiles(site *SiteRecord, content *siteContent) []siteSourceFile {
+	templateFiles := service.siteScaffoldFiles(site, content)
 	sourceFiles := make([]siteSourceFile, 0, len(templateFiles))
 	for _, file := range templateFiles {
 		sourceFiles = append(sourceFiles, siteSourceFile{Path: file.Path, Content: file.Document})
@@ -2846,10 +3110,10 @@ func (service *Service) siteScaffoldSourceFiles(site *SiteRecord) []siteSourceFi
 	return sourceFiles
 }
 
-func (service *Service) writeSiteCreateRecord(responseWriter http.ResponseWriter, site *SiteRecord) {
+func (service *Service) writeSiteCreateRecord(responseWriter http.ResponseWriter, site *SiteRecord, content *siteContent) {
 	service.writeJSON(responseWriter, siteCreateAPIResponse{
 		SiteRecord:  siteAPIResponse(site),
-		SourceFiles: service.siteScaffoldSourceFiles(site),
+		SourceFiles: service.siteScaffoldSourceFiles(site, content),
 	})
 }
 
