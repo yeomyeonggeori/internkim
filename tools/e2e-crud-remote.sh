@@ -281,6 +281,10 @@ run_case() { # channel_id e2e_token prompt expected_op timeout
 			sleep 1
 			continue
 		fi
+		if [ "${deadline_rebased:-0}" = 0 ]; then
+			deadline=$((SECONDS + timeout))
+			deadline_rebased=1
+		fi
 		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
 		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
 		case "$status" in
@@ -331,6 +335,10 @@ run_case_start() { # channel_id e2e_token prompt timeout
 		if [ -z "$task_run_id" ]; then
 			sleep 1
 			continue
+		fi
+		if [ "${deadline_rebased:-0}" = 0 ]; then
+			deadline=$((SECONDS + timeout))
+			deadline_rebased=1
 		fi
 		detail="$(curl -s "$BLUECLAW/admin/api/task/detail?taskRunID=$task_run_id")"
 		status="$(printf "%s" "$detail" | jq -r '.taskRun.status')"
