@@ -1,9 +1,10 @@
 {
-  "scaffoldSourceSHA256": "8cd566e75f5c3d13cf02cd38f51d1dd4cf57648505cf97b0405b92baf218c7b0",
-  "generatedAt": "2026-07-02T12:32:47.128058+00:00",
+  "scaffoldSourceSHA256": "1f7c29fd8c34d35f84509570d4258da952c775f8a4990d2eb8c7e4fefb6c4ed3",
+  "generatedAt": "2026-07-02T12:49:21.828058+00:00",
   "files": [
     "index.html",
     "package.json",
+    "public/site-content.json",
     "scripts/build.ts",
     "src/App.tsx",
     "src/components/ui/badge.tsx",
@@ -19,7 +20,7 @@
     "src/index.css",
     "src/lib/utils.ts",
     "src/main.tsx",
-    "src/prototype-data.ts",
+    "src/site-content.ts",
     "tsconfig.json",
     "vite.config.ts"
   ]

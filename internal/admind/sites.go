@@ -3009,6 +3009,9 @@ func validateSiteApplicationContentFile(hostSourcePath string) error {
 func siteScaffoldAppManifestDocument(appSourceFiles []siteTemplateFile) string {
 	manifest := map[string]string{}
 	for _, file := range appSourceFiles {
+		if siteApplicationTopLevelDirectoryIsExcluded(file.Path) {
+			continue
+		}
 		manifest[file.Path] = sha256Hex(file.Document)
 	}
 	document, errorValue := json.MarshalIndent(manifest, "", "  ")
