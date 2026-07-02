@@ -132,8 +132,8 @@ func MailDescriptors() []Descriptor {
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "site.create", Description: "Create a new workspace site or web app. Provide a unique slug (URL identifier) and a prompt or design brief describing what to build. Do not call this to update an existing site — use site.publish or site.restore.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.create", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "create_site", "site")},
-		{Name: "site.preview", Description: "Build a preview of a site without publishing it publicly. Use this to verify the site renders correctly before committing to a public publish. Identify the site by siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.preview", SideEffectClass: "external_publish"},
-		{Name: "site.publish", Description: "Build and publish a site so it is publicly accessible. Identify the site by siteID or slug. Use site.preview first if you want to check output before going live.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.preview", Description: "Preview a site without publishing it publicly. Use this to verify the site renders correctly before committing to a public publish. Identify the site by siteID or slug. Content-only edits (app/public/site-content.json) publish directly with no build; a build is needed only after app/src or app config changes.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.preview", SideEffectClass: "external_publish"},
+		{Name: "site.publish", Description: "Publish a site so it is publicly accessible. Identify the site by siteID or slug. Use site.preview first if you want to check output before going live. Content-only edits (app/public/site-content.json) publish directly with no build; a build is needed only after app/src or app config changes.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.status", Description: "Check the current status of a site (live, unpublished, building, etc.). Set scope to 'mine' to list all sites owned by the requester without needing a siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.status", SideEffectClass: "read"},
 		{Name: "site.history", Description: "Retrieve the deployment history (list of past revisions and their publish timestamps) for a site. Identify the site by siteID or slug. Use this before rollback to pick a target revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.history", SideEffectClass: "read"},
 		{Name: "site.diff", Description: "Show the source code diff between two revisions of a site. Provide fromRevision and toRevision from a prior site.history result. Omit both to diff the current draft against the last published revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.diff", SideEffectClass: "read"},
@@ -465,7 +465,21 @@ func siteAppCreateInputSchema() json.RawMessage {
 		jsonschema.Field("audience", jsonschema.String().WithDescription("Intended audience for the site, e.g. 'all employees' or 'engineering managers'.")),
 		jsonschema.Field("archetype", jsonschema.String().WithDescription("Site archetype or template type, e.g. 'dashboard', 'landing-page', 'wiki'.")),
 		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String()).WithDescription("Domain-specific keywords to include in generation context, e.g. [\"inventory\", \"reorder\", \"supplier\"].")),
+		jsonschema.Field("content", siteContentSchema().WithDescription("Structured page content rendered into app/public/site-content.json. Provide this for a basic content site instead of prompt/designBrief — it publishes immediately with no build. Omit to derive default content from title/description.")),
 	).RawMessage()
+}
+
+func siteContentSchema() jsonschema.Schema {
+	return jsonschema.Object(
+		jsonschema.Required("siteName", jsonschema.String().WithDescription("Site name shown as the page title and header, e.g. 'Team Dashboard'.")),
+		jsonschema.Field("tagline", jsonschema.String().WithDescription("Short subtitle shown under the site name. Omit for no tagline.")),
+		jsonschema.Field("heroActionLabel", jsonschema.String().WithDescription("Label for the primary call-to-action button, e.g. 'Get started'. Omit to hide the hero action.")),
+		jsonschema.Field("heroActionHref", jsonschema.String().WithDescription("URL the hero action button links to. Set this whenever heroActionLabel is set.")),
+		jsonschema.Required("sections", jsonschema.Array(jsonschema.Object(
+			jsonschema.Required("title", jsonschema.String().WithDescription("Section heading.")),
+			jsonschema.Required("body", jsonschema.String().WithDescription("Section body text.")),
+		)).WithDescription("Ordered content sections rendered below the hero. At least one section is required.")),
+	)
 }
 
 func siteAppPublishInputSchema() json.RawMessage {
