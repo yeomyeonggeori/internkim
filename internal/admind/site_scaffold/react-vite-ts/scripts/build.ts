@@ -127,6 +127,8 @@ async function buildVite(): Promise<void> {
 const qualityIssues = [...collectDesignQualityIssues(), ...collectQualityIssues()];
 writeBuildQuality(qualityIssues);
 
-await runCommand({ name: "bun", arguments: ["install"] });
+if (!existsSync("node_modules/vite/bin/vite.js")) {
+	await runCommand({ name: "bun", arguments: ["install", "--prefer-offline"] });
+}
 await buildVite();
 writeBuildQuality(qualityIssues);
