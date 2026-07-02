@@ -86,7 +86,7 @@ async function openLatestThread(page): Promise<void> {
 }
 
 // The approval reply lands in-thread and can arrive a beat after the runtime-side
-// approval.pending_call event the harness polled for, so retry opening the thread and
+// approval.pending_call event the tester polled for, so retry opening the thread and
 // re-checking rather than asserting once. Tolerant of either delivery shape: a rendered
 // interactive control (ephemeral confirm button) or a plain-text confirmation question.
 async function assertPendingApprovalVisible(page): Promise<void> {
