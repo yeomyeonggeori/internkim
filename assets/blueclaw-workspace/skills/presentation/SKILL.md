@@ -1,13 +1,13 @@
 ---
-name: simple-slides
-description: Generate clean presentation slides from an HTML-first source and attach the requested files. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
-when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
+name: presentation
+description: Generate clean presentation slides from an HTML-first source and attach the requested files. Also validates an existing .pptx file. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
+when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests, including validating an existing .pptx file for empty slides, missing titles, or leftover default fonts.
 completion:
   requiredEvidenceTools:
     - file.deliver
 ---
 
-# Simple Slides
+# Presentation
 
 Create a useful, visually strong deck and attach the requested files. This is an HTML-first skill: `slides.html` is the source of truth, `DESIGN.md` is the design brief, and the build script exports HTML, text-preserving PDF, image-backed PPTX, notes, and review evidence.
 
@@ -17,7 +17,7 @@ Create a useful, visually strong deck and attach the requested files. This is an
 2. Create `tmp/<deck-slug>/deck-brief.md` with request intent, audience, deck archetype, main thesis, story spine, slide sequence, visual direction, must-show content, and what would be too shallow.
 3. Create `tmp/<deck-slug>/DESIGN.md`.
 4. Create `tmp/<deck-slug>/slides.html`.
-5. Run `/workspace/skills/simple-slides/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`.
+5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`.
 7. Use `artifact.review` when visual judgment is worth the budget. Include deck intent, `deck-brief.md`, deck archetype, contact sheet image, and expected visible text.
 8. If deterministic review, rendered image evidence, or LLM notes show useful improvements, revise `slides.html` and rebuild. Repeat at most three times.
@@ -27,12 +27,12 @@ Use this build command shape:
 
 ```json
 {
-  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
+  "command": "NAME=<deck-slug> /workspace/skills/presentation/scripts/build.sh",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS`.
+For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/presentation/scripts/build.sh`. For a normal full deck, omit `FORMATS`.
 
 Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.pptx` and requested source files with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
@@ -140,4 +140,16 @@ Example delivery shape:
 
 For revisions, edit the same `<deck-slug>`. If `tmp/<deck-slug>/slides.html` is gone, restore editable source from `artifacts/<deck-slug>/source/`, apply changes, rebuild, and deliver with `overwrite: true`.
 
-If the user asks for `html만`, build and attach only HTML. Otherwise PPTX, PDF, HTML, and notes are a good default. Default PPTX is image-backed for visual fidelity; default PDF keeps selectable text. If the user needs editable PowerPoint objects or existing PPTX edits, use the `pptx` skill instead.
+If the user asks for `html만`, build and attach only HTML. Otherwise PPTX, PDF, HTML, and notes are a good default. Default PPTX is image-backed for visual fidelity; default PDF keeps selectable text.
+
+## Validating an Existing PPTX
+
+To check an existing `.pptx` file for empty slides, missing titles, excessive shape count, or leftover default fonts, run `scripts/validate_pptx.py` through `scripts/skill_runtime.py`:
+
+```json
+{
+  "command": "python3 /workspace/skills/presentation/scripts/skill_runtime.py python /workspace/skills/presentation/scripts/validate_pptx.py <path-to-file>.pptx"
+}
+```
+
+This validator reports structurally, not visually; it does not judge design quality. `skill_runtime.py` bootstraps `python-pptx` from `scripts/requirements.txt` on first use.
