@@ -38,7 +38,7 @@ fi
 
 case "$SOURCE_PATH" in
   *.html) ;;
-  *) echo "Error: simple-slides now uses HTML-first source only. Create slides.html or set SRC=yourfile.html." >&2; exit 1 ;;
+  *) echo "Error: presentation now uses HTML-first source only. Create slides.html or set SRC=yourfile.html." >&2; exit 1 ;;
 esac
 
 python3 - "$SOURCE_PATH" <<'PY'
@@ -57,16 +57,16 @@ if "<section" not in text.lower():
     sys.exit(1)
 PY
 
-SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/simple-slides/assets}"
+SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/presentation/assets}"
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/package.json" ]; then
   SKILL_ASSET_DIRECTORY="$SCRIPT_DIRECTORY"
 fi
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/../assets/package.json" ]; then
   SKILL_ASSET_DIRECTORY="${SCRIPT_DIRECTORY}/../assets"
 fi
-RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/simple-slides/scripts/render_review.py}"
-HTML_EXPORT_SCRIPT="${HTML_EXPORT_SCRIPT:-/workspace/skills/simple-slides/scripts/html_export.py}"
-HTML_RENDER_SCRIPT="${HTML_RENDER_SCRIPT:-/workspace/skills/simple-slides/scripts/html_render.mjs}"
+RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/presentation/scripts/render_review.py}"
+HTML_EXPORT_SCRIPT="${HTML_EXPORT_SCRIPT:-/workspace/skills/presentation/scripts/html_export.py}"
+HTML_RENDER_SCRIPT="${HTML_RENDER_SCRIPT:-/workspace/skills/presentation/scripts/html_render.mjs}"
 if [ ! -f "$RENDER_REVIEW_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/render_review.py" ]; then
   RENDER_REVIEW_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/render_review.py"
 fi
@@ -76,10 +76,10 @@ fi
 if [ ! -f "$HTML_RENDER_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/html_render.mjs" ]; then
   HTML_RENDER_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/html_render.mjs"
 fi
-NODE_RUNTIME_ROOT="${WORK_DIR}/.skill-env/simple-slides/node"
-NODE_RUNTIME_TMP="${WORK_DIR}/.skill-env/simple-slides/tmp"
-NODE_RUNTIME_BUN_INSTALL="${WORK_DIR}/.skill-env/simple-slides/bun-install"
-NODE_RUNTIME_BUN_CACHE="${WORK_DIR}/.skill-env/simple-slides/bun-cache"
+NODE_RUNTIME_ROOT="${WORK_DIR}/.skill-env/presentation/node"
+NODE_RUNTIME_TMP="${WORK_DIR}/.skill-env/presentation/tmp"
+NODE_RUNTIME_BUN_INSTALL="${WORK_DIR}/.skill-env/presentation/bun-install"
+NODE_RUNTIME_BUN_CACHE="${WORK_DIR}/.skill-env/presentation/bun-cache"
 
 ensure_node_environment() {
   if ! command -v bun &> /dev/null; then

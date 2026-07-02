@@ -1,4 +1,4 @@
-# Simple Slides Webfonts
+# Presentation Webfonts
 
 Use these when a deck needs Korean typography that will actually render. Put local `@font-face` rules at the top of the `slides.html` style block, before any CSS rules.
 
@@ -13,7 +13,7 @@ Default for display text and body text. Good for title slides, section headers, 
 ```css
 @font-face {
   font-family: "Paperlogy";
-  src: url("/workspace/skills/simple-slides/assets/fonts/paperlogy/Paperlogy-4Regular.woff2") format("woff2");
+  src: url("/workspace/skills/presentation/assets/fonts/paperlogy/Paperlogy-4Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -21,7 +21,7 @@ Default for display text and body text. Good for title slides, section headers, 
 
 @font-face {
   font-family: "Paperlogy";
-  src: url("/workspace/skills/simple-slides/assets/fonts/paperlogy/Paperlogy-6SemiBold.woff2") format("woff2");
+  src: url("/workspace/skills/presentation/assets/fonts/paperlogy/Paperlogy-6SemiBold.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -29,7 +29,7 @@ Default for display text and body text. Good for title slides, section headers, 
 
 @font-face {
   font-family: "Paperlogy";
-  src: url("/workspace/skills/simple-slides/assets/fonts/paperlogy/Paperlogy-7Bold.woff2") format("woff2");
+  src: url("/workspace/skills/presentation/assets/fonts/paperlogy/Paperlogy-7Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -37,7 +37,7 @@ Default for display text and body text. Good for title slides, section headers, 
 
 @font-face {
   font-family: "Paperlogy";
-  src: url("/workspace/skills/simple-slides/assets/fonts/paperlogy/Paperlogy-8ExtraBold.woff2") format("woff2");
+  src: url("/workspace/skills/presentation/assets/fonts/paperlogy/Paperlogy-8ExtraBold.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
   font-display: swap;
