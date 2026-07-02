@@ -1,0 +1,7 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "browser-handoff-overlay-capability",
+	"description": "Minimal permissions for the always-on-top browser handoff overlay window",
+	"windows": ["browser-handoff-overlay"],
+	"permissions": ["core:window:allow-hide"]
+}

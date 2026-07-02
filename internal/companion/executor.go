@@ -76,6 +76,31 @@ type Executor struct {
 	GrantStore      *MemoryGrantStore
 }
 
+// NewExecutor builds an Executor from the dependencies known at companion
+// startup. PromptHandler, ApprovalHandler, FilePicker, DirectoryPicker, and
+// FileUploader are intentionally left unset here: the caller wires them in
+// afterward only when the matching optional CLI flag (--allow-stdin-prompts,
+// --development-auto-approve-browser, --shell-bridge-url) is present.
+func NewExecutor(
+	devMockLLM bool,
+	llmChain llmbackend.Provider,
+	embeddingChain llmbackend.EmbeddingProvider,
+	browserRuntime browserruntime.Runtime,
+	handoffStore *BrowserHandoffStore,
+	mountStore *MountStore,
+	grantStore *MemoryGrantStore,
+) Executor {
+	return Executor{
+		DevMockLLM:     devMockLLM,
+		LLMChain:       llmChain,
+		EmbeddingChain: embeddingChain,
+		BrowserRuntime: browserRuntime,
+		HandoffStore:   handoffStore,
+		MountStore:     mountStore,
+		GrantStore:     grantStore,
+	}
+}
+
 type TerminalPromptHandler struct {
 	Reader io.Reader
 	Writer io.Writer

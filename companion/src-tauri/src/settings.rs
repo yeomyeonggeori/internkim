@@ -13,6 +13,8 @@ const CURRENT_SCHEMA_VERSION: u32 = 1;
 pub struct BackendEndpoint {
     pub base_url: String,
     pub model: String,
+    #[serde(default)]
+    pub embedding_model: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -50,6 +52,7 @@ fn default_ollama_endpoint() -> BackendEndpoint {
     BackendEndpoint {
         base_url: "http://127.0.0.1:11434".to_string(),
         model: String::new(),
+        embedding_model: None,
     }
 }
 
@@ -57,6 +60,7 @@ fn default_llamacpp_endpoint() -> BackendEndpoint {
     BackendEndpoint {
         base_url: "http://127.0.0.1:8080".to_string(),
         model: String::new(),
+        embedding_model: Some("embeddinggemma".to_string()),
     }
 }
 
@@ -64,6 +68,7 @@ fn default_mlx_endpoint() -> BackendEndpoint {
     BackendEndpoint {
         base_url: "http://127.0.0.1:10240".to_string(),
         model: String::new(),
+        embedding_model: None,
     }
 }
 
