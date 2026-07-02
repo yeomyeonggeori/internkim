@@ -143,12 +143,36 @@ func (text *siteContentText) UnmarshalJSON(document []byte) error {
 	return nil
 }
 
+type siteContentBlockItem struct {
+	Title string          `json:"title"`
+	Body  siteContentText `json:"body"`
+}
+
+type siteContentBlock struct {
+	Variant     string                 `json:"variant"`
+	Title       string                 `json:"title,omitempty"`
+	Body        siteContentText        `json:"body,omitempty"`
+	Items       []siteContentBlockItem `json:"items,omitempty"`
+	ActionLabel string                 `json:"actionLabel,omitempty"`
+	ActionHref  string                 `json:"actionHref,omitempty"`
+}
+
+var siteContentKnownBlockVariants = map[string]bool{
+	"hero":     true,
+	"features": true,
+	"prose":    true,
+	"cta":      true,
+	"faq":      true,
+	"contact":  true,
+}
+
 type siteContent struct {
 	SiteName        string               `json:"siteName"`
 	Tagline         string               `json:"tagline,omitempty"`
 	HeroActionLabel string               `json:"heroActionLabel,omitempty"`
 	HeroActionHref  string               `json:"heroActionHref,omitempty"`
-	Sections        []siteContentSection `json:"sections"`
+	Sections        []siteContentSection `json:"sections,omitempty"`
+	Blocks          []siteContentBlock   `json:"blocks,omitempty"`
 }
 
 type sitePublishRequest struct {
@@ -2993,8 +3017,11 @@ func validateSiteContent(content *siteContent) error {
 	if strings.TrimSpace(content.SiteName) == "" {
 		return errors.New("siteName is required")
 	}
+	if len(content.Blocks) > 0 {
+		return validateSiteContentBlocks(content.Blocks)
+	}
 	if len(content.Sections) == 0 {
-		return errors.New("sections must include at least one section")
+		return errors.New("sections or blocks must include at least one entry")
 	}
 	for index, section := range content.Sections {
 		if strings.TrimSpace(section.Title) == "" {
@@ -3002,6 +3029,27 @@ func validateSiteContent(content *siteContent) error {
 		}
 		if strings.TrimSpace(string(section.Body)) == "" {
 			return fmt.Errorf("sections[%d].body is required", index)
+		}
+	}
+	return nil
+}
+
+func validateSiteContentBlocks(blocks []siteContentBlock) error {
+	for blockIndex, block := range blocks {
+		variant := strings.TrimSpace(block.Variant)
+		if variant == "" {
+			return fmt.Errorf("blocks[%d].variant is required", blockIndex)
+		}
+		if !siteContentKnownBlockVariants[variant] {
+			return fmt.Errorf("blocks[%d].variant %q is not a known block variant", blockIndex, variant)
+		}
+		for itemIndex, item := range block.Items {
+			if strings.TrimSpace(item.Title) == "" {
+				return fmt.Errorf("blocks[%d].items[%d].title is required", blockIndex, itemIndex)
+			}
+			if strings.TrimSpace(string(item.Body)) == "" {
+				return fmt.Errorf("blocks[%d].items[%d].body is required", blockIndex, itemIndex)
+			}
 		}
 	}
 	return nil
