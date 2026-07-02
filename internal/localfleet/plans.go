@@ -124,7 +124,6 @@ func (service Service) ephemeralCleanupPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
 		service.shellPlan("remove ephemeral VM", service.removeVirtualMachineCommand()),
-		service.shellPlan("remove ephemeral state", service.removeStateCommand()),
 	}
 }
 
@@ -352,16 +351,23 @@ func (service Service) virtualSessionArtifactDirectoryPath(scenario string) stri
 func (service Service) logEphemeralContext(logger Logger, request JobRequest) {
 	logger.Info("ephemeral run: " + service.options.RunID)
 	logger.Info("state: " + service.options.StateRootPath)
+	logger.Info("evidence: " + service.hostArtifactDirectoryPath())
 	logger.Info("vm: " + service.options.VirtualMachineName)
 	logger.Info("admin URL: " + service.adminHostURL())
 	if !request.WithoutMattermost {
 		logger.Info("Mattermost URL: " + service.mattermostHostURL())
 	}
-	logger.Info("cleanup: " + service.manualCleanupCommand())
+	logger.Info("cleanup vm: " + service.removeVirtualMachineCommand())
+	logger.Info("cleanup all: " + service.manualCleanupCommand())
 }
 
 func (service Service) manualCleanupCommand() string {
 	return service.removeVirtualMachineCommand() + "; " + service.removeStateCommand()
+}
+
+func (service Service) hostArtifactDirectoryPath() string {
+	runDirectoryName := firstNonEmpty(service.options.RunID, "default")
+	return filepath.Join(service.options.RepositoryRootPath, ".artifacts", "local-fleet", safeIdentifier(runDirectoryName))
 }
 
 func (service Service) configurationPath() string {

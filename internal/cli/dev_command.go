@@ -245,7 +245,7 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
 	ephemeral := flagSet.Bool("ephemeral", false, "Deprecated; disposable local fleet runs are now the default")
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared local fleet instead of creating a disposable run")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM, logs, state, and Mattermost test artifacts")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM and Mattermost test artifacts; run evidence is kept by default")
 	withoutMattermost := flagSet.Bool("without-mattermost", false, "Run the scenario inside Linux without starting or using Mattermost")
 	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
 	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")

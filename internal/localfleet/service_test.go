@@ -311,7 +311,7 @@ func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
 	}
 }
 
-func TestEphemeralCleanupRemovesVirtualMachineAndState(t *testing.T) {
+func TestEphemeralCleanupRemovesVirtualMachineAndKeepsEvidenceState(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
@@ -328,11 +328,16 @@ func TestEphemeralCleanupRemovesVirtualMachineAndState(t *testing.T) {
 	for _, expectedFragment := range []string{
 		"'container' stop 'internkim-e2e-run-1'",
 		"'container' rm 'internkim-e2e-run-1'",
-		"rm -rf '/repo/.local/local-fleet/runs/run-1'",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in cleanup plans:\n%s", expectedFragment, joinedPlans)
 		}
+	}
+	if strings.Contains(joinedPlans, "rm -rf '/repo/.local/local-fleet/runs/run-1'") {
+		t.Fatalf("cleanup plans should preserve run evidence state:\n%s", joinedPlans)
+	}
+	if !strings.Contains(service.manualCleanupCommand(), "rm -rf '/repo/.local/local-fleet/runs/run-1'") {
+		t.Fatalf("manual full cleanup should still include state removal: %s", service.manualCleanupCommand())
 	}
 }
 
