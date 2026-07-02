@@ -784,6 +784,102 @@ func TestSitePublishRejectsInvalidApplicationContentFile(t *testing.T) {
 	}
 }
 
+func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "blocks-content", Title: "Blocks Content"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	blocksContentDocument := siteContentJSONDocument(&siteContent{
+		SiteName: "Blocks Content",
+		Tagline:  "블록 기반 콘텐츠",
+		Blocks: []siteContentBlock{
+			{Variant: "hero", Title: "Blocks Content", Body: "블록 기반 콘텐츠", ActionLabel: "자세히 보기", ActionHref: "#block-2"},
+			{Variant: "features", Title: "기능", Items: []siteContentBlockItem{
+				{Title: "빠름", Body: "빠른 프로토타입 생성"},
+				{Title: "안전", Body: "안전한 배포 검증"},
+			}},
+			{Variant: "faq", Title: "자주 묻는 질문", Items: []siteContentBlockItem{
+				{Title: "무료인가요?", Body: "네, 검증용 프로토타입은 무료입니다."},
+			}},
+		},
+	})
+	contentPath := filepath.Join(site.HostSourcePath, "app", "public", "site-content.json")
+	writeFile(t, contentPath, blocksContentDocument)
+	setFileModTime(t, contentPath, time.Now().UTC().Add(2*time.Hour))
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "blocks-content.device.intern.kim", "/site-content.json")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"blocks"`) {
+		t.Fatalf("expected republished blocks content overlay, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSitePublishRejectsApplicationContentFileWithUnknownBlockVariant(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-block-variant", Title: "Invalid Block Variant"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"), `{"siteName":"Invalid Block Variant","blocks":[{"variant":"testimonial","title":"Bad"}]}`)
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/public/site-content.json is invalid") {
+		t.Fatalf("expected invalid block variant rejection, got %v", errorValue)
+	}
+}
+
+func TestValidateSiteContentAcceptsBlocksOrSectionsButRequiresOne(t *testing.T) {
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Sections Only", Sections: []siteContentSection{{Title: "소개", Body: "내용"}}}); errorValue != nil {
+		t.Fatalf("expected sections-only content to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Blocks Only", Blocks: []siteContentBlock{{Variant: "hero", Title: "제목"}}}); errorValue != nil {
+		t.Fatalf("expected blocks-only content to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Blocks With Items", Blocks: []siteContentBlock{
+		{Variant: "faq", Items: []siteContentBlockItem{{Title: "질문", Body: "답변"}}},
+	}}); errorValue != nil {
+		t.Fatalf("expected blocks with valid items to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Neither"}); errorValue == nil {
+		t.Fatal("expected an error when neither sections nor blocks are present")
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Unknown Variant", Blocks: []siteContentBlock{{Variant: "testimonial"}}}); errorValue == nil {
+		t.Fatal("expected an error for an unknown block variant")
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Empty Item", Blocks: []siteContentBlock{
+		{Variant: "faq", Items: []siteContentBlockItem{{Title: "", Body: "답변"}}},
+	}}); errorValue == nil {
+		t.Fatal("expected an error for a block item missing a title")
+	}
+}
+
 func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
