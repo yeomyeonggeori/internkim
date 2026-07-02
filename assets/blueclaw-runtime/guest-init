@@ -156,6 +156,7 @@ configure_outbound_network() {
     return
   fi
   ip link set eth0 up
+  ip link set eth0 mtu 1280
   ip addr replace 172.31.0.2/30 dev eth0
   ip route replace default via 172.31.0.1 dev eth0
   cat >/etc/resolv.conf <<'EOF'
