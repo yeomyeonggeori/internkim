@@ -44,7 +44,7 @@ For common documents — headings, paragraphs, bullet lists — pass content dir
 }
 ```
 
-Repeat `--heading`, `--paragraph`, and `--bullet` as needed. All bullets collected under a single `--heading` call become one bulleted list block.
+Repeat `--heading`, `--paragraph`, `--bullet`, and `--table <path to JSON rows file>` as needed; each block appears in the order its flag was given on the command line, and consecutive `--bullet` flags merge into one bulleted list block. `--table` accepts a JSON file of row arrays, an array of row objects (first object's keys become the header), or `{"rows":[...],"columnWidthsInches":[...]}`.
 
 For rich structure — tables, custom fonts, page margins, landscape orientation — write a spec file and pass it with `--spec`:
 
