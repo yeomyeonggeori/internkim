@@ -2971,6 +2971,8 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `[]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 			createAttempts++
 			if createAttempts == 1 {
@@ -3030,6 +3032,9 @@ func TestFlowMattermostNotificationReplacesAdminPostWithBotPost(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `[]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/admin-post-1" && request.Method == http.MethodGet:
 			assertMattermostBearerToken(t, request, "admin-token")
 			return jsonResponse(http.StatusOK, `{"id":"admin-post-1","user_id":"admin"}`, nil), nil
@@ -3184,6 +3189,9 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
 			assertMattermostChannelSchemeRoles(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"iam","first_name":"","last_name":"","nickname":"김민수","email":"iam@example.com"}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 			assertMattermostBearerToken(t, request, "bot-token")
 			requests.createdMessages = append(requests.createdMessages, mattermostPostMessage(t, request))
