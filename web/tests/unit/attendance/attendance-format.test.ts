@@ -1,4 +1,4 @@
-// 출결 시간 포맷의 언어별 단위 표시를 검증한다.
+// 근태 시간 포맷의 언어별 단위 표시를 검증한다.
 import { describe, expect, test } from 'bun:test';
 import { formatHoursMinutes } from '../../../src/routes/attendance/shared/attendance-format';
 
