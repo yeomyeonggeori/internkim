@@ -46,7 +46,11 @@ func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, t
 	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return task, errorValue
 	}
-	return service.upsertFlowMattermostNotification(ctx, adminToken, botToken, botUserID, channelID, task)
+	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	return service.upsertFlowMattermostNotification(ctx, adminToken, botToken, botUserID, channelID, task, mattermostUsers)
 }
 
 func shouldNotifyFlowTask(task flowTask) bool {
@@ -67,9 +71,9 @@ func (service *Service) ensureMattermostBotCanPost(ctx context.Context, adminTok
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/members/"+url.PathEscape(userID)+"/schemeRoles", adminToken, schemeRoles, nil)
 }
 
-func (service *Service) upsertFlowMattermostNotification(ctx context.Context, adminToken string, botToken string, botUserID string, channelID string, task flowTask) (flowTask, error) {
+func (service *Service) upsertFlowMattermostNotification(ctx context.Context, adminToken string, botToken string, botUserID string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
 	if strings.TrimSpace(task.MattermostPostID) == "" {
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task)
+		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
 	}
 	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, task.MattermostPostID)
 	if errorValue != nil {
@@ -80,10 +84,10 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, ad
 		if errorValue != nil {
 			return task, errorValue
 		}
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task)
+		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
 	}
 	body := map[string]any{
-		"message": service.flowMattermostNotificationMessage(task),
+		"message": service.flowMattermostNotificationMessage(task, mattermostUsers),
 		"props":   flowMattermostNotificationProps(task),
 	}
 	path := "/api/v4/posts/" + url.PathEscape(task.MattermostPostID) + "/patch"
@@ -95,7 +99,7 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, ad
 		if errorValue != nil {
 			return task, errorValue
 		}
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task)
+		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
 	}
 	return task, nil
 }
@@ -112,10 +116,10 @@ func (service *Service) mattermostPostByID(ctx context.Context, token string, po
 	return mattermostPostRecord{}, false, nil
 }
 
-func (service *Service) createFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask) (flowTask, error) {
+func (service *Service) createFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    service.flowMattermostNotificationMessage(task),
+		"message":    service.flowMattermostNotificationMessage(task, mattermostUsers),
 		"props":      flowMattermostNotificationProps(task),
 	}
 	var response struct {
@@ -145,7 +149,7 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, "")
 }
 
-func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
+func (service *Service) flowMattermostNotificationMessage(task flowTask, mattermostUsers []mattermostUserRecord) string {
 	return mattermostMarkdownTable(
 		[]string{"상태", "업무", "유형", "크기", "참여자"},
 		[][]string{{
@@ -153,9 +157,19 @@ func (service *Service) flowMattermostNotificationMessage(task flowTask) string 
 			mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)),
 			task.Type,
 			task.Size,
-			strings.Join(task.ParticipantNames, ", "),
+			strings.Join(flowMattermostParticipantMentions(task, mattermostUsers), " "),
 		}},
 	)
+}
+
+func flowMattermostParticipantMentions(task flowTask, mattermostUsers []mattermostUserRecord) []string {
+	mentions := make([]string, 0, len(task.ParticipantNames))
+	for _, participantName := range task.ParticipantNames {
+		if mention := calendarMattermostMentionForPerson(participantName, mattermostUsers); mention != "" {
+			mentions = append(mentions, mention)
+		}
+	}
+	return mentions
 }
 
 func flowMattermostNotificationProps(task flowTask) map[string]any {
