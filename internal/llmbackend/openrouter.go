@@ -540,16 +540,17 @@ func isLocalModelReference(modelName string) bool {
 	return strings.HasPrefix(normalized, "local/")
 }
 
-var openRouterModelContextWindowTokens = map[string]int64{
-	"google/gemma-3-12b-it": 131072,
-	"xiaomi/mimo-v2.5":      131072,
-	"z-ai/glm-5.2":          131072,
-	"x-ai/grok-4.3":         262144,
-}
-
 func (backend OpenRouterBackend) ContextWindowTokensForModel(modelName string) int64 {
-	if tokens, isKnown := openRouterModelContextWindowTokens[backend.resolveModelName(modelName)]; isKnown {
+	if tokens := sharedOpenRouterModelCatalog.contextWindowTokens(backend.modelsURL(), backend.HTTPClient, backend.resolveModelName(modelName)); tokens > 0 {
 		return tokens
 	}
 	return DefaultContextWindowTokens
+}
+
+func (backend OpenRouterBackend) modelsURL() string {
+	baseURL := strings.TrimSpace(backend.BaseURL)
+	if index := strings.Index(baseURL, "/chat/completions"); index > 0 {
+		return baseURL[:index] + "/models"
+	}
+	return "https://openrouter.ai/api/v1/models"
 }

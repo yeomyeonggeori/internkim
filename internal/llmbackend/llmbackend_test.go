@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -2130,18 +2131,40 @@ func TestCompactMessagesForContextWindowPreservesMidConversationSystemMessages(t
 	}
 }
 
-func TestOpenRouterContextWindowIsPerModel(t *testing.T) {
-	backend := OpenRouterBackend{ModelName: "google/gemini-2.5-flash-lite"}
+func TestOpenRouterContextWindowComesFromModelCatalog(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/models" {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		responseWriter.Write([]byte(`{"data":[{"id":"google/gemma-3-12b-it","context_length":131072},{"id":"google/gemini-2.5-flash-lite","context_length":1048576}]}`))
+	}))
+	defer server.Close()
+
+	backend := OpenRouterBackend{
+		ModelName: "google/gemini-2.5-flash-lite",
+		BaseURL:   server.URL + "/api/v1/chat/completions",
+	}
 	if tokens := backend.ContextWindowTokensForModel("google/gemma-3-12b-it"); tokens != 131072 {
-		t.Fatalf("expected gemma-3-12b window 131072, got %d", tokens)
+		t.Fatalf("expected gemma-3-12b window from the catalog, got %d", tokens)
 	}
-	if tokens := backend.ContextWindowTokensForModel("google/gemini-2.5-flash-lite"); tokens != DefaultContextWindowTokens {
-		t.Fatalf("expected unlisted large-context model to keep the default window, got %d", tokens)
+	if tokens := backend.ContextWindowTokensForModel(""); tokens != 1048576 {
+		t.Fatalf("expected empty request model to resolve through the backend default model in the catalog, got %d", tokens)
 	}
-	if tokens := backend.ContextWindowTokensForModel(""); tokens != DefaultContextWindowTokens {
-		t.Fatalf("expected empty request model to resolve through the backend default model, got %d", tokens)
+	if tokens := contextWindowTokensFor(backend, "vendor/unknown-model"); tokens != DefaultContextWindowTokens {
+		t.Fatalf("expected a model missing from the catalog to fall back to the default window, got %d", tokens)
 	}
-	if tokens := contextWindowTokensFor(backend, "x-ai/grok-4.3"); tokens != 262144 {
-		t.Fatalf("expected model-aware dispatch to pick the per-model window, got %d", tokens)
+}
+
+func TestOpenRouterContextWindowFallsBackWhenCatalogUnreachable(t *testing.T) {
+	deadServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadServer.Close()
+
+	backend := OpenRouterBackend{
+		ModelName: "google/gemini-2.5-flash-lite",
+		BaseURL:   deadServer.URL + "/api/v1/chat/completions",
+	}
+	if tokens := backend.ContextWindowTokensForModel("google/gemma-3-12b-it"); tokens != DefaultContextWindowTokens {
+		t.Fatalf("expected unreachable catalog to fall back to the default window, got %d", tokens)
 	}
 }
