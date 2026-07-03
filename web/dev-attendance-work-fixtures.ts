@@ -10,6 +10,13 @@ import {
 	type DevAttendanceLocation,
 	type DevAttendancePerson,
 } from './dev-attendance-fixture-data';
+import {
+	devPopupOverflowAttendanceRows,
+	devPopupOverflowDate,
+	devPopupOverflowDay,
+	devPopupOverflowEmail,
+	devPopupOverflowMonth
+} from './dev-popup-overflow-fixture';
 
 type BuildAttendanceEventFixtureOptions = {
 	month: string;
@@ -31,6 +38,7 @@ export function buildAttendanceEventFixtures(options: BuildAttendanceEventFixtur
 		idSeed = events.length;
 	}
 
+	idSeed = appendPopupOverflowScenario(events, idSeed, month, endDay);
 	idSeed = appendCompletedThreeLocationScenario(events, idSeed, month, endDay);
 	appendTodayMultipleLocationScenario(events, idSeed, month, todayMonth, todayDate);
 
@@ -87,6 +95,25 @@ function appendDayEvents(
 			idSeed,
 		}));
 	});
+}
+
+function appendPopupOverflowScenario(
+	events: AttendanceSummary['events'],
+	startIDSeed: number,
+	month: string,
+	endDay: number
+): number {
+	if (month !== devPopupOverflowMonth) return startIDSeed;
+	if (endDay < devPopupOverflowDay) return startIDSeed;
+	const person = devAttendancePeople.find((candidate) => candidate.email === devPopupOverflowEmail) ?? devAttendancePeople[0];
+	removePersonDateEvents(events, person.email, devPopupOverflowDate);
+	const rows: [AttendanceKind, string, string, string][] = devPopupOverflowAttendanceRows.map((row) => [
+		row.kind,
+		row.localTime,
+		row.locationID,
+		row.sourceMessage
+	]);
+	return appendMultiLocationEvents(events, startIDSeed, person, devPopupOverflowDate, rows);
 }
 
 function appendCompletedThreeLocationScenario(
