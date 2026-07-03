@@ -38,9 +38,9 @@
 	let activeContextLoadKey = $state('');
 	let contextRequestID = 0;
 
-	const minimumMobileEmployeeColumnWidth = 7;
+	const minimumMobileEmployeeColumnWidth = 14;
 	const minimumEmployeeColumnWidth = 7;
-	const maximumMobileEmployeeColumnWidth = 7;
+	const maximumMobileEmployeeColumnWidth = 14;
 	const maximumEmployeeColumnWidth = 13;
 	const employeeColumnChromeWidth = 2;
 	const dayColumnWidth = 5.75;
