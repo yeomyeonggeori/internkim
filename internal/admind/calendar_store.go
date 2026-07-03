@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "mattermost_post_created_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarParticipantSchema(ctx, database); errorValue != nil {
 		return errorValue
 	}
@@ -429,7 +432,12 @@ func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context,
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, updated_at = ? WHERE id = ?", strings.TrimSpace(postID), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	trimmedPostID := strings.TrimSpace(postID)
+	postCreatedAt := ""
+	if trimmedPostID != "" {
+		postCreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
 	return errorValue
 }
 

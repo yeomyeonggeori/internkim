@@ -356,14 +356,19 @@ func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Contex
 	}
 	go func() {
 		service.repairMattermostProjectionsWithTimeout(ctx)
+		service.sweepExpiredMattermostChannelPostsWithTimeout(ctx)
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
+		expiryTicker := time.NewTicker(time.Hour)
+		defer expiryTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				service.drainMattermostProjectionOutboxWithTimeout(ctx)
+			case <-expiryTicker.C:
+				service.sweepExpiredMattermostChannelPostsWithTimeout(ctx)
 			}
 		}
 	}()
@@ -373,6 +378,13 @@ func (service *Service) repairMattermostProjectionsWithTimeout(ctx context.Conte
 	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	service.syncExistingMattermostManagedPosts(syncContext)
+}
+
+func (service *Service) sweepExpiredMattermostChannelPostsWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	service.sweepExpiredFlowMattermostNotifications(syncContext)
+	service.sweepExpiredCalendarMattermostLogs(syncContext)
 }
 
 func (service *Service) drainMattermostProjectionOutboxWithTimeout(ctx context.Context) {
