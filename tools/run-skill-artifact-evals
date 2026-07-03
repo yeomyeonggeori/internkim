@@ -2732,7 +2732,13 @@ def score_pdf_typography(wordHeights: list[float], margins: list[dict]) -> float
 def audit_website_format(diagnosticDirectory: Path) -> dict:
     testResult = read_test_result(diagnosticDirectory)
     if not testResult:
-        return {"hasPublicURL": False, "renderedTextLength": 0, "siteScreenshotsVerified": False, "typography": {}}
+        return {
+            "hasPublicURL": False,
+            "renderedTextLength": 0,
+            "siteScreenshotsVerified": False,
+            "typography": {},
+            "stack": default_website_stack_checks("no test-result.json was captured for this case (generation likely failed before verification completed)"),
+        }
     siteHTMLText = str(testResult.get("siteHTMLText", ""))
     siteScreenshots = testResult.get("siteScreenshots", [])
     siteStyleMetrics = testResult.get("siteStyleMetrics", {})
@@ -2744,7 +2750,75 @@ def audit_website_format(diagnosticDirectory: Path) -> dict:
         "siteScreenshotsVerified": bool(testResult.get("siteScreenshotsVerified")),
         "screenshotCount": len(siteScreenshots) if isinstance(siteScreenshots, list) else 0,
         "typography": siteStyleMetrics if isinstance(siteStyleMetrics, dict) else {},
+        "stack": compute_website_stack_checks(siteHTMLText),
     }
+
+
+REACT_MOUNT_POINT_PATTERN = re.compile(r'id=["\']root["\']', re.IGNORECASE)
+REACT_BUNDLED_SCRIPT_PATTERN = re.compile(r'<script[^>]+(?:type=["\']module["\']|src=["\'][^"\']*/assets/[^"\']+\.js["\'])', re.IGNORECASE)
+REACT_RUNTIME_MARKER_PATTERN = re.compile(r'data-reactroot|__reactContainer|__reactProps|__reactFiber', re.IGNORECASE)
+SHADCN_DATA_SLOT_PATTERN = re.compile(r'data-slot=["\']', re.IGNORECASE)
+SHADCN_UTILITY_DENSITY_PATTERN = re.compile(r'class=["\'][^"\']*\binline-flex\b[^"\']*\bitems-center\b[^"\']*\bjustify-center\b', re.IGNORECASE)
+RADIX_DATA_ATTRIBUTE_PATTERN = re.compile(r'data-(?:state|orientation|radix-[a-z-]+)=["\']', re.IGNORECASE)
+THEME_CUSTOM_PROPERTY_PATTERN = re.compile(r'(--background|--primary)\s*:\s*([^;"\'>]+)', re.IGNORECASE)
+DEFAULT_THEME_CUSTOM_PROPERTY_VALUES = {"--background": "#ffffff", "--primary": "#111111"}
+SEMANTIC_SECTION_TAG_PATTERN = re.compile(r'<section\b', re.IGNORECASE)
+HTML_TAG_SNIFF_PATTERN = re.compile(r'<[a-zA-Z][a-zA-Z0-9]*[^>]*>')
+
+MISSING_MARKUP_REASON = (
+    "captured site evidence (siteHTMLText) is stripped visible text with no HTML tags; the verification "
+    "pipeline (internal/cli/verify.go) discards the dumped DOM after extracting text and CSS metrics, so "
+    "React/shadcn/theme markup signatures cannot be inspected for this run"
+)
+
+
+def default_website_stack_checks(reason: str) -> dict:
+    return {
+        "isReact": None,
+        "usesShadcn": None,
+        "themeRealized": None,
+        "blockDiversity": None,
+        "evidenceAvailable": False,
+        "reason": reason,
+    }
+
+
+def compute_website_stack_checks(markupText: str) -> dict:
+    if not HTML_TAG_SNIFF_PATTERN.search(markupText):
+        return default_website_stack_checks(MISSING_MARKUP_REASON)
+    return {
+        "isReact": detect_react_markup(markupText),
+        "usesShadcn": detect_shadcn_markup(markupText),
+        "themeRealized": detect_theme_realized(markupText),
+        "blockDiversity": len(SEMANTIC_SECTION_TAG_PATTERN.findall(markupText)),
+        "evidenceAvailable": True,
+        "reason": None,
+    }
+
+
+def detect_react_markup(markupText: str) -> bool:
+    if REACT_RUNTIME_MARKER_PATTERN.search(markupText):
+        return True
+    return bool(REACT_MOUNT_POINT_PATTERN.search(markupText) and REACT_BUNDLED_SCRIPT_PATTERN.search(markupText))
+
+
+def detect_shadcn_markup(markupText: str) -> bool:
+    return bool(
+        SHADCN_DATA_SLOT_PATTERN.search(markupText)
+        or SHADCN_UTILITY_DENSITY_PATTERN.search(markupText)
+        or RADIX_DATA_ATTRIBUTE_PATTERN.search(markupText)
+    )
+
+
+def detect_theme_realized(markupText: str) -> bool | None:
+    declaredProperties = {name.lower(): value.strip().lower() for name, value in THEME_CUSTOM_PROPERTY_PATTERN.findall(markupText)}
+    if not declaredProperties:
+        return None
+    return any(
+        declaredProperties[propertyName] != defaultValue.lower()
+        for propertyName, defaultValue in DEFAULT_THEME_CUSTOM_PROPERTY_VALUES.items()
+        if propertyName in declaredProperties
+    )
 
 
 def audit_xlsx_format(artifactPath) -> dict:
