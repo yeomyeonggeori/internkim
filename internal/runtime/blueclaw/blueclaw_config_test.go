@@ -405,10 +405,13 @@ func TestBlueclawRuntimeConfigCanApplyModelOverrideToAllTiers(t *testing.T) {
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
-	for _, tierModelField := range []string{"model", "highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+	for _, tierModelField := range []string{"model", "highModel", "lowModel", "xlowModel", "codingModel"} {
 		if capabilityLanguageModel[tierModelField] != "google/test-model" {
 			t.Fatalf("expected %s to use test model, got %+v", tierModelField, capabilityLanguageModel)
 		}
+	}
+	if capabilityLanguageModel["mediumModel"] != BlueclawTestEscalationModelName {
+		t.Fatalf("expected mediumModel to stay on the escalation model so the low tier keeps a healthy fallback target, got %+v", capabilityLanguageModel)
 	}
 }
 
