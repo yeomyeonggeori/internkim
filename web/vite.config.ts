@@ -84,7 +84,8 @@ export default defineConfig(({ mode }) => {
 				'/calendar/oauth': admindProxy(admindTarget),
 				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
-				'/memory/api': admindProxy(admindTarget)
+				'/memory/api': admindProxy(admindTarget),
+				'/orgchart/api': admindProxy(admindTarget)
 			}
 		},
 		build: {
