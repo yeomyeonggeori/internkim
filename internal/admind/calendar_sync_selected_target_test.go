@@ -195,3 +195,16 @@ func TestRemoteCalendarEventBelongsToTargetNormalizesURLForms(t *testing.T) {
 		t.Fatal("absolute remote href should match path-only selected calendar URL")
 	}
 }
+
+func TestRemoteCalendarEventBelongsToTargetPreservesEscapedSelectedCalendar(t *testing.T) {
+	event := calendarEvent{
+		RemoteHref: "/caldav/v2/company%2Fschedule%23shared@example.com/events/event-1.ics",
+	}
+	target := remoteCalendarTarget{
+		CalendarURL:        "https://apidata.googleusercontent.com/caldav/v2/company%2Fschedule%23shared@example.com/events/",
+		IsSelectedCalendar: true,
+	}
+	if !remoteCalendarEventBelongsToTarget(event, target) {
+		t.Fatal("escaped path-only remote href should match escaped selected calendar URL")
+	}
+}
