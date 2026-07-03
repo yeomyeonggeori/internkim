@@ -1,11 +1,15 @@
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 type GoogleCalendarRouteEntry = {
 	calendarID: string;
 	summary: string;
 	accessRole: string;
+	timeZone?: string;
 	primary: boolean;
 	backgroundColor: string;
+	canWrite?: boolean;
+	canSelect?: boolean;
+	selectionDisabledReason?: string;
 };
 
 type GoogleCalendarRouteOptions = {
@@ -110,7 +114,7 @@ export async function routeConnectedGoogleCalendarAccount(page: Page): Promise<v
 
 export async function routeWritableGoogleCalendars(page: Page, options: GoogleCalendarRouteOptions): Promise<void> {
 	const accountEmail = options.accountEmail ?? 'calendar-admin@example.com';
-	const calendars = options.calendars ?? defaultWritableGoogleCalendars;
+	const calendars = (options.calendars ?? defaultWritableGoogleCalendars).map(normalizeGoogleCalendarRouteEntry);
 	await page.route('**/calendar/api/google-calendars**', async (route) => {
 		if (route.request().method() === 'GET') {
 			await route.fulfill({
@@ -133,4 +137,47 @@ export async function routeWritableGoogleCalendars(page: Page, options: GoogleCa
 			}
 		});
 	});
+}
+
+export async function openCalendarSettings(page: Page): Promise<void> {
+	const calendarFrame = page.frameLocator('iframe');
+	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
+	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
+	const settingsHeading = page.getByRole('heading', { name: '설정' });
+	await expect
+		.poll(async () => {
+			if ((await settingsHeading.count()) > 0) return true;
+			await settingsButton.click();
+			await page.waitForTimeout(100);
+			return (await settingsHeading.count()) > 0;
+		})
+		.toBe(true);
+	await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
+}
+
+export async function expectGoogleOAuthUploadLayoutToFit(page: Page): Promise<void> {
+	await expectElementNotToOverflow(page.locator('[data-slot="sheet-content"]'));
+	await expectElementNotToOverflow(page.getByRole('group', { name: 'Google OAuth client.json' }));
+}
+
+async function expectElementNotToOverflow(locator: Locator): Promise<void> {
+	await expect(locator).toBeVisible();
+	await expect
+		.poll(async () =>
+			locator.evaluate((element) => {
+				const htmlElement = element as HTMLElement;
+				return htmlElement.scrollWidth <= htmlElement.clientWidth;
+			})
+		)
+		.toBe(true);
+}
+
+function normalizeGoogleCalendarRouteEntry(calendar: GoogleCalendarRouteEntry): GoogleCalendarRouteEntry {
+	const canWrite = calendar.canWrite ?? (calendar.accessRole === 'writer' || calendar.accessRole === 'owner');
+	return {
+		...calendar,
+		timeZone: calendar.timeZone ?? 'Asia/Seoul',
+		canWrite,
+		canSelect: calendar.canSelect ?? canWrite
+	};
 }
