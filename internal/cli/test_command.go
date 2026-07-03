@@ -179,6 +179,7 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 				fmt.Println()
 			}
 		}
+		writeTestResultJSONBestEffort(target, configuration, output)
 		return fmt.Errorf("remote Mattermost test failed: %w", errorValue)
 	}
 	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
@@ -313,6 +314,21 @@ func openDownloadedTestFiles(downloadedFilePaths []string, shouldOpenFiles bool)
 		fmt.Println("opened: " + downloadedFilePath)
 	}
 	return nil
+}
+
+func writeTestResultJSONBestEffort(target verifyTarget, configuration testCommandConfiguration, output string) {
+	if strings.TrimSpace(configuration.ResultJSONPath) == "" {
+		return
+	}
+	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
+	if errorValue != nil {
+		return
+	}
+	downloadedFilePaths, _ := writeDownloadedMattermostFilesAllowEmpty(output, configuration.DownloadDirectoryPath)
+	taskDetail, taskDetailError := fetchTestTaskDetailJSON(target, verificationOutput.TaskRunID)
+	if errorValue := writeTestResultJSON(configuration.ResultJSONPath, verificationOutput, downloadedFilePaths, taskDetail, taskDetailError); errorValue != nil {
+		fmt.Println("warning: failed to write best-effort test result JSON: " + errorValue.Error())
+	}
 }
 
 func writeTestResultJSON(resultJSONPath string, verificationOutput mattermostVerificationOutput, downloadedFilePaths []string, taskDetail json.RawMessage, taskDetailError string) error {

@@ -585,10 +585,14 @@ type mattermostVerificationOutput struct {
 	TaskStatus                *string                    `json:"taskStatus"`
 	SitePublicURL             string                     `json:"sitePublicURL"`
 	SiteHTMLText              string                     `json:"siteHTMLText"`
+	SiteHTMLRaw               string                     `json:"siteHTMLRaw"`
+	SiteCSSRaw                string                     `json:"siteCSSRaw"`
 	SiteStyleMetrics          map[string]any             `json:"siteStyleMetrics"`
 	SiteScreenshotFiles       []string                   `json:"siteScreenshotFiles"`
 	IsSiteScreenshotsVerified bool                       `json:"siteScreenshotsVerified"`
 	IsAutoConfirmationSent    bool                       `json:"autoConfirmationSent"`
+	IsSuccessful              bool                       `json:"ok"`
+	FailureReason             string                     `json:"failureReason"`
 }
 
 func parseMattermostVerificationOutput(output string) (mattermostVerificationOutput, error) {
@@ -1584,6 +1588,14 @@ capture_site_screenshots() {
     --screenshot="$mobile_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-mobile.log 2>&1
   timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --window-size=1440,1000 \
     --dump-dom "$public_url" > "$site_dom_file" 2>/tmp/internkim-site-dom.log
+  python3 - "$site_dom_file" "$site_html_raw_file" <<'PY'
+from pathlib import Path
+import sys
+
+MAX_HTML_RAW_BYTES = 2_000_000
+raw_bytes = Path(sys.argv[1]).read_bytes()[:MAX_HTML_RAW_BYTES]
+Path(sys.argv[2]).write_text(raw_bytes.decode("utf-8", errors="replace"), encoding="utf-8")
+PY
   python3 - "$site_dom_file" > "$site_text_file" <<'PY'
 from html.parser import HTMLParser
 from pathlib import Path
@@ -1612,7 +1624,7 @@ parser = TextParser()
 parser.feed(Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace"))
 print(re.sub(r"\s+", " ", " ".join(parser.parts)).strip()[:50000])
 PY
-  if ! python3 - "$site_dom_file" "$public_url" > "$site_style_metrics_file" <<'PY'
+  if ! python3 - "$site_dom_file" "$public_url" "$site_css_raw_file" > "$site_style_metrics_file" <<'PY'
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin
@@ -1715,6 +1727,8 @@ parser = StyleParser()
 parser.feed(document)
 linked_css = [fetch_stylesheet(urljoin(public_url, href)) for href in parser.links[:8]]
 css = "\n".join(parser.styles + linked_css)
+MAX_CSS_RAW_BYTES = 512_000
+Path(sys.argv[3]).write_bytes(css.encode("utf-8", errors="replace")[:MAX_CSS_RAW_BYTES])
 font_families = sorted(set(re.findall(r"font-family\s*:\s*([^;}{]+)", css, re.IGNORECASE)))[:20]
 korean_font_pattern = re.compile(r"Apple SD Gothic|Malgun|Noto Sans KR|Pretendard|Paperlogy|Nanum|Spoqa", re.IGNORECASE)
 system_font_pattern = re.compile(r"system-ui|-apple-system|BlinkMacSystemFont|sans-serif", re.IGNORECASE)
@@ -1965,6 +1979,8 @@ site_screenshots_verified=false
 public_url=""
 site_dom_file="$(mktemp)"
 site_text_file="$(mktemp)"
+site_html_raw_file="$(mktemp)"
+site_css_raw_file="$(mktemp)"
 site_style_metrics_file="$(mktemp)"
 site_screenshots_file="$(mktemp)"
 printf '{}' > "$site_style_metrics_file"
@@ -2018,6 +2034,64 @@ fi
 fetch_latest_bot_post
 download_bot_files
 
+emit_site_verification_result() {
+  local is_ok="$1"
+  local failure_reason="${2:-}"
+  jq -cn \
+    --argjson ok "$is_ok" \
+    --arg failure_reason "$failure_reason" \
+    --arg channel_id "$channel_id" \
+    --arg user_post_id "$user_post_id" \
+    --arg bot_post_id "$bot_post_id" \
+    --arg task_run_id "$task_run_id" \
+    --arg site_public_url "$public_url" \
+    --arg desktop_screenshot_file "$desktop_screenshot_file" \
+    --arg mobile_screenshot_file "$mobile_screenshot_file" \
+    --argjson keep "$keep_artifacts" \
+    --argjson browser_open_verified "$browser_open_verified" \
+    --argjson site_screenshots_verified "$site_screenshots_verified" \
+    --argjson auto_confirmation_sent "$approval_sent" \
+    --rawfile site_html_text "$site_text_file" \
+    --rawfile site_html_raw "$site_html_raw_file" \
+    --rawfile site_css_raw "$site_css_raw_file" \
+    --slurpfile bot_post "$bot_post_file" \
+    --slurpfile downloaded_files "$downloaded_files_file" \
+    --slurpfile site_screenshots "$site_screenshots_file" \
+    --slurpfile site_style_metrics "$site_style_metrics_file" \
+    --slurpfile task_detail "$task_detail_file" \
+    '{
+      ok: $ok,
+      failureReason: $failure_reason,
+      kept: $keep,
+      channelID: $channel_id,
+      userPostID: $user_post_id,
+      botPostID: $bot_post_id,
+      taskRunID: $task_run_id,
+      browserOpenVerified: $browser_open_verified,
+      siteScreenshotsVerified: $site_screenshots_verified,
+      autoConfirmationSent: $auto_confirmation_sent,
+      sitePublicURL: $site_public_url,
+      siteHTMLText: $site_html_text,
+      siteHTMLRaw: $site_html_raw,
+      siteCSSRaw: $site_css_raw,
+      siteStyleMetrics: ($site_style_metrics[0] // {}),
+      siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
+      botMessage: $bot_post[0].message,
+      fileIDs: ($bot_post[0].file_ids // []),
+      downloadedFiles: ($downloaded_files[0] // []),
+      siteScreenshots: ($site_screenshots[0] // []),
+      taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
+      taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
+    }'
+}
+
+emit_site_verification_failure() {
+  local reason="$1"
+  echo "$reason" >&2
+  emit_site_verification_result false "$reason"
+  exit 1
+}
+
 if [ "$expect_public_url" = "true" ]; then
   public_url_verified=false
   public_html_file="$(mktemp)"
@@ -2030,8 +2104,7 @@ if [ "$expect_public_url" = "true" ]; then
       api_request "fetch final site reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
       bot_message="$(jq -r '.message // ""' "$bot_post_file")"
       if printf '%%s\n' "$bot_message" | grep -Eiq 'bun 없음|외부 호스팅|관리자 점검|Quality Gate 기준 미충족|품질 검사 기준.*완성하지 못'; then
-        echo "site deploy final reply contained a generic infrastructure excuse: $bot_message" >&2
-        exit 1
+        emit_site_verification_failure "site deploy final reply contained a generic infrastructure excuse: $bot_message"
       fi
       public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
       if [ -n "$public_url" ]; then
@@ -2049,71 +2122,28 @@ if [ "$expect_public_url" = "true" ]; then
     sleep 1
   done
   if [ -z "$public_url" ]; then
-    echo "expected final site public URL in Mattermost bot reply" >&2
     jq -r '.message // ""' "$bot_post_file" >&2 || true
-    exit 1
+    emit_site_verification_failure "expected final site public URL in Mattermost bot reply"
   fi
   if [ "$public_url_verified" != "true" ]; then
-    echo "site public URL did not return valid HTML: $public_url" >&2
-    exit 1
+    emit_site_verification_failure "site public URL did not return valid HTML: $public_url"
   fi
   if capture_site_screenshots "$public_url"; then
     site_screenshots_verified=true
     write_site_screenshots_json
   else
-    echo "site public URL could not be verified with browser screenshots: $public_url" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | .[-10:] | map({name, body})' "$task_detail_file" >&2 || true
-    exit 1
+    emit_site_verification_failure "site public URL could not be verified with browser screenshots: $public_url"
   fi
   if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
-    echo "site public URL returned not-found page: $public_url" >&2
-    exit 1
+    emit_site_verification_failure "site public URL returned not-found page: $public_url"
   fi
   if grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" || grep -Fq 'Replace this starter' "$public_html_file"; then
-    echo "site public URL returned starter scaffold instead of requested content: $public_url" >&2
-    exit 1
+    emit_site_verification_failure "site public URL returned starter scaffold instead of requested content: $public_url"
   fi
 fi
 
-jq -cn \
-  --arg channel_id "$channel_id" \
-  --arg user_post_id "$user_post_id" \
-  --arg bot_post_id "$bot_post_id" \
-  --arg task_run_id "$task_run_id" \
-  --arg site_public_url "$public_url" \
-  --arg desktop_screenshot_file "$desktop_screenshot_file" \
-  --arg mobile_screenshot_file "$mobile_screenshot_file" \
-  --argjson keep "$keep_artifacts" \
-  --argjson browser_open_verified "$browser_open_verified" \
-  --argjson site_screenshots_verified "$site_screenshots_verified" \
-  --argjson auto_confirmation_sent "$approval_sent" \
-  --rawfile site_html_text "$site_text_file" \
-  --slurpfile bot_post "$bot_post_file" \
-  --slurpfile downloaded_files "$downloaded_files_file" \
-  --slurpfile site_screenshots "$site_screenshots_file" \
-  --slurpfile site_style_metrics "$site_style_metrics_file" \
-  --slurpfile task_detail "$task_detail_file" \
-  '{
-    ok: true,
-    kept: $keep,
-    channelID: $channel_id,
-    userPostID: $user_post_id,
-    botPostID: $bot_post_id,
-    taskRunID: $task_run_id,
-    browserOpenVerified: $browser_open_verified,
-    siteScreenshotsVerified: $site_screenshots_verified,
-    autoConfirmationSent: $auto_confirmation_sent,
-    sitePublicURL: $site_public_url,
-    siteHTMLText: $site_html_text,
-    siteStyleMetrics: ($site_style_metrics[0] // {}),
-    siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
-    botMessage: $bot_post[0].message,
-    fileIDs: ($bot_post[0].file_ids // []),
-    downloadedFiles: ($downloaded_files[0] // []),
-    siteScreenshots: ($site_screenshots[0] // []),
-    taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
-    taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
-  }'
+emit_site_verification_result true ""
 `, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue, waitForCompletionValue, autoConfirmValue)
 }
 

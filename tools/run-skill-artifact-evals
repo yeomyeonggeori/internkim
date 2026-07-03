@@ -2740,6 +2740,8 @@ def audit_website_format(diagnosticDirectory: Path) -> dict:
             "stack": default_website_stack_checks("no test-result.json was captured for this case (generation likely failed before verification completed)"),
         }
     siteHTMLText = str(testResult.get("siteHTMLText", ""))
+    siteHTMLRaw = str(testResult.get("siteHTMLRaw", ""))
+    siteCSSRaw = str(testResult.get("siteCSSRaw", ""))
     siteScreenshots = testResult.get("siteScreenshots", [])
     siteStyleMetrics = testResult.get("siteStyleMetrics", {})
     return {
@@ -2750,7 +2752,7 @@ def audit_website_format(diagnosticDirectory: Path) -> dict:
         "siteScreenshotsVerified": bool(testResult.get("siteScreenshotsVerified")),
         "screenshotCount": len(siteScreenshots) if isinstance(siteScreenshots, list) else 0,
         "typography": siteStyleMetrics if isinstance(siteStyleMetrics, dict) else {},
-        "stack": compute_website_stack_checks(siteHTMLText),
+        "stack": compute_website_stack_checks(siteHTMLRaw, siteCSSRaw),
     }
 
 
@@ -2766,9 +2768,10 @@ SEMANTIC_SECTION_TAG_PATTERN = re.compile(r'<section\b', re.IGNORECASE)
 HTML_TAG_SNIFF_PATTERN = re.compile(r'<[a-zA-Z][a-zA-Z0-9]*[^>]*>')
 
 MISSING_MARKUP_REASON = (
-    "captured site evidence (siteHTMLText) is stripped visible text with no HTML tags; the verification "
-    "pipeline (internal/cli/verify.go) discards the dumped DOM after extracting text and CSS metrics, so "
-    "React/shadcn/theme markup signatures cannot be inspected for this run"
+    "no raw HTML markup (siteHTMLRaw) was captured for this run; either the test-result.json predates "
+    "the raw DOM/CSS evidence capture added to the verification pipeline (internal/cli/verify.go), or "
+    "site verification failed before the DOM could be dumped, so React/shadcn/theme markup signatures "
+    "cannot be inspected for this run"
 )
 
 
@@ -2783,13 +2786,13 @@ def default_website_stack_checks(reason: str) -> dict:
     }
 
 
-def compute_website_stack_checks(markupText: str) -> dict:
+def compute_website_stack_checks(markupText: str, cssText: str = "") -> dict:
     if not HTML_TAG_SNIFF_PATTERN.search(markupText):
         return default_website_stack_checks(MISSING_MARKUP_REASON)
     return {
         "isReact": detect_react_markup(markupText),
         "usesShadcn": detect_shadcn_markup(markupText),
-        "themeRealized": detect_theme_realized(markupText),
+        "themeRealized": detect_theme_realized(markupText + "\n" + cssText),
         "blockDiversity": len(SEMANTIC_SECTION_TAG_PATTERN.findall(markupText)),
         "evidenceAvailable": True,
         "reason": None,
