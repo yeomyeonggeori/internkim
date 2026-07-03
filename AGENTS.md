@@ -126,6 +126,17 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   change), (3) deploy the related components together so none lags, and (4)
   verify each deployed version matches the intended HEAD afterward. This avoids
   shipping a stale/rolled-back component.
+- Before that rebuild, confirm the working tree the build runs from is `main`
+  or already contains `origin/main` HEAD (`git merge-base --is-ancestor
+  origin/main HEAD`), including the `.dependency/blueclaw` submodule pointer
+  (`git -C .dependency/blueclaw merge-base --is-ancestor origin/main HEAD`).
+  An agent that merges work to `main` and then checks out back to its prior
+  feature branch before building will silently ship that stale branch's code
+  to every component — the deploy tool reports success because it uploaded and
+  applied *something*, not because it applied the intended commit. Verify the
+  actually-running binary's revision after deploy (e.g. grep a string unique to
+  the change in the deployed binary, or check the release ID's embedded git SHA
+  against `git rev-parse HEAD`) rather than trusting a green exit code alone.
 - Never split a contract change across components. When op names, the kernel
   verb, descriptors, or the approval/reply protocol change, deploy `capabilityd`
   and `blueclawPayload` (and `admind`) in the same release — a half-deploy
