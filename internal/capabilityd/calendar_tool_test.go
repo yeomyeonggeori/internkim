@@ -15,8 +15,11 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	var requesterEmail string
 	var payload map[string]any
 	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient" {
+				return calendarToolJSONResponse(`{"status":"not_found"}`), nil
+			}
 			if request.Method != http.MethodPost || request.URL.String() != "http://admind.local/calendar/api/events" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
@@ -33,6 +36,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":"샘플, 수민","reminderLeadHours":48}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
+			RequesterName:  "Staff",
 		},
 	})
 	if errorValue != nil {
@@ -51,8 +55,119 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 		t.Fatalf("eventID was not generated: %#v", payload)
 	}
 	people, _ := payload["people"].([]any)
-	if len(people) != 2 || people[0] != "샘플" || people[1] != "수민" || payload["reminderLeadHours"] != float64(48) {
+	if len(people) != 3 || people[0] != "Staff" || people[1] != "샘플" || people[2] != "수민" || payload["reminderLeadHours"] != float64(48) {
 		t.Fatalf("calendar metadata payload = %#v", payload)
+	}
+}
+
+func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
+	var payload map[string]any
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				var requestBody map[string]string
+				if errorValue := json.NewDecoder(request.Body).Decode(&requestBody); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				switch requestBody["hint"] {
+				case "staff@example.com":
+					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-staff","displayName":"김표본","emails":["staff@example.com"],"externalUserID":"user-staff","username":"pyobon"}}`), nil
+				case "테스트":
+					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-rain","displayName":"김테스트","emails":["rain@example.com"],"externalUserID":"user-rain","username":"rain"}}`), nil
+				default:
+					return calendarToolJSONResponse(`{"status":"not_found"}`), nil
+				}
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/calendar/api/events":
+				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				return calendarToolJSONResponse(`{"id":"event-1","title":"경산 일정"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.add",
+		Input:    []byte(`{"title":"경산 일정","startISO":"2026-05-08T05:00:00+09:00","endISO":"2026-05-08T06:00:00+09:00","people":["테스트"]}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:    "staff@example.com",
+			RequesterName:     "김표본",
+			RequesterPersonID: "person-staff",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "created" {
+		t.Fatalf("status = %q", response.Status)
+	}
+	people, _ := payload["people"].([]any)
+	participants, _ := payload["participants"].([]any)
+	if len(people) != 2 || people[0] != "김표본" || people[1] != "김테스트" {
+		t.Fatalf("people = %#v payload=%#v", people, payload)
+	}
+	if len(participants) != 2 {
+		t.Fatalf("participants = %#v payload=%#v", participants, payload)
+	}
+	firstParticipant, _ := participants[0].(map[string]any)
+	secondParticipant, _ := participants[1].(map[string]any)
+	if firstParticipant["personID"] != "person-staff" || secondParticipant["personID"] != "person-rain" {
+		t.Fatalf("participants = %#v", participants)
+	}
+}
+
+func TestCalendarToolShouldIncludeRequesterPolicy(t *testing.T) {
+	excludeRequester := false
+	includeRequester := true
+	testCases := []struct {
+		name                    string
+		input                   calendarEventWriteInput
+		includeRequesterDefault bool
+		expected                bool
+	}{
+		{
+			name:                    "calendar add default includes requester",
+			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}},
+			includeRequesterDefault: true,
+			expected:                true,
+		},
+		{
+			name:                    "calendar update default excludes requester",
+			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}},
+			includeRequesterDefault: false,
+			expected:                false,
+		},
+		{
+			name:                    "explicit false excludes requester",
+			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}, IncludeRequester: &excludeRequester},
+			includeRequesterDefault: true,
+			expected:                false,
+		},
+		{
+			name:                    "explicit true includes requester",
+			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}, IncludeRequester: &includeRequester},
+			includeRequesterDefault: false,
+			expected:                true,
+		},
+		{
+			name:                    "all hands excludes requester",
+			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"전체"}},
+			includeRequesterDefault: true,
+			expected:                false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			actual := calendarToolShouldIncludeRequester(testCase.input, testCase.includeRequesterDefault)
+			if actual != testCase.expected {
+				t.Fatalf("include requester = %v, want %v", actual, testCase.expected)
+			}
+		})
 	}
 }
 

@@ -701,7 +701,7 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 		t.Fatal("expected action schema")
 	}
 
-	calendarAddTool := toolSet.ToolByName["continue__calendar_event_add"]
+	calendarAddTool := toolSet.ToolByName[nativeActionFunctionName("continue", "calendar.add")]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected calendar parameters: %v", errorValue)

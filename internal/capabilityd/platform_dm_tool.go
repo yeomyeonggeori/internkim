@@ -37,6 +37,7 @@ type platformDMRecipient struct {
 	Emails             []string `json:"emails"`
 	MattermostUserID   string   `json:"mattermostUserID"`
 	MattermostUsername string   `json:"mattermostUsername"`
+	Mention            string   `json:"mention,omitempty"`
 }
 
 type platformDMResolvedRecipient struct {
@@ -125,6 +126,7 @@ func platformDMRecipientFromResolution(recipient *platformDMResolvedRecipient) p
 		Emails:             normalizedPlatformDMEmails(recipient.Emails),
 		MattermostUserID:   strings.TrimSpace(recipient.ExternalUserID),
 		MattermostUsername: strings.TrimSpace(recipient.Username),
+		Mention:            mattermostMentionForUsername(recipient.Username),
 	}
 }
 
@@ -176,6 +178,14 @@ func safePlatformDMError(errorValue error) string {
 		return ""
 	}
 	return strings.TrimSpace(errorValue.Error())
+}
+
+func mattermostMentionForUsername(username string) string {
+	trimmedUsername := strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	if trimmedUsername == "" {
+		return ""
+	}
+	return "@" + trimmedUsername
 }
 
 func normalizePlatformDMMatchValue(value string) string {

@@ -17,18 +17,21 @@ import (
 )
 
 type calendarEventWriteInput struct {
-	EventID           string                  `json:"eventID"`
-	Title             string                  `json:"title"`
-	Description       string                  `json:"description"`
-	Location          string                  `json:"location"`
-	StartISO          string                  `json:"startISO"`
-	EndISO            string                  `json:"endISO"`
-	TimeZone          string                  `json:"timeZone"`
-	IsAllDay          bool                    `json:"isAllDay"`
-	Color             string                  `json:"color"`
-	People            calendarToolPeopleInput `json:"people"`
-	ReminderLeadHours int                     `json:"reminderLeadHours"`
-	AllowDuplicate    bool                    `json:"allowDuplicate"`
+	EventID           string                    `json:"eventID"`
+	Title             string                    `json:"title"`
+	Description       string                    `json:"description"`
+	Location          string                    `json:"location"`
+	StartISO          string                    `json:"startISO"`
+	EndISO            string                    `json:"endISO"`
+	TimeZone          string                    `json:"timeZone"`
+	IsAllDay          bool                      `json:"isAllDay"`
+	Color             string                    `json:"color"`
+	People            calendarToolPeopleInput   `json:"people"`
+	Participants      []calendarToolParticipant `json:"participants"`
+	ReminderLeadHours int                       `json:"reminderLeadHours"`
+	AllowDuplicate    bool                      `json:"allowDuplicate"`
+	IncludeRequester  *bool                     `json:"includeRequester"`
+	GeneratedEventID  bool                      `json:"-"`
 }
 
 type calendarEventListInput struct {
@@ -49,6 +52,12 @@ type calendarEventTarget struct {
 }
 
 type calendarToolPeopleInput []string
+
+type calendarToolParticipant struct {
+	PersonID string `json:"personID,omitempty"`
+	Name     string `json:"name"`
+	Email    string `json:"email,omitempty"`
+}
 
 type calendarEventsForTool struct {
 	Events []calendarEventForTool `json:"events"`
@@ -84,6 +93,10 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	input, errorValue := decodeCalendarEventWriteInput(request.Input, false)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	input, failure, hasFailure := service.prepareCalendarEventWriteInput(ctx, input, request.Context, true)
+	if hasFailure {
+		return calendarToolPersonResolveErrorResponse(request.ToolName, failure), nil
 	}
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPost, "/calendar/api/events", calendarEventWritePayload(input), request.Context.RequesterEmail)
 	if errorValue != nil {
@@ -123,6 +136,10 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	input, errorValue := decodeCalendarEventWriteInput(resolvedInput, true)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	input, personFailure, hasFailure := service.prepareCalendarEventWriteInput(ctx, input, request.Context, false)
+	if hasFailure {
+		return calendarToolPersonResolveErrorResponse(request.ToolName, personFailure), nil
 	}
 	path := "/calendar/api/events/" + url.PathEscape(input.EventID)
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPut, path, calendarEventWritePayload(input), request.Context.RequesterEmail)
@@ -228,6 +245,7 @@ func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) 
 	input.TimeZone = strings.TrimSpace(input.TimeZone)
 	input.Color = strings.TrimSpace(input.Color)
 	input.People = normalizeCalendarToolPeople([]string(input.People))
+	input.Participants = normalizeCalendarToolParticipants(input.Participants)
 	input.ReminderLeadHours = normalizeCalendarToolReminderLeadHours(input.ReminderLeadHours)
 	if needsEventID && input.EventID == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("eventID is required")
@@ -240,6 +258,7 @@ func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) 
 	}
 	if input.EventID == "" {
 		input.EventID = stableCalendarToolEventID(input)
+		input.GeneratedEventID = true
 	}
 	return input, nil
 }
@@ -279,6 +298,38 @@ func normalizeCalendarToolPeople(values []string) []string {
 		people = append(people, trimmedValue)
 	}
 	return people
+}
+
+func normalizeCalendarToolParticipants(values []calendarToolParticipant) []calendarToolParticipant {
+	participants := []calendarToolParticipant{}
+	seenParticipants := map[string]bool{}
+	for _, value := range values {
+		participant := calendarToolParticipant{
+			PersonID: strings.TrimSpace(value.PersonID),
+			Name:     strings.TrimSpace(value.Name),
+			Email:    strings.ToLower(strings.TrimSpace(value.Email)),
+		}
+		key := calendarToolParticipantKey(participant)
+		if key == "" || seenParticipants[key] {
+			continue
+		}
+		seenParticipants[key] = true
+		participants = append(participants, participant)
+	}
+	return participants
+}
+
+func calendarToolParticipantKey(participant calendarToolParticipant) string {
+	if strings.TrimSpace(participant.PersonID) != "" {
+		return "personID:" + strings.ToLower(strings.TrimSpace(participant.PersonID))
+	}
+	if strings.TrimSpace(participant.Email) != "" {
+		return "email:" + strings.ToLower(strings.TrimSpace(participant.Email))
+	}
+	if strings.TrimSpace(participant.Name) != "" {
+		return "name:" + strings.ToLower(strings.TrimSpace(participant.Name))
+	}
+	return ""
 }
 
 func normalizeCalendarToolReminderLeadHours(value int) int {
@@ -326,7 +377,7 @@ func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDele
 }
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"eventID":           input.EventID,
 		"title":             input.Title,
 		"description":       input.Description,
@@ -340,6 +391,10 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		"reminderLeadHours": input.ReminderLeadHours,
 		"allowDuplicate":    input.AllowDuplicate,
 	}
+	if len(input.Participants) > 0 {
+		payload["participants"] = input.Participants
+	}
+	return payload
 }
 
 func stableCalendarToolEventID(input calendarEventWriteInput) string {

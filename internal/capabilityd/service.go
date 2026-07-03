@@ -664,6 +664,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	message = service.normalizeMattermostReplyMentions(ctx, message)
 	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
 	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
 		if len(request.Attachments) > 0 {
