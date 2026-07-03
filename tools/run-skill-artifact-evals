@@ -332,12 +332,13 @@ def score_criterion(evaluation: dict, criterion: dict, requiredCoverage: float, 
     if criterionID == "formatReliability":
         score = maxScore * format_reliability_ratio(evaluation, formatChecks, renderChecks)
         return judged_criterion(criterionID, maxScore, score, format_evidence(formatChecks, renderChecks))
-    if criterionID == "sourceGroundedUsefulness":
+    if criterionID == "communicationImpact":
         score = maxScore * source_grounded_usefulness_ratio(evaluation, formatChecks, requiredCoverage, forbiddenPresent)
         return judged_criterion(criterionID, maxScore, score, usefulness_evidence(requiredCoverage, formatChecks))
-    if criterionID == "visualUsability":
-        score = maxScore * visual_usability_ratio(evaluation, formatChecks, renderChecks)
-        return judged_criterion(criterionID, maxScore, score, visual_evidence(formatChecks, renderChecks))
+    if criterionID == "craftAndDesign":
+        heuristicCraftCap = 0.6
+        score = maxScore * min(heuristicCraftCap, visual_usability_ratio(evaluation, formatChecks, renderChecks))
+        return judged_criterion(criterionID, maxScore, score, craft_and_design_evidence(formatChecks, renderChecks))
     raise SystemExit(f"unknown scoring criterion ID: {criterionID}")
 
 
@@ -495,7 +496,7 @@ def ratio(numerator: int | float, denominator: int | float) -> float:
     except (TypeError, ValueError):
         return 0.0
     if denominatorValue <= 0:
-        return 1.0
+        return 0.0
     return max(0.0, min(1.0, numeratorValue / denominatorValue))
 
 
@@ -542,8 +543,8 @@ def usefulness_evidence(requiredCoverage: float, formatChecks: dict) -> str:
     return f"Usefulness scored from source coverage {requiredCoverage:.0%} and structure checks {json.dumps(formatChecks, ensure_ascii=False, sort_keys=True)}."
 
 
-def visual_evidence(formatChecks: dict, renderChecks: dict) -> str:
-    return "Visual usability scored from render output and layout affordances: " + json.dumps({"format": formatChecks, "render": renderChecks}, ensure_ascii=False, sort_keys=True)
+def craft_and_design_evidence(formatChecks: dict, renderChecks: dict) -> str:
+    return "Heuristic craftAndDesign is capped at 60% of maxScore (design excellence above template-default requires an LLM judge). Render output and layout affordances: " + json.dumps({"format": formatChecks, "render": renderChecks}, ensure_ascii=False, sort_keys=True)
 
 
 def heuristic_notes(artifactExists: bool, requiredMissing: list[str], forbiddenPresent: list[str], formatChecks: dict, renderChecks: dict) -> str:

@@ -1,45 +1,49 @@
 {
-  "version": 6,
+  "version": 7,
   "scorecardInstructions": [
     "KimIntern is the artifact generator, not the evaluator.",
     "Judge the generated artifact separately from the generation path.",
     "Source fidelity is the primary quality dimension.",
-    "If the artifact adds a non-source company, person, customer, date, metric, price, menu item, feature, warranty, address, phone number, or external claim as fact, score sourceFidelity at 20 or below.",
-    "If the artifact fabricates or changes a total, KPI, price, date, or required option, score sourceFidelity at 15 or below.",
-    "If the artifact contains multiple unsupported factual additions, the scenario total score must not exceed 60 even when the artifact looks polished.",
+    "If the artifact adds a non-source company, person, customer, date, metric, price, menu item, feature, warranty, address, phone number, or external claim as fact, score sourceFidelity 14 or below.",
+    "If the artifact fabricates or changes a total, KPI, price, date, or required option, score sourceFidelity 10 or below.",
+    "If the artifact contains multiple unsupported factual additions, the scenario total score must not exceed 50 even when the artifact looks polished.",
     "If the requested artifact is not produced or cannot be opened, score formatReliability as 0.",
-    "For DOCX, PDF, and websites, include font family suitability, Korean/English readability, margin scale, line spacing, font-size hierarchy, visual balance, clipping, and first-viewport density in visualUsability."
+    "A competent, professional, but unremarkable artifact must land at 70-80 total, not 95+. Full range must be used.",
+    "craftAndDesign anchors: 0-9 broken or unstyled defaults; 10-15 template-default competence (the typical score for clean but generic output); 16-22 deliberate design with evident typographic scale, spacing rhythm, and visual hierarchy; 23-27 distinctive, cohesive, professionally art-directed; 28-30 indistinguishable from a demanding professional designer's work — when in doubt, do not award.",
+    "communicationImpact anchors: 0-7 mechanical restatement; 8-13 organized but generic; 14-17 genuine decision support with prioritization and purposeful emphasis; 18-20 reserved for artifacts that would impress the stated audience.",
+    "Per medium, craftAndDesign must inspect: DOCX — style hierarchy, table design, page rhythm, heading scale; PDF — page architecture, typography, whitespace; XLSX — live formulas kept correct, number formats, column widths, readable emphasis; website — realized design system (theme fidelity), block diversity, responsive behavior, first-viewport composition; slides — deck archetype, per-slide visual hierarchy, text fit.",
+    "For every criterion, cite the weakest concrete aspect you found and justify remaining points despite it. A criterion score above 90% of max requires naming specific evidence of excellence, not absence of problems."
   ],
   "scoringCriteria": [
     {
       "id": "sourceFidelity",
       "label": "Source Fidelity",
-      "maxScore": 35,
+      "maxScore": 25,
       "description": "The artifact uses only the supplied source data, preserves names, dates, numbers, totals, and constraints, and clearly marks missing information instead of inventing it."
     },
     {
       "id": "instructionFit",
       "label": "Instruction Fit",
-      "maxScore": 20,
+      "maxScore": 15,
       "description": "The artifact follows the fixed user request, includes required sections and workflows, and avoids unrelated output."
     },
     {
       "id": "formatReliability",
       "label": "Format Reliability",
-      "maxScore": 15,
+      "maxScore": 10,
       "description": "The file or published site opens cleanly, uses the requested format, and avoids broken rendering, missing assets, stale builds, or attachment mistakes."
     },
     {
-      "id": "sourceGroundedUsefulness",
-      "label": "Source Grounded Usefulness",
-      "maxScore": 15,
-      "description": "The artifact synthesizes the supplied data into useful decisions, summaries, labels, or flows without adding unsupported facts."
+      "id": "craftAndDesign",
+      "label": "Craft And Design",
+      "maxScore": 30,
+      "description": "Deliberate visual and structural design: typographic hierarchy and scale, spacing rhythm, alignment and grid discipline, purposeful emphasis, information design of tables/charts/slides/pages, and per-medium craft. Judged against what a demanding professional designer would ship, not against 'clean defaults'."
     },
     {
-      "id": "visualUsability",
-      "label": "Visual And Usability Quality",
-      "maxScore": 15,
-      "description": "The artifact is readable, polished, navigable, responsive where relevant, uses suitable fonts, margins, Korean/English line spacing, font sizes, and visual balance, and avoids contrast, clipping, overflow, table, spacing, or interaction issues."
+      "id": "communicationImpact",
+      "label": "Communication Impact",
+      "maxScore": 20,
+      "description": "The artifact serves the audience's actual decision: prioritization, synthesis, structure, labeling, and flow that make the content genuinely useful — beyond mechanically restating the source."
     }
   ],
   "evaluations": [
