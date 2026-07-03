@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const flowTaskBoardRankStep = 1024
@@ -52,7 +53,7 @@ func (service *Service) writeFlowTaskBoardMove(ctx context.Context, request flow
 		_ = transaction.Rollback()
 		return flowTask{}, errFlowTaskBoardMoveForbidden
 	}
-	move, errorValue := createFlowTaskBoardMove(tasks, request)
+	move, errorValue := createFlowTaskBoardMove(tasks, request, flowDateNow())
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -123,7 +124,7 @@ FROM flow_tasks`)
 	return tasks, rows.Err()
 }
 
-func createFlowTaskBoardMove(tasks []flowTask, request flowTaskBoardMoveRequest) (flowTaskBoardMove, error) {
+func createFlowTaskBoardMove(tasks []flowTask, request flowTaskBoardMoveRequest, now time.Time) (flowTaskBoardMove, error) {
 	movedTask, found := flowTaskByID(tasks, request.TaskID)
 	if !found {
 		return flowTaskBoardMove{}, errFlowTaskBoardMoveTaskNotFound
@@ -134,8 +135,7 @@ func createFlowTaskBoardMove(tasks []flowTask, request flowTaskBoardMoveRequest)
 	if errorValue != nil {
 		return flowTaskBoardMove{}, errorValue
 	}
-	movedTargetTask := movedTask
-	movedTargetTask.Status = request.TargetStatus
+	movedTargetTask := flowTaskWithBoardMoveStatus(movedTask, request.TargetStatus, now)
 	reorderedTasks := make([]flowTask, 0, len(targetTasks)+1)
 	reorderedTasks = append(reorderedTasks, targetTasks[:insertIndex]...)
 	reorderedTasks = append(reorderedTasks, movedTargetTask)
@@ -159,6 +159,15 @@ func createFlowTaskBoardMove(tasks []flowTask, request flowTaskBoardMoveRequest)
 		movedTask: flowTaskByIDOrFallback(rankedTasks, movedTargetTask),
 		updates:   updates,
 	}, nil
+}
+
+func flowTaskWithBoardMoveStatus(task flowTask, targetStatus string, now time.Time) flowTask {
+	task.Status = targetStatus
+	dates := normalizeFlowStatusDates(task.StartDate, task.EndDate, task.WeekCode, targetStatus, now)
+	task.StartDate = dates.StartDate
+	task.EndDate = dates.EndDate
+	task.WeekCode = dates.WeekCode
+	return task
 }
 
 func isFlowTaskBoardMoveStatus(status string) bool {

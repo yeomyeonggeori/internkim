@@ -182,6 +182,34 @@ func TestFlowAPIAssignsMovedTaskToEndOfTargetStatusColumn(t *testing.T) {
 	}
 }
 
+func TestFlowAPIBoardMoveToCompletedSetsEndDate(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	staffID := stableFlowID("staff@example.com")
+	task := createFlowTaskForTest(t, handler, "staff@example.com", newFlowTaskPayload("staff@example.com", "완료로 이동할 업무", "진행", 0, []string{staffID}))
+	if task.EndDate != "" {
+		t.Fatalf("initial end date = %q, want empty", task.EndDate)
+	}
+
+	response := moveFlowTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "완료", nil)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
+	}
+	reloadedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	now := flowDateNow()
+	expectedEndDate := now.Format("2006-01-02")
+	if reloadedTask.Status != "완료" {
+		t.Fatalf("status = %q, want 완료", reloadedTask.Status)
+	}
+	if reloadedTask.EndDate != expectedEndDate {
+		t.Fatalf("end date = %q, want %q", reloadedTask.EndDate, expectedEndDate)
+	}
+	if reloadedTask.WeekCode != weekCodeForFlowDate(expectedEndDate, now) {
+		t.Fatalf("week code = %q, want %q", reloadedTask.WeekCode, weekCodeForFlowDate(expectedEndDate, now))
+	}
+}
+
 func TestFlowAPIPersistsStatusRankForSameStatusUpdate(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	handler := service.router()
