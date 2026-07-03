@@ -75,7 +75,7 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the runtime temporal context before invoking an operation.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
-- Put targeted people in `people` as comma-separated nicknames or an array. The calendar stores them as the first note line.
+- Put targeted people in `people` as comma-separated nicknames or an array. The calendar stores them as the first note line and the channel post already shows them as an attendee line — do not also restate the attendee names inside `description`.
 - If the event is for everyone, omit `people`; the backend will notify the `announcements` channel.
 - Choose `reminderLeadHours` from `1, 2, 3, 6, 12, 24, 48`.
 - Use `48` for overseas travel, long trips, or events needing two-day preparation.

@@ -136,7 +136,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if reloadedEvent.MattermostPostID != "calendar-post-1" {
 		t.Fatalf("post id = %q", reloadedEvent.MattermostPostID)
 	}
-	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") || !strings.Contains(requests.createdMessages[0], "참석자: @iam\n| 일시") || strings.Contains(requests.createdMessages[0], "대상:") || strings.Contains(requests.createdMessages[0], "일정 열기") {
+	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") || !strings.Contains(requests.createdMessages[0], "참석자: @iam\n\n| 일시") || strings.Contains(requests.createdMessages[0], "대상:") || strings.Contains(requests.createdMessages[0], "일정 열기") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 	if len(requests.createTokens) != 1 || requests.createTokens[0] != "Bearer bot-token" {
@@ -171,7 +171,7 @@ func TestCalendarMattermostLogOmitsMentionWhenPeopleAreEmpty(t *testing.T) {
 func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 	service := newCalendarTestService(t)
 	message := service.calendarMattermostLogMessage(calendarTestEvent("staff-sync", "Staff sync", "staff, product-team\nBring agenda"))
-	if !strings.Contains(message, "참석자: @staff @product-team\n| 일시") {
+	if !strings.Contains(message, "참석자: @staff @product-team\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}
 	if strings.Contains(message, "대상:") {
@@ -183,7 +183,7 @@ func TestCalendarMattermostLogMentionsKoreanPeople(t *testing.T) {
 	service := newCalendarTestService(t)
 	mattermostUsers := []mattermostUserRecord{{ID: "user-iam", Username: "iam", Nickname: "김표본", Email: "iam@example.com"}}
 	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김표본\nBring agenda"), mattermostUsers)
-	if !strings.Contains(message, "참석자: @iam\n| 일시") {
+	if !strings.Contains(message, "참석자: @iam\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}
 	if strings.Contains(message, "대상:") {
