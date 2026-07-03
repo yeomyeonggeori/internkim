@@ -12,17 +12,21 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleCalendarSelectedCalendarTemplate).toBe('Using calendar: {calendar}');
 		expect(calendarText.en.googleCalendarSelectionRequired).toBe('Calendar selection required');
 		expect(calendarText.en.googleCalendarWritePermissionRequired).toBe('Write permission required');
+		expect(calendarText.en.googleCalendarInaccessible).toBe('Calendar access unavailable');
 		expect(calendarText.en.googleCalendarInitialSyncPending).toBe('Initial sync pending');
 		expect(calendarText.en.googleCalendarSyncReady).toBe('Ready to sync');
 		expect(calendarText.en.googleCalendarConnectAction).toBe('Connect');
 		expect(calendarText.en.googleCalendarReconnectAction).toBe('Reconnect');
+		expect(calendarText.en.googleCalendarSwitchAccountAction).toBe('Change account');
 		expect(calendarText.en.googleCalendarReconnectHint).toBe('Reconnect the account to resume Google Calendar sync.');
 		expect(calendarText.en.googleCalendarReadyHint).toBe('Connect Google Calendar.');
 		expect(calendarText.en.googleCalendarUnavailableHint).toBe('Google Calendar sync is not ready yet.');
 		expect(calendarText.en.googleCalendarConnectionComplete).toBe('Google Calendar is connected.');
 		expect(calendarText.en.googleCalendarConnectionFailed).toBe('Google Calendar connection failed.');
 		expect(calendarText.en.googleCalendarSelectLabel).toBe('Calendar to use');
-		expect(calendarText.en.googleCalendarListEmpty).toBe('No writable calendars are available.');
+		expect(calendarText.en.googleCalendarListEmpty).toBe('No Google calendars are available.');
+		expect(calendarText.en.googleCalendarSelectionDisabledWritePermission).toBe('Write permission required');
+		expect(calendarText.en.googleCalendarSelectionDisabledUnsupported).toBe('Cannot sync this calendar');
 		expect(calendarText.en.googleCalendarSelectionSaveAction).toBe('Save calendar');
 		expect(calendarText.en.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.en.googleOAuthClientUploadHint).toBe('Drop client.json here or choose the file.');
@@ -30,6 +34,7 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleOAuthClientChooseFile).toBe('Choose file');
 		expect(calendarText.en.googleOAuthClientReplaceTitle).toBe('Replace client.json');
 		expect(calendarText.en.googleOAuthClientReplaceHint.includes('wrong project or redirect URI')).toBe(true);
+		expect(calendarText.en.googleOAuthClientReplaceHint.includes('disconnects the current Google account')).toBe(true);
 		expect(calendarText.en.googleOAuthClientGuide.title).toBe('How to create client.json');
 		expect(calendarText.en.googleOAuthClientGuide.checks.includes(
 			'Confirm the Google Cloud profile in the top right is the company admin account.'
@@ -63,17 +68,21 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleCalendarSelectedCalendarTemplate).toBe('사용 중인 캘린더: {calendar}');
 		expect(calendarText.ko.googleCalendarSelectionRequired).toBe('캘린더 선택 필요');
 		expect(calendarText.ko.googleCalendarWritePermissionRequired).toBe('쓰기 권한 필요');
+		expect(calendarText.ko.googleCalendarInaccessible).toBe('캘린더 접근 불가');
 		expect(calendarText.ko.googleCalendarInitialSyncPending).toBe('초기 동기화 중');
 		expect(calendarText.ko.googleCalendarSyncReady).toBe('동기화 가능');
 		expect(calendarText.ko.googleCalendarConnectAction).toBe('연결');
 		expect(calendarText.ko.googleCalendarReconnectAction).toBe('다시 연결');
+		expect(calendarText.ko.googleCalendarSwitchAccountAction).toBe('계정 변경');
 		expect(calendarText.ko.googleCalendarReconnectHint).toBe('Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.');
 		expect(calendarText.ko.googleCalendarReadyHint).toBe('Google 캘린더를 연결하세요.');
 		expect(calendarText.ko.googleCalendarUnavailableHint).toBe('Google 캘린더 연동은 아직 준비되지 않았습니다.');
 		expect(calendarText.ko.googleCalendarConnectionComplete).toBe('Google 캘린더가 연결됐습니다.');
 		expect(calendarText.ko.googleCalendarConnectionFailed).toBe('Google 캘린더 연결에 실패했습니다.');
 		expect(calendarText.ko.googleCalendarSelectLabel).toBe('사용할 캘린더');
-		expect(calendarText.ko.googleCalendarListEmpty).toBe('쓰기 권한이 있는 캘린더가 없습니다.');
+		expect(calendarText.ko.googleCalendarListEmpty).toBe('Google 캘린더가 없습니다.');
+		expect(calendarText.ko.googleCalendarSelectionDisabledWritePermission).toBe('쓰기 권한 필요');
+		expect(calendarText.ko.googleCalendarSelectionDisabledUnsupported).toBe('동기화할 수 없는 캘린더');
 		expect(calendarText.ko.googleCalendarSelectionSaveAction).toBe('캘린더 저장');
 		expect(calendarText.ko.googleOAuthClientUploadTitle).toBe('Google OAuth client.json');
 		expect(calendarText.ko.googleOAuthClientUploadHint).toBe('여기에 client.json을 드롭하거나 파일을 선택하세요.');
@@ -81,6 +90,7 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleOAuthClientChooseFile).toBe('파일 선택');
 		expect(calendarText.ko.googleOAuthClientReplaceTitle).toBe('client.json 교체');
 		expect(calendarText.ko.googleOAuthClientReplaceHint.includes('잘못된 프로젝트나 리디렉션 URI')).toBe(true);
+		expect(calendarText.ko.googleOAuthClientReplaceHint.includes('현재 Google 계정 연결이 해제')).toBe(true);
 		expect(calendarText.ko.googleOAuthClientGuide.title).toBe('client.json 만드는 방법');
 		expect(calendarText.ko.googleOAuthClientGuide.checks.includes(
 			'Google Cloud 오른쪽 위 프로필이 회사 관리자 계정인지 확인하세요.'
