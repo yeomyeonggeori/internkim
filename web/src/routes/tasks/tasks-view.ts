@@ -78,13 +78,13 @@ export function taskStatusLabel(status: string, text: TasksText): string {
 export function eventLaneClass(lane: EventLane): string {
 	switch (lane) {
 		case 'llm':
-			return 'border-l-info';
+			return 'border-info/40 bg-info/5';
 		case 'tool':
-			return 'border-l-success';
+			return 'border-success/40 bg-success/5';
 		case 'failure':
-			return 'border-l-destructive';
+			return 'border-destructive/40 bg-destructive/5';
 		default:
-			return 'border-l-muted-foreground';
+			return 'border-border bg-muted/20';
 	}
 }
 
