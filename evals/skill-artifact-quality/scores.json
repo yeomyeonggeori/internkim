@@ -1071,7 +1071,7 @@
       "runID": "20260703T150000Z",
       "startedAt": "2026-07-03T12:14:13Z",
       "completedAt": "2026-07-03T14:55:00Z",
-      "recordedAt": "2026-07-03T14:40:14Z",
+      "recordedAt": "2026-07-03T15:49:29Z",
       "gitRevision": "8cdebbe2",
       "runDirectory": ".artifacts/skill-artifact-evals/20260703T150000Z",
       "generationOptions": {
@@ -1085,7 +1085,7 @@
       },
       "judge": {
         "mode": "openrouter",
-        "judgedAt": "2026-07-03T14:38:26Z",
+        "judgedAt": "2026-07-03T15:47:11Z",
         "isSeparateFromGeneration": true,
         "provider": "openrouter",
         "model": "google/gemini-3.5-flash"
@@ -1095,91 +1095,91 @@
           "evaluationID": "docx-business-review",
           "skillName": "docx",
           "artifactKind": "docx",
-          "totalScore": 99,
+          "totalScore": 91,
           "maxScore": 100,
           "criteria": [
             {
               "criterionID": "sourceFidelity",
               "label": "Source Fidelity",
-              "maxScore": 35,
-              "score": 35,
-              "evidence": "The artifact perfectly adheres to the source data. It correctly uses '제공된 자료 없음' for the missing target values of support tickets opened and resolved, and accurately translates all metrics, monthly trends, risks, and next 30-day actions without inventing any unauthorized information."
+              "maxScore": 25,
+              "score": 25,
+              "evidence": "The document perfectly adheres to the provided source data. No external names, metrics, or details were invented, and the Korean translation is accurate to the source."
             },
             {
               "criterionID": "instructionFit",
               "label": "Instruction Fit",
-              "maxScore": 20,
-              "score": 19,
-              "evidence": "The artifact includes all required sections (title, short summary, core metrics table, risks and responses, next 30-day actions) and is well under the 4-page limit. It targets the correct audience. A minor deduction is made because it used '2026 Q2' instead of the exact Korean phrase '2026년 2분기' requested in the prompt instruction."
+              "maxScore": 15,
+              "score": 15,
+              "evidence": "The artifact is a Word document (.docx) under 4 pages (2 pages total) and includes all required sections: title, short summary, core metrics table, risks and responses, and next 30-day actions. It is tailored to the specified audience."
             },
             {
               "criterionID": "formatReliability",
               "label": "Format Reliability",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The artifact is a fully valid .docx file with 4 well-structured tables, appropriate paragraph and heading counts, and no empty cells."
+              "maxScore": 10,
+              "score": 10,
+              "evidence": "The file is a valid .docx file with proper XML structure as confirmed by the audit metadata."
             },
             {
-              "criterionID": "sourceGroundedUsefulness",
-              "label": "Source Grounded Usefulness",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The document is highly useful for the 12-person operations leadership team, clearly presenting the Q2 performance and actionable next steps grounded strictly in the source data."
+              "criterionID": "craftAndDesign",
+              "label": "Craft And Design",
+              "maxScore": 30,
+              "score": 22,
+              "evidence": "Visual observations:\n1. Typography & Hierarchy: The document uses a clean sans-serif font with a clear hierarchy. Headings are styled in a distinct blue color and larger font size, making the document easy to navigate.\n2. Header Design: A professional header with a thin blue horizontal rule is present at the top of the first page, establishing a strong brand identity.\n3. Table Layout & Page Break Defect: The tables have a clean design with light blue headers and borders. However, there is a significant layout defect: the '리스크와 대응' (Risks and Responses) table is split across pages 1 and 2. The last row is broken awkwardly, with '못함' appearing on page 2 in the first column, and '20개 티켓 태그 검토' in the third column, creating a disjointed and unprofessional reading experience."
             },
             {
-              "criterionID": "visualUsability",
-              "label": "Visual And Usability Quality",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The document has excellent visual and typographical quality, with a high typography score (0.93), professional margins (0.8 in), and a balanced layout."
+              "criterionID": "communicationImpact",
+              "label": "Communication Impact",
+              "maxScore": 20,
+              "score": 19,
+              "evidence": "The document is highly readable, well-structured, and directly addresses the target audience in Korean. The summary and tables are clear and actionable, though the table split slightly reduces readability."
             }
           ],
-          "notes": "The generated document is of outstanding quality. It strictly follows the source data constraints and presents the information in a highly professional, well-formatted Word document. The only minor issue is the use of '2026 Q2' instead of '2026년 2분기' in the title/text, which is semantically identical but missed the exact phrasing from the prompt."
+          "notes": "The document is of high quality and strictly follows the source data and instructions. The only notable issue is the awkward page break splitting a table row across pages 1 and 2, which slightly detracts from the professional presentation."
         },
         {
           "evaluationID": "pdf-korean-proposal",
           "skillName": "pdf",
           "artifactKind": "pdf",
-          "totalScore": 99,
+          "totalScore": 89,
           "maxScore": 100,
           "criteria": [
             {
               "criterionID": "sourceFidelity",
               "label": "Source Fidelity",
-              "maxScore": 35,
-              "score": 35,
-              "evidence": "The artifact strictly adheres to the source data. All names, dates, scope items, and schedule details are accurately translated and presented. The quote items and the total sum (3,220,000 KRW) are perfectly accurate. No forbidden elements (warranties, contractor names, phone numbers, etc.) were invented."
+              "maxScore": 25,
+              "score": 25,
+              "evidence": "All source data is accurately represented without any unsupported inventions. The quote items and the total sum of 3,220,000 KRW are perfectly correct. The automated 'requiredMissing' flag is a false positive caused by the correct addition of thousands separators (commas) to the numbers (e.g., '3,220,000' instead of '3220000')."
             },
             {
               "criterionID": "instructionFit",
               "label": "Instruction Fit",
-              "maxScore": 20,
-              "score": 20,
-              "evidence": "The proposal is written in Korean, fits within 2 pages, and includes all required sections: proposal overview (제안 개요), schedule (일정), quote table (견적 표), inclusions/exclusions (포함/제외 사항), and next steps (다음 단계). Page numbers are clearly visible at the bottom of each page."
+              "maxScore": 15,
+              "score": 15,
+              "evidence": "The proposal is written in Korean, fits within the 2-page limit, contains all requested sections (제안 개요, 일정, 견적 표, 포함/제외 사항, 다음 단계), includes the correct quote items and sum, and displays page numbers at the bottom of each page."
             },
             {
               "criterionID": "formatReliability",
               "label": "Format Reliability",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The artifact is a valid PDF with a proper text layer, exactly 2 pages, and no markdown formatting leaks."
+              "maxScore": 10,
+              "score": 10,
+              "evidence": "The generated artifact is a valid 2-page PDF with a fully functional text layer."
             },
             {
-              "criterionID": "sourceGroundedUsefulness",
-              "label": "Source Grounded Usefulness",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The translation of the technical terms (e.g., LED channel-letter sign to LED 채널레터 간판) is highly professional and natural. The document is structured perfectly as a business proposal."
+              "criterionID": "craftAndDesign",
+              "label": "Craft And Design",
+              "maxScore": 30,
+              "score": 21,
+              "evidence": "Visual Observations:\n1. Typography & Hierarchy: The document uses a clean, modern sans-serif font with clear size and weight distinctions between headings and body text.\n2. Table/Grid Integrity: The tables for '일정' and '견적 표' are rendered inside light-grey boxes, but they use literal pipe characters ('|') to separate columns instead of clean graphical grid lines, giving them a raw markdown-like appearance.\n3. Page Break Defect: There is an awkward page break where the '포함 사항' list is split, leaving only the final bullet point ('• 설치 인건비 및 기본 전기 연결 점검') stranded at the top of Page 2.\n4. Layout Balance: Page 2 has extremely low content density, leaving more than 70% of the page as empty white space, which makes the overall document layout feel unbalanced."
             },
             {
-              "criterionID": "visualUsability",
-              "label": "Visual And Usability Quality",
-              "maxScore": 15,
-              "score": 14,
-              "evidence": "The document has excellent visual balance (0.988) and clean typography. There is a slightly large right margin ratio, but the overall layout is highly readable and professional."
+              "criterionID": "communicationImpact",
+              "label": "Communication Impact",
+              "maxScore": 20,
+              "score": 18,
+              "evidence": "The proposal is highly readable, well-structured, and uses a professional tone. The translation of the source data into Korean is natural and clear."
             }
           ],
-          "notes": "The artifact is of exceptional quality, strictly adhering to all constraints and instructions while maintaining a highly professional layout and accurate translation."
+          "notes": "The artifact is of high quality, meeting all content and structural requirements. The only areas for improvement are the basic styling of the tables and the awkward page break that splits a single list item onto the second page."
         },
         {
           "evaluationID": "xlsx-popup-budget",
@@ -1191,40 +1191,40 @@
             {
               "criterionID": "sourceFidelity",
               "label": "Source Fidelity",
-              "maxScore": 35,
-              "score": 35,
-              "evidence": "All source data (costs, revenue, dates, milestones, and exclusions) is perfectly represented. No unauthorized data was added, and vendor contacts are correctly marked as '제공된 자료 없음'."
+              "maxScore": 25,
+              "score": 25,
+              "evidence": "All source data, including cost items, quantities, unit costs, owners, revenue forecasts, and dates, are perfectly preserved and accurate. No forbidden exclusions (such as taxes, VAT, or phone numbers) were added."
             },
             {
               "criterionID": "instructionFit",
               "label": "Instruction Fit",
-              "maxScore": 20,
-              "score": 20,
-              "evidence": "The workbook contains the three requested sheets ('요약', '비용', '일정') in Korean. The '비용' sheet includes columns for quantity, unit price, amount, and owner, with formulas for amounts and totals. The '요약' sheet correctly displays the total cost, expected revenue, and expected net amount using formulas referencing the source data."
+              "maxScore": 15,
+              "score": 15,
+              "evidence": "The workbook contains the three requested sheets (요약, 비용, 일정) in Korean. The '비용' sheet includes all required columns (항목, 수량, 단가, 금액, 담당자) with formulas for amounts and totals. The '요약' sheet correctly displays the total cost, expected revenue, and net profit. Missing vendor contacts are marked as '제공된 자료 없음'. Frozen panes, auto-filters, and proper number formatting are successfully applied."
             },
             {
               "criterionID": "formatReliability",
               "label": "Format Reliability",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The artifact is a valid Excel workbook (.xlsx) with 3 sheets, 13 formulas, frozen panes, and auto-filters enabled. All formulas are syntactically correct and reference the appropriate cells."
+              "maxScore": 10,
+              "score": 10,
+              "evidence": "The file is a valid Excel workbook (.xlsx) with 3 sheets, 13 formulas, and frozen panes enabled, meeting all technical constraints."
             },
             {
-              "criterionID": "sourceGroundedUsefulness",
-              "label": "Source Grounded Usefulness",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The workbook is highly functional and useful for internal review. The formulas dynamically calculate the totals, revenues, and net amounts based on the source data without any hardcoded values for calculated fields."
+              "criterionID": "craftAndDesign",
+              "label": "Craft And Design",
+              "maxScore": 30,
+              "score": 30,
+              "evidence": "Visual observations:\n1. Typography & Hierarchy: Strong visual hierarchy is established using a dark blue title banner at the top of each sheet, bold section headers (e.g., '매출 상세'), and bold totals ('총계', '매출 합계').\n2. Spacing & Alignment: Text columns are cleanly left-aligned, while numeric columns (quantities, prices, amounts) are right-aligned with proper comma formatting. Column widths are perfectly adjusted to prevent any text clipping.\n3. Table/Grid Integrity: The tables use professional light blue header fills and subtle borders, making the data highly readable and structured.\n4. Defect: No visual defects, overlapping text, or clipped cells are present in any of the sheets."
             },
             {
-              "criterionID": "visualUsability",
-              "label": "Visual And Usability Quality",
-              "maxScore": 15,
-              "score": 15,
-              "evidence": "The workbook has frozen panes, auto-filters, and appropriate column widths, ensuring high visual and usability quality."
+              "criterionID": "communicationImpact",
+              "label": "Communication Impact",
+              "maxScore": 20,
+              "score": 20,
+              "evidence": "The workbook is exceptionally well-designed for an internal review. The '요약' sheet provides an immediate high-level financial overview, while the '비용' and '일정' sheets provide the necessary granular details in a clean, professional layout."
             }
           ],
-          "notes": "The missing values (3982000, 5670000, 1688000) flagged in the audit metadata are actually present as dynamic Excel formulas (=비용!E9, =D16, =B9-B8) which evaluate to those exact numbers. This is the correct and expected behavior for an Excel workbook."
+          "notes": "The generated Excel workbook is of outstanding quality, fully adhering to all instructions, source data, and formatting guidelines with professional visual design."
         }
       ],
       "outputs": [
