@@ -368,7 +368,8 @@ func calendarEventWriteInputSchema() json.RawMessage {
 		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier for the event, e.g. 'Asia/Seoul'. Defaults to the workspace timezone if omitted.")),
 		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event. When true, startISO and endISO should use date-only format (YYYY-MM-DD).")),
 		jsonschema.Field("color", jsonschema.String().WithDescription("Optional color label for the event, e.g. 'tomato', 'blueberry'. Supported values depend on the calendar provider.")),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("List of attendee email addresses to invite, e.g. [\"alice@example.com\", \"bob@example.com\"].")),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Attendee/person hints such as names, @handles, or emails, e.g. [\"Alice\", \"@bob\"]. For ordinary personal meetings, include the other attendees; the runtime adds the requester by default on calendar.add.")),
+		jsonschema.Field("includeRequester", jsonschema.Boolean().WithDescription("Set false only for delegated, announcement, all-hands, or someone else's calendar events where the requester is not an attendee. Defaults to true for calendar.add and false for calendar.update.")),
 		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Send a reminder this many hours before the event, e.g. 1 for a 1-hour-before reminder. Omit to use the calendar default.")),
 	).RawMessage()
 }
@@ -398,7 +399,8 @@ func calendarEventUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier, e.g. 'Asia/Seoul'. Omit to keep the existing timezone.")),
 		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event; false for a timed event.")),
 		jsonschema.Field("color", jsonschema.String().WithDescription("Color label for the event. Omit to keep the existing color.")),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Updated list of attendee email addresses. This replaces the existing attendee list entirely.")),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Updated attendee/person hints such as names, @handles, or emails. This replaces the existing attendee list entirely after resolution.")),
+		jsonschema.Field("includeRequester", jsonschema.Boolean().WithDescription("Set true only when the requester should be added as an attendee during this update. Defaults to false for calendar.update.")),
 		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Reminder lead time in hours. Omit to keep the existing reminder setting.")),
 	).RawMessage()
 }

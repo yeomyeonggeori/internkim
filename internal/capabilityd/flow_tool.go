@@ -74,24 +74,25 @@ type flowMemberForTool struct {
 }
 
 type flowTaskForTool struct {
-	ID               string   `json:"id"`
-	OwnerID          string   `json:"ownerID"`
-	OwnerName        string   `json:"ownerName"`
-	ParticipantIDs   []string `json:"participantIDs"`
-	ParticipantNames []string `json:"participantNames"`
-	Business         string   `json:"business"`
-	Type             string   `json:"type"`
-	Content          string   `json:"content"`
-	Goal             string   `json:"goal"`
-	Size             string   `json:"size"`
-	Status           string   `json:"status"`
-	StartDate        string   `json:"startDate"`
-	EndDate          string   `json:"endDate"`
-	WeekCode         string   `json:"weekCode"`
-	Flag             int      `json:"flag"`
-	RequestReason    string   `json:"requestReason"`
-	DecisionReason   string   `json:"decisionReason"`
-	MattermostPostID string   `json:"mattermostPostID"`
+	ID                       string                      `json:"id"`
+	OwnerID                  string                      `json:"ownerID"`
+	OwnerName                string                      `json:"ownerName"`
+	ParticipantIDs           []string                    `json:"participantIDs"`
+	ParticipantNames         []string                    `json:"participantNames"`
+	ParticipantPresentations []personPresentationForTool `json:"participantPresentations,omitempty"`
+	Business                 string                      `json:"business"`
+	Type                     string                      `json:"type"`
+	Content                  string                      `json:"content"`
+	Goal                     string                      `json:"goal"`
+	Size                     string                      `json:"size"`
+	Status                   string                      `json:"status"`
+	StartDate                string                      `json:"startDate"`
+	EndDate                  string                      `json:"endDate"`
+	WeekCode                 string                      `json:"weekCode"`
+	Flag                     int                         `json:"flag"`
+	RequestReason            string                      `json:"requestReason"`
+	DecisionReason           string                      `json:"decisionReason"`
+	MattermostPostID         string                      `json:"mattermostPostID"`
 }
 
 const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
@@ -141,7 +142,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
 		Status:          flowTaskResponseStatus(result),
-		Result:          result,
+		Result:          enrichFlowTaskResultDocument(result, members),
 	}, nil
 }
 
@@ -168,7 +169,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
 		Status:          flowTaskResponseStatus(result),
-		Result:          result,
+		Result:          enrichFlowTaskResultDocument(result, summary.Members),
 	}, nil
 }
 
@@ -193,7 +194,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	statusFilter := normalizeFlowStatusFilter(input.Status)
 	now := time.Now()
 	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, now)
-	tasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit})
+	tasks := enrichFlowTasksForTool(filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit}), summary.Members)
 	result, _ := json.Marshal(map[string]any{
 		"scope":        flowTaskListPeopleScope(ownerID),
 		"weekFrom":     input.WeekFrom,
