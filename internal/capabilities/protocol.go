@@ -79,6 +79,7 @@ func FileDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "document.read", Description: "Read a workspace document (PDF, Office, HTML, text, etc.) and return its content as Markdown. Use this to read files at /workspace paths; do not run a shell command to cat files. For image files use image.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read"},
 		{Name: "image.read", Description: "Read a workspace image file (PNG, JPG, etc.) and return it as a base64-encoded attachment for vision analysis. Use this for image files at /workspace paths; for text/document files use document.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read"},
+		{Name: "image.generate", Description: "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image.read instead if you need to read an existing image file.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: imageGenerateInputSchema(), PolicyResource: "tool:image.generate", SideEffectClass: "external_write"},
 	}
 }
 
@@ -109,7 +110,6 @@ func FlowDescriptors() []Descriptor {
 
 func CalendarDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "calendar.connection.status", Description: "Check whether the requester's calendar account is connected. Call this before any calendar read or write operation when you are unsure if the calendar is set up.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.status", SideEffectClass: "read"},
 		{Name: "calendar.add", Description: "Create a new calendar event. Provide title, startISO, and endISO at minimum. Use ISO 8601 with timezone for times, e.g. 2026-06-23T14:00:00+09:00. Do not call this to update an existing event — use calendar.update.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
 		{Name: "calendar.list", Description: "List the requester's calendar events within a time window. Use this to answer any 'what is on my calendar' question (today, this week, a date range): compute the concrete startISO/endISO window yourself and call it directly — do not run a shell command and do not ask the user for their calendar. Returns the events in the window (possibly empty).", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.list", SideEffectClass: "read"},
 		{Name: "calendar.update", Description: "Update an existing calendar event. Identify it by eventID from a prior calendar.list result, or set query to a distinctive keyword (a person or topic name) and the runtime finds it across all dates — never invent an eventID. All required fields (title, startISO, endISO) must be re-supplied even if unchanged.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
@@ -133,8 +133,8 @@ func MailDescriptors() []Descriptor {
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "site.create", Description: "Create a new workspace site or web app. Provide a unique slug (URL identifier) and a prompt or design brief describing what to build. Do not call this to update an existing site — use site.publish or site.restore.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.create", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "create_site", "site")},
-		{Name: "site.preview", Description: "Build a preview of a site without publishing it publicly. Use this to verify the site renders correctly before committing to a public publish. Identify the site by siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.preview", SideEffectClass: "external_publish"},
-		{Name: "site.publish", Description: "Build and publish a site so it is publicly accessible. Identify the site by siteID or slug. Use site.preview first if you want to check output before going live.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.preview", Description: "Preview a site without publishing it publicly. Use this to verify the site renders correctly before committing to a public publish. Identify the site by siteID or slug. Content-only edits (app/public/site-content.json) publish directly with no build; a build is needed only after app/src or app config changes.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.preview", SideEffectClass: "external_publish"},
+		{Name: "site.publish", Description: "Publish a site so it is publicly accessible. Identify the site by siteID or slug. Use site.preview first if you want to check output before going live. Content-only edits (app/public/site-content.json) publish directly with no build; a build is needed only after app/src or app config changes.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.status", Description: "Check the current status of a site (live, unpublished, building, etc.). Set scope to 'mine' to list all sites owned by the requester without needing a siteID or slug.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.status", SideEffectClass: "read"},
 		{Name: "site.history", Description: "Retrieve the deployment history (list of past revisions and their publish timestamps) for a site. Identify the site by siteID or slug. Use this before rollback to pick a target revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.history", SideEffectClass: "read"},
 		{Name: "site.diff", Description: "Show the source code diff between two revisions of a site. Provide fromRevision and toRevision from a prior site.history result. Omit both to diff the current draft against the last published revision.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.diff", SideEffectClass: "read"},
@@ -143,7 +143,7 @@ func SiteAppDescriptors() []Descriptor {
 		{Name: "site.unpublish", Description: "Take a site offline so it is no longer publicly accessible. The source and revision history are preserved. Requires approval.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.unpublish", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.restore", Description: "Restore the editable source files of a site from a prior revision into the workspace. Use this to recover from a bad edit or to undo source changes without republishing.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.restore", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.repair", Description: "Re-create any missing managed scaffold files in a site's editable workspace without overwriting existing edits. Use this when site.status reports the workspace is missing or unhealthy.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.repair", SideEffectClass: "workspace_write"},
-		{Name: "site.delete", Description: "Permanently delete a site and all its revisions. Requires both the confirm field (set to the site slug) and userConfirmed=true to prevent accidental deletion. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+		{Name: "site.delete", Description: "Permanently delete a site and all its revisions. Requires confirm set to DELETE and userConfirmed=true after explicit user approval. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 	}
 }
 
@@ -250,6 +250,14 @@ func imageReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
 		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the image file, e.g. /workspace/shared/logo.png. Supported formats: PNG, JPG, WEBP. Maximum file size 8 MB.")),
+	).RawMessage()
+}
+
+func imageGenerateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("prompt", jsonschema.String().WithDescription("Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list.")),
+		jsonschema.Required("path", jsonschema.String().WithDescription("Absolute workspace path to save the generated PNG, e.g. /workspace/shared/logo.png. Must be under /workspace and end in .png.")),
+		jsonschema.Field("aspectRatio", jsonschema.StringEnum("1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3").WithDescription("Output aspect ratio. Defaults to 1:1 if omitted.")),
 	).RawMessage()
 }
 
@@ -466,7 +474,21 @@ func siteAppCreateInputSchema() json.RawMessage {
 		jsonschema.Field("audience", jsonschema.String().WithDescription("Intended audience for the site, e.g. 'all employees' or 'engineering managers'.")),
 		jsonschema.Field("archetype", jsonschema.String().WithDescription("Site archetype or template type, e.g. 'dashboard', 'landing-page', 'wiki'.")),
 		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String()).WithDescription("Domain-specific keywords to include in generation context, e.g. [\"inventory\", \"reorder\", \"supplier\"].")),
+		jsonschema.Field("content", siteContentSchema().WithDescription("Structured page content rendered into app/public/site-content.json. Provide this for a basic content site instead of prompt/designBrief — it publishes immediately with no build. Omit to derive default content from title/description.")),
 	).RawMessage()
+}
+
+func siteContentSchema() jsonschema.Schema {
+	return jsonschema.Object(
+		jsonschema.Required("siteName", jsonschema.String().WithDescription("Site name shown as the page title and header, e.g. 'Team Dashboard'.")),
+		jsonschema.Field("tagline", jsonschema.String().WithDescription("Short subtitle shown under the site name. Omit for no tagline.")),
+		jsonschema.Field("heroActionLabel", jsonschema.String().WithDescription("Label for the primary call-to-action button, e.g. 'Get started'. Omit to hide the hero action.")),
+		jsonschema.Field("heroActionHref", jsonschema.String().WithDescription("URL the hero action button links to. Set this whenever heroActionLabel is set.")),
+		jsonschema.Required("sections", jsonschema.Array(jsonschema.Object(
+			jsonschema.Required("title", jsonschema.String().WithDescription("Section heading.")),
+			jsonschema.Required("body", jsonschema.String().WithDescription("Section body text.")),
+		)).WithDescription("Ordered content sections rendered below the hero. At least one section is required.")),
+	)
 }
 
 func siteAppPublishInputSchema() json.RawMessage {
@@ -511,7 +533,7 @@ func siteAppLifecycleInputSchema() json.RawMessage {
 		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
 		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for this lifecycle action, e.g. 'reverting bad CSS change'. Shown in the approval prompt.")),
 		jsonschema.Field("revision", jsonschema.String().WithDescription("Target revision identifier from a prior site.history result. Required for rollback; omit for unpublish/restore.")),
-		jsonschema.Field("confirm", jsonschema.String().WithDescription("Confirmation token. For destructive actions set this to the site slug to confirm intent.")),
+		jsonschema.Field("confirm", jsonschema.String().WithDescription("Confirmation token. For owner override on rollback, unpublish, or restore set this to CONFIRM after explicit user approval.")),
 		jsonschema.Field("userConfirmed", jsonschema.Boolean().WithDescription("Set to true when the user has explicitly confirmed the action. Required alongside confirm for destructive operations.")),
 	).RawMessage()
 }
@@ -525,7 +547,7 @@ func siteAppDeleteInputSchema() json.RawMessage {
 		jsonschema.Field("siteID", jsonschema.String().WithDescription("Internal site ID from a prior site.status result. Provide either siteID or slug.")),
 		jsonschema.Field("slug", jsonschema.String().WithDescription("URL-safe site slug, e.g. 'team-dashboard'. Provide either slug or siteID.")),
 		jsonschema.Field("reason", jsonschema.String().WithDescription("Human-readable reason for deleting the site. Shown in the approval prompt.")),
-		jsonschema.Required("confirm", jsonschema.String().WithDescription("Must be set to the exact site slug (e.g. 'team-dashboard') to confirm the deletion. This prevents accidental deletes.")),
+		jsonschema.Required("confirm", jsonschema.String().WithDescription(`Must be set to the exact string "DELETE" after explicit user approval. This prevents accidental deletes.`)),
 		jsonschema.Required("userConfirmed", jsonschema.Boolean().WithDescription("Must be set to true when the user has explicitly confirmed the deletion. Both confirm and userConfirmed are required.")),
 	).RawMessage()
 }

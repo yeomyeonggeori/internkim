@@ -33,7 +33,30 @@ prepare_rtk_binary() {
   install -m 0755 "$stage_directory/rtk" "$rtk_binary"
 }
 
+dirty_suffix() {
+  local tracked_diff_file untracked_file hash_value
+  tracked_diff_file="$(mktemp)"
+  untracked_file="$(mktemp)"
+  git -C "$blueclaw_repository" diff HEAD > "$tracked_diff_file"
+  git -C "$blueclaw_repository" ls-files --others --exclude-standard > "$untracked_file"
+  if [ ! -s "$tracked_diff_file" ] && [ ! -s "$untracked_file" ]; then
+    rm -f "$tracked_diff_file" "$untracked_file"
+    return
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash_value="$(cat "$tracked_diff_file" "$untracked_file" | sha256sum | awk '{print $1}')"
+  else
+    hash_value="$(cat "$tracked_diff_file" "$untracked_file" | shasum -a 256 | awk '{print $1}')"
+  fi
+  rm -f "$tracked_diff_file" "$untracked_file"
+  printf "dirty-%s" "${hash_value:0:12}"
+}
+
 blueclaw_revision="$(git -C "$blueclaw_repository" rev-parse HEAD)"
+blueclaw_dirty_suffix="$(dirty_suffix)"
+if [ -n "$blueclaw_dirty_suffix" ]; then
+  blueclaw_revision="$blueclaw_revision-$blueclaw_dirty_suffix"
+fi
 release_directory="$stage_directory/workspace/.blueclaw/runtime/releases/$blueclaw_revision"
 current_directory="$stage_directory/workspace/.blueclaw/runtime/current"
 

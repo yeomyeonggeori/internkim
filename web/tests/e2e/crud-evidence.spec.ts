@@ -5,16 +5,22 @@ const adminEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
 const adminPassword = process.env.INTERNKIM_ADMIN_PASSWORD ?? '';
 const teamName = process.env.INTERNKIM_MATTERMOST_TEAM_NAME ?? 'internkim';
 const channelName = process.env.INTERNKIM_CRUD_CHANNEL ?? '';
+const channelPath = process.env.INTERNKIM_CRUD_CHANNEL_PATH ?? `/${teamName}/channels/${channelName}`;
 const screenshotPath = process.env.INTERNKIM_CRUD_SCREENSHOT ?? '';
 const minimumPostCount = Number(process.env.INTERNKIM_CRUD_MIN_POSTS ?? '2');
+const expectApproval = process.env.INTERNKIM_CRUD_EXPECT_APPROVAL === '1';
 
 test('capture 김인턴 conversation evidence', async ({ page }) => {
 	test.setTimeout(120000);
+	expect(adminEmail).not.toEqual('');
+	expect(adminPassword).not.toEqual('');
+	expect(screenshotPath).not.toEqual('');
 	await signInAsAdmin(page);
 	await openChannelOrRetry(page);
 	await dismissTutorial(page);
 	await waitForRenderedPosts(page, minimumPostCount, 30000);
 	await openLatestThread(page);
+	if (expectApproval) await assertPendingApprovalVisible(page);
 	await page.screenshot({ path: screenshotPath, fullPage: true });
 });
 
@@ -24,14 +30,14 @@ test('capture 김인턴 conversation evidence', async ({ page }) => {
 // fail loudly if the team never loads so no broken screenshot is mistaken for proof.
 async function openChannelOrRetry(page): Promise<void> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
-		await page.goto(mattermostPath(`/${teamName}/channels/${channelName}`), { waitUntil: 'domcontentloaded' });
+		await page.goto(mattermostPath(channelPath), { waitUntil: 'domcontentloaded' });
 		await dismissLandingPage(page);
 		await page.waitForTimeout(2000);
 		if ((await teamNotFoundCount(page)) === 0) return;
 		await signInAsAdmin(page);
 	}
 	if ((await teamNotFoundCount(page)) > 0) {
-		throw new Error(`Team Not Found for ${teamName}/${channelName}: requester login did not land inside the team`);
+		throw new Error(`Team Not Found for ${channelPath}: requester login did not land inside the team`);
 	}
 }
 
@@ -79,6 +85,35 @@ async function openLatestThread(page): Promise<void> {
 	}
 }
 
+// The approval reply lands in-thread and can arrive a beat after the runtime-side
+// approval.pending_call event the tester polled for, so retry opening the thread and
+// re-checking rather than asserting once. Tolerant of either delivery shape: a rendered
+// interactive control (ephemeral confirm button) or a plain-text confirmation question.
+async function assertPendingApprovalVisible(page): Promise<void> {
+	const deadline = Date.now() + 20000;
+	while (Date.now() < deadline) {
+		if (await hasApprovalControl(page)) return;
+		if (await hasApprovalQuestionText(page)) return;
+		await openLatestThread(page);
+		await page.waitForTimeout(1500);
+	}
+	throw new Error(`Expected a pending approval control or confirmation question in the latest post before screenshot, got: ${await lastPostText(page)}`);
+}
+
+async function hasApprovalControl(page): Promise<boolean> {
+	const confirmButton = page.getByRole('button', { name: /^\s*(확인|approve|confirm)\s*$/i }).last();
+	return (await confirmButton.count()) > 0 && (await confirmButton.isVisible().catch(() => false));
+}
+
+async function hasApprovalQuestionText(page): Promise<boolean> {
+	const messageText = await lastPostText(page);
+	return /\?|진행할까요|승인할까요|삭제할까요|확인해/.test(messageText);
+}
+
+async function lastPostText(page): Promise<string> {
+	return page.locator('[data-testid="postView"], .post-message__text, .post').last().innerText().catch(() => '');
+}
+
 async function waitForRenderedPosts(page, minimum: number, timeoutMs: number): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	const postLocator = page.locator('[data-testid="postView"], .post-message__text, .post');
@@ -89,6 +124,8 @@ async function waitForRenderedPosts(page, minimum: number, timeoutMs: number): P
 		}
 		await page.waitForTimeout(1500);
 	}
+	const renderedPostCount = await postLocator.count();
+	throw new Error(`Expected at least ${minimum} rendered posts, found ${renderedPostCount}`);
 }
 
 function mattermostPath(path: string): string {

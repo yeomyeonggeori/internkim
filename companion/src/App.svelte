@@ -1,86 +1,31 @@
 <script lang="ts">
 	import { invoke } from '@tauri-apps/api/core';
 	import { listen } from '@tauri-apps/api/event';
-	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { addMountedFolder, disconnectCompanion, ensureLaunchAtLogin, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRuntimeRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRuntimeLocalLLM, updateRuntimeRemoteModel, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
-	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
+	import { disconnectCompanion, ensureLaunchAtLogin, pairCompanion, readCompanionStatus, refreshRuntimeStatus, restartCompanionRuntime, setRuntimeState, startCompanionRuntime } from './lib/sidecar';
+	import GrantsPanel from './lib/components/GrantsPanel.svelte';
+	import MountsPanel from './lib/components/MountsPanel.svelte';
+	import PairingPanel from './lib/components/PairingPanel.svelte';
+	import RuntimeStatusPanel from './lib/components/RuntimeStatusPanel.svelte';
+	import SettingsPanel from './lib/components/SettingsPanel.svelte';
 
 	let status = $state<CompanionStatus>({ paired: false });
-	let runtime = $state<RuntimeStatus>({ isRunning: false });
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
 	let promptResult = $state<PromptResult>({ status: 'idle' });
-	let activeGrants = $state<ActiveGrant[]>([]);
-	let mountedFolders = $state<MountedFolder[]>([]);
 	let isBusy = $state(false);
-	let isMountBusy = $state(false);
-	let settings = $state<CompanionSettings>(defaultSettings);
-	let settingsMessage = $state('');
-	let isSavingSettings = $state(false);
-	let settingsApplyTimeoutID = $state<number | undefined>();
-	let remoteModel = $state('');
-	let appliedRemoteModel = $state('');
-	let remoteModelMessage = $state('');
-	let remoteModelApplyTimeoutID = $state<number | undefined>();
-	let isApplyingRemoteModel = $state(false);
-	let ollamaModelOptions = $state<string[]>([]);
-	let llamaCppModelOptions = $state<string[]>([]);
-	let mlxModelOptions = $state<string[]>([]);
-	const remoteModelOptions = [
-		'google/gemini-3.5-flash',
-		'google/gemini-3.1-flash-preview',
-		'openai/gpt-5.1',
-		'anthropic/claude-sonnet-4.5'
-	];
-	const currentWindow = getCurrentWindow();
-	const isHandoffOverlayWindow = currentWindow.label === 'browser-handoff-overlay';
-	const handoffBridgeURL = 'http://127.0.0.1:7983/v1/browser/handoff';
-	type BrowserHandoffSnapshot = {
-		active: boolean;
-		handoffID: string;
-		sessionID: string;
-		message: string;
-		origin: string;
-	};
-	let handoffSnapshot = $state<BrowserHandoffSnapshot>({
-		active: false,
-		handoffID: '',
-		sessionID: '',
-		message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
-		origin: ''
-	});
-	let handoffOverlayError = $state('');
-	let isCompletingHandoff = $state(false);
 
 	onMount(() => {
-		if (isHandoffOverlayWindow) {
-			document.body.classList.add('handoff-overlay-body');
-			void refreshHandoffOverlay();
-			const overlayIntervalID = window.setInterval(() => {
-				void refreshHandoffOverlay();
-			}, 250);
-			return () => {
-				window.clearInterval(overlayIntervalID);
-				document.body.classList.remove('handoff-overlay-body');
-			};
-		}
 		void bootstrap();
 		void registerShellEvents();
-		const intervalID = window.setInterval(() => {
-			void refreshRuntime();
-			void refreshGrants();
-			void refreshMounts();
-		}, 1000);
-		return () => window.clearInterval(intervalID);
 	});
 
 	async function bootstrap() {
-		settings = await loadCompanionSettings();
 		try {
 			await ensureLaunchAtLogin();
 		} catch (errorValue) {
@@ -89,118 +34,7 @@
 		await refreshStatus();
 		if (isCompanionVerified(status)) {
 			await ensureRuntime();
-			await refreshRemoteModel();
 		}
-		void refreshAvailableModels();
-	}
-
-	async function refreshAvailableModels() {
-		ollamaModelOptions = await fetchBackendModels('ollama', settings.ollama.baseURL);
-		llamaCppModelOptions = await fetchBackendModels('llamacpp', settings.llamacpp.baseURL);
-		mlxModelOptions = await fetchBackendModels('mlx', settings.mlx.baseURL);
-	}
-
-	function toggleBackendInOrder(name: string) {
-		if (settings.localBackendOrder.includes(name)) {
-			settings.localBackendOrder = settings.localBackendOrder.filter((entry) => entry !== name);
-			scheduleSettingsApply();
-			return;
-		}
-		settings.localBackendOrder = [...settings.localBackendOrder, name];
-		scheduleSettingsApply();
-	}
-
-	function scheduleSettingsApply() {
-		settingsMessage = '';
-		if (settingsApplyTimeoutID) {
-			window.clearTimeout(settingsApplyTimeoutID);
-		}
-		settingsApplyTimeoutID = window.setTimeout(() => {
-			void persistSettings();
-		}, 250);
-	}
-
-	async function persistSettings() {
-		isSavingSettings = true;
-		settingsMessage = '';
-		try {
-			settings = await saveCompanionSettings(settings);
-			if (runtime.isRunning) {
-				const localLLM = await updateRuntimeLocalLLM(settings);
-				runtime = { ...readRuntimeStatus(), localLLM };
-			}
-			settingsMessage = runtime.isRunning ? 'Settings applied.' : 'Settings saved.';
-			void refreshAvailableModels();
-		} catch (errorValue) {
-			settingsMessage = errorValue instanceof Error ? errorValue.message : 'Save failed';
-		} finally {
-			isSavingSettings = false;
-		}
-	}
-
-	async function refreshRemoteModel() {
-		if (!isCompanionVerified(status)) return;
-		try {
-			remoteModel = await readRuntimeRemoteModel();
-			appliedRemoteModel = remoteModel;
-		} catch (errorValue) {
-			remoteModelMessage = errorValue instanceof Error ? errorValue.message : 'Remote model read failed';
-		}
-	}
-
-	function scheduleRemoteModelApply() {
-		remoteModelMessage = '';
-		if (remoteModelApplyTimeoutID) {
-			window.clearTimeout(remoteModelApplyTimeoutID);
-		}
-		remoteModelApplyTimeoutID = window.setTimeout(() => {
-			void persistRemoteModel();
-		}, 800);
-	}
-
-	async function persistRemoteModel() {
-		const modelName = remoteModel.trim();
-		if (!modelName || modelName === appliedRemoteModel || !isCompanionVerified(status)) return;
-		isApplyingRemoteModel = true;
-		remoteModelMessage = '';
-		try {
-			appliedRemoteModel = await updateRuntimeRemoteModel(modelName);
-			remoteModel = appliedRemoteModel;
-			remoteModelMessage = 'Remote model applied.';
-		} catch (errorValue) {
-			remoteModelMessage = errorValue instanceof Error ? errorValue.message : 'Remote model update failed';
-		} finally {
-			isApplyingRemoteModel = false;
-		}
-	}
-
-	function modelOptionsForBackend(backendName: string): string[] {
-		if (backendName === 'ollama') return ollamaModelOptions;
-		if (backendName === 'llamacpp') return llamaCppModelOptions;
-		if (backendName === 'mlx') return mlxModelOptions;
-		return [];
-	}
-
-	function endpointForBackend(backendName: string) {
-		if (backendName === 'ollama') return settings.ollama;
-		if (backendName === 'llamacpp') return settings.llamacpp;
-		return settings.mlx;
-	}
-
-	function backendStatusFor(backendName: string): LocalLLMBackendStatus | undefined {
-		return runtime.localLLM?.backends?.find((backend) => backend.name === backendName);
-	}
-
-	function backendLabel(backendName: string): string {
-		if (backendName === 'llamacpp') return 'llama.cpp';
-		if (backendName === 'mlx') return 'MLX';
-		return 'Ollama';
-	}
-
-	function backendPlaceholder(backendName: string): string {
-		if (backendName === 'ollama') return 'gemma3:1b';
-		if (backendName === 'llamacpp') return 'default';
-		return 'mlx-community/...';
 	}
 
 	async function refreshStatus() {
@@ -211,38 +45,9 @@
 			} else if (message === stalePairingMessage) {
 				message = '';
 			}
-			await refreshRuntime();
+			await refreshRuntimeStatus();
 		} catch {
 			status = { paired: false };
-			runtime = readRuntimeStatus();
-		}
-	}
-
-	async function refreshRuntime() {
-		runtime = await refreshRuntimeStatus();
-	}
-
-	async function refreshGrants() {
-		if (!runtime.isRunning) {
-			activeGrants = [];
-			return;
-		}
-		try {
-			activeGrants = await readActiveGrants();
-		} catch {
-			activeGrants = [];
-		}
-	}
-
-	async function refreshMounts() {
-		if (!runtime.isRunning) {
-			mountedFolders = [];
-			return;
-		}
-		try {
-			mountedFolders = await readMountedFolders();
-		} catch {
-			mountedFolders = [];
 		}
 	}
 
@@ -298,7 +103,6 @@
 			await refreshStatus();
 			if (isCompanionVerified(status)) {
 				await restartRuntime();
-				await refreshRemoteModel();
 			}
 			message = 'Connected. You can close this window.';
 		} catch (errorValue) {
@@ -315,11 +119,6 @@
 		try {
 			await disconnectCompanion();
 			status = await readCompanionStatus();
-			runtime = readRuntimeStatus();
-			activeGrants = [];
-			mountedFolders = [];
-			remoteModel = '';
-			appliedRemoteModel = '';
 			message = 'Disconnected.';
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Disconnect failed';
@@ -331,75 +130,16 @@
 	async function ensureRuntime() {
 		try {
 			await startCompanionRuntime();
-			runtime = readRuntimeStatus();
-			await refreshGrants();
-			await refreshMounts();
 		} catch (errorValue) {
-			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
+			setRuntimeState({ isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' });
 		}
 	}
 
 	async function restartRuntime() {
 		try {
 			await restartCompanionRuntime();
-			runtime = readRuntimeStatus();
-			await refreshGrants();
-			await refreshMounts();
 		} catch (errorValue) {
-			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to restart' };
-		}
-	}
-
-	async function revokeActiveGrant(grantID: string) {
-		try {
-			await revokeGrant(grantID);
-			await refreshGrants();
-		} catch (errorValue) {
-			message = errorValue instanceof Error ? errorValue.message : 'Grant revoke failed';
-		}
-	}
-
-	async function addMount() {
-		if (!runtime.isRunning) return;
-		isMountBusy = true;
-		message = '';
-		try {
-			const path = await invoke<string | null>('pick_mount_directory');
-			if (!path) return;
-			await addMountedFolder(path);
-			await refreshMounts();
-			message = 'Folder mounted.';
-		} catch (errorValue) {
-			message = errorValue instanceof Error ? errorValue.message : 'Mount failed';
-		} finally {
-			isMountBusy = false;
-		}
-	}
-
-	async function revokeMount(mountID: string) {
-		try {
-			await revokeMountedFolder(mountID);
-			await refreshMounts();
-		} catch (errorValue) {
-			message = errorValue instanceof Error ? errorValue.message : 'Mount revoke failed';
-		}
-	}
-
-	async function pauseMount(mountID: string) {
-		try {
-			await pauseMountedFolder(mountID);
-			await refreshMounts();
-		} catch (errorValue) {
-			message = errorValue instanceof Error ? errorValue.message : 'Mount pause failed';
-		}
-	}
-
-	async function resumeMount(mountID: string) {
-		try {
-			await resumeMountedFolder(mountID);
-			await refreshMounts();
-		} catch (errorValue) {
-			message = errorValue instanceof Error ? errorValue.message : 'Mount resume failed';
+			setRuntimeState({ isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to restart' });
 		}
 	}
 
@@ -440,90 +180,9 @@
 	async function closeWindow() {
 		await getCurrentWindow().hide();
 	}
-
-	async function refreshHandoffOverlay() {
-		try {
-			handoffSnapshot = await readHandoffSnapshot();
-			handoffOverlayError = '';
-			await invoke('sync_handoff_overlay', { isActive: handoffSnapshot.active });
-		} catch (errorValue) {
-			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff overlay failed';
-			await currentWindow.hide();
-		}
-	}
-
-	async function readHandoffSnapshot(): Promise<BrowserHandoffSnapshot> {
-		const response = await fetch(handoffBridgeURL, { cache: 'no-store' });
-		if (!response.ok) return inactiveHandoffSnapshot();
-		return normalizeHandoffSnapshot(await response.json());
-	}
-
-	function normalizeHandoffSnapshot(value: unknown): BrowserHandoffSnapshot {
-		if (!isRecord(value) || value.active !== true) return inactiveHandoffSnapshot();
-		return {
-			active: true,
-			handoffID: readString(value.handoffID),
-			sessionID: readString(value.sessionID),
-			message: readString(value.message) || '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
-			origin: readString(value.origin)
-		};
-	}
-
-	function inactiveHandoffSnapshot(): BrowserHandoffSnapshot {
-		return {
-			active: false,
-			handoffID: '',
-			sessionID: '',
-			message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
-			origin: ''
-		};
-	}
-
-	function isRecord(value: unknown): value is Record<string, unknown> {
-		return typeof value === 'object' && value !== null;
-	}
-
-	function readString(value: unknown): string {
-		return typeof value === 'string' ? value.trim() : '';
-	}
-
-	async function completeBrowserHandoff() {
-		if (!handoffSnapshot.active || isCompletingHandoff) return;
-		isCompletingHandoff = true;
-		handoffOverlayError = '';
-		try {
-			const response = await fetch(`${handoffBridgeURL}/complete`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					handoffID: handoffSnapshot.handoffID,
-					sessionID: handoffSnapshot.sessionID,
-					url: handoffSnapshot.origin || 'https://internkim.local/browser-handoff-complete',
-					title: ''
-				})
-			});
-			if (!response.ok) {
-				throw new Error(await response.text());
-			}
-			handoffSnapshot = inactiveHandoffSnapshot();
-			await invoke('sync_handoff_overlay', { isActive: false });
-		} catch (errorValue) {
-			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff completion failed';
-		} finally {
-			isCompletingHandoff = false;
-		}
-	}
 </script>
 
-{#if isHandoffOverlayWindow}
-	<main class="handoff-overlay">
-		<p>{handoffOverlayError || handoffSnapshot.message}</p>
-		<button disabled={!handoffSnapshot.active || isCompletingHandoff} onclick={completeBrowserHandoff}>
-			{isCompletingHandoff ? '연결 중' : '계속'}
-		</button>
-	</main>
-{:else}
-	<main class="shell">
+<main class="shell">
 	<section class="status-panel">
 		<div>
 			<p class="eyebrow">Intern Kim Companion</p>
@@ -535,240 +194,23 @@
 		<div class:online={isCompanionVerified(status)} class="indicator">{isCompanionVerified(status) ? 'online' : 'not paired'}</div>
 	</section>
 
-	<section class="runtime-panel">
-		<h2>Runtime</h2>
-		<div class="runtime-row">
-			<span>{runtime.isRunning ? `running${runtime.processID ? ` #${runtime.processID}` : ''}` : 'stopped'}</span>
-			<button class="secondary" disabled={!isCompanionVerified(status) || runtime.isRunning} onclick={ensureRuntime}>Start</button>
-		</div>
-		<div class="runtime-row">
-			<span>browser runtime</span>
-			<span>{status.browserRuntimeStatus ?? 'unknown'}</span>
-		</div>
-		<div class="runtime-row">
-			<span>last heartbeat</span>
-			<span>{runtime.lastHeartbeatAt ? new Date(runtime.lastHeartbeatAt).toLocaleTimeString() : 'none yet'}</span>
-		</div>
-		{#if runtime.restartAttempts}
-			<p class="subtle">Runtime restarted {runtime.restartAttempts} time{runtime.restartAttempts === 1 ? '' : 's'}.</p>
-		{/if}
-		{#if status.browserRuntimeError}
-			<p class="message error">{status.browserRuntimeError}</p>
-		{/if}
-		{#if runtime.lastError}
-			<p class="message error">{runtime.lastError}</p>
-		{/if}
-	</section>
+	<RuntimeStatusPanel {status} onStart={ensureRuntime} />
 
-	<section class="mount-panel">
-		<div class="panel-header">
-			<h2>Mounted folders</h2>
-			<button class="secondary" disabled={!runtime.isRunning || isMountBusy} onclick={addMount}>
-				{isMountBusy ? 'Adding...' : 'Add folder'}
-			</button>
-		</div>
-		{#if mountedFolders.length}
-			<div class="mount-list">
-				{#each mountedFolders as mount}
-					<div class="mount-row">
-						<div>
-							<strong>{mount.displayName}</strong>
-							<span>{mount.guestPath}</span>
-						</div>
-						<div class="mount-actions">
-							<span class="mount-badge">{mount.mode}</span>
-							<span class:online={mount.status === 'online'} class="mount-badge">{mount.status}</span>
-							{#if mount.status === 'online'}
-								<button class="secondary" onclick={() => pauseMount(mount.mountID)}>Pause</button>
-							{:else}
-								<button class="secondary" onclick={() => resumeMount(mount.mountID)}>Resume</button>
-							{/if}
-							<button class="secondary" onclick={() => revokeMount(mount.mountID)}>Eject</button>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="subtle">Folders you mount here appear to the connected agent workspace under /workspace/mounts.</p>
-		{/if}
-	</section>
+	<MountsPanel onMessage={(text) => (message = text)} />
 
-	<section class="settings-panel">
-		<div class="panel-header">
-			<h2>Settings</h2>
-			{#if runtime.localLLM?.enabled}
-				<span class="badge">Live</span>
-			{/if}
-		</div>
-		<label class="switch-row">
-			<input bind:checked={settings.preferCompanionBrowser} onchange={scheduleSettingsApply} type="checkbox" />
-			<span>Use this computer for browsing</span>
-		</label>
-		<div class="model-row">
-			<div class="model-row-header">
-				<div>
-					<h3>Remote model</h3>
-					<p>Provider model used by the connected agent runtime when execution mode reaches remote.</p>
-				</div>
-				<span class:online={remoteModel === appliedRemoteModel && remoteModel !== ''} class="badge">
-					{isApplyingRemoteModel ? 'Applying' : remoteModel === appliedRemoteModel && remoteModel !== '' ? 'Live' : 'Pending'}
-				</span>
-			</div>
-			<input
-				bind:value={remoteModel}
-				disabled={!isCompanionVerified(status)}
-				list="remote-models"
-				oninput={scheduleRemoteModelApply}
-				placeholder="google/gemini-3.5-flash"
-			/>
-			<datalist id="remote-models">
-				{#each remoteModelOptions as modelName}
-					<option value={modelName}></option>
-				{/each}
-			</datalist>
-			<div class="actions">
-				<button class="secondary" disabled={!isCompanionVerified(status) || isApplyingRemoteModel || remoteModel.trim() === appliedRemoteModel} onclick={persistRemoteModel}>
-					{isApplyingRemoteModel ? 'Applying...' : 'Apply now'}
-				</button>
-				<button class="ghost" disabled={!isCompanionVerified(status)} onclick={refreshRemoteModel}>Refresh</button>
-			</div>
-			{#if remoteModelMessage}
-				<p class="message">{remoteModelMessage}</p>
-			{/if}
-		</div>
-		<label class="switch-row">
-			<input bind:checked={settings.enableLocalLLM} onchange={scheduleSettingsApply} type="checkbox" />
-			<span>Use this computer for AI inference</span>
-		</label>
-		{#if settings.enableLocalLLM}
-			<div class="backend-list">
-				<p class="subtle">Backend priority</p>
-				{#each ['ollama', 'llamacpp', 'mlx'] as backendName}
-					<label class="switch-row">
-						<input
-							checked={settings.localBackendOrder.includes(backendName)}
-							onchange={() => toggleBackendInOrder(backendName)}
-							type="checkbox"
-						/>
-						<span>{backendLabel(backendName)}</span>
-					</label>
-				{/each}
-			</div>
-			<div class="backend-config">
-				{#each settings.localBackendOrder as backendName}
-					{@const endpoint = endpointForBackend(backendName)}
-					{@const modelOptions = modelOptionsForBackend(backendName)}
-					{@const backendStatus = backendStatusFor(backendName)}
-					<div class="model-row">
-						<div class="model-row-header">
-							<div>
-								<h3>{backendLabel(backendName)}</h3>
-								<p>{endpoint.baseURL}</p>
-							</div>
-							<span class:online={backendStatus?.available} class="badge">
-								{backendStatus?.available ? 'Ready' : 'Idle'}
-							</span>
-						</div>
-						{#if modelOptions.length}
-							<select bind:value={endpoint.model} onchange={scheduleSettingsApply}>
-								<option value="">Default model</option>
-								{#each modelOptions as modelName}
-									<option value={modelName}>{modelName}</option>
-								{/each}
-							</select>
-						{:else}
-							<input bind:value={endpoint.model} oninput={scheduleSettingsApply} placeholder={backendPlaceholder(backendName)} />
-						{/if}
-						{#if backendStatus?.lastError}
-							<p class="message error">{backendStatus.lastError}</p>
-						{/if}
-					</div>
-				{/each}
-			</div>
-			<p class="subtle">Model changes apply to the running runtime immediately. Edit <code>companion.json</code> for custom endpoints.</p>
-		{/if}
-		<div class="actions">
-			<button disabled={isSavingSettings} onclick={persistSettings}>
-				{isSavingSettings ? 'Applying...' : 'Save settings'}
-			</button>
-		</div>
-		{#if settingsMessage}
-			<p class="message">{settingsMessage}</p>
-		{/if}
-	</section>
+	<SettingsPanel {status} />
 
-	<section class="grant-panel">
-		<h2>Allowed for this task</h2>
-		{#if activeGrants.length}
-			<div class="grant-list">
-				{#each activeGrants as grant}
-					<div class="grant-row">
-						<div>
-							<strong>{grant.displayName}</strong>
-							<span>{grant.usedJobs}/{grant.maxJobs} jobs used</span>
-						</div>
-						<button class="secondary" onclick={() => revokeActiveGrant(grant.grantID)}>Revoke</button>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="subtle">Temporary permissions you allow for a task will appear here.</p>
-		{/if}
-	</section>
+	<GrantsPanel onMessage={(text) => (message = text)} />
 
-	{#if isCompanionVerified(status)}
-		<section class="form-panel">
-			<h2>Connection</h2>
-			<div class="runtime-row">
-				<span>device</span>
-				<span>{status.deviceURL}</span>
-			</div>
-			<div class="runtime-row">
-				<span>companion</span>
-				<span>{status.companionID}</span>
-			</div>
-			<div class="actions">
-				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
-				<button class="secondary" disabled={isBusy} onclick={disconnect}>{isBusy ? 'Disconnecting...' : 'Disconnect'}</button>
-				<button class="ghost" onclick={closeWindow}>Hide</button>
-			</div>
-			{#if message}
-				<p class="message">{message}</p>
-			{/if}
-		</section>
-	{:else}
-		<section class="form-panel">
-			<h2>{isStalePairingStatus(status) ? 'Reconnect manually' : 'Connect manually'}</h2>
-			<label>
-				<span>Device URL</span>
-				<input bind:value={deviceURL} placeholder="https://device.example.test" />
-			</label>
-			<label>
-				<span>Pairing code</span>
-				<input bind:value={pairingCode} placeholder="ABCD-1234" />
-			</label>
-			<div class="actions">
-				<button disabled={isBusy} onclick={pairManually}>{isBusy ? 'Connecting...' : 'Connect'}</button>
-				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
-				<button class="ghost" onclick={closeWindow}>Hide</button>
-			</div>
-			{#if message}
-				<p class="message">{message}</p>
-			{/if}
-		</section>
-	{/if}
-
-	<section class="capability-panel">
-		<h2>Advertised capabilities</h2>
-		{#if status.capabilities?.length}
-			<div class="capabilities">
-				{#each status.capabilities as capability}
-					<span>{capability.name}</span>
-				{/each}
-			</div>
-		{:else}
-			<p class="subtle">Capabilities appear after pairing and runtime startup.</p>
-		{/if}
-	</section>
+	<PairingPanel
+		{status}
+		{message}
+		{isBusy}
+		bind:deviceURL
+		bind:pairingCode
+		onPairManually={pairManually}
+		onDisconnect={disconnect}
+		onOpenAdmin={openAdmin}
+		onCloseWindow={closeWindow}
+	/>
 </main>
-{/if}

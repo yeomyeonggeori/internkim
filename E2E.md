@@ -26,7 +26,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `tool_permission_hides_skill` | — | 허용 툴 없는 스킬 억제 + 거짓 거절 없음 |
 | `gws_disabled` | — | 비허용 GWS 툴 차단과 거부 설명 |
 | `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule.create` |
-| `site_prototype_acceptance` | `site` | `site.app.create` → `terminal.run` → `site.app.publish`, URL 회신 |
+| `site_prototype_acceptance` | `site` | `site.create` → `terminal.run` → `site.publish`, URL 회신 |
 | `ask_choice_reply_acceptance` | — | `ask.choice` 발행과 다음 턴 선택 해석 |
 | `ask_confirm_reply_acceptance` | — | `ask.confirm`(external_send) 발행과 승인 후 계속 |
 | `attachment_material_read` | — | 컨텍스트 첨부를 `image.read`로 읽기 |
@@ -45,6 +45,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `capability_question_acceptance` | — | 빈 쿼리 `skill.search`로 능력 질문 답변 |
 | `task_history_question_acceptance` | — | `task.history`로 선행 작업 질문 답변 |
 | `site_edit_redeploy_acceptance` | — | 배포된 사이트 수정→빌드→재배포 |
+| `site_lifecycle_acceptance` | — | PENDING: structured `requiredEvidence` 기반 웹사이트 생성→배포→수정→재배포→삭제 승인→삭제 |
 | `memory_explicit_tool_acceptance` | — | `memory.remember` 저장과 `memory.search` 회상 명시 단언 |
 | `failure_explanation_acceptance` | — | 실패 태스크 사유를 `task.history`로 설명 |
 
@@ -57,7 +58,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | # | 요구 행동 | 상태 | 근거 / 부족분 |
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
-| 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` (생성 후 수정→빌드→재배포 2턴) |
+| 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` |
+| 2a | 배포된 웹사이트 삭제 | COVERED | `site_lifecycle_acceptance` (structured `requiredEvidence:["site.delete"]` 승인 후 삭제) |
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 실 Mattermost 계정 이메일과 Blueclaw 정책 사람 연결을 통해 수신자 해석을 단언. 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |

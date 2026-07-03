@@ -303,6 +303,63 @@ func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testin
 	}
 }
 
+func TestSiteAppCreateDescriptorHasContentSchema(t *testing.T) {
+	schema := descriptorSchema(t, SiteAppDescriptors(), "site.create")
+	assertSchemaHasProperties(t, schema, "content")
+
+	contentSchema, isObject := schema.Properties["content"].(map[string]any)
+	if !isObject {
+		t.Fatalf("expected content property to be an object schema, got %#v", schema.Properties["content"])
+	}
+	if contentSchema["type"] != "object" {
+		t.Fatalf("expected content schema type object, got %v", contentSchema["type"])
+	}
+	contentProperties, isObject := contentSchema["properties"].(map[string]any)
+	if !isObject {
+		t.Fatalf("expected content schema properties, got %#v", contentSchema["properties"])
+	}
+	for _, propertyName := range []string{"siteName", "tagline", "heroActionLabel", "heroActionHref", "sections"} {
+		if _, exists := contentProperties[propertyName]; !exists {
+			t.Fatalf("expected content schema property %q, got %+v", propertyName, contentProperties)
+		}
+	}
+	contentRequired, isSlice := contentSchema["required"].([]any)
+	if !isSlice || !containsAnyString(contentRequired, "siteName") || !containsAnyString(contentRequired, "sections") {
+		t.Fatalf("expected content schema to require siteName and sections, got %v", contentSchema["required"])
+	}
+
+	sectionsSchema, isObject := contentProperties["sections"].(map[string]any)
+	if !isObject || sectionsSchema["type"] != "array" {
+		t.Fatalf("expected sections to be an array schema, got %#v", contentProperties["sections"])
+	}
+	sectionItemSchema, isObject := sectionsSchema["items"].(map[string]any)
+	if !isObject {
+		t.Fatalf("expected sections items schema, got %#v", sectionsSchema["items"])
+	}
+	sectionItemProperties, isObject := sectionItemSchema["properties"].(map[string]any)
+	if !isObject {
+		t.Fatalf("expected section item properties, got %#v", sectionItemSchema["properties"])
+	}
+	for _, propertyName := range []string{"title", "body"} {
+		if _, exists := sectionItemProperties[propertyName]; !exists {
+			t.Fatalf("expected section item property %q, got %+v", propertyName, sectionItemProperties)
+		}
+	}
+	sectionItemRequired, isSlice := sectionItemSchema["required"].([]any)
+	if !isSlice || !containsAnyString(sectionItemRequired, "title") || !containsAnyString(sectionItemRequired, "body") {
+		t.Fatalf("expected section item schema to require title and body, got %v", sectionItemSchema["required"])
+	}
+}
+
+func containsAnyString(values []any, target string) bool {
+	for _, value := range values {
+		if stringValue, isString := value.(string); isString && stringValue == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := GoogleWorkspaceDescriptors()
 	docsSchema := descriptorSchema(t, descriptors, "google.docs.create")

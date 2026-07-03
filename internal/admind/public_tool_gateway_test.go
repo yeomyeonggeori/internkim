@@ -205,8 +205,8 @@ func TestPublicToolGatewayDoesNotListCalendarConnectionStart(t *testing.T) {
 	if containsString(toolNames, "calendar.connection.start") {
 		t.Fatalf("calendar connection start should not be listed: %+v", toolNames)
 	}
-	if !containsString(toolNames, "calendar.connection.status") {
-		t.Fatalf("calendar connection status should remain listed: %+v", toolNames)
+	if containsString(toolNames, "calendar.connection.status") {
+		t.Fatalf("calendar connection status should not be listed: %+v", toolNames)
 	}
 }
 

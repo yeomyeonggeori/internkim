@@ -42,7 +42,7 @@
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/files/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}

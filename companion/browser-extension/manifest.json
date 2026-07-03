@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "InternKim Companion Browser Bridge",
+  "version": "1.0.0",
+  "description": "Reports DOM element coordinates from an un-automated Chrome session to the InternKim companion daemon over a local WebSocket.",
+  "permissions": ["alarms", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

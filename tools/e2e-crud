@@ -2,13 +2,13 @@
 # Reproducible real end-to-end CRUD verification against a live 김인턴 on a fleet VM.
 # Each case posts a real Mattermost message, a live model executes it, and we assert
 # the real task outcome (capability/tool actually succeeded) plus record the step
-# count (fewer steps scores higher). A conversation screenshot is saved per case to
-# e2e-evidence/<case>.png (overwritten each run).
+# count (fewer steps scores higher). Evidence is saved under e2e-evidence/.
 #
 # Usage: tools/e2e-crud [case-name-filter]
 #   Bring up a fleet first, e.g.: internkim test --keep "warmup" (leaves the VM up).
 #   INTERNKIM_E2E_CONFIG overrides the fleet run config path.
 set -uo pipefail
+trap 'echo "e2e-crud aborted at line $LINENO (last command: $BASH_COMMAND)" >&2' ERR
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FILTER="${1:-}"
@@ -16,32 +16,73 @@ CFG="${INTERNKIM_E2E_CONFIG:-$(ls -dt "$ROOT"/.local/local-fleet/runs/*/config.j
 [ -n "${CFG:-}" ] && [ -f "$CFG" ] || { echo "no fleet run config found; bring up a fleet (internkim test --keep ...) first" >&2; exit 1; }
 
 vmssh() { "$ROOT/internkim" lab vm-ssh --config "$CFG" "$@" 2>/dev/null; }
-remote() { vmssh "bash -s $*" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1; }
+shell_quote() { printf "%q" "$1"; }
+remote() { timeout "${REMOTE_TIMEOUT:-120}" "$ROOT/internkim" lab vm-ssh --config "$CFG" "bash -s -- $*" < "$ROOT/tools/e2e-crud-remote.sh" 2>/dev/null | tail -1; }
+remote_command() {
+	local command="" argument
+	for argument in "$@"; do
+		command="$command $(shell_quote "$argument")"
+	done
+	remote "${command# }"
+}
 
 VMIP="$("$ROOT/internkim" lab vm-ip --config "$CFG" 2>/dev/null | tail -1)"
 MM_URL="http://$VMIP:8065"
 ADMIN_PASS="$(vmssh 'sudo cat /root/.internkim/secrets/mm-admin-pass' | tail -1)"
 EVID="$ROOT/e2e-evidence"; mkdir -p "$EVID"
 
-MODEL="${INTERNKIM_E2E_MODEL:-google/gemini-3.1-flash-lite}"
+# site- cases (site.create/site.publish scaffolding) need a stronger model than
+# the xiaomi/mimo-v2.5 default carries reliably, so a filter touching any site-
+# case defaults to gemini instead; INTERNKIM_E2E_MODEL always wins when set.
+filter_includes_site_case() {
+	[ -z "$FILTER" ] && return 0
+	local part site_case_name
+	IFS=',' read -ra parts <<< "$FILTER"
+	for part in "${parts[@]}"; do
+		[ -z "$part" ] && continue
+		for site_case_name in site-create site-edit site-delete; do
+			[[ "$site_case_name" == *"$part"* ]] && return 0
+		done
+	done
+	return 1
+}
+if [ -n "${INTERNKIM_E2E_MODEL:-}" ]; then
+	MODEL="$INTERNKIM_E2E_MODEL"
+elif filter_includes_site_case; then
+	MODEL="google/gemini-3.1-flash-lite"
+else
+	MODEL="xiaomi/mimo-v2.5"
+fi
 echo "fleet: $CFG"
 echo "mattermost: $MM_URL"
 echo "model: $MODEL"
+RUN_NONCE="${INTERNKIM_E2E_NONCE:-$(date +%H%M%S)}"
+echo "run id: $RUN_NONCE (fresh person + channel)"
+if [ "${INTERNKIM_E2E_RESTART_BLUECLAW:-}" = 1 ]; then
+	echo "refreshing Blueclaw Mattermost ingress..."
+	remote_command restart-blueclaw >/dev/null
+else
+	echo "using running Blueclaw service"
+fi
 if [ "${INTERNKIM_E2E_SKIP_MODEL:-}" = 1 ]; then
 	echo "skipping model pin (already set)"
 else
-	echo "pinning model (restarts blueclaw)..."
-	remote "set-model '$MODEL'" >/dev/null
+	echo "pinning model (restarts capabilityd)..."
+	remote_command set-model "$MODEL" >/dev/null
 fi
-RUN_NONCE="${INTERNKIM_E2E_NONCE:-$(date +%H%M%S)}"
-echo "run id: $RUN_NONCE (fresh person + channel)"
 SETUP="$(vmssh "E2E_NONCE='$RUN_NONCE' E2E_SKIP_RESET='${INTERNKIM_E2E_SKIP_RESET:-}' bash -s setup" < "$ROOT/tools/e2e-crud-remote.sh" | tail -1)"
 CH="$(echo "$SETUP" | jq -r '.channelID')"
 TOK="$(echo "$SETUP" | jq -r '.e2eToken')"
 CHNAME="$(echo "$SETUP" | jq -r '.channelName')"
+CHPATH="$(echo "$SETUP" | jq -r '.channelPath // ""')"
 REQUESTER_USER="$(echo "$SETUP" | jq -r '.e2eUsername')"
 REQUESTER_PASS="$(echo "$SETUP" | jq -r '.e2ePassword')"
 [ -n "$CH" ] && [ "$CH" != null ] && [ -n "$TOK" ] && [ "$TOK" != null ] || { echo "setup failed: $SETUP" >&2; exit 1; }
+INGRESS_READY_SECONDS="${INTERNKIM_E2E_INGRESS_READY_SECONDS:-12}"
+if [ "$INGRESS_READY_SECONDS" -gt 0 ] 2>/dev/null; then
+	echo "waiting ${INGRESS_READY_SECONDS}s for Mattermost ingress..."
+	sleep "$INGRESS_READY_SECONDS"
+fi
 
 # name|prompt|expected_op|timeout — natural language; ordered so add precedes update/delete.
 # A fresh e2e person+channel per run keeps state clean, so entities resolve by natural
@@ -66,30 +107,186 @@ CASES=(
 	"xlsx-delete|예산 엑셀 삭제해줘|file.delete|220"
 	"schedule-add|매주 월요일 오전 9시에 주간보고 리마인드 예약해줘|schedule.create|260"
 	"schedule-update|주간보고 리마인드를 화요일로 바꿔줘|schedule.update|260"
-	"schedule-delete|주간보고 리마인드 예약 삭제해줘|schedule.delete|220"
-	"site-create|회사 소개 웹사이트 하나 만들어서 배포해줘|site.create|600"
-	"site-edit|방금 만든 웹사이트 제목을 환영합니다로 바꿔서 다시 배포해줘|site.publish|600"
-	"site-delete|방금 만든 웹사이트 삭제해줘|site.delete|260"
+	"schedule-delete|주간보고 리마인드 예약 삭제해줘|schedule.cancel|220"
+	"site-create|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 먼저 빈 입력으로 site.status를 확인하고 status가 not_found이면 site.create에서 slug local-fleet-studio-$RUN_NONCE 로 새 사이트를 만들어줘. 기존 사이트는 삭제하거나 덮어쓰지 마. 'Local Fleet Studio $RUN_NONCE'라는 단일 페이지 회사 소개 웹사이트를 배포해줘. 첫 화면 제목은 'Local Fleet Studio $RUN_NONCE', 보조 문구는 '로컬 플릿 웹사이트 CRUD 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘.|site.create|600"
+	"site-edit|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 웹사이트의 첫 화면 제목을 'Local Fleet Studio $RUN_NONCE 수정됨'으로 바꾸고 보조 문구 '재배포 확인 문구 $RUN_NONCE'를 추가한 뒤 같은 사이트를 다시 배포해줘. 새 사이트는 만들지 마.|site.publish|600"
+	"site-delete|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 테스트 웹사이트를 삭제해줘.|site.delete|260"
 	"dm-send|길동이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
 )
 
-screenshot() { # case-name png-path
+# Cases whose op descriptor sets RequiresApproval:true in internal/capabilities/protocol.go
+# (task.delete, calendar.delete, site.delete) — a live approval question must be visible
+# before these run to completion, so they use the resumable start/approve/finish flow
+# below instead of run_case's single-shot auto-approve.
+APPROVAL_CASES=(task-delete calendar-delete site-delete)
+
+screenshot() { # case-name png-path [expect-approval]
 	# Headed by default so the run is watchable; set INTERNKIM_E2E_HEADLESS=1 to hide it.
 	local headed=--headed; [ "${INTERNKIM_E2E_HEADLESS:-}" = 1 ] && headed=
 	# Log in as the requester so requester-only ephemeral approval buttons are visible.
 	(cd "$ROOT/web" && \
 		INTERNKIM_MATTERMOST_URL="$MM_URL" INTERNKIM_ADMIN_EMAIL="$REQUESTER_USER" INTERNKIM_ADMIN_PASSWORD="$REQUESTER_PASS" \
-		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_SCREENSHOT="$2" \
-		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed >/dev/null 2>&1) || true
+		INTERNKIM_MATTERMOST_TEAM_NAME="internkim" INTERNKIM_CRUD_CHANNEL="$CHNAME" INTERNKIM_CRUD_CHANNEL_PATH="$CHPATH" INTERNKIM_CRUD_SCREENSHOT="$2" \
+		INTERNKIM_CRUD_EXPECT_APPROVAL="${3:-}" \
+		bunx playwright test tests/e2e/crud-evidence.spec.ts $headed > "$EVID/$1-mm-screenshot.log" 2>&1)
+	[ -s "$2" ]
 }
 
-score_for() { # passed steps -> score
+site_screenshot() { # case-name public-url png-path mode expected-text absent-text
+	[ -n "$2" ] || return 1
+	local headed=--headed; [ "${INTERNKIM_E2E_HEADLESS:-}" = 1 ] && headed=
+	(cd "$ROOT/web" && \
+		INTERNKIM_PUBLIC_URL="$2" INTERNKIM_SITE_SCREENSHOT="$3" \
+		INTERNKIM_SITE_EVIDENCE_MODE="${4:-published}" \
+		INTERNKIM_SITE_EXPECT_TEXT="${5:-}" \
+		INTERNKIM_SITE_ABSENT_TEXT="${6:-}" \
+		bunx playwright test tests/e2e/site-evidence.spec.ts $headed > "$EVID/$1-site-screenshot.log" 2>&1)
+	[ -s "$3" ]
+}
+
+decode_base64_to_path() { # base64 path
+	local encoded_file
+	encoded_file="$(mktemp)"
+	printf "%s" "$1" > "$encoded_file"
+	if base64 --decode < "$encoded_file" > "$2" 2>/dev/null; then
+		rm -f "$encoded_file"
+		return 0
+	fi
+	if base64 -D < "$encoded_file" > "$2" 2>/dev/null; then
+		rm -f "$encoded_file"
+		return 0
+	fi
+	rm -f "$encoded_file" "$2"
+	return 1
+}
+
+evidence_filename() { # case-name filename
+	local filename
+	filename="$(basename "$2")"
+	[ -n "$filename" ] && [ "$filename" != "." ] || filename="$1-file"
+	printf "%s-%s" "$1" "$filename"
+}
+
+save_downloaded_files() { # case-name result-json
+	local name="$1" result="$2" file_json filename content_base64 output
+	local saved_files=()
+	while IFS= read -r file_json; do
+		filename="$(printf "%s" "$file_json" | jq -r '.filename // .fileID // "file"')"
+		content_base64="$(printf "%s" "$file_json" | jq -r '.contentBase64 // ""')"
+		[ -n "$content_base64" ] || continue
+		output="$EVID/$(evidence_filename "$name" "$filename")"
+		decode_base64_to_path "$content_base64" "$output" || continue
+		saved_files+=("$(basename "$output")")
+	done < <(printf "%s" "$result" | jq -c '.downloadedFiles[]?')
+	local IFS=,
+	printf "%s" "${saved_files[*]-}"
+}
+
+requires_site_screenshot() { # case-name
+	[ "$1" = site-create ] || [ "$1" = site-edit ]
+}
+
+requires_deleted_site_screenshot() { # case-name
+	[ "$1" = site-delete ]
+}
+
+requires_downloaded_file() { # case-name
+	[ "$1" = docx-create ] || [ "$1" = pdf-create ] || [ "$1" = xlsx-create ]
+}
+
+requires_no_terminal_run() { # case-name -- basic sites publish from the prebuilt
+	# scaffold dist and must never shell out to build; a terminal.run means the
+	# agent fell back to a build it should not need.
+	[ "$1" = site-create ] || [ "$1" = site-edit ]
+}
+
+is_approval_case() { # case-name -- membership check against APPROVAL_CASES
+	local candidate
+	for candidate in "${APPROVAL_CASES[@]}"; do
+		[ "$candidate" = "$1" ] && return 0
+	done
+	return 1
+}
+
+# Approval cases split the run into start -> BEFORE screenshot -> approve -> finish so
+# the approval question is captured on screen before it is answered. A destructive op
+# reaching a terminal status without ever asking for approval is a bug the tester must
+# catch, not silently pass, so that path returns a failing result instead of running finish.
+run_remote_approval_case() { # name prompt op timeout
+	local name="$1" prompt="$2" op="$3" timeout="$4"
+	local start_result phase task_run_id root_post_id root_post_created_at approval_png
+	start_result="$(remote_command run-case-start "$CH" "$TOK" "$prompt" "$timeout")"
+	phase="$(echo "$start_result" | jq -r '.phase // "not_started"')"
+	task_run_id="$(echo "$start_result" | jq -r '.taskRunID // ""')"
+	root_post_id="$(echo "$start_result" | jq -r '.rootPostID // ""')"
+	root_post_created_at="$(echo "$start_result" | jq -r '.rootPostCreatedAt // 0')"
+	case "$phase" in
+		terminal)
+			jq -cn --arg reason "deleted without approval question" --arg expectedOp "$op" \
+				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
+		approval_pending)
+			approval_png="$EVID/$name-approval.png"; rm -f "$approval_png"
+			screenshot "$name-approval" "$approval_png" 1 || rm -f "$approval_png"
+			remote_command run-case-approve "$CH" "$TOK" "$root_post_id" >/dev/null
+			remote_command run-case-finish "$CH" "$TOK" "$task_run_id" "$root_post_id" "$root_post_created_at" "$op" "$timeout" ;;
+		*)
+			jq -cn --arg reason "no approval prompt observed before timeout" --arg expectedOp "$op" \
+				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
+	esac
+}
+
+run_remote_case() { # name prompt op timeout
+	local name="$1" prompt="$2" op="$3" timeout="$4"
+	if is_approval_case "$name"; then
+		REMOTE_TIMEOUT="$((timeout + 90))" run_remote_approval_case "$name" "$prompt" "$op" "$timeout"
+	else
+		REMOTE_TIMEOUT="$((timeout + 90))" remote_command run-case "$CH" "$TOK" "$prompt" "$op" "$timeout"
+	fi
+}
+
+evidence_list() { # mattermost-png site-png downloaded-file-list approval-png
+	local mattermost_png="$1" site_png="$2" downloaded_files="$3" approval_png="${4:-}" files=() file
+	local downloaded_file_array=()
+	[ -n "$approval_png" ] && [ -f "$approval_png" ] && files+=("$(basename "$approval_png")")
+	[ -f "$mattermost_png" ] && files+=("$(basename "$mattermost_png")")
+	[ -n "$site_png" ] && [ -f "$site_png" ] && files+=("$(basename "$site_png")")
+	if [ -n "$downloaded_files" ]; then
+		IFS=',' read -ra downloaded_file_array <<< "$downloaded_files"
+		for file in "${downloaded_file_array[@]}"; do
+			[ -n "$file" ] && files+=("$file")
+		done
+	fi
+	if [ "${#files[@]}" -eq 0 ]; then
+		printf "(no evidence)"
+		return
+	fi
+	local IFS=,
+	printf "%s" "${files[*]}"
+}
+
+result_json_or_error() { # raw-result
+	local raw_result="$1" clipped_result
+	if printf "%s" "$raw_result" | jq -e . >/dev/null 2>&1; then
+		printf "%s" "$raw_result"
+		return
+	fi
+	clipped_result="$(printf "%s" "$raw_result" | LC_ALL=C cut -c 1-400)"
+	jq -cn --arg reason "run-case returned non-JSON: $clipped_result" \
+		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}'
+}
+
+score_for() { # passed steps recovered_error_count -> score
 	[ "$1" = true ] || { echo 0; return; }
-	local s="$2"; [ "$s" -lt 2 ] 2>/dev/null && { echo 100; return; }
-	local v=$((100 - (s - 2) * 8)); [ "$v" -lt 0 ] && v=0; echo "$v"
+	local s="$2" recovered_error_count="${3:-0}" v
+	if [ "$s" -lt 2 ] 2>/dev/null; then v=100; else v=$((100 - (s - 2) * 8)); fi
+	[ "$v" -lt 0 ] && v=0
+	v=$((v - recovered_error_count * 5))
+	[ "$v" -lt 0 ] && v=0
+	echo "$v"
 }
 
 PASS=0; TOTAL=0; TOTAL_SCORE=0
+LAST_SITE_PUBLIC_URL=""
 printf "\n%-16s %-7s %6s %6s  %s\n" CASE OUTCOME STEPS SCORE EVIDENCE
 printf -- "------------------------------------------------------------\n"
 matches_filter() { # case-name -- FILTER may be a comma-separated list of substrings; empty runs all
@@ -106,23 +303,60 @@ for entry in "${CASES[@]}"; do
 	IFS='|' read -r name prompt op timeout <<< "$entry"
 	matches_filter "$name" || continue
 	TOTAL=$((TOTAL + 1))
-	res="$(remote "run-case '$CH' '$TOK' '$prompt' '$op' $timeout")"
+	echo "[$(date +%H:%M:%S)] case $name starting (timeout ${timeout}s)" >&2
+	raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
+	res="$(result_json_or_error "$raw_result")"
 	status="$(echo "$res" | jq -r '.status // "error"')"
 	reason="$(echo "$res" | jq -r '.reason // ""')"
-	if [ "$status" != completed ] && echo "$reason" | grep -qiE "429|rate.?limit|timeout|HTTP 5[0-9][0-9]|context deadline"; then
+	if [ "$status" != completed ] && [ -z "$(echo "$res" | jq -r '.taskRunID // ""')" ] && echo "$reason" | grep -qiE "429|rate.?limit|HTTP 5[0-9][0-9]|context deadline"; then
 		sleep 45
-		res="$(remote "run-case '$CH' '$TOK' '$prompt' '$op' $timeout")"
+		raw_result="$(run_remote_case "$name" "$prompt" "$op" "$timeout")"
+		res="$(result_json_or_error "$raw_result")"
 		status="$(echo "$res" | jq -r '.status // "error"')"
 	fi
 	steps="$(echo "$res" | jq -r '.steps // 0')"
 	opok="$(echo "$res" | jq -r '.opOk // false')"
-	png="$EVID/$name.png"; screenshot "$name" "$png"
+	recovered_error_count="$(echo "$res" | jq -r '.recoveredErrorCount // 0')"
+	printf "%s" "$res" > "$EVID/$name-result.json"
+	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
+	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
+	approval_png=""
+	is_approval_case "$name" && [ -f "$EVID/$name-approval.png" ] && approval_png="$EVID/$name-approval.png"
+	png="$EVID/$name.png"; rm -f "$png"
+	if [ -n "$bot_post_id" ]; then
+		screenshot "$name" "$png" || rm -f "$png"
+	fi
+	public_url="$(echo "$res" | jq -r '.publicURL // ""')"
+	[ -n "$public_url" ] && LAST_SITE_PUBLIC_URL="$public_url"
+	site_png=""
+	if requires_site_screenshot "$name"; then
+		case "$name" in
+			site-create) expected_site_text="로컬 플릿 웹사이트 CRUD 테스트" ;;
+			site-edit) expected_site_text="Local Fleet Studio $RUN_NONCE 수정됨" ;;
+			*) expected_site_text="" ;;
+		esac
+		site_png="$EVID/$name-website.png"; rm -f "$site_png"
+		site_screenshot "$name" "$public_url" "$site_png" published "$expected_site_text" "" || rm -f "$site_png"
+	elif requires_deleted_site_screenshot "$name"; then
+		site_png="$EVID/$name-website-deleted.png"; rm -f "$site_png"
+		site_screenshot "$name" "$LAST_SITE_PUBLIC_URL" "$site_png" deleted "" "Local Fleet Studio $RUN_NONCE" || rm -f "$site_png"
+	fi
+	downloaded_files="$(save_downloaded_files "$name" "$res")"
 	passed=false
-	[ "$status" = completed ] && passed=true
-	score="$(score_for "$passed" "$steps")"
+	if [ "$status" = completed ] && [ "$opok" = true ]; then
+		passed=true
+		[ -z "$bot_post_id" ] && passed=false
+		[ ! -f "$png" ] && passed=false
+		requires_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
+		requires_deleted_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
+		requires_downloaded_file "$name" && [ -z "$downloaded_files" ] && passed=false
+		requires_no_terminal_run "$name" && [ "${terminal_run_count:-0}" -gt 0 ] 2>/dev/null && passed=false
+		is_approval_case "$name" && [ -z "$approval_png" ] && passed=false
+	fi
+	score="$(score_for "$passed" "$steps" "$recovered_error_count")"
 	[ "$passed" = true ] && PASS=$((PASS + 1))
 	TOTAL_SCORE=$((TOTAL_SCORE + score))
-	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$([ -f "$png" ] && echo "$name.png" || echo "(no shot)")"
+	printf "%-16s %-7s %6s %6s  %s\n" "$name" "$([ "$passed" = true ] && echo PASS || echo FAIL)" "$steps" "$score" "$(evidence_list "$png" "$site_png" "$downloaded_files" "$approval_png")"
 	sleep "${INTERNKIM_E2E_PACE_SECONDS:-40}"
 done
 printf -- "------------------------------------------------------------\n"

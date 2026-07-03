@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# Bakes the generic React/Vite site scaffold into a prebuilt dist that admind
+# embeds and publishes without running a build in the Blueclaw agent loop.
+# Run this whenever internal/admind/site_scaffold/react-vite-ts changes; the
+# TestSiteScaffoldDistMatchesScaffoldSource binding test fails otherwise.
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+scaffold_source_directory="$repository_root/internal/admind/site_scaffold/react-vite-ts"
+scaffold_dist_directory="$repository_root/internal/admind/site_scaffold_dist/react-vite-ts"
+stage_directory="${TMPDIR:-/tmp}/internkim-site-scaffold-dist-stage"
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_command bun
+require_command python3
+require_command rsync
+
+rm -rf "$stage_directory"
+mkdir -p "$stage_directory"
+rsync -a --exclude 'node_modules' --exclude 'dist' "$scaffold_source_directory/" "$stage_directory/"
+
+python3 - "$stage_directory" <<'PY'
+import pathlib
+import sys
+
+stage_directory = pathlib.Path(sys.argv[1])
+for file_path in stage_directory.rglob("*"):
+    if not file_path.is_file():
+        continue
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        continue
+    replaced = text.replace("__SITE_PACKAGE_NAME__", "site-scaffold-dist")
+    if replaced != text:
+        file_path.write_text(replaced, encoding="utf-8")
+PY
+
+(
+  cd "$stage_directory"
+  bun install
+  bun --bun ./node_modules/vite/bin/vite.js build
+)
+
+rm -rf "$scaffold_dist_directory"
+mkdir -p "$scaffold_dist_directory"
+rsync -a --exclude '._*' --exclude '.DS_Store' "$stage_directory/dist/" "$scaffold_dist_directory/dist/"
+
+python3 - "$scaffold_source_directory" "$scaffold_dist_directory/manifest.json" <<'PY'
+import datetime
+import hashlib
+import json
+import pathlib
+import sys
+
+scaffold_source_directory = pathlib.Path(sys.argv[1])
+manifest_path = pathlib.Path(sys.argv[2])
+
+
+def is_apple_metadata(file_path):
+    return file_path.name == ".DS_Store" or file_path.name.startswith("._")
+
+
+def is_excluded(relative_path):
+    parts = relative_path.parts
+    return "node_modules" in parts or "dist" in parts
+
+
+def file_sha256(file_path):
+    hash_value = hashlib.sha256()
+    with open(file_path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hash_value.update(chunk)
+    return hash_value.hexdigest()
+
+
+entries = []
+for file_path in scaffold_source_directory.rglob("*"):
+    if not file_path.is_file() or is_apple_metadata(file_path):
+        continue
+    relative_path = file_path.relative_to(scaffold_source_directory)
+    if is_excluded(relative_path):
+        continue
+    entries.append((relative_path.as_posix(), file_sha256(file_path)))
+
+entries.sort(key=lambda entry: entry[0])
+
+scaffold_source_hash = hashlib.sha256()
+for relative_path, content_hash in entries:
+    scaffold_source_hash.update(relative_path.encode())
+    scaffold_source_hash.update(b"\n")
+    scaffold_source_hash.update(content_hash.encode())
+    scaffold_source_hash.update(b"\n")
+
+manifest = {
+    "scaffoldSourceSHA256": scaffold_source_hash.hexdigest(),
+    "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "files": [relative_path for relative_path, _ in entries],
+}
+
+document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+manifest_path.write_text(document, encoding="utf-8")
+PY
+
+rm -rf "$stage_directory"
+echo "$scaffold_dist_directory"
