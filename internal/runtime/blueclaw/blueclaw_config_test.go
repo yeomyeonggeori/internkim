@@ -699,8 +699,8 @@ func TestCapabilitydServiceCanUseTestModelFromEnvironment(t *testing.T) {
 	if !strings.Contains(serviceDocument, "--openrouter-model "+BlueclawTestModelName) {
 		t.Fatalf("expected capabilityd service to use test model, got %s", serviceDocument)
 	}
-	if !strings.Contains(serviceDocument, "--force-openrouter-model") {
-		t.Fatalf("expected capabilityd service to force test model, got %s", serviceDocument)
+	if strings.Contains(serviceDocument, "--force-openrouter-model") {
+		t.Fatalf("expected capabilityd service to keep explicit tier models so escalation fallback can reach a healthy model, got %s", serviceDocument)
 	}
 }
 
