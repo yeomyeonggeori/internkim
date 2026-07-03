@@ -375,15 +375,23 @@ func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Contex
 }
 
 func (service *Service) repairMattermostProjectionsWithTimeout(ctx context.Context) {
-	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	service.syncExistingMattermostManagedPosts(syncContext)
+	service.syncExistingMattermostManagedPosts(ctx)
 }
 
 func (service *Service) sweepExpiredMattermostChannelPostsWithTimeout(ctx context.Context) {
+	service.sweepExpiredFlowMattermostNotificationsWithTimeout(ctx)
+	service.sweepExpiredCalendarMattermostLogsWithTimeout(ctx)
+}
+
+func (service *Service) sweepExpiredFlowMattermostNotificationsWithTimeout(ctx context.Context) {
 	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	service.sweepExpiredFlowMattermostNotifications(syncContext)
+}
+
+func (service *Service) sweepExpiredCalendarMattermostLogsWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	service.sweepExpiredCalendarMattermostLogs(syncContext)
 }
 
