@@ -111,7 +111,7 @@ export const adminText = {
 		},
 		settings: {
 			title: '작업공간 설정',
-			description: '출결과 운영 화면에서 사용할 작업공간 설정입니다.',
+			description: '근태와 운영 화면에서 사용할 작업공간 설정입니다.',
 			timeZone: '시간대',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
