@@ -2,6 +2,7 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayFlowEvent } from './calendar-event-mapping';
 import {
+	deletePersistedCalendarEventOnPageHide,
 	deletePersistedCalendarEvent,
 	writeCalendarEvent,
 	type CalendarEvent
@@ -21,6 +22,7 @@ type CalendarPersistedEventActionsContext = {
 export type CalendarPersistedEventActions = {
 	writeEvent: (path: string, method: 'POST' | 'PUT', event: DayFlowEvent) => Promise<CalendarEvent>;
 	deleteEvent: (eventID: string) => Promise<void>;
+	deleteEventOnPageHide: (eventID: string) => void;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -36,6 +38,10 @@ export function createCalendarPersistedEventActions(
 
 	async function deleteEvent(eventID: string): Promise<void> {
 		await deletePersistedCalendarEvent(eventID, context.text.deleteError);
+	}
+
+	function deleteEventOnPageHide(eventID: string): void {
+		deletePersistedCalendarEventOnPageHide(eventID);
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {
@@ -70,6 +76,7 @@ export function createCalendarPersistedEventActions(
 	return {
 		writeEvent,
 		deleteEvent,
+		deleteEventOnPageHide,
 		applyServerMetadata
 	};
 }

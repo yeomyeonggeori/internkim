@@ -190,7 +190,12 @@ export async function routeCalendarEventCreates(page: Page): Promise<CalendarEve
 }
 
 export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
+	return routeCalendarEventDeletesWithFailures(page, []);
+}
+
+export async function routeCalendarEventDeletesWithFailures(page: Page, failingEventIDs: string[]): Promise<string[]> {
 	const deletedEventIDs: string[] = [];
+	const failingEventIDSet = new Set(failingEventIDs);
 	await page.route('**/calendar/api/events/*', async (route) => {
 		if (route.request().method() !== 'DELETE') {
 			await route.fulfill({ json: {} });
@@ -198,6 +203,11 @@ export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
 		}
 		const eventID = decodeURIComponent(route.request().url().split('/').pop() ?? '');
 		deletedEventIDs.push(eventID);
+		if (failingEventIDSet.has(eventID)) {
+			failingEventIDSet.delete(eventID);
+			await route.fulfill({ status: 500, body: 'delete failed' });
+			return;
+		}
 		await route.fulfill({ json: { ok: true } });
 	});
 	return deletedEventIDs;
