@@ -1319,7 +1319,7 @@ func TestMattermostReplyFallsBackWhenThreadRootIsInvalid(t *testing.T) {
 	}
 }
 
-func TestMattermostReplyRendersAskChoiceInlineControl(t *testing.T) {
+func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1338,6 +1338,8 @@ func TestMattermostReplyRendersAskChoiceInlineControl(t *testing.T) {
 			}
 			ephemeralRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "user-1", "username": "user-one"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1387,13 +1389,30 @@ func TestMattermostReplyRendersAskChoiceInlineControl(t *testing.T) {
 
 	select {
 	case payload := <-postRequests:
-		if payload["message"] != "구현은 어떻게 하는 게 좋을까요?" || payload["root_id"] != "root-1" {
+		if payload["message"] != "@user-one 구현은 어떻게 하는 게 좋을까요?" || payload["root_id"] != "root-1" {
 			t.Fatalf("expected question post in thread, got %+v", payload)
 		}
 		props, isMap := payload["props"].(map[string]any)
 		if !isMap {
 			t.Fatalf("expected props, got %+v", payload)
 		}
+		if _, hasAttachments := props["attachments"]; hasAttachments {
+			t.Fatalf("expected public post to carry no interactive attachment, got %+v", props)
+		}
+	default:
+		t.Fatal("expected question post request")
+	}
+
+	select {
+	case payload := <-ephemeralRequests:
+		if payload["user_id"] != "user-1" {
+			t.Fatalf("expected ephemeral control targeted at user-1, got %+v", payload)
+		}
+		post, isMap := payload["post"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected ephemeral post document, got %+v", payload)
+		}
+		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 1 {
 			t.Fatalf("expected one interactive attachment, got %+v", props)
@@ -1416,17 +1435,11 @@ func TestMattermostReplyRendersAskChoiceInlineControl(t *testing.T) {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:
-		t.Fatal("expected question post request")
-	}
-
-	select {
-	case payload := <-ephemeralRequests:
-		t.Fatalf("expected no ephemeral control request, got %+v", payload)
-	default:
+		t.Fatal("expected ephemeral control request")
 	}
 }
 
-func TestMattermostReplySendsAskAttachmentInlineForRequester(t *testing.T) {
+func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1445,6 +1458,8 @@ func TestMattermostReplySendsAskAttachmentInlineForRequester(t *testing.T) {
 			}
 			ephemeralRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
+		case "/api/v4/users/requester-1":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "requester-1", "username": "requester-one"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1487,13 +1502,32 @@ func TestMattermostReplySendsAskAttachmentInlineForRequester(t *testing.T) {
 
 	select {
 	case payload := <-postRequests:
+		if payload["message"] != "@requester-one 우경 님에게 다음 DM을 보내도 될까요?\n\n바보" {
+			t.Fatalf("expected mentioned question post, got %+v", payload)
+		}
 		props, isMap := payload["props"].(map[string]any)
 		if !isMap {
 			t.Fatalf("expected post props, got %+v", payload)
 		}
+		if _, hasAttachments := props["attachments"]; hasAttachments {
+			t.Fatalf("expected public post to carry no attachment, got %+v", props)
+		}
+	default:
+		t.Fatal("expected public post request")
+	}
+	select {
+	case payload := <-ephemeralRequests:
+		if payload["user_id"] != "requester-1" {
+			t.Fatalf("expected ephemeral attachment targeted at requester-1, got %+v", payload)
+		}
+		post, isMap := payload["post"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected ephemeral post document, got %+v", payload)
+		}
+		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 1 {
-			t.Fatalf("expected public ask attachment, got %+v", payload)
+			t.Fatalf("expected one ephemeral ask attachment, got %+v", props)
 		}
 		attachment := attachments[0].(map[string]any)
 		actions := attachment["actions"].([]any)
@@ -1507,12 +1541,7 @@ func TestMattermostReplySendsAskAttachmentInlineForRequester(t *testing.T) {
 			t.Fatalf("expected action context without message copy, got %+v", contextDocument)
 		}
 	default:
-		t.Fatal("expected public post request")
-	}
-	select {
-	case payload := <-ephemeralRequests:
-		t.Fatalf("expected no ephemeral request, got %+v", payload)
-	default:
+		t.Fatal("expected ephemeral attachment request")
 	}
 }
 
