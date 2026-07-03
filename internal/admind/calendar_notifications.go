@@ -139,7 +139,7 @@ func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEven
 	workspaceLocation, _ := service.workspaceTimeLocation()
 	lines := []string{}
 	if mentionText := calendarMattermostMentionText(event, mattermostUsers); mentionText != "" {
-		lines = append(lines, "참석자: "+mentionText)
+		lines = append(lines, "참석자: "+mentionText, "")
 	}
 	lines = append(lines, mattermostMarkdownTable(
 		[]string{"일시", "일정", "장소", "메모"},
