@@ -139,7 +139,7 @@ func (service *Service) calendarMattermostLogMessageWithUsers(event calendarEven
 	workspaceLocation, _ := service.workspaceTimeLocation()
 	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event, workspaceLocation), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
 	if mentionText := calendarMattermostMentionText(event, mattermostUsers); mentionText != "" {
-		lines = append(lines, mentionText)
+		lines = append(lines, "참석자: "+mentionText)
 	}
 	if strings.TrimSpace(event.Location) != "" {
 		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))

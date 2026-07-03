@@ -148,14 +148,14 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 
 func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
 	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)))}
-	if task.Type != "" || task.Size != "" {
-		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
+	if task.Type != "" {
+		lines = append(lines, "유형: "+task.Type)
+	}
+	if task.Size != "" {
+		lines = append(lines, "크기: "+task.Size)
 	}
 	if len(task.ParticipantNames) > 0 {
 		lines = append(lines, "참여자: "+strings.Join(task.ParticipantNames, ", "))
-	}
-	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
-		lines = append(lines, "사유: "+strings.TrimSpace(reason))
 	}
 	return strings.Join(lines, "\n")
 }
