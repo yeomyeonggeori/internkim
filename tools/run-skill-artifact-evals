@@ -74,6 +74,8 @@ def main() -> int:
         return judge_run(arguments)
     if arguments.command == "record":
         return record_scores(arguments)
+    if arguments.command == "recompute-metrics":
+        return recompute_metrics(arguments)
     return 1
 
 
@@ -103,6 +105,9 @@ def parse_arguments() -> argparse.Namespace:
 
     recordParser = subcommands.add_parser("record", help="Record a completed scorecard in the tracked score ledger.")
     recordParser.add_argument("run_directory", help="Run directory containing scorecard.json.")
+
+    recomputeMetricsParser = subcommands.add_parser("recompute-metrics", help="Backfill efficiency metrics for an existing run directory without re-running generation.")
+    recomputeMetricsParser.add_argument("run_directory", help="Run directory containing diagnostics and audit.json files.")
 
     return argumentParser.parse_args()
 
@@ -178,6 +183,31 @@ def audit_run_directory(runDirectory: Path) -> None:
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
     manifest["efficiencyByEvaluationID"] = collect_efficiency_by_evaluation(runDirectory, selectedEvaluations)
     write_json(runDirectory / "manifest.json", manifest)
+
+
+def recompute_metrics(arguments: argparse.Namespace) -> int:
+    runDirectory = resolve_run_directory(arguments.run_directory)
+    configuration = load_evaluations()
+    evaluationsByID = {evaluation["id"]: evaluation for evaluation in configuration["evaluations"]}
+    manifest = read_json(runDirectory / "manifest.json")
+    selectedEvaluations = [evaluationsByID[evaluationID] for evaluationID in manifest["evaluationIDs"]]
+    for evaluation in selectedEvaluations:
+        backfill_evaluation_efficiency(runDirectory, evaluation["id"])
+    manifest["efficiencyByEvaluationID"] = collect_efficiency_by_evaluation(runDirectory, selectedEvaluations)
+    write_json(runDirectory / "manifest.json", manifest)
+    print(f"recomputed metrics for {relative_path(runDirectory)}")
+    return 0
+
+
+def backfill_evaluation_efficiency(runDirectory: Path, evaluationID: str) -> None:
+    resultDirectory = existing_result_directory(runDirectory, evaluationID)
+    diagnosticDirectory = existing_diagnostic_directory(runDirectory, evaluationID)
+    auditPath = resultDirectory / "audit.json"
+    if not auditPath.exists():
+        return
+    audit = read_json(auditPath)
+    audit["efficiency"] = compute_efficiency_metrics(diagnosticDirectory)
+    write_json(auditPath, audit)
 
 
 def collect_efficiency_by_evaluation(runDirectory: Path, selectedEvaluations: list[dict]) -> dict:
@@ -983,42 +1013,49 @@ def audit_evaluation_output(resultDirectory: Path, diagnosticDirectory: Path, ev
         "forbiddenText": check_text_presence(extractedText, evaluation.get("forbiddenText", [])),
         "formatChecks": formatChecks,
         "renderChecks": renderChecks,
-        "efficiency": compute_efficiency_metrics(read_test_result(diagnosticDirectory)),
+        "efficiency": compute_efficiency_metrics(diagnosticDirectory),
     }
 
 
 TURN_TASK_STEP_ID_PATTERN = re.compile(r":turn-\d+$")
 TOOL_REQUESTED_EVENT_NAME_PATTERN = re.compile(r"^tool\..+\.requested$")
 TOOL_RESULT_EVENT_NAME_PATTERN = re.compile(r"^tool\..+\.result$")
+TASK_RUN_ID_STDOUT_PATTERN = re.compile(r"in task ([0-9a-z]+)")
+TASK_STATUS_STDOUT_PATTERN = re.compile(r"got (\w+) in task")
 
 
-def compute_efficiency_metrics(testResult: dict) -> dict:
-    taskDetailError = str(testResult.get("taskDetailError", "")).strip()
-    taskDetail = testResult.get("taskDetail")
-    if not isinstance(taskDetail, dict):
-        return unavailable_efficiency_metrics(taskDetailError or "no taskDetail was captured for this generation run")
-    taskRun = taskDetail.get("taskRun")
-    taskSteps = taskDetail.get("taskSteps")
-    taskEvents = taskDetail.get("taskEvents")
-    if not isinstance(taskRun, dict) or not isinstance(taskSteps, list) or not isinstance(taskEvents, list):
-        return unavailable_efficiency_metrics("taskDetail response was missing taskRun, taskSteps, or taskEvents")
+def compute_efficiency_metrics(diagnosticDirectory: Path) -> dict:
+    testResult = read_test_result(diagnosticDirectory)
+    stdoutText = read_stdout_text(diagnosticDirectory)
+    taskDetail = normalize_task_detail(testResult.get("taskDetail"))
+    taskRun = taskDetail.get("taskRun") if isinstance(taskDetail, dict) else None
+    taskSteps = taskDetail.get("taskSteps") if isinstance(taskDetail, dict) else None
+    taskEvents = resolve_task_events(taskDetail, stdoutText)
+    wallClockSeconds = compute_wall_clock_seconds(taskRun, diagnosticDirectory)
+    taskExecutionSeconds = extract_task_execution_seconds(taskEvents)
+    if taskEvents is None:
+        taskDetailError = str(testResult.get("taskDetailError", "")).strip()
+        reason = taskDetailError or "no taskDetail or task events were captured for this generation run"
+        return unavailable_efficiency_metrics(reason, wallClockSeconds, taskExecutionSeconds)
+    isStructuredTaskDetail = isinstance(taskDetail, dict) and isinstance(taskDetail.get("taskEvents"), list)
     return {
         "available": True,
-        "reason": None,
-        "taskRunID": string_or_none(testResult.get("taskRunID")),
-        "taskStatus": string_or_none(taskRun.get("status")),
-        "turnCount": count_turn_task_steps(taskSteps),
+        "reason": None if isStructuredTaskDetail else "task events were recovered from the stdout probe log because no test-result.json taskDetail was captured",
+        "taskRunID": string_or_none(testResult.get("taskRunID")) or extract_task_run_id_from_stdout(stdoutText),
+        "taskStatus": string_or_none(taskRun.get("status")) if isinstance(taskRun, dict) else extract_task_status_from_stdout(stdoutText),
+        "turnCount": count_turn_task_steps(taskSteps) if isinstance(taskSteps, list) else None,
         "totalToolCalls": count_events_matching_pattern(taskEvents, TOOL_REQUESTED_EVENT_NAME_PATTERN),
         "failedToolCalls": count_failed_tool_result_events(taskEvents),
         "recoveryAttempts": count_events_with_name(taskEvents, "agent.recovery_attempt"),
         "failureDebtEvents": count_events_with_name(taskEvents, "agent.failure_debt_created"),
         "requiredEvidenceReaskEvents": count_events_with_name(taskEvents, "agent.required_evidence_reask"),
         "llmCallCount": count_events_with_name(taskEvents, "llm.call"),
-        "wallClockSeconds": compute_task_run_wall_clock_seconds(taskRun),
+        "wallClockSeconds": wallClockSeconds,
+        "taskExecutionSeconds": taskExecutionSeconds,
     }
 
 
-def unavailable_efficiency_metrics(reason: str) -> dict:
+def unavailable_efficiency_metrics(reason: str, wallClockSeconds: float | None = None, taskExecutionSeconds: float | None = None) -> dict:
     return {
         "available": False,
         "reason": reason,
@@ -1031,8 +1068,113 @@ def unavailable_efficiency_metrics(reason: str) -> dict:
         "failureDebtEvents": None,
         "requiredEvidenceReaskEvents": None,
         "llmCallCount": None,
-        "wallClockSeconds": None,
+        "wallClockSeconds": wallClockSeconds,
+        "taskExecutionSeconds": taskExecutionSeconds,
     }
+
+
+def normalize_task_detail(rawTaskDetail) -> dict | None:
+    if isinstance(rawTaskDetail, list):
+        return rawTaskDetail[0] if rawTaskDetail and isinstance(rawTaskDetail[0], dict) else None
+    return rawTaskDetail if isinstance(rawTaskDetail, dict) else None
+
+
+def resolve_task_events(taskDetail: dict | None, stdoutText: str) -> list | None:
+    if isinstance(taskDetail, dict) and isinstance(taskDetail.get("taskEvents"), list):
+        return taskDetail["taskEvents"]
+    return extract_task_events_from_stdout(stdoutText)
+
+
+def read_stdout_text(diagnosticDirectory: Path) -> str:
+    stdoutPath = diagnosticDirectory / "stdout.txt"
+    if not stdoutPath.exists():
+        return ""
+    return stdoutPath.read_text(encoding="utf-8", errors="replace")
+
+
+def extract_task_events_from_stdout(stdoutText: str) -> list | None:
+    if not stdoutText:
+        return None
+    for candidate in reversed(find_bracketed_json_arrays(stdoutText.splitlines())):
+        taskEvents = parse_task_events_array(candidate)
+        if taskEvents is not None:
+            return taskEvents
+    return None
+
+
+def find_bracketed_json_arrays(lines: list[str]) -> list[str]:
+    arrays = []
+    startIndex = None
+    for lineIndex, line in enumerate(lines):
+        if line == "[":
+            startIndex = lineIndex
+        elif line == "]" and startIndex is not None:
+            arrays.append("\n".join(lines[startIndex:lineIndex + 1]))
+            startIndex = None
+    return arrays
+
+
+def parse_task_events_array(candidateText: str) -> list | None:
+    try:
+        parsed = json.loads(candidateText)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, list) or not all(isinstance(item, dict) and "name" in item for item in parsed):
+        return None
+    return parsed
+
+
+def extract_task_run_id_from_stdout(stdoutText: str) -> str | None:
+    matches = TASK_RUN_ID_STDOUT_PATTERN.findall(stdoutText)
+    return matches[-1] if matches else None
+
+
+def extract_task_status_from_stdout(stdoutText: str) -> str | None:
+    matches = TASK_STATUS_STDOUT_PATTERN.findall(stdoutText)
+    return matches[-1] if matches else None
+
+
+def extract_task_execution_seconds(taskEvents: list | None) -> float | None:
+    if not isinstance(taskEvents, list):
+        return None
+    for taskEvent in reversed(taskEvents):
+        if not isinstance(taskEvent, dict) or taskEvent.get("name") != "blueclaw.task.execution_duration":
+            continue
+        durationMs = parse_execution_duration_milliseconds(taskEvent.get("body"))
+        if durationMs is not None:
+            return round(durationMs / 1000, 3)
+    return None
+
+
+def parse_execution_duration_milliseconds(body) -> float | None:
+    if not isinstance(body, str) or not body.strip():
+        return None
+    try:
+        document = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    durationMs = document.get("durationMs") if isinstance(document, dict) else None
+    return durationMs if isinstance(durationMs, (int, float)) else None
+
+
+def compute_wall_clock_seconds(taskRun: dict | None, diagnosticDirectory: Path) -> float | None:
+    if isinstance(taskRun, dict):
+        taskRunWallClockSeconds = compute_task_run_wall_clock_seconds(taskRun)
+        if taskRunWallClockSeconds is not None:
+            return taskRunWallClockSeconds
+    return compute_run_json_wall_clock_seconds(diagnosticDirectory)
+
+
+def compute_run_json_wall_clock_seconds(diagnosticDirectory: Path) -> float | None:
+    runJSONPath = diagnosticDirectory / "run.json"
+    if not runJSONPath.exists():
+        return None
+    runMetadata = read_json(runJSONPath)
+    startedAt = parse_iso_datetime(runMetadata.get("startedAt"))
+    finishedAt = parse_iso_datetime(runMetadata.get("finishedAt"))
+    if startedAt is None or finishedAt is None:
+        return None
+    return round((finishedAt - startedAt).total_seconds(), 3)
 
 
 def count_turn_task_steps(taskSteps: list) -> int:
