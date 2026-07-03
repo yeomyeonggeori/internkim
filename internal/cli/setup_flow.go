@@ -1090,7 +1090,7 @@ func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
 }
 
 func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) error {
-	localHealth, errorValue := state.sshClient.runResult("curl -fsS http://127.0.0.1:18080/admin/api/health")
+	localHealth, errorValue := state.sshClient.runResult("curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:18080/admin/api/health")
 	if errorValue != nil {
 		return fmt.Errorf("admind local health check failed: %s", strings.TrimSpace(localHealth))
 	}
