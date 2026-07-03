@@ -25,7 +25,7 @@ type adminUserMutation struct {
 	ProjectIDs             []string `json:"projectIDs,omitempty"`
 	TeamRole               string   `json:"teamRole,omitempty"`
 	EmploymentStatus       string   `json:"employmentStatus,omitempty"`
-	IsOrgchartVisible      bool     `json:"isOrgchartVisible"`
+	IsOrgchartVisible      bool     `json:"isOrgchartVisible,omitempty"`
 	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
 	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
 	Status                 string   `json:"status,omitempty"`

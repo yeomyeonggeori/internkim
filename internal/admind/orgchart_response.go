@@ -6,18 +6,32 @@ import (
 	"strings"
 )
 
+type orgchartMetadataResponse struct {
+	response         pagesUsersResponse
+	profilesByUserID map[string]orgchartProfile
+	profilesByEmail  map[string]orgchartProfile
+}
+
 func (service *Service) withOrgchartMetadata(ctx context.Context, responseBody []byte) ([]byte, error) {
+	metadataResponse, errorValue := service.orgchartMetadataResponse(ctx, responseBody)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return json.Marshal(metadataResponse.response)
+}
+
+func (service *Service) orgchartMetadataResponse(ctx context.Context, responseBody []byte) (orgchartMetadataResponse, error) {
 	var usersResponse pagesUsersResponse
 	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
-		return nil, errorValue
+		return orgchartMetadataResponse{}, errorValue
 	}
 	groups, errorValue := service.readOrgchartGroupsOrInitialize(ctx, usersResponse.AvailableGroups)
 	if errorValue != nil {
-		return nil, errorValue
+		return orgchartMetadataResponse{}, errorValue
 	}
 	profiles, errorValue := service.readOrgchartProfiles(ctx)
 	if errorValue != nil {
-		return nil, errorValue
+		return orgchartMetadataResponse{}, errorValue
 	}
 	profilesByUserID, profilesByEmail := orgchartProfileIndexes(profiles)
 	usersResponse.AvailableGroups = groups
@@ -29,7 +43,11 @@ func (service *Service) withOrgchartMetadata(ctx context.Context, responseBody [
 		}
 		applyOrgchartProfile(&usersResponse.Records[index], profile)
 	}
-	return json.Marshal(usersResponse)
+	return orgchartMetadataResponse{
+		response:         usersResponse,
+		profilesByUserID: profilesByUserID,
+		profilesByEmail:  profilesByEmail,
+	}, nil
 }
 
 func orgchartProfileIndexes(profiles []orgchartProfile) (map[string]orgchartProfile, map[string]orgchartProfile) {
@@ -63,8 +81,6 @@ func orgchartProfileForUser(record adminUserMutation, profilesByUserID map[strin
 }
 
 func applyDefaultOrgchartMetadata(record *adminUserMutation) {
-	record.EmploymentStatus = orgchartEmploymentStatusActive
-	record.IsOrgchartVisible = true
 	if record.PrimaryGroupID == "" && record.Group != "" {
 		record.PrimaryGroupID = record.Group
 	}
@@ -77,12 +93,7 @@ func applyOrgchartProfile(record *adminUserMutation, profile orgchartProfile) {
 	record.UserID = firstNonEmpty(record.UserID, profile.UserID)
 	record.JobTitle = profile.JobTitle
 	record.Group = profile.PrimaryGroupID
-	record.PositionLevel = profile.PositionLevel
 	record.PrimaryGroupID = profile.PrimaryGroupID
 	record.GroupIDs = profile.GroupIDs
 	record.SupervisorID = profile.SupervisorID
-	record.ProjectIDs = profile.ProjectIDs
-	record.TeamRole = profile.TeamRole
-	record.EmploymentStatus = profile.EmploymentStatus
-	record.IsOrgchartVisible = profile.IsOrgchartVisible
 }
