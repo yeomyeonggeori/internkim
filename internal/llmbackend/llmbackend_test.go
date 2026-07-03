@@ -981,6 +981,78 @@ func TestLlamaCppBackendFallsBackToJSONSchemaWhenActionToolCallIsMissing(t *test
 	}
 }
 
+func TestLlamaCppBackendSkipsOversizedPromptWithoutDispatching(t *testing.T) {
+	requestCount := 0
+	backend := LlamaCppBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	hugePrompt := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: hugePrompt}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue == nil {
+		t.Fatal("expected oversized prompt to be rejected before dispatch")
+	}
+	if requestCount != 0 {
+		t.Fatalf("expected no HTTP dispatch for oversized prompt, got %d requests", requestCount)
+	}
+
+	_, textError := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: hugePrompt}},
+	})
+	if textError == nil {
+		t.Fatal("expected oversized prompt to be rejected before dispatch for CompleteText")
+	}
+	if requestCount != 0 {
+		t.Fatalf("expected no HTTP dispatch for oversized CompleteText prompt, got %d requests", requestCount)
+	}
+}
+
+func TestLlamaCppBackendAllowsPromptWithinContextWindow(t *testing.T) {
+	requestCount := 0
+	backend := LlamaCppBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected small prompt to dispatch normally: %v", errorValue)
+	}
+	if requestCount != 1 {
+		t.Fatalf("expected exactly one HTTP dispatch, got %d requests", requestCount)
+	}
+}
+
 func TestManagedLlamaCppBackendStartsServiceAndRetriesText(t *testing.T) {
 	chatRequests := 0
 	healthRequests := 0

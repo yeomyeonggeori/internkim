@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
@@ -19,6 +21,18 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 
 	if configuration.AdmindBaseURL != DefaultConfiguration().AdmindBaseURL {
 		t.Fatalf("expected admind base url default, got %q", configuration.AdmindBaseURL)
+	}
+}
+
+func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
+	configuration := DefaultConfiguration()
+
+	deployedModelName := strings.TrimSuffix(locallm.LlamaCppModelFilename, ".gguf")
+	if configuration.LlamaCppModel != "local/"+deployedModelName {
+		t.Fatalf("expected default llamacpp model label to reflect the actual on-device model %q, got %q", locallm.LlamaCppModelFilename, configuration.LlamaCppModel)
+	}
+	if strings.Contains(strings.ToLower(configuration.LlamaCppModel), "e4b") {
+		t.Fatalf("default llamacpp model label must not reference the E4B variant, which does not fit the 8GB Jetson: got %q", configuration.LlamaCppModel)
 	}
 }
 

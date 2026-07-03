@@ -19,6 +19,9 @@ func (backend LlamaCppBackend) Ping(ctx context.Context) error {
 }
 
 func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	if errorValue := promptExceedsContextWindow(request.Messages, LlamaCppLocalContextWindowTokens); errorValue != nil {
+		return Response{}, errorValue
+	}
 	if response, isHandled, errorValue := backend.completeNativeAction(ctx, request); isHandled {
 		if errorValue == nil {
 			return response, nil
@@ -72,6 +75,9 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 }
 
 func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
+	if errorValue := promptExceedsContextWindow(request.Messages, LlamaCppLocalContextWindowTokens); errorValue != nil {
+		return Response{}, errorValue
+	}
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil, GenerationOptions{})
 	content, usage, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {

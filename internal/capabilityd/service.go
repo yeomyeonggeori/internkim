@@ -237,7 +237,7 @@ func DefaultConfiguration() Configuration {
 		OllamaBaseURL:                  "http://127.0.0.1:11434",
 		OllamaModel:                    "gemma3:1b",
 		LlamaCppBaseURL:                locallm.LlamaCppBaseURL,
-		LlamaCppModel:                  "local/gemma-4-E4B-it-gguf",
+		LlamaCppModel:                  "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
 		LlamaCppEmbeddingBaseURL:       locallm.LlamaCppEmbeddingBaseURL,
 		LlamaCppEmbeddingModel:         llmbackend.DefaultEmbeddingGemmaModel,
 		SocketGroupName:                "blueclaw",
