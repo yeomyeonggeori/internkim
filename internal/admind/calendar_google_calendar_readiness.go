@@ -2,71 +2,70 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
 )
 
-const (
-	googleCalendarEventsEndpointBase          = "https://www.googleapis.com/calendar/v3/calendars"
-	googleCalendarEventsProbeResponseMaxBytes = 1 << 20
-)
+type googleCalendarReadinessError struct {
+	Status string
+	Cause  error
+}
+
+func (errorValue googleCalendarReadinessError) Error() string {
+	return errorValue.Cause.Error()
+}
+
+func (errorValue googleCalendarReadinessError) Unwrap() error {
+	return errorValue.Cause
+}
+
+func googleCalendarReadinessStatusFromError(errorValue error) (string, bool) {
+	var readinessError googleCalendarReadinessError
+	if errors.As(errorValue, &readinessError) {
+		return readinessError.Status, true
+	}
+	return "", false
+}
 
 func (service *Service) verifyGoogleCalendarSelectionReady(ctx context.Context, account remoteCalendarAccount, calendar googleCalendarListEntry) error {
-	if !isWritableRemoteCalendarAccessRole(calendar.AccessRole) {
-		return fmt.Errorf("google calendar %s is not writable", strings.TrimSpace(calendar.CalendarID))
+	if !calendar.CanSelect {
+		return googleCalendarReadinessError{
+			Status: calendarReadinessStatusWritePermissionRequired,
+			Cause:  fmt.Errorf("google calendar %s is not writable", strings.TrimSpace(calendar.CalendarID)),
+		}
 	}
-	tokenSource, errorValue := service.googleOAuthTokenSource(ctx, account, "")
+	client, errorValue := service.newGoogleCalDAVClient(ctx, account)
 	if errorValue != nil {
 		return errorValue
 	}
-	token, errorValue := tokenSource.Token()
-	if errorValue != nil {
-		return googleCalendarAuthorizationError{Cause: errorValue}
-	}
-	return service.fetchGoogleCalendarEventsProbe(ctx, token, calendar.CalendarID)
+	return service.fetchGoogleCalendarCalDAVProbe(ctx, client, calendar.CalendarURL)
 }
 
-func (service *Service) fetchGoogleCalendarEventsProbe(ctx context.Context, token interface{ SetAuthHeader(*http.Request) }, calendarID string) error {
-	requestURL, errorValue := googleCalendarEventsProbeURL(calendarID)
-	if errorValue != nil {
+func (service *Service) fetchGoogleCalendarCalDAVProbe(ctx context.Context, client *outboundCalDAVClient, calendarURL string) error {
+	calendarURL = strings.TrimSpace(calendarURL)
+	if calendarURL == "" {
+		return googleCalendarReadinessError{
+			Status: calendarReadinessStatusCalendarInaccessible,
+			Cause:  errors.New("google calendar URL is required"),
+		}
+	}
+	if _, errorValue := client.fetchCalendarCTag(ctx, calendarURL); errorValue != nil {
+		if isCalendarAuthError(errorValue) {
+			return googleCalendarAuthorizationError{Cause: errorValue}
+		}
+		if isCalendarInaccessibleError(errorValue) {
+			return googleCalendarReadinessError{Status: calendarReadinessStatusCalendarInaccessible, Cause: errorValue}
+		}
 		return errorValue
 	}
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	token.SetAuthHeader(request)
-	response, errorValue := service.googleOAuthHTTPClient().Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	body, errorValue := io.ReadAll(io.LimitReader(response.Body, googleCalendarEventsProbeResponseMaxBytes))
-	if errorValue != nil {
-		return errorValue
-	}
-	if response.StatusCode == http.StatusOK {
-		return nil
-	}
-	statusError := fmt.Errorf("google calendar events list status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return googleCalendarAuthorizationError{Cause: statusError}
-	}
-	return statusError
+	return nil
 }
 
-func googleCalendarEventsProbeURL(calendarID string) (string, error) {
-	requestURL, errorValue := url.Parse(googleCalendarEventsEndpointBase + "/" + url.PathEscape(strings.TrimSpace(calendarID)) + "/events")
-	if errorValue != nil {
-		return "", errorValue
+func isCalendarInaccessibleError(errorValue error) bool {
+	if errorValue == nil {
+		return false
 	}
-	query := requestURL.Query()
-	query.Set("maxResults", "1")
-	query.Set("singleEvents", "true")
-	query.Set("fields", "items(id)")
-	requestURL.RawQuery = query.Encode()
-	return requestURL.String(), nil
+	message := strings.ToLower(errorValue.Error())
+	return strings.Contains(message, " status 403") || strings.Contains(message, " status 404")
 }
