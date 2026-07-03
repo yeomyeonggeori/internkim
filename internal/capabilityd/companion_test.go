@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -459,7 +460,8 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 				Input:    json.RawMessage(testCase.input),
 				Context:  testCase.context,
 			}
-			response, isDenied := capabilityToolApprovalDeniedResponse(request)
+			service := Service{}
+			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
 			if isDenied != testCase.requiresApproval {
 				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
 			}
@@ -468,6 +470,82 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
+	requesterContext := capabilities.ToolInvokeContext{
+		RequesterPersonID: "person-dongha",
+		ConversationID:    "conversation-1",
+	}
+
+	t.Run("directMessage resolving to the requester is pre-approved", func(t *testing.T) {
+		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message.send",
+			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Context:  requesterContext,
+		}
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		if isDenied {
+			t.Fatalf("expected self direct message to be pre-approved, got %+v", response)
+		}
+	})
+
+	t.Run("directMessage resolving to a different person still requires approval", func(t *testing.T) {
+		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message.send",
+			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
+		}
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		if !isDenied {
+			t.Fatal("expected direct message to a different person to require approval")
+		}
+		assertCapabilityApprovalRequired(t, response, "message.send")
+	})
+
+	t.Run("directMessage broadcast with personHints still requires approval", func(t *testing.T) {
+		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message.send",
+			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플","personHints":["샘플"]}}`),
+			Context:  requesterContext,
+		}
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		if !isDenied {
+			t.Fatal("expected multi-recipient directMessage to require approval")
+		}
+		assertCapabilityApprovalRequired(t, response, "message.send")
+	})
+
+	t.Run("recipient resolution failure still requires approval", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {}))
+		server.Close()
+		service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message.send",
+			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Context:  requesterContext,
+		}
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		if !isDenied {
+			t.Fatal("expected resolution failure to require approval")
+		}
+		assertCapabilityApprovalRequired(t, response, "message.send")
+	})
+
+	t.Run("scheduled run never qualifies for the self direct-message pre-approval", func(t *testing.T) {
+		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message.send",
+			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-dongha", ConversationID: "conversation-1", IsScheduledRun: true},
+		}
+		if service.isPreApprovedSelfDirectMessageSend(context.Background(), request) {
+			t.Fatal("expected scheduled runs to never qualify for the self direct-message pre-approval")
+		}
+	})
 }
 
 func TestMessageSendPreApprovalExcludesScheduledRuns(t *testing.T) {
