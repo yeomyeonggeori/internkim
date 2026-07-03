@@ -77,6 +77,7 @@
 	function syncNoticeText(): string {
 		if (syncNotice === 'googleOAuthConnected') return text.googleCalendarConnectionComplete;
 		if (syncNotice === 'googleOAuthFailed') return text.googleCalendarConnectionFailed;
+		if (syncNotice === 'googleOAuthClientUploaded') return text.googleOAuthClientUploadComplete;
 		return syncNotice;
 	}
 
