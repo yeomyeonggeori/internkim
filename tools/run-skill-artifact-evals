@@ -9,6 +9,7 @@ import os
 import json
 import re
 import statistics
+import tempfile
 import urllib.error
 import urllib.request
 import shutil
@@ -30,6 +31,8 @@ DEFAULT_COMMAND_TIMEOUT_SECONDS = 1260
 ARTIFACT_FILE_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".pptx", ".html", ".htm", ".csv", ".tsv", ".zip"}
 OFFICE_DOCUMENT_EXTENSIONS = {".docx", ".pptx", ".xlsx"}
 RENDER_PAGE_LIMIT = 8
+JUDGE_IMAGE_PAGE_LIMIT = 6
+JUDGE_IMAGE_MAX_DIMENSION_PIXELS = 1400
 COMMON_SOURCE_RULES = """자료 사용 규칙:
 - 아래 소스 데이터만 사용해.
 - 소스 데이터에 없는 회사, 사람, 고객, 날짜, 금액, 수치, 메뉴, 기능, 보증, 주소, 연락처, 외부 배경 지식을 만들지 마.
@@ -814,7 +817,7 @@ def score_criterion(evaluation: dict, criterion: dict, requiredCoverage: float, 
         score = maxScore * source_grounded_usefulness_ratio(evaluation, formatChecks, requiredCoverage, forbiddenPresent)
         return judged_criterion(criterionID, maxScore, score, usefulness_evidence(requiredCoverage, formatChecks))
     if criterionID == "craftAndDesign":
-        heuristicCraftCap = 0.6
+        heuristicCraftCap = 0.0
         score = maxScore * min(heuristicCraftCap, visual_usability_ratio(evaluation, formatChecks, renderChecks))
         return judged_criterion(criterionID, maxScore, score, craft_and_design_evidence(formatChecks, renderChecks))
     raise SystemExit(f"unknown scoring criterion ID: {criterionID}")
@@ -1022,7 +1025,7 @@ def usefulness_evidence(requiredCoverage: float, formatChecks: dict) -> str:
 
 
 def craft_and_design_evidence(formatChecks: dict, renderChecks: dict) -> str:
-    return "Heuristic craftAndDesign is capped at 60% of maxScore (design excellence above template-default requires an LLM judge). Render output and layout affordances: " + json.dumps({"format": formatChecks, "render": renderChecks}, ensure_ascii=False, sort_keys=True)
+    return "Heuristic mode never sees rendered images, so craftAndDesign is scored 0 (design can only be scored by the multimodal judge). Render output and layout affordances: " + json.dumps({"format": formatChecks, "render": renderChecks}, ensure_ascii=False, sort_keys=True)
 
 
 def heuristic_notes(artifactExists: bool, requiredMissing: list[str], forbiddenPresent: list[str], formatChecks: dict, renderChecks: dict) -> str:
@@ -1070,25 +1073,64 @@ def openrouter_judgment(runDirectory: Path, evaluation: dict, scenario: dict, ju
         raise SystemExit(f"{arguments.api_key_env} is required for --mode openrouter")
     resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
     audit = read_json(resultDirectory / "audit.json")
-    prompt = openrouter_judge_prompt(runDirectory, evaluation, scenario, audit)
-    content = call_openrouter_judge(apiKey, judgeMetadata["model"], prompt)
+    renderPagePaths = load_render_page_paths(runDirectory, evaluation)
+    imageDataUrls = [dataUrl for dataUrl in (encode_render_page_as_data_url(pagePath) for pagePath in renderPagePaths) if dataUrl]
+    hasVisualEvidence = bool(imageDataUrls)
+    prompt = openrouter_judge_prompt(runDirectory, evaluation, scenario, audit, hasVisualEvidence)
+    content = call_openrouter_judge(apiKey, judgeMetadata["model"], prompt, imageDataUrls)
     judgment = parse_openrouter_judgment(content)
     judgment["evaluationID"] = evaluation["id"]
     judgment["judge"] = judgeMetadata
     judgment["auditSummary"] = audit_summary(audit)
+    judgment["hasVisualEvidence"] = hasVisualEvidence
+    if not hasVisualEvidence:
+        apply_missing_visual_evidence_cap(judgment)
     return judgment
 
 
-def openrouter_judge_prompt(runDirectory: Path, evaluation: dict, scenario: dict, audit: dict) -> str:
+def load_render_page_paths(runDirectory: Path, evaluation: dict) -> list[Path]:
+    resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
+    renderJsonPath = resultDirectory / "render.json"
+    if not renderJsonPath.exists():
+        return []
+    renderResult = read_json(renderJsonPath)
+    if not renderResult.get("passed") or not renderResult.get("pages"):
+        return []
+    return [REPOSITORY_ROOT / storedRelativePath for storedRelativePath in renderResult["pages"][:JUDGE_IMAGE_PAGE_LIMIT]]
+
+
+def encode_render_page_as_data_url(pagePath: Path) -> str | None:
+    if not pagePath.exists():
+        return None
+    with tempfile.TemporaryDirectory() as temporaryDirectoryName:
+        downscaledPath = Path(temporaryDirectoryName) / pagePath.name
+        shutil.copyfile(pagePath, downscaledPath)
+        subprocess.run(["sips", "-Z", str(JUDGE_IMAGE_MAX_DIMENSION_PIXELS), str(downscaledPath)], capture_output=True, check=False)
+        imageBytes = downscaledPath.read_bytes()
+    encodedImage = base64.b64encode(imageBytes).decode("ascii")
+    return f"data:image/png;base64,{encodedImage}"
+
+
+def apply_missing_visual_evidence_cap(judgment: dict) -> None:
+    for judgedCriterion in judgment["scores"]:
+        if judgedCriterion["criterionID"] != "craftAndDesign":
+            continue
+        judgedCriterion["score"] = 0
+        judgedCriterion["evidence"] = "visual evidence unavailable — craftAndDesign scored 0 (design can only be scored by the multimodal judge)."
+    judgment["notes"] = str(judgment.get("notes", "")) + " visual evidence unavailable."
+
+
+def openrouter_judge_prompt(runDirectory: Path, evaluation: dict, scenario: dict, audit: dict, hasVisualEvidence: bool) -> str:
     sourceData = read_source_data(evaluation)
     resultDirectory = existing_result_directory(runDirectory, evaluation["id"])
     diagnosticDirectory = existing_diagnostic_directory(runDirectory, evaluation["id"])
     artifactText = extract_evaluation_text(artifact_path(resultDirectory, evaluation), diagnosticDirectory, evaluation["artifactKind"])
     return "\n\n".join([
         "You are an independent evaluator. KimIntern generated the artifact; do not treat KimIntern as the judge.",
-        "Score only from the fixed instruction, source data, extracted artifact text, and audit metadata. Penalize unsupported invention heavily.",
+        "Score only from the fixed instruction, source data, extracted artifact text, audit metadata, and any attached page images. Penalize unsupported invention heavily.",
         "Return only JSON with keys scores and notes. scores must be an array of {criterionID,maxScore,score,evidence}.",
         "Criteria:\n" + json.dumps(scenario["scores"], ensure_ascii=False, indent=2),
+        visual_axis_judge_instruction(hasVisualEvidence),
         "Fixed instruction:\n" + evaluation["fixedInstruction"],
         "Source data:\n" + sourceData,
         "Extracted artifact text:\n" + artifactText[:20000],
@@ -1096,12 +1138,25 @@ def openrouter_judge_prompt(runDirectory: Path, evaluation: dict, scenario: dict
     ])
 
 
-def call_openrouter_judge(apiKey: str, model: str, prompt: str) -> str:
+def visual_axis_judge_instruction(hasVisualEvidence: bool) -> str:
+    if not hasVisualEvidence:
+        return "No rendered page images are attached for this case. Score craftAndDesign conservatively from the text and audit metadata only, and do not claim to have observed the layout."
+    return (
+        "Score craftAndDesign ONLY from the attached page images. First list at least 3 concrete visual observations "
+        "(typography, spacing, table/grid integrity, hierarchy) including at least 1 defect if any exists, then score. "
+        "If images show broken layout, overlapping or single-cell 'tables', clipped or garbled text, craftAndDesign must be 9 or below."
+    )
+
+
+def call_openrouter_judge(apiKey: str, model: str, prompt: str, imageDataUrls: list[str]) -> str:
+    userContent = prompt if not imageDataUrls else [{"type": "text", "text": prompt}] + [
+        {"type": "image_url", "image_url": {"url": imageDataUrl}} for imageDataUrl in imageDataUrls
+    ]
     requestDocument = {
         "model": model,
         "messages": [
             {"role": "system", "content": "You are a strict artifact quality evaluator. Output valid JSON only."},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": userContent},
         ],
         "temperature": 0,
     }
