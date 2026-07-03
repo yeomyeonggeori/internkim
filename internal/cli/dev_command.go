@@ -171,7 +171,8 @@ func runDevFleetReprovision() error {
 	command.Env = append(os.Environ(),
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5")
+		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5",
+		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
 		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
 	}
@@ -245,7 +246,7 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
 	ephemeral := flagSet.Bool("ephemeral", false, "Deprecated; disposable local fleet runs are now the default")
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared local fleet instead of creating a disposable run")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM, logs, state, and Mattermost test artifacts")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM and Mattermost test artifacts; run evidence is kept by default")
 	withoutMattermost := flagSet.Bool("without-mattermost", false, "Run the scenario inside Linux without starting or using Mattermost")
 	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
 	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
@@ -391,7 +392,7 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelName := flagSet.String("llm-model", "google/gemini-3.1-flash-lite", "Live LLM model name")
+	languageModelName := flagSet.String("llm-model", "xiaomi/mimo-v2.5", "Live LLM model name")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	targetName := flagSet.String("target", "local", "Replay target: local or container")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
@@ -566,7 +567,7 @@ func scenarioExecutableDependencies(scenarioName string) []string {
 	switch normalizedScenarioName {
 	case "slides", "slides_local_multiturn_success":
 		return []string{"bun", "python3"}
-	case "site", "site_prototype_acceptance":
+	case "site", "site_artifact_acceptance", "site_prototype_acceptance", "site_edit_redeploy_acceptance", "site_lifecycle_acceptance":
 		return []string{"bun"}
 	default:
 		return nil

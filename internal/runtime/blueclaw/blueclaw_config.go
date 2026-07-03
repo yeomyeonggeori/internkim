@@ -18,10 +18,11 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
-	BlueclawTestModelName                               = "google/gemma-4-31b-it:free"
+	BlueclawTestModelName                               = "xiaomi/mimo-v2.5"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
+	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
 
 type defaultCircleDefinition struct {
@@ -61,6 +62,7 @@ type RuntimeConfigOptions struct {
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
 	ShouldUseModelForAllTiers bool
+	VirtualCPUCount           int
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -117,12 +119,20 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		return RuntimeConfigOptions{}, errorValue
 	}
 	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
-	return RuntimeConfigOptions{
+	virtualCPUCount, errorValue := optionalInt64Environment(BlueclawVirtualCPUCountEnvironment)
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
+	options := RuntimeConfigOptions{
 		ModelName:                 modelName,
 		ShouldUseModelForAllTiers: modelName != "",
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
-	}, nil
+	}
+	if virtualCPUCount != nil {
+		options.VirtualCPUCount = int(*virtualCPUCount)
+	}
+	return options, nil
 }
 
 func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
@@ -133,6 +143,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		languageModelExecutionMode = "remote"
 		terminalMode = "native"
 		capabilityTransport = ""
+	}
+	virtualCPUCount := BlueclawFirecrackerDefaultVirtualCPUCount
+	if options.VirtualCPUCount > 0 {
+		virtualCPUCount = options.VirtualCPUCount
 	}
 
 	capabilityLanguageModel := map[string]any{
@@ -243,7 +257,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"rootfsImagePath":        rootFilesystemImagePath,
 			"workspaceImagePath":     workspaceImagePath,
 			"hostWorkspacePath":      hostWorkspacePath,
-			"vcpuCount":              BlueclawFirecrackerDefaultVirtualCPUCount,
+			"vcpuCount":              virtualCPUCount,
 			"memoryMiB":              BlueclawFirecrackerDefaultMemoryMiB,
 			"vsockCID":               52,
 			"healthPortOrService":    healthPortOrService,

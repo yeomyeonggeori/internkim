@@ -66,6 +66,9 @@ func (service *Service) authorizeInternalOrWebStaffRequest(request *http.Request
 }
 
 func (service *Service) webActorEmail(request *http.Request) string {
+	if hasWebLogoutMarker(request) {
+		return ""
+	}
 	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
@@ -73,6 +76,11 @@ func (service *Service) webActorEmail(request *http.Request) string {
 		return strings.ToLower(strings.TrimSpace(actorEmail))
 	}
 	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
+}
+
+func hasWebLogoutMarker(request *http.Request) bool {
+	cookie, errorValue := request.Cookie(webLogoutMarkerCookieName)
+	return errorValue == nil && strings.TrimSpace(cookie.Value) != ""
 }
 
 func (service *Service) mattermostSessionActorEmail(request *http.Request) string {

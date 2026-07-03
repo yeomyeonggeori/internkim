@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	webSessionCookieName = "internkim_session"
-	webSessionDuration   = 7 * 24 * time.Hour
-	webSessionSecretName = "web-session-secret"
+	webLogoutMarkerCookieName = "internkim_logged_out"
+	webLogoutMarkerDuration   = 365 * 24 * time.Hour
+	webSessionCookieName      = "internkim_session"
+	webSessionDuration        = 7 * 24 * time.Hour
+	webSessionSecretName      = "web-session-secret"
 )
 
 type webSessionPayload struct {
@@ -40,6 +42,11 @@ type webSessionResponse struct {
 	MattermostLoginURL string `json:"mattermostLoginURL,omitempty"`
 	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
 	IsAdmin            bool   `json:"isAdmin"`
+}
+
+type webLogoutResponse struct {
+	OK          bool   `json:"ok"`
+	RedirectURL string `json:"redirectURL"`
 }
 
 func (service *Service) handleWebSession(responseWriter http.ResponseWriter, request *http.Request) {
@@ -71,8 +78,9 @@ func (service *Service) handleWebLogout(responseWriter http.ResponseWriter, requ
 		return
 	}
 	http.SetCookie(responseWriter, expiredWebSessionCookie())
+	http.SetCookie(responseWriter, webLogoutMarkerCookie())
 	logAuditEvent("web session logout")
-	service.writeJSON(responseWriter, map[string]bool{"ok": true})
+	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: logoutRedirectURLForRequest(request)})
 }
 
 func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWriter, request *http.Request) {
@@ -162,12 +170,39 @@ func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+	http.SetCookie(responseWriter, expiredWebLogoutMarkerCookie())
 	return nil
 }
 
 func expiredWebSessionCookie() *http.Cookie {
 	return &http.Cookie{
 		Name:     webSessionCookieName,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0).UTC(),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func webLogoutMarkerCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     webLogoutMarkerCookieName,
+		Value:    "1",
+		Path:     "/",
+		Expires:  time.Now().UTC().Add(webLogoutMarkerDuration),
+		MaxAge:   int(webLogoutMarkerDuration.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func expiredWebLogoutMarkerCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     webLogoutMarkerCookieName,
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0).UTC(),
@@ -306,6 +341,13 @@ func loginReturnPathForRequest(request *http.Request) string {
 	return returnPathForRequest(request)
 }
 
+func logoutRedirectURLForRequest(request *http.Request) string {
+	if returnPath := safeWebReturnPath(request.URL.Query().Get("return")); returnPath != "" {
+		return returnPath
+	}
+	return "/flow/"
+}
+
 func returnPathForRequest(request *http.Request) string {
 	path := request.URL.Path
 	if request.URL.RawQuery != "" {
@@ -329,7 +371,7 @@ func safeWebReturnPath(value string) string {
 	if strings.Contains(parsedURL.Path, "/api/") || strings.HasSuffix(parsedURL.Path, "/api") {
 		return ""
 	}
-	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/"} {
+	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/", "/files/", "/tasks/"} {
 		if parsedURL.Path == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(parsedURL.Path, prefix) {
 			return parsedURL.RequestURI()
 		}
