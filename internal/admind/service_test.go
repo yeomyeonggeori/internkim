@@ -514,7 +514,7 @@ func TestWorkspaceSettingsUpdateSyncsKoreanMattermostDisplayNames(t *testing.T) 
 	if patchedDisplayNames[mattermostCalendarChannelName] != "일정" {
 		t.Fatalf("calendar display name = %q", patchedDisplayNames[mattermostCalendarChannelName])
 	}
-	if patchedDisplayNames[attendanceChannelName] != "출결" {
+	if patchedDisplayNames[attendanceChannelName] != "근태" {
 		t.Fatalf("attendance display name = %q", patchedDisplayNames[attendanceChannelName])
 	}
 	if patchedDisplayNames[calendarAnnouncementsChannelName] != "공지사항" {
@@ -2822,7 +2822,7 @@ func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
 	if service.mattermostCalendarLink("") != "[일정 열기](/calendar/)" {
 		t.Fatalf("calendar link = %q", service.mattermostCalendarLink(""))
 	}
-	if service.mattermostAttendanceLink() != "[출결 열기](/attendance/)" {
+	if service.mattermostAttendanceLink() != "[근태 열기](/attendance/)" {
 		t.Fatalf("attendance link = %q", service.mattermostAttendanceLink())
 	}
 }
