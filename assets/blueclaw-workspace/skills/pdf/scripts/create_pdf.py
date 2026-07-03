@@ -130,23 +130,113 @@ def add_table(pdf, table, font_name):
     if not isinstance(rows, list):
         raise ValueError("table.rows must be an array")
     pdf.set_font(font_name, size=9.5)
-    add_table_line(pdf, headers, is_header=True)
+    column_widths = compute_column_widths(pdf, headers, rows)
+    add_table_row(pdf, column_widths, headers, is_header=True)
     for row in rows:
         if not isinstance(row, list):
             raise ValueError("table rows must be arrays")
-        add_table_line(pdf, row, is_header=False)
+        add_table_row(pdf, column_widths, row, is_header=False)
+    pdf.ln(1)
 
 
-def add_table_line(pdf, values, is_header):
-    text = "  |  ".join("" if value is None else str(value) for value in values)
+def compute_column_widths(pdf, headers, rows):
+    available_width = pdf.w - pdf.l_margin - pdf.r_margin
+    column_count = len(headers)
+    cell_padding = 3
+    minimum_width = available_width * 0.12
+    desired_widths = [pdf.get_string_width(str(headers[index])) + cell_padding * 2 for index in range(column_count)]
+    for row in rows:
+        for index in range(column_count):
+            value = row[index] if index < len(row) else ""
+            text_width = pdf.get_string_width("" if value is None else str(value))
+            desired_widths[index] = max(desired_widths[index], text_width + cell_padding * 2)
+    bounded_widths = [max(minimum_width, width) for width in desired_widths]
+    scale = available_width / sum(bounded_widths)
+    return [width * scale for width in bounded_widths]
+
+
+def add_table_row(pdf, column_widths, values, is_header):
+    cell_padding = 1.6
+    line_height = 5.0
+    texts = row_cell_texts(values, len(column_widths))
+    wrapped_columns = [wrap_text_to_lines(pdf, text, width - cell_padding * 2) for text, width in zip(texts, column_widths)]
+    row_line_count = max(len(lines) for lines in wrapped_columns)
+    row_height = row_line_count * line_height + cell_padding * 2
+    ensure_room_for_row(pdf, row_height)
+    row_x = pdf.l_margin
+    row_y = pdf.get_y()
+    set_row_colors(pdf, is_header)
+    cell_x = row_x
+    for width, lines in zip(column_widths, wrapped_columns):
+        pdf.rect(cell_x, row_y, width, row_height, style="DF" if is_header else "D")
+        draw_wrapped_lines(pdf, cell_x, row_y, width, lines, line_height, cell_padding)
+        cell_x += width
+    pdf.set_xy(row_x, row_y + row_height)
+
+
+def row_cell_texts(values, column_count):
+    return ["" if index >= len(values) or values[index] is None else str(values[index]) for index in range(column_count)]
+
+
+def set_row_colors(pdf, is_header):
     if is_header:
         pdf.set_fill_color(235, 241, 247)
         pdf.set_text_color(17, 24, 39)
-        write_multiline(pdf, 0, 6.5, text, border=1, fill=True)
         return
     pdf.set_fill_color(255, 255, 255)
     pdf.set_text_color(31, 41, 55)
-    write_multiline(pdf, 0, 6.3, text, border=1)
+
+
+def ensure_room_for_row(pdf, row_height):
+    if pdf.get_y() + row_height > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+
+def draw_wrapped_lines(pdf, x, y, width, lines, line_height, cell_padding):
+    for line_index, line in enumerate(lines):
+        pdf.set_xy(x + cell_padding, y + cell_padding + line_index * line_height)
+        pdf.cell(width - cell_padding * 2, line_height, line, border=0)
+
+
+def wrap_text_to_lines(pdf, text, max_width):
+    if text == "":
+        return [""]
+    lines = []
+    for raw_line in text.split("\n"):
+        lines.extend(wrap_single_line(pdf, raw_line, max_width))
+    return lines or [""]
+
+
+def wrap_single_line(pdf, line, max_width):
+    words = line.split(" ")
+    wrapped_lines = []
+    current_line = ""
+    for word in words:
+        candidate_line = word if current_line == "" else f"{current_line} {word}"
+        if pdf.get_string_width(candidate_line) <= max_width:
+            current_line = candidate_line
+            continue
+        if current_line:
+            wrapped_lines.append(current_line)
+        current_line = break_long_word(pdf, word, max_width, wrapped_lines)
+    wrapped_lines.append(current_line)
+    return wrapped_lines
+
+
+def break_long_word(pdf, word, max_width, wrapped_lines):
+    remaining_word = word
+    while pdf.get_string_width(remaining_word) > max_width and len(remaining_word) > 1:
+        split_index = find_character_split_index(pdf, remaining_word, max_width)
+        wrapped_lines.append(remaining_word[:split_index])
+        remaining_word = remaining_word[split_index:]
+    return remaining_word
+
+
+def find_character_split_index(pdf, text, max_width):
+    for index in range(len(text), 0, -1):
+        if pdf.get_string_width(text[:index]) <= max_width:
+            return index
+    return 1
 
 
 def write_multiline(pdf, width, height, text, **options):
