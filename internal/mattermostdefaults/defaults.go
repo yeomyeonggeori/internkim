@@ -23,7 +23,7 @@ const (
 	CalendarChannelDisplayName = "일정"
 
 	AttendanceChannelName        = "attendance"
-	AttendanceChannelDisplayName = "출결"
+	AttendanceChannelDisplayName = "근태"
 )
 
 type PublicChannel struct {
@@ -137,7 +137,7 @@ func publicChannelLabelsForLanguage(language string) publicChannelLabels {
 		CalendarDisplayName:   CalendarChannelDisplayName,
 		CalendarLinkLabel:     "일정 열기",
 		AttendanceDisplayName: AttendanceChannelDisplayName,
-		AttendanceLinkLabel:   "출결 열기",
+		AttendanceLinkLabel:   "근태 열기",
 	}
 }
 

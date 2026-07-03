@@ -1006,7 +1006,7 @@ func mattermostChannelHasManagedOpenLink(channel mattermostToolChannel, nextHead
 
 func containsMattermostManagedOpenLink(value string) bool {
 	normalizedValue := strings.ToLower(strings.TrimSpace(value))
-	labels := []string{"업무 열기", "캘린더 열기", "출결 열기", "open flow", "open calendar", "open attendance"}
+	labels := []string{"업무 열기", "캘린더 열기", "근태 열기", "open flow", "open calendar", "open attendance"}
 	for _, label := range labels {
 		if strings.Contains(normalizedValue, strings.ToLower(label)) {
 			return true

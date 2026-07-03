@@ -2,7 +2,7 @@
 
 김인턴의 강점은 단순히 LLM을 붙인 자동화가 아니라, 여러 사용자가 실제 업무 데이터를 맡겨도 사고 범위를 작게 유지하도록 런타임 경계를 분리한 데 있다. 현재 구조는 데이터 무결성, 사용자 격리, 비밀값 격리, 로컬 자원 보호, 감사 가능한 실행 흐름을 각각 별도 계층에서 처리한다.
 
-또한 김인턴은 기술 사용자가 직접 tool과 workflow를 조립해야 하는 agent라기보다, 일반 직원과 AI가 함께 쓰는 first-party 업무 도구를 appliance 안에 묶는 방향이다. 현재 진입점은 Mattermost이고, 출결, 메일, 일정, 업무 관리는 같은 권한/승인/기록 구조 위에 올라가는 업무 운영 capability로 설계되어 있다.
+또한 김인턴은 기술 사용자가 직접 tool과 workflow를 조립해야 하는 agent라기보다, 일반 직원과 AI가 함께 쓰는 first-party 업무 도구를 appliance 안에 묶는 방향이다. 현재 진입점은 Mattermost이고, 근태, 메일, 일정, 업무 관리는 같은 권한/승인/기록 구조 위에 올라가는 업무 운영 capability로 설계되어 있다.
 
 ## 보안 경계 요약
 
@@ -13,7 +13,7 @@
 | 로컬 컴퓨터 경계 | local absolute path, browser cookie, local profile path, sensitive login step | `internkim-companion` |
 | 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file.deliver` 기반 artifact flow |
 | LLM 운영 연속성 경계 | remote provider만 유일한 실행 경로로 고정 | `internkim-capabilityd` local/companion/remote provider routing |
-| 업무 운영 경계 | 출결, 메일, 일정, 업무 관리를 각기 다른 SaaS 권한 모델에 흩어두기 | Mattermost와 Blueclaw task/capability/event model |
+| 업무 운영 경계 | 근태, 메일, 일정, 업무 관리를 각기 다른 SaaS 권한 모델에 흩어두기 | Mattermost와 Blueclaw task/capability/event model |
 
 ## 1. Fleet scale-up으로 데이터 무결성, 처리 성능, 안정성을 함께 높임
 
@@ -114,11 +114,11 @@ flowchart LR
 
 김인턴은 Google Workspace나 특정 SaaS를 기본 전제로 두지 않는다. 문서, 시트, 슬라이드, 일정, 이메일은 먼저 인증 없는 portable artifact로 만들고, 사용자가 원할 때만 Google import, publish, sync 같은 선택 단계를 실행한다.
 
-이 방향은 first-party 업무 도구 패키지와도 연결된다. 기술 이해도가 높은 사용자가 원하는 외부 tool을 직접 조립하는 모델이 아니라, 일반 직원이 Mattermost에서 AI와 함께 출결, 메일, 일정, 업무 관리, 문서 작업을 바로 시작할 수 있는 기본 capability를 제공하는 방향이다.
+이 방향은 first-party 업무 도구 패키지와도 연결된다. 기술 이해도가 높은 사용자가 원하는 외부 tool을 직접 조립하는 모델이 아니라, 일반 직원이 Mattermost에서 AI와 함께 근태, 메일, 일정, 업무 관리, 문서 작업을 바로 시작할 수 있는 기본 capability를 제공하는 방향이다.
 
 기본 방향은 다음과 같다.
 
-- 출결은 `attendance_event`와 quick clock-in/out capability로 분리한다.
+- 근태는 `attendance_event`와 quick clock-in/out capability로 분리한다.
 - 업무 관리는 `task`, `task_assignee`, `task_event` 기반으로 상태와 담당자를 기록한다.
 - 일정은 ICS/CalDAV first, Google Calendar는 optional sync target이다.
 - 문서는 DOCX, PDF, HTML, Markdown first, Google Docs는 optional import target이다.
