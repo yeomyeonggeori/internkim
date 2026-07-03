@@ -51,7 +51,7 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	if server.configuration["ServiceSettings"].(map[string]any)["ManagedResourcePaths"] != "admin,attendance,calendar,flow,mail,memory" {
 		t.Fatalf("unexpected configuration patch: %+v", server.configuration)
 	}
-	if server.channels["flow"].DisplayName != "업무" || server.channels["attendance"].DisplayName != "출결" {
+	if server.channels["flow"].DisplayName != "업무" || server.channels["attendance"].DisplayName != "근태" {
 		t.Fatalf("expected localized channels, got %+v", server.channels)
 	}
 	if !server.teamMembers["admin-1"] || !server.teamMembers["bot-1"] {
