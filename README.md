@@ -160,7 +160,7 @@ cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Wor
 
 cloud-shared Mattermost admin password의 운영 기준은 실제 인스턴스가 읽는 credentials 파일입니다. 이미 VM 안에서 Mattermost 인스턴스를 만든 뒤에는 로컬 `.local/tenants/*` bundle 값을 고객에게 안내하지 말고, VM의 `/srv/internkim-mattermost-instances/credentials.json` 또는 동일한 배포 source of truth에서 다시 읽어야 합니다.
 
-Mattermost fleet는 admin 계정 생성만으로 완료된 것으로 보지 않습니다. 배포 후 아래 자동 보정 명령을 실행해 tenant별 team, `internkim` bot, `업무`, `일정`, `출결` 기본 채널, managed resource paths, bot token을 idempotent하게 보장합니다.
+Mattermost fleet는 admin 계정 생성만으로 완료된 것으로 보지 않습니다. 배포 후 아래 자동 보정 명령을 실행해 tenant별 team, `internkim` bot, `업무`, `일정`, `근태` 기본 채널, managed resource paths, bot token을 idempotent하게 보장합니다.
 
 ```bash
 internkim tenant bootstrap-mattermost \
@@ -482,9 +482,9 @@ Primary flow는 Mattermost 어디서나 실행할 수 있는 `/connect`입니다
 
 관리자 화면은 `https://<deviceID>.intern.kim/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.intern.kim/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
 
-Flow, 일정, 출결 웹앱은 Admin/SSH와 같은 Cloudflare Access application으로 직접 막지 않습니다. 브라우저 요청은 Mattermost session, InternKim web session, Cloudflare Access email 중 하나로 신원을 확인한 뒤 현재 InternKim people/policy에서 active staff인지 다시 판정합니다. Mattermost 앱에서 이미 로그인되어 있으면 Mattermost session으로 통과하고, 없으면 Mattermost OAuth 또는 Cloudflare Access email OTP로 `internkim_session`을 발급합니다. Admin API는 일반 web session만으로 열지 않고 기존 admin 권한 경계를 유지합니다.
+Flow, 일정, 근태 웹앱은 Admin/SSH와 같은 Cloudflare Access application으로 직접 막지 않습니다. 브라우저 요청은 Mattermost session, InternKim web session, Cloudflare Access email 중 하나로 신원을 확인한 뒤 현재 InternKim people/policy에서 active staff인지 다시 판정합니다. Mattermost 앱에서 이미 로그인되어 있으면 Mattermost session으로 통과하고, 없으면 Mattermost OAuth 또는 Cloudflare Access email OTP로 `internkim_session`을 발급합니다. Admin API는 일반 web session만으로 열지 않고 기존 admin 권한 경계를 유지합니다.
 
-김인턴 내부 호출은 사용자 웹 인증에 의존하지 않습니다. admind와 capabilityd는 Mattermost API, Blueclaw API, Flow/일정/출결 내부 경로를 로컬 루프백 또는 내부 서비스 경계로 호출합니다. 사용자-facing 웹 API를 강화할 때도 local/internal 호출 예외는 유지해야 합니다.
+김인턴 내부 호출은 사용자 웹 인증에 의존하지 않습니다. admind와 capabilityd는 Mattermost API, Blueclaw API, Flow/일정/근태 내부 경로를 로컬 루프백 또는 내부 서비스 경계로 호출합니다. 사용자-facing 웹 API를 강화할 때도 local/internal 호출 예외는 유지해야 합니다.
 
 Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
