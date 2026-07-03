@@ -189,17 +189,29 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 		providers = providers[:1]
 	}
 	return completeWithProviderChain(providers, structuredRequestTrace(request), func(candidate Provider) (Response, error) {
+		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate))
+		if errorValue != nil {
+			return Response{}, errorValue
+		}
+		candidateRequest := request
+		candidateRequest.Messages = compactedMessages
 		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
 		defer cancel()
-		return candidate.CompleteStructured(attemptContext, request)
+		return candidate.CompleteStructured(attemptContext, candidateRequest)
 	})
 }
 
 func (provider AutoProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
 	return completeWithProviderChain(provider.Providers, textRequestTrace(request), func(candidate Provider) (Response, error) {
+		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate))
+		if errorValue != nil {
+			return Response{}, errorValue
+		}
+		candidateRequest := request
+		candidateRequest.Messages = compactedMessages
 		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
 		defer cancel()
-		return candidate.CompleteText(attemptContext, request)
+		return candidate.CompleteText(attemptContext, candidateRequest)
 	})
 }
 

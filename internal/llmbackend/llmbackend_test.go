@@ -981,46 +981,125 @@ func TestLlamaCppBackendFallsBackToJSONSchemaWhenActionToolCallIsMissing(t *test
 	}
 }
 
-func TestLlamaCppBackendSkipsOversizedPromptWithoutDispatching(t *testing.T) {
-	requestCount := 0
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requestCount++
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
+func TestCompactMessagesForContextWindowPreservesSystemAndRecentCollapsingMiddle(t *testing.T) {
+	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	messages := []Message{
+		{Role: "system", Content: "you are a helpful assistant"},
+		{Role: "user", Content: hugeMiddleMessage},
+		{Role: "assistant", Content: hugeMiddleMessage},
+		{Role: "user", Content: "recent turn one"},
+		{Role: "assistant", Content: "recent turn two"},
+		{Role: "user", Content: "recent turn three"},
+		{Role: "assistant", Content: "recent turn four"},
+		{Role: "user", Content: "recent turn five"},
+		{Role: "assistant", Content: "most recent turn"},
 	}
 
-	hugePrompt := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	compacted, errorValue := compactMessagesForContextWindow(messages, LlamaCppLocalContextWindowTokens)
+	if errorValue != nil {
+		t.Fatalf("expected compaction to succeed rather than error out: %v", errorValue)
+	}
+	if estimatedMessagesTokens(compacted) > inputTokenBudget(LlamaCppLocalContextWindowTokens) {
+		t.Fatalf("expected compacted messages to fit the context window budget, got %d estimated tokens", estimatedMessagesTokens(compacted))
+	}
+	if compacted[0].Role != "system" || compacted[0].Content != "you are a helpful assistant" {
+		t.Fatalf("expected leading system message to be preserved verbatim, got %+v", compacted[0])
+	}
+	lastSix := compacted[len(compacted)-6:]
+	expectedRecent := []string{"recent turn one", "recent turn two", "recent turn three", "recent turn four", "recent turn five", "most recent turn"}
+	for index, message := range lastSix {
+		if message.Content != expectedRecent[index] {
+			t.Fatalf("expected recent messages preserved verbatim in order, got %+v", lastSix)
+		}
+	}
+	for _, message := range compacted {
+		if strings.Contains(message.Content, hugeMiddleMessage) {
+			t.Fatal("expected huge middle content to be collapsed rather than preserved")
+		}
+	}
+}
 
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: hugePrompt}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
+func TestCompactMessagesForContextWindowLeavesLargeWindowUntouched(t *testing.T) {
+	largeMessages := []Message{
+		{Role: "system", Content: "you are a helpful assistant"},
+		{Role: "user", Content: strings.Repeat("y", int(LlamaCppLocalContextWindowTokens)*4*2)},
+	}
+
+	compacted, errorValue := compactMessagesForContextWindow(largeMessages, DefaultContextWindowTokens)
+	if errorValue != nil {
+		t.Fatalf("expected default large window to accommodate the same message list untouched: %v", errorValue)
+	}
+	if len(compacted) != len(largeMessages) || compacted[1].Content != largeMessages[1].Content {
+		t.Fatalf("expected messages to pass through unchanged under the default large context window, got %+v", compacted)
+	}
+}
+
+func TestCompactMessagesForContextWindowFailsWhenNoMiddleContentCanBeCollapsed(t *testing.T) {
+	singleHugeMessage := []Message{
+		{Role: "user", Content: strings.Repeat("z", int(LlamaCppLocalContextWindowTokens)*4*2)},
+	}
+
+	_, errorValue := compactMessagesForContextWindow(singleHugeMessage, LlamaCppLocalContextWindowTokens)
 	if errorValue == nil {
-		t.Fatal("expected oversized prompt to be rejected before dispatch")
+		t.Fatal("expected a single oversized message with nothing to collapse to fail with a clear error")
 	}
-	if requestCount != 0 {
-		t.Fatalf("expected no HTTP dispatch for oversized prompt, got %d requests", requestCount)
+}
+
+func TestAutoProviderCompactsMessagesGenericallyBeforeDispatch(t *testing.T) {
+	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	oversizedMessages := []Message{
+		{Role: "system", Content: "you are a helpful assistant"},
+		{Role: "user", Content: hugeMiddleMessage},
+		{Role: "user", Content: "recent turn one"},
+		{Role: "assistant", Content: "recent turn two"},
+		{Role: "user", Content: "recent turn three"},
+		{Role: "assistant", Content: "recent turn four"},
+		{Role: "user", Content: "recent turn five"},
+		{Role: "assistant", Content: "most recent turn"},
 	}
 
-	_, textError := backend.CompleteText(context.Background(), TextRequest{
-		Messages: []Message{{Role: "user", Content: hugePrompt}},
-	})
-	if textError == nil {
-		t.Fatal("expected oversized prompt to be rejected before dispatch for CompleteText")
+	smallWindowRecorder := &recordingContextWindowProvider{contextWindowTokens: LlamaCppLocalContextWindowTokens}
+	auto := AutoProvider{Providers: []Provider{smallWindowRecorder}}
+
+	if _, errorValue := auto.CompleteText(context.Background(), TextRequest{Messages: oversizedMessages}); errorValue != nil {
+		t.Fatalf("expected AutoProvider to compact and dispatch successfully: %v", errorValue)
 	}
-	if requestCount != 0 {
-		t.Fatalf("expected no HTTP dispatch for oversized CompleteText prompt, got %d requests", requestCount)
+	if estimatedMessagesTokens(smallWindowRecorder.receivedMessages) >= estimatedMessagesTokens(oversizedMessages) {
+		t.Fatal("expected AutoProvider to compact the oversized message list before dispatch, generically, not pass it through unchanged")
 	}
+	for _, message := range smallWindowRecorder.receivedMessages {
+		if strings.Contains(message.Content, hugeMiddleMessage) {
+			t.Fatal("expected the huge message to be collapsed by AutoProvider before reaching the candidate")
+		}
+	}
+
+	defaultWindowRecorder := &recordingContextWindowProvider{contextWindowTokens: 0}
+	autoWithDefaultWindow := AutoProvider{Providers: []Provider{defaultWindowRecorder}}
+	if _, errorValue := autoWithDefaultWindow.CompleteText(context.Background(), TextRequest{Messages: oversizedMessages}); errorValue != nil {
+		t.Fatalf("expected default-window candidate to receive the prompt untouched: %v", errorValue)
+	}
+	if len(defaultWindowRecorder.receivedMessages) != len(oversizedMessages) {
+		t.Fatalf("expected default large context window to leave messages untouched, got %d of %d messages", len(defaultWindowRecorder.receivedMessages), len(oversizedMessages))
+	}
+}
+
+type recordingContextWindowProvider struct {
+	contextWindowTokens int64
+	receivedMessages    []Message
+}
+
+func (provider *recordingContextWindowProvider) ContextWindowTokens() int64 {
+	return provider.contextWindowTokens
+}
+
+func (provider *recordingContextWindowProvider) CompleteStructured(_ context.Context, request StructuredRequest) (Response, error) {
+	provider.receivedMessages = request.Messages
+	return Response{}, nil
+}
+
+func (provider *recordingContextWindowProvider) CompleteText(_ context.Context, request TextRequest) (Response, error) {
+	provider.receivedMessages = request.Messages
+	return Response{}, nil
 }
 
 func TestLlamaCppBackendAllowsPromptWithinContextWindow(t *testing.T) {

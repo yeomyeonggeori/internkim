@@ -22,6 +22,10 @@ func (backend ManagedLlamaCppBackend) Name() string {
 	return backend.Backend.Name()
 }
 
+func (backend ManagedLlamaCppBackend) ContextWindowTokens() int64 {
+	return backend.Backend.ContextWindowTokens()
+}
+
 func (backend ManagedLlamaCppBackend) Ping(ctx context.Context) error {
 	errorValue := backend.Backend.Ping(ctx)
 	if errorValue == nil || !isLlamaCppServerUnavailable(errorValue) {
