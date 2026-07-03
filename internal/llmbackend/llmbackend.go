@@ -189,7 +189,7 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 		providers = providers[:1]
 	}
 	return completeWithProviderChain(providers, structuredRequestTrace(request), func(candidate Provider) (Response, error) {
-		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate))
+		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate, request.Model))
 		if errorValue != nil {
 			return Response{}, errorValue
 		}
@@ -203,7 +203,7 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 
 func (provider AutoProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
 	return completeWithProviderChain(provider.Providers, textRequestTrace(request), func(candidate Provider) (Response, error) {
-		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate))
+		compactedMessages, errorValue := compactMessagesForContextWindow(request.Messages, contextWindowTokensFor(candidate, request.Model))
 		if errorValue != nil {
 			return Response{}, errorValue
 		}
