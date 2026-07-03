@@ -171,7 +171,7 @@ func runDevFleetReprovision() error {
 	command.Env = append(os.Environ(),
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL=google/gemini-3.1-flash-lite",
+		"INTERNKIM_TEST_MODEL=google/gemini-2.5-flash-lite",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
 		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
@@ -392,7 +392,7 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelName := flagSet.String("llm-model", "google/gemini-3.1-flash-lite", "Live LLM model name")
+	languageModelName := flagSet.String("llm-model", "google/gemini-2.5-flash-lite", "Live LLM model name")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	targetName := flagSet.String("target", "local", "Replay target: local or container")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
