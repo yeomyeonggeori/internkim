@@ -4,12 +4,13 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { goto } from '$app/navigation';
-	import ActivityIcon from '@lucide/svelte/icons/activity';
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
@@ -34,6 +35,7 @@
 	let deletingTaskRunIDs = $state<Set<string>>(new Set());
 	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
 	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
+	let dailyCostRows = $derived(dailyCostSummaries.slice(0, 4));
 
 	const statusFilters = $derived([
 		{ value: '', label: text.statusAll },
@@ -147,6 +149,36 @@
 		return text.dailyCostScopeLimited.replace('{count}', scope.taskRunCount.toLocaleString());
 	}
 
+	function taskPaginationSummary(): string {
+		return text.paginationSummary
+			.replace('{total}', String(totalTaskRunCount))
+			.replace('{from}', totalTaskRunCount === 0 ? '0' : String(taskPageIndex * taskPageSize + 1))
+			.replace('{to}', String(Math.min(totalTaskRunCount, (taskPageIndex + 1) * taskPageSize)));
+	}
+
+	function taskRunRequesterLabel(taskRun: TaskRunSummary): string {
+		return taskRun.requesterDisplayName || taskRun.requesterPersonID || '—';
+	}
+
+	function taskRunCostLabel(taskRun: TaskRunSummary): string {
+		return taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—';
+	}
+
+	function openTaskRun(taskRunID: string) {
+		void goto(`/tasks/${taskRunID}`);
+	}
+
+	function handleTaskRunKeydown(event: KeyboardEvent, taskRunID: string) {
+		if (event.target !== event.currentTarget) return;
+		if (event.key !== 'Enter' && event.key !== ' ') return;
+		event.preventDefault();
+		openTaskRun(taskRunID);
+	}
+
+	function stopRowActionClick(event: MouseEvent) {
+		event.stopPropagation();
+	}
+
 	async function loadViewerRole() {
 		try {
 			const response = await fetch('/auth/session', { credentials: 'include' });
@@ -169,51 +201,39 @@
 </svelte:head>
 
 <main class="grid min-h-[calc(100svh-48px)] w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-	<Card.Root>
-		<Card.Header>
-			<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
-				<div class="min-w-0">
-					<Card.Title class="flex items-center gap-2 text-xl">
-						<ActivityIcon data-icon="inline-start" class="text-primary" />
-						{text.title}
-					</Card.Title>
-					<Card.Description>{text.description}</Card.Description>
-				</div>
-				<Button variant="outline" size="sm" onclick={() => void loadTaskRuns(taskPageIndex)} disabled={isLoading}>
-					<RefreshCwIcon data-icon="inline-start" class={isLoading ? 'animate-spin' : ''} />
-					{text.refresh}
-				</Button>
+	<section class="flex min-w-0 flex-wrap items-start justify-between gap-4">
+		<div class="min-w-0 space-y-1">
+			<h1 class="text-xl font-semibold tracking-tight">{text.title}</h1>
+			<p class="max-w-2xl text-sm text-muted-foreground">{text.description}</p>
+		</div>
+		<Button variant="outline" size="sm" onclick={() => void loadTaskRuns(taskPageIndex)} disabled={isLoading}>
+			<RefreshCwIcon data-icon="inline-start" class={isLoading ? 'animate-spin' : ''} />
+			{text.refresh}
+		</Button>
+	</section>
+
+	<section class="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+		<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+			<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>
+			<span>{taskPaginationSummary()}</span>
+		</div>
+		{#if dailyCostRows.length > 0}
+			<div class="min-w-0 overflow-x-auto">
+				<Table.Root class="min-w-[460px]">
+					<Table.Body>
+						{#each dailyCostRows as summary (summary.date)}
+							<Table.Row class="border-0 hover:bg-transparent">
+								<Table.Cell class="h-7 py-0 pl-0 text-xs text-muted-foreground">{formatCostDate(summary.date)}</Table.Cell>
+								<Table.Cell class="h-7 py-0 text-right text-sm font-medium tabular-nums">{formatCostUSD(summary.costUSD)}</Table.Cell>
+								<Table.Cell class="h-7 py-0 pr-0 text-right text-xs text-muted-foreground">{dailyCostMeta(summary)}</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+				<p class="mt-1 text-right text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
 			</div>
-		</Card.Header>
-		<Card.Content>
-			<div class="flex flex-col gap-4">
-				<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-					<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>
-					<span>{text.paginationSummary
-						.replace('{total}', String(totalTaskRunCount))
-						.replace('{from}', totalTaskRunCount === 0 ? '0' : String(taskPageIndex * taskPageSize + 1))
-						.replace('{to}', String(Math.min(totalTaskRunCount, (taskPageIndex + 1) * taskPageSize)))}</span>
-				</div>
-				{#if dailyCostSummaries.length > 0}
-					<div class="flex flex-col gap-2 border-t pt-4">
-						<div class="flex items-center justify-between gap-3">
-							<h2 class="text-sm font-medium">{text.dailyCostTitle}</h2>
-							<span class="text-xs text-muted-foreground">{dailyCostScopeLabel(dailyCostScope)}</span>
-						</div>
-						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-							{#each dailyCostSummaries.slice(0, 4) as summary (summary.date)}
-								<div class="flex flex-col gap-1 rounded-lg border px-3 py-2">
-									<span class="text-xs text-muted-foreground">{formatCostDate(summary.date)}</span>
-									<strong class="text-base font-semibold">{formatCostUSD(summary.costUSD)}</strong>
-									<span class="text-xs text-muted-foreground">{dailyCostMeta(summary)}</span>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-			</div>
-		</Card.Content>
-	</Card.Root>
+		{/if}
+	</section>
 
 	<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
 		<UnderlineTabs.List>
@@ -248,7 +268,65 @@
 	{:else}
 		<Card.Root class="min-w-0">
 			<Card.Content class="px-0">
-				<div class="min-w-0 overflow-x-auto">
+				<div class="divide-y md:hidden" data-task-run-mobile-list>
+					{#each taskRuns as taskRun (taskRun.taskRunID)}
+						{@const StatusIcon = taskStatusIcon(taskRun.status)}
+						<div
+							role="button"
+							tabindex="0"
+							class="flex cursor-pointer flex-col gap-2 px-4 py-3 hover:bg-muted/50"
+							onclick={() => openTaskRun(taskRun.taskRunID)}
+							onkeydown={(event) => handleTaskRunKeydown(event, taskRun.taskRunID)}
+						>
+							<div class="flex min-w-0 items-start justify-between gap-3">
+								<div class="min-w-0">
+									<p class="line-clamp-2 text-sm font-medium">{taskRun.prompt || '—'}</p>
+									<p class="truncate text-xs text-muted-foreground">{taskRunRequesterLabel(taskRun)}</p>
+								</div>
+								<Badge variant={taskStatusBadgeVariant(taskRun.status)} class="shrink-0">
+									<StatusIcon />
+									{taskStatusLabel(taskRun.status, text)}
+								</Badge>
+							</div>
+							{#if taskRun.failureReason}
+								<p class="line-clamp-2 text-xs text-destructive">{taskRun.failureReason}</p>
+							{:else if taskRun.result}
+								<p class="line-clamp-2 text-xs text-muted-foreground">{taskRun.result}</p>
+							{/if}
+							<div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+								<span class="truncate">{formatTaskTimestamp(taskRun.updatedAt)}</span>
+								<div class="flex shrink-0 items-center gap-2">
+									<span class="font-medium text-foreground tabular-nums">{taskRunCostLabel(taskRun)}</span>
+									{#if deletableTaskStatuses.has(taskRun.status)}
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger onclick={stopRowActionClick}>
+												{#snippet child({ props })}
+													<Button
+														{...props}
+														variant="ghost"
+														size="icon-xs"
+														aria-label={text.columnActions}
+														title={text.columnActions}
+														disabled={deletingTaskRunIDs.has(taskRun.taskRunID)}
+													>
+														<EllipsisVerticalIcon />
+													</Button>
+												{/snippet}
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="end" sideOffset={6}>
+												<DropdownMenu.Item variant="destructive" onclick={(event) => confirmTaskRunDelete(event, taskRun)}>
+													<Trash2Icon />
+													{text.deleteTask}
+												</DropdownMenu.Item>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+				<div class="hidden min-w-0 overflow-x-auto md:block">
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
@@ -259,18 +337,20 @@
 								<Table.Head class="w-32">{text.columnStatus}</Table.Head>
 								<Table.Head class="w-28 text-right">{text.columnCost}</Table.Head>
 								<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
-								<Table.Head class="w-16 text-right">{text.columnActions}</Table.Head>
+								<Table.Head class="w-12 text-right">
+									<span class="sr-only">{text.columnActions}</span>
+								</Table.Head>
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
 							{#each taskRuns as taskRun (taskRun.taskRunID)}
 								<Table.Row
 									class="cursor-pointer hover:bg-muted/50"
-									onclick={() => void goto(`/tasks/${taskRun.taskRunID}`)}
+									onclick={() => openTaskRun(taskRun.taskRunID)}
 								>
 									{#if isAdmin}
 										<Table.Cell class="text-sm whitespace-nowrap">
-											{taskRun.requesterDisplayName || taskRun.requesterPersonID || '—'}
+											{taskRunRequesterLabel(taskRun)}
 										</Table.Cell>
 									{/if}
 									<Table.Cell class="max-w-0">
@@ -291,23 +371,35 @@
 										</Badge>
 									</Table.Cell>
 									<Table.Cell class="text-right text-xs whitespace-nowrap">
-										{taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—'}
+										{taskRunCostLabel(taskRun)}
 									</Table.Cell>
 									<Table.Cell class="text-right text-xs whitespace-nowrap text-muted-foreground">
 										{formatTaskTimestamp(taskRun.updatedAt)}
 									</Table.Cell>
 									<Table.Cell class="text-right">
 										{#if deletableTaskStatuses.has(taskRun.status)}
-											<Button
-												variant="ghost"
-												size="icon-xs"
-												aria-label={text.deleteTaskAction}
-												title={text.deleteTaskAction}
-												disabled={deletingTaskRunIDs.has(taskRun.taskRunID)}
-												onclick={(event) => confirmTaskRunDelete(event, taskRun)}
-											>
-												<Trash2Icon />
-											</Button>
+											<DropdownMenu.Root>
+												<DropdownMenu.Trigger onclick={stopRowActionClick}>
+													{#snippet child({ props })}
+														<Button
+															{...props}
+															variant="ghost"
+															size="icon-xs"
+															aria-label={text.columnActions}
+															title={text.columnActions}
+															disabled={deletingTaskRunIDs.has(taskRun.taskRunID)}
+														>
+															<EllipsisVerticalIcon />
+														</Button>
+													{/snippet}
+												</DropdownMenu.Trigger>
+												<DropdownMenu.Content align="end" sideOffset={6}>
+													<DropdownMenu.Item variant="destructive" onclick={(event) => confirmTaskRunDelete(event, taskRun)}>
+														<Trash2Icon />
+														{text.deleteTask}
+													</DropdownMenu.Item>
+												</DropdownMenu.Content>
+											</DropdownMenu.Root>
 										{/if}
 									</Table.Cell>
 								</Table.Row>

@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -28,7 +29,8 @@
 		taskEventShareText,
 		type EventLane,
 		type TaskDetail,
-		type TaskEvent
+		type TaskEvent,
+		type TimelineSummary
 	} from '../tasks-api';
 	import {
 		eventLaneClass,
@@ -55,6 +57,7 @@
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
 	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
+	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
 
 	async function load() {
 		loadError = '';
@@ -133,6 +136,17 @@
 		return `${compactBody.slice(0, 180)}...`;
 	}
 
+	function buildTimelineSummaryRows(timelineSummary: TimelineSummary, eventCount: number) {
+		return [
+			{ label: text.eventCount, value: eventCount.toLocaleString() },
+			{ label: text.llmCalls, value: timelineSummary.llmCallCount.toLocaleString() },
+			{ label: text.llmLatency, value: formatLatency(timelineSummary.llmLatencyMS) },
+			{ label: text.llmTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
+			{ label: text.llmCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
+			{ label: text.toolCalls, value: timelineSummary.toolCallCount.toLocaleString() }
+		];
+	}
+
 	onMount(load);
 </script>
 
@@ -205,44 +219,20 @@
 			</Card.Root>
 
 			{#if summary}
-				<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-2">
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.eventCount}</Card.Description>
-							<Card.Title>{detail.taskEvents.length.toLocaleString()}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.llmCalls}</Card.Description>
-							<Card.Title>{summary.llmCallCount.toLocaleString()}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.llmLatency}</Card.Description>
-							<Card.Title>{formatLatency(summary.llmLatencyMS)}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.llmTokens}</Card.Description>
-							<Card.Title>{summary.llmTotalTokens.toLocaleString()}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.llmCost}</Card.Description>
-							<Card.Title>{formatCostUSD(summary.llmCostUSD)}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-					<Card.Root size="sm">
-						<Card.Header>
-							<Card.Description>{text.toolCalls}</Card.Description>
-							<Card.Title>{summary.toolCallCount.toLocaleString()}</Card.Title>
-						</Card.Header>
-					</Card.Root>
-				</div>
+				<Card.Root size="sm">
+					<Card.Content class="px-0 py-0">
+						<Table.Root>
+							<Table.Body>
+								{#each timelineSummaryRows as row (row.label)}
+									<Table.Row>
+										<Table.Cell class="h-9 py-0 text-xs text-muted-foreground">{row.label}</Table.Cell>
+										<Table.Cell class="h-9 py-0 text-right text-sm font-medium tabular-nums">{row.value}</Table.Cell>
+									</Table.Row>
+								{/each}
+							</Table.Body>
+						</Table.Root>
+					</Card.Content>
+				</Card.Root>
 			{/if}
 		</section>
 
@@ -302,8 +292,8 @@
 							<div class="flex flex-col gap-3">
 								{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
 									{@const lane = eventLane(taskEvent.name)}
-									<Card.Root size="sm" class="border-l-4 {eventLaneClass(lane)}">
-										<Card.Header class="gap-2">
+									<article class={`overflow-hidden rounded-lg border ${eventLaneClass(lane)}`}>
+										<div class="flex flex-col gap-2 px-3 py-3">
 											<div class="flex min-w-0 flex-wrap items-center gap-2">
 												<Badge variant={eventLaneBadgeVariant(lane)}>{eventLaneLabel(lane)}</Badge>
 												<code class="min-w-0 flex-1 truncate text-xs">{taskEvent.name}</code>
@@ -313,11 +303,9 @@
 												</CopyButton>
 											</div>
 											<p class="line-clamp-2 text-xs break-words text-muted-foreground">{taskEventPreview(taskEvent)}</p>
-										</Card.Header>
-										<Card.Content class="px-0">
-											<pre class="max-h-80 overflow-auto border-t bg-muted/30 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
-										</Card.Content>
-									</Card.Root>
+										</div>
+										<pre class="max-h-80 overflow-auto border-t bg-background/70 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
+									</article>
 								{/each}
 							</div>
 						{/if}
