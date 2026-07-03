@@ -10,13 +10,14 @@ import (
 
 func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, token *oauth2.Token, email string) (remoteCalendarAccount, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	existing, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	existingAccounts, errorValue := service.listRemoteCalendarAccountsByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
+	existing, found := findRemoteCalendarAccountByEmail(existingAccounts, normalizedEmail)
 	accountID := googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(normalizedEmail)
 	tokenPath := service.calendarTokenFilePath(accountID)
-	if found && strings.EqualFold(strings.TrimSpace(existing.AccountEmail), normalizedEmail) {
+	if found {
 		accountID = existing.ID
 		if strings.TrimSpace(existing.TokenFilePath) != "" {
 			tokenPath = existing.TokenFilePath
@@ -30,13 +31,16 @@ func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, toke
 	if errorValue := writeCalendarTokenFile(tokenPath, key, payload); errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
+	if errorValue := service.resetGoogleOAuthAccountConnectionsExcept(ctx, accountID); errorValue != nil {
+		return remoteCalendarAccount{}, errorValue
+	}
 	account := remoteCalendarAccount{
 		ID:            accountID,
 		Provider:      remoteCalendarProviderGoogle,
 		AccountEmail:  normalizedEmail,
 		TokenFilePath: tokenPath,
 	}
-	if found && strings.EqualFold(strings.TrimSpace(existing.AccountEmail), normalizedEmail) {
+	if found {
 		account.PrincipalURL = existing.PrincipalURL
 		account.HomeSetURL = existing.HomeSetURL
 		account.DefaultCalendarURL = existing.DefaultCalendarURL
@@ -49,6 +53,16 @@ func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, toke
 		account.InitialSyncCompletedAt = existing.InitialSyncCompletedAt
 	}
 	return service.upsertRemoteCalendarAccount(ctx, account)
+}
+
+func findRemoteCalendarAccountByEmail(accounts []remoteCalendarAccount, email string) (remoteCalendarAccount, bool) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	for _, account := range accounts {
+		if strings.EqualFold(strings.TrimSpace(account.AccountEmail), normalizedEmail) {
+			return account, true
+		}
+	}
+	return remoteCalendarAccount{}, false
 }
 
 func (service *Service) loadGoogleOAuthTokenForAccount(account remoteCalendarAccount) (*oauth2.Token, error) {
