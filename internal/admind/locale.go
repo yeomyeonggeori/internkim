@@ -106,7 +106,7 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 		Location:                  "장소",
 		People:                    "대상",
 		Note:                      "메모",
-		AttendanceOpen:            "출결 열기",
+		AttendanceOpen:            "근태 열기",
 		AttendanceEntryMessage:    "출퇴근 기록",
 		AttendanceEntryText:       "출근과 퇴근 버튼을 구분해서 기록합니다.",
 		AttendanceClockIn:         "출근",
