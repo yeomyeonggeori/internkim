@@ -22,6 +22,7 @@ type calendarAccountStatusResponse struct {
 	NeedsCalendarSelection     bool   `json:"needsCalendarSelection"`
 	InitialSyncCompleted       bool   `json:"initialSyncCompleted"`
 	CalendarSyncReady          bool   `json:"calendarSyncReady"`
+	CalendarReadinessStatus    string `json:"calendarReadinessStatus"`
 	GoogleOAuthConfigured      bool   `json:"googleOAuthConfigured"`
 	CanManageGoogleOAuth       bool   `json:"canManageGoogleOAuth"`
 }
@@ -37,7 +38,7 @@ func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, r
 		WorkspaceCalendarReady: true,
 		Connected:              found,
 		GoogleOAuthConfigured:  service.isGoogleOAuthConfigured(),
-		CanManageGoogleOAuth:   service.isAuthorized(request),
+		CanManageGoogleOAuth:   service.canManageGoogleOAuth(request),
 	}
 	if found {
 		response.Provider = account.Provider
@@ -51,7 +52,8 @@ func (service *Service) serveCalendarAccountStatus(writer http.ResponseWriter, r
 		response.NeedsReauth = strings.TrimSpace(account.LastAuthError) != ""
 		response.NeedsCalendarSelection = strings.TrimSpace(account.SelectedCalendarID) == "" || strings.TrimSpace(account.SelectedCalendarURL) == ""
 		response.InitialSyncCompleted = strings.TrimSpace(account.InitialSyncCompletedAt) != ""
-		response.CalendarSyncReady = !response.NeedsReauth && !response.NeedsCalendarSelection && response.InitialSyncCompleted && remoteCalendarAccountCanWrite(account)
+		response.CalendarReadinessStatus = calendarReadinessStatusForAccount(account)
+		response.CalendarSyncReady = response.CalendarReadinessStatus == calendarReadinessStatusSyncReady
 	}
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if errorValue := json.NewEncoder(writer).Encode(response); errorValue != nil {
