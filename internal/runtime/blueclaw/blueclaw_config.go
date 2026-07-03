@@ -19,6 +19,7 @@ const (
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
 	BlueclawTestModelName                               = "google/gemini-2.5-flash-lite"
+	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
@@ -160,9 +161,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		modelName := strings.TrimSpace(options.ModelName)
 		capabilityLanguageModel["model"] = modelName
 		if options.ShouldUseModelForAllTiers {
-			for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+			for _, tierModelField := range []string{"highModel", "lowModel", "xlowModel", "codingModel"} {
 				capabilityLanguageModel[tierModelField] = modelName
 			}
+			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
 		}
 	}
 
