@@ -170,8 +170,7 @@ func (client openAICompatClient) chatCompletionResponse(ctx context.Context, req
 
 		httpResponse, errorValue := client.client().Do(httpRequest)
 		if errorValue != nil {
-			lastError = errorValue
-			continue
+			return openAIResponseWithUsage{}, errorValue
 		}
 		responseDocument, readError := io.ReadAll(httpResponse.Body)
 		httpResponse.Body.Close()

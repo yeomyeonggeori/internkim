@@ -165,7 +165,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -199,7 +199,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if !openRouterRequestHasTool(tools, "finish") {
 		t.Fatalf("expected finish control tool, got %+v", tools)
 	}
-	parameters := openRouterRequestToolParameters(t, tools, "continue__site_app_publish")
+	parameters := openRouterRequestToolParameters(t, tools, "continue__site_publish")
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
 	}
@@ -1990,7 +1990,7 @@ func TestOpenRouterBackendPopulatesUsageFromNativeActionResponse(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
