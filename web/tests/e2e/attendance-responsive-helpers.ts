@@ -14,6 +14,7 @@ type MobileTeamStatusTableLayout = {
 	tableLeft: number;
 	overflowingLabels: string[];
 	overflowingEmployeeDetails: string[];
+	visibleLocationLabels: string[];
 	pageOverflows: boolean;
 };
 
@@ -65,6 +66,9 @@ export async function measureMobileTeamStatusTable(
 		const overflowingEmployeeDetails = Array.from(table.querySelectorAll<HTMLElement>('[role="rowheader"] span'))
 			.filter((label) => label.scrollWidth > label.clientWidth + 1)
 			.map((label) => label.textContent?.trim() ?? '');
+		const visibleLocationLabels = Array.from(table.querySelectorAll<HTMLElement>('[data-testid="team-status-current-location"]'))
+			.filter((label) => label.offsetParent !== null)
+			.map((label) => label.textContent?.trim() ?? '');
 
 		return {
 			canScrollDates: table.scrollWidth > table.clientWidth,
@@ -79,6 +83,7 @@ export async function measureMobileTeamStatusTable(
 			tableLeft,
 			overflowingLabels,
 			overflowingEmployeeDetails,
+			visibleLocationLabels,
 			pageOverflows: document.documentElement.scrollWidth > window.innerWidth
 		};
 	}, targetDate);
@@ -89,11 +94,12 @@ export function expectReadableMobileTeamStatusTable(layout: MobileTeamStatusTabl
 	expect(Math.abs(layout.scrolledEmployeeLeft - layout.tableLeft)).toBeLessThanOrEqual(1);
 	expect(Math.abs(layout.scrolledEmployeeRowLeft - layout.tableLeft)).toBeLessThanOrEqual(1);
 	expect(Math.abs(layout.scrolledEmployeeRowLeft - layout.initialEmployeeRowLeft)).toBeLessThanOrEqual(1);
-	expect(layout.employeeColumnWidth).toBeLessThanOrEqual(112);
-	expect(layout.employeeRowHeight).toBeLessThanOrEqual(56);
+	expect(layout.employeeColumnWidth).toBeLessThanOrEqual(224);
+	expect(layout.employeeRowHeight).toBeLessThanOrEqual(72);
 	expect(layout.scrolledTargetLeft).toBeLessThan(layout.initialTargetLeft);
 	expect(layout.overflowingLabels).toEqual([]);
 	expect(layout.overflowingEmployeeDetails).toEqual([]);
+	expect(layout.visibleLocationLabels).toContain('사무실본관회의실A');
 	expect(layout.pageOverflows).toBe(false);
 }
 
