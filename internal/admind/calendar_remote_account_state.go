@@ -26,6 +26,10 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 	account.SelectedCalendarAccessRole = strings.TrimSpace(accessRole)
 	account.SelectedCalendarURL = selectedCalendarURL
 	account.SelectedCalendarSelectedAt = selectedAt.UTC().Format(time.RFC3339Nano)
+	account.SelectedCalendarReadinessStatus = calendarReadinessStatusInitialSyncPending
+	if strings.TrimSpace(account.InitialSyncCompletedAt) != "" {
+		account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
@@ -65,6 +69,7 @@ func (service *Service) saveCalendarPullState(ctx context.Context, account remot
 	account.DefaultCalendarCTag = strings.TrimSpace(calendarCTag)
 	if isInitialSyncCompleted {
 		account.InitialSyncCompletedAt = completedAt.UTC().Format(time.RFC3339Nano)
+		account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
 	}
 	return service.upsertRemoteCalendarAccount(ctx, account)
 }

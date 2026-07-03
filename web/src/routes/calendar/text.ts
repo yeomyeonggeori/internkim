@@ -24,18 +24,33 @@ export type CalendarLocaleText = {
 	googleCalendarSelectedCalendarTemplate: string;
 	googleCalendarSelectionRequired: string;
 	googleCalendarWritePermissionRequired: string;
+	googleCalendarInaccessible: string;
 	googleCalendarInitialSyncPending: string;
 	googleCalendarSyncReady: string;
 	googleCalendarConnectAction: string;
 	googleCalendarReconnectAction: string;
+	googleCalendarSwitchAccountAction: string;
 	googleCalendarReconnectHint: string;
 	googleCalendarReadyHint: string;
 	googleCalendarUnavailableHint: string;
+	googleCalendarConnectionComplete: string;
+	googleCalendarConnectionFailed: string;
+	googleCalendarSelectLabel: string;
+	googleCalendarPrimaryLabel: string;
+	googleCalendarListLoading: string;
+	googleCalendarListEmpty: string;
+	googleCalendarListLoadError: string;
+	googleCalendarSelectionDisabledWritePermission: string;
+	googleCalendarSelectionDisabledUnsupported: string;
+	googleCalendarSelectionSaveAction: string;
+	googleCalendarSelectionSaving: string;
+	googleCalendarSelectionSaveError: string;
 	googleOAuthClientUploadTitle: string;
 	googleOAuthClientUploadHint: string;
 	googleOAuthClientUploadAction: string;
 	googleOAuthClientUploading: string;
 	googleOAuthClientUploadError: string;
+	googleOAuthClientUploadComplete: string;
 	googleOAuthClientFileLabel: string;
 	googleOAuthClientChooseFile: string;
 	googleOAuthClientReplaceTitle: string;
@@ -126,17 +141,31 @@ export type CalendarGoogleAccountText = Pick<
 	| 'googleCalendarSelectedCalendarTemplate'
 	| 'googleCalendarSelectionRequired'
 	| 'googleCalendarWritePermissionRequired'
+	| 'googleCalendarInaccessible'
 	| 'googleCalendarInitialSyncPending'
 	| 'googleCalendarSyncReady'
 	| 'googleCalendarConnectAction'
 	| 'googleCalendarReconnectAction'
+	| 'googleCalendarSwitchAccountAction'
 	| 'googleCalendarReconnectHint'
 	| 'googleCalendarReadyHint'
 	| 'googleCalendarUnavailableHint'
+	| 'googleCalendarConnectionComplete'
+	| 'googleCalendarSelectLabel'
+	| 'googleCalendarPrimaryLabel'
+	| 'googleCalendarListLoading'
+	| 'googleCalendarListEmpty'
+	| 'googleCalendarListLoadError'
+	| 'googleCalendarSelectionDisabledWritePermission'
+	| 'googleCalendarSelectionDisabledUnsupported'
+	| 'googleCalendarSelectionSaveAction'
+	| 'googleCalendarSelectionSaving'
+	| 'googleCalendarSelectionSaveError'
 	| 'googleOAuthClientUploadTitle'
 	| 'googleOAuthClientUploadHint'
 	| 'googleOAuthClientUploadAction'
 	| 'googleOAuthClientUploading'
+	| 'googleOAuthClientUploadComplete'
 	| 'googleOAuthClientFileLabel'
 	| 'googleOAuthClientChooseFile'
 	| 'googleOAuthClientReplaceTitle'
@@ -170,22 +199,38 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarSelectedCalendarTemplate: '사용 중인 캘린더: {calendar}',
 		googleCalendarSelectionRequired: '캘린더 선택 필요',
 		googleCalendarWritePermissionRequired: '쓰기 권한 필요',
+		googleCalendarInaccessible: '캘린더 접근 불가',
 		googleCalendarInitialSyncPending: '초기 동기화 중',
 		googleCalendarSyncReady: '동기화 가능',
 		googleCalendarConnectAction: '연결',
 		googleCalendarReconnectAction: '다시 연결',
+		googleCalendarSwitchAccountAction: '계정 변경',
 		googleCalendarReconnectHint: 'Google 캘린더 동기화를 다시 시작하려면 계정을 다시 연결하세요.',
 		googleCalendarReadyHint: 'Google 캘린더를 연결하세요.',
 		googleCalendarUnavailableHint: 'Google 캘린더 연동은 아직 준비되지 않았습니다.',
+		googleCalendarConnectionComplete: 'Google 캘린더가 연결됐습니다.',
+		googleCalendarConnectionFailed: 'Google 캘린더 연결에 실패했습니다.',
+		googleCalendarSelectLabel: '사용할 캘린더',
+		googleCalendarPrimaryLabel: '기본',
+		googleCalendarListLoading: '캘린더 목록 불러오는 중',
+		googleCalendarListEmpty: 'Google 캘린더가 없습니다.',
+		googleCalendarListLoadError: 'Google 캘린더 목록을 불러오지 못했습니다.',
+		googleCalendarSelectionDisabledWritePermission: '쓰기 권한 필요',
+		googleCalendarSelectionDisabledUnsupported: '동기화할 수 없는 캘린더',
+		googleCalendarSelectionSaveAction: '캘린더 저장',
+		googleCalendarSelectionSaving: '저장 중',
+		googleCalendarSelectionSaveError: 'Google 캘린더 선택을 저장하지 못했습니다.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: '여기에 client.json을 드롭하거나 파일을 선택하세요.',
 		googleOAuthClientUploadAction: '업로드',
 		googleOAuthClientUploading: '업로드 중',
 		googleOAuthClientUploadError: 'client.json을 업로드하지 못했습니다.',
+		googleOAuthClientUploadComplete: 'client.json이 업로드됐습니다. Google 계정을 다시 연결하세요.',
 		googleOAuthClientFileLabel: 'client.json 파일 선택',
 		googleOAuthClientChooseFile: '파일 선택',
 		googleOAuthClientReplaceTitle: 'client.json 교체',
-		googleOAuthClientReplaceHint: '잘못된 프로젝트나 리디렉션 URI로 만든 파일을 올렸다면 새 client.json으로 교체하세요.',
+		googleOAuthClientReplaceHint:
+			'잘못된 프로젝트나 리디렉션 URI로 만든 파일을 올렸다면 새 client.json으로 교체하세요. 교체하면 현재 Google 계정 연결이 해제됩니다.',
 		googleOAuthClientGuide: googleOAuthClientGuideText.ko,
 		shared: '공유',
 		settings: '설정',
@@ -296,22 +341,38 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarSelectedCalendarTemplate: 'Using calendar: {calendar}',
 		googleCalendarSelectionRequired: 'Calendar selection required',
 		googleCalendarWritePermissionRequired: 'Write permission required',
+		googleCalendarInaccessible: 'Calendar access unavailable',
 		googleCalendarInitialSyncPending: 'Initial sync pending',
 		googleCalendarSyncReady: 'Ready to sync',
 		googleCalendarConnectAction: 'Connect',
 		googleCalendarReconnectAction: 'Reconnect',
+		googleCalendarSwitchAccountAction: 'Change account',
 		googleCalendarReconnectHint: 'Reconnect the account to resume Google Calendar sync.',
 		googleCalendarReadyHint: 'Connect Google Calendar.',
 		googleCalendarUnavailableHint: 'Google Calendar sync is not ready yet.',
+		googleCalendarConnectionComplete: 'Google Calendar is connected.',
+		googleCalendarConnectionFailed: 'Google Calendar connection failed.',
+		googleCalendarSelectLabel: 'Calendar to use',
+		googleCalendarPrimaryLabel: 'Primary',
+		googleCalendarListLoading: 'Loading calendar list',
+		googleCalendarListEmpty: 'No Google calendars are available.',
+		googleCalendarListLoadError: 'Could not load Google calendars.',
+		googleCalendarSelectionDisabledWritePermission: 'Write permission required',
+		googleCalendarSelectionDisabledUnsupported: 'Cannot sync this calendar',
+		googleCalendarSelectionSaveAction: 'Save calendar',
+		googleCalendarSelectionSaving: 'Saving',
+		googleCalendarSelectionSaveError: 'Could not save the Google Calendar selection.',
 		googleOAuthClientUploadTitle: 'Google OAuth client.json',
 		googleOAuthClientUploadHint: 'Drop client.json here or choose the file.',
 		googleOAuthClientUploadAction: 'Upload',
 		googleOAuthClientUploading: 'Uploading',
 		googleOAuthClientUploadError: 'Could not upload client.json.',
+		googleOAuthClientUploadComplete: 'client.json was uploaded. Reconnect the Google account.',
 		googleOAuthClientFileLabel: 'Choose client.json file',
 		googleOAuthClientChooseFile: 'Choose file',
 		googleOAuthClientReplaceTitle: 'Replace client.json',
-		googleOAuthClientReplaceHint: 'If the uploaded file came from the wrong project or redirect URI, replace it with a new client.json.',
+		googleOAuthClientReplaceHint:
+			'If the uploaded file came from the wrong project or redirect URI, replace it with a new client.json. Replacing it disconnects the current Google account.',
 		googleOAuthClientGuide: googleOAuthClientGuideText.en,
 		shared: 'Shared',
 		settings: 'Settings',

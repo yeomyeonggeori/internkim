@@ -1,7 +1,11 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { routeCalendarShellAPI } from './calendar-route-shell-test-utils';
+import { expect, test } from '@playwright/test';
+import {
+	expectGoogleOAuthUploadLayoutToFit,
+	openCalendarSettings,
+	routeCalendarShellAPI
+} from './calendar-route-shell-test-utils';
 
-test.describe('calendar route Google OAuth setup', () => {
+test.describe('calendar route Google OAuth client setup', () => {
 	test.beforeEach(async ({ page }) => {
 		await routeCalendarShellAPI(page);
 	});
@@ -26,7 +30,7 @@ test.describe('calendar route Google OAuth setup', () => {
 		await expect(page.getByText('Google OAuth client.json')).toHaveCount(0);
 	});
 
-	test('uploads Google OAuth client JSON and shows connect guidance', async ({ page }) => {
+	test('uploads Google OAuth client JSON and shows connect guidance', async ({ page, context }) => {
 		let isConfigured = false;
 		await page.unroute('**/calendar/api/account-status');
 		await page.route('**/calendar/api/account-status', async (route) => {
@@ -45,6 +49,7 @@ test.describe('calendar route Google OAuth setup', () => {
 		});
 
 		await page.goto('/calendar/');
+		const calendarOrigin = new URL(page.url()).origin;
 		await openCalendarSettings(page);
 		await expect(page.getByText('연결된 Google 캘린더', { exact: true })).toBeVisible();
 		await expect(page.getByText('Google OAuth client.json')).toBeVisible();
@@ -60,8 +65,8 @@ test.describe('calendar route Google OAuth setup', () => {
 		await expect(googleOAuthClientGuide.getByText(/비밀번호가 표시되면 안전한 곳에 따로 저장하세요/)).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText('승인된 리디렉션 URI', { exact: true })).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText('승인된 JavaScript 원본', { exact: true })).toBeVisible();
-		await expect(googleOAuthClientGuide.getByText('https://{본인 서버 URL}/calendar/oauth/google/callback')).toBeVisible();
-		await expect(googleOAuthClientGuide.getByText('https://{본인 서버 URL}', { exact: true })).toBeVisible();
+		await expect(googleOAuthClientGuide.getByText(`${calendarOrigin}/calendar/oauth/google/callback`)).toBeVisible();
+		await expect(googleOAuthClientGuide.getByText(calendarOrigin, { exact: true })).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText('example.com')).toHaveCount(0);
 		await expect(googleOAuthClientGuide.getByText('Google Calendar API')).toHaveCount(0);
 		await expect(googleOAuthClientGuide.getByRole('link')).toHaveCount(3);
@@ -85,19 +90,45 @@ test.describe('calendar route Google OAuth setup', () => {
 		});
 		await page.getByRole('button', { name: '업로드' }).click();
 
+		await expect(page.getByText('client.json이 업로드됐습니다. Google 계정을 다시 연결하세요.')).toBeVisible();
 		await expect(page.getByText('Google 캘린더를 연결하세요.')).toBeVisible();
-		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
+		const googleOAuthLink = page.getByRole('link', { name: '연결' });
+		await expect(googleOAuthLink).toBeVisible();
+		await expect(googleOAuthLink).toHaveAttribute('target', '_blank');
+		await expect(googleOAuthLink).toHaveAttribute('rel', /noopener/);
+		await expect(googleOAuthLink).toHaveAttribute('rel', /noreferrer/);
 		await expect(page.getByText('secret-1')).toHaveCount(0);
+
+		await context.route('**/calendar/oauth/google/start**', async (route) => {
+			await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>OAuth</title>' });
+		});
+		const popupPagePromise = page.waitForEvent('popup');
+
+		await googleOAuthLink.click();
+		const popupPage = await popupPagePromise;
+		await expect(popupPage).toHaveURL(/\/calendar\/oauth\/google\/start\?/);
+		await expect(popupPage).toHaveURL(/popup=true/);
+		await page.waitForTimeout(200);
+		expect(context.pages().filter((contextPage) => contextPage !== page)).toHaveLength(1);
+		await popupPage.close();
 	});
 
 	test('lets calendar administrators replace a configured Google OAuth client JSON', async ({ page }) => {
 		let uploadedClientFile = false;
 		await page.unroute('**/calendar/api/account-status');
 		await page.route('**/calendar/api/account-status', async (route) => {
+			const connected = !uploadedClientFile;
 			await route.fulfill({
 				json: {
-					connected: false,
+					connected,
+					accountEmail: connected ? 'calendar-admin@example.com' : '',
+					selectedCalendarID: connected ? 'company@example.com' : '',
+					selectedCalendarName: connected ? '회사 일정' : '',
+					selectedCalendarAccessRole: connected ? 'writer' : '',
 					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: connected,
+					calendarSyncReady: connected,
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -111,7 +142,7 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.goto('/calendar/');
 		await openCalendarSettings(page);
 
-		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
+		await expect(page.getByText('연결됨: calendar-admin@example.com')).toBeVisible();
 		await page.getByText('client.json 교체').click();
 		await page.getByLabel('client.json 파일 선택').setInputFiles({
 			name: 'client.json',
@@ -121,62 +152,11 @@ test.describe('calendar route Google OAuth setup', () => {
 		await page.getByRole('button', { name: '업로드' }).click();
 
 		expect(uploadedClientFile).toBe(true);
+		await expect(page.getByText('client.json이 업로드됐습니다. Google 계정을 다시 연결하세요.')).toBeVisible();
+		await expect(page.getByText('미연결')).toBeVisible();
+		await expect(page.getByText('Google 캘린더를 연결하세요.')).toBeVisible();
+		await expect(page.getByRole('link', { name: '연결' })).toBeVisible();
 		await expect(page.getByText('secret-2')).toHaveCount(0);
-	});
-
-	test('shows selected Google Calendar sync readiness', async ({ page }) => {
-		await page.unroute('**/calendar/api/account-status');
-		await page.route('**/calendar/api/account-status', async (route) => {
-			await route.fulfill({
-				json: {
-					connected: true,
-					accountEmail: 'calendar-admin@example.com',
-					selectedCalendarID: 'company@example.com',
-					selectedCalendarName: '회사 일정',
-					selectedCalendarAccessRole: 'writer',
-					needsReauth: false,
-					needsCalendarSelection: false,
-					initialSyncCompleted: true,
-					calendarSyncReady: true,
-					googleOAuthConfigured: true,
-					canManageGoogleOAuth: true
-				}
-			});
-		});
-
-		await page.goto('/calendar/');
-		await openCalendarSettings(page);
-
-		await expect(page.getByText('연결됨: calendar-admin@example.com')).toBeVisible();
-		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
-		await expect(page.getByText('동기화 가능')).toBeVisible();
-	});
-
-	test('shows write permission requirement for read-only selected calendars', async ({ page }) => {
-		await page.unroute('**/calendar/api/account-status');
-		await page.route('**/calendar/api/account-status', async (route) => {
-			await route.fulfill({
-				json: {
-					connected: true,
-					accountEmail: 'calendar-admin@example.com',
-					selectedCalendarID: 'company@example.com',
-					selectedCalendarName: '회사 일정',
-					selectedCalendarAccessRole: 'reader',
-					needsReauth: false,
-					needsCalendarSelection: false,
-					initialSyncCompleted: true,
-					calendarSyncReady: false,
-					googleOAuthConfigured: true,
-					canManageGoogleOAuth: true
-				}
-			});
-		});
-
-		await page.goto('/calendar/');
-		await openCalendarSettings(page);
-
-		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
-		await expect(page.getByText('쓰기 권한 필요')).toBeVisible();
 	});
 
 	test('keeps Google OAuth client file selected when upload fails', async ({ page }) => {
@@ -218,36 +198,3 @@ test.describe('calendar route Google OAuth setup', () => {
 		await expectGoogleOAuthUploadLayoutToFit(page);
 	});
 });
-
-async function openCalendarSettings(page: Page): Promise<void> {
-	const calendarFrame = page.frameLocator('iframe');
-	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
-	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
-	const settingsHeading = page.getByRole('heading', { name: '설정' });
-	await expect
-		.poll(async () => {
-			if ((await settingsHeading.count()) > 0) return true;
-			await settingsButton.click();
-			await page.waitForTimeout(100);
-			return (await settingsHeading.count()) > 0;
-		})
-		.toBe(true);
-	await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
-}
-
-async function expectGoogleOAuthUploadLayoutToFit(page: Page): Promise<void> {
-	await expectElementNotToOverflow(page.locator('[data-slot="sheet-content"]'));
-	await expectElementNotToOverflow(page.getByRole('group', { name: 'Google OAuth client.json' }));
-}
-
-async function expectElementNotToOverflow(locator: Locator): Promise<void> {
-	await expect(locator).toBeVisible();
-	await expect
-		.poll(async () =>
-			locator.evaluate((element) => {
-				const htmlElement = element as HTMLElement;
-				return htmlElement.scrollWidth <= htmlElement.clientWidth;
-			})
-		)
-		.toBe(true);
-}

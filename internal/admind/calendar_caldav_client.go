@@ -37,6 +37,9 @@ type calDAVCalendarInfo struct {
 	Name                string
 	Description         string
 	CTag                string
+	Color               string
+	CanRead             bool
+	CanWrite            bool
 	SupportedComponents []string
 	MaxResourceSize     int64
 }
@@ -80,24 +83,6 @@ func (client *outboundCalDAVClient) discoverPrincipalURL(ctx context.Context) (s
 
 func (client *outboundCalDAVClient) discoverHomeSetURL(ctx context.Context, principalURL string) (string, error) {
 	return client.caldav.FindCalendarHomeSet(ctx, calDAVPathOnly(principalURL))
-}
-
-func (client *outboundCalDAVClient) listCalendars(ctx context.Context, homeSetURL string) ([]calDAVCalendarInfo, error) {
-	calendars, errorValue := client.caldav.FindCalendars(ctx, calDAVPathOnly(homeSetURL))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	result := make([]calDAVCalendarInfo, 0, len(calendars))
-	for _, calendar := range calendars {
-		result = append(result, calDAVCalendarInfo{
-			Path:                calendar.Path,
-			Name:                calendar.Name,
-			Description:         calendar.Description,
-			SupportedComponents: append([]string(nil), calendar.SupportedComponentSet...),
-			MaxResourceSize:     calendar.MaxResourceSize,
-		})
-	}
-	return result, nil
 }
 
 func (client *outboundCalDAVClient) queryAllCalendarEvents(ctx context.Context, calendarPath string) ([]calDAVCalendarObject, error) {
@@ -290,7 +275,7 @@ func calDAVPathOnly(absoluteOrPath string) string {
 	if parsed.Path == "" {
 		return "/"
 	}
-	return parsed.Path
+	return parsed.EscapedPath()
 }
 
 func formatETagHeaderValue(etag string) string {
