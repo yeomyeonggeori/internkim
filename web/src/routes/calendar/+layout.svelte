@@ -17,6 +17,7 @@
 		loadCalendarLayoutStoredState
 	} from './calendar-layout-message-sync';
 	import {
+		googleOAuthReturnStatusFromMessageEvent,
 		googleOAuthReturnStatusFromStorageEvent,
 		googleOAuthReturnStatusFromURL,
 		notifyGoogleOAuthReturn,
@@ -58,12 +59,19 @@
 		if (storedState.visibleDate) {
 			layoutState.applyVisibleDate(storedState.visibleDate);
 		}
-		return installCalendarLayoutMessageSync({
+		window.addEventListener('message', handleGoogleOAuthMessage);
+		window.addEventListener('storage', handleGoogleOAuthStorageEvent);
+		const uninstallMessageSync = installCalendarLayoutMessageSync({
 			selectedDateKey: () => layoutState.selectedDateKey,
 			applyVisibleDate: (date) => layoutState.applyVisibleDate(date),
 			openSettings: openSyncSheet,
 			refreshCalendar: bumpCalendarRefresh
 		});
+		return () => {
+			window.removeEventListener('message', handleGoogleOAuthMessage);
+			window.removeEventListener('storage', handleGoogleOAuthStorageEvent);
+			uninstallMessageSync();
+		};
 	});
 
 	async function loadSyncInformation() {
@@ -171,9 +179,11 @@
 	async function uploadGoogleOAuthClientFile(file: File): Promise<boolean> {
 		layoutState.isUploadingGoogleOAuthClient = true;
 		layoutState.syncError = '';
+		layoutState.syncNotice = '';
 		try {
 			await uploadGoogleOAuthClient(file, text.googleOAuthClientUploadError);
 			await loadAccountStatus();
+			layoutState.syncNotice = 'googleOAuthClientUploaded';
 			return true;
 		} catch (error) {
 			layoutState.syncError = error instanceof Error ? error.message : text.googleOAuthClientUploadError;
@@ -204,6 +214,13 @@
 		showGoogleOAuthReturnNotice(returnStatus);
 	}
 
+	function handleGoogleOAuthMessage(event: MessageEvent) {
+		if (isEmbed) return;
+		const returnStatus = googleOAuthReturnStatusFromMessageEvent(event, window.location.origin);
+		if (!returnStatus) return;
+		showGoogleOAuthReturnNotice(returnStatus);
+	}
+
 	function showGoogleOAuthReturnNotice(returnStatus: GoogleOAuthReturnStatus) {
 		layoutState.syncNotice = returnStatus === 'connected' ? 'googleOAuthConnected' : 'googleOAuthFailed';
 		openSyncSheet();
@@ -215,8 +232,6 @@
 		window.history.replaceState(window.history.state, '', `${nextURL.pathname}${nextURL.search}${nextURL.hash}`);
 	}
 </script>
-
-<svelte:window onstorage={handleGoogleOAuthStorageEvent} />
 
 {#if isEmbed}
 	{@render children()}

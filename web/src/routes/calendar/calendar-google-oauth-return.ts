@@ -1,4 +1,5 @@
 export const googleOAuthReturnStorageKey = 'internkim:calendar:google-oauth-return';
+export const googleOAuthReturnMessageType = 'internkim:calendar:google-oauth-return';
 
 export type GoogleOAuthReturnStatus = 'connected' | 'failed';
 
@@ -16,13 +17,23 @@ export function notifyGoogleOAuthReturn(status: GoogleOAuthReturnStatus): void {
 		status,
 		issuedAt: Date.now()
 	};
-	window.localStorage.setItem(googleOAuthReturnStorageKey, JSON.stringify(signal));
+	try {
+		window.localStorage.setItem(googleOAuthReturnStorageKey, JSON.stringify(signal));
+	} catch {
+		return;
+	}
 }
 
 export function googleOAuthReturnStatusFromStorageEvent(event: StorageEvent): GoogleOAuthReturnStatus | null {
 	if (event.key !== googleOAuthReturnStorageKey) return null;
 	if (!event.newValue) return null;
 	return parseGoogleOAuthReturnSignal(event.newValue);
+}
+
+export function googleOAuthReturnStatusFromMessageEvent(event: MessageEvent, expectedOrigin: string): GoogleOAuthReturnStatus | null {
+	if (event.origin !== expectedOrigin) return null;
+	if (!isRecord(event.data) || event.data.type !== googleOAuthReturnMessageType) return null;
+	return googleOAuthReturnStatusFromValue(event.data.status);
 }
 
 function parseGoogleOAuthReturnSignal(value: string): GoogleOAuthReturnStatus | null {
