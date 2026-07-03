@@ -10,6 +10,14 @@ Use `capability.invoke` with `operation: schedule.create` when the user asks the
 
 Creating a schedule is bounded work. Do not reject these requests as unsupported background loops when the schedule capability is available.
 
+Every JSON block below is the `input` object for that `capability.invoke` call, for example:
+
+```json
+{"operation": "schedule.create", "input": {"taskInstruction": "업계 뉴스를 조사해서 핵심만 보고해준다.", "kind": "cron", "cronExpression": "0 9 * * *", "timeZone": "Asia/Seoul"}}
+```
+
+`input` must be a real object with the fields filled in — never an empty object, an empty string, or a placeholder like `{}`.
+
 ## Task Instruction
 
 Every schedule stores one `taskInstruction`. Put only the work to perform at run time in `taskInstruction`.
