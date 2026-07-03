@@ -74,6 +74,16 @@ export async function deletePersistedCalendarEvent(eventID: string, errorFallbac
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 }
 
+export function deletePersistedCalendarEventOnPageHide(eventID: string): void {
+	void fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
+		method: 'DELETE',
+		credentials: 'include',
+		keepalive: true
+	}).catch((error: unknown) => {
+		console.warn('calendar delete keepalive request failed', { error });
+	});
+}
+
 export async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
 	const message = (await response.text()).trim();
 	if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
