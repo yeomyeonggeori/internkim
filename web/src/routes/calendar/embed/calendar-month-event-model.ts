@@ -27,8 +27,8 @@ export type MonthEventSegment = {
 
 type MonthEventSegmentCandidate = Omit<MonthEventSegment, 'lane'> & {
 	durationDays: number;
-	sortTimestamp: number;
-	eventIndex: number;
+	startTimestamp: number;
+	updatedTimestamp: number;
 };
 
 type MonthEventLane = {
@@ -66,7 +66,7 @@ export function moveMonthEventToDate(event: DayFlowEvent, targetDateKey: string,
 
 function segmentsForWeek(events: DayFlowEvent[], week: MonthEventWeek): MonthEventSegment[] {
 	const candidates = events
-		.flatMap((event, eventIndex) => segmentForEventAndWeek(event, week, eventIndex))
+		.flatMap((event) => segmentForEventAndWeek(event, week))
 		.sort(compareMonthEventSegmentCandidates);
 	const lanes: MonthEventLane[] = [];
 	return candidates.map((candidate) => {
@@ -87,20 +87,22 @@ function segmentsForWeek(events: DayFlowEvent[], week: MonthEventWeek): MonthEve
 	});
 }
 
-function segmentForEventAndWeek(event: DayFlowEvent, week: MonthEventWeek, eventIndex: number): MonthEventSegmentCandidate[] {
+function segmentForEventAndWeek(event: DayFlowEvent, week: MonthEventWeek): MonthEventSegmentCandidate[] {
 	const weekStartDateKey = week.dateKeys[0];
 	const weekEndDateKey = week.dateKeys[week.dateKeys.length - 1];
 	if (!weekStartDateKey || !weekEndDateKey) return [];
-	const displayOrder = calendarEventDisplayOrderCandidate(event, eventIndex, weekStartDateKey, weekEndDateKey);
+	const displayOrder = calendarEventDisplayOrderCandidate(event, weekStartDateKey, weekEndDateKey);
 	if (!displayOrder) return [];
 	return [
 		{
 			id: `${event.id}::month-segment::${week.id}`,
+			eventID: event.id,
 			weekID: week.id,
 			...displayOrder,
 			titleText: titleText(event),
 			titleOnlyText: titleOnlyText(event),
-			startTimeText: event.allDay ? '' : formatMonthEventTime(eventStartDate(event))
+			startTimeText: event.allDay ? '' : formatMonthEventTime(eventStartDate(event)),
+			isAllDay: event.allDay ?? false
 		}
 	];
 }

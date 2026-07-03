@@ -10,7 +10,6 @@ import {
 
 type IndexedCalendarEvent = {
 	event: DayFlowEvent;
-	eventIndex: number;
 };
 
 type AllDayVisibleRange = {
@@ -196,7 +195,6 @@ function allDayEventPlacement(
 		displayOrder: indexedEvent
 			? calendarEventDisplayOrderCandidate(
 					indexedEvent.event,
-					indexedEvent.eventIndex,
 					visibleRange.startDateKey,
 					visibleRange.endDateKey
 				)
@@ -205,7 +203,7 @@ function allDayEventPlacement(
 }
 
 function indexedCalendarEvents(events: DayFlowEvent[]): Map<string, IndexedCalendarEvent> {
-	return new Map(events.map((event, eventIndex) => [event.id, { event, eventIndex }]));
+	return new Map(events.map((event) => [event.id, { event }]));
 }
 
 function eventIDFromElement(eventElement: HTMLElement): string | null {
