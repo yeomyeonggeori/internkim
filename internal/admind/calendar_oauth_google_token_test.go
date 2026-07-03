@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -57,17 +58,22 @@ func TestDifferentGoogleAccountSelectionBackfillsExistingEvents(t *testing.T) {
 	if errorValue := service.writeCalendarEventWithSource(ctx, existingEvent, calendarSourcePull); errorValue != nil {
 		t.Fatalf("write existing event: %v", errorValue)
 	}
-	oldAccount := remoteCalendarAccount{
-		ID:                         googleOAuthAccountPrefix + "old_example_com",
-		Provider:                   remoteCalendarProviderGoogle,
-		AccountEmail:               "old@example.com",
-		TokenFilePath:              "/tmp/old-google-token.enc",
-		SelectedCalendarID:         "old@example.com",
-		SelectedCalendarAccessRole: "writer",
-		SelectedCalendarURL:        "/calendars/old-account/",
+	oldToken := &oauth2.Token{
+		AccessToken:  "old-access-token",
+		RefreshToken: "old-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().UTC().Add(time.Hour),
 	}
+	oldAccount, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, oldToken, "old@example.com")
+	if errorValue != nil {
+		t.Fatalf("save old account: %v", errorValue)
+	}
+	oldTokenPath := oldAccount.TokenFilePath
+	oldAccount.SelectedCalendarID = "old@example.com"
+	oldAccount.SelectedCalendarAccessRole = "writer"
+	oldAccount.SelectedCalendarURL = "/calendars/old-account/"
 	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, oldAccount); errorValue != nil {
-		t.Fatalf("seed old account: %v", errorValue)
+		t.Fatalf("update old account selection: %v", errorValue)
 	}
 	token := &oauth2.Token{
 		AccessToken:  "new-access-token",
@@ -93,6 +99,13 @@ func TestDifferentGoogleAccountSelectionBackfillsExistingEvents(t *testing.T) {
 	}
 	if rows[0].EventID != existingEvent.ID || rows[0].RemoteHref != "" || rows[0].IfMatchETag != "" {
 		t.Fatalf("new account should add existing event as fresh put: %+v", rows[0])
+	}
+	accountEmails := readRemoteCalendarAccountEmailsForTest(t, service, ctx, remoteCalendarProviderGoogle)
+	if len(accountEmails) != 1 || accountEmails[0] != "new@example.com" {
+		t.Fatalf("google accounts = %#v, want only new@example.com", accountEmails)
+	}
+	if _, errorValue := os.Stat(oldTokenPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("old token file should be deleted, stat error = %v", errorValue)
 	}
 }
 
@@ -157,4 +170,34 @@ func TestSaveGoogleOAuthTokenAndAccountPreservesSelectedCalendarForSameEmail(t *
 	if account.InitialSyncCompletedAt != existing.InitialSyncCompletedAt {
 		t.Errorf("InitialSyncCompletedAt: got %q, want %q", account.InitialSyncCompletedAt, existing.InitialSyncCompletedAt)
 	}
+}
+
+func readRemoteCalendarAccountEmailsForTest(t *testing.T, service *Service, ctx context.Context, provider string) []string {
+	t.Helper()
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatalf("open calendar database: %v", errorValue)
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT account_email
+FROM calendar_remote_accounts
+WHERE provider = ?
+ORDER BY account_email`, provider)
+	if errorValue != nil {
+		t.Fatalf("query calendar accounts: %v", errorValue)
+	}
+	defer rows.Close()
+	emails := []string{}
+	for rows.Next() {
+		var email string
+		if errorValue := rows.Scan(&email); errorValue != nil {
+			t.Fatalf("scan calendar account email: %v", errorValue)
+		}
+		emails = append(emails, email)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		t.Fatalf("scan calendar account emails: %v", errorValue)
+	}
+	return emails
 }
