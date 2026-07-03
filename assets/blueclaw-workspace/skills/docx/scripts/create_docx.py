@@ -219,14 +219,72 @@ def set_table_borders(table):
     table._tbl.tblPr.append(borders)
 
 
+def stringify_cell(value):
+    return "" if value is None else str(value)
+
+
+def load_table_block(table_path):
+    expanded_path = os.path.expanduser(table_path)
+    with open(expanded_path, "r", encoding="utf-8") as table_file:
+        table_data = json.load(table_file)
+    rows, column_widths = normalize_table_data(table_data, expanded_path)
+    block = {"type": "table", "rows": rows}
+    if column_widths is not None:
+        block["columnWidthsInches"] = column_widths
+    return block
+
+
+def normalize_table_data(table_data, source_path):
+    if isinstance(table_data, list):
+        return normalize_table_rows(table_data, source_path), None
+    if isinstance(table_data, dict) and isinstance(table_data.get("rows"), list):
+        return normalize_table_rows(table_data["rows"], source_path), table_data.get("columnWidthsInches")
+    raise ValueError(f"table file {source_path} must be a rows array, an array of objects, or an object with a rows array")
+
+
+def normalize_table_rows(rows, source_path):
+    if not rows:
+        raise ValueError(f"table file {source_path} must contain at least one row")
+    if all(isinstance(row, dict) for row in rows):
+        header = list(rows[0].keys())
+        return [header] + [[stringify_cell(row.get(key)) for key in header] for row in rows]
+    if all(isinstance(row, list) for row in rows):
+        return [[stringify_cell(value) for value in row] for row in rows]
+    raise ValueError(f"table file {source_path} rows must all be arrays or all be objects")
+
+
+class AppendOrderedBlockAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        namespace.ordered_arguments.append((option_string.lstrip("-"), values))
+
+
+def flush_pending_bullets(blocks, pending_bullet_items):
+    if not pending_bullet_items:
+        return
+    blocks.append({"type": "bullets", "items": list(pending_bullet_items)})
+    pending_bullet_items.clear()
+
+
+def build_inline_block(kind, value):
+    if kind == "heading":
+        return {"type": "heading", "level": 1, "text": value}
+    if kind == "paragraph":
+        return {"type": "paragraph", "text": value}
+    if kind == "table":
+        return load_table_block(value)
+    raise ValueError(f"unsupported inline block kind: {kind}")
+
+
 def build_specification(arguments):
     blocks = []
-    for heading_text in arguments.heading:
-        blocks.append({"type": "heading", "level": 1, "text": heading_text})
-    for paragraph_text in arguments.paragraph:
-        blocks.append({"type": "paragraph", "text": paragraph_text})
-    if arguments.bullet:
-        blocks.append({"type": "bullets", "items": arguments.bullet})
+    pending_bullet_items = []
+    for kind, value in arguments.ordered_arguments:
+        if kind == "bullet":
+            pending_bullet_items.append(value)
+            continue
+        flush_pending_bullets(blocks, pending_bullet_items)
+        blocks.append(build_inline_block(kind, value))
+    flush_pending_bullets(blocks, pending_bullet_items)
     return {"title": arguments.title or "", "blocks": blocks}
 
 
@@ -234,18 +292,19 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Create a DOCX file from arguments or a JSON spec.")
     parser.add_argument("output_path", help="Path to the output .docx file")
     parser.add_argument("--title", metavar="TEXT", default="", help="Document title")
-    parser.add_argument("--heading", action="append", default=[], metavar="TEXT", help="Add a level-1 heading (repeatable)")
-    parser.add_argument("--paragraph", action="append", default=[], metavar="TEXT", help="Add a paragraph (repeatable)")
-    parser.add_argument("--bullet", action="append", default=[], metavar="TEXT", help="Add a bullet item (repeatable)")
+    parser.add_argument("--heading", action=AppendOrderedBlockAction, dest="ordered_arguments", default=[], metavar="TEXT", help="Add a level-1 heading (repeatable, position-sensitive)")
+    parser.add_argument("--paragraph", action=AppendOrderedBlockAction, dest="ordered_arguments", default=[], metavar="TEXT", help="Add a paragraph (repeatable, position-sensitive)")
+    parser.add_argument("--bullet", action=AppendOrderedBlockAction, dest="ordered_arguments", default=[], metavar="TEXT", help="Add a bullet item (repeatable, position-sensitive; consecutive bullets merge into one list)")
+    parser.add_argument("--table", action=AppendOrderedBlockAction, dest="ordered_arguments", default=[], metavar="JSON_PATH", help="Add a table from a JSON rows file (repeatable, position-sensitive)")
     parser.add_argument("--spec", metavar="JSON_PATH", help="Full {title,page,fontName,blocks} spec for rich structure (tables, fonts, margins)")
     return parser.parse_args()
 
 
 def main():
     arguments = parse_arguments()
-    has_inline_content = arguments.title or arguments.heading or arguments.paragraph or arguments.bullet
+    has_inline_content = arguments.title or arguments.ordered_arguments
     if not arguments.spec and not has_inline_content:
-        raise ValueError("provide at least --title, --heading, --paragraph, or --bullet; or pass --spec <file>")
+        raise ValueError("provide at least --title, --heading, --paragraph, --bullet, or --table; or pass --spec <file>")
     specification = load_specification(arguments.spec) if arguments.spec else build_specification(arguments)
     document = create_document(specification)
     output_path = Path(os.path.expanduser(arguments.output_path))
