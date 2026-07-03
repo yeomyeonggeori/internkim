@@ -1,4 +1,4 @@
-# Artifact Quality Harness
+# Artifact Quality Tester
 
 Use a bounded quality loop for rendered artifacts:
 

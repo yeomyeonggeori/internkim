@@ -82,6 +82,7 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - Use `24` for domestic travel to another city or when uncertain.
 - Use `12` or `6` for external meetings or half-day preparation.
 - Use `1` for same-day internal online meetings.
+- When reporting created, updated, or listed events, prefer a compact Markdown table (columns like 일시/일정/장소/메모) over prose lists.
 - Do not say an event was created, changed, or deleted until the operation succeeds.
 - To update or delete an event the user names instead of giving an `eventID`, call `calendar.update` or `calendar.delete` directly with `query` set to a distinctive keyword from the event (a person or topic name). The runtime resolves the event across all dates and fails if the query matches zero or several events — you do not need a separate `calendar.list` step. Only react to the operation's own result: if it reports several candidates, ask which one; if it reports none, tell the user no matching event exists.
 - External attendee invitation is not supported by the Work calendar operation yet. If the user asks to invite people, create the event with attendee names in the description and mention that CalDAV clients can add invitations after sync.

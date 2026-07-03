@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -484,7 +485,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 		t.Fatalf("site package manifest must pin exact dependency versions")
 	}
 	buildScript := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "scripts", "build.ts")
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
+	for _, expectedText := range []string{`arguments: ["install", "--prefer-offline"]`, `existsSync("node_modules/vite/bin/vite.js")`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build", "--logLevel", "info"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(buildScript, expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
@@ -551,6 +552,334 @@ func TestSiteScaffoldMirrorsCanonicalAssets(t *testing.T) {
 	}
 }
 
+func TestSiteScaffoldDistMatchesScaffoldSource(t *testing.T) {
+	manifestDocument := readRepositoryFile(t, "internal", "admind", "site_scaffold_dist", "react-vite-ts", "manifest.json")
+	var manifest struct {
+		ScaffoldSourceSHA256 string `json:"scaffoldSourceSHA256"`
+	}
+	if errorValue := json.Unmarshal([]byte(manifestDocument), &manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if manifest.ScaffoldSourceSHA256 == "" {
+		t.Fatal("expected scaffoldSourceSHA256 in site_scaffold_dist manifest.json")
+	}
+	recomputedSHA256 := scaffoldSourceSHA256ForTest(t, repositoryPath("internal", "admind", "site_scaffold", "react-vite-ts"))
+	if recomputedSHA256 != manifest.ScaffoldSourceSHA256 {
+		t.Fatalf("site_scaffold_dist manifest is stale; re-run tools/build-site-scaffold-dist (recomputed=%s manifest=%s)", recomputedSHA256, manifest.ScaffoldSourceSHA256)
+	}
+}
+
+func scaffoldSourceSHA256ForTest(t *testing.T, scaffoldSourceDirectory string) string {
+	t.Helper()
+	type sourceEntry struct {
+		relativePath  string
+		contentSHA256 string
+	}
+	entries := []sourceEntry{}
+	errorValue := filepath.Walk(scaffoldSourceDirectory, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if information.IsDir() {
+			if information.Name() == "node_modules" || information.Name() == "dist" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if information.Name() == ".DS_Store" || strings.HasPrefix(information.Name(), "._") {
+			return nil
+		}
+		relativePath, relativeError := filepath.Rel(scaffoldSourceDirectory, path)
+		if relativeError != nil {
+			return relativeError
+		}
+		document, readError := os.ReadFile(path)
+		if readError != nil {
+			return readError
+		}
+		entries = append(entries, sourceEntry{relativePath: filepath.ToSlash(relativePath), contentSHA256: sha256Hex(string(document))})
+		return nil
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sort.Slice(entries, func(leftIndex int, rightIndex int) bool {
+		return entries[leftIndex].relativePath < entries[rightIndex].relativePath
+	})
+	aggregateInput := strings.Builder{}
+	for _, entry := range entries {
+		aggregateInput.WriteString(entry.relativePath)
+		aggregateInput.WriteString("\n")
+		aggregateInput.WriteString(entry.contentSHA256)
+		aggregateInput.WriteString("\n")
+	}
+	return sha256Hex(aggregateInput.String())
+}
+
+func TestSiteCreateMaterializesScaffoldDistContentAndManifest(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	content := &siteContent{
+		SiteName: "콘텐츠 사이트",
+		Tagline:  "환영합니다",
+		Sections: []siteContentSection{
+			{Title: "소개", Body: "이 사이트는 예시입니다."},
+		},
+	}
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "content-site", Title: "Content Site"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, content); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	contentDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"))
+	var roundTrippedContent siteContent
+	if errorValue := json.Unmarshal([]byte(contentDocument), &roundTrippedContent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if roundTrippedContent.SiteName != content.SiteName || len(roundTrippedContent.Sections) != 1 || roundTrippedContent.Sections[0].Body != content.Sections[0].Body {
+		t.Fatalf("content round trip = %+v", roundTrippedContent)
+	}
+
+	if !isDirectory(filepath.Join(site.HostSourcePath, "app", "dist")) {
+		t.Fatal("expected create to materialize the canonical app/dist")
+	}
+	indexHTML := readTrimmedFile(filepath.Join(site.HostSourcePath, "app", "dist", "index.html"))
+	if !strings.Contains(indexHTML, "Content Site") {
+		t.Fatalf("expected dist index.html to be title-substituted, got %q", indexHTML)
+	}
+
+	manifestDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, siteScaffoldAppManifestPath))
+	var manifest map[string]string
+	if errorValue := json.Unmarshal([]byte(manifestDocument), &manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(manifest) == 0 {
+		t.Fatal("expected a non-empty scaffold-app-manifest.json")
+	}
+	if !siteAppMatchesScaffoldManifest(site.HostSourcePath) {
+		t.Fatal("expected a freshly created workspace to match its own scaffold manifest")
+	}
+}
+
+func TestSitePristinePublishSucceedsWithoutAppDistOrFreshnessCheck(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "pristine-publish", Title: "Pristine Publish"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.RemoveAll(filepath.Join(site.HostSourcePath, "app", "dist")); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.Status != SiteStatusPublished {
+		t.Fatalf("published status = %q", site.Status)
+	}
+	if site.QualityStatus != "passed_prebuilt" {
+		t.Fatalf("expected passed_prebuilt quality status, got %q", site.QualityStatus)
+	}
+	response := serveSiteRequest(service, "pristine-publish.device.intern.kim", "/")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Pristine Publish") {
+		t.Fatalf("published body = %d %q", response.Code, response.Body.String())
+	}
+}
+
+func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "content-only-republish", Title: "Content Only"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	updatedContentDocument := siteContentJSONDocument(&siteContent{
+		SiteName: "Updated Name",
+		Sections: []siteContentSection{{Title: "New", Body: "새 콘텐츠"}},
+	})
+	contentPath := filepath.Join(site.HostSourcePath, "app", "public", "site-content.json")
+	writeFile(t, contentPath, updatedContentDocument)
+	setFileModTime(t, contentPath, time.Now().UTC().Add(2*time.Hour))
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "content-only-republish.device.intern.kim", "/site-content.json")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "새 콘텐츠") {
+		t.Fatalf("expected republished content overlay, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSiteModifiedSourceWithoutRebuildIsRejected(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "modified-source", Title: "Modified Source"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	appSourcePath := filepath.Join(site.HostSourcePath, "app", "src", "App.tsx")
+	writeFile(t, appSourcePath, "export default function App() { return <main>edited</main> }\n")
+	setFileModTime(t, appSourcePath, time.Now().UTC().Add(2*time.Hour))
+
+	if siteAppMatchesScaffoldManifest(site.HostSourcePath) {
+		t.Fatal("expected an edited app/src/App.tsx to break the scaffold manifest match")
+	}
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/dist is stale") {
+		t.Fatalf("expected stale build rejection for edited source without a rebuild, got %v", errorValue)
+	}
+}
+
+func TestSitePublishRejectsInvalidApplicationContentFile(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-content", Title: "Invalid Content"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"), `{"siteName":"","sections":[]}`)
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/public/site-content.json is invalid") {
+		t.Fatalf("expected invalid content rejection, got %v", errorValue)
+	}
+}
+
+func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "blocks-content", Title: "Blocks Content"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	blocksContentDocument := siteContentJSONDocument(&siteContent{
+		SiteName: "Blocks Content",
+		Tagline:  "블록 기반 콘텐츠",
+		Blocks: []siteContentBlock{
+			{Variant: "hero", Title: "Blocks Content", Body: "블록 기반 콘텐츠", ActionLabel: "자세히 보기", ActionHref: "#block-2"},
+			{Variant: "features", Title: "기능", Items: []siteContentBlockItem{
+				{Title: "빠름", Body: "빠른 프로토타입 생성"},
+				{Title: "안전", Body: "안전한 배포 검증"},
+			}},
+			{Variant: "faq", Title: "자주 묻는 질문", Items: []siteContentBlockItem{
+				{Title: "무료인가요?", Body: "네, 검증용 프로토타입은 무료입니다."},
+			}},
+		},
+	})
+	contentPath := filepath.Join(site.HostSourcePath, "app", "public", "site-content.json")
+	writeFile(t, contentPath, blocksContentDocument)
+	setFileModTime(t, contentPath, time.Now().UTC().Add(2*time.Hour))
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "blocks-content.device.intern.kim", "/site-content.json")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"blocks"`) {
+		t.Fatalf("expected republished blocks content overlay, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSitePublishRejectsApplicationContentFileWithUnknownBlockVariant(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-block-variant", Title: "Invalid Block Variant"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"), `{"siteName":"Invalid Block Variant","blocks":[{"variant":"testimonial","title":"Bad"}]}`)
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/public/site-content.json is invalid") {
+		t.Fatalf("expected invalid block variant rejection, got %v", errorValue)
+	}
+}
+
+func TestValidateSiteContentAcceptsBlocksOrSectionsButRequiresOne(t *testing.T) {
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Sections Only", Sections: []siteContentSection{{Title: "소개", Body: "내용"}}}); errorValue != nil {
+		t.Fatalf("expected sections-only content to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Blocks Only", Blocks: []siteContentBlock{{Variant: "hero", Title: "제목"}}}); errorValue != nil {
+		t.Fatalf("expected blocks-only content to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Blocks With Items", Blocks: []siteContentBlock{
+		{Variant: "faq", Items: []siteContentBlockItem{{Title: "질문", Body: "답변"}}},
+	}}); errorValue != nil {
+		t.Fatalf("expected blocks with valid items to validate, got %v", errorValue)
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Neither"}); errorValue == nil {
+		t.Fatal("expected an error when neither sections nor blocks are present")
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Unknown Variant", Blocks: []siteContentBlock{{Variant: "testimonial"}}}); errorValue == nil {
+		t.Fatal("expected an error for an unknown block variant")
+	}
+	if errorValue := validateSiteContent(&siteContent{SiteName: "Empty Item", Blocks: []siteContentBlock{
+		{Variant: "faq", Items: []siteContentBlockItem{{Title: "", Body: "답변"}}},
+	}}); errorValue == nil {
+		t.Fatal("expected an error for a block item missing a title")
+	}
+}
+
 func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
@@ -614,7 +943,8 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	}
 	sourceWorkspacePath := t.TempDir()
 	writeTestSourceBuild(t, sourceWorkspacePath, "bundle publish")
-	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), "custom source design")
+	customSourceDesignMarkdown := validSiteDesignMarkdownWithMarker("custom source design")
+	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), customSourceDesignMarkdown)
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:              site.SiteID,
 		RequestedBy:         "owner@example.com",
@@ -626,7 +956,7 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md")) != "custom source design" {
+	if readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md")) != strings.TrimSpace(customSourceDesignMarkdown) {
 		t.Fatalf("host staging should be materialized from editable source")
 	}
 	response := serveSiteRequest(service, "source-bundle.device.intern.kim", "/")

@@ -1,31 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
+import { resolveResource } from '@tauri-apps/api/path';
 import type { Child } from '@tauri-apps/plugin-shell';
 import { Command } from '@tauri-apps/plugin-shell';
 import { isCompanionVerified, stalePairingMessage, type CompanionStatus, type PairingPayload } from './pairing';
-import { loadCompanionSettings, settingsToSidecarArguments } from './settings';
+import { runtimeState, setRuntimeState, type RuntimeStatus, type LocalLLMStatus } from './runtimeState.svelte';
+import { loadCompanionSettings } from './settings';
 import type { CompanionSettings } from './settings';
 
-export type RuntimeStatus = {
-	isRunning: boolean;
-	processID?: number;
-	lastError?: string;
-	lastHeartbeatAt?: string;
-	restartAttempts?: number;
-	localLLM?: LocalLLMStatus;
-};
-
-export type LocalLLMBackendStatus = {
-	name: string;
-	model?: string;
-	available: boolean;
-	lastError?: string;
-	lastCheckedAt?: string;
-};
-
-export type LocalLLMStatus = {
-	enabled: boolean;
-	backends?: LocalLLMBackendStatus[];
-};
+export { runtimeState, setRuntimeState } from './runtimeState.svelte';
+export type { LocalLLMBackendStatus, LocalLLMStatus, RuntimeStatus } from './runtimeState.svelte';
 
 export type ResourceScope = {
 	kind: string;
@@ -52,10 +35,10 @@ export type MountedFolder = {
 	lastSeenAt: string;
 };
 
-const controlURL = 'http://127.0.0.1:7983';
+export const controlPlaneBaseURL = 'http://127.0.0.1:7983';
+const controlPlaneListenAddress = '127.0.0.1:7983';
 
 let runtimeChild: Child | undefined;
-let runtimeStatus: RuntimeStatus = { isRunning: false };
 let restartAttempts = 0;
 let shouldRestartRuntime = true;
 
@@ -92,46 +75,72 @@ export async function disconnectCompanion(): Promise<void> {
 	if (output.code !== 0) {
 		throw new Error(output.stderr || 'Disconnect failed');
 	}
-	runtimeStatus = { isRunning: false };
 	restartAttempts = 0;
+	setRuntimeState({ isRunning: false });
 }
 
 export async function ensureLaunchAtLogin(): Promise<void> {
 	await invoke('ensure_launch_at_login');
 }
 
-export async function startCompanionRuntime(): Promise<void> {
-	if (runtimeChild) return;
-	shouldRestartRuntime = true;
+function localLLMSidecarArguments(settings: CompanionSettings): string[] {
+	if (!settings.enableLocalLLM) return [];
+	const flags = ['--enable-local-llm', '--local-backend-order', settings.localBackendOrder.join(',')];
+	flags.push('--ollama-base-url', settings.ollama.baseURL);
+	if (settings.ollama.model) {
+		flags.push('--ollama-model', settings.ollama.model);
+	}
+	flags.push('--llamacpp-base-url', settings.llamacpp.baseURL);
+	flags.push('--llamacpp-embedding-base-url', settings.llamacpp.baseURL);
+	flags.push('--llamacpp-embedding-model', settings.llamacpp.embeddingModel || 'embeddinggemma');
+	if (settings.llamacpp.model) {
+		flags.push('--llamacpp-model', settings.llamacpp.model);
+	}
+	flags.push('--mlx-base-url', settings.mlx.baseURL);
+	if (settings.mlx.model) {
+		flags.push('--mlx-model', settings.mlx.model);
+	}
+	return flags;
+}
+
+async function buildSidecarArguments(): Promise<string[]> {
 	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const settings = await loadCompanionSettings();
-	const baseArguments = [
+	const browserExtensionPath = await resolveResource('browser-extension');
+	return [
 		'run',
 		'--shell-bridge-url',
 		shellBridge.url,
 		'--shell-bridge-token',
 		shellBridge.token,
 		'--control-listen',
-		'127.0.0.1:7983'
+		controlPlaneListenAddress,
+		'--browser-extension-path',
+		browserExtensionPath,
+		...(settings.preferCompanionBrowser ? ['--prefer-companion-browser'] : []),
+		...localLLMSidecarArguments(settings)
 	];
-	const command = Command.sidecar('binaries/internkim-companion', [
-		...baseArguments,
-		...settingsToSidecarArguments(settings)
-	]);
+}
+
+export async function startCompanionRuntime(): Promise<void> {
+	if (runtimeChild) return;
+	shouldRestartRuntime = true;
+	const sidecarArguments = await buildSidecarArguments();
+	const command = Command.sidecar('binaries/internkim-companion', sidecarArguments);
 	command.on('close', () => {
 		runtimeChild = undefined;
-		runtimeStatus = { isRunning: false, restartAttempts };
+		setRuntimeState({ isRunning: false, restartAttempts });
 		if (!shouldRestartRuntime) return;
 		void restartCompanionRuntimeOnce();
 	});
 	command.on('error', (errorValue) => {
 		runtimeChild = undefined;
-		runtimeStatus = { isRunning: false, lastError: errorValue, restartAttempts };
+		setRuntimeState({ isRunning: false, lastError: errorValue, restartAttempts });
 		if (!shouldRestartRuntime) return;
 		void restartCompanionRuntimeOnce();
 	});
 	runtimeChild = await command.spawn();
-	runtimeStatus = { isRunning: true, processID: runtimeChild.pid, restartAttempts };
+	setRuntimeState({ isRunning: true, processID: runtimeChild.pid, restartAttempts });
 }
 
 export async function restartCompanionRuntime(): Promise<void> {
@@ -154,7 +163,7 @@ export async function stopCompanionRuntime(): Promise<void> {
 	const child = runtimeChild;
 	runtimeChild = undefined;
 	if (!child) {
-		runtimeStatus = { isRunning: false };
+		setRuntimeState({ isRunning: false });
 		return;
 	}
 	try {
@@ -162,7 +171,7 @@ export async function stopCompanionRuntime(): Promise<void> {
 	} catch (error) {
 		console.error('failed to stop companion runtime', error);
 	}
-	runtimeStatus = { isRunning: false };
+	setRuntimeState({ isRunning: false });
 }
 
 async function restartCompanionRuntimeOnce(): Promise<void> {
@@ -176,35 +185,31 @@ async function restartCompanionRuntimeOnce(): Promise<void> {
 	}, 1200);
 }
 
-export function readRuntimeStatus(): RuntimeStatus {
-	return runtimeStatus;
-}
-
 export async function refreshRuntimeStatus(): Promise<RuntimeStatus> {
-	if (!runtimeChild) return runtimeStatus;
+	if (!runtimeChild) return runtimeState;
 	try {
-		const response = await fetch(`${controlURL}/v1/runtime/status`);
-		if (!response.ok) return runtimeStatus;
+		const response = await fetch(`${controlPlaneBaseURL}/v1/runtime/status`);
+		if (!response.ok) return runtimeState;
 		const document = (await response.json()) as {
 			lastHeartbeatAt?: string;
 			lastError?: string;
 			localLLM?: LocalLLMStatus;
 		};
-		runtimeStatus = {
-			...runtimeStatus,
+		setRuntimeState({
+			...runtimeState,
 			lastHeartbeatAt: document.lastHeartbeatAt,
-			lastError: document.lastError || runtimeStatus.lastError,
+			lastError: document.lastError || runtimeState.lastError,
 			localLLM: document.localLLM
-		};
-		return runtimeStatus;
+		});
+		return runtimeState;
 	} catch {
-		return runtimeStatus;
+		return runtimeState;
 	}
 }
 
 export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promise<LocalLLMStatus | undefined> {
 	if (!runtimeChild) return undefined;
-	const response = await fetch(`${controlURL}/v1/runtime/local-llm`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/runtime/local-llm`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(settings)
@@ -213,10 +218,7 @@ export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promis
 		throw new Error(await response.text());
 	}
 	const localLLM = (await response.json()) as LocalLLMStatus;
-	runtimeStatus = {
-		...runtimeStatus,
-		localLLM
-	};
+	setRuntimeState({ ...runtimeState, localLLM });
 	return localLLM;
 }
 
@@ -250,14 +252,14 @@ function normalizeCompanionSidecarError(message: string): string {
 
 export async function readActiveGrants(): Promise<ActiveGrant[]> {
 	if (!runtimeChild) return [];
-	const response = await fetch(`${controlURL}/v1/security/grants`);
+	const response = await fetch(`${controlPlaneBaseURL}/v1/security/grants`);
 	if (!response.ok) return [];
 	const document = (await response.json()) as { grants?: ActiveGrant[] };
 	return document.grants ?? [];
 }
 
 export async function revokeGrant(grantID: string): Promise<void> {
-	const response = await fetch(`${controlURL}/v1/security/grants/${encodeURIComponent(grantID)}/revoke`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/security/grants/${encodeURIComponent(grantID)}/revoke`, {
 		method: 'POST'
 	});
 	if (!response.ok) {
@@ -267,14 +269,14 @@ export async function revokeGrant(grantID: string): Promise<void> {
 
 export async function readMountedFolders(): Promise<MountedFolder[]> {
 	if (!runtimeChild) return [];
-	const response = await fetch(`${controlURL}/v1/filesystem/mounts`);
+	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts`);
 	if (!response.ok) return [];
 	const document = (await response.json()) as { mounts?: MountedFolder[] };
 	return document.mounts ?? [];
 }
 
 export async function addMountedFolder(path: string): Promise<MountedFolder> {
-	const response = await fetch(`${controlURL}/v1/filesystem/mounts`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ path })
@@ -286,7 +288,7 @@ export async function addMountedFolder(path: string): Promise<MountedFolder> {
 }
 
 export async function revokeMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}`, {
 		method: 'DELETE'
 	});
 	if (!response.ok) {
@@ -295,7 +297,7 @@ export async function revokeMountedFolder(mountID: string): Promise<void> {
 }
 
 export async function pauseMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/pause`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/pause`, {
 		method: 'POST'
 	});
 	if (!response.ok) {
@@ -304,7 +306,7 @@ export async function pauseMountedFolder(mountID: string): Promise<void> {
 }
 
 export async function resumeMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/resume`, {
+	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/resume`, {
 		method: 'POST'
 	});
 	if (!response.ok) {

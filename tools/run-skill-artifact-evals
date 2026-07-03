@@ -54,6 +54,13 @@ SPREADSHEET_QUALITY_RULES = """스프레드시트 품질 규칙:
 - 머리글 고정, 자동 필터, 읽기 좋은 열 너비, 숫자 서식, 명확한 시트명을 사용해 다시 열었을 때 바로 검토할 수 있게 만들어.
 - 최종 엑셀 파일만 제공하고, 별도 설명문으로 부족한 품질을 보완하지 마."""
 
+PRESENTATION_QUALITY_RULES = """프레젠테이션 품질 규칙:
+- 슬라이드 제목, 본문, 표 머리글은 사용자가 요청한 언어를 우선 사용해. 고유명사와 소스의 제품명은 그대로 둘 수 있어.
+- 날짜, 기간, 금액, 수량, 퍼센트는 소스 데이터의 표현과 요청 언어에 맞춰 일관되게 표기해.
+- 슬라이드마다 하나의 핵심 메시지만 담고, 텍스트가 슬라이드 프레임을 벗어나거나 잘리지 않게 해.
+- 표나 그리드가 있다면 머리글 구분, 충분한 열 너비, 줄바꿈, 셀 여백을 사용해서 읽기 쉽게 만들어.
+- 최종 결과물만 제공하고, 별도 설명문으로 부족한 품질을 보완하지 마."""
+
 
 def main() -> int:
     arguments = parse_arguments()
@@ -122,6 +129,7 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
 
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
+    manifest["efficiencyByEvaluationID"] = collect_efficiency_by_evaluation(runDirectory, selectedEvaluations)
     manifest["completedAt"] = current_datetime()
     write_json(runDirectory / "manifest.json", manifest)
     print(relative_path(runDirectory))
@@ -168,7 +176,16 @@ def audit_run_directory(runDirectory: Path) -> None:
         write_result_summary(resultDirectory, evaluation, audit)
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
+    manifest["efficiencyByEvaluationID"] = collect_efficiency_by_evaluation(runDirectory, selectedEvaluations)
     write_json(runDirectory / "manifest.json", manifest)
+
+
+def collect_efficiency_by_evaluation(runDirectory: Path, selectedEvaluations: list[dict]) -> dict:
+    efficiencyByEvaluationID = {}
+    for evaluation in selectedEvaluations:
+        audit = read_evaluation_audit(runDirectory, evaluation)
+        efficiencyByEvaluationID[evaluation["id"]] = audit.get("efficiency") if audit else unavailable_efficiency_metrics("no audit was produced because generation was skipped, interrupted, or failed before result collection")
+    return efficiencyByEvaluationID
 
 
 def judge_run(arguments: argparse.Namespace) -> int:
@@ -291,7 +308,7 @@ def score_criterion(evaluation: dict, criterion: dict, requiredCoverage: float, 
     if criterionID == "visualUsability":
         score = maxScore * visual_usability_ratio(evaluation, formatChecks, renderChecks)
         return judged_criterion(criterionID, maxScore, score, visual_evidence(formatChecks, renderChecks))
-    return judged_criterion(criterionID, maxScore, maxScore * requiredCoverage, "Generic score based on required evidence coverage.")
+    raise SystemExit(f"unknown scoring criterion ID: {criterionID}")
 
 
 def judged_criterion(criterionID: str, maxScore: int | float, score: int | float, evidence: str) -> dict:
@@ -316,6 +333,10 @@ def instruction_fit_ratio(evaluation: dict, formatChecks: dict, requiredCoverage
         return average([requiredCoverage, 1.0 if formatChecks.get("hasRenderedText") else 0.0, ratio(formatChecks.get("screenshotCount", 0), 2)])
     if artifactKind == "pdf":
         return average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0, pdf_page_limit_ratio(formatChecks, 2)])
+    if artifactKind == "presentation":
+        if is_pptx_format_checks(formatChecks):
+            return average([requiredCoverage, positive_ratio(formatChecks.get("slideCount", 0))])
+        return average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0])
     return requiredCoverage
 
 
@@ -328,6 +349,10 @@ def format_reliability_ratio(evaluation: dict, formatChecks: dict, renderChecks:
     if artifactKind == "xlsx":
         return average([1.0 if formatChecks.get("isZip") else 0.0, 1.0 if formatChecks.get("hasWorkbookXML") else 0.0, positive_ratio(formatChecks.get("sheetCount", 0)), render_ratio(renderChecks)])
     if artifactKind == "pdf":
+        return average([1.0 if formatChecks.get("isPDF") else 0.0, positive_ratio(formatChecks.get("pageCount", 0)), 1.0 if formatChecks.get("hasTextLayer") else 0.0, render_ratio(renderChecks)])
+    if artifactKind == "presentation":
+        if is_pptx_format_checks(formatChecks):
+            return average([1.0 if formatChecks.get("isZip") else 0.0, 1.0 if formatChecks.get("hasPresentationXML") else 0.0, positive_ratio(formatChecks.get("slideCount", 0)), render_ratio(renderChecks)])
         return average([1.0 if formatChecks.get("isPDF") else 0.0, positive_ratio(formatChecks.get("pageCount", 0)), 1.0 if formatChecks.get("hasTextLayer") else 0.0, render_ratio(renderChecks)])
     return render_ratio(renderChecks)
 
@@ -344,6 +369,10 @@ def source_grounded_usefulness_ratio(evaluation: dict, formatChecks: dict, requi
         return max(0.0, average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0, pdf_page_limit_ratio(formatChecks, 2)]) - penalty)
     if artifactKind == "website":
         return max(0.0, average([requiredCoverage, 1.0 if formatChecks.get("hasRenderedText") else 0.0]) - penalty)
+    if artifactKind == "presentation":
+        if is_pptx_format_checks(formatChecks):
+            return max(0.0, average([requiredCoverage, positive_ratio(formatChecks.get("slideCount", 0))]) - penalty)
+        return max(0.0, average([requiredCoverage, 1.0 if formatChecks.get("hasTextLayer") else 0.0]) - penalty)
     return max(0.0, requiredCoverage - penalty)
 
 
@@ -357,7 +386,15 @@ def visual_usability_ratio(evaluation: dict, formatChecks: dict, renderChecks: d
         return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), pdf_page_limit_ratio(formatChecks, 2), 1.0 if formatChecks.get("hasTextLayer") else 0.0, typography_quality_ratio(formatChecks)])
     if artifactKind == "website":
         return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), typography_quality_ratio(formatChecks), 1.0 if formatChecks.get("hasRenderedText") else 0.0, ratio(formatChecks.get("screenshotCount", 0), 2)])
+    if artifactKind == "presentation":
+        if is_pptx_format_checks(formatChecks):
+            return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), positive_ratio(formatChecks.get("slideCount", 0))])
+        return average([render_ratio(renderChecks), render_visual_balance_ratio(renderChecks), 1.0 if formatChecks.get("hasTextLayer") else 0.0, typography_quality_ratio(formatChecks)])
     return render_ratio(renderChecks)
+
+
+def is_pptx_format_checks(formatChecks: dict) -> bool:
+    return "hasPresentationXML" in formatChecks
 
 
 def render_ratio(renderChecks: dict) -> float:
@@ -838,6 +875,8 @@ def quality_rules(evaluation: dict) -> str:
         return WEBSITE_QUALITY_RULES
     if evaluation["artifactKind"] == "xlsx":
         return SPREADSHEET_QUALITY_RULES
+    if evaluation["artifactKind"] == "presentation":
+        return PRESENTATION_QUALITY_RULES
     return DOCUMENT_QUALITY_RULES
 
 
@@ -893,7 +932,8 @@ def create_score_entry(runDirectory: Path, manifest: dict, scorecard: dict) -> d
         "judge": scorecard.get("judge"),
         "scores": scenarios,
         "outputs": collect_outputs(runDirectory, scenarios),
-        "audits": collect_audit_summaries(runDirectory, scenarios)
+        "audits": collect_audit_summaries(runDirectory, scenarios),
+        "efficiency": collect_efficiency_summaries(runDirectory, scenarios)
     }
 
 
@@ -942,8 +982,120 @@ def audit_evaluation_output(resultDirectory: Path, diagnosticDirectory: Path, ev
         "requiredText": check_text_presence(extractedText, evaluation.get("requiredText", [])),
         "forbiddenText": check_text_presence(extractedText, evaluation.get("forbiddenText", [])),
         "formatChecks": formatChecks,
-        "renderChecks": renderChecks
+        "renderChecks": renderChecks,
+        "efficiency": compute_efficiency_metrics(read_test_result(diagnosticDirectory)),
     }
+
+
+TURN_TASK_STEP_ID_PATTERN = re.compile(r":turn-\d+$")
+TOOL_REQUESTED_EVENT_NAME_PATTERN = re.compile(r"^tool\..+\.requested$")
+TOOL_RESULT_EVENT_NAME_PATTERN = re.compile(r"^tool\..+\.result$")
+
+
+def compute_efficiency_metrics(testResult: dict) -> dict:
+    taskDetailError = str(testResult.get("taskDetailError", "")).strip()
+    taskDetail = testResult.get("taskDetail")
+    if not isinstance(taskDetail, dict):
+        return unavailable_efficiency_metrics(taskDetailError or "no taskDetail was captured for this generation run")
+    taskRun = taskDetail.get("taskRun")
+    taskSteps = taskDetail.get("taskSteps")
+    taskEvents = taskDetail.get("taskEvents")
+    if not isinstance(taskRun, dict) or not isinstance(taskSteps, list) or not isinstance(taskEvents, list):
+        return unavailable_efficiency_metrics("taskDetail response was missing taskRun, taskSteps, or taskEvents")
+    return {
+        "available": True,
+        "reason": None,
+        "taskRunID": string_or_none(testResult.get("taskRunID")),
+        "taskStatus": string_or_none(taskRun.get("status")),
+        "turnCount": count_turn_task_steps(taskSteps),
+        "totalToolCalls": count_events_matching_pattern(taskEvents, TOOL_REQUESTED_EVENT_NAME_PATTERN),
+        "failedToolCalls": count_failed_tool_result_events(taskEvents),
+        "recoveryAttempts": count_events_with_name(taskEvents, "agent.recovery_attempt"),
+        "failureDebtEvents": count_events_with_name(taskEvents, "agent.failure_debt_created"),
+        "requiredEvidenceReaskEvents": count_events_with_name(taskEvents, "agent.required_evidence_reask"),
+        "llmCallCount": count_events_with_name(taskEvents, "llm.call"),
+        "wallClockSeconds": compute_task_run_wall_clock_seconds(taskRun),
+    }
+
+
+def unavailable_efficiency_metrics(reason: str) -> dict:
+    return {
+        "available": False,
+        "reason": reason,
+        "taskRunID": None,
+        "taskStatus": None,
+        "turnCount": None,
+        "totalToolCalls": None,
+        "failedToolCalls": None,
+        "recoveryAttempts": None,
+        "failureDebtEvents": None,
+        "requiredEvidenceReaskEvents": None,
+        "llmCallCount": None,
+        "wallClockSeconds": None,
+    }
+
+
+def count_turn_task_steps(taskSteps: list) -> int:
+    return len([
+        taskStep for taskStep in taskSteps
+        if isinstance(taskStep, dict) and TURN_TASK_STEP_ID_PATTERN.search(str(taskStep.get("taskStepID", "")))
+    ])
+
+
+def count_events_matching_pattern(taskEvents: list, pattern: re.Pattern) -> int:
+    return len([
+        taskEvent for taskEvent in taskEvents
+        if isinstance(taskEvent, dict) and pattern.match(str(taskEvent.get("name", "")))
+    ])
+
+
+def count_events_with_name(taskEvents: list, name: str) -> int:
+    return len([taskEvent for taskEvent in taskEvents if isinstance(taskEvent, dict) and taskEvent.get("name") == name])
+
+
+def count_failed_tool_result_events(taskEvents: list) -> int:
+    count = 0
+    for taskEvent in taskEvents:
+        if not isinstance(taskEvent, dict) or not TOOL_RESULT_EVENT_NAME_PATTERN.match(str(taskEvent.get("name", ""))):
+            continue
+        if task_event_body_reports_failure(taskEvent.get("body", "")):
+            count += 1
+    return count
+
+
+def task_event_body_reports_failure(body) -> bool:
+    if not isinstance(body, str) or not body.strip():
+        return False
+    try:
+        document = json.loads(body)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(document, dict) and bool(document.get("failure"))
+
+
+def compute_task_run_wall_clock_seconds(taskRun: dict) -> float | None:
+    createdAt = parse_iso_datetime(taskRun.get("createdAt"))
+    updatedAt = parse_iso_datetime(taskRun.get("updatedAt"))
+    if createdAt is None or updatedAt is None:
+        return None
+    return round((updatedAt - createdAt).total_seconds(), 3)
+
+
+def parse_iso_datetime(value) -> datetime.datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        return datetime.datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+def string_or_none(value) -> str | None:
+    trimmedValue = str(value or "").strip()
+    return trimmedValue if trimmedValue else None
 
 
 def evaluation_artifact_exists(artifactPath: Path | None, artifactKind: str, formatChecks: dict) -> bool:
@@ -977,7 +1129,31 @@ def extract_artifact_text(artifactPath, artifactKind: str) -> str:
         return extract_xlsx_text(artifactPath)
     if artifactKind == "pdf":
         return extract_pdf_text(artifactPath)
+    if artifactKind == "presentation":
+        return extract_presentation_text(artifactPath)
     return ""
+
+
+def extract_presentation_text(artifactPath: Path) -> str:
+    if artifactPath.suffix.lower() == ".pdf":
+        return extract_pdf_text(artifactPath)
+    return extract_pptx_text(artifactPath)
+
+
+def extract_pptx_text(artifactPath: Path) -> str:
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            slidePaths = sorted(name for name in archive.namelist() if re.match(r"^ppt/slides/slide\d+\.xml$", name))
+            texts = []
+            for slidePath in slidePaths:
+                root = ElementTree.fromstring(archive.read(slidePath))
+                namespace = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+                for textElement in root.findall(".//a:t", namespace):
+                    if textElement.text:
+                        texts.append(textElement.text)
+    except (KeyError, OSError, zipfile.BadZipFile, ElementTree.ParseError):
+        return ""
+    return "\n".join(texts)
 
 
 def extract_docx_text(artifactPath: Path) -> str:
@@ -1116,18 +1292,42 @@ def audit_format(artifactPath: Path | None, diagnosticDirectory: Path, artifactK
         return audit_pdf_format(artifactPath)
     if artifactKind == "website":
         return audit_website_format(diagnosticDirectory)
+    if artifactKind == "presentation":
+        return audit_presentation_format(artifactPath)
     return {}
+
+
+def audit_presentation_format(artifactPath: Path | None) -> dict:
+    if artifactPath and artifactPath.suffix.lower() == ".pdf":
+        return audit_pdf_format(artifactPath)
+    return audit_pptx_format(artifactPath)
+
+
+def audit_pptx_format(artifactPath: Path | None) -> dict:
+    if not artifactPath or not artifactPath.exists():
+        return {"isZip": False, "hasPresentationXML": False, "slideCount": 0}
+    try:
+        with zipfile.ZipFile(artifactPath) as archive:
+            names = set(archive.namelist())
+            slidePaths = [name for name in names if re.match(r"^ppt/slides/slide\d+\.xml$", name)]
+    except (OSError, zipfile.BadZipFile):
+        return {"isZip": False, "hasPresentationXML": False, "slideCount": 0}
+    return {
+        "isZip": True,
+        "hasPresentationXML": "ppt/presentation.xml" in names,
+        "slideCount": len(slidePaths),
+    }
 
 
 def audit_render(resultDirectory: Path, diagnosticDirectory: Path, artifactPath: Path | None, artifactKind: str, exitCode) -> dict:
     if artifactKind == "website":
         return audit_website_render(resultDirectory, diagnosticDirectory, exitCode)
-    if artifactKind not in {"docx", "pdf", "xlsx"}:
+    if artifactKind not in {"docx", "pdf", "xlsx", "presentation"}:
         return {"attempted": False, "reason": "artifact kind is not renderable by local file thumbnail audit"}
     if not artifactPath or not artifactPath.exists():
         return {"attempted": False, "reason": "artifact file is missing"}
 
-    if artifactKind == "pdf":
+    if artifactKind == "pdf" or (artifactKind == "presentation" and artifactPath.suffix.lower() == ".pdf"):
         pdfRender = render_pdf_with_pdftoppm(resultDirectory, artifactPath)
         if pdfRender.get("passed"):
             return pdfRender
@@ -1920,7 +2120,7 @@ def formula_uses_different_row_reference(cellReference: str, formulaText: str) -
     formula = formulaText.upper()
     if "!" in formula:
         return False
-    if any(functionName in formula for functionName in ["SUM(", "AVERAGE(", "COUNT(", "MIN(", "MAX("]):
+    if any(functionName in formula for functionName in ["SUM(", "SUMIF(", "AVERAGE(", "COUNT(", "COUNTA(", "COUNTIF(", "MIN(", "MAX(", "SUBTOTAL("]):
         return False
     referencedRows = [int(match.group(2)) for match in re.finditer(r"(?<![A-Z])([A-Z]{1,3})([0-9]+)", formula)]
     if not referencedRows:
@@ -2058,6 +2258,18 @@ def collect_audit_summaries(runDirectory: Path, scenarios: list[dict]) -> list[d
         if auditPath.exists():
             audits.append(audit_summary(read_json(auditPath)))
     return audits
+
+
+def collect_efficiency_summaries(runDirectory: Path, scenarios: list[dict]) -> list[dict]:
+    efficiencySummaries = []
+    for scenario in scenarios:
+        auditPath = existing_result_directory(runDirectory, scenario["evaluationID"]) / "audit.json"
+        efficiency = read_json(auditPath).get("efficiency") if auditPath.exists() else None
+        efficiencySummaries.append({
+            "evaluationID": scenario["evaluationID"],
+            **(efficiency if efficiency else unavailable_efficiency_metrics("no audit was produced for this evaluation")),
+        })
+    return efficiencySummaries
 
 
 def audit_summary(audit: dict) -> dict:

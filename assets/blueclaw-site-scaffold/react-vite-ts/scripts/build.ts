@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Command = {
 	name: string;
@@ -84,14 +84,27 @@ function collectQualityIssues(): QualityIssue[] {
 	const appSource = readSource("src/App.tsx");
 	const styleSource = readSource("src/index.css");
 	const issues: QualityIssue[] = [];
-	if (!existsSync("src/prototype-data.ts")) {
+	const contentPath = "public/site-content.json";
+	if (!existsSync(contentPath)) {
 		issues.push({
 			severity: "blocking",
 			category: "contentModel",
-			target: "src/prototype-data.ts",
-			message: "Create domain-specific prototype data before building the site.",
-			suggestedFix: "Add realistic domain data in src/prototype-data.ts and render that data from App.tsx.",
+			target: contentPath,
+			message: "Create domain-specific site content before building the site.",
+			suggestedFix: "Write realistic domain content to public/site-content.json matching the SiteContent schema.",
 		});
+	} else {
+		try {
+			JSON.parse(readSource(contentPath));
+		} catch {
+			issues.push({
+				severity: "blocking",
+				category: "contentModel",
+				target: contentPath,
+				message: "public/site-content.json must be valid JSON.",
+				suggestedFix: "Fix the JSON syntax in public/site-content.json so it matches the SiteContent schema.",
+			});
+		}
 	}
 	if (sourceContainsAny(appSource + styleSource, [
 		"INTERNKIM_SITE_STARTER_REPLACE_ME",
@@ -121,12 +134,42 @@ function writeBuildQuality(issues: QualityIssue[]): void {
 }
 
 async function buildVite(): Promise<void> {
-	await runCommand({ name: "bun", arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"] });
+	const slowBuildDiagnostic = setTimeout(reportGuestProcessState, 45_000);
+	await runCommand({ name: "bun", arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build", "--logLevel", "info"] });
+	clearTimeout(slowBuildDiagnostic);
 }
 
+function reportGuestProcessState(): void {
+	logBuildStage("vite still running after 45s; guest process state follows");
+	logBuildStage("BUN_INSTALL_CACHE_DIR=" + (Bun.env.BUN_INSTALL_CACHE_DIR ?? "(unset)"));
+	logBuildStage("loadavg " + readSource("/proc/loadavg").trim());
+	logBuildStage("meminfo " + readSource("/proc/meminfo").split("\n").slice(0, 3).join(" | "));
+	for (const entry of readdirSync("/proc")) {
+		if (!/^[0-9]+$/.test(entry)) continue;
+		const stat = readSource(`/proc/${entry}/stat`);
+		if (stat === "") continue;
+		const fields = stat.split(" ");
+		const utime = Number(fields[13]) + Number(fields[14]);
+		if (utime < 100) continue;
+		logBuildStage(`pid ${entry} comm ${fields[1]} state ${fields[2]} cpuTicks ${utime} cmdline ${readSource(`/proc/${entry}/cmdline`).replaceAll("\0", " ").slice(0, 120)}`);
+	}
+}
+
+function logBuildStage(stage: string): void {
+	console.error(`[build.ts ${new Date().toISOString()}] ${stage}`);
+}
+
+logBuildStage("start");
 const qualityIssues = [...collectDesignQualityIssues(), ...collectQualityIssues()];
 writeBuildQuality(qualityIssues);
+logBuildStage("quality written");
 
-await runCommand({ name: "bun", arguments: ["install"] });
+if (!existsSync("node_modules/vite/bin/vite.js")) {
+	logBuildStage("install starting");
+	await runCommand({ name: "bun", arguments: ["install", "--prefer-offline"] });
+	logBuildStage("install finished");
+}
+logBuildStage("vite build starting");
 await buildVite();
+logBuildStage("vite build finished");
 writeBuildQuality(qualityIssues);

@@ -12,7 +12,11 @@ import (
 //go:embed site_scaffold/react-vite-ts
 var siteScaffoldFS embed.FS
 
+//go:embed site_scaffold_dist/react-vite-ts
+var siteScaffoldDistFS embed.FS
+
 const siteScaffoldRoot = "site_scaffold/react-vite-ts"
+const siteScaffoldDistRoot = "site_scaffold_dist/react-vite-ts/dist"
 
 func siteAppScaffoldTemplateFiles(site *SiteRecord) []siteTemplateFile {
 	files := []siteTemplateFile{}
@@ -34,6 +38,48 @@ func siteAppScaffoldTemplateFiles(site *SiteRecord) []siteTemplateFile {
 		})
 		return nil
 	})
+	return files
+}
+
+// siteScaffoldCanonicalDistFiles returns the embedded prebuilt dist as
+// dist-relative paths (e.g. "index.html", "assets/app.js"), title-substituted
+// for the given site. Basic sites publish directly from this canonical dist
+// without running a build.
+func siteScaffoldCanonicalDistFiles(site *SiteRecord) []siteTemplateFile {
+	files := []siteTemplateFile{}
+	_ = fs.WalkDir(siteScaffoldDistFS, siteScaffoldDistRoot, func(path string, directoryEntry fs.DirEntry, walkError error) error {
+		if walkError != nil || directoryEntry.IsDir() {
+			return nil
+		}
+		document, readError := siteScaffoldDistFS.ReadFile(path)
+		if readError != nil {
+			return nil
+		}
+		relativePath, relativeError := filepath.Rel(siteScaffoldDistRoot, path)
+		if relativeError != nil {
+			return nil
+		}
+		files = append(files, siteTemplateFile{
+			Path:     filepath.ToSlash(relativePath),
+			Document: siteScaffoldContent(site, string(document)),
+		})
+		return nil
+	})
+	return files
+}
+
+// siteScaffoldDistTemplateFiles returns the embedded prebuilt dist as
+// app/dist/... workspace template files, for materializing the canonical
+// scaffold build into a site's editable workspace at create time.
+func siteScaffoldDistTemplateFiles(site *SiteRecord) []siteTemplateFile {
+	canonicalFiles := siteScaffoldCanonicalDistFiles(site)
+	files := make([]siteTemplateFile, 0, len(canonicalFiles))
+	for _, file := range canonicalFiles {
+		files = append(files, siteTemplateFile{
+			Path:     filepath.ToSlash(filepath.Join("app", "dist", file.Path)),
+			Document: file.Document,
+		})
+	}
 	return files
 }
 
@@ -164,9 +210,4 @@ Build with shadcn-style primitives: buttons, inputs, labels, cards, badges, tabs
 - Don't use meaningless gradient blobs, empty hero sections, or decorative filler.
 - Don't allow text, buttons, or cards to overlap at mobile widths.
 `
-}
-
-func siteBuiltIndexHTML(site *SiteRecord) string {
-	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>body{margin:0;font-family:ui-sans-serif,system-ui;background:#fff;color:#111827}.shell{display:grid;min-height:100vh;place-items:center;padding:24px}</style>\n</head>\n<body><main class=\"shell\" data-starter-marker=\"INTERNKIM_SITE_STARTER_REPLACE_ME\"><h1>" + title + "</h1></main></body>\n</html>\n"
 }

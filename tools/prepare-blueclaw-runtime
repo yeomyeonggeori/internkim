@@ -495,6 +495,16 @@ EOF
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
 }
 
+ensure_rootfs_site_scaffold_cache() {
+  local base_directory="$1"
+  local scaffold_package_json_path="$2"
+
+  run_root mkdir -p "$base_directory/opt/blueclaw/bun-cache" "$base_directory/opt/blueclaw/site-scaffold"
+  run_root sh -c "sed 's/__SITE_PACKAGE_NAME__/site-scaffold-cache/' '$scaffold_package_json_path' > '$base_directory/opt/blueclaw/site-scaffold/package.json'"
+  run_chroot_with_runtime_mounts "$base_directory" /usr/bin/env BUN_INSTALL_CACHE_DIR=/opt/blueclaw/bun-cache /usr/local/bin/bun install --cwd /opt/blueclaw/site-scaffold >/dev/null
+  run_root rm -rf "$base_directory/opt/blueclaw/site-scaffold/node_modules"
+}
+
 ensure_rootfs_uv() {
   local base_directory="$1"
 
@@ -535,14 +545,21 @@ ensure_rootfs_base() {
     echo "missing builtin skills requirements.txt at $builtin_skills_requirements_path" >&2
     exit 1
   fi
+  local site_scaffold_package_json_path="$repository_root/internal/admind/site_scaffold/react-vite-ts/package.json"
+  if [ ! -s "$site_scaffold_package_json_path" ]; then
+    echo "missing site scaffold package.json at $site_scaffold_package_json_path" >&2
+    exit 1
+  fi
   local graphiti_requirements_hash
   graphiti_requirements_hash="$(sha256sum "$graphiti_requirements_path" | cut -d' ' -f1)"
   local builtin_skills_requirements_hash
   builtin_skills_requirements_hash="$(sha256sum "$builtin_skills_requirements_path" | cut -d' ' -f1)"
+  local site_scaffold_package_json_hash
+  site_scaffold_package_json_hash="$(sha256sum "$site_scaffold_package_json_path" | cut -d' ' -f1)"
   local prepare_script_hash
   prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$graphiti_requirements_hash" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$graphiti_requirements_hash" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$site_scaffold_package_json_hash" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -565,6 +582,7 @@ ensure_rootfs_base() {
   ensure_rootfs_builtin_skills_python "$base_directory" "$builtin_skills_requirements_path"
   ensure_rootfs_bun "$base_directory"
   ensure_rootfs_marp "$base_directory"
+  ensure_rootfs_site_scaffold_cache "$base_directory" "$site_scaffold_package_json_path"
   run_root chroot "$base_directory" uv --version >/dev/null
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null

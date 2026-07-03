@@ -971,11 +971,11 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 	if hasCapability(document.Capabilities, "browser.navigate") {
 		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
 	}
-	if document.BrowserRuntimeStatus != "unavailable" {
-		t.Fatalf("unexpected browser runtime status: %s", document.BrowserRuntimeStatus)
+	if document.ExtensionAutomationStatus != "unavailable" {
+		t.Fatalf("unexpected browser runtime status: %s", document.ExtensionAutomationStatus)
 	}
-	if strings.Contains(document.BrowserRuntimeError, "token-1") {
-		t.Fatalf("expected sanitized browser runtime error, got %s", document.BrowserRuntimeError)
+	if strings.Contains(document.ExtensionAutomationError, "token-1") {
+		t.Fatalf("expected sanitized browser runtime error, got %s", document.ExtensionAutomationError)
 	}
 }
 

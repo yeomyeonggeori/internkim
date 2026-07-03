@@ -84,46 +84,67 @@
 	}
 
 	async function loadUser() {
+		if (!currentPath.startsWith('/admin')) {
+			const hasWebUser = await loadWebUser();
+			if (!hasWebUser) {
+				adminRole = 'member';
+				return;
+			}
+		}
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
 				adminRole = 'member';
-				await loadWebUser();
 				return;
 			}
 			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string; isAdmin?: boolean; role?: UserRole };
 			adminRole = normalizeSessionRole(session);
 			const adminEmail = session.email || session.claimedAdminEmail || '';
 			if (!adminEmail) {
-				await loadWebUser();
+				adminRole = 'member';
 				return;
 			}
 			userEmail = adminEmail;
 			userName = userEmail.split('@')[0];
 		} catch {
 			adminRole = 'member';
-			await loadWebUser();
 		}
 	}
 
 	async function loadWebUser() {
 		try {
 			const response = await fetch('/auth/session', { credentials: 'include' });
-			if (!response.ok) return;
+			if (!response.ok) {
+				userEmail = '';
+				userName = '';
+				return false;
+			}
 			const session = (await response.json()) as { authenticated?: boolean; email?: string };
-			if (!session.authenticated) return;
+			if (!session.authenticated) {
+				userEmail = '';
+				userName = '';
+				return false;
+			}
 			userEmail = session.email || '';
 			userName = userEmail ? userEmail.split('@')[0] : '';
+			return true;
 		} catch {
 			userEmail = '';
+			userName = '';
+			return false;
 		}
 	}
 
 	async function logOut() {
+		let redirectURL = '/flow/';
 		try {
-			await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+			const response = await fetch(`/auth/logout?return=${encodeURIComponent(currentPath)}`, { method: 'POST', credentials: 'include' });
+			if (response.ok) {
+				const logoutResponse = (await response.json()) as { redirectURL?: string };
+				redirectURL = logoutResponse.redirectURL || redirectURL;
+			}
 		} finally {
-			location.href = '/flow/';
+			location.replace(redirectURL);
 		}
 	}
 

@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "scorecardInstructions": [
     "KimIntern is the artifact generator, not the evaluator.",
     "Judge the generated artifact separately from the generation path.",
@@ -164,6 +164,36 @@
         "Stripe"
       ],
       "fixedInstruction": "제공된 소스 데이터만 사용해서 Jamsil Studio Pop-up의 내부 검토용 엑셀(.xlsx) 예산 워크북을 만들어줘. 한국어 시트명과 머리글을 사용하고, 반드시 요약, 비용, 일정 시트를 포함해. 비용 시트에는 항목별 수량, 단가, 금액, 담당자가 있어야 하고 금액과 총계는 워크북 수식으로 남겨. 요약 시트에는 총비용, 예상 매출, 예상 순액을 소스 데이터 기준으로 보여줘. 누락된 벤더 연락처는 제공된 자료 없음으로 표시해. 머리글 고정, 자동 필터, 읽기 좋은 열 너비, 숫자 서식을 적용하고 최종 엑셀 파일만 첨부해."
+    },
+    {
+      "id": "presentation-quarterly-review",
+      "skillName": "presentation",
+      "artifactKind": "presentation",
+      "outputFileName": "yeonnam-robotics-q2-review.pptx",
+      "sourceFile": "fixtures/presentation-quarterly-review.md",
+      "requiredText": [
+        "Yeonnam Robotics",
+        "2026년 2분기",
+        "186",
+        "412,000,000",
+        "97.4%",
+        "2.6%",
+        "Grace Oh",
+        "Tomás Rivera",
+        "Haeun Lim",
+        "2026-08-14",
+        "2026-09-01",
+        "제공된 자료 없음"
+      ],
+      "forbiddenText": [
+        "$",
+        "Series A",
+        "ARR",
+        "Y Combinator",
+        "Amazon",
+        "010-"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 Yeonnam Robotics의 2026년 2분기 이사회 분기 리뷰 발표 덱을 PPTX로 만들어줘. 대상 독자는 이사회이고, 목적은 2분기 실적을 보고하고 3분기 로드맵 승인을 받는 거야. 반드시 제목 슬라이드, 짧은 요약, 핵심 지표 슬라이드, 3분기 로드맵/일정 슬라이드, 리스크와 대응 슬라이드, 다음 단계 슬라이드를 포함해. 표나 지표 카드는 읽기 좋게 만들고, 슬라이드 프레임 밖으로 텍스트가 잘리지 않게 해. 최종 PPTX 파일만 첨부해."
     }
   ]
 }

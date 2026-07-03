@@ -189,8 +189,8 @@ go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAccep
 실제 Mattermost ingress smoke는 비용과 platform 상태에 의존하므로 opt-in입니다. 검증 뒤 테스트 메시지와 봇 답변은 삭제해야 합니다.
 
 ```bash
-./internkim verify mattermost --prompt '1분마다 "1분 지났습니다"라고 보내줘' --expect-tool schedule.create --expect-event schedule.created
-./internkim verify mattermost --prompt '웹사이트 하나 만들어서 배포해봐' --expect-tool site.app.create --expect-tool site.app.publish
+./internkim test '1분마다 "1분 지났습니다"라고 보내줘' --expect-tool schedule.create
+./internkim test "테스트용 'Local Fleet Studio' 단일 페이지 소개 웹사이트를 만들어서 배포해줘. 첫 화면 제목은 'Local Fleet Studio', 보조 문구는 '로컬 플릿 웹사이트 생성 배포 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘." --expect-public-url --expect-tool site.create --expect-tool terminal.run --expect-tool site.publish
 ```
 
 Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 Local Fleet VM 또는 저수준 lab smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
@@ -202,7 +202,8 @@ lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-lab
 배포 전 기능별 확인:
 
 - 스케줄링: `./internkim dev fleet run --without-mattermost --scenario schedule_lifecycle_acceptance`
-- 웹사이트: `./internkim dev fleet run --without-mattermost --scenario site_prototype_acceptance`
+- 웹사이트 생성/수정: `./internkim dev fleet run --without-mattermost --scenario site_edit_redeploy_acceptance`
+- 웹사이트 삭제 CRUD: `./internkim dev fleet run --without-mattermost --scenario site_lifecycle_acceptance`
 - Mattermost DM: `./internkim dev fleet run --scenario mattermost-direct-message-send`
 
 ## 단계별 검증 모델
