@@ -248,6 +248,14 @@ func TestCalDAVClientAbsoluteURLHandlesPathVariants(t *testing.T) {
 	}
 }
 
+func TestCalDAVPathOnlyPreservesEscapedCalendarSegments(t *testing.T) {
+	got := calDAVPathOnly("https://apidata.googleusercontent.com/caldav/v2/company%2Fschedule%23shared@example.com/events/")
+	want := "/caldav/v2/company%2Fschedule%23shared@example.com/events/"
+	if got != want {
+		t.Fatalf("calDAVPathOnly: got %q, want %q", got, want)
+	}
+}
+
 func TestNewOutboundCalDAVClientRequiresEndpoint(t *testing.T) {
 	if _, errorValue := newOutboundCalDAVClient("", http.DefaultClient); errorValue == nil {
 		t.Fatal("expected error for empty endpoint")
