@@ -1,4 +1,4 @@
-// 출결 팀 현황 E2E에서 쓰는 캘린더와 Flow 컨텍스트 fixture를 만든다.
+// 근태 팀 현황 E2E에서 쓰는 캘린더와 Flow 컨텍스트 fixture를 만든다.
 import type { Page } from '@playwright/test';
 import type { CalendarEvent } from '../../src/routes/calendar/embed/calendar-event-persistence';
 import type { FlowState, FlowTask } from '../../src/routes/flow/flow-types';
