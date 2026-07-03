@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devAdminOrgchartMockPlugin } from './dev-admin-orgchart-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
@@ -15,6 +15,13 @@ const devUserRoles = new Set(['admin', 'operationsAdmin', 'member']);
 
 function devUserRoleFromEnv(value: string | undefined): DevAdminMockUserRole {
 	return devUserRoles.has(value ?? '') ? (value as DevAdminMockUserRole) : 'admin';
+}
+
+function admindProxy(target: string): ProxyOptions {
+	return {
+		target,
+		xfwd: true
+	};
 }
 
 export default defineConfig(({ mode }) => {
@@ -61,18 +68,18 @@ export default defineConfig(({ mode }) => {
 		],
 		server: {
 			proxy: {
-				'/.well-known/caldav': admindTarget,
-				'/api/v1': admindTarget,
-				'/admin/api': admindTarget,
-				'/attendance/api': admindTarget,
-				'/auth': admindTarget,
-				'/calendar/api': admindTarget,
-				'/calendar/dav': admindTarget,
-				'/calendar/ics': admindTarget,
-				'/calendar/oauth': admindTarget,
-				'/flow/api': admindTarget,
-				'/mail/api': admindTarget,
-				'/memory/api': admindTarget
+				'/.well-known/caldav': admindProxy(admindTarget),
+				'/api/v1': admindProxy(admindTarget),
+				'/admin/api': admindProxy(admindTarget),
+				'/attendance/api': admindProxy(admindTarget),
+				'/auth': admindProxy(admindTarget),
+				'/calendar/api': admindProxy(admindTarget),
+				'/calendar/dav': admindProxy(admindTarget),
+				'/calendar/ics': admindProxy(admindTarget),
+				'/calendar/oauth': admindProxy(admindTarget),
+				'/flow/api': admindProxy(admindTarget),
+				'/mail/api': admindProxy(admindTarget),
+				'/memory/api': admindProxy(admindTarget)
 			}
 		},
 		build: {

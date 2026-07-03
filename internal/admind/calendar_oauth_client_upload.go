@@ -15,7 +15,7 @@ type googleOAuthClientUploadResponse struct {
 }
 
 func (service *Service) uploadGoogleOAuthClient(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
+	if !service.canManageGoogleOAuth(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
@@ -31,6 +31,10 @@ func (service *Service) uploadGoogleOAuthClient(responseWriter http.ResponseWrit
 	}
 	if errorValue := service.writeGoogleOAuthClientDocument(clientDocument); errorValue != nil {
 		http.Error(responseWriter, "failed to store google oauth client", http.StatusInternalServerError)
+		return
+	}
+	if errorValue := service.resetGoogleOAuthAccountConnection(request.Context()); errorValue != nil {
+		http.Error(responseWriter, "failed to reset google calendar connection", http.StatusInternalServerError)
 		return
 	}
 	service.writeJSON(responseWriter, googleOAuthClientUploadResponse{
