@@ -146,7 +146,12 @@ func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, task
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, updated_at = ? WHERE id = ?", strings.TrimSpace(postID), time.Now().UTC().Format(time.RFC3339), taskID)
+	trimmedPostID := strings.TrimSpace(postID)
+	postCreatedAt := ""
+	if trimmedPostID != "" {
+		postCreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	_, errorValue = database.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339), taskID)
 	return errorValue
 }
 

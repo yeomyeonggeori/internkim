@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "mattermost_post_created_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "status_rank", "INTEGER NOT NULL DEFAULT 0"); errorValue != nil {
 		return errorValue
 	}
