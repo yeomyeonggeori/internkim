@@ -55,7 +55,7 @@ func toolContractModelsFromEnv() []string {
 		"google/gemini-3.5-flash",
 		"x-ai/grok-4.3",
 		"google/gemini-3.1-flash-lite",
-		"xiaomi/mimo-v2.5",
+		"google/gemini-2.5-flash-lite",
 		"z-ai/glm-5.2",
 	}
 }
