@@ -83,14 +83,22 @@ test.describe('embedded calendar month layout', () => {
 		await expectMonthTimedEventTitleOnly(page, 'month-multi-day-timed-event', 'Month Multi Day Timed 11:45');
 	});
 
-	test('orders same-date month events by duration and then recent update time', async ({ page }) => {
+	test('orders month events by displayed day span and start time before recent update time', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
-				id: 'older-short-event',
-				title: 'Older Short',
-				startISO: '2026-06-10T00:00:00+09:00',
-				endISO: '2026-06-11T00:00:00+09:00',
-				isAllDay: true,
+				id: 'later-newer-event',
+				title: 'Later Newer',
+				startISO: '2026-06-10T10:00:00+09:00',
+				endISO: '2026-06-10T11:00:00+09:00',
+				isAllDay: false,
+				updatedAt: '2026-06-11T00:00:00Z'
+			},
+			{
+				id: 'early-older-event',
+				title: 'Early Older',
+				startISO: '2026-06-10T08:00:00+09:00',
+				endISO: '2026-06-10T09:00:00+09:00',
+				isAllDay: false,
 				updatedAt: '2026-06-09T00:00:00Z'
 			},
 			{
@@ -100,14 +108,6 @@ test.describe('embedded calendar month layout', () => {
 				endISO: '2026-06-13T00:00:00+09:00',
 				isAllDay: true,
 				updatedAt: '2026-06-01T00:00:00Z'
-			},
-			{
-				id: 'newer-short-event',
-				title: 'Newer Short',
-				startISO: '2026-06-10T00:00:00+09:00',
-				endISO: '2026-06-11T00:00:00+09:00',
-				isAllDay: true,
-				updatedAt: '2026-06-10T00:00:00Z'
 			}
 		]);
 
@@ -115,7 +115,7 @@ test.describe('embedded calendar month layout', () => {
 		await navigateEmbeddedCalendar(page, '2026-06-10');
 
 		const eventTopByID = await page.evaluate(() => {
-			const eventIDs = ['long-event', 'newer-short-event', 'older-short-event'];
+			const eventIDs = ['long-event', 'early-older-event', 'later-newer-event'];
 			return Object.fromEntries(
 				eventIDs.map((eventID) => {
 					const element = document.querySelector<HTMLElement>(
@@ -126,8 +126,8 @@ test.describe('embedded calendar month layout', () => {
 				})
 			);
 		});
-		expect(eventTopByID['long-event']).toBeLessThan(eventTopByID['newer-short-event']);
-		expect(eventTopByID['newer-short-event']).toBeLessThan(eventTopByID['older-short-event']);
+		expect(eventTopByID['long-event']).toBeLessThan(eventTopByID['early-older-event']);
+		expect(eventTopByID['early-older-event']).toBeLessThan(eventTopByID['later-newer-event']);
 	});
 
 	test('uses the same month block style for timed and all-day events', async ({ page }) => {
