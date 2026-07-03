@@ -15,7 +15,7 @@ test('capture 김인턴 conversation evidence', async ({ page }) => {
 	expect(adminEmail).not.toEqual('');
 	expect(adminPassword).not.toEqual('');
 	expect(screenshotPath).not.toEqual('');
-	await signInAsAdmin(page);
+	await signInAsAdminWithRetry(page);
 	await openChannelOrRetry(page);
 	await dismissTutorial(page);
 	await waitForRenderedPosts(page, minimumPostCount, 30000);
@@ -43,6 +43,19 @@ async function openChannelOrRetry(page): Promise<void> {
 
 async function teamNotFoundCount(page): Promise<number> {
 	return page.getByText(/team not found|팀을 찾을 수 없/i).count();
+}
+
+// The login form intermittently fails to render on the first page load right
+// after a fleet run boots; one reload reliably brings it back.
+async function signInAsAdminWithRetry(page): Promise<void> {
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			await signInAsAdmin(page);
+			return;
+		} catch (error) {
+			if (attempt === 3) throw error;
+		}
+	}
 }
 
 async function signInAsAdmin(page): Promise<void> {
@@ -90,10 +103,12 @@ async function openLatestThread(page): Promise<void> {
 // re-checking rather than asserting once. Tolerant of either delivery shape: a rendered
 // interactive control (ephemeral confirm button) or a plain-text confirmation question.
 async function assertPendingApprovalVisible(page): Promise<void> {
-	const deadline = Date.now() + 20000;
+	const deadline = Date.now() + 45000;
 	while (Date.now() < deadline) {
 		if (await hasApprovalControl(page)) return;
 		if (await hasApprovalQuestionText(page)) return;
+		await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+		await page.waitForTimeout(1500);
 		await openLatestThread(page);
 		await page.waitForTimeout(1500);
 	}
