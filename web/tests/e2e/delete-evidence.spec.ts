@@ -1,4 +1,23 @@
-import { test } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
+
+type MattermostPost = {
+	message?: string;
+	props?: {
+		attachments?: unknown;
+	};
+};
+
+type MattermostWindow = Window & {
+	store?: {
+		getState?: () => {
+			entities?: {
+				posts?: {
+					posts?: Record<string, MattermostPost>;
+				};
+			};
+		};
+	};
+};
 
 const mattermostURL = process.env.INTERNKIM_MATTERMOST_URL ?? 'http://127.0.0.1:8065';
 const requesterEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
@@ -23,9 +42,9 @@ test('capture delete approval before and after', async ({ page }) => {
 	let attachSeenAt = 0;
 	for (let elapsed = 0; elapsed < 200 && (mentionSeenAt === 0 || attachSeenAt === 0); elapsed += 3) {
 		const probe = await page.evaluate(() => {
-			const store = (window as any).store;
+			const store = (window as MattermostWindow).store;
 			if (!store) return { mention: false, attach: false };
-			const posts: any[] = Object.values(store.getState()?.entities?.posts?.posts ?? {});
+			const posts = Object.values(store.getState?.()?.entities?.posts?.posts ?? {});
 			return {
 				mention: posts.some((post) => (post.message || '').includes('진행할까요') || (post.message || '').includes('task.delete')),
 				attach: posts.some((post) => Boolean(post.props?.attachments)),
@@ -51,7 +70,7 @@ test('capture delete approval before and after', async ({ page }) => {
 	}
 });
 
-async function openThreadForLatestPost(page): Promise<void> {
+async function openThreadForLatestPost(page: Page): Promise<void> {
 	const lastPost = page.locator('[data-testid="postView"]').last();
 	await lastPost.waitFor({ state: 'visible', timeout: 30000 });
 	await lastPost.hover();
@@ -63,7 +82,7 @@ async function openThreadForLatestPost(page): Promise<void> {
 	await page.waitForTimeout(2000);
 }
 
-async function sendChannelMessage(page, message: string): Promise<void> {
+async function sendChannelMessage(page: Page, message: string): Promise<void> {
 	const messageBox = page
 		.locator('#post_textbox')
 		.or(page.getByRole('textbox', { name: /write to|메시지/i }))
@@ -74,12 +93,12 @@ async function sendChannelMessage(page, message: string): Promise<void> {
 	await messageBox.press('Enter');
 }
 
-async function waitForCompletionMessage(page, timeoutMs: number): Promise<void> {
+async function waitForCompletionMessage(page: Page, timeoutMs: number): Promise<void> {
 	for (let elapsed = 0; elapsed < timeoutMs; elapsed += 3000) {
 		const done = await page.evaluate(() => {
-			const store = (window as any).store;
+			const store = (window as MattermostWindow).store;
 			if (!store) return false;
-			const posts: any[] = Object.values(store.getState()?.entities?.posts?.posts ?? {});
+			const posts = Object.values(store.getState?.()?.entities?.posts?.posts ?? {});
 			return posts.some((post) => /완료|삭제했|삭제됐|removed the|deleted the/.test(post.message || ''));
 		}).catch(() => false);
 		if (done) return;
@@ -87,7 +106,7 @@ async function waitForCompletionMessage(page, timeoutMs: number): Promise<void> 
 	}
 }
 
-async function signIn(page): Promise<void> {
+async function signIn(page: Page): Promise<void> {
 	await page.goto(mattermostURL, { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await page.goto(mattermostPath('/login'), { waitUntil: 'domcontentloaded' });
@@ -100,10 +119,10 @@ async function signIn(page): Promise<void> {
 	await loginInput.fill(requesterEmail);
 	await page.locator('input[type="password"]').first().fill(requesterPassword);
 	await page.getByRole('button', { name: /^\s*(log in|sign in|로그인)\s*$/i }).first().click();
-	await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
+	await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
 }
 
-async function dismissLandingPage(page): Promise<void> {
+async function dismissLandingPage(page: Page): Promise<void> {
 	const viewInBrowser = page.getByRole('link', { name: /view in browser/i }).first();
 	if ((await viewInBrowser.count()) > 0 && (await viewInBrowser.isVisible().catch(() => false))) {
 		await viewInBrowser.click().catch(() => {});
@@ -111,7 +130,7 @@ async function dismissLandingPage(page): Promise<void> {
 	}
 }
 
-async function dismissTutorial(page): Promise<void> {
+async function dismissTutorial(page: Page): Promise<void> {
 	const skip = page.getByText(/no thanks|figure it out myself|건너뛰기|나중에/i).first();
 	if ((await skip.count()) > 0 && (await skip.isVisible().catch(() => false))) {
 		await skip.click().catch(() => {});
