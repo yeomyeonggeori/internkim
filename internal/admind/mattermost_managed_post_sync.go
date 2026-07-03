@@ -3,11 +3,28 @@ package admind
 import (
 	"context"
 	"log"
+	"time"
 )
 
+const mattermostManagedPostReconcilePhaseTimeout = 30 * time.Second
+
+// Each phase gets its own timeout budget carved from ctx so a slow flow
+// reconcile cannot starve the calendar reconcile that follows it.
 func (service *Service) syncExistingMattermostManagedPosts(ctx context.Context) {
-	service.reconcileFlowMattermostProjections(ctx)
-	service.reconcileCalendarMattermostProjections(ctx)
+	service.reconcileFlowMattermostProjectionsWithTimeout(ctx)
+	service.reconcileCalendarMattermostProjectionsWithTimeout(ctx)
+}
+
+func (service *Service) reconcileFlowMattermostProjectionsWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, mattermostManagedPostReconcilePhaseTimeout)
+	defer cancel()
+	service.reconcileFlowMattermostProjections(syncContext)
+}
+
+func (service *Service) reconcileCalendarMattermostProjectionsWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, mattermostManagedPostReconcilePhaseTimeout)
+	defer cancel()
+	service.reconcileCalendarMattermostProjections(syncContext)
 }
 
 func (service *Service) reconcileFlowMattermostProjections(ctx context.Context) {
