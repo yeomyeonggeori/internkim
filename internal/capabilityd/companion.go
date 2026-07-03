@@ -163,7 +163,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if response, isDenied := capabilityToolApprovalDeniedResponse(request); isDenied {
+	if response, isDenied := service.capabilityToolApprovalDeniedResponse(ctx, request); isDenied {
 		return response, nil
 	}
 	toolRoute, hasToolRoute := capabilityToolRouteFor(request.ToolName)
@@ -197,7 +197,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
 }
 
-func capabilityToolApprovalDeniedResponse(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
+func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
 	if !toolRequiresApproval(request.ToolName) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
@@ -205,6 +205,9 @@ func capabilityToolApprovalDeniedResponse(request capabilities.ToolInvokeRequest
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	if isPreApprovedCurrentConversationMessageSend(request) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	if service.isPreApprovedSelfDirectMessageSend(ctx, request) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	toolName := strings.TrimSpace(request.ToolName)
@@ -246,20 +249,51 @@ func isPreApprovedCurrentConversationMessageSend(request capabilities.ToolInvoke
 	if strings.TrimSpace(request.Context.ConversationID) == "" {
 		return false
 	}
-	deliveryTargetType := decodeMessageSendDeliveryTargetType(request.Input)
+	deliveryTargetType := decodeMessageSendDeliveryTarget(request.Input).Type
 	return deliveryTargetType == "currentThread" || deliveryTargetType == "currentChannel"
 }
 
-func decodeMessageSendDeliveryTargetType(input json.RawMessage) string {
+// A direct message the bot sends back to the same person who asked for it
+// carries no more authority than a reply in their current thread/channel:
+// no third party is involved, only the delivery channel differs. Broadcasts
+// with multiple recipient hints are excluded because that is a different
+// trust shape.
+func (service Service) isPreApprovedSelfDirectMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest) bool {
+	if request.ToolName != "message.send" {
+		return false
+	}
+	if request.Context.IsScheduledRun {
+		return false
+	}
+	deliveryTarget := decodeMessageSendDeliveryTarget(request.Input)
+	if deliveryTarget.Type != "directMessage" {
+		return false
+	}
+	personHint := strings.TrimSpace(deliveryTarget.PersonHint)
+	if personHint == "" || len(deliveryTarget.PersonHints) > 0 {
+		return false
+	}
+	recipient, _, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+	if hasFailure {
+		return false
+	}
+	return isPlatformDMSelfRecipient(request.Context, recipient)
+}
+
+type messageSendDeliveryTarget struct {
+	Type        string   `json:"type"`
+	PersonHint  string   `json:"personHint"`
+	PersonHints []string `json:"personHints"`
+}
+
+func decodeMessageSendDeliveryTarget(input json.RawMessage) messageSendDeliveryTarget {
 	var decodedInput struct {
-		DeliveryTarget struct {
-			Type string `json:"type"`
-		} `json:"deliveryTarget"`
+		DeliveryTarget messageSendDeliveryTarget `json:"deliveryTarget"`
 	}
 	if errorValue := json.Unmarshal(input, &decodedInput); errorValue != nil {
-		return ""
+		return messageSendDeliveryTarget{}
 	}
-	return decodedInput.DeliveryTarget.Type
+	return decodedInput.DeliveryTarget
 }
 
 func companionRequiredBrowserErrorCode(errorValue error) string {
