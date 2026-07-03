@@ -128,7 +128,7 @@ func (service Service) invokeOpenRouterWebSearch(ctx context.Context, input webS
 		openRouterWebSearchTool(input),
 		openRouterWebSearchSchema(),
 	)
-	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, strictOpenRouterWebContent)
+	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, normalizeOpenRouterSearchContent(input))
 }
 
 func (service Service) invokeOpenRouterWebFetch(ctx context.Context, input webFetchInput, apiKey string) (json.RawMessage, error) {
@@ -265,20 +265,158 @@ func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey stri
 	return normalizeContent(content)
 }
 
-func strictOpenRouterWebContent(content string) (json.RawMessage, error) {
-	if !json.Valid([]byte(content)) {
-		return nil, errors.New("openrouter web response content was not JSON")
+func normalizeOpenRouterSearchContent(input webSearchInput) openRouterWebContentNormalizer {
+	return func(content string) (json.RawMessage, error) {
+		embeddedContent, found := extractEmbeddedJSON(content)
+		if !found {
+			return marshalOpenRouterSearchTextResult(input, content)
+		}
+		if normalizedContent, isSearchSchemaJSON := normalizeOpenRouterSearchJSON(embeddedContent); isSearchSchemaJSON {
+			return normalizedContent, nil
+		}
+		return marshalOpenRouterSearchTextResult(input, content)
 	}
-	return json.RawMessage(content), nil
 }
 
 func normalizeOpenRouterFetchContent(input webFetchInput) openRouterWebContentNormalizer {
 	return func(content string) (json.RawMessage, error) {
-		if json.Valid([]byte(content)) {
-			return normalizeOpenRouterFetchJSON(content, input)
+		embeddedContent, found := extractEmbeddedJSON(content)
+		if !found {
+			return marshalOpenRouterFetchTextResult(input, content)
 		}
-		return marshalOpenRouterFetchTextResult(input, content)
+		return normalizeOpenRouterFetchJSON(string(embeddedContent), input)
 	}
+}
+
+func extractEmbeddedJSON(content string) (json.RawMessage, bool) {
+	trimmedContent := strings.TrimSpace(content)
+	if json.Valid([]byte(trimmedContent)) {
+		return json.RawMessage(trimmedContent), true
+	}
+	if fencedContent, found := stripMarkdownJSONFence(trimmedContent); found {
+		return json.RawMessage(fencedContent), true
+	}
+	if balancedContent, found := firstBalancedJSONValue(trimmedContent); found {
+		return json.RawMessage(balancedContent), true
+	}
+	return nil, false
+}
+
+func stripMarkdownJSONFence(content string) (string, bool) {
+	if !strings.HasPrefix(content, "```") {
+		return "", false
+	}
+	closingFenceIndex := strings.LastIndex(content, "```")
+	if closingFenceIndex <= 3 {
+		return "", false
+	}
+	fencedBody := content[3:closingFenceIndex]
+	if newlineIndex := strings.IndexByte(fencedBody, '\n'); newlineIndex >= 0 {
+		languageTag := strings.TrimSpace(fencedBody[:newlineIndex])
+		if languageTag == "" || isJSONFenceLanguageTag(languageTag) {
+			fencedBody = fencedBody[newlineIndex+1:]
+		}
+	}
+	fencedBody = strings.TrimSpace(fencedBody)
+	if !json.Valid([]byte(fencedBody)) {
+		return "", false
+	}
+	return fencedBody, true
+}
+
+func isJSONFenceLanguageTag(tag string) bool {
+	return strings.EqualFold(tag, "json") || strings.EqualFold(tag, "jsonc")
+}
+
+func firstBalancedJSONValue(content string) (string, bool) {
+	startIndex := strings.IndexAny(content, "{[")
+	if startIndex < 0 {
+		return "", false
+	}
+	openCharacter := content[startIndex]
+	closeCharacter := byte('}')
+	if openCharacter == '[' {
+		closeCharacter = ']'
+	}
+	depth := 0
+	isInsideString := false
+	isEscaped := false
+	for index := startIndex; index < len(content); index++ {
+		character := content[index]
+		if isInsideString {
+			switch {
+			case isEscaped:
+				isEscaped = false
+			case character == '\\':
+				isEscaped = true
+			case character == '"':
+				isInsideString = false
+			}
+			continue
+		}
+		switch character {
+		case '"':
+			isInsideString = true
+		case openCharacter:
+			depth++
+		case closeCharacter:
+			depth--
+			if depth == 0 {
+				candidate := content[startIndex : index+1]
+				if json.Valid([]byte(candidate)) {
+					return candidate, true
+				}
+				return "", false
+			}
+		}
+	}
+	return "", false
+}
+
+type openRouterSearchDocumentResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+}
+
+func normalizeOpenRouterSearchJSON(embeddedContent json.RawMessage) (json.RawMessage, bool) {
+	var document struct {
+		Provider string                           `json:"provider"`
+		Query    string                           `json:"query"`
+		Answer   string                           `json:"answer"`
+		Results  []openRouterSearchDocumentResult `json:"results"`
+	}
+	if errorValue := json.Unmarshal(embeddedContent, &document); errorValue != nil {
+		return nil, false
+	}
+	if !openRouterSearchJSONLooksValid(document.Provider, document.Query, document.Results) {
+		return nil, false
+	}
+	return embeddedContent, true
+}
+
+func openRouterSearchJSONLooksValid(provider string, query string, results []openRouterSearchDocumentResult) bool {
+	if strings.TrimSpace(provider) == "" || strings.TrimSpace(query) == "" {
+		return false
+	}
+	for _, result := range results {
+		if strings.TrimSpace(result.Title) == "" || strings.TrimSpace(result.URL) == "" || strings.TrimSpace(result.Snippet) == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func marshalOpenRouterSearchTextResult(input webSearchInput, content string) (json.RawMessage, error) {
+	document, errorValue := json.Marshal(map[string]any{
+		"provider":          "openrouter",
+		"remoteLLMInvolved": true,
+		"compatibility":     "openrouter_server_tool_content_text",
+		"query":             input.Query,
+		"answer":            strings.TrimSpace(content),
+		"results":           []map[string]string{},
+	})
+	return json.RawMessage(document), errorValue
 }
 
 func normalizeOpenRouterFetchJSON(content string, input webFetchInput) (json.RawMessage, error) {

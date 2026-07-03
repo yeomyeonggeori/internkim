@@ -46,6 +46,107 @@ func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
 	}
 }
 
+func TestWebSearchExtractsJSONFromMarkdownCodeFence(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := "```json\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"InternKim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\n```"
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web search: %v", errorValue)
+	}
+	var result struct {
+		Query   string `json:"query"`
+		Results []struct {
+			Title string `json:"title"`
+			URL   string `json:"url"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized search result: %v", errorValue)
+	}
+	if response.IsError || len(result.Results) != 1 || result.Results[0].Title != "InternKim" {
+		t.Fatalf("expected fenced JSON search content to succeed, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestWebSearchExtractsJSONAfterLeadingProse(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := "Here are the search results you requested:\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"InternKim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\nHope that helps!"
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web search: %v", errorValue)
+	}
+	var result struct {
+		Query   string `json:"query"`
+		Results []struct {
+			Title string `json:"title"`
+			URL   string `json:"url"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized search result: %v", errorValue)
+	}
+	if response.IsError || len(result.Results) != 1 || result.Results[0].URL != "https://internkim.example" {
+		t.Fatalf("expected prose-wrapped JSON search content to succeed, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := "I could not find structured results, but internkim.com is InternKim's agent platform site."
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return jsonResponseBody(`{"choices":[{"message":{"content":"I could not find structured results, but internkim.com is InternKim's agent platform site."}}]}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web search: %v", errorValue)
+	}
+	var result struct {
+		Provider      string `json:"provider"`
+		Compatibility string `json:"compatibility"`
+		Query         string `json:"query"`
+		Answer        string `json:"answer"`
+		Results       []any  `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized search result: %v", errorValue)
+	}
+	if response.IsError || result.Provider != "openrouter" || result.Compatibility != "openrouter_server_tool_content_text" || result.Query != "internkim" || result.Answer != content || len(result.Results) != 0 {
+		t.Fatalf("expected plain prose to degrade into a text answer, response=%+v result=%+v", response, result)
+	}
+}
+
 func TestWebFetchRejectsPrivateURLBeforeProviderCall(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
 	wasCalled := false
