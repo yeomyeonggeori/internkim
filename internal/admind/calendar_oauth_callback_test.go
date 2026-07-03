@@ -157,6 +157,7 @@ func TestGoogleOAuthCallbackRedirectsGoogleErrorToReturnURL(t *testing.T) {
 
 	callbackURL := admindLocalURL + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&error=access_denied"
 	callbackRequest := httptest.NewRequest(http.MethodGet, callbackURL, nil)
+	callbackRequest.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	callbackRecorder := httptest.NewRecorder()
 	service.handleGoogleOAuthCallback(callbackRecorder, callbackRequest)
 	if callbackRecorder.Code != http.StatusSeeOther {
@@ -164,6 +165,54 @@ func TestGoogleOAuthCallbackRedirectsGoogleErrorToReturnURL(t *testing.T) {
 	}
 	if location := callbackRecorder.Header().Get("Location"); location != calendarReturnURL+"?googleOAuth=failed" {
 		t.Errorf("callback redirect location: got %q", location)
+	}
+}
+
+func TestGoogleOAuthPopupCallbackReturnsCloseHTML(t *testing.T) {
+	service := newCalendarTestService(t)
+	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
+	const admindLocalURL = "http://127.0.0.1:18180"
+	const calendarReturnURL = "http://127.0.0.1:5174/calendar/"
+	startRequest := httptest.NewRequest(http.MethodGet,
+		admindLocalURL+googleOAuthStartPath+"?popup=true&returnTo="+url.QueryEscape(calendarReturnURL), nil)
+	startRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	startRecorder := httptest.NewRecorder()
+	service.handleGoogleOAuthStart(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusFound {
+		t.Fatalf("start status: %d", startRecorder.Code)
+	}
+	startLocation, errorValue := url.Parse(startRecorder.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatalf("parse start location: %v", errorValue)
+	}
+	state := startLocation.Query().Get("state")
+	if state == "" {
+		t.Fatal("state missing from start")
+	}
+
+	callbackURL := admindLocalURL + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&error=access_denied"
+	callbackRequest := httptest.NewRequest(http.MethodGet, callbackURL, nil)
+	callbackRequest.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	callbackRecorder := httptest.NewRecorder()
+	service.handleGoogleOAuthCallback(callbackRecorder, callbackRequest)
+	if callbackRecorder.Code != http.StatusOK {
+		t.Fatalf("callback status: %d, body: %s", callbackRecorder.Code, callbackRecorder.Body.String())
+	}
+	if location := callbackRecorder.Header().Get("Location"); location != "" {
+		t.Errorf("popup callback should not redirect, location = %q", location)
+	}
+	body := callbackRecorder.Body.String()
+	for _, expected := range []string{
+		`window.close()`,
+		`postMessage`,
+		`internkim:calendar:google-oauth-return`,
+		`"status":"failed"`,
+		`http://127.0.0.1:5174`,
+		`Close this window and try again if it does not close automatically.`,
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("popup callback body missing %q: %s", expected, body)
+		}
 	}
 }
 
