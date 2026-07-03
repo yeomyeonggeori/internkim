@@ -1,9 +1,10 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -19,7 +20,7 @@ type selectGoogleCalendarResponse struct {
 }
 
 func (service *Service) selectGoogleCalendar(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
+	if !service.canManageGoogleOAuth(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
@@ -54,27 +55,30 @@ func readSelectGoogleCalendarRequest(responseWriter http.ResponseWriter, request
 }
 
 func (service *Service) saveGoogleCalendarSelection(responseWriter http.ResponseWriter, request *http.Request, account remoteCalendarAccount, calendarID string) {
-	calendar, found, errorValue := service.findWritableGoogleCalendar(request.Context(), account, calendarID)
+	calendar, found, errorValue := service.findSelectableGoogleCalendar(request.Context(), account, calendarID)
 	if errorValue != nil {
-		if isGoogleCalendarAuthorizationError(errorValue) {
+		if isGoogleCalendarAuthorizationError(errorValue) || isCalendarAuthError(errorValue) {
 			service.markRemoteCalendarAccountAuthError(request.Context(), account, errorValue)
 		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	if !found {
-		http.Error(responseWriter, "writable google calendar not found", http.StatusBadRequest)
+		service.markSelectedCalendarInaccessibleIfCurrent(request.Context(), account, calendarID)
+		http.Error(responseWriter, "selectable google calendar not found", http.StatusBadRequest)
 		return
 	}
 	if errorValue := service.verifyGoogleCalendarSelectionReady(request.Context(), account, calendar); errorValue != nil {
 		if isGoogleCalendarAuthorizationError(errorValue) {
 			service.markRemoteCalendarAccountAuthError(request.Context(), account, errorValue)
 		}
+		if readinessStatus, ok := googleCalendarReadinessStatusFromError(errorValue); ok {
+			service.markSelectedCalendarReadinessStatusIfCurrent(request.Context(), account, calendarID, readinessStatus)
+		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	calendarURL := googleCalDAVCalendarEventsURL(calendar.CalendarID, account.AccountEmail)
-	updated, errorValue := service.saveSelectedCalendar(request.Context(), account, calendar.CalendarID, calendar.Summary, calendar.AccessRole, calendarURL, time.Now().UTC())
+	updated, errorValue := service.saveSelectedCalendar(request.Context(), account, calendar.CalendarID, calendar.Summary, calendar.AccessRole, calendar.CalendarURL, time.Now().UTC())
 	if errorValue != nil {
 		http.Error(responseWriter, "failed to save selected google calendar", http.StatusInternalServerError)
 		return
@@ -87,10 +91,19 @@ func (service *Service) saveGoogleCalendarSelection(responseWriter http.Response
 	})
 }
 
-func googleCalDAVCalendarEventsURL(calendarID string, accountEmail string) string {
-	normalizedCalendarID := strings.TrimSpace(calendarID)
-	if strings.EqualFold(normalizedCalendarID, "primary") {
-		normalizedCalendarID = strings.TrimSpace(accountEmail)
+func (service *Service) markSelectedCalendarInaccessibleIfCurrent(ctx context.Context, account remoteCalendarAccount, calendarID string) {
+	service.markSelectedCalendarReadinessStatusIfCurrent(ctx, account, calendarID, calendarReadinessStatusCalendarInaccessible)
+}
+
+func (service *Service) markSelectedCalendarReadinessStatusIfCurrent(ctx context.Context, account remoteCalendarAccount, calendarID string, readinessStatus string) {
+	if strings.TrimSpace(account.SelectedCalendarID) != strings.TrimSpace(calendarID) {
+		return
 	}
-	return googleCalDAVBaseURL + "/" + url.PathEscape(normalizedCalendarID) + "/events/"
+	if strings.TrimSpace(readinessStatus) == "" {
+		return
+	}
+	account.SelectedCalendarReadinessStatus = strings.TrimSpace(readinessStatus)
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+		log.Printf("mark selected calendar readiness status: %v", errorValue)
+	}
 }

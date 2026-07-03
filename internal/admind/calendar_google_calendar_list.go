@@ -2,21 +2,15 @@ package admind
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
-
-	"golang.org/x/oauth2"
 )
 
 const (
-	googleCalendarListEndpoint         = "https://www.googleapis.com/calendar/v3/users/me/calendarList"
-	googleCalendarListMaxResults       = "250"
-	googleCalendarListResponseMaxBytes = 1 << 20
+	googleCalendarSelectionDisabledReasonWritePermissionRequired = "write_permission_required"
+	googleCalendarSelectionDisabledReasonUnsupportedCalendar     = "unsupported_calendar"
 )
 
 type googleCalendarListResponse struct {
@@ -25,24 +19,16 @@ type googleCalendarListResponse struct {
 }
 
 type googleCalendarListEntry struct {
-	CalendarID      string `json:"calendarID"`
-	Summary         string `json:"summary"`
-	AccessRole      string `json:"accessRole"`
-	Primary         bool   `json:"primary"`
-	BackgroundColor string `json:"backgroundColor,omitempty"`
-}
-
-type googleCalendarListDocument struct {
-	Items         []googleCalendarListDocumentItem `json:"items"`
-	NextPageToken string                           `json:"nextPageToken"`
-}
-
-type googleCalendarListDocumentItem struct {
-	ID              string `json:"id"`
-	Summary         string `json:"summary"`
-	AccessRole      string `json:"accessRole"`
-	Primary         bool   `json:"primary"`
-	BackgroundColor string `json:"backgroundColor"`
+	CalendarID              string `json:"calendarID"`
+	Summary                 string `json:"summary"`
+	AccessRole              string `json:"accessRole"`
+	TimeZone                string `json:"timeZone,omitempty"`
+	Primary                 bool   `json:"primary"`
+	BackgroundColor         string `json:"backgroundColor,omitempty"`
+	CanWrite                bool   `json:"canWrite"`
+	CanSelect               bool   `json:"canSelect"`
+	SelectionDisabledReason string `json:"selectionDisabledReason,omitempty"`
+	CalendarURL             string `json:"-"`
 }
 
 type googleCalendarAuthorizationError struct {
@@ -58,7 +44,7 @@ func (errorValue googleCalendarAuthorizationError) Unwrap() error {
 }
 
 func (service *Service) serveGoogleCalendarList(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
+	if !service.canManageGoogleOAuth(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
@@ -71,9 +57,9 @@ func (service *Service) serveGoogleCalendarList(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "google calendar account is not connected", http.StatusConflict)
 		return
 	}
-	calendars, errorValue := service.listWritableGoogleCalendars(request.Context(), account)
+	calendars, errorValue := service.listGoogleCalendars(request.Context(), account)
 	if errorValue != nil {
-		if isGoogleCalendarAuthorizationError(errorValue) {
+		if isGoogleCalendarAuthorizationError(errorValue) || isCalendarAuthError(errorValue) {
 			service.markRemoteCalendarAccountAuthError(request.Context(), account, errorValue)
 		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -86,114 +72,161 @@ func (service *Service) serveGoogleCalendarList(responseWriter http.ResponseWrit
 	})
 }
 
-func (service *Service) listWritableGoogleCalendars(ctx context.Context, account remoteCalendarAccount) ([]googleCalendarListEntry, error) {
+func (service *Service) listGoogleCalendars(ctx context.Context, account remoteCalendarAccount) ([]googleCalendarListEntry, error) {
+	client, errorValue := service.newGoogleCalDAVClient(ctx, account)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	homeSetURL, errorValue := service.googleCalDAVHomeSetURL(ctx, account, client)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	calendars, errorValue := client.listCalendars(ctx, homeSetURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return googleCalendarListEntriesFromCalDAV(client, calendars, account.AccountEmail)
+}
+
+func (service *Service) newGoogleCalDAVClient(ctx context.Context, account remoteCalendarAccount) (*outboundCalDAVClient, error) {
 	tokenSource, errorValue := service.googleOAuthTokenSource(ctx, account, "")
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	document, errorValue := service.fetchGoogleCalendarList(ctx, tokenSource)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return writableGoogleCalendarListEntries(document.Items), nil
+	httpClient := newCalDAVBearerHTTPClient(service.googleOAuthHTTPClient(), tokenSource)
+	return newOutboundCalDAVClient(googleCalendarProvider{}.Endpoint(account), httpClient)
 }
 
-func (service *Service) findWritableGoogleCalendar(ctx context.Context, account remoteCalendarAccount, calendarID string) (googleCalendarListEntry, bool, error) {
-	calendars, errorValue := service.listWritableGoogleCalendars(ctx, account)
+func (service *Service) googleCalDAVHomeSetURL(ctx context.Context, account remoteCalendarAccount, client *outboundCalDAVClient) (string, error) {
+	if homeSetURL := strings.TrimSpace(account.HomeSetURL); homeSetURL != "" {
+		return homeSetURL, nil
+	}
+	if accountEmail := strings.TrimSpace(account.AccountEmail); accountEmail != "" {
+		return googleCalDAVBaseURL + "/" + accountEmail + "/", nil
+	}
+	principalURL := strings.TrimSpace(account.PrincipalURL)
+	if principalURL == "" {
+		discoveredPrincipalURL, errorValue := client.discoverPrincipalURL(ctx)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		principalURL = discoveredPrincipalURL
+	}
+	homeSetURL, errorValue := client.discoverHomeSetURL(ctx, principalURL)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return homeSetURL, nil
+}
+
+func (service *Service) findSelectableGoogleCalendar(ctx context.Context, account remoteCalendarAccount, calendarID string) (googleCalendarListEntry, bool, error) {
+	calendars, errorValue := service.listGoogleCalendars(ctx, account)
 	if errorValue != nil {
 		return googleCalendarListEntry{}, false, errorValue
 	}
 	for _, calendar := range calendars {
-		if strings.TrimSpace(calendar.CalendarID) == strings.TrimSpace(calendarID) {
+		if strings.TrimSpace(calendar.CalendarID) == strings.TrimSpace(calendarID) && calendar.CanSelect {
 			return calendar, true, nil
 		}
 	}
 	return googleCalendarListEntry{}, false, nil
 }
 
-func (service *Service) fetchGoogleCalendarList(ctx context.Context, tokenSource oauth2.TokenSource) (googleCalendarListDocument, error) {
-	token, errorValue := tokenSource.Token()
-	if errorValue != nil {
-		return googleCalendarListDocument{}, googleCalendarAuthorizationError{Cause: errorValue}
-	}
-	var result googleCalendarListDocument
-	pageToken := ""
-	for {
-		document, errorValue := service.fetchGoogleCalendarListPage(ctx, token, pageToken)
-		if errorValue != nil {
-			return googleCalendarListDocument{}, errorValue
-		}
-		result.Items = append(result.Items, document.Items...)
-		pageToken = strings.TrimSpace(document.NextPageToken)
-		if pageToken == "" {
-			return result, nil
-		}
-	}
-}
-
-func (service *Service) fetchGoogleCalendarListPage(ctx context.Context, token *oauth2.Token, pageToken string) (googleCalendarListDocument, error) {
-	requestURL, errorValue := googleCalendarListRequestURL(pageToken)
-	if errorValue != nil {
-		return googleCalendarListDocument{}, errorValue
-	}
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if errorValue != nil {
-		return googleCalendarListDocument{}, errorValue
-	}
-	token.SetAuthHeader(request)
-	response, errorValue := service.googleOAuthHTTPClient().Do(request)
-	if errorValue != nil {
-		return googleCalendarListDocument{}, errorValue
-	}
-	defer response.Body.Close()
-	body, errorValue := io.ReadAll(io.LimitReader(response.Body, googleCalendarListResponseMaxBytes))
-	if errorValue != nil {
-		return googleCalendarListDocument{}, errorValue
-	}
-	if response.StatusCode != http.StatusOK {
-		statusError := fmt.Errorf("google calendar list status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
-		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-			return googleCalendarListDocument{}, googleCalendarAuthorizationError{Cause: statusError}
-		}
-		return googleCalendarListDocument{}, statusError
-	}
-	var document googleCalendarListDocument
-	if errorValue := json.Unmarshal(body, &document); errorValue != nil {
-		return googleCalendarListDocument{}, fmt.Errorf("parse google calendar list: %w", errorValue)
-	}
-	return document, nil
-}
-
-func googleCalendarListRequestURL(pageToken string) (string, error) {
-	requestURL, errorValue := url.Parse(googleCalendarListEndpoint)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	query := requestURL.Query()
-	query.Set("maxResults", googleCalendarListMaxResults)
-	query.Set("fields", "items(id,summary,accessRole,primary,backgroundColor),nextPageToken")
-	if strings.TrimSpace(pageToken) != "" {
-		query.Set("pageToken", strings.TrimSpace(pageToken))
-	}
-	requestURL.RawQuery = query.Encode()
-	return requestURL.String(), nil
-}
-
-func writableGoogleCalendarListEntries(items []googleCalendarListDocumentItem) []googleCalendarListEntry {
-	calendars := make([]googleCalendarListEntry, 0, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(item.ID) == "" || !isWritableRemoteCalendarAccessRole(item.AccessRole) {
+func googleCalendarListEntriesFromCalDAV(client *outboundCalDAVClient, infos []calDAVCalendarInfo, accountEmail string) ([]googleCalendarListEntry, error) {
+	calendars := make([]googleCalendarListEntry, 0, len(infos))
+	for _, info := range infos {
+		calendarID := googleCalendarIDFromCalDAVPath(info.Path, accountEmail)
+		if calendarID == "" {
 			continue
 		}
+		calendarURL, errorValue := client.absoluteURL(info.Path)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		accessRole := googleCalendarAccessRoleFromCalDAV(info)
+		canWrite := isWritableRemoteCalendarAccessRole(accessRole)
+		disabledReason := googleCalendarSelectionDisabledReason(calendarID, canWrite, info.SupportedComponents)
 		calendars = append(calendars, googleCalendarListEntry{
-			CalendarID:      strings.TrimSpace(item.ID),
-			Summary:         strings.TrimSpace(item.Summary),
-			AccessRole:      strings.TrimSpace(item.AccessRole),
-			Primary:         item.Primary,
-			BackgroundColor: strings.TrimSpace(item.BackgroundColor),
+			CalendarID:              calendarID,
+			Summary:                 googleCalendarSummaryFromCalDAV(info, calendarID),
+			AccessRole:              accessRole,
+			Primary:                 strings.EqualFold(calendarID, strings.TrimSpace(accountEmail)),
+			BackgroundColor:         strings.TrimSpace(info.Color),
+			CanWrite:                canWrite,
+			CanSelect:               disabledReason == "",
+			SelectionDisabledReason: disabledReason,
+			CalendarURL:             calendarURL,
 		})
 	}
-	return calendars
+	return calendars, nil
+}
+
+func googleCalendarAccessRoleFromCalDAV(info calDAVCalendarInfo) string {
+	if info.CanWrite {
+		return "writer"
+	}
+	if info.CanRead {
+		return "reader"
+	}
+	return "none"
+}
+
+func googleCalendarSummaryFromCalDAV(info calDAVCalendarInfo, calendarID string) string {
+	if summary := strings.TrimSpace(info.Name); summary != "" {
+		return summary
+	}
+	return strings.TrimSpace(calendarID)
+}
+
+func googleCalendarSelectionDisabledReason(calendarID string, canWrite bool, components []string) string {
+	if !canWrite {
+		return googleCalendarSelectionDisabledReasonWritePermissionRequired
+	}
+	if isUnsupportedGoogleCalendarSelectionTarget(calendarID, components) {
+		return googleCalendarSelectionDisabledReasonUnsupportedCalendar
+	}
+	return ""
+}
+
+func isUnsupportedGoogleCalendarSelectionTarget(calendarID string, components []string) bool {
+	calendarID = strings.ToLower(strings.TrimSpace(calendarID))
+	return strings.Contains(calendarID, "#contacts@group.v.calendar.google.com") ||
+		strings.Contains(calendarID, "#tasks") ||
+		strings.Contains(calendarID, "tasks#") ||
+		strings.Contains(calendarID, "tasks@group.v.calendar.google.com") ||
+		!googleCalendarSupportsEventComponent(components)
+}
+
+func googleCalendarSupportsEventComponent(components []string) bool {
+	if len(components) == 0 {
+		return true
+	}
+	for _, component := range components {
+		if strings.EqualFold(strings.TrimSpace(component), "VEVENT") {
+			return true
+		}
+	}
+	return false
+}
+
+func googleCalendarIDFromCalDAVPath(calendarPath string, accountEmail string) string {
+	path := strings.TrimSpace(calendarPath)
+	if parsed, errorValue := url.Parse(path); errorValue == nil && parsed.Path != "" {
+		path = parsed.EscapedPath()
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	calendarSegment := parts[len(parts)-1]
+	if strings.EqualFold(calendarSegment, "events") && len(parts) >= 2 {
+		calendarSegment = parts[len(parts)-2]
+	}
+	decoded, errorValue := url.PathUnescape(calendarSegment)
+	if errorValue != nil {
+		return strings.TrimSpace(calendarSegment)
+	}
+	return strings.TrimSpace(decoded)
 }
 
 func isGoogleCalendarAuthorizationError(errorValue error) bool {
