@@ -204,6 +204,9 @@ func capabilityToolApprovalDeniedResponse(request capabilities.ToolInvokeRequest
 	if request.Context.IsApprovalContinuation || request.Context.IsScheduledRun {
 		return capabilities.ToolInvokeResponse{}, false
 	}
+	if isPreApprovedCurrentConversationMessageSend(request) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
 	toolName := strings.TrimSpace(request.ToolName)
 	message := toolName + " requires approval before execution"
 	result, _ := json.Marshal(capabilityApprovalFailure{
@@ -227,6 +230,36 @@ func capabilityToolApprovalDeniedResponse(request capabilities.ToolInvokeRequest
 
 func toolRequiresApproval(toolName string) bool {
 	return capabilityToolApprovalRequirements[strings.TrimSpace(toolName)]
+}
+
+// A reply into the same thread or channel the user is already talking in
+// carries no more authority than the message that prompted it, so it does
+// not need a separate approval step. Scheduled/proactive runs are excluded
+// because there is no live user turn granting that authority in the moment.
+func isPreApprovedCurrentConversationMessageSend(request capabilities.ToolInvokeRequest) bool {
+	if request.ToolName != "message.send" {
+		return false
+	}
+	if request.Context.IsScheduledRun {
+		return false
+	}
+	if strings.TrimSpace(request.Context.ConversationID) == "" {
+		return false
+	}
+	deliveryTargetType := decodeMessageSendDeliveryTargetType(request.Input)
+	return deliveryTargetType == "currentThread" || deliveryTargetType == "currentChannel"
+}
+
+func decodeMessageSendDeliveryTargetType(input json.RawMessage) string {
+	var decodedInput struct {
+		DeliveryTarget struct {
+			Type string `json:"type"`
+		} `json:"deliveryTarget"`
+	}
+	if errorValue := json.Unmarshal(input, &decodedInput); errorValue != nil {
+		return ""
+	}
+	return decodedInput.DeliveryTarget.Type
 }
 
 func companionRequiredBrowserErrorCode(errorValue error) string {
