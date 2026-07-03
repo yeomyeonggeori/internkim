@@ -1541,9 +1541,9 @@ wait_for_apt_lock() {
 wait_for_apt_lock || echo apt_lock_timeout
 which pg_isready 2>/dev/null && echo already || {
   wait_for_apt_lock || echo apt_lock_timeout
-  apt-get update -qq
+  apt-get -o DPkg::Lock::Timeout=180 update -qq
   wait_for_apt_lock || echo apt_lock_timeout
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib python3 || echo apt_install_failed
+  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=180 install -y -qq postgresql postgresql-contrib python3 || echo apt_install_failed
 }`)
 	if strings.Contains(out, "apt_lock_timeout") {
 		return fmt.Errorf("PostgreSQL package installation timed out waiting for apt lock: %s", strings.TrimSpace(out))
@@ -1597,21 +1597,48 @@ su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuse
 		fmt.Printf("  %s\n", m.t("Mattermost 버전 확인 중...", "Checking Mattermost version..."))
 		installOut := ssh.run(`
 cd /tmp
-if [ -s /tmp/mattermost.tar.gz ]; then
+cached_tarball_valid() {
+  [ -s /tmp/mattermost.tar.gz ] || return 1
+  [ -s /tmp/mattermost.tar.gz.sha256 ] || return 1
+  [ "$(sha256sum /tmp/mattermost.tar.gz | awk '{print $1}')" = "$(cat /tmp/mattermost.tar.gz.sha256)" ]
+}
+if cached_tarball_valid; then
   echo "MMVER=cached"
   echo "download_ok"
 else
+  if [ -s /tmp/mattermost.tar.gz ]; then
+    echo "MMSHA_EXPECTED=$(cat /tmp/mattermost.tar.gz.sha256 2>/dev/null)"
+    echo "MMSHA_ACTUAL=$(sha256sum /tmp/mattermost.tar.gz | awk '{print $1}')"
+  fi
+  rm -f /tmp/mattermost.tar.gz /tmp/mattermost.tar.gz.sha256
   MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
   [ -z "$MMVER" ] && MMVER="10.9.1"
   echo "MMVER=${MMVER}"
   URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
   echo "Downloading Mattermost ${MMVER}..."
-  curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok" || echo "download_failed"
+  downloadPath="/tmp/mattermost.tar.gz.download.$$"
+  if curl -fsSL -o "$downloadPath" "$URL" 2>&1 | tail -1 && gzip -t "$downloadPath" 2>/dev/null; then
+    sha256sum "$downloadPath" | awk '{print $1}' > "$downloadPath.sha256"
+    mv "$downloadPath.sha256" /tmp/mattermost.tar.gz.sha256
+    mv "$downloadPath" /tmp/mattermost.tar.gz
+    echo "download_ok"
+  else
+    echo "MMSHA_ACTUAL=$(sha256sum "$downloadPath" 2>/dev/null | awk '{print $1}')"
+    rm -f "$downloadPath" "$downloadPath.sha256"
+    echo "download_failed"
+  fi
 fi`)
 		mmver := ""
+		mmShaExpected := ""
+		mmShaActual := ""
 		for _, line := range strings.Split(installOut, "\n") {
-			if strings.HasPrefix(line, "MMVER=") {
+			switch {
+			case strings.HasPrefix(line, "MMVER="):
 				mmver = strings.TrimPrefix(strings.TrimSpace(line), "MMVER=")
+			case strings.HasPrefix(line, "MMSHA_EXPECTED="):
+				mmShaExpected = strings.TrimPrefix(strings.TrimSpace(line), "MMSHA_EXPECTED=")
+			case strings.HasPrefix(line, "MMSHA_ACTUAL="):
+				mmShaActual = strings.TrimPrefix(strings.TrimSpace(line), "MMSHA_ACTUAL=")
 			}
 		}
 		if mmver != "" {
@@ -1619,17 +1646,21 @@ fi`)
 		}
 		if strings.Contains(installOut, "download_failed") {
 			fmt.Printf("  ERROR: %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
+			if mmShaExpected != "" || mmShaActual != "" {
+				return fmt.Errorf("Mattermost download failed: tarball checksum mismatch (expected %s, got %s)", mmShaExpected, mmShaActual)
+			}
 			return fmt.Errorf("Mattermost download failed")
 		}
 		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 완료, 설치 중...", "Download complete, installing..."))
 		extractResult := ssh.run(`
 cd /tmp && rm -rf mattermost
-if tar -xzf mattermost.tar.gz 2>&1; then
+if gzip -t mattermost.tar.gz 2>/dev/null && tar -xzf mattermost.tar.gz 2>&1; then
   echo "tar_ok"
   systemctl stop mattermost 2>/dev/null || true
   rm -rf /opt/mattermost
   mv /tmp/mattermost /opt/mattermost && echo "move_ok" || echo "move_failed"
 else
+  rm -f /tmp/mattermost.tar.gz /tmp/mattermost.tar.gz.sha256
   echo "tar_failed"
 fi`)
 		if strings.Contains(extractResult, "tar_failed") {
