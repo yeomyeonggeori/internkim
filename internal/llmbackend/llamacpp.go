@@ -6,6 +6,13 @@ import (
 	"net/http"
 )
 
+// LlamaCppLocalContextWindowTokens is a conservative ceiling on the prompt size the
+// on-device llama.cpp server can process without spending minutes on a call that
+// cannot succeed. The service unit (see runtime/blueclaw.LlamaCppServiceUnit) starts
+// llama-server without an explicit context-size flag, so this is not read from a
+// live configuration value; correct it if the launch args ever pin a real -c value.
+const LlamaCppLocalContextWindowTokens int64 = 8192
+
 type LlamaCppBackend struct {
 	BaseURL    string
 	ModelName  string
@@ -14,14 +21,13 @@ type LlamaCppBackend struct {
 
 func (backend LlamaCppBackend) Name() string { return "llamacpp" }
 
+func (backend LlamaCppBackend) ContextWindowTokens() int64 { return LlamaCppLocalContextWindowTokens }
+
 func (backend LlamaCppBackend) Ping(ctx context.Context) error {
 	return backend.client().pingPath(ctx, "/health")
 }
 
 func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
-	if errorValue := promptExceedsContextWindow(request.Messages, LlamaCppLocalContextWindowTokens); errorValue != nil {
-		return Response{}, errorValue
-	}
 	if response, isHandled, errorValue := backend.completeNativeAction(ctx, request); isHandled {
 		if errorValue == nil {
 			return response, nil
@@ -75,9 +81,6 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 }
 
 func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	if errorValue := promptExceedsContextWindow(request.Messages, LlamaCppLocalContextWindowTokens); errorValue != nil {
-		return Response{}, errorValue
-	}
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil, GenerationOptions{})
 	content, usage, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
