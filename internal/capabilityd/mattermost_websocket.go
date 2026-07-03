@@ -20,6 +20,9 @@ import (
 	"time"
 )
 
+const defaultMattermostWebSocketIdleReadTimeout = 90 * time.Second
+const defaultMattermostWebSocketHandshakeTimeout = 15 * time.Second
+
 type MattermostWebSocketForwarder struct {
 	URL               string
 	BotToken          string
@@ -27,6 +30,7 @@ type MattermostWebSocketForwarder struct {
 	BotUsername       string
 	BlueclawURL       string
 	HTTPClient        *http.Client
+	IdleReadTimeout   time.Duration
 	EventBuilder      func(context.Context, []byte) (platformInboundEvent, bool, error)
 	AfterForward      func(context.Context, []byte)
 	AfterForwardError func(error)
@@ -43,7 +47,7 @@ func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
 	for ctx.Err() == nil {
 		errorValue := forwarder.runOnce(ctx)
 		if errorValue != nil && ctx.Err() == nil {
-			log.Printf("mattermost forwarder disconnected: %v", errorValue)
+			log.Printf("mattermost forwarder disconnected: botUserID=%s botUsername=%s error=%v", forwarder.BotUserID, forwarder.BotUsername, errorValue)
 			if forwarder.PollFallback != nil {
 				forwarder.PollFallback(ctx)
 			}
@@ -55,10 +59,18 @@ func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
 			return
 		case <-timer.C:
 		}
+		log.Printf("mattermost forwarder reconnecting: botUserID=%s botUsername=%s backoff=%s", forwarder.BotUserID, forwarder.BotUsername, backoff)
 		if backoff < 30*time.Second {
 			backoff *= 2
 		}
 	}
+}
+
+func (forwarder MattermostWebSocketForwarder) idleReadTimeout() time.Duration {
+	if forwarder.IdleReadTimeout > 0 {
+		return forwarder.IdleReadTimeout
+	}
+	return defaultMattermostWebSocketIdleReadTimeout
 }
 
 func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error {
@@ -71,8 +83,12 @@ func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error
 	if errorValue := writeWebSocketTextFrame(connection, forwarder.authenticationChallenge()); errorValue != nil {
 		return errorValue
 	}
+	log.Printf("mattermost forwarder connected: botUserID=%s botUsername=%s", forwarder.BotUserID, forwarder.BotUsername)
 
 	for ctx.Err() == nil {
+		if errorValue := connection.SetReadDeadline(time.Now().Add(forwarder.idleReadTimeout())); errorValue != nil {
+			return errorValue
+		}
 		payload, errorValue := readWebSocketFrame(connection, reader)
 		if errorValue != nil {
 			return errorValue
@@ -83,7 +99,7 @@ func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error
 				if forwarder.AfterForwardError != nil {
 					forwarder.AfterForwardError(errorValue)
 				}
-				log.Printf("mattermost forward failed: %v", errorValue)
+				log.Printf("mattermost forward failed: botUserID=%s botUsername=%s error=%v", forwarder.BotUserID, forwarder.BotUsername, errorValue)
 			}
 		}()
 	}
@@ -111,6 +127,10 @@ func (forwarder MattermostWebSocketForwarder) connect(ctx context.Context) (net.
 	dialer := net.Dialer{Timeout: 10 * time.Second}
 	connection, errorValue := dialer.DialContext(ctx, "tcp", address)
 	if errorValue != nil {
+		return nil, nil, errorValue
+	}
+	if errorValue := connection.SetDeadline(time.Now().Add(defaultMattermostWebSocketHandshakeTimeout)); errorValue != nil {
+		_ = connection.Close()
 		return nil, nil, errorValue
 	}
 
@@ -161,6 +181,10 @@ func (forwarder MattermostWebSocketForwarder) connect(ctx context.Context) (net.
 	if httpResponse.Header.Get("Sec-WebSocket-Accept") != expectedWebSocketAccept(secWebSocketKey) {
 		_ = connection.Close()
 		return nil, nil, errors.New("mattermost websocket accept key mismatch")
+	}
+	if errorValue := connection.SetDeadline(time.Time{}); errorValue != nil {
+		_ = connection.Close()
+		return nil, nil, errorValue
 	}
 
 	return connection, reader, nil

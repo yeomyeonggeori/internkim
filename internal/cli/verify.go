@@ -1272,7 +1272,7 @@ delete_user() {
       "http://localhost:8065/api/v4/teams/$team_id/members/$user_id" >/dev/null || true
   fi
   curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id" >/dev/null || \
     echo "cleanup warning: failed to delete Mattermost user $user_id" >&2
@@ -1791,7 +1791,7 @@ cleanup() {
   fi
   if [ -n "${user_id:-}" ]; then
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
@@ -1818,7 +1818,7 @@ delete_probe_user() {
   local probe_email="$2"
   if [ -n "$probe_user_id" ]; then
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$probe_user_id?permanent=true" >/dev/null || \
+      "http://localhost:8065/api/v4/users/$probe_user_id?permanent=true" >/dev/null 2>&1 || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$probe_user_id" >/dev/null || true
   fi
@@ -2244,7 +2244,7 @@ delete_user() {
     return 0
   fi
   curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id" >/dev/null || \
     echo "cleanup warning: failed to delete Mattermost user $user_id" >&2
@@ -2580,7 +2580,7 @@ cleanup() {
   fi
   if [ -n "${user_id:-}" ]; then
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
@@ -2940,7 +2940,7 @@ cleanup() {
   done
   if [ -n "${user_id:-}" ]; then
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
@@ -3108,7 +3108,7 @@ jq -r '.[] | select((.email // "") | startswith("probe-browser-open-")) | [.id, 
 while IFS="$(printf '\t')" read -r stale_user_id stale_email; do
   if [ -n "$stale_user_id" ]; then
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$stale_user_id?permanent=true" >/dev/null || \
+      "http://localhost:8065/api/v4/users/$stale_user_id?permanent=true" >/dev/null 2>&1 || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$stale_user_id" >/dev/null || true
   fi
@@ -3178,7 +3178,7 @@ curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-br
 admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
 if [ -n "$user_id" ]; then
   curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
 fi
@@ -3330,7 +3330,7 @@ cleanup() {
       "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
   fi
   curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
     curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
