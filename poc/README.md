@@ -108,21 +108,22 @@ python3 poc/start-poc.py
 컨테이너 IP가 매 실행마다 달라질 수 있어서, `start-poc.py`가 실행 시마다
 `container inspect`로 실제 IP를 읽어 `config/tenant_NN/runtime.json`을 자동 패치한다.
 
-### 테넌트 추가 (예: 10 → 15개)
+### 테넌트 추가
+
+Mac Studio의 `~/internkim-poc`에서 한 번에 실행한다. DB·Mattermost 팀/봇/관리자 계정·
+설정 복제·컨테이너 기동·blueclaw 정책 초대·DNS·터널 ingress·DM 왕복 스모크까지 전부
+수행하고, 성공 시 `tenants-credentials.md` 테이블을 갱신한다. 각 단계는 idempotent라서
+중간 실패 후 재실행해도 안전하다.
 
 ```bash
-# 1. Mattermost에 새 팀·봇 프로비저닝
-TENANT_START=11 TENANT_COUNT=15 bash poc/provision-mattermost.sh
-
-# 2. 새 테넌트 config 생성
-PG_IP=$(container inspect poc-postgres | python3 -c "
-import sys, json; d=json.load(sys.stdin)
-print(d[0]['status']['networks'][0]['ipv4Address'].split('/')[0])")
-POSTGRES_HOST=$PG_IP TENANT_COUNT=15 bash poc/generate-configs.sh
-
-# 3. 새 테넌트 시작 (기존 테넌트는 재시작 없이 11-15만 추가됨)
-python3 poc/start-poc.py 15
+./add-tenant.sh 15
 ```
+
+계정/비밀번호는 `~/internkim-poc/tenants-credentials.md`(로컬 사본:
+`.local/ops/poc-tenants-credentials.md`)와 `secrets/tenant_NN/`에서 확인한다.
+
+아래 구식 절차(docker compose 기준 provision-mattermost.sh 등)는 Apple Container
+마이그레이션 이후 동작하지 않으므로 사용하지 않는다.
 
 ### Cloudflare 터널 재시작
 
@@ -132,6 +133,13 @@ python3 poc/restart-tunnel.py
 
 컨테이너 IP가 바뀌면 터널 ingress도 자동으로 업데이트한다.
 `~/internkim-poc/cf.env`에 `CF_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` 필요.
+
+Apple Container는 재시작마다 IP를 새로 할당하므로, `watch-tunnel.sh`가
+LaunchAgent(`com.internkim.poc.tunnel-watch`, 60초 주기)로 상시 동작하며
+컨테이너 IP 맵이 달라지거나 cf-tunnel이 죽으면 자동으로 터널을 재구성한다.
+어떤 경로로 테넌트를 재시작해도 1분 안에 라우팅이 스스로 복구되므로
+수동 `restart-tunnel.py`는 즉시 반영이 필요할 때만 쓰면 된다.
+로그: `~/internkim-poc/tunnel-watch.log`.
 
 ### 인프라만 재시작
 
