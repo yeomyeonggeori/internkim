@@ -107,9 +107,8 @@
       "outputFileName": null,
       "sourceFile": "fixtures/site-mealkit-reservation.md",
       "expectedTools": [
-        "site.app.create",
-        "site.app.build",
-        "site.app.publish"
+        "site.create",
+        "site.publish"
       ],
       "requiredText": [
         "Banchan Table",
