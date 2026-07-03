@@ -407,6 +407,80 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 	}
 }
 
+func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		context          capabilities.ToolInvokeContext
+		requiresApproval bool
+	}{
+		{
+			name:             "directMessage still requires approval",
+			input:            `{"deliveryTarget":{"type":"directMessage"}}`,
+			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			requiresApproval: true,
+		},
+		{
+			name:             "currentThread in the originating conversation is pre-approved",
+			input:            `{"deliveryTarget":{"type":"currentThread"}}`,
+			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			requiresApproval: false,
+		},
+		{
+			name:             "currentChannel in the originating conversation is pre-approved",
+			input:            `{"deliveryTarget":{"type":"currentChannel"}}`,
+			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			requiresApproval: false,
+		},
+		{
+			name:             "currentThread without a trusted originating conversation still requires approval",
+			input:            `{"deliveryTarget":{"type":"currentThread"}}`,
+			context:          capabilities.ToolInvokeContext{ConversationID: ""},
+			requiresApproval: true,
+		},
+		{
+			name:             "named channel still requires approval",
+			input:            `{"deliveryTarget":{"type":"channel","channelName":"general"}}`,
+			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			requiresApproval: true,
+		},
+		{
+			name:             "malformed input falls through to approval required",
+			input:            `{"deliveryTarget":`,
+			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			requiresApproval: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := capabilities.ToolInvokeRequest{
+				ToolName: "message.send",
+				Input:    json.RawMessage(testCase.input),
+				Context:  testCase.context,
+			}
+			response, isDenied := capabilityToolApprovalDeniedResponse(request)
+			if isDenied != testCase.requiresApproval {
+				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
+			}
+			if isDenied {
+				assertCapabilityApprovalRequired(t, response, "message.send")
+			}
+		})
+	}
+}
+
+func TestMessageSendPreApprovalExcludesScheduledRuns(t *testing.T) {
+	request := capabilities.ToolInvokeRequest{
+		ToolName: "message.send",
+		Input:    json.RawMessage(`{"deliveryTarget":{"type":"currentThread"}}`),
+		Context:  capabilities.ToolInvokeContext{ConversationID: "conversation-1", IsScheduledRun: true},
+	}
+	if isPreApprovedCurrentConversationMessageSend(request) {
+		t.Fatal("expected scheduled runs to never qualify for the current-conversation pre-approval")
+	}
+}
+
 func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 	router := CapabilityRouter{
 		CompanionAvailable:     true,
