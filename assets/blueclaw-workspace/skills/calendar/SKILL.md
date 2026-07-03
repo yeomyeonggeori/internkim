@@ -28,6 +28,7 @@ Optional fields:
 - `isAllDay`
 - `color`
 - `people`
+- `includeRequester`
 - `reminderLeadHours`
 
 Use RFC 3339 timestamps with timezone offsets, for example `2026-05-20T10:00:00+09:00`.
@@ -75,8 +76,10 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the runtime temporal context before invoking an operation.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
-- Put targeted people in `people` as comma-separated nicknames or an array. The calendar stores them as the first note line and the channel post already shows them as an attendee line — do not also restate the attendee names inside `description`.
-- If the event is for everyone, omit `people`; the backend will notify the `announcements` channel.
+- Put attendee/person hints in `people` as names, @handles, or emails. Use the names the user gave; do not invent account IDs or handles.
+- For ordinary calendar adds, the requester is an attendee by default. Put the other attendees in `people`; the runtime adds the requester. Set `includeRequester: false` only for delegated entries, announcements, all-hands events, or someone else's calendar where the requester is not attending.
+- If the event is for everyone, set `people` to `["전체"]` or `["@all"]`; do not rely on an empty `people` list for announcements.
+- The calendar stores attendees and the channel post already shows them as an attendee line — do not also restate attendee names inside `description`.
 - Choose `reminderLeadHours` from `1, 2, 3, 6, 12, 24, 48`.
 - Use `48` for overseas travel, long trips, or events needing two-day preparation.
 - Use `24` for domestic travel to another city or when uncertain.
