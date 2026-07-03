@@ -307,14 +307,12 @@ cd workers/release-registry
 ../../web/node_modules/.bin/wrangler deploy
 ```
 
-개발 머신에서 Wrangler OAuth 세션으로 publish할 때 필요한 환경 변수:
+개발 머신에서 Wrangler OAuth 세션으로 publish할 때 필요한 환경 변수. `INTERNKIM_RELEASE_R2_ACCOUNT_ID`는 이미 `.env`에 `CF_ACCOUNT_ID`가 있으면 자동으로 그 값을 쓰고, `INTERNKIM_RELEASE_DOWNLOAD_TOKEN`도 `.local/secrets/release-download-token`이 있으면 자동으로 읽으므로 둘 다 생략 가능합니다:
 
 ```bash
-export INTERNKIM_RELEASE_R2_ACCOUNT_ID=<cloudflare-account-id>
 export INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
 export INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
 export INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.intern.kim
-export INTERNKIM_RELEASE_DOWNLOAD_TOKEN="$(cat .local/secrets/release-download-token)"
 export INTERNKIM_RELEASE_SIGNING_KEY=<optional-shared-signing-key>
 ```
 
