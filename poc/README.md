@@ -134,6 +134,13 @@ python3 poc/restart-tunnel.py
 컨테이너 IP가 바뀌면 터널 ingress도 자동으로 업데이트한다.
 `~/internkim-poc/cf.env`에 `CF_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` 필요.
 
+Apple Container는 재시작마다 IP를 새로 할당하므로, `watch-tunnel.sh`가
+LaunchAgent(`com.internkim.poc.tunnel-watch`, 60초 주기)로 상시 동작하며
+컨테이너 IP 맵이 달라지거나 cf-tunnel이 죽으면 자동으로 터널을 재구성한다.
+어떤 경로로 테넌트를 재시작해도 1분 안에 라우팅이 스스로 복구되므로
+수동 `restart-tunnel.py`는 즉시 반영이 필요할 때만 쓰면 된다.
+로그: `~/internkim-poc/tunnel-watch.log`.
+
 ### 인프라만 재시작
 
 ```bash
