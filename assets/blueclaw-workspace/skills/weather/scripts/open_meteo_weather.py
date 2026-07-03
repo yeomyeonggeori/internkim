@@ -459,8 +459,20 @@ def read_json_cache(path):
         return None
 
 
+def make_shared_cache_directory(directory_path):
+    # This tree lives under /workspace/shared/cache, which is setgid to
+    # bc_shared: every requester runs as a different unprivileged UID, so a
+    # directory this call creates must stay group-writable for the next
+    # requester regardless of the default umask.
+    previous_umask = os.umask(0o002)
+    try:
+        directory_path.mkdir(parents=True, exist_ok=True)
+    finally:
+        os.umask(previous_umask)
+
+
 def write_json_cache(path, document):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    make_shared_cache_directory(path.parent)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as temporary_file:
         json.dump(document, temporary_file, ensure_ascii=False, separators=(",", ":"))
         temporary_path = pathlib.Path(temporary_file.name)
