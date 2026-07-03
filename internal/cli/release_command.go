@@ -64,13 +64,14 @@ func printReleaseUsage() {
 	fmt.Println("Usage: internkim release <publish|status>")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID")
+	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CF_ACCOUNT_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCESS_KEY_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY")
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
 	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
+	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN optional: falls back to .local/secrets/release-download-token")
 }
 
 func runReleasePublish(arguments []string) error {
@@ -549,13 +550,21 @@ func writeReleaseArchiveEntry(writer *tar.Writer, sourcePath string, currentPath
 
 func releaseR2Client() (releaseset.R2Client, error) {
 	return releaseset.NewR2Client(releaseset.R2Configuration{
-		AccountID:       os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID"),
+		AccountID:       releaseR2AccountID(),
 		Bucket:          os.Getenv("INTERNKIM_RELEASE_R2_BUCKET"),
 		AccessKeyID:     os.Getenv("INTERNKIM_RELEASE_R2_ACCESS_KEY_ID"),
 		SecretAccessKey: os.Getenv("INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY"),
 		PublicBaseURL:   os.Getenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL"),
 		HTTPClient:      statusHTTPClient,
 	})
+}
+
+// R2 shares the same Cloudflare account as the rest of the workspace, so CF_ACCOUNT_ID is a valid fallback.
+func releaseR2AccountID() string {
+	if accountID := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")); accountID != "" {
+		return accountID
+	}
+	return strings.TrimSpace(os.Getenv("CF_ACCOUNT_ID"))
 }
 
 func releasePublisherFromEnvironment(repositoryRootPath string) (releaseObjectPublisher, error) {
@@ -579,7 +588,7 @@ func releaseWranglerPublisher(repositoryRootPath string) (wranglerReleasePublish
 		return wranglerReleasePublisher{}, errors.New("INTERNKIM_RELEASE_PUBLIC_BASE_URL is required")
 	}
 	return wranglerReleasePublisher{
-		accountID:     strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")),
+		accountID:     releaseR2AccountID(),
 		bucket:        bucket,
 		commandPath:   releaseWranglerCommandPath(repositoryRootPath),
 		publicBaseURL: publicBaseURL,
@@ -694,11 +703,24 @@ func fetchReleaseStablePointer(channel string) (releaseset.StablePointer, error)
 }
 
 func addReleaseDownloadHeaders(request *http.Request) {
-	token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN"))
+	token := releaseDownloadToken()
 	if token == "" {
 		return
 	}
 	request.Header.Set("X-InternKim-Release-Token", token)
+}
+
+// Falls back to the local secrets file so a developer with a repo checkout
+// does not need to export INTERNKIM_RELEASE_DOWNLOAD_TOKEN by hand.
+func releaseDownloadToken() string {
+	if token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN")); token != "" {
+		return token
+	}
+	document, errorValue := os.ReadFile(".local/secrets/release-download-token")
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
 }
 
 func defaultReleaseID(repositoryRootPath string) string {
