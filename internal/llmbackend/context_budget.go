@@ -22,7 +22,18 @@ type ContextWindowAware interface {
 	ContextWindowTokens() int64
 }
 
-func contextWindowTokensFor(candidate any) int64 {
+// ModelContextWindowAware lets a backend declare a per-model context window,
+// for backends that serve many models with different limits.
+type ModelContextWindowAware interface {
+	ContextWindowTokensForModel(modelName string) int64
+}
+
+func contextWindowTokensFor(candidate any, modelName string) int64 {
+	if modelAware, isModelAware := candidate.(ModelContextWindowAware); isModelAware {
+		if tokens := modelAware.ContextWindowTokensForModel(modelName); tokens > 0 {
+			return tokens
+		}
+	}
 	if contextWindowAware, isContextWindowAware := candidate.(ContextWindowAware); isContextWindowAware {
 		if tokens := contextWindowAware.ContextWindowTokens(); tokens > 0 {
 			return tokens
@@ -46,12 +57,12 @@ func inputTokenBudget(contextWindowTokens int64) int64 {
 	return int64(float64(contextWindowTokens) * contextWindowInputBudgetRatio)
 }
 
-// compactMessagesForContextWindow keeps leading system/instruction messages and the
-// most recent turns verbatim, collapsing everything in between into a single
+// compactMessagesForContextWindow keeps every system/instruction message and the
+// most recent turns verbatim, collapsing only older non-system history into a single
 // condensed message so the prompt fits the backend's usable context window. This
 // mirrors how coding agents commonly handle context overflow: track a token budget,
-// then drop/summarize the oldest content while preserving the system prompt and
-// recent turns, rather than failing the call outright.
+// then drop/summarize the oldest conversational content while never touching
+// instructions, rather than failing the call outright.
 //
 // If the message list still can't fit after compaction (for example, a single
 // message is enormous on its own), it returns a clear error instead of looping.
@@ -72,13 +83,27 @@ func compactMessagesForContextWindow(messages []Message, contextWindowTokens int
 		return nil, fmt.Errorf("prompt is too large for the model's context window and has no middle content left to compact: estimated %d tokens exceeds %d token budget", estimatedMessagesTokens(messages), budget)
 	}
 
-	compacted := make([]Message, 0, leadingSystemCount+1+recentCount)
-	compacted = append(compacted, messages[:leadingSystemCount]...)
-	compacted = append(compacted, condensedMiddleMessage(messages[middleStart:middleEnd]))
+	compacted := make([]Message, 0, len(messages))
+	compacted = append(compacted, messages[:middleStart]...)
+	droppedMessages := []Message{}
+	condensedInsertIndex := -1
+	for _, message := range messages[middleStart:middleEnd] {
+		if message.Role == "system" {
+			compacted = append(compacted, message)
+			continue
+		}
+		if condensedInsertIndex < 0 {
+			condensedInsertIndex = len(compacted)
+		}
+		droppedMessages = append(droppedMessages, message)
+	}
+	if condensedInsertIndex >= 0 {
+		compacted = append(compacted[:condensedInsertIndex], append([]Message{condensedMiddleMessage(droppedMessages)}, compacted[condensedInsertIndex:]...)...)
+	}
 	compacted = append(compacted, messages[middleEnd:]...)
 
 	if estimatedMessagesTokens(compacted) > budget {
-		return nil, fmt.Errorf("prompt still exceeds the model's context window after compaction: estimated %d tokens exceeds %d token budget", estimatedMessagesTokens(compacted), budget)
+		return nil, fmt.Errorf("prompt still exceeds the model's context window after compacting non-system history: estimated %d tokens exceeds %d token budget; system and instruction content is never compacted", estimatedMessagesTokens(compacted), budget)
 	}
 	return compacted, nil
 }

@@ -539,3 +539,17 @@ func isLocalModelReference(modelName string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(modelName))
 	return strings.HasPrefix(normalized, "local/")
 }
+
+var openRouterModelContextWindowTokens = map[string]int64{
+	"google/gemma-3-12b-it": 131072,
+	"xiaomi/mimo-v2.5":      131072,
+	"z-ai/glm-5.2":          131072,
+	"x-ai/grok-4.3":         262144,
+}
+
+func (backend OpenRouterBackend) ContextWindowTokensForModel(modelName string) int64 {
+	if tokens, isKnown := openRouterModelContextWindowTokens[backend.resolveModelName(modelName)]; isKnown {
+		return tokens
+	}
+	return DefaultContextWindowTokens
+}

@@ -2096,3 +2096,52 @@ func TestOllamaBackendReturnsZeroUsageWhenEvalCountsAreAbsent(t *testing.T) {
 		t.Fatalf("expected zero usage when eval counts are absent, got %+v", response.Usage)
 	}
 }
+
+func TestCompactMessagesForContextWindowPreservesMidConversationSystemMessages(t *testing.T) {
+	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	messages := []Message{
+		{Role: "system", Content: "you are a helpful assistant"},
+		{Role: "user", Content: hugeMiddleMessage},
+		{Role: "system", Content: "critical mid-task directive that must survive"},
+		{Role: "assistant", Content: hugeMiddleMessage},
+		{Role: "user", Content: "recent turn one"},
+		{Role: "assistant", Content: "recent turn two"},
+		{Role: "user", Content: "recent turn three"},
+		{Role: "assistant", Content: "recent turn four"},
+		{Role: "user", Content: "recent turn five"},
+		{Role: "assistant", Content: "most recent turn"},
+	}
+
+	compacted, errorValue := compactMessagesForContextWindow(messages, LlamaCppLocalContextWindowTokens)
+	if errorValue != nil {
+		t.Fatalf("expected compaction to succeed: %v", errorValue)
+	}
+	foundDirective := false
+	for _, message := range compacted {
+		if message.Role == "system" && message.Content == "critical mid-task directive that must survive" {
+			foundDirective = true
+		}
+		if strings.Contains(message.Content, hugeMiddleMessage) {
+			t.Fatal("expected huge non-system content to be collapsed")
+		}
+	}
+	if !foundDirective {
+		t.Fatalf("expected the mid-conversation system directive to be preserved verbatim, got %+v", compacted)
+	}
+}
+
+func TestOpenRouterContextWindowIsPerModel(t *testing.T) {
+	backend := OpenRouterBackend{ModelName: "google/gemini-2.5-flash-lite"}
+	if tokens := backend.ContextWindowTokensForModel("google/gemma-3-12b-it"); tokens != 131072 {
+		t.Fatalf("expected gemma-3-12b window 131072, got %d", tokens)
+	}
+	if tokens := backend.ContextWindowTokensForModel("google/gemini-2.5-flash-lite"); tokens != DefaultContextWindowTokens {
+		t.Fatalf("expected unlisted large-context model to keep the default window, got %d", tokens)
+	}
+	if tokens := backend.ContextWindowTokensForModel(""); tokens != DefaultContextWindowTokens {
+		t.Fatalf("expected empty request model to resolve through the backend default model, got %d", tokens)
+	}
+	if tokens := contextWindowTokensFor(backend, "x-ai/grok-4.3"); tokens != 262144 {
+		t.Fatalf("expected model-aware dispatch to pick the per-model window, got %d", tokens)
+	}
+}
