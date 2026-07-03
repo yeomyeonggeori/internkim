@@ -27,7 +27,7 @@
 	let lastDefaultValue = '';
 
 	$effect(() => {
-		const defaultValue = selectedCalendarID || calendars[0]?.calendarID || '';
+		const defaultValue = selectedCalendarID || calendars.find((calendar) => calendar.canSelect)?.calendarID || '';
 		if (defaultValue === lastDefaultValue) return;
 		lastDefaultValue = defaultValue;
 		selectedValue = defaultValue;
@@ -39,13 +39,25 @@
 	}
 
 	async function saveSelectedCalendar() {
-		if (!selectedValue || isLoadingGoogleCalendars || isSelectingGoogleCalendar) return;
+		if (!selectedCalendarCanSelect() || isLoadingGoogleCalendars || isSelectingGoogleCalendar) return;
 		await selectGoogleCalendar(selectedValue);
 	}
 
 	function calendarLabel(calendar: GoogleCalendarListEntry): string {
-		if (calendar.primary) return `${calendar.summary} (${text.googleCalendarPrimaryLabel})`;
-		return calendar.summary;
+		const baseLabel = calendar.primary ? `${calendar.summary} (${text.googleCalendarPrimaryLabel})` : calendar.summary;
+		const disabledLabel = calendarSelectionDisabledLabel(calendar);
+		if (!disabledLabel) return baseLabel;
+		return `${baseLabel} - ${disabledLabel}`;
+	}
+
+	function calendarSelectionDisabledLabel(calendar: GoogleCalendarListEntry): string {
+		if (calendar.canSelect) return '';
+		if (calendar.selectionDisabledReason === 'unsupported_calendar') return text.googleCalendarSelectionDisabledUnsupported;
+		return text.googleCalendarSelectionDisabledWritePermission;
+	}
+
+	function selectedCalendarCanSelect(): boolean {
+		return calendars.some((calendar) => calendar.calendarID === selectedValue && calendar.canSelect);
 	}
 </script>
 
@@ -69,7 +81,7 @@
 				class="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			>
 				{#each calendars as calendar}
-					<option value={calendar.calendarID}>{calendarLabel(calendar)}</option>
+					<option value={calendar.calendarID} disabled={!calendar.canSelect}>{calendarLabel(calendar)}</option>
 				{/each}
 			</select>
 		{/if}
@@ -82,7 +94,7 @@
 	<Button
 		variant="outline"
 		class="w-full justify-center gap-2"
-		disabled={!selectedValue || isLoadingGoogleCalendars || isSelectingGoogleCalendar || calendars.length === 0}
+		disabled={!selectedCalendarCanSelect() || isLoadingGoogleCalendars || isSelectingGoogleCalendar || calendars.length === 0}
 		onclick={saveSelectedCalendar}
 	>
 		{#if isSelectingGoogleCalendar}
