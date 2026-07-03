@@ -14,9 +14,13 @@ type normalizedFlowTaskDates struct {
 }
 
 func normalizeFlowTaskDates(payload flowTaskWriteRequest, status string, now time.Time) normalizedFlowTaskDates {
-	startDate := strings.TrimSpace(payload.StartDate)
-	endDate := strings.TrimSpace(payload.EndDate)
-	weekCode := strings.TrimSpace(payload.WeekCode)
+	return normalizeFlowStatusDates(payload.StartDate, payload.EndDate, payload.WeekCode, status, now)
+}
+
+func normalizeFlowStatusDates(startDate string, endDate string, weekCode string, status string, now time.Time) normalizedFlowTaskDates {
+	startDate = strings.TrimSpace(startDate)
+	endDate = strings.TrimSpace(endDate)
+	weekCode = strings.TrimSpace(weekCode)
 	today := now.Format("2006-01-02")
 	switch {
 	case isFlowCompletedStatus(status):
