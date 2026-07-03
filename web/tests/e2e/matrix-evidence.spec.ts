@@ -1,4 +1,12 @@
-import { test } from '@playwright/test';
+import { test, type APIRequestContext, type Page } from '@playwright/test';
+
+type MattermostPostBody = {
+	channel_id: string;
+	message: string;
+	props?: {
+		attachments: unknown;
+	};
+};
 
 const mattermostURL = process.env.INTERNKIM_MATTERMOST_URL ?? 'http://127.0.0.1:8065';
 const requesterEmail = process.env.INTERNKIM_ADMIN_EMAIL ?? '';
@@ -39,27 +47,36 @@ test('matrix of four message kinds', async ({ page, request }) => {
 	await page.screenshot({ path: screenshotPath, fullPage: true });
 });
 
-async function postNormal(request, channelID: string, message: string, attachments: unknown): Promise<number> {
-	const data: any = { channel_id: channelID, message };
+async function postNormal(request: APIRequestContext, channelID: string, message: string, attachments: unknown): Promise<number> {
+	const data: MattermostPostBody = { channel_id: channelID, message };
 	if (attachments) data.props = { attachments };
 	const response = await request.post(mattermostPath('/api/v4/posts'), { headers: { Authorization: `Bearer ${botToken}` }, data });
 	return response.status();
 }
 
-async function postEphemeral(request, userID: string, channelID: string, message: string, attachments: unknown): Promise<number> {
-	const post: any = { channel_id: channelID, message };
+async function postEphemeral(
+	request: APIRequestContext,
+	userID: string,
+	channelID: string,
+	message: string,
+	attachments: unknown
+): Promise<number> {
+	const post: MattermostPostBody = { channel_id: channelID, message };
 	if (attachments) post.props = { attachments };
 	const response = await request.post(mattermostPath('/api/v4/posts/ephemeral'), { headers: { Authorization: `Bearer ${botToken}` }, data: { user_id: userID, post } });
 	return response.status();
 }
 
-async function apiJson(request, path: string, field: string): Promise<string> {
+async function apiJson(request: APIRequestContext, path: string, field: string): Promise<string> {
 	const response = await request.get(mattermostPath(path), { headers: { Authorization: `Bearer ${botToken}` } });
-	const body = await response.json();
+	const body: unknown = await response.json();
+	if (!isRecord(body) || typeof body[field] !== 'string') {
+		throw new Error(`Mattermost API response did not include string field "${field}" for ${path}`);
+	}
 	return body[field];
 }
 
-async function signIn(page): Promise<void> {
+async function signIn(page: Page): Promise<void> {
 	await page.goto(mattermostURL, { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await page.goto(mattermostPath('/login'), { waitUntil: 'domcontentloaded' });
@@ -72,10 +89,10 @@ async function signIn(page): Promise<void> {
 	await loginInput.fill(requesterEmail);
 	await page.locator('input[type="password"]').first().fill(requesterPassword);
 	await page.getByRole('button', { name: /^\s*(log in|sign in|로그인)\s*$/i }).first().click();
-	await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
+	await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 20000 }).catch(() => {});
 }
 
-async function dismissLandingPage(page): Promise<void> {
+async function dismissLandingPage(page: Page): Promise<void> {
 	const viewInBrowser = page.getByRole('link', { name: /view in browser/i }).first();
 	if ((await viewInBrowser.count()) > 0 && (await viewInBrowser.isVisible().catch(() => false))) {
 		await viewInBrowser.click().catch(() => {});
@@ -87,4 +104,8 @@ function mattermostPath(path: string): string {
 	const url = new URL(mattermostURL);
 	url.pathname = path;
 	return url.toString();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
