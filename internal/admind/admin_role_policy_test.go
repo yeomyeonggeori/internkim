@@ -234,13 +234,16 @@ func TestOperationsAdminPathPolicy(t *testing.T) {
 
 func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
+	rootPath := t.TempDir()
 	service := NewService(Configuration{
-		APIBaseURL:            "https://api.example.test",
-		ClaimedAdminEmailPath: writeTestFile(t, "owner@example.com"),
-		FleetIDPath:           writeTestFile(t, "dc719d8e"),
-		FleetSecretPath:       writeTestFile(t, "secret-value"),
-		StateDirectory:        t.TempDir(),
-		AdminUIPath:           t.TempDir(),
+		APIBaseURL:               "https://api.example.test",
+		ClaimedAdminEmailPath:    writeTestFile(t, "owner@example.com"),
+		FleetIDPath:              writeTestFile(t, "dc719d8e"),
+		FleetSecretPath:          writeTestFile(t, "secret-value"),
+		CalendarDatabasePath:     filepath.Join(rootPath, "calendar.sqlite"),
+		CalendarSecretsDirectory: filepath.Join(rootPath, "secrets", "google-oauth"),
+		StateDirectory:           filepath.Join(rootPath, "state"),
+		AdminUIPath:              t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {

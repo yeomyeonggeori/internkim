@@ -102,6 +102,26 @@ func TestServeCalendarAccountStatusReportsGoogleOAuthManagePermission(t *testing
 	}
 }
 
+func TestServeCalendarAccountStatusAllowsOperationsAdminToManageGoogleOAuth(t *testing.T) {
+	service := newOperationsAdminAuthorizationTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "http://admind.local/calendar/api/account-status", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
+	recorder := httptest.NewRecorder()
+
+	service.serveCalendarAccountStatus(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: %d", recorder.Code)
+	}
+	var body calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatalf("decode: %v", errorValue)
+	}
+	if !body.CanManageGoogleOAuth {
+		t.Error("CanManageGoogleOAuth should be true for operations admin requests")
+	}
+}
+
 func TestServeCalendarAccountStatusReportsConnectedHealthy(t *testing.T) {
 	service := newCalendarTestService(t)
 	seedAccountWithDiscovery(t, service)
@@ -132,6 +152,9 @@ func TestServeCalendarAccountStatusReportsConnectedHealthy(t *testing.T) {
 	}
 	if body.InitialSyncCompleted {
 		t.Error("InitialSyncCompleted should be false without selected calendar")
+	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusCalendarSelectionRequired {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
 	}
 }
 
@@ -165,6 +188,9 @@ func TestServeCalendarAccountStatusReportsSelectedCalendar(t *testing.T) {
 	if !body.CalendarSyncReady {
 		t.Error("CalendarSyncReady should be true with selected calendar, completed initial sync, and no auth error")
 	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusSyncReady {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
+	}
 }
 
 func TestServeCalendarAccountStatusWaitsForInitialSync(t *testing.T) {
@@ -188,6 +214,9 @@ func TestServeCalendarAccountStatusWaitsForInitialSync(t *testing.T) {
 	if body.CalendarSyncReady {
 		t.Error("CalendarSyncReady should be false until initial sync completes")
 	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusInitialSyncPending {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
+	}
 }
 
 func TestServeCalendarAccountStatusRequiresWritableCalendar(t *testing.T) {
@@ -210,6 +239,9 @@ func TestServeCalendarAccountStatusRequiresWritableCalendar(t *testing.T) {
 	}
 	if body.CalendarSyncReady {
 		t.Error("CalendarSyncReady should be false for read-only calendars")
+	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusWritePermissionRequired {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
 	}
 }
 
@@ -237,6 +269,33 @@ func TestServeCalendarAccountStatusFlagsReauthOnAuthError(t *testing.T) {
 	}
 	if body.CalendarSyncReady {
 		t.Error("CalendarSyncReady should be false when reauth is required")
+	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusReauthRequired {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
+	}
+}
+
+func TestServeCalendarAccountStatusReportsCalendarInaccessible(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account = seedSelectedCalendar(t, service, ctx, account, "writer", true)
+	account.SelectedCalendarReadinessStatus = calendarReadinessStatusCalendarInaccessible
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+		t.Fatalf("save readiness status: %v", errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	recorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(recorder, request)
+	var body calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatalf("decode: %v", errorValue)
+	}
+	if body.CalendarSyncReady {
+		t.Error("CalendarSyncReady should be false when selected calendar is inaccessible")
+	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusCalendarInaccessible {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
 	}
 }
 
