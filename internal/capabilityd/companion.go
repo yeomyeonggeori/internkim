@@ -52,6 +52,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "web.fetch", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
 	{ToolName: "document.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDocumentReadTool},
 	{ToolName: "image.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageReadTool},
+	{ToolName: "image.generate", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageGenerateTool},
 	{ToolName: "artifact.review", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeArtifactReviewTool},
 	{ToolName: "task.add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
 	{ToolName: "task.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
