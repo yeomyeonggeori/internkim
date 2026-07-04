@@ -1476,6 +1476,7 @@ def build_evaluation_command(evaluation: dict, resultDirectory: Path, diagnostic
         command.append("--reuse")
     if evaluation["artifactKind"] == "website":
         command.append("--expect-public-url")
+        command.append("--auto-confirm")
     for expectedTool in evaluation.get("expectedTools", []):
         command.extend(["--expect-tool", expectedTool])
     if evaluation["outputFileName"]:
