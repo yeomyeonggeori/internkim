@@ -1572,22 +1572,84 @@ wait_for_blueclaw_health() {
   return 1
 }
 
+reset_chromium_state() {
+  pkill -f chromium 2>/dev/null || true
+  pkill -f chrome 2>/dev/null || true
+  sleep 1
+}
+
+site_capture_chroot_base=""
+
+prepare_rootfs_browser_chroot() {
+  local rootfs_image="/opt/internkim/blueclaw-runtime/rootfs.ext4"
+  [ -f "$rootfs_image" ] || return 1
+  site_capture_chroot_base="$(mktemp -d /tmp/internkim-site-browser-XXXXXX)"
+  mkdir -p "$site_capture_chroot_base/lower" "$site_capture_chroot_base/upper" "$site_capture_chroot_base/work" "$site_capture_chroot_base/root"
+  mount -o loop,ro,noload "$rootfs_image" "$site_capture_chroot_base/lower" || return 1
+  mount -t overlay overlay \
+    -o "lowerdir=$site_capture_chroot_base/lower,upperdir=$site_capture_chroot_base/upper,workdir=$site_capture_chroot_base/work" \
+    "$site_capture_chroot_base/root" || return 1
+  mount --bind /proc "$site_capture_chroot_base/root/proc" || return 1
+  mount --bind /dev "$site_capture_chroot_base/root/dev" || return 1
+  mount --bind /tmp "$site_capture_chroot_base/root/tmp" || return 1
+  rm -f "$site_capture_chroot_base/root/etc/resolv.conf"
+  cat /etc/resolv.conf > "$site_capture_chroot_base/root/etc/resolv.conf" 2>/dev/null || true
+  return 0
+}
+
+cleanup_rootfs_browser_chroot() {
+  [ -n "$site_capture_chroot_base" ] || return 0
+  umount "$site_capture_chroot_base/root/tmp" 2>/dev/null || true
+  umount "$site_capture_chroot_base/root/dev" 2>/dev/null || true
+  umount "$site_capture_chroot_base/root/proc" 2>/dev/null || true
+  umount "$site_capture_chroot_base/root" 2>/dev/null || true
+  umount "$site_capture_chroot_base/lower" 2>/dev/null || true
+  rm -rf "$site_capture_chroot_base"
+  site_capture_chroot_base=""
+}
+
+run_site_browser() {
+  if [ -n "$site_capture_chroot_base" ]; then
+    timeout 45s chroot "$site_capture_chroot_base/root" /usr/bin/chromium "$@"
+    return $?
+  fi
+  timeout 45s "$site_browser_path" "$@"
+}
+
+launch_chromium_capture() {
+  local profile_dir
+  profile_dir="$(mktemp -d)"
+  run_site_browser --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+    --user-data-dir="$profile_dir" --virtual-time-budget=8000 "$@"
+  local exit_code=$?
+  rm -rf "$profile_dir"
+  return "$exit_code"
+}
+
 capture_site_screenshots() {
   local public_url="$1"
-  local browser_path
-  browser_path="$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)"
-  if [ -z "$browser_path" ]; then
-    echo "expected Chromium-compatible browser for site screenshot verification" >&2
+  reset_chromium_state
+  site_browser_path="$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)"
+  if [ -z "$site_browser_path" ] && ! prepare_rootfs_browser_chroot; then
+    cleanup_rootfs_browser_chroot
+    echo "expected Chromium-compatible browser or Blueclaw runtime rootfs image for site screenshot verification" >&2
     return 1
   fi
   desktop_screenshot_file="/tmp/internkim-site-$timestamp-desktop.png"
   mobile_screenshot_file="/tmp/internkim-site-$timestamp-mobile.png"
-  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=1440,1000 \
-    --screenshot="$desktop_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-desktop.log 2>&1
-  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=390,900 \
-    --screenshot="$mobile_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-mobile.log 2>&1
-  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --window-size=1440,1000 \
-    --dump-dom "$public_url" > "$site_dom_file" 2>/tmp/internkim-site-dom.log
+  site_screenshot_desktop_log="/tmp/internkim-site-screenshot-desktop-$timestamp.log"
+  site_screenshot_mobile_log="/tmp/internkim-site-screenshot-mobile-$timestamp.log"
+  site_dom_log="/tmp/internkim-site-dom-$timestamp.log"
+  launch_chromium_capture \
+    --hide-scrollbars --window-size=1440,1000 --screenshot="$desktop_screenshot_file" "$public_url" \
+    >"$site_screenshot_desktop_log" 2>&1 || true
+  launch_chromium_capture \
+    --hide-scrollbars --window-size=390,900 --screenshot="$mobile_screenshot_file" "$public_url" \
+    >"$site_screenshot_mobile_log" 2>&1 || true
+  launch_chromium_capture \
+    --window-size=1440,1000 --dump-dom "$public_url" \
+    > "$site_dom_file" 2>"$site_dom_log" || true
+  cleanup_rootfs_browser_chroot
   python3 - "$site_dom_file" "$site_html_raw_file" <<'PY'
 from pathlib import Path
 import sys
@@ -1755,9 +1817,17 @@ PY
   then
     printf '{}' > "$site_style_metrics_file"
   fi
-  test -s "$desktop_screenshot_file"
-  test -s "$mobile_screenshot_file"
-  test -s "$site_text_file"
+  if test -s "$desktop_screenshot_file" && test -s "$mobile_screenshot_file" && test -s "$site_text_file"; then
+    return 0
+  fi
+  echo "site screenshot capture failed; chromium diagnostics follow" >&2
+  echo "--- desktop screenshot log ($site_screenshot_desktop_log) ---" >&2
+  tail -c 4000 "$site_screenshot_desktop_log" >&2 2>/dev/null || true
+  echo "--- mobile screenshot log ($site_screenshot_mobile_log) ---" >&2
+  tail -c 4000 "$site_screenshot_mobile_log" >&2 2>/dev/null || true
+  echo "--- dump-dom log ($site_dom_log) ---" >&2
+  tail -c 4000 "$site_dom_log" >&2 2>/dev/null || true
+  return 1
 }
 
 write_site_screenshots_json() {
