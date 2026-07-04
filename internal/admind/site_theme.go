@@ -65,23 +65,47 @@ func applySiteDesignTheme(hostSourcePath string, frontendDistPath string) error 
 	return os.WriteFile(themeCSSPath, []byte(renderSiteThemeCSS(theme)), 0o644)
 }
 
+// parseSiteDesignTheme validates the entire front-matter contract in one
+// pass and joins every violation into a single error. A model fixing
+// DESIGN.md gets the complete list of what is still wrong on its very next
+// retry instead of discovering problems one at a time as each fix uncovers
+// the next incremental validation failure.
 func parseSiteDesignTheme(document string) (siteTheme, error) {
 	frontMatter, errorValue := extractSiteDesignFrontMatter(document)
 	if errorValue != nil {
 		return siteTheme{}, errorValue
 	}
-	if errorValue := requireSiteDesignFrontMatterKeys(frontMatter); errorValue != nil {
-		return siteTheme{}, errorValue
+
+	missingKeys := missingSiteDesignFrontMatterKeys(frontMatter)
+	validationErrors := []string{}
+	if len(missingKeys) > 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("missing required front matter keys: %s", strings.Join(missingKeys, ", ")))
 	}
+
 	colors := parseSiteDesignNestedBlock(frontMatter, "colors")
-	primaryColor, errorValue := normalizeSiteDesignHexColor(colors["primary"])
-	if errorValue != nil {
-		return siteTheme{}, fmt.Errorf("colors.primary %s", errorValue.Error())
+	primaryColor, primaryColorError := normalizeSiteDesignHexColor(colors["primary"])
+	if primaryColorError != nil && !containsSiteDesignKey(missingKeys, "colors") {
+		validationErrors = append(validationErrors, fmt.Sprintf("colors.primary %s", primaryColorError.Error()))
 	}
-	backgroundColor, errorValue := normalizeSiteDesignHexColor(colors["background"])
-	if errorValue != nil {
-		return siteTheme{}, fmt.Errorf("colors.background %s", errorValue.Error())
+	backgroundColor, backgroundColorError := normalizeSiteDesignHexColor(colors["background"])
+	if backgroundColorError != nil && !containsSiteDesignKey(missingKeys, "colors") {
+		validationErrors = append(validationErrors, fmt.Sprintf("colors.background %s", backgroundColorError.Error()))
 	}
+
+	headingFontFamily, bodyFontFamily, typographyError := parseSiteDesignTypographyFontFamilies(frontMatter)
+	if typographyError != nil && !containsSiteDesignKey(missingKeys, "typography") {
+		validationErrors = append(validationErrors, typographyError.Error())
+	}
+
+	radiusValue, radiusError := parseSiteDesignRadiusValue(frontMatter)
+	if radiusError != nil && !containsSiteDesignKey(missingKeys, "rounded") {
+		validationErrors = append(validationErrors, "rounded "+radiusError.Error())
+	}
+
+	if len(validationErrors) > 0 {
+		return siteTheme{}, errors.New(strings.Join(validationErrors, "; "))
+	}
+
 	foregroundColor, hasExplicitForeground := normalizeSiteDesignOptionalHexColor(colors["foreground"])
 	if !hasExplicitForeground {
 		foregroundColor = readableForegroundColor(backgroundColor)
@@ -89,14 +113,6 @@ func parseSiteDesignTheme(document string) (siteTheme, error) {
 	accentColor, hasExplicitAccent := normalizeSiteDesignOptionalHexColor(colors["accent"])
 	if !hasExplicitAccent {
 		accentColor = primaryColor
-	}
-	headingFontFamily, bodyFontFamily, errorValue := parseSiteDesignTypographyFontFamilies(frontMatter)
-	if errorValue != nil {
-		return siteTheme{}, errorValue
-	}
-	radiusValue, errorValue := parseSiteDesignRadiusValue(frontMatter)
-	if errorValue != nil {
-		return siteTheme{}, errorValue
 	}
 	return siteTheme{
 		PrimaryColor:      primaryColor,
@@ -149,17 +165,23 @@ func extractSiteDesignFrontMatter(document string) (string, error) {
 	return document[4 : 4+relativeEndIndex], nil
 }
 
-func requireSiteDesignFrontMatterKeys(frontMatter string) error {
+func missingSiteDesignFrontMatterKeys(frontMatter string) []string {
 	missingKeys := []string{}
 	for _, key := range siteDesignFrontMatterRequiredKeyOrder {
 		if !siteDesignFrontMatterRequiredKeyPatterns[key].MatchString(frontMatter) {
 			missingKeys = append(missingKeys, key)
 		}
 	}
-	if len(missingKeys) > 0 {
-		return fmt.Errorf("missing required front matter keys: %s", strings.Join(missingKeys, ", "))
+	return missingKeys
+}
+
+func containsSiteDesignKey(keys []string, key string) bool {
+	for _, candidateKey := range keys {
+		if candidateKey == key {
+			return true
+		}
 	}
-	return nil
+	return false
 }
 
 // parseSiteDesignNestedBlock extracts a flat two-space-indented key/value
@@ -270,7 +292,7 @@ func parseSiteDesignRadiusValue(frontMatter string) (string, error) {
 		}
 		return radiusValueFromNestedScale(lines[lineIndex+1:])
 	}
-	return "", errors.New("rounded value could not be determined")
+	return "", errors.New("value could not be determined")
 }
 
 func radiusValueFromNestedScale(remainingLines []string) (string, error) {
@@ -302,7 +324,7 @@ func radiusValueFromNestedScale(remainingLines []string) (string, error) {
 	if firstNestedKey != "" {
 		return normalizeSiteDesignLengthValue(nestedValues[firstNestedKey])
 	}
-	return "", errors.New("rounded value could not be determined")
+	return "", errors.New("value could not be determined")
 }
 
 func normalizeSiteDesignLengthValue(value string) (string, error) {
