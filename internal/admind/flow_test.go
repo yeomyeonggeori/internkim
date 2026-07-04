@@ -1,11 +1,23 @@
 package admind
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+func TestFlowStaffActorWithoutDeviceAuthIsolatesToTenantAdmin(t *testing.T) {
+	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin03@example.test")})
+
+	if !service.isFlowStaffActor(context.Background(), "admin03@example.test") {
+		t.Fatal("tenant's own seed admin must keep flow staff access without device auth")
+	}
+	if service.isFlowStaffActor(context.Background(), "admin10@example.test") {
+		t.Fatal("foreign tenant account must not gain flow staff access without device auth")
+	}
+}
 
 func TestFlowTasksWithMatchingDatesUsesStartAndEndDateOnly(t *testing.T) {
 	tasks := []flowTask{
