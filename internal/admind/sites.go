@@ -95,6 +95,7 @@ type SiteRecord struct {
 	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
 	LastError           string             `json:"lastError,omitempty"`
 	LiveHTTPStatus      int                `json:"liveHTTPStatus,omitempty"`
+	NextOperation       string             `json:"nextOperation,omitempty"`
 }
 
 type siteCreateRequest struct {
@@ -726,7 +727,26 @@ func siteAPIResponse(site *SiteRecord) *SiteRecord {
 		copiedSite.AppWorkspacePath = filepath.ToSlash(filepath.Join(personalDraftPath, "app"))
 		copiedSite.WorkspacePath = siteOwnerProjectWorkspacePath(&copiedSite)
 	}
+	copiedSite.NextOperation = siteNextOperation(&copiedSite)
 	return &copiedSite
+}
+
+// siteNextOperation gives the agent a deterministic, machine-actionable next
+// step for the site's current lifecycle status. It carries no user-facing
+// prose; it is a routing hint the model can act on directly.
+func siteNextOperation(site *SiteRecord) string {
+	switch site.Status {
+	case SiteStatusDraft:
+		return "site.create succeeded and is not published yet. Compose app/public/site-content.json, then call site.publish with siteID=" + site.SiteID + " when the content is ready. Do not call site.create again for this site."
+	case SiteStatusPublishing:
+		return "publish is in progress. Call site.status with siteID=" + site.SiteID + " again to check for completion."
+	case SiteStatusUnpublished:
+		return "site is unpublished. Call site.publish with siteID=" + site.SiteID + " to republish, or site.restore if this was not intended."
+	case SiteStatusFailed:
+		return "last operation failed (see lastError). Call site.repair with siteID=" + site.SiteID + " to re-materialize the workspace, or fix the reported cause and retry the same operation."
+	default:
+		return ""
+	}
 }
 
 func (service *Service) writeSiteLogs(responseWriter http.ResponseWriter, request *http.Request, siteID string) {

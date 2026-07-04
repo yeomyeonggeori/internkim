@@ -230,11 +230,11 @@ func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInp
 		}
 		switch len(sites) {
 		case 0:
-			return json.Marshal(map[string]any{"status": "not_found", "slug": input.Slug, "candidates": []siteAppRecord{}})
+			return json.Marshal(map[string]any{"status": "not_found", "slug": input.Slug, "candidates": []siteAppRecord{}, "nextOperation": siteStatusNotFoundNextOperation})
 		case 1:
 			return service.getAdmindSiteStatusByID(ctx, sites[0].SiteID, input)
 		default:
-			return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites)})
+			return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites), "nextOperation": siteStatusAmbiguousNextOperation})
 		}
 	}
 	sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
@@ -243,13 +243,22 @@ func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInp
 	}
 	switch len(sites) {
 	case 0:
-		return json.Marshal(map[string]any{"status": "not_found", "candidates": []siteAppRecord{}})
+		return json.Marshal(map[string]any{"status": "not_found", "candidates": []siteAppRecord{}, "nextOperation": siteStatusNotFoundNextOperation})
 	case 1:
 		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(sites[0].SiteID))
 	default:
-		return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites)})
+		return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites), "nextOperation": siteStatusAmbiguousNextOperation})
 	}
 }
+
+// siteStatusNotFoundNextOperation and siteStatusAmbiguousNextOperation are
+// deterministic routing hints, not user-facing prose: they tell the model
+// what to do next instead of leaving it to re-poll site.status with no new
+// information.
+const (
+	siteStatusNotFoundNextOperation  = "no site matched. Call site.create with a slug and the other descriptive fields to create one. Calling site.status again first will not change this result."
+	siteStatusAmbiguousNextOperation = "multiple sites matched. Ask the user which one, or resolve using slug or siteID from the candidates, then retry with siteID set."
+)
 
 func (service Service) getAdmindSiteStatusByID(ctx context.Context, siteID string, input siteAppInput) (json.RawMessage, error) {
 	document, errorValue := service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID))
