@@ -143,6 +143,32 @@ func TestParseSiteDesignThemeMissingRequiredKeys(t *testing.T) {
 	}
 }
 
+func TestParseSiteDesignThemeCollectsAllErrorsInOneShot(t *testing.T) {
+	document := "---\n" +
+		"colors:\n" +
+		"  foreground: \"#000000\"\n" +
+		"typography:\n" +
+		"  heading:\n" +
+		"    fontSize: 24px\n" +
+		"rounded: not-a-length\n" +
+		"---\n"
+	_, errorValue := parseSiteDesignTheme(document)
+	if errorValue == nil {
+		t.Fatal("expected a validation error")
+	}
+	for _, expectedSubstring := range []string{
+		"missing required front matter keys: spacing, components",
+		"colors.primary",
+		"colors.background",
+		"fontFamily",
+		"rounded",
+	} {
+		if !strings.Contains(errorValue.Error(), expectedSubstring) {
+			t.Fatalf("expected one-shot error to mention %q, got %v", expectedSubstring, errorValue)
+		}
+	}
+}
+
 func TestParseSiteDesignThemeInvalidPrimaryColor(t *testing.T) {
 	document := "---\n" +
 		"colors:\n" +
@@ -322,6 +348,45 @@ func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "DESIGN.md front matter is invalid") {
 		t.Fatalf("expected invalid DESIGN.md rejection, got %v", errorValue)
+	}
+}
+
+func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "fully-invalid-design", Title: "Fully Invalid Design"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), "---\n"+
+		"colors:\n"+
+		"  foreground: \"#000000\"\n"+
+		"typography:\n"+
+		"  heading:\n"+
+		"    fontSize: 24px\n"+
+		"rounded: not-a-length\n"+
+		"---\n")
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil {
+		t.Fatal("expected publish to reject the fully-invalid DESIGN.md")
+	}
+	for _, expectedSubstring := range []string{
+		"missing required front matter keys: spacing, components",
+		"colors.primary",
+		"colors.background",
+		"fontFamily",
+		"rounded",
+	} {
+		if !strings.Contains(errorValue.Error(), expectedSubstring) {
+			t.Fatalf("expected the single publish error to mention %q, got %v", expectedSubstring, errorValue)
+		}
 	}
 }
 
