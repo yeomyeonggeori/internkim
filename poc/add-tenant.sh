@@ -41,6 +41,7 @@ container exec poc-postgres psql -U "$PSQL_USER" -d postgres -c "CREATE DATABASE
 step "[3/8] mattermost"
 MM() { container exec poc-mattermost mmctl --local "$@"; }
 MM team create --name "$TEAM" --display-name "Tenant $INDEX" 2>/dev/null || echo "team exists"
+MM team modify "$TEAM" --private >/dev/null 2>&1 || true
 MM user create --email "$BOT@intern.kim" --username "$BOT" --password "$(openssl rand -base64 24 | tr -d '=+/' | cut -c1-20)" --firstname Intern --lastname Kim --nickname "$BOT_NICKNAME" 2>/dev/null || echo "bot exists"
 MM team users add "$TEAM" "$BOT" >/dev/null 2>&1 || true
 MM user create --email "$ADMIN@intern.kim" --username "$ADMIN" --password "$ADMINPW" 2>/dev/null || echo "admin exists"
