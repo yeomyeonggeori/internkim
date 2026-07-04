@@ -187,8 +187,21 @@ func (state *nativeSchemaLintState) normalizeDocument(document map[string]any, p
 	if hasNullableType {
 		state.normalizeNullableEnum(result, path)
 	}
+	state.removeNonStringEnum(result, path)
 	state.validateDocument(result, path)
 	return result, hasNullableType
+}
+
+func (state *nativeSchemaLintState) removeNonStringEnum(document map[string]any, path string) {
+	typeName, isString := document["type"].(string)
+	if !isString || typeName == "string" {
+		return
+	}
+	if _, hasEnum := document["enum"]; !hasEnum {
+		return
+	}
+	delete(document, "enum")
+	state.result.NormalizationsApplied = append(state.result.NormalizationsApplied, path+": removed enum from "+typeName+" type")
 }
 
 func (state *nativeSchemaLintState) normalizeProperties(value any, path string, depth int, requiredFields []string, nullableProperties map[string]bool) map[string]any {
