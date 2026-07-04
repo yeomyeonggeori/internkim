@@ -1649,12 +1649,19 @@ func frontendSourcePathIsIgnored(relativePath string) bool {
 }
 
 // frontendSourceTopLevelPathIsIgnored excludes the top-level app/public
-// directory from staleness checks — content-only edits there (e.g.
-// site-content.json) never require a rebuild. This is a prefix check rather
-// than an any-component match so a nested directory named "public" deeper in
-// app/src is still tracked.
+// directory and app/DESIGN.md from staleness checks — content-only edits
+// there (e.g. site-content.json, DESIGN.md) never require a rebuild.
+// DESIGN.md is applied to theme.css at publish time (see
+// applySiteDesignTheme), not baked into the Vite build, matching Blueclaw's
+// own pathIsSiteDesignOrControlFile classification of DESIGN.md as a
+// no-rebuild-needed control file. This is a prefix check rather than an
+// any-component match so a nested directory named "public" deeper in app/src
+// is still tracked.
 func frontendSourceTopLevelPathIsIgnored(relativePath string) bool {
 	cleanRelativePath := filepath.ToSlash(filepath.Clean(relativePath))
+	if cleanRelativePath == siteDesignDocumentPath {
+		return true
+	}
 	return cleanRelativePath == "public" || strings.HasPrefix(cleanRelativePath, "public/")
 }
 
