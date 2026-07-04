@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -82,6 +83,7 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 		if errorValue == nil {
 			return response, nil
 		}
+		log.Printf("native action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
 		nativeErrors = append(nativeErrors, modelAttemptError(modelName, errorValue))
 	}
 	fallbackErrors := []error{}

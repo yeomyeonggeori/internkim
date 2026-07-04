@@ -315,6 +315,14 @@ func modelAttemptError(modelName string, errorValue error) error {
 	return errors.New(normalizedModelName + ": " + errorValue.Error())
 }
 
+func truncatedAttemptErrorText(errorValue error) string {
+	text := errorValue.Error()
+	if len(text) > 300 {
+		return text[:300] + "...(truncated)"
+	}
+	return text
+}
+
 func joinedErrors(errorValues []error) string {
 	values := []string{}
 	for _, errorValue := range errorValues {
