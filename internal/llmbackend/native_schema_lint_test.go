@@ -43,6 +43,37 @@ func TestNormalizeNativeSchemaConvertsNullableTypeArrayAndRemovesRequiredField(t
 	}
 }
 
+func TestNormalizeNativeSchemaRemovesBooleanEnum(t *testing.T) {
+	normalizedSchema, lintResult := NormalizeNativeSchema(json.RawMessage(`{
+		"type":"object",
+		"properties":{
+			"goalSatisfied":{"type":"boolean","enum":[true]},
+			"goalStatus":{"type":"string","enum":["satisfied"]}
+		},
+		"required":["goalSatisfied","goalStatus"]
+	}`))
+
+	if len(lintResult.RemainingViolations) != 0 {
+		t.Fatalf("expected boolean enum schema to normalize without violations, got %+v", lintResult)
+	}
+	var document map[string]any
+	if errorValue := json.Unmarshal(normalizedSchema, &document); errorValue != nil {
+		t.Fatalf("expected normalized schema JSON: %v", errorValue)
+	}
+	properties := document["properties"].(map[string]any)
+	goalSatisfied := properties["goalSatisfied"].(map[string]any)
+	if _, isFound := goalSatisfied["enum"]; isFound {
+		t.Fatalf("expected boolean enum removed, got %+v", goalSatisfied)
+	}
+	goalStatus := properties["goalStatus"].(map[string]any)
+	if _, isFound := goalStatus["enum"]; !isFound {
+		t.Fatalf("expected string enum kept, got %+v", goalStatus)
+	}
+	if !requiredContains(stringSliceFromNativeSchema(document["required"]), "goalSatisfied") {
+		t.Fatalf("expected goalSatisfied to stay required, got %+v", document["required"])
+	}
+}
+
 func TestNormalizeNativeSchemaConvertsIntegerToNumber(t *testing.T) {
 	normalizedSchema, lintResult := NormalizeNativeSchema(json.RawMessage(`{"type":"object","properties":{"count":{"type":"integer"}}}`))
 
