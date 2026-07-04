@@ -736,6 +736,44 @@ func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 	}
 }
 
+// TestSiteDesignDocumentChangeRepublishesWithoutBuild guards against a
+// regression where writing app/DESIGN.md alone (no app/src or public/
+// changes) falsely tripped the app/dist staleness check. DESIGN.md is
+// rendered into theme.css at publish time (applySiteDesignTheme), not baked
+// into the Vite build, so it must never require a rebuild — matching
+// Blueclaw's own pathIsSiteDesignOrControlFile classification.
+func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "design-only-republish", Title: "Design Only"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	designPath := filepath.Join(site.HostSourcePath, "DESIGN.md")
+	writeFile(t, designPath, validSiteDesignMarkdownWithColors("#336699", "#ffffff"))
+	setFileModTime(t, designPath, time.Now().UTC().Add(2*time.Hour))
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected DESIGN.md-only edit to publish without a rebuild, got %v", errorValue)
+	}
+}
+
 func TestSiteModifiedSourceWithoutRebuildIsRejected(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "modified-source", Title: "Modified Source"})
