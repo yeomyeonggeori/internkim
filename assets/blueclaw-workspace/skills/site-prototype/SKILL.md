@@ -11,7 +11,7 @@ completion:
 
 # Site Prototype
 
-Use this skill for website and web app prototypes. Run site, browser, and review operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The site operations are `site.create`, `site.preview`, `site.publish`, `site.status`, `site.history`, `site.diff`, `site.logs`, `site.rollback`, `site.unpublish`, `site.restore`, and `site.delete`; review is `artifact.review`. Basic creation and content edits need no build step; `terminal.run` (`bun scripts/build.ts`) is only for structural changes under `app/src/**` or scaffold config.
+Use this skill for website and web app prototypes. Run site, browser, and review operations through the capability.invoke tool: set `operation` to the operation name (`site.create`, `site.preview`, `site.publish`, `site.status`, `site.history`, `site.diff`, `site.logs`, `site.rollback`, `site.unpublish`, `site.restore`, `site.delete`, or `artifact.review`) and `input` to that operation's fields as one JSON object written inside a string, e.g. `"{\"siteID\":\"abc123\"}"` — never empty. Basic creation and content edits need no build step; `terminal.run` (`bun scripts/build.ts`) is only for structural changes under `app/src/**` or scaffold config.
 
 Create validation prototypes, not production software. Do not claim production readiness, compliance, SLA, paid hosting, payment support, real customer workflows, or external integrations unless the user explicitly requests and confirms that path.
 
@@ -29,8 +29,8 @@ Block copy must be realistic, specific prose for the requested business — real
 - Reuse the shadcn primitives in `app/src/components/ui/*` (Button, Card, Badge, Input, Tabs, Dialog, etc.) and the block components in `app/src/blocks/*`. Keep the black-on-white default unless the request asks otherwise.
 - Use PocketBase only when the prototype needs local data, auth, files, realtime, or migrations.
 - Do not add Next.js, SvelteKit, Node servers, cloud databases, hosted backends, or paid APIs unless the user explicitly asks and accepts the cost/reliability tradeoff.
-- Use system fonts by default. If embedding fonts, use WOFF2 assets with `@font-face` and `format("woff2")`; do not paste base64 fonts or rely on CDN-only fonts.
-- Treat returned `sourceWorkspacePath` and `appWorkspacePath` as canonical. Do not rewrite them to private POSIX paths.
+- Use system fonts by default; embed fonts only as WOFF2 with `@font-face`/`format("woff2")`, never base64 or CDN-only fonts.
+- Treat returned `sourceWorkspacePath` and `appWorkspacePath` as canonical; do not rewrite them to private POSIX paths.
 
 ## Block Library
 
@@ -45,28 +45,38 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Create, Update, Publish
 
-Website creation and update requests are incomplete until the site.publish operation succeeds and a final site.status operation returns `published`. A preview URL is only a draft.
+Website creation and update requests are incomplete until the site.publish operation succeeds and a final site.status operation returns `published`. A preview URL is only a draft. site.create is synchronous: a successful call returns the full site record immediately (`status: "draft"`, plus `siteID`) — there is no build to wait for, so never call site.status in a loop hoping create "finishes."
 
-1. Call the site.status operation with the known `siteID`, slug, or empty input for the current conversation.
+1. Call the site.status operation once with the known `siteID`, slug, or empty input for the current conversation. Do not call it again until an action you took (create, publish, or a content change) could change the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
-3. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. The front matter is not a note to self — publish renders `colors` and `typography` into `theme.css`, so picking them is required on every create or update, not only for unusual requests.
-4. Call the site.create operation with a DNS-safe slug, title, description, idea, purpose, audience, archetype, domain keywords, and simple bootstrap content; then call status. A basic create needs no build step.
-5. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided.
-6. If `workspaceHealth` is `missing` or `permission_problem`, call the site.status operation again to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
-7. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
-8. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
-9. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
-10. For a content-only change — copy, tagline, block text, block order, or block additions/removals with no new component — rewrite `app/public/site-content.json` directly and skip straight to step 16 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
-11. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
-12. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
-13. Only after a structural change (step 11) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 10) needs no build step.
-14. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
-15. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
-16. Write `.internkim/review-log.json` with attempts, reviewed artifacts, issues, changes made, remaining notes, and screenshot paths or `visualReviewUnavailable: true`.
-17. Revise and rebuild when screenshots or review notes show useful improvements and budget remains; repeat at most three times.
-18. Call the site.publish operation with `siteID` and a concise revision message.
-19. Call the site.status operation again and confirm `status` is `published`.
-20. Reply with the public URL, what changed, how to try the main workflow, rollback availability, and test credentials only when login exists.
+3. If status is `not_found`, go straight to step 5 (site.create). Calling site.status again first changes nothing — it only becomes something other than `not_found` after site.create succeeds.
+4. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. Publish renders `colors` and `typography` into `theme.css`, so pick them before site.create on every create or update.
+5. Call the site.create operation **exactly once**, with `input` holding every field as one JSON object written inside a string — never empty. `slug` is the only required field, but always include `title`, `description`, `idea`, `purpose`, `audience`, `archetype`, and `domainKeywords` in that same call so the record starts complete. Example call:
+
+   ```json
+   {
+     "operation": "site.create",
+     "input": "{\"slug\":\"banchan-table\",\"title\":\"Banchan Table Reservations\",\"description\":\"Weekly Korean meal-kit pickup reservation prototype\",\"idea\":\"Let busy Seoul households reserve a Thursday meal kit for weekend pickup\",\"purpose\":\"Test whether users understand the reservation flow without explanation\",\"audience\":\"busy single-person households in Seoul\",\"archetype\":\"booking\",\"domainKeywords\":[\"reservation\",\"meal-kit\",\"pickup\"]}"
+   }
+   ```
+
+   If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time. Never call site.create a third time for the same site, never resend the same failing input unchanged, and never substitute polling site.status for fixing the input — status cannot repair a create that never succeeded. If the second attempt also fails, stop and report the failure instead of retrying further.
+6. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided.
+7. If `workspaceHealth` is `missing` or `permission_problem`, call site.status once more to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
+8. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
+9. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
+10. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
+11. For a content-only change — copy, tagline, block text, block order, or block additions/removals with no new component — rewrite `app/public/site-content.json` directly and skip straight to step 19 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
+12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
+13. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
+14. Only after a structural change (step 12) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 11) needs no build step.
+15. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
+16. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
+17. Write `.internkim/review-log.json` with attempts, reviewed artifacts, issues, changes made, remaining notes, and screenshot paths or `visualReviewUnavailable: true`.
+18. Revise and rebuild when screenshots or review notes show useful improvements and budget remains; repeat at most three times.
+19. Call the site.publish operation with the `siteID` from step 5's create result (or step 1/3's status result) and a concise revision `message`: `{"operation": "site.publish", "input": "{\"siteID\":\"<siteID>\",\"message\":\"Initial reservation flow\"}"}`.
+20. Call the site.status operation again and confirm `status` is `published`.
+21. Reply with the public URL, what changed, how to try the main workflow, rollback availability, and test credentials only when login exists.
 
 Use this terminal shape when a structural change needs the fallback build:
 
@@ -83,11 +93,7 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 `DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme: publish renders them into `theme.css`, so an unconsidered front matter ships as the visible site.
 
-Default to black-on-white minimal styling unless the request clearly calls for another direction; even then, pick a palette deliberately, for example:
-
-- Editorial/portfolio: primary `#111111`, background `#ffffff`, accent `#2f6f4f`, heading serif / body sans
-- Consumer/playful: primary `#ff6b4a`, background `#fffaf3`, accent `#1c3b52`, heading rounded-sans / body sans
-- Technical/dashboard: primary `#2563eb`, background `#f8fafc`, accent `#0f172a`, heading sans / body sans
+Default to black-on-white minimal styling unless the request clearly calls for another direction; even then, pick a palette deliberately, for example: editorial/portfolio (`#111111` on `#ffffff`, accent `#2f6f4f`, serif/sans), consumer/playful (`#ff6b4a` on `#fffaf3`, accent `#1c3b52`, rounded-sans/sans), technical/dashboard (`#2563eb` on `#f8fafc`, accent `#0f172a`, sans/sans).
 
 Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
 
@@ -97,17 +103,15 @@ If login, saved records, files, realtime, reservations, admin state, or CRUD is 
 
 ## Follow-Ups
 
-For feedback in the same conversation, call the site.status operation with empty input or the known slug. Update the resolved site and publish the same URL. Read existing `DESIGN.md`, `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present.
+For feedback in the same conversation, call site.status once with empty input or the known slug, update the resolved site (never site.create again for it), and publish the same URL. Read existing `DESIGN.md`, `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from the status result to decide whether a follow-up should update this site.
 
-Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from site.status when deciding whether a follow-up should update an existing site.
-
-Short continuations such as "해줘", "진행", "좋아", "응", "게시해", "배포해", or "publish" mean finish the current site workflow. Resolve status, complete missing implementation, build, review, publish, and reply with the public URL. Do not ask for publish approval.
+Short continuations such as "해줘", "진행", "좋아", "응", "게시해", "배포해", or "publish" mean finish the current site workflow: resolve status, complete missing implementation, build, review, publish, and reply with the public URL. Do not ask for publish approval.
 
 ## Owner Audit and Destructive Actions
 
-When the user asks to check all requester-deployed sites, call the site.status operation with `scope=mine` and `checkLive=true`. Treat a site as dead when status is `failed`, workspace health is unusable, or live HTTP status is present and not `200`. Repair, build, publish, or restore each site and report outcomes.
+When the user asks to check all requester-deployed sites, call site.status with `scope=mine` and `checkLive=true`. Treat a site as dead when status is `failed`, workspace health is unusable, or live HTTP status is present and not `200`. Repair, build, publish, or restore each site and report outcomes.
 
-Do not ask approval for create, build, preview, publish, status, logs, or restore. site.publish is a normal completion step. Use `ask.confirm` before rollback, unpublish, or delete. For delete, call the site.delete operation only after confirmation succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
+Do not ask approval for create, build, preview, publish, status, logs, or restore — site.publish is a normal completion step. Use `ask.confirm` before rollback, unpublish, or delete. For delete, call site.delete only after confirmation succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
 
 ## Final Reply
 
