@@ -156,15 +156,14 @@ func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string)
 	if strings.TrimSpace(actorEmail) == "" {
 		return false
 	}
-	if !service.hasDeviceAuth() {
-		return true
-	}
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
-		for _, record := range records {
-			if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
-				return true
+	if fleetID != "" && fleetSecret != "" {
+		if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
+			for _, record := range records {
+				if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+					return true
+				}
 			}
 		}
 	}
