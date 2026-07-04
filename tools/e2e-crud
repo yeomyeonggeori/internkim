@@ -32,7 +32,7 @@ ADMIN_PASS="$(vmssh 'sudo cat /root/.internkim/secrets/mm-admin-pass' | tail -1)
 EVID="$ROOT/e2e-evidence"; mkdir -p "$EVID"
 
 # site- cases (site.create/site.publish scaffolding) need a stronger model than
-# the google/gemini-2.5-flash-lite default carries reliably, so a filter touching any site-
+# the xiaomi/mimo-v2.5 default carries reliably, so a filter touching any site-
 # case defaults to gemini instead; INTERNKIM_E2E_MODEL always wins when set.
 filter_includes_site_case() {
 	[ -z "$FILTER" ] && return 0
@@ -51,7 +51,7 @@ if [ -n "${INTERNKIM_E2E_MODEL:-}" ]; then
 elif filter_includes_site_case; then
 	MODEL="google/gemini-3.1-flash-lite"
 else
-	MODEL="google/gemini-2.5-flash-lite"
+	MODEL="xiaomi/mimo-v2.5"
 fi
 echo "fleet: $CFG"
 echo "mattermost: $MM_URL"
