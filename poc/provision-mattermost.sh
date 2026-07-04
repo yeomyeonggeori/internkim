@@ -30,6 +30,11 @@ echo "[provision] ensuring system admin user"
 mmctl user create --email admin@example.test --username admin --password "${adminPassword}" --system-admin 2>/dev/null \
   || echo "[provision] admin already exists"
 
+echo "[provision] locking down tenant-admin team permissions on shared server"
+for permission in create_team join_public_teams list_public_teams; do
+  mmctl permissions remove system_user "${permission}" 2>/dev/null || true
+done
+
 for number in $(seq 1 "${tenantCount}"); do
   index="$(printf '%02d' "${number}")"
   teamName="tenant${index}"
@@ -38,6 +43,7 @@ for number in $(seq 1 "${tenantCount}"); do
 
   mmctl team create --name "${teamName}" --display-name "Tenant ${index}" 2>/dev/null \
     || echo "[provision]   team exists"
+  mmctl team modify "${teamName}" --private 2>/dev/null || true
   mmctl team users add "${teamName}" admin 2>/dev/null || true
 
   agentPassword="$(generatePassword)"
