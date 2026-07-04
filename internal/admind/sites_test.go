@@ -205,6 +205,22 @@ func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
 	}
 }
 
+func TestSitePublishedURLFallsBackToFleetDomainWithoutDeviceURL(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	rootPath := t.TempDir()
+	service.Configuration.DeviceURLPath = filepath.Join(rootPath, "missing-device-url")
+	fleetIDPath := filepath.Join(rootPath, "fleet-id")
+	writeFile(t, fleetIDPath, "9rrfolb86o61")
+	service.Configuration.FleetIDPath = fleetIDPath
+
+	if publishedURL := service.sitePublishedURL("banchan-table-reservation"); publishedURL != "https://banchan-table-reservation.9rrfolb86o61.intern.kim" {
+		t.Fatalf("published url = %q", publishedURL)
+	}
+	if slug := service.siteSlugFromRequestHost("banchan-table-reservation.9rrfolb86o61.intern.kim"); slug != "banchan-table-reservation" {
+		t.Fatalf("slug from request host = %q", slug)
+	}
+}
+
 func TestSitePublishSurfacesPocketBaseRestartError(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	service.RunCommand = siteRestartErrorCommand

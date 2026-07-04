@@ -442,6 +442,9 @@ func (service *Service) siteSlugFromRequestHost(host string) string {
 	return slug
 }
 
+// deviceHost falls back to <fleetID>.intern.kim when the device-url file is
+// absent, matching publicDeviceURL and mattermostFlowBaseURL — a bare fleet ID
+// is not a resolvable host and would publish sites at unreachable URLs.
 func (service *Service) deviceHost() string {
 	deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath))
 	if deviceURL != "" {
@@ -450,7 +453,14 @@ func (service *Service) deviceHost() string {
 			return normalizeHTTPHost(parsedURL.Host)
 		}
 	}
-	return normalizeHTTPHost(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetID := normalizeHTTPHost(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	if fleetID == "" {
+		return ""
+	}
+	if strings.Contains(fleetID, ".") {
+		return fleetID
+	}
+	return fleetID + ".intern.kim"
 }
 
 func normalizeHTTPHost(host string) string {

@@ -51,6 +51,26 @@ Website creation and update requests are incomplete until the site.publish opera
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
 3. If status is `not_found`, go straight to step 5 (site.create). Calling site.status again first changes nothing — it only becomes something other than `not_found` after site.create succeeds.
 4. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. Write it at `sourceWorkspacePath` (a sibling of `app/`) — never at `app/DESIGN.md`; publish only looks for `DESIGN.md` at the source root, and misplacing it also falsely marks the build stale. Publish renders `colors` and `typography` into `theme.css`, so pick them before site.create on every create or update.
+
+   Publish validates the whole contract at once: all five top-level keys, `colors.primary`/`colors.background` as hex, one `typography` entry with `fontFamily`, and a resolvable `rounded`. Copy this minimal valid skeleton verbatim, then replace the values and add richer colors/typography/spacing/components detail:
+
+   ```yaml
+   ---
+   colors:
+     primary: "#111111"
+     background: "#ffffff"
+   typography:
+     display:
+       fontFamily: ui-serif
+     body:
+       fontFamily: ui-sans-serif
+   rounded: 8px
+   spacing: 16px
+   components:
+     button:
+       radius: 8px
+   ---
+   ```
 5. Call the site.create operation **exactly once**, with `input` holding every field as one JSON object written inside a string — never empty. `slug` is the only required field, but always include `title`, `description`, `idea`, `purpose`, `audience`, `archetype`, and `domainKeywords` in that same call so the record starts complete. Example call:
 
    ```json
@@ -93,7 +113,7 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 `DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme: publish renders them into `theme.css`, so an unconsidered front matter ships as the visible site.
 
-Default to black-on-white minimal styling unless the request clearly calls for another direction; even then, pick a palette deliberately, for example: editorial/portfolio (`#111111` on `#ffffff`, accent `#2f6f4f`, serif/sans), consumer/playful (`#ff6b4a` on `#fffaf3`, accent `#1c3b52`, rounded-sans/sans), technical/dashboard (`#2563eb` on `#f8fafc`, accent `#0f172a`, sans/sans).
+Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately — editorial (`#111111`/`#ffffff`, accent `#2f6f4f`, serif/sans), playful (`#ff6b4a`/`#fffaf3`, accent `#1c3b52`, rounded-sans), dashboard (`#2563eb`/`#f8fafc`, accent `#0f172a`, sans).
 
 Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
 
