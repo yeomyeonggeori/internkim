@@ -48,7 +48,15 @@ async function main() {
 
   try {
     const page = await browser.newPage({ viewport: { width: slideWidth, height: slideHeight }, deviceScaleFactor: 1 });
-    await page.goto(pathToFileURL(sourcePath).toString(), { waitUntil: "networkidle" });
+    await page.route("**/*", (route) => {
+      const requestURL = route.request().url();
+      if (requestURL.startsWith("file:") || requestURL.startsWith("data:")) {
+        route.continue();
+      } else {
+        route.abort();
+      }
+    });
+    await page.goto(pathToFileURL(sourcePath).toString(), { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.emulateMedia({ media: "print" });
     await waitForFonts(page);
 
@@ -84,11 +92,14 @@ async function main() {
 }
 
 async function waitForFonts(page) {
-  await page.evaluate(async () => {
-    if (document.fonts) {
-      await document.fonts.ready;
-    }
-  });
+  await Promise.race([
+    page.evaluate(async () => {
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+    }),
+    new Promise((resolve) => setTimeout(resolve, 5000)),
+  ]);
 }
 
 async function removePreviousReviewFiles(reviewPath, deckName) {
