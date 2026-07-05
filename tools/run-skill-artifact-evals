@@ -100,7 +100,7 @@ def parse_arguments() -> argparse.Namespace:
     runParser.add_argument("--seed", type=int, default=DEFAULT_GENERATION_SEED, help="Fixed generation seed passed through internkim test.")
     runParser.add_argument("--temperature", type=float, default=DEFAULT_GENERATION_TEMPERATURE, help="Fixed generation temperature passed through internkim test.")
     runParser.add_argument("--timeout", type=int, default=DEFAULT_TEST_TIMEOUT_SECONDS, help="Seconds passed to internkim test --timeout.")
-    runParser.add_argument("--command-timeout", type=int, default=DEFAULT_COMMAND_TIMEOUT_SECONDS, help="Outer Python subprocess timeout in seconds.")
+    runParser.add_argument("--command-timeout", type=int, default=None, help="Outer Python subprocess timeout in seconds. Defaults to the test timeout plus 3000 seconds of provisioning and probe headroom.")
 
     auditParser = subcommands.add_parser("audit", help="Audit artifacts in an existing run directory.")
     auditParser.add_argument("run_directory", help="Run directory containing generated artifacts.")
@@ -137,11 +137,12 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
     runDirectory = ARTIFACTS_ROOT / runID
     runDirectory.mkdir(parents=True, exist_ok=False)
 
-    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, arguments.command_timeout)
+    commandTimeoutSeconds = arguments.command_timeout if arguments.command_timeout else arguments.timeout + 3000
+    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
     write_json(runDirectory / "manifest.json", manifest)
 
     for evaluation in selectedEvaluations:
-        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, arguments.command_timeout)
+        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
 
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)

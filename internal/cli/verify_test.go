@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 	"testing"
 )
 
@@ -338,5 +339,33 @@ func TestParseMattermostBrowserOpenE2EPreparationUsesLastJSONLine(t *testing.T) 
 	}
 	if preparation.Code != "1234-5678" || preparation.UserID != "user-1" {
 		t.Fatalf("unexpected preparation: %+v", preparation)
+	}
+}
+
+func TestMattermostPromptScriptUsesPhaseBudgets(t *testing.T) {
+	script := verifyMattermostPromptScript("p", false, 900, false, true, nil, nil, true, true, true)
+	for _, fragment := range []string{
+		"health_timeout_seconds=120",
+		"registration_timeout_seconds=60",
+		`seq 1 "$health_timeout_seconds"`,
+		`seq 1 "$reply_timeout_seconds"`,
+		`seq 1 "$registration_timeout_seconds"`,
+		`seq 1 "$completion_timeout_seconds"`,
+		`seq 1 "$public_url_timeout_seconds"`,
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected prompt script to contain %q", fragment)
+		}
+	}
+}
+
+func TestMattermostPromptScriptSSHTimeoutCoversPhaseSum(t *testing.T) {
+	website := mattermostPromptScriptSSHTimeout(900, true)
+	if website != time.Duration(120+300+60+900+600+135+180)*time.Second {
+		t.Fatalf("unexpected website ssh timeout %v", website)
+	}
+	plain := mattermostPromptScriptSSHTimeout(900, false)
+	if plain != time.Duration(120+300+60+900+180)*time.Second {
+		t.Fatalf("unexpected non-website ssh timeout %v", plain)
 	}
 }
