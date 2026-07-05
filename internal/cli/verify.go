@@ -758,19 +758,13 @@ func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) 
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
-	total := 120 + minInt(timeoutSeconds, 300) + 60 + timeoutSeconds
+	total := 120 + timeoutSeconds + 60 + timeoutSeconds
 	if expectPublicURL {
-		total += minInt(timeoutSeconds, 600) + 135
+		total += timeoutSeconds + 135
 	}
 	return time.Duration(total+180) * time.Second
 }
 
-func minInt(first int, second int) int {
-	if first < second {
-		return first
-	}
-	return second
-}
 
 func runLocalBrowserVerification(target verifyTarget) error {
 	port, errorValue := reserveLocalPort()
@@ -1472,11 +1466,9 @@ test_started_at="$(date +%%s%%3N)"
 
 health_timeout_seconds=120
 reply_timeout_seconds=$timeout_seconds
-if [ "$reply_timeout_seconds" -gt 300 ]; then reply_timeout_seconds=300; fi
 registration_timeout_seconds=60
 completion_timeout_seconds=$timeout_seconds
 public_url_timeout_seconds=$timeout_seconds
-if [ "$public_url_timeout_seconds" -gt 600 ]; then public_url_timeout_seconds=600; fi
 
 api_request() {
   local phase_name="$1"

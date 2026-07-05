@@ -361,11 +361,11 @@ func TestMattermostPromptScriptUsesPhaseBudgets(t *testing.T) {
 
 func TestMattermostPromptScriptSSHTimeoutCoversPhaseSum(t *testing.T) {
 	website := mattermostPromptScriptSSHTimeout(900, true)
-	if website != time.Duration(120+300+60+900+600+135+180)*time.Second {
+	if website != time.Duration(120+900+60+900+900+135+180)*time.Second {
 		t.Fatalf("unexpected website ssh timeout %v", website)
 	}
 	plain := mattermostPromptScriptSSHTimeout(900, false)
-	if plain != time.Duration(120+300+60+900+180)*time.Second {
+	if plain != time.Duration(120+900+60+900+180)*time.Second {
 		t.Fatalf("unexpected non-website ssh timeout %v", plain)
 	}
 }
