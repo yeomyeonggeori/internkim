@@ -32,10 +32,13 @@ async function main() {
       "echo ENTROPY=$(cat /proc/sys/kernel/random/entropy_avail 2>/dev/null || echo NA); " +
       "echo FONTS=$(fc-list 2>/dev/null | wc -l); " +
       "echo MISSINGLIBS=$(ldd " + chromiumBinary + " 2>&1 | grep 'not found' | wc -l); " +
-      "echo PLAIN_START=$(date +%s); " +
-      "timeout -s KILL 20 " + chromiumBinary + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank >/dev/null 2>&1; echo PLAIN_EXIT=$? PLAIN_END=$(date +%s); " +
-      "echo SINGLE_START=$(date +%s); " +
-      "timeout -s KILL 20 " + chromiumBinary + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --single-process --no-zygote --dump-dom about:blank >/dev/null 2>&1; echo SINGLE_EXIT=$? SINGLE_END=$(date +%s)";
+      "BASE='--no-sandbox --disable-gpu --disable-dev-shm-usage'; C=" + chromiumBinary + "; " +
+      "run() { S=$(date +%s); env DBUS_SESSION_BUS_ADDRESS=/dev/null timeout -s KILL 12 $C $2 $BASE --dump-dom about:blank >/dev/null 2>&1; echo \"COMBO_$1=$? $(( $(date +%s) - S ))s\"; }; " +
+      "run OLD '--headless=old'; " +
+      "run OLDINGPU '--headless=old --in-process-gpu'; " +
+      "run OLDFEAT '--headless=old --disable-features=AudioServiceOutOfProcess,UseOzonePlatform'; " +
+      "run OLDSWIFT '--headless=old --use-gl=swiftshader --disable-software-rasterizer'; " +
+      "run NEWDBUS '--headless=new'";
     const diagnosticOutput = execSync("{ " + diagnosticScript + " ; } 2>&1 || true", {
       encoding: "utf8",
       timeout: 60000,
