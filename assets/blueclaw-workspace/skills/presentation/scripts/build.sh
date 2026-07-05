@@ -103,7 +103,9 @@ ensure_node_environment() {
   mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
   if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -d "${NODE_RUNTIME_ROOT}/node_modules/playwright-core" ]; then
     cp "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json"
+    echo "[stage] bun_install_start $(date +%s)" >&2
     (cd "$NODE_RUNTIME_ROOT" && bun install --production)
+    echo "[stage] bun_install_done $(date +%s)" >&2
   fi
   cp "$HTML_RENDER_SCRIPT" "${NODE_RUNTIME_ROOT}/html_render.mjs"
   HTML_RENDER_SCRIPT="${NODE_RUNTIME_ROOT}/html_render.mjs"
@@ -128,8 +130,10 @@ chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
 rm -f "${BUILD_PATH}/${NAME}.html" "${BUILD_PATH}/${NAME}.pptx" "${BUILD_PATH}/${NAME}.pdf" "${BUILD_PATH}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
+echo "[stage] build_formats_start $(date +%s)" >&2
 if [ ! -f "$HTML_EXPORT_SCRIPT" ]; then
   echo "Error: html_export.py not found. Cannot export HTML-first deck." >&2
   exit 1
 fi
 python3 "$HTML_EXPORT_SCRIPT" "$SOURCE_PATH" "$NAME" "$BUILD_PATH" "$FORMATS" "$RENDER_REVIEW_SCRIPT" "$HTML_RENDER_SCRIPT"
+echo "[stage] build_formats_done $(date +%s)" >&2
