@@ -24,31 +24,6 @@ async function main() {
   await fs.mkdir(reviewPath, { recursive: true });
   await removePreviousReviewFiles(reviewPath, deckName);
 
-  renderProgress("chromium_probe_start");
-  try {
-    const { execSync } = await import("node:child_process");
-    const chromiumBinary = chromiumExecutablePath();
-    const diagnosticScript =
-      "echo ENTROPY=$(cat /proc/sys/kernel/random/entropy_avail 2>/dev/null || echo NA); " +
-      "echo FONTS=$(fc-list 2>/dev/null | wc -l); " +
-      "echo MISSINGLIBS=$(ldd " + chromiumBinary + " 2>&1 | grep 'not found' | wc -l); " +
-      "BASE='--no-sandbox --disable-gpu --disable-dev-shm-usage'; C=" + chromiumBinary + "; " +
-      "run() { S=$(date +%s); env DBUS_SESSION_BUS_ADDRESS=/dev/null timeout -s KILL 12 $C $2 $BASE --dump-dom about:blank >/dev/null 2>&1; echo \"COMBO_$1=$? $(( $(date +%s) - S ))s\"; }; " +
-      "run OLD '--headless=old'; " +
-      "run OLDINGPU '--headless=old --in-process-gpu'; " +
-      "run OLDFEAT '--headless=old --disable-features=AudioServiceOutOfProcess,UseOzonePlatform'; " +
-      "run OLDSWIFT '--headless=old --use-gl=swiftshader --disable-software-rasterizer'; " +
-      "run NEWDBUS '--headless=new'";
-    const diagnosticOutput = execSync("{ " + diagnosticScript + " ; } 2>&1 || true", {
-      encoding: "utf8",
-      timeout: 60000,
-      shell: "/bin/sh",
-    }).replace(/\n/g, " | ");
-    renderProgress(`chromium_diag ${diagnosticOutput.slice(0, 450)}`);
-  } catch (probeError) {
-    renderProgress(`chromium_diag_err ${String(probeError.message || probeError).slice(0, 120)} :: ${String(probeError.stdout || "").replace(/\n/g, " ").slice(0, 300)}`);
-  }
-
   renderProgress("launch_start");
   const browser = await chromium.launch({
     executablePath: chromiumExecutablePath(),
