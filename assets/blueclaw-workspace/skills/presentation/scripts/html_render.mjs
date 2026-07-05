@@ -24,6 +24,19 @@ async function main() {
   await fs.mkdir(reviewPath, { recursive: true });
   await removePreviousReviewFiles(reviewPath, deckName);
 
+  renderProgress("chromium_probe_start");
+  try {
+    const { execFileSync } = await import("node:child_process");
+    const probeOutput = execFileSync(
+      chromiumExecutablePath(),
+      ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--dump-dom", "about:blank"],
+      { timeout: 20000, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    renderProgress(`chromium_probe_ok ${probeOutput.length}`);
+  } catch (probeError) {
+    renderProgress(`chromium_probe_fail ${String(probeError.message || probeError).slice(0, 160)}`);
+  }
+
   renderProgress("launch_start");
   const browser = await chromium.launch({
     executablePath: chromiumExecutablePath(),
