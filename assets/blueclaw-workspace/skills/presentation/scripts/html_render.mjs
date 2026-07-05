@@ -32,9 +32,10 @@ async function main() {
       "echo ENTROPY=$(cat /proc/sys/kernel/random/entropy_avail 2>/dev/null || echo NA); " +
       "echo FONTS=$(fc-list 2>/dev/null | wc -l); " +
       "echo MISSINGLIBS=$(ldd " + chromiumBinary + " 2>&1 | grep 'not found' | wc -l); " +
-      "echo CHROMIUM_STDERR_BEGIN; " +
-      "timeout 15 " + chromiumBinary + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --enable-logging=stderr --v=1 --dump-dom about:blank 2>&1 >/dev/null | head -30; " +
-      "echo CHROMIUM_EXIT=$?";
+      "echo PLAIN_START=$(date +%s); " +
+      "timeout -s KILL 20 " + chromiumBinary + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank >/dev/null 2>&1; echo PLAIN_EXIT=$? PLAIN_END=$(date +%s); " +
+      "echo SINGLE_START=$(date +%s); " +
+      "timeout -s KILL 20 " + chromiumBinary + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --single-process --no-zygote --dump-dom about:blank >/dev/null 2>&1; echo SINGLE_EXIT=$? SINGLE_END=$(date +%s)";
     const diagnosticOutput = execSync("{ " + diagnosticScript + " ; } 2>&1 || true", {
       encoding: "utf8",
       timeout: 60000,
