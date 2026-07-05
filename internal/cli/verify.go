@@ -2000,7 +2000,7 @@ if [ -z "$bot_post_id" ]; then
   if [ -n "$probe_task_run_id" ]; then
     echo "probe task detail (last events) for $probe_task_run_id:" >&2
     blueclaw_request "probe task detail after missing reply" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$probe_task_run_id" |
-      jq -r 'def detail: if type == "array" then .[0] else . end; detail | ("status=" + (.taskRun.status // "?")), ((.taskEvents // []) | .[-30:] | .[] | .name + " " + ((.body // "") | tostring | .[0:160]))' >&2 || true
+      jq -r 'def detail: if type == "array" then .[0] else . end; detail | ("status=" + (.taskRun.status // "?")), ((.taskEvents // []) | .[-30:] | .[] | .name + " " + ((.name) as $name | (.body // "") | tostring | if ($name | test("terminal")) then .[0:2000] else .[0:160] end))' >&2 || true
   fi
   exit 1
 fi
