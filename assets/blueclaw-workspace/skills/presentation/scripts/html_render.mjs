@@ -26,15 +26,20 @@ async function main() {
 
   renderProgress("chromium_probe_start");
   try {
-    const { execFileSync } = await import("node:child_process");
-    const probeOutput = execFileSync(
-      chromiumExecutablePath(),
-      ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--dump-dom", "about:blank"],
-      { timeout: 20000, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
-    renderProgress(`chromium_probe_ok ${probeOutput.length}`);
+    const { execSync } = await import("node:child_process");
+    const environmentReport = execSync(
+      "echo entropy=$(cat /proc/sys/kernel/random/entropy_avail 2>/dev/null); echo fc=$(fc-list 2>/dev/null | wc -l); ldd " + chromiumExecutablePath() + " 2>&1 | grep -c 'not found'",
+      { encoding: "utf8", timeout: 20000 },
+    ).replace(/\n/g, " ");
+    renderProgress(`chromium_env ${environmentReport.slice(0, 200)}`);
+    const probeOutput = execSync(
+      "timeout 15 " + chromiumExecutablePath() + " --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --enable-logging=stderr --v=1 --dump-dom about:blank 2>&1 | head -40",
+      { encoding: "utf8", timeout: 25000 },
+    ).replace(/\n/g, " ");
+    renderProgress(`chromium_probe_out ${probeOutput.slice(0, 350)}`);
   } catch (probeError) {
-    renderProgress(`chromium_probe_fail ${String(probeError.message || probeError).slice(0, 160)}`);
+    const capturedOutput = String(probeError.stdout || "").replace(/\n/g, " ");
+    renderProgress(`chromium_probe_err ${String(probeError.message || probeError).slice(0, 100)} :: ${capturedOutput.slice(0, 300)}`);
   }
 
   renderProgress("launch_start");
