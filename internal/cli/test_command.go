@@ -171,7 +171,7 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
 	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, configuration.TimeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
-	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptSSHTimeout(configuration.TimeoutSeconds))
+	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptScriptSSHTimeout(configuration.TimeoutSeconds, configuration.ShouldExpectPublicURL))
 	if errorValue != nil {
 		if strings.TrimSpace(output) != "" {
 			fmt.Print(redactDownloadedMattermostFiles(output))

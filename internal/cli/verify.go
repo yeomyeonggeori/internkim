@@ -118,7 +118,7 @@ func runVerifyMattermost(arguments []string) error {
 	if strings.TrimSpace(*prompt) != "" {
 		return verifyTarget.runMattermostPromptVerification(
 			verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values(), strings.TrimSpace(*downloadFilesTo) != "", *waitForCompletion, false),
-			mattermostPromptSSHTimeout(*timeoutSeconds),
+			mattermostPromptScriptSSHTimeout(*timeoutSeconds, *expectPublicURL),
 			strings.TrimSpace(*downloadFilesTo),
 		)
 	}
@@ -149,7 +149,7 @@ func runVerifySite(arguments []string) error {
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
 	expectedTools := []string{"site.create", "terminal.run", "site.publish"}
-	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptSSHTimeout(*timeoutSeconds))
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptScriptSSHTimeout(*timeoutSeconds, true))
 }
 
 func isMattermostSiteVerification(expectPublicURL bool, expectedTools []string) bool {
@@ -752,6 +752,24 @@ func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
 		timeoutSeconds = 240
 	}
 	return time.Duration(timeoutSeconds+180) * time.Second
+}
+
+func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) time.Duration {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	total := 120 + minInt(timeoutSeconds, 300) + 60 + timeoutSeconds
+	if expectPublicURL {
+		total += minInt(timeoutSeconds, 600) + 135
+	}
+	return time.Duration(total+180) * time.Second
+}
+
+func minInt(first int, second int) int {
+	if first < second {
+		return first
+	}
+	return second
 }
 
 func runLocalBrowserVerification(target verifyTarget) error {
@@ -1452,6 +1470,14 @@ wait_for_completion=%s
 auto_confirm=%s
 test_started_at="$(date +%%s%%3N)"
 
+health_timeout_seconds=120
+reply_timeout_seconds=$timeout_seconds
+if [ "$reply_timeout_seconds" -gt 300 ]; then reply_timeout_seconds=300; fi
+registration_timeout_seconds=60
+completion_timeout_seconds=$timeout_seconds
+public_url_timeout_seconds=$timeout_seconds
+if [ "$public_url_timeout_seconds" -gt 600 ]; then public_url_timeout_seconds=600; fi
+
 api_request() {
   local phase_name="$1"
   local method="$2"
@@ -1561,7 +1587,7 @@ download_bot_files() {
 }
 
 wait_for_blueclaw_health() {
-  for _ in $(seq 1 "$timeout_seconds"); do
+  for _ in $(seq 1 "$health_timeout_seconds"); do
     if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
@@ -1960,7 +1986,7 @@ user_post_create_at="$(printf '%%s' "$user_post" | jq -r '.create_at')"
 test -n "$user_post_id"
 
 bot_post_id=""
-for _ in $(seq 1 "$timeout_seconds"); do
+for _ in $(seq 1 "$reply_timeout_seconds"); do
   bot_post_id="$(api_request "wait for probe reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
     jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
       '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | .id' | head -1)"
@@ -2001,7 +2027,7 @@ fetch_latest_bot_post() {
 }
 task_run_id="$(find_probe_task_run_id)"
 if [ "$wait_for_completion" = "true" ] && [ -z "$task_run_id" ]; then
-  for _ in $(seq 1 "$timeout_seconds"); do
+  for _ in $(seq 1 "$registration_timeout_seconds"); do
     task_run_id="$(find_probe_task_run_id)"
     if [ -n "$task_run_id" ]; then
       break
@@ -2026,7 +2052,7 @@ if [ "$wait_for_completion" = "true" ] && [ -z "$task_run_id" ]; then
   exit 1
 fi
 if [ -n "$task_run_id" ] && [ "$should_wait_for_task" = "true" ]; then
-  for _ in $(seq 1 "$timeout_seconds"); do
+  for _ in $(seq 1 "$completion_timeout_seconds"); do
     blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
     if [ "$auto_confirm" = "true" ] && [ "$approval_sent" = "false" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
       approval_body="$(jq -cn --arg channel_id "$channel_id" --arg root_id "$user_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')"
@@ -2165,7 +2191,7 @@ emit_site_verification_failure() {
 if [ "$expect_public_url" = "true" ]; then
   public_url_verified=false
   public_html_file="$(mktemp)"
-  for _ in $(seq 1 "$timeout_seconds"); do
+  for _ in $(seq 1 "$public_url_timeout_seconds"); do
     bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
       jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
         '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
