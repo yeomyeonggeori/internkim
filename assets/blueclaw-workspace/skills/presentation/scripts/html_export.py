@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import time
 import zipfile
 
 
@@ -37,13 +38,17 @@ def main() -> int:
         return 1
     slide_image_paths = []
     if needs_rendered_slides(formats):
+        print(f"[stage] render {int(time.time())}", file=sys.stderr, flush=True)
         run_html_render(html_render_script, html_output_path, deck_name, build_path, formats)
         slide_image_paths = sorted((build_path / "review").glob(f"{deck_name}.[0-9][0-9][0-9].png"))
     if "pptx" in formats:
+        print(f"[stage] pptx {int(time.time())}", file=sys.stderr, flush=True)
         write_image_backed_pptx(slide_image_paths, build_path / f"{deck_name}.pptx")
     if "notes" in formats:
+        print(f"[stage] notes {int(time.time())}", file=sys.stderr, flush=True)
         write_notes(slide_sources, build_path / f"{deck_name}-notes.txt")
     if "review" in formats:
+        print(f"[stage] review {int(time.time())}", file=sys.stderr, flush=True)
         run_render_review(render_review_script, source_path, deck_name, build_path / "review")
     print_outputs(build_path, deck_name, formats)
     return 0
