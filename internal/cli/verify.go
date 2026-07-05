@@ -1996,6 +1996,12 @@ if [ -z "$bot_post_id" ]; then
   echo "probe bot channel list contains channel: $(curl --silent --show-error -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/users/$bot_user_id/channels" | jq -r --arg channel_id "$channel_id" 'map(.id == $channel_id) | any')" >&2
   blueclaw_request "probe task list after missing reply" GET http://127.0.0.1:8080/admin/api/task |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | @json' >&2 || true
+  probe_task_run_id="$(blueclaw_request "probe task id after missing reply" GET http://127.0.0.1:8080/admin/api/task | jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')" || true
+  if [ -n "$probe_task_run_id" ]; then
+    echo "probe task detail (last events) for $probe_task_run_id:" >&2
+    blueclaw_request "probe task detail after missing reply" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$probe_task_run_id" |
+      jq -r 'def detail: if type == "array" then .[0] else . end; detail | ("status=" + (.taskRun.status // "?")), ((.taskEvents // []) | .[-30:] | .[] | .name + " " + ((.body // "") | tostring | .[0:160]))' >&2 || true
+  fi
   exit 1
 fi
 
