@@ -7,6 +7,11 @@ import { pathToFileURL } from "node:url";
 const slideWidth = 1600;
 const slideHeight = 900;
 
+
+function renderProgress(label) {
+  process.stderr.write(`[render] ${label} ${Math.floor(Date.now() / 1000)}\n`);
+}
+
 async function main() {
   const [sourcePath, deckName, buildPath, formats] = process.argv.slice(2);
   if (!sourcePath || !deckName || !buildPath || !formats) {
@@ -19,9 +24,11 @@ async function main() {
   await fs.mkdir(reviewPath, { recursive: true });
   await removePreviousReviewFiles(reviewPath, deckName);
 
+  renderProgress("launch_start");
   const browser = await chromium.launch({
     executablePath: chromiumExecutablePath(),
     headless: true,
+    timeout: 60000,
     args: [
       "--disable-background-networking",
       "--disable-background-timer-throttling",
@@ -46,6 +53,7 @@ async function main() {
     ],
   });
 
+  renderProgress("launched");
   try {
     const page = await browser.newPage({ viewport: { width: slideWidth, height: slideHeight }, deviceScaleFactor: 1 });
     await page.route("**/*", (route) => {
@@ -56,9 +64,11 @@ async function main() {
         route.abort();
       }
     });
+    renderProgress("navigating");
     await page.goto(pathToFileURL(sourcePath).toString(), { waitUntil: "load", timeout: 30000 }).catch(() => {});
     await page.emulateMedia({ media: "print" });
     await waitForFonts(page);
+    renderProgress("navigated");
 
     const slideCount = await page.locator("section").count();
     if (slideCount === 0) {
@@ -78,6 +88,7 @@ async function main() {
 
     if (enabledFormats.has("pptx") || enabledFormats.has("review")) {
       const slides = await page.locator("section").all();
+      renderProgress(`screenshots ${slides.length}`);
       for (let index = 0; index < slides.length; index += 1) {
         const slide = slides[index];
         await slide.screenshot({
@@ -86,6 +97,7 @@ async function main() {
         });
       }
     }
+    renderProgress("render_done");
   } finally {
     await browser.close();
   }
