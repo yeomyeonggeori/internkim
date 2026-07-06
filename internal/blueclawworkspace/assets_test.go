@@ -512,9 +512,8 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"worked example",
 		"rendered image evidence",
 		"revise `slides.html`",
-		"artifact.review",
 		"`files` array",
-		"preserve the design-source marker, requested slide count, and source-fact ledger intent",
+		"Preserve the design-source marker, requested slide count, source-fact ledger intent",
 		"Do not spend delivery budget creating or attaching internal review-decision files",
 		"not a delivery blocker",
 		"A clean export is not acceptance",
@@ -548,6 +547,10 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"PRESENTATION_PPTX_MODE=native",
 		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence",
 		"FORMATS=pptx",
+		`"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`,
+		"`file.write` tool directly",
+		"Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`",
+		"must not delay the primary source file",
 		"A dark theme is not a visual system",
 		"Scene",
 		"Style Prompt",
@@ -644,6 +647,7 @@ func TestSimpleSlidesDelegatesToPresentation(t *testing.T) {
 		"presentation skill contract",
 		"/workspace/skills/presentation/scripts/build.sh",
 		"required-visible-text.txt",
+		"slides.html` first",
 		"Visual Identity Gate",
 		"Preserve the user's exact organization, product, period",
 		"Do not run `/workspace/skills/simple-slides/scripts/build.sh` directly",
@@ -687,7 +691,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.html", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.html", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}
@@ -717,7 +721,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, "command -v marp") {
 		t.Fatal("presentation build script must not select ambiguous global Marp")
 	}
-	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "needs_node_environment", "deck-brief.md not found", "slide sections", "extract_requested_slide_count", "numbered_slide_items", "required-visible-text.txt", "should include design-source: DESIGN.md", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
+	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "needs_node_environment", "deck-brief.md missing", "build continues without slide-count cross-check", "slide sections", "extract_requested_slide_count", "numbered_slide_items", "required-visible-text.txt missing", "should include design-source: DESIGN.md", "deck_brief_path.exists()", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("presentation build script must contain %q", expectedText)
 		}
@@ -727,7 +731,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation build script must not contain token-filter required text check %q", forbiddenText)
 		}
 	}
-	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md", "must include design-source: DESIGN.md"} {
+	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md", "must include design-source: DESIGN.md", "DESIGN.md not found", "deck-brief.md not found"} {
 		if strings.Contains(buildContent, forbiddenText) {
 			t.Fatalf("presentation build script must not contain old workflow fragment %q", forbiddenText)
 		}
