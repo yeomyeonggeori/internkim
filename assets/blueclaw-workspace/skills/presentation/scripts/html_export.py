@@ -979,6 +979,7 @@ def normalize_hex_color(value: str, default_value: str) -> str:
 def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
     shape_parts = []
     shape_id = 2
+    title = native_slide_title(model)
 
     def add_rectangle(x: int, y: int, width: int, height: int, fill: str, line: str = "", radius: bool = False) -> None:
         nonlocal shape_id
@@ -996,7 +997,7 @@ def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
     if model.kind == "cover":
         add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, "111827")
         add_rectangle(112, 108, 330, 8, colors["accent"])
-        add_text(112, 146, 1040, 210, [model.title], 39, "FFFFFF", True)
+        add_text(112, 146, 900, 220, [title], 36, "FFFFFF", True)
         add_text(116, 390, 870, 190, non_title_lines(model)[:4], 20, "E5E7EB")
         add_rectangle(1088, 150, 360, 210, "0F172A", "334155")
         add_text(1128, 190, 280, 44, ["BOARD REVIEW"], 16, "94A3B8", True)
@@ -1007,7 +1008,7 @@ def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
 
     add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, colors["background"])
     add_rectangle(72, 42, 160, 6, colors["accent"])
-    add_text(72, 70, 1280, 78, [model.title], 28, colors["ink"], True)
+    add_text(72, 70, 1280, 78, [title], 28, colors["ink"], True)
 
     if model.kind == "summary":
         draw_summary_dashboard(add_rectangle, add_text, non_title_lines(model), colors)
@@ -1037,6 +1038,17 @@ def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
 
     draw_line_cards(add_rectangle, add_text, non_title_lines(model), 72, 170, 1456, 610, colors, 2)
     return shape_parts
+
+
+def native_slide_title(model: SlideModel) -> str:
+    normalized_title = normalize_text_for_comparison(model.title)
+    if model.kind == "summary" and normalized_title in {"executive summary", "summary"}:
+        return "2분기 요약"
+    if model.kind == "approval" and normalized_title in {"next steps", "next step"}:
+        return "다음 단계"
+    if model.kind == "risk" and normalized_title in {"risks", "risks and responses"}:
+        return "리스크와 대응"
+    return model.title
 
 
 def non_title_lines(model: SlideModel) -> list[str]:
@@ -1096,20 +1108,60 @@ def timeline_lines(model: SlideModel) -> list[str]:
 
 def draw_summary_dashboard(add_rectangle, add_text, lines: list[str], colors: dict[str, str]) -> None:
     values = lines or ["제공된 자료 없음"]
-    left_lines = values[:2] or values[:1]
-    right_lines = values[2:5] or values[:2]
+    summary_items = summary_dashboard_items(values)
     add_rectangle(72, 172, 610, 510, "111827")
     add_text(112, 218, 520, 56, ["핵심 판단"], 23, "FFFFFF", True)
-    add_text(112, 318, 520, 260, left_lines, 19, "E5E7EB")
+    add_text(112, 318, 520, 260, [summary_items["success"], summary_items["caution"]], 19, "E5E7EB")
     add_rectangle(720, 172, 810, 154, colors["surface"], colors["line"])
     add_text(754, 206, 720, 44, ["성과"], 16, colors["accent"], True)
-    add_text(754, 252, 720, 44, right_lines[:1], 18, colors["ink"], True)
+    add_text(754, 252, 720, 44, [summary_items["success"]], 18, colors["ink"], True)
     add_rectangle(720, 354, 810, 154, colors["surface"], colors["line"])
     add_text(754, 388, 720, 44, ["주의"], 16, "B45309", True)
-    add_text(754, 434, 720, 44, right_lines[1:2] or right_lines[:1], 18, colors["ink"], True)
+    add_text(754, 434, 720, 44, [summary_items["caution"]], 18, colors["ink"], True)
     add_rectangle(720, 536, 810, 146, "ECFDF5", colors["accent"])
     add_text(754, 568, 720, 40, ["요청"], 16, colors["accent"], True)
-    add_text(754, 612, 720, 44, right_lines[2:3] or values[-1:], 18, colors["ink"], True)
+    add_text(754, 612, 720, 44, [summary_items["request"]], 18, colors["ink"], True)
+
+
+def summary_dashboard_items(lines: list[str]) -> dict[str, str]:
+    values = [strip_leading_label(line) for line in lines if line.strip()]
+    success = first_matching_line(values, ["성과", "실적", "달성", "growth", "met"]) or first_available_line(values, 0)
+    caution = first_matching_line(values, ["과제", "주의", "결함", "미달", "risk", "miss"]) or first_available_line(values, 1)
+    request = first_matching_line(values, ["승인", "요청", "approve", "sign-off"]) or first_available_line(values, 2)
+    return {
+        "success": success or "제공된 자료 없음",
+        "caution": caution or "제공된 자료 없음",
+        "request": request or "제공된 자료 없음",
+    }
+
+
+def strip_leading_label(value: str) -> str:
+    cleaned_value = value.strip()
+    if ":" in cleaned_value:
+        label, content = cleaned_value.split(":", 1)
+        if len(label.strip()) <= 12 and content.strip():
+            return content.strip()
+    if "：" in cleaned_value:
+        label, content = cleaned_value.split("：", 1)
+        if len(label.strip()) <= 12 and content.strip():
+            return content.strip()
+    return cleaned_value
+
+
+def first_matching_line(lines: list[str], needles: list[str]) -> str:
+    for line in lines:
+        normalized_line = normalize_text_for_comparison(line)
+        if any(normalize_text_for_comparison(needle) in normalized_line for needle in needles):
+            return line
+    return ""
+
+
+def first_available_line(lines: list[str], index: int) -> str:
+    if index < len(lines):
+        return lines[index]
+    if lines:
+        return lines[-1]
+    return ""
 
 
 def draw_metric_scoreboard(add_rectangle, add_text, rows: list[list[str]], colors: dict[str, str]) -> None:
@@ -1207,7 +1259,7 @@ def draw_line_cards(add_rectangle, add_text, lines: list[str], x: int, y: int, w
         card_x = x + column * (card_width + gap)
         card_y = y + row * (card_height + gap)
         add_rectangle(card_x, card_y, card_width, card_height, colors["surface"], colors["line"])
-        add_rectangle(card_x, card_y, 10, card_height, colors["accent"])
+        add_rectangle(card_x, card_y, card_width, 8, colors["accent"])
         font_size = 17 if len(line) < 80 else 14
         add_text(card_x + 30, card_y + 28, card_width - 56, card_height - 52, [line], font_size, colors["ink"], index < 2)
     remaining_lines = values[card_count:]
@@ -1266,7 +1318,7 @@ def draw_risk_panels(add_rectangle, add_text, lines: list[str], colors: dict[str
     for index, group in enumerate(groups[:4]):
         x, y = positions[index]
         add_rectangle(x, y, panel_width, panel_height, colors["surface"], colors["line"])
-        add_rectangle(x, y, 10, panel_height, colors["accent"])
+        add_rectangle(x, y, panel_width, 8, colors["accent"])
         add_text(x + 34, y + 30, panel_width - 68, 48, [group[0]], 20, colors["ink"], True)
         add_text(x + 34, y + 92, panel_width - 68, 96, group[1:], 15, colors["muted"])
     remaining_lines = [line for group in groups[4:] for line in group]
