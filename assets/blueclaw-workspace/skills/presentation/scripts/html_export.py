@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+from dataclasses import dataclass
 import html
 import mimetypes
 import os
@@ -16,6 +17,25 @@ SLIDE_HEIGHT = 900
 PRESENTATION_WIDTH_EMU = 12192000
 PRESENTATION_HEIGHT_EMU = 6858000
 SLIDE_MASTER_RELATIONSHIP_ID = 2147483648
+DEFAULT_NATIVE_COLORS = {
+    "background": "F8FAFC",
+    "surface": "FFFFFF",
+    "ink": "111827",
+    "muted": "64748B",
+    "accent": "0F766E",
+    "line": "CBD5E1",
+}
+
+
+@dataclass(frozen=True)
+class SlideModel:
+    index: int
+    source: str
+    title: str
+    lines: list[str]
+    tables: list[list[list[str]]]
+    list_items: list[str]
+    kind: str
 
 
 def main() -> int:
@@ -36,30 +56,58 @@ def main() -> int:
     if not slide_sources:
         print("Error: slides.html must contain at least one <section> slide", file=sys.stderr)
         return 1
+    design = read_design_tokens(source_path.with_name("DESIGN.md"))
+    slide_models = create_slide_models(slide_sources)
     slide_image_paths = []
+    render_error = ""
     if needs_rendered_slides(formats):
         print(f"[stage] render {int(time.time())}", file=sys.stderr, flush=True)
-        run_html_render(html_render_script, html_output_path, deck_name, build_path, formats)
+        render_error = try_html_render(html_render_script, html_output_path, deck_name, build_path, formats)
         slide_image_paths = sorted((build_path / "review").glob(f"{deck_name}.[0-9][0-9][0-9].png"))
+        if not render_error and slide_image_paths:
+            write_render_source(build_path / "review", "browser")
+    if render_error and "review" in formats:
+        if write_native_review_images(slide_models, design, build_path / "review", deck_name):
+            write_render_source(build_path / "review", "nativeFallback")
     if "pptx" in formats:
         print(f"[stage] pptx {int(time.time())}", file=sys.stderr, flush=True)
-        write_image_backed_pptx(slide_image_paths, build_path / f"{deck_name}.pptx")
+        pptx_output_mode = write_pptx(slide_models, design, slide_image_paths, build_path / f"{deck_name}.pptx")
+    else:
+        pptx_output_mode = ""
     if "notes" in formats:
         print(f"[stage] notes {int(time.time())}", file=sys.stderr, flush=True)
         write_notes(slide_sources, build_path / f"{deck_name}-notes.txt")
     if "review" in formats:
         print(f"[stage] review {int(time.time())}", file=sys.stderr, flush=True)
         run_render_review(render_review_script, source_path, deck_name, build_path / "review")
-    print_outputs(build_path, deck_name, formats)
+    print_outputs(build_path, deck_name, formats, pptx_output_mode)
     return 0
 
 
 def enabled_formats(raw_formats: str) -> set[str]:
-    return {value.strip() for value in raw_formats.split(",") if value.strip()}
+    formats = {value.strip().casefold() for value in raw_formats.split(",") if value.strip()}
+    if not formats:
+        formats = {"html"}
+    if "all" in formats:
+        formats.remove("all")
+        formats.update({"html", "pdf", "pptx", "notes", "review"})
+    if "pptx" in formats:
+        formats.update({"html", "pdf"})
+    if "pdf" in formats or "pptx" in formats:
+        formats.add("review")
+    if "pdf" in formats or "notes" in formats or "review" in formats:
+        formats.add("html")
+    allowed_formats = {"html", "pdf", "pptx", "notes", "review"}
+    unknown_formats = sorted(formats - allowed_formats)
+    if unknown_formats:
+        raise SystemExit("Error: unknown presentation format(s): " + ", ".join(unknown_formats))
+    return formats
 
 
 def needs_rendered_slides(formats: set[str]) -> bool:
-    return "pptx" in formats or "pdf" in formats or "review" in formats
+    if "pdf" in formats or "review" in formats:
+        return True
+    return "pptx" in formats and pptx_mode() == "image"
 
 
 def validate_source(source_path: pathlib.Path) -> None:
@@ -183,7 +231,17 @@ def inject_screen_slide_viewer(source_text: str) -> str:
   .bespoke-marp-presenter-next > section { position: absolute !important; left: 0 !important; top: 0 !important; width: 1600px !important; height: 900px !important; min-width: 1600px !important; max-width: none !important; min-height: 900px !important; max-height: none !important; opacity: 1 !important; pointer-events: none !important; transform: scale(var(--internkim-presenter-next-scale, 0.2)) !important; transform-origin: 0 0 !important; box-shadow: none !important; }
   .bespoke-marp-presenter-note { overflow: auto; padding: 0 24px 24px; color: #d1d5db; line-height: 1.55; white-space: pre-wrap; }
   .bespoke-marp-presenter-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 24px; border-top: 1px solid rgba(255,255,255,0.08); color: #f9fafb; }
+  body.internkim-export { width: 1600px; height: 900px; min-height: 900px; overflow: hidden; padding: 0; background: transparent; }
+  body.internkim-export .bespoke-marp-parent { position: fixed; inset: 0; width: 1600px; height: 900px; overflow: hidden; }
+  body.internkim-export .marpit { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform: none !important; }
+  body.internkim-export .marpit > section { box-shadow: none !important; }
+  body.internkim-export .bespoke-marp-osc,
+  body.internkim-export .bespoke-progress-parent,
+  body.internkim-export .bespoke-marp-overview,
+  body.internkim-export .bespoke-marp-presenter-panel,
+  body.internkim-export .bespoke-marp-tooltip { display: none !important; }
 }
+@page { size: 1600px 900px; margin: 0; }
 @media print {
   body.internkim-deck-ready { display: block; width: auto; height: auto; overflow: visible; }
   .bespoke-marp-parent { position: static; inset: auto; overflow: visible; }
@@ -244,6 +302,7 @@ def inject_screen_slide_viewer(source_text: str) -> str:
     });
     document.body.dataset.bespokeView = currentView();
     document.body.classList.add("internkim-deck-ready");
+    if (isExportMode()) document.body.classList.add("internkim-export");
     parent.appendChild(osc);
     document.body.insertBefore(progress, parent);
     tooltip = document.createElement("div");
@@ -376,6 +435,10 @@ def inject_screen_slide_viewer(source_text: str) -> str:
   }
 
   function updateScale() {
+    if (isExportMode()) {
+      deck.style.setProperty("--internkim-deck-scale", "1");
+      return;
+    }
     const horizontalPadding = 64;
     const verticalPadding = 96;
     const bounds = parent.getBoundingClientRect();
@@ -393,6 +456,10 @@ def inject_screen_slide_viewer(source_text: str) -> str:
 
   function currentView() {
     return new URLSearchParams(location.search).get("view") === "presenter" ? "presenter" : "slide";
+  }
+
+  function isExportMode() {
+    return new URLSearchParams(location.search).has("internkim-export");
   }
 
   async function toggleFullscreen() {
@@ -662,6 +729,157 @@ def font_mime_type(path: pathlib.Path) -> str:
     return mimetypes.guess_type(path)[0] or "application/octet-stream"
 
 
+def read_design_tokens(path: pathlib.Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return {}
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    tokens = {}
+    section = ""
+    for raw_line in parts[1].splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        if not line.startswith(" ") and line.endswith(":"):
+            section = line[:-1].strip()
+            continue
+        if not section or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and value:
+            tokens[section + "." + key] = value
+    return tokens
+
+
+def create_slide_models(slide_sources: list[str]) -> list[SlideModel]:
+    models = []
+    for index, slide_source in enumerate(slide_sources, start=1):
+        lines = slide_visible_lines(slide_source)
+        title = first_heading_text(slide_source) or first_non_empty_line(lines, f"Slide {index}")
+        tables = extract_tables(slide_source)
+        list_items = extract_list_items(slide_source)
+        models.append(SlideModel(
+            index=index,
+            source=slide_source,
+            title=title,
+            lines=lines,
+            tables=tables,
+            list_items=list_items,
+            kind=infer_slide_kind(index, slide_source, title, lines),
+        ))
+    return models
+
+
+def slide_visible_lines(slide_source: str) -> list[str]:
+    text = visible_text(remove_invisible_slide_markup(slide_source))
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def remove_invisible_slide_markup(text: str) -> str:
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    return re.sub(
+        r"<(?:aside|div)\b[^>]*class=[\"'][^\"']*(?:speaker-notes|notes)[^\"']*[\"'][^>]*>.*?</(?:aside|div)>",
+        " ",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+
+def first_heading_text(slide_source: str) -> str:
+    match = re.search(r"<h[1-3]\b[^>]*>(.*?)</h[1-3]>", slide_source, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return ""
+    return visible_text(match.group(1)).replace("\n", " ").strip()
+
+
+def first_non_empty_line(lines: list[str], default_value: str) -> str:
+    for line in lines:
+        if line.strip():
+            return line.strip()
+    return default_value
+
+
+def extract_tables(slide_source: str) -> list[list[list[str]]]:
+    tables = []
+    for table_match in re.finditer(r"<table\b[^>]*>(.*?)</table>", slide_source, flags=re.IGNORECASE | re.DOTALL):
+        rows = extract_table_rows(table_match.group(1))
+        if rows:
+            tables.append(rows)
+    return tables
+
+
+def extract_table_rows(table_source: str) -> list[list[str]]:
+    rows = []
+    for row_match in re.finditer(r"<tr\b[^>]*>(.*?)</tr>", table_source, flags=re.IGNORECASE | re.DOTALL):
+        cells = []
+        for cell_match in re.finditer(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", row_match.group(1), flags=re.IGNORECASE | re.DOTALL):
+            cell_text = visible_text(remove_invisible_slide_markup(cell_match.group(1))).replace("\n", " ").strip()
+            if cell_text:
+                cells.append(cell_text)
+        if cells:
+            rows.append(cells)
+    return rows
+
+
+def extract_list_items(slide_source: str) -> list[str]:
+    items = []
+    for match in re.finditer(r"<li\b[^>]*>(.*?)</li>", slide_source, flags=re.IGNORECASE | re.DOTALL):
+        text = visible_text(remove_invisible_slide_markup(match.group(1))).replace("\n", " ").strip()
+        if text:
+            items.append(text)
+    return items
+
+
+def infer_slide_kind(index: int, slide_source: str, title: str, lines: list[str]) -> str:
+    text = " ".join([title, " ".join(lines), slide_source]).casefold()
+    if index == 1:
+        return "cover"
+    if contains_any(text, ["approval", "승인", "next step", "다음 단계", "요청"]):
+        return "approval"
+    if contains_any(text, ["risk", "리스크", "defect", "sla", "response", "대응"]):
+        return "risk"
+    if contains_any(text, ["roadmap", "로드맵", "timeline", "milestone", "2026-08", "2026-09"]):
+        return "timeline"
+    if contains_any(text, ["metric", "지표", "revenue", "uptime", "target", "actual", "목표", "실제"]):
+        return "metrics"
+    if contains_any(text, ["summary", "요약", "executive"]):
+        return "summary"
+    return "content"
+
+
+def contains_any(text: str, values: list[str]) -> bool:
+    return any(value.casefold() in text for value in values)
+
+
+def pptx_mode() -> str:
+    mode = os.environ.get("PRESENTATION_PPTX_MODE", "image").strip().casefold()
+    if mode in {"image", "native"}:
+        return mode
+    return "image"
+
+
+def try_html_render(html_render_script: pathlib.Path, source_path: pathlib.Path, deck_name: str, build_path: pathlib.Path, formats: set[str]) -> str:
+    try:
+        run_html_render(html_render_script, source_path, deck_name, build_path, formats)
+        return ""
+    except subprocess.CalledProcessError as error_value:
+        message = f"browser render failed with exit code {error_value.returncode}"
+        print(f"[warning] {message}; continuing with available browserless outputs", file=sys.stderr, flush=True)
+        return message
+    except OSError as error_value:
+        message = f"browser render unavailable: {error_value}"
+        print(f"[warning] {message}; continuing with available browserless outputs", file=sys.stderr, flush=True)
+        return message
+
+
 def run_html_render(html_render_script: pathlib.Path, source_path: pathlib.Path, deck_name: str, build_path: pathlib.Path, formats: set[str]) -> None:
     if not html_render_script.exists():
         raise SystemExit("Error: html_render.mjs not found. Cannot export HTML-first deck.")
@@ -708,6 +926,483 @@ def run_render_review(render_review_script: pathlib.Path, source_path: pathlib.P
     result = subprocess.run([sys.executable, str(render_review_script), str(source_path), deck_name, str(review_path)])
     if result.returncode != 0:
         raise SystemExit(f"Error: slide render review failed; see {review_path / 'slide-review.json'}")
+
+
+def write_pptx(slide_models: list[SlideModel], design: dict[str, str], image_paths: list[pathlib.Path], pptx_path: pathlib.Path) -> str:
+    if pptx_mode() == "image" and image_paths:
+        write_image_backed_pptx(image_paths, pptx_path)
+        return "image"
+    if pptx_mode() == "image":
+        print("[warning] image-backed PPTX requested, but rendered slide images are unavailable; writing native text-backed PPTX", file=sys.stderr, flush=True)
+    write_native_text_pptx(slide_models, design, pptx_path)
+    return "native"
+
+
+def write_native_text_pptx(slide_models: list[SlideModel], design: dict[str, str], pptx_path: pathlib.Path) -> None:
+    with zipfile.ZipFile(pptx_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        write_pptx_static_files(archive, len(slide_models))
+        for model in slide_models:
+            archive.writestr(f"ppt/slides/slide{model.index}.xml", native_slide_xml(model, design))
+            archive.writestr(f"ppt/slides/_rels/slide{model.index}.xml.rels", native_slide_relationship_xml())
+
+
+def native_slide_xml(model: SlideModel, design: dict[str, str]) -> str:
+    colors = native_colors(design)
+    shapes = native_slide_shapes(model, colors)
+    return xml_document(
+        '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        "<p:cSld><p:spTree>"
+        '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'
+        + "".join(shapes)
+        + "</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>"
+    )
+
+
+def native_colors(design: dict[str, str]) -> dict[str, str]:
+    return {
+        key: normalize_hex_color(design.get("colors." + key, DEFAULT_NATIVE_COLORS[key]), DEFAULT_NATIVE_COLORS[key])
+        for key in DEFAULT_NATIVE_COLORS
+    }
+
+
+def normalize_hex_color(value: str, default_value: str) -> str:
+    cleaned_value = value.strip().removeprefix("#").upper()
+    if re.fullmatch(r"[0-9A-F]{3}", cleaned_value):
+        return "".join(character * 2 for character in cleaned_value)
+    if re.fullmatch(r"[0-9A-F]{6}", cleaned_value):
+        return cleaned_value
+    return default_value
+
+
+def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
+    shape_parts = []
+    shape_id = 2
+
+    def add_rectangle(x: int, y: int, width: int, height: int, fill: str, line: str = "", radius: bool = False) -> None:
+        nonlocal shape_id
+        shape_parts.append(rectangle_shape_xml(shape_id, x, y, width, height, fill, line, radius))
+        shape_id += 1
+
+    def add_text(x: int, y: int, width: int, height: int, lines: list[str], font_size: int, color: str, bold: bool = False, align: str = "l") -> None:
+        nonlocal shape_id
+        visible_lines = [line for line in lines if line.strip()]
+        if not visible_lines:
+            return
+        shape_parts.append(text_box_xml(shape_id, x, y, width, height, visible_lines, font_size, color, bold, align))
+        shape_id += 1
+
+    if model.kind == "cover":
+        add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, "111827")
+        add_rectangle(0, 0, 92, SLIDE_HEIGHT, colors["accent"])
+        add_rectangle(1260, 96, 220, 220, "1F2937")
+        add_text(150, 140, 1120, 210, [model.title], 40, "FFFFFF", True)
+        add_text(154, 372, 980, 250, non_title_lines(model)[:7], 20, "E5E7EB")
+        add_text(150, 735, 1120, 70, compact_source_line(model), 16, "9CA3AF")
+        add_rectangle(150, 684, 300, 8, colors["accent"])
+        return shape_parts
+
+    add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, colors["background"])
+    add_rectangle(0, 0, SLIDE_WIDTH, 20, colors["accent"])
+    add_text(72, 58, 1280, 84, [model.title], 28, colors["ink"], True)
+
+    if model.kind == "summary":
+        add_rectangle(72, 168, 560, 570, "111827")
+        add_text(116, 220, 480, 420, non_title_lines(model)[:8], 22, "F9FAFB")
+        draw_line_cards(add_rectangle, add_text, non_title_lines(model)[8:] or non_title_lines(model)[:6], 680, 170, 840, 570, colors, 2)
+        return shape_parts
+
+    if model.kind == "metrics":
+        if model.tables:
+            draw_table(add_rectangle, add_text, model.tables[0], 72, 170, 1456, 620, colors)
+        else:
+            draw_line_cards(add_rectangle, add_text, non_title_lines(model), 72, 170, 1456, 610, colors, 3)
+        return shape_parts
+
+    if model.kind == "timeline":
+        draw_timeline(add_rectangle, add_text, timeline_lines(model), colors)
+        return shape_parts
+
+    if model.kind == "risk":
+        if model.tables:
+            draw_table(add_rectangle, add_text, model.tables[0], 72, 170, 1456, 620, colors)
+        else:
+            draw_risk_panels(add_rectangle, add_text, non_title_lines(model), colors)
+        return shape_parts
+
+    if model.kind == "approval":
+        draw_approval(add_rectangle, add_text, non_title_lines(model), colors)
+        return shape_parts
+
+    draw_line_cards(add_rectangle, add_text, non_title_lines(model), 72, 170, 1456, 610, colors, 2)
+    return shape_parts
+
+
+def non_title_lines(model: SlideModel) -> list[str]:
+    title_text = normalize_text_for_comparison(model.title)
+    lines = []
+    for line in model.lines:
+        if normalize_text_for_comparison(line) == title_text:
+            continue
+        if line not in lines:
+            lines.append(line)
+    return merge_label_value_lines(lines)
+
+
+def merge_label_value_lines(lines: list[str]) -> list[str]:
+    labels = []
+    index = 0
+    while index < len(lines) and is_label_line(lines[index]):
+        labels.append(lines[index].rstrip(":：").strip())
+        index += 1
+    values = lines[index:]
+    if len(labels) >= 2 and len(values) >= len(labels):
+        merged_lines = [f"{label}: {values[label_index]}" for label_index, label in enumerate(labels)]
+        return merged_lines + values[len(labels):]
+    return lines
+
+
+def is_label_line(value: str) -> bool:
+    cleaned_value = value.strip()
+    return cleaned_value.endswith((":","：")) and len(cleaned_value) <= 16
+
+
+def normalize_text_for_comparison(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().casefold()
+
+
+def compact_source_line(model: SlideModel) -> list[str]:
+    values = []
+    for line in model.lines:
+        if any(character.isdigit() for character in line) or "제공된 자료 없음" in line:
+            values.append(line)
+        if len(values) >= 3:
+            break
+    return values
+
+
+def timeline_lines(model: SlideModel) -> list[str]:
+    if model.tables:
+        rows = model.tables[0][1:] if len(model.tables[0]) > 1 else model.tables[0]
+        return [" / ".join(row) for row in rows if row]
+    lines = [line for line in non_title_lines(model) if re.search(r"\d{4}-\d{2}-\d{2}", line)]
+    if lines:
+        return lines
+    if model.list_items:
+        return model.list_items
+    return non_title_lines(model)
+
+
+def draw_line_cards(add_rectangle, add_text, lines: list[str], x: int, y: int, width: int, height: int, colors: dict[str, str], columns: int) -> None:
+    values = lines or ["제공된 자료 없음"]
+    card_count = max(1, min(6, len(values)))
+    row_count = (card_count + columns - 1) // columns
+    gap = 26
+    card_width = (width - gap * (columns - 1)) // columns
+    card_height = (height - gap * (row_count - 1)) // row_count
+    for index, line in enumerate(values[:card_count]):
+        column = index % columns
+        row = index // columns
+        card_x = x + column * (card_width + gap)
+        card_y = y + row * (card_height + gap)
+        add_rectangle(card_x, card_y, card_width, card_height, colors["surface"], colors["line"])
+        add_rectangle(card_x, card_y, 10, card_height, colors["accent"])
+        font_size = 17 if len(line) < 80 else 14
+        add_text(card_x + 30, card_y + 28, card_width - 56, card_height - 52, [line], font_size, colors["ink"], index < 2)
+    remaining_lines = values[card_count:]
+    if remaining_lines:
+        add_text(x, y + height + 16, width, 56, remaining_lines[:3], 13, colors["muted"])
+
+
+def draw_table(add_rectangle, add_text, rows: list[list[str]], x: int, y: int, width: int, height: int, colors: dict[str, str]) -> None:
+    visible_rows = rows[:8]
+    column_count = max(len(row) for row in visible_rows)
+    row_height = max(52, min(86, height // max(1, len(visible_rows))))
+    column_width = width // max(1, column_count)
+    for row_index, row in enumerate(visible_rows):
+        row_y = y + row_index * row_height
+        fill = colors["ink"] if row_index == 0 else (colors["surface"] if row_index % 2 else "EEF2F7")
+        text_color = "FFFFFF" if row_index == 0 else colors["ink"]
+        for column_index in range(column_count):
+            cell_x = x + column_index * column_width
+            cell_text = row[column_index] if column_index < len(row) else ""
+            add_rectangle(cell_x, row_y, column_width - 2, row_height - 2, fill, colors["line"])
+            add_text(cell_x + 16, row_y + 12, column_width - 32, row_height - 20, [cell_text], 14 if row_index else 15, text_color, row_index == 0)
+    remaining_rows = rows[len(visible_rows):]
+    if remaining_rows:
+        add_text(x, y + height + 10, width, 52, ["추가 표 행: " + " / ".join(" | ".join(row) for row in remaining_rows[:2])], 12, colors["muted"])
+
+
+def draw_timeline(add_rectangle, add_text, lines: list[str], colors: dict[str, str]) -> None:
+    values = lines or ["제공된 자료 없음"]
+    add_rectangle(128, 430, 1344, 8, colors["line"])
+    card_width = 410
+    gap = 46
+    for index, line in enumerate(values[:3]):
+        x = 110 + index * (card_width + gap)
+        add_rectangle(x, 230, card_width, 350, colors["surface"], colors["line"])
+        date_match = re.search(r"\d{4}-\d{2}-\d{2}", line)
+        date_text = date_match.group(0) if date_match else f"Step {index + 1}"
+        add_rectangle(x + 28, 258, 170, 42, colors["accent"], "", True)
+        add_text(x + 42, 266, 146, 26, [date_text], 13, "FFFFFF", True, "ctr")
+        add_text(x + 28, 324, card_width - 56, 172, timeline_card_lines(line), 15, colors["ink"], True)
+    if len(values) > 3:
+        add_text(112, 640, 1320, 70, values[3:6], 16, colors["muted"])
+
+
+def timeline_card_lines(line: str) -> list[str]:
+    cells = [cell.strip() for cell in line.split("/") if cell.strip()]
+    if len(cells) >= 4:
+        return [cells[0], f"{cells[2]} · {cells[3]}"]
+    return [line]
+
+
+def draw_risk_panels(add_rectangle, add_text, lines: list[str], colors: dict[str, str]) -> None:
+    groups = group_risk_lines(lines)
+    panel_width = 700
+    panel_height = 220
+    positions = [(72, 180), (828, 180), (72, 450), (828, 450)]
+    for index, group in enumerate(groups[:4]):
+        x, y = positions[index]
+        add_rectangle(x, y, panel_width, panel_height, colors["surface"], colors["line"])
+        add_rectangle(x, y, 10, panel_height, colors["accent"])
+        add_text(x + 34, y + 30, panel_width - 68, 48, [group[0]], 20, colors["ink"], True)
+        add_text(x + 34, y + 92, panel_width - 68, 96, group[1:], 15, colors["muted"])
+    remaining_lines = [line for group in groups[4:] for line in group]
+    if remaining_lines:
+        add_text(88, 720, 1380, 60, remaining_lines[:4], 13, colors["muted"])
+
+
+def group_risk_lines(lines: list[str]) -> list[list[str]]:
+    values = [line for line in lines if line.strip()]
+    if not values:
+        return [["제공된 자료 없음"]]
+    if any(normalize_text_for_comparison(line) in {"증거:", "대응:", "evidence:", "response:"} for line in values):
+        return [values[index:index + 5] for index in range(0, len(values), 5)]
+    groups = []
+    current_group = []
+    for line in values:
+        normalized_line = normalize_text_for_comparison(line)
+        if current_group and not normalized_line.endswith(":") and len(current_group) >= 3:
+            groups.append(current_group)
+            current_group = []
+        if normalized_line in {"증거:", "대응:", "evidence:", "response:"} and current_group:
+            current_group.append(line)
+            continue
+        current_group.append(line)
+    if current_group:
+        groups.append(current_group)
+    return groups
+
+
+def draw_approval(add_rectangle, add_text, lines: list[str], colors: dict[str, str]) -> None:
+    values = lines or ["제공된 자료 없음"]
+    left_lines = values[::2] or values[:1]
+    right_lines = values[1::2] or values[1:2] or values[:1]
+    add_rectangle(72, 178, 700, 520, "111827")
+    add_text(116, 226, 610, 70, ["승인 요청"], 24, "FFFFFF", True)
+    add_text(116, 326, 610, 260, left_lines[:5], 18, "E5E7EB")
+    add_rectangle(828, 178, 700, 520, colors["surface"], colors["line"])
+    add_text(872, 226, 610, 70, ["다음 단계"], 24, colors["ink"], True)
+    add_text(872, 326, 610, 260, right_lines[:5], 18, colors["ink"])
+    add_text(88, 748, 1380, 56, values[10:14], 14, colors["muted"])
+
+
+def rectangle_shape_xml(shape_id: int, x: int, y: int, width: int, height: int, fill: str, line: str = "", radius: bool = False) -> str:
+    line_xml = f'<a:ln w="9525"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill></a:ln>' if line else '<a:ln><a:noFill/></a:ln>'
+    return (
+        f'<p:sp><p:nvSpPr><p:cNvPr id="{shape_id}" name="Shape {shape_id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+        f'<p:spPr><a:xfrm><a:off x="{x_emu(x)}" y="{y_emu(y)}"/><a:ext cx="{x_emu(width)}" cy="{y_emu(height)}"/></a:xfrm>'
+        f'<a:prstGeom prst="{"roundRect" if radius else "rect"}"><a:avLst/></a:prstGeom>'
+        f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>{line_xml}</p:spPr></p:sp>'
+    )
+
+
+def text_box_xml(shape_id: int, x: int, y: int, width: int, height: int, lines: list[str], font_size: int, color: str, bold: bool, align: str) -> str:
+    paragraphs = "".join(text_paragraph_xml(line, font_size, color, bold, align) for line in lines)
+    return (
+        f'<p:sp><p:nvSpPr><p:cNvPr id="{shape_id}" name="Text {shape_id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'
+        f'<p:spPr><a:xfrm><a:off x="{x_emu(x)}" y="{y_emu(y)}"/><a:ext cx="{x_emu(width)}" cy="{y_emu(height)}"/></a:xfrm>'
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr>'
+        f'<p:txBody><a:bodyPr wrap="square" anchor="t"><a:spAutoFit/></a:bodyPr><a:lstStyle/>{paragraphs}</p:txBody></p:sp>'
+    )
+
+
+def text_paragraph_xml(value: str, font_size: int, color: str, bold: bool, align: str) -> str:
+    bold_xml = ' b="1"' if bold else ""
+    alignment = "ctr" if align == "ctr" else "l"
+    return (
+        f'<a:p><a:pPr algn="{alignment}"/>'
+        f'<a:r><a:rPr lang="ko-KR" sz="{font_size * 100}"{bold_xml}>'
+        f'<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+        '<a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:rPr>'
+        f'<a:t>{xml_escape(value)}</a:t></a:r>'
+        f'<a:endParaRPr lang="ko-KR" sz="{font_size * 100}"/></a:p>'
+    )
+
+
+def x_emu(value: int | float) -> int:
+    return round(value * PRESENTATION_WIDTH_EMU / SLIDE_WIDTH)
+
+
+def y_emu(value: int | float) -> int:
+    return round(value * PRESENTATION_HEIGHT_EMU / SLIDE_HEIGHT)
+
+
+def xml_escape(value: str) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def native_slide_relationship_xml() -> str:
+    return xml_document(
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
+        "</Relationships>"
+    )
+
+
+def write_native_review_images(slide_models: list[SlideModel], design: dict[str, str], review_path: pathlib.Path, deck_name: str) -> bool:
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        print("[warning] Pillow is unavailable; native fallback review images were not created", file=sys.stderr, flush=True)
+        return False
+    review_path.mkdir(parents=True, exist_ok=True)
+    colors = native_colors(design)
+    fonts = {
+        "title": preview_font(ImageFont, 46, True),
+        "subtitle": preview_font(ImageFont, 28, True),
+        "body": preview_font(ImageFont, 23, False),
+        "small": preview_font(ImageFont, 17, False),
+    }
+    for model in slide_models:
+        image = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), hex_to_rgb("111827" if model.kind == "cover" else colors["background"]))
+        draw = ImageDraw.Draw(image)
+        draw_native_preview_slide(draw, model, colors, fonts)
+        image.save(review_path / f"{deck_name}.{model.index:03}.png")
+    return True
+
+
+def write_render_source(review_path: pathlib.Path, render_source: str) -> None:
+    review_path.mkdir(parents=True, exist_ok=True)
+    (review_path / "render-source.txt").write_text(render_source + "\n", encoding="utf-8")
+
+
+def preview_font(image_font_module, size: int, is_bold: bool):
+    candidates = [
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if is_bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for candidate in candidates:
+        try:
+            if pathlib.Path(candidate).exists():
+                return image_font_module.truetype(candidate, size)
+        except OSError:
+            continue
+    return image_font_module.load_default()
+
+
+def draw_native_preview_slide(draw, model: SlideModel, colors: dict[str, str], fonts: dict[str, object]) -> None:
+    if model.kind == "cover":
+        draw.rectangle((0, 0, 92, SLIDE_HEIGHT), fill=hex_to_rgb(colors["accent"]))
+        draw.rectangle((1260, 96, 1480, 316), fill=hex_to_rgb("1F2937"))
+        draw_wrapped_text(draw, model.title, (150, 130), 1080, fonts["title"], hex_to_rgb("FFFFFF"), 1.15)
+        draw_wrapped_lines(draw, non_title_lines(model)[:7], (154, 360), 980, fonts["body"], hex_to_rgb("E5E7EB"), 1.35)
+        draw.rectangle((150, 684, 450, 692), fill=hex_to_rgb(colors["accent"]))
+        draw_wrapped_lines(draw, compact_source_line(model), (150, 735), 1120, fonts["small"], hex_to_rgb("9CA3AF"), 1.25)
+        return
+    draw.rectangle((0, 0, SLIDE_WIDTH, 20), fill=hex_to_rgb(colors["accent"]))
+    draw_wrapped_text(draw, model.title, (72, 58), 1280, fonts["subtitle"], hex_to_rgb(colors["ink"]), 1.2)
+    if model.tables:
+        draw_preview_table(draw, model.tables[0], (72, 170), (1456, 620), colors, fonts)
+        return
+    values = timeline_lines(model) if model.kind == "timeline" else non_title_lines(model)
+    draw_preview_cards(draw, values, (72, 170), (1456, 610), colors, fonts, 3 if model.kind == "metrics" else 2)
+
+
+def draw_preview_table(draw, rows: list[list[str]], origin: tuple[int, int], size: tuple[int, int], colors: dict[str, str], fonts: dict[str, object]) -> None:
+    x, y = origin
+    width, height = size
+    visible_rows = rows[:8]
+    column_count = max(len(row) for row in visible_rows)
+    row_height = max(52, min(86, height // max(1, len(visible_rows))))
+    column_width = width // max(1, column_count)
+    for row_index, row in enumerate(visible_rows):
+        fill = colors["ink"] if row_index == 0 else (colors["surface"] if row_index % 2 else "EEF2F7")
+        text_color = "FFFFFF" if row_index == 0 else colors["ink"]
+        for column_index in range(column_count):
+            cell_x = x + column_index * column_width
+            cell_y = y + row_index * row_height
+            draw.rectangle((cell_x, cell_y, cell_x + column_width - 2, cell_y + row_height - 2), fill=hex_to_rgb(fill), outline=hex_to_rgb(colors["line"]))
+            cell_text = row[column_index] if column_index < len(row) else ""
+            draw_wrapped_text(draw, cell_text, (cell_x + 14, cell_y + 12), column_width - 28, fonts["small"], hex_to_rgb(text_color), 1.15)
+
+
+def draw_preview_cards(draw, lines: list[str], origin: tuple[int, int], size: tuple[int, int], colors: dict[str, str], fonts: dict[str, object], columns: int) -> None:
+    values = lines or ["제공된 자료 없음"]
+    x, y = origin
+    width, height = size
+    card_count = max(1, min(6, len(values)))
+    row_count = (card_count + columns - 1) // columns
+    gap = 26
+    card_width = (width - gap * (columns - 1)) // columns
+    card_height = (height - gap * (row_count - 1)) // row_count
+    for index, line in enumerate(values[:card_count]):
+        column = index % columns
+        row = index // columns
+        card_x = x + column * (card_width + gap)
+        card_y = y + row * (card_height + gap)
+        draw.rectangle((card_x, card_y, card_x + card_width, card_y + card_height), fill=hex_to_rgb(colors["surface"]), outline=hex_to_rgb(colors["line"]), width=2)
+        draw.rectangle((card_x, card_y, card_x + 10, card_y + card_height), fill=hex_to_rgb(colors["accent"]))
+        draw_wrapped_text(draw, line, (card_x + 30, card_y + 28), card_width - 56, fonts["body"], hex_to_rgb(colors["ink"]), 1.25)
+
+
+def draw_wrapped_lines(draw, lines: list[str], origin: tuple[int, int], width: int, font, fill: tuple[int, int, int], line_height_scale: float) -> None:
+    y = origin[1]
+    for line in lines:
+        y = draw_wrapped_text(draw, line, (origin[0], y), width, font, fill, line_height_scale) + 8
+
+
+def draw_wrapped_text(draw, text: str, origin: tuple[int, int], width: int, font, fill: tuple[int, int, int], line_height_scale: float) -> int:
+    x, y = origin
+    line_height = max(18, round(font_size_pixels(font) * line_height_scale))
+    for line in wrap_preview_text(draw, text, font, width):
+        draw.text((x, y), line, fill=fill, font=font)
+        y += line_height
+    return y
+
+
+def wrap_preview_text(draw, text: str, font, width: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return [text]
+    lines = []
+    current_line = ""
+    for word in words:
+        candidate = word if not current_line else current_line + " " + word
+        if draw.textlength(candidate, font=font) <= width:
+            current_line = candidate
+            continue
+        if current_line:
+            lines.append(current_line)
+        current_line = word
+    if current_line:
+        lines.append(current_line)
+    return lines[:8]
+
+
+def font_size_pixels(font) -> int:
+    size = getattr(font, "size", None)
+    return int(size) if isinstance(size, int) else 20
+
+
+def hex_to_rgb(value: str) -> tuple[int, int, int]:
+    color = normalize_hex_color(value, "000000")
+    return tuple(int(color[index:index + 2], 16) for index in range(0, 6, 2))
 
 
 def write_image_backed_pptx(image_paths: list[pathlib.Path], pptx_path: pathlib.Path) -> None:
@@ -869,7 +1564,7 @@ def theme_xml() -> str:
         '<a:accent3><a:srgbClr val="CBD5E1"/></a:accent3><a:accent4><a:srgbClr val="0F172A"/></a:accent4>'
         '<a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="E2E8F0"/></a:accent6>'
         '<a:hlink><a:srgbClr val="2563EB"/></a:hlink><a:folHlink><a:srgbClr val="7C3AED"/></a:folHlink>'
-        '</a:clrScheme><a:fontScheme name="InternKim"><a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/></a:minorFont></a:fontScheme>'
+        '</a:clrScheme><a:fontScheme name="InternKim"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:minorFont></a:fontScheme>'
         '<a:fmtScheme name="InternKim"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
         '<a:lnStyleLst><a:ln w="63500"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
         '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>'
@@ -904,15 +1599,20 @@ def xml_document(body: str) -> str:
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + body
 
 
-def print_outputs(build_path: pathlib.Path, deck_name: str, formats: set[str]) -> None:
+def print_outputs(build_path: pathlib.Path, deck_name: str, formats: set[str], pptx_output_mode: str) -> None:
     print("")
     print("Done.")
     if "html" in formats:
         print(f"  {build_path.name}/{deck_name}.html            (HTML source rendered as deck)")
     if "pptx" in formats:
-        print(f"  {build_path.name}/{deck_name}.pptx            (image-backed PowerPoint / Keynote)")
-    if "pdf" in formats:
+        if pptx_output_mode == "image":
+            print(f"  {build_path.name}/{deck_name}.pptx            (image-backed PowerPoint / Keynote)")
+        else:
+            print(f"  {build_path.name}/{deck_name}.pptx            (native text-backed PowerPoint / Keynote fallback)")
+    if "pdf" in formats and (build_path / f"{deck_name}.pdf").exists():
         print(f"  {build_path.name}/{deck_name}.pdf             (browser-rendered PDF)")
+    elif "pdf" in formats:
+        print(f"  {build_path.name}/{deck_name}.pdf             (not created; browser render unavailable)")
     if "notes" in formats:
         print(f"  {build_path.name}/{deck_name}-notes.txt       (speaker notes)")
     if "review" in formats:

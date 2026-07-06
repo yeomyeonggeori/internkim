@@ -470,6 +470,16 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 			}
 		}
 	}
+
+	webfontsDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "webfonts.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"Web font imports are allowed", "Pretendard web font with Paperlogy fallback", "Noto Sans KR web font with Paperlogy fallback"} {
+		if !strings.Contains(string(webfontsDocument), expectedText) {
+			t.Fatalf("presentation webfonts reference must document webfont fallback policy %q", expectedText)
+		}
+	}
 }
 
 func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
@@ -485,24 +495,181 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"pitch, research report, executive briefing, education, portfolio, product proposal, or status report",
 		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
 		"slide-review.json",
+		"needsDesignRevision",
+		"qualityGatePassed",
+		"visualQualityScore",
+		"visualEvidenceReliable",
 		"contact sheets",
 		"fit-review-XX.md",
 		"expected visible text",
+		"design warnings",
 		"deck-brief.md",
 		"story spine",
+		"slide count",
+		"visual system",
+		"signature move",
 		"Reject shallow content",
 		"worked example",
 		"rendered image evidence",
 		"revise `slides.html`",
 		"artifact.review",
 		"`files` array",
+		"preserve the design-source marker, requested slide count, and source-fact ledger intent",
 		"Do not spend delivery budget creating or attaching internal review-decision files",
 		"not a delivery blocker",
+		"A clean export is not acceptance",
 		"Do not use emoji as functional icons or bullets",
 		"HTML-first",
+		"target-versus-actual metrics",
+		"risk/evidence/response/owner",
+		"제공된 자료 없음",
+		"claim-style titles",
+		"exact organization, product, and period",
+		"original period wording exactly",
+		"Preserve exact source values",
+		"KPI cards",
+		"status chips",
+		"raw `<table>` or bare `<ul>`",
+		"same 2x2 card dashboard",
+		"Decision cover",
+		"Metrics scoreboard",
+		"Roadmap timeline",
+		"Approval panel",
+		"composition-seeds.md",
+		"visual-styles.md",
+		"webfonts.md",
+		"Do not call `terminal.run` with an `arguments` array alone",
+		"required-visible-text.txt",
+		"one source fact or must-appear phrase per line",
+		"not a token filter",
+		"Do not replace Korean period wording",
+		"HTML is the default deliverable",
+		"PPTX is image-backed by default",
+		"PRESENTATION_PPTX_MODE=native",
+		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence",
+		"FORMATS=pptx",
+		"A dark theme is not a visual system",
+		"Scene",
+		"Style Prompt",
+		"Visual Identity Gate",
+		"Design Thesis",
+		"Signature Move",
+		"Anti-default Check",
+		"data-visual-system",
+		"data-slide-role",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("presentation must document beautiful deck contract %q", expectedText)
+		}
+	}
+}
+
+func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "assets", "visual-styles.md")
+	document, errorValue := os.ReadFile(documentPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"Visual Identity Gate",
+		"Style Prompt",
+		"data-visual-system",
+		"data-slide-role",
+		"Swiss Board",
+		"Operating Memo",
+		"Evidence Atlas",
+		"Launch Console",
+		"Risk Ledger",
+		"Field Signal",
+		"colored side stripes",
+		"bordered cards with soft shadows",
+		"repeated `.grid` plus `.card` sections",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("presentation visual styles must include %q", expectedText)
+		}
+	}
+}
+
+func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "assets", "composition-seeds.md")
+	document, errorValue := os.ReadFile(documentPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"not templates",
+		"visual system",
+		"metric tile",
+		"variance bar",
+		"decision rail",
+		"owner-date chip",
+		"Board Cockpit",
+		"Operating Memo",
+		"Product Map",
+		"Research Wall",
+		"Risk Room",
+		"Timeline Rail",
+		"Evidence Wall",
+		"Launch Control",
+		"Field Report",
+		"risk, evidence, response, owner",
+		"not the final visual form",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("presentation composition seeds must include %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"copy this template exactly", "must use this exact CSS", "always use Board Cockpit"} {
+		if strings.Contains(content, forbiddenText) {
+			t.Fatalf("presentation composition seeds must not overconstrain creative layout with %q", forbiddenText)
+		}
+	}
+}
+
+func TestSimpleSlidesDelegatesToPresentation(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"compatibility alias",
+		"presentation skill contract",
+		"/workspace/skills/presentation/scripts/build.sh",
+		"required-visible-text.txt",
+		"Visual Identity Gate",
+		"Preserve the user's exact organization, product, period",
+		"Do not run `/workspace/skills/simple-slides/scripts/build.sh` directly",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("simple-slides must delegate to presentation with %q", expectedText)
+		}
+	}
+
+	buildPath := filepath.Join(skillPath, "scripts", "build.sh")
+	buildInfo, errorValue := os.Stat(buildPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if buildInfo.Mode()&0111 == 0 {
+		t.Fatal("simple-slides build wrapper must be executable")
+	}
+
+	buildScript, errorValue := os.ReadFile(buildPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	buildContent := string(buildScript)
+	for _, expectedText := range []string{"/workspace/skills/presentation/scripts/build.sh", "../../presentation/scripts/build.sh", `exec "$PRESENTATION_BUILD_PATH" "$@"`} {
+		if !strings.Contains(buildContent, expectedText) {
+			t.Fatalf("simple-slides build wrapper must contain %q", expectedText)
 		}
 	}
 }
@@ -515,12 +682,12 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	for _, forbiddenText := range []string{"cp /workspace/skills/presentation", "/workspace/skills/presentation/assets/build.sh", " ./build.sh", "mkdir artifacts"} {
+	for _, forbiddenText := range []string{"cp /workspace/skills/presentation", "/workspace/skills/presentation/assets/build.sh", " ./build.sh", "mkdir artifacts", `"arguments":`} {
 		if strings.Contains(skillContent, forbiddenText) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.html", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}
@@ -550,12 +717,17 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, "command -v marp") {
 		t.Fatal("presentation build script must not select ambiguous global Marp")
 	}
-	for _, expectedText := range []string{"slides.html", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
+	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "needs_node_environment", "deck-brief.md not found", "slide sections", "extract_requested_slide_count", "numbered_slide_items", "required-visible-text.txt", "should include design-source: DESIGN.md", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("presentation build script must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md"} {
+	for _, forbiddenText := range []string{"normalize_required_search_text", "required_numeric_unit_phrases", "optional_required_tokens", "missing required visible text", "all_required_tokens_are_visible"} {
+		if strings.Contains(buildContent, forbiddenText) {
+			t.Fatalf("presentation build script must not contain token-filter required text check %q", forbiddenText)
+		}
+	}
+	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md", "must include design-source: DESIGN.md"} {
 		if strings.Contains(buildContent, forbiddenText) {
 			t.Fatalf("presentation build script must not contain old workflow fragment %q", forbiddenText)
 		}
@@ -570,7 +742,7 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	htmlExportContent := string(htmlExportScript)
-	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "inject_vendored_paperlogy_fallback", "PaperlogyLocal", "add_paperlogy_local_to_font_family_lists", "write_image_backed_pptx", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
+	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "inject_vendored_paperlogy_fallback", "PaperlogyLocal", "add_paperlogy_local_to_font_family_lists", "write_image_backed_pptx", "write_native_text_pptx", "native_slide_xml", "native_slide_relationship_xml", "write_native_review_images", "write_render_source", "PRESENTATION_PPTX_MODE", "image-backed PowerPoint", "native text-backed PowerPoint", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "body.internkim-export", "isExportMode", "@page { size: 1600px 900px; margin: 0; }", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
 		if !strings.Contains(htmlExportContent, expectedText) {
 			t.Fatalf("presentation HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
 		}
@@ -589,9 +761,9 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	htmlRenderContent := string(htmlRenderScript)
-	for _, expectedText := range []string{"page.pdf", "preferCSSPageSize", "printBackground", "document.fonts.ready", "locator(\"section\")"} {
+	for _, expectedText := range []string{"page.pdf", "preferCSSPageSize", "printBackground", "document.fonts.ready", "locator(\"section\")", "renderWithChromiumCommand", "--screenshot=", "--print-to-pdf=", "internkim-export", "playwright_failed"} {
 		if !strings.Contains(htmlRenderContent, expectedText) {
-			t.Fatalf("presentation HTML render script must render text-preserving PDF and slide PNGs with %q", expectedText)
+			t.Fatalf("presentation HTML render script must render text-preserving PDF and slide PNGs with a Chromium CLI fallback containing %q", expectedText)
 		}
 	}
 
@@ -600,9 +772,14 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	reviewContent := string(reviewScript)
-	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense", "fit-review.json", "fit-review-XX.md", "textOverflowRisk", "frameFitRisk", "fitReviewFilename"} {
+	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense", "fit-review.json", "fit-review-XX.md", "textOverflowRisk", "frameFitRisk", "fitReviewFilename", "needsDesignRevision", "designWarnings", "reviewUnavailable", "renderSource", "visualQualityScore", "qualityGatePassed", "visualEvidenceReliable", "VISUAL_QUALITY_SCORE_MINIMUM"} {
 		if !strings.Contains(reviewContent, expectedText) {
 			t.Fatalf("render review must include density check %q", expectedText)
+		}
+	}
+	for _, expectedText := range []string{"DESIGN_REVIEW_PROMPT", "DESIGN_WARNING_PREFIXES", "Design Revision Needed", "topicTitleWarning", "rawTableWarning", "bareListWarning", "genericCardGridWarning", "repeatedCardGridWarning", "genericWhiteCardPatternWarning", "rawStructurePatternWarning", "weakVisualIdentityWarning", "missingSlideRoleWarning", "unreliableVisualEvidenceWarning", "sideStripeWarning", "ghostCardWarning", "tinyTextWarning", "thinPaddingWarning", "source_has_side_stripe", "source_has_ghost_card_pattern", "source_has_tiny_text_pattern", "source_has_thin_padding_pattern", "structure", "claim-style title", "purposeful executive artifact"} {
+		if !strings.Contains(reviewContent, expectedText) {
+			t.Fatalf("render review must include design warning %q", expectedText)
 		}
 	}
 	if strings.Contains(reviewContent, `return 0 if report["passed"] else 1`) {
