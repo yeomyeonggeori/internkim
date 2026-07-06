@@ -115,10 +115,10 @@ def validate_source(source_path: pathlib.Path) -> None:
         raise SystemExit(f"Error: {source_path.name} not found. Create slides.html or set SRC=yourfile.html")
     design_path = source_path.with_name("DESIGN.md")
     if not design_path.exists():
-        raise SystemExit("Error: DESIGN.md not found. Create Stitch-compatible DESIGN.md before building.")
+        print("[warning] DESIGN.md not found; continuing with HTML source and native defaults", file=sys.stderr, flush=True)
     source_text = source_path.read_text(encoding="utf-8")
     if "design-source: DESIGN.md" not in source_text:
-        raise SystemExit(f"Error: {source_path.name} must include design-source: DESIGN.md")
+        print(f"[warning] {source_path.name} does not include design-source: DESIGN.md", file=sys.stderr, flush=True)
 
 
 def extract_slide_sources(source_path: pathlib.Path) -> list[str]:
@@ -842,6 +842,8 @@ def infer_slide_kind(index: int, slide_source: str, title: str, lines: list[str]
     text = " ".join([title, " ".join(lines), slide_source]).casefold()
     if index == 1:
         return "cover"
+    if contains_any(text, ["summary", "요약", "executive"]):
+        return "summary"
     if contains_any(text, ["approval", "승인", "next step", "다음 단계", "요청"]):
         return "approval"
     if contains_any(text, ["risk", "리스크", "defect", "sla", "response", "대응"]):
@@ -850,8 +852,6 @@ def infer_slide_kind(index: int, slide_source: str, title: str, lines: list[str]
         return "timeline"
     if contains_any(text, ["metric", "지표", "revenue", "uptime", "target", "actual", "목표", "실제"]):
         return "metrics"
-    if contains_any(text, ["summary", "요약", "executive"]):
-        return "summary"
     return "content"
 
 
@@ -995,27 +995,27 @@ def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
 
     if model.kind == "cover":
         add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, "111827")
-        add_rectangle(0, 0, 92, SLIDE_HEIGHT, colors["accent"])
-        add_rectangle(1260, 96, 220, 220, "1F2937")
-        add_text(150, 140, 1120, 210, [model.title], 40, "FFFFFF", True)
-        add_text(154, 372, 980, 250, non_title_lines(model)[:7], 20, "E5E7EB")
-        add_text(150, 735, 1120, 70, compact_source_line(model), 16, "9CA3AF")
-        add_rectangle(150, 684, 300, 8, colors["accent"])
+        add_rectangle(112, 108, 330, 8, colors["accent"])
+        add_text(112, 146, 1040, 210, [model.title], 39, "FFFFFF", True)
+        add_text(116, 390, 870, 190, non_title_lines(model)[:4], 20, "E5E7EB")
+        add_rectangle(1088, 150, 360, 210, "0F172A", "334155")
+        add_text(1128, 190, 280, 44, ["BOARD REVIEW"], 16, "94A3B8", True)
+        add_text(1128, 250, 280, 70, ["승인 필요"], 24, "FFFFFF", True)
+        add_rectangle(112, 676, 1180, 1, "334155")
+        add_text(112, 724, 1120, 70, compact_source_line(model), 16, "CBD5E1")
         return shape_parts
 
     add_rectangle(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT, colors["background"])
-    add_rectangle(0, 0, SLIDE_WIDTH, 20, colors["accent"])
-    add_text(72, 58, 1280, 84, [model.title], 28, colors["ink"], True)
+    add_rectangle(72, 42, 160, 6, colors["accent"])
+    add_text(72, 70, 1280, 78, [model.title], 28, colors["ink"], True)
 
     if model.kind == "summary":
-        add_rectangle(72, 168, 560, 570, "111827")
-        add_text(116, 220, 480, 420, non_title_lines(model)[:8], 22, "F9FAFB")
-        draw_line_cards(add_rectangle, add_text, non_title_lines(model)[8:] or non_title_lines(model)[:6], 680, 170, 840, 570, colors, 2)
+        draw_summary_dashboard(add_rectangle, add_text, non_title_lines(model), colors)
         return shape_parts
 
     if model.kind == "metrics":
         if model.tables:
-            draw_table(add_rectangle, add_text, model.tables[0], 72, 170, 1456, 620, colors)
+            draw_metric_scoreboard(add_rectangle, add_text, model.tables[0], colors)
         else:
             draw_line_cards(add_rectangle, add_text, non_title_lines(model), 72, 170, 1456, 610, colors, 3)
         return shape_parts
@@ -1026,7 +1026,7 @@ def native_slide_shapes(model: SlideModel, colors: dict[str, str]) -> list[str]:
 
     if model.kind == "risk":
         if model.tables:
-            draw_table(add_rectangle, add_text, model.tables[0], 72, 170, 1456, 620, colors)
+            draw_risk_ledger_from_table(add_rectangle, add_text, model.tables[0], colors)
         else:
             draw_risk_panels(add_rectangle, add_text, non_title_lines(model), colors)
         return shape_parts
@@ -1092,6 +1092,106 @@ def timeline_lines(model: SlideModel) -> list[str]:
     if model.list_items:
         return model.list_items
     return non_title_lines(model)
+
+
+def draw_summary_dashboard(add_rectangle, add_text, lines: list[str], colors: dict[str, str]) -> None:
+    values = lines or ["제공된 자료 없음"]
+    left_lines = values[:2] or values[:1]
+    right_lines = values[2:5] or values[:2]
+    add_rectangle(72, 172, 610, 510, "111827")
+    add_text(112, 218, 520, 56, ["핵심 판단"], 23, "FFFFFF", True)
+    add_text(112, 318, 520, 260, left_lines, 19, "E5E7EB")
+    add_rectangle(720, 172, 810, 154, colors["surface"], colors["line"])
+    add_text(754, 206, 720, 44, ["성과"], 16, colors["accent"], True)
+    add_text(754, 252, 720, 44, right_lines[:1], 18, colors["ink"], True)
+    add_rectangle(720, 354, 810, 154, colors["surface"], colors["line"])
+    add_text(754, 388, 720, 44, ["주의"], 16, "B45309", True)
+    add_text(754, 434, 720, 44, right_lines[1:2] or right_lines[:1], 18, colors["ink"], True)
+    add_rectangle(720, 536, 810, 146, "ECFDF5", colors["accent"])
+    add_text(754, 568, 720, 40, ["요청"], 16, colors["accent"], True)
+    add_text(754, 612, 720, 44, right_lines[2:3] or values[-1:], 18, colors["ink"], True)
+
+
+def draw_metric_scoreboard(add_rectangle, add_text, rows: list[list[str]], colors: dict[str, str]) -> None:
+    if len(rows) < 2:
+        draw_table(add_rectangle, add_text, rows, 72, 170, 1456, 620, colors)
+        return
+    header = rows[0]
+    metric_index = table_column_index(header, ["metric", "지표"])
+    q1_index = table_column_index(header, ["q1", "q1 2026"])
+    q2_index = table_column_index(header, ["q2", "q2 2026"])
+    target_index = table_column_index(header, ["target", "목표"])
+    note_index = table_column_index(header, ["note", "비고"])
+    add_rectangle(72, 164, 1456, 86, "111827")
+    add_text(104, 190, 720, 40, ["목표 대비 Q2 판정"], 22, "FFFFFF", True)
+    add_text(980, 194, 500, 34, ["actual / target / signal"], 14, "CBD5E1", False, "ctr")
+    card_width = 462
+    card_height = 188
+    gap = 36
+    for index, row in enumerate(rows[1:6]):
+        column = index % 3
+        row_number = index // 3
+        x = 72 + column * (card_width + gap)
+        y = 292 + row_number * (card_height + 34)
+        status_fill = metric_status_color(table_value(row, note_index), table_value(row, target_index))
+        add_rectangle(x, y, card_width, card_height, colors["surface"], colors["line"])
+        add_rectangle(x, y, card_width, 8, status_fill)
+        add_text(x + 28, y + 26, card_width - 56, 34, [table_value(row, metric_index)], 15, colors["muted"], True)
+        add_text(x + 28, y + 66, card_width - 56, 54, [table_value(row, q2_index)], 26, colors["ink"], True)
+        add_text(x + 28, y + 128, card_width - 56, 30, [f"Q1 {table_value(row, q1_index)}  ·  목표 {table_value(row, target_index)}"], 12, colors["muted"])
+        add_text(x + 28, y + 158, card_width - 56, 24, [table_value(row, note_index)], 12, status_fill, True)
+
+
+def draw_risk_ledger_from_table(add_rectangle, add_text, rows: list[list[str]], colors: dict[str, str]) -> None:
+    if len(rows) < 2:
+        draw_table(add_rectangle, add_text, rows, 72, 170, 1456, 620, colors)
+        return
+    header = rows[0]
+    risk_index = table_column_index(header, ["risk", "리스크"])
+    evidence_index = table_column_index(header, ["evidence", "근거"])
+    response_index = table_column_index(header, ["response", "대응"])
+    add_rectangle(72, 170, 1456, 64, "111827")
+    add_text(104, 190, 420, 28, ["리스크"], 16, "FFFFFF", True)
+    add_text(610, 190, 340, 28, ["근거"], 16, "FFFFFF", True)
+    add_text(1034, 190, 420, 28, ["대응"], 16, "FFFFFF", True)
+    row_height = 182
+    for row_index, row in enumerate(rows[1:5]):
+        y = 258 + row_index * (row_height + 24)
+        fill = colors["surface"] if row_index % 2 == 0 else "F1F5F9"
+        add_rectangle(72, y, 1456, row_height, fill, colors["line"])
+        add_rectangle(94, y + 26, 118, 34, "FEF3C7", "", True)
+        add_text(112, y + 34, 82, 18, ["ACTIVE"], 10, "92400E", True, "ctr")
+        add_text(104, y + 76, 430, 72, [table_value(row, risk_index)], 16, colors["ink"], True)
+        add_text(610, y + 44, 340, 92, [table_value(row, evidence_index)], 15, colors["ink"])
+        add_text(1034, y + 44, 420, 92, [table_value(row, response_index)], 15, colors["ink"], True)
+
+
+def table_column_index(header: list[str], candidates: list[str]) -> int:
+    normalized_header = [normalize_text_for_comparison(value) for value in header]
+    for candidate in candidates:
+        normalized_candidate = normalize_text_for_comparison(candidate)
+        for index, value in enumerate(normalized_header):
+            if normalized_candidate in value:
+                return index
+    return 0
+
+
+def table_value(row: list[str], index: int) -> str:
+    if index < 0 or index >= len(row):
+        return ""
+    return row[index]
+
+
+def metric_status_color(note: str, target: str) -> str:
+    normalized_note = normalize_text_for_comparison(note)
+    normalized_target = normalize_text_for_comparison(target)
+    if "miss" in normalized_note or "미달" in normalized_note or "초과" in normalized_note:
+        return "B45309"
+    if "met" in normalized_note or "달성" in normalized_note:
+        return "0F766E"
+    if "not provided" in normalized_target or "제공된 자료 없음" in normalized_target:
+        return "64748B"
+    return "0F766E"
 
 
 def draw_line_cards(add_rectangle, add_text, lines: list[str], x: int, y: int, width: int, height: int, colors: dict[str, str], columns: int) -> None:
