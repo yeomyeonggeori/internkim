@@ -28,30 +28,15 @@ if [ ! -f "$SRC" ]; then
 fi
 
 if [ ! -f DESIGN.md ]; then
-  echo "Working directory: $(pwd)" >&2
-  echo "SRC: $SRC" >&2
-  echo "Directory entries:" >&2
-  ls -la . 2>&1 | sed -n '1,5p' >&2
-  echo "Error: DESIGN.md not found. Create Stitch-compatible DESIGN.md before building." >&2
-  exit 1
+  echo "[warning] DESIGN.md missing; build continues, but visual review may mark weak design identity." >&2
 fi
 
 if [ ! -f deck-brief.md ]; then
-  echo "Working directory: $(pwd)" >&2
-  echo "SRC: $SRC" >&2
-  echo "Directory entries:" >&2
-  ls -la . 2>&1 | sed -n '1,6p' >&2
-  echo "Error: deck-brief.md not found. Create it with intent, audience, visual system, signature move, slide sequence, and slide count before building." >&2
-  exit 1
+  echo "[warning] deck-brief.md missing; build continues without slide-count cross-check." >&2
 fi
 
 if [ ! -f required-visible-text.txt ]; then
-  echo "Working directory: $(pwd)" >&2
-  echo "SRC: $SRC" >&2
-  echo "Directory entries:" >&2
-  ls -la . 2>&1 | sed -n '1,6p' >&2
-  echo "Error: required-visible-text.txt not found. Create one exact visible phrase per line for required names, periods, values, dates, owners, and missing-value labels." >&2
-  exit 1
+  echo "[warning] required-visible-text.txt missing; manually verify required source facts before delivery." >&2
 fi
 
 case "$SOURCE_PATH" in
@@ -67,7 +52,7 @@ import sys
 source_path = pathlib.Path(sys.argv[1])
 deck_brief_path = pathlib.Path("deck-brief.md")
 text = source_path.read_text()
-deck_brief_text = deck_brief_path.read_text()
+deck_brief_text = deck_brief_path.read_text() if deck_brief_path.exists() else ""
 if "design-source: DESIGN.md" not in text:
     print(f"Warning: {source_path.name} should include design-source: DESIGN.md", file=sys.stderr)
 
@@ -89,7 +74,7 @@ def extract_requested_slide_count(deck_brief_text):
         return len(numbered_slide_items)
     return None
 
-requested_slide_count = extract_requested_slide_count(deck_brief_text)
+requested_slide_count = extract_requested_slide_count(deck_brief_text) if deck_brief_text else None
 actual_slide_count = len(re.findall(r"<section\b", text, re.IGNORECASE))
 if requested_slide_count is not None and actual_slide_count != requested_slide_count:
     print(f"Error: slides.html has {actual_slide_count} slide sections, but deck-brief.md requests {requested_slide_count}.")

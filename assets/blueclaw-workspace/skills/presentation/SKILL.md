@@ -13,16 +13,14 @@ Create a useful, visually strong deck and attach the requested files. This is an
 
 ## Workflow
 
-1. Decide the deck archetype and story before writing files.
-2. Create `tmp/<deck-slug>/deck-brief.md` with request intent, audience, deck archetype, main thesis, story spine, slide count, slide sequence, chosen visual style, visual system, signature move, must-show content, and what would be too shallow.
-3. Create `tmp/<deck-slug>/required-visible-text.txt` with one source fact or must-appear phrase per line for required names, periods, values, dates, owners, and missing-value labels.
-4. Create `tmp/<deck-slug>/DESIGN.md`. For design-sensitive decks, read `assets/visual-styles.md` first and pass its Visual Identity Gate.
-5. Create `tmp/<deck-slug>/slides.html`.
-6. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the exact `command` string shape below.
-7. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
-8. Use `artifact.review` for executive, board, quarterly, investor, roadmap, pitch, or design-quality requests. Include deck intent, `deck-brief.md`, deck archetype, contact sheet image, design warnings, and expected visible text. If it is unavailable, manually inspect the contact sheet and review notes before accepting the deck.
-9. If deterministic review, `qualityGatePassed=false`, `needsDesignRevision`, rendered image evidence, or LLM notes show useful improvements, revise `slides.html` and rebuild. Repeat at most three times. When rewriting after a failed build, preserve the design-source marker, requested slide count, and source-fact ledger intent; also preserve `data-visual-system` and `data-slide-role`.
-10. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
+1. Decide the requested format and slide spine before writing files.
+2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
+3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
+4. If budget allows, add compact helper files after `slides.html`: `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. These improve review but must not delay the primary source file.
+5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
+6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
+7. If `qualityGatePassed=false`, `needsDesignRevision`, rendered image evidence, or review notes show useful improvements, revise `slides.html` and rebuild. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
+8. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
 
@@ -33,9 +31,16 @@ Use this build command shape:
 }
 ```
 
-`build.sh` uses the working directory name as the output name, so do not pass `NAME=` unless a different output basename is truly required. With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence; deliver HTML unless the user names another file format.
+For PPTX requests, use:
 
-Use `FORMATS=pdf` for PDF, `FORMATS=pptx` for PPTX, and `FORMATS=all` for notes plus all export formats. PDF and PPTX builds also create review evidence. Use `FORMATS=html` only for a mechanical no-review HTML export.
+```json
+{
+  "command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh",
+  "workingDirectoryPath": "tmp/<deck-slug>"
+}
+```
+
+For PDF requests use `FORMATS=pdf /workspace/skills/presentation/scripts/build.sh`; for all outputs use `FORMATS=all /workspace/skills/presentation/scripts/build.sh`. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence; deliver HTML unless the user names another file format.
 
 Do not call `terminal.run` with an `arguments` array alone. Use the `command` string examples above for this skill's build path.
 
@@ -57,7 +62,7 @@ Pick one deck archetype: pitch, research report, executive briefing, education, 
 
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask.
 
-For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, read `assets/visual-styles.md` and `assets/composition-seeds.md`, choose a named style plus seed, and make the decision visible. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
+For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more design direction is needed, but do not spend tool turns on reference reading before `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
 
 Quarterly review decks should usually use this six-slide spine: decision title, executive summary, target-versus-actual metrics, roadmap timeline, risk-response matrix, and approval/next steps. The board floor in `composition-seeds.md` includes Decision cover, Executive dashboard, Metrics scoreboard, Roadmap timeline, Risk matrix, and Approval panel. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
 
@@ -65,15 +70,13 @@ Do not deliver a board deck made of plain white title slides, unstyled tables, b
 
 ## Source Files
 
-`deck-brief.md` is a brief planning note, not a second deliverable. It pins the audience, thesis, slide sequence, visual direction, and quality bar.
+`slides.html` is the source of truth for the deck and must be the first file written. Include `<!-- design-source: DESIGN.md -->` even if `DESIGN.md` is only a compact helper, mirror the chosen colors/typography/layout in CSS, keep one main message per slide, set `data-visual-system` on `<body>` or every slide, set `data-slide-role` on every `<section class="slide">`, and use one top-level slide section per slide.
 
-`required-visible-text.txt` is the source-fact ledger for review, not a token filter. Put one source fact or must-appear phrase per line, then intentionally represent those facts in `slides.html` with natural layout copy, tables, charts, or labels. Include organization, product, exact period wording, user-provided metric values, target values, owners, dates, and missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`; include both only if both are visible. Use the ledger during visual review and final self-check rather than forcing awkward exact phrasing into the design.
+`DESIGN.md` is useful for design-sensitive decks but not more important than the deck. If you create it, use Stitch-compatible YAML front matter with only `colors`, `typography`, and `layout`, followed by Markdown headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, and `Anti-default Check`.
 
-`DESIGN.md` is a design brief, not a theme file. Write it directly for the user's deck; do not expect `build.sh` to apply it automatically. It must be Stitch-compatible: YAML front matter with only `colors`, `typography`, and `layout`, followed by Markdown design reasoning. Include `## Style Prompt`, `## Visual Identity Gate`, `## Scene`, `## Design Thesis`, `## Visual System`, `## Signature Move`, and `## Anti-default Check`.
+`deck-brief.md` is an optional brief planning note, not a second deliverable. It pins the deck archetype, story spine, slide count, visual system, signature move, and what would be too shallow.
 
-Use compact YAML with `colors`, `typography`, and `layout` keys. Then add Markdown headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, and `Anti-default Check`.
-
-`slides.html` is the source of truth for the deck. Include `<!-- design-source: DESIGN.md -->`, mirror `DESIGN.md` colors/typography/layout in CSS, keep one main message per slide, set `data-visual-system` on `<body>` or every slide, set `data-slide-role` on every `<section class="slide">`, and use one top-level slide section per slide.
+`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter. Put one source fact or must-appear phrase per line, then intentionally represent those facts in `slides.html` with natural layout copy, tables, charts, or labels. Include organization, product, exact period wording, user-provided metric values, target values, owners, dates, and missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`; include both only if both are visible.
 
 Use HTML as the layout surface. Browser rendering is the source for PDF, review images, and image-backed PPTX. The build can still create a native text-backed PPTX when Chromium is unavailable or `PRESENTATION_PPTX_MODE=native` is set:
 
@@ -86,7 +89,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 
 Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
 
-Use a task-local script for `DESIGN.md` and `slides.html`, then run it with `terminal.run`. Do not create source files with shell heredocs or `echo` inside the command string. Preserve explicit request constraints such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
+Use `file.write` for `slides.html` and optional helper files, then run the build with `terminal.run`. Preserve explicit request constraints such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
 
 Before building, scan `slides.html`. If a slide is only a raw `<table>` or bare `<ul>`, revise it into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two or more slides share the same `.grid` plus `.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable. Do not use colored side stripes, tiny rail labels, or border-plus-shadow white cards as the main identity.
 

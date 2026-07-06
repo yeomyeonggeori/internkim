@@ -12,14 +12,7 @@ This skill name is a compatibility alias. For all new slide work, follow the pre
 
 Default to HTML delivery when the user does not name a format, but still let the presentation build create internal review evidence. Use `FORMATS=pdf` for PDF, `FORMATS=pptx` for image-backed PPTX, and `FORMATS=all` when notes plus all export formats are needed.
 
-Create an HTML-first deck with:
-
-- `tmp/<deck-slug>/deck-brief.md`
-- `tmp/<deck-slug>/required-visible-text.txt`
-- `tmp/<deck-slug>/DESIGN.md`
-- `tmp/<deck-slug>/slides.html`
-
-Keep the structure disciplined without making every deck look identical. Choose a deck archetype, story spine, slide sequence, visual system, and Visual Identity Gate from the user's intent. Preserve the user's exact organization, product, period, metric values, targets, owners, dates, and missing-value labels such as `제공된 자료 없음`.
+Create an HTML-first deck by writing `tmp/<deck-slug>/slides.html` first. It is the required source of truth; write it before optional helper files such as `DESIGN.md`, `deck-brief.md`, or `required-visible-text.txt`. Keep the structure disciplined without making every deck look identical. Choose a deck archetype, story spine, slide sequence, visual system, and Visual Identity Gate from the user's intent. Preserve the user's exact organization, product, period, metric values, targets, owners, dates, and missing-value labels such as `제공된 자료 없음`.
 
 Use this build command shape:
 
@@ -30,7 +23,16 @@ Use this build command shape:
 }
 ```
 
-For PDF, PPTX, or all outputs, set the matching `FORMATS` value on that same command. Use this only for a mechanical no-review HTML export:
+For PDF, PPTX, or all outputs, set the matching `FORMATS` value on that same command. For PPTX requests, use:
+
+```json
+{
+  "command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh",
+  "workingDirectoryPath": "tmp/<deck-slug>"
+}
+```
+
+Use this only for a mechanical no-review HTML export:
 
 ```json
 {
