@@ -58,6 +58,8 @@ Reject shallow content: a welcome slide plus generic cards, repeated overview/fe
 
 Each slide needs a job: what the audience should learn, decide, or remember; what claim the title makes; what proof supports it; and what visual structure makes it easier to scan.
 
+Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean.
+
 Pick one deck archetype: pitch, research report, executive briefing, education, portfolio, product proposal, or status report. Use that choice to decide information density, section sequence, fake data style, and ending.
 
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask.
