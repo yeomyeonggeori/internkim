@@ -4,7 +4,7 @@ SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SRC="${SRC:-slides.html}"
 NAME="${NAME:-$(basename "$(pwd)")}"
-FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
+FORMATS="${FORMATS:-html,review}"
 BUILD_DIR="${BUILD_DIR:-build}"
 WORK_DIR="$(pwd -P)"
 SOURCE_PATH="$SRC"
@@ -36,6 +36,24 @@ if [ ! -f DESIGN.md ]; then
   exit 1
 fi
 
+if [ ! -f deck-brief.md ]; then
+  echo "Working directory: $(pwd)" >&2
+  echo "SRC: $SRC" >&2
+  echo "Directory entries:" >&2
+  ls -la . 2>&1 | sed -n '1,6p' >&2
+  echo "Error: deck-brief.md not found. Create it with intent, audience, visual system, signature move, slide sequence, and slide count before building." >&2
+  exit 1
+fi
+
+if [ ! -f required-visible-text.txt ]; then
+  echo "Working directory: $(pwd)" >&2
+  echo "SRC: $SRC" >&2
+  echo "Directory entries:" >&2
+  ls -la . 2>&1 | sed -n '1,6p' >&2
+  echo "Error: required-visible-text.txt not found. Create one exact visible phrase per line for required names, periods, values, dates, owners, and missing-value labels." >&2
+  exit 1
+fi
+
 case "$SOURCE_PATH" in
   *.html) ;;
   *) echo "Error: presentation now uses HTML-first source only. Create slides.html or set SRC=yourfile.html." >&2; exit 1 ;;
@@ -43,17 +61,39 @@ esac
 
 python3 - "$SOURCE_PATH" <<'PY'
 import pathlib
+import re
 import sys
 
 source_path = pathlib.Path(sys.argv[1])
-design_path = source_path.with_name("DESIGN.md")
+deck_brief_path = pathlib.Path("deck-brief.md")
 text = source_path.read_text()
+deck_brief_text = deck_brief_path.read_text()
 if "design-source: DESIGN.md" not in text:
-    print(f"Error: {source_path.name} must include design-source: DESIGN.md")
-    sys.exit(1)
+    print(f"Warning: {source_path.name} should include design-source: DESIGN.md", file=sys.stderr)
 
 if "<section" not in text.lower():
     print("Error: slides.html must contain slide <section> elements.")
+    sys.exit(1)
+
+def extract_requested_slide_count(deck_brief_text):
+    for pattern in [
+        r"(?im)^\s*slide\s*count\s*[:：-]\s*(\d{1,2})\b",
+        r"(?im)^\s*slides?\s*[:：-]\s*(\d{1,2})\b",
+        r"(?im)^\s*슬라이드\s*수\s*[:：-]\s*(\d{1,2})\b",
+    ]:
+        match = re.search(pattern, deck_brief_text)
+        if match:
+            return int(match.group(1))
+    numbered_slide_items = re.findall(r"(?m)^\s*\d{1,2}\.\s+\S", deck_brief_text)
+    if len(numbered_slide_items) >= 2:
+        return len(numbered_slide_items)
+    return None
+
+requested_slide_count = extract_requested_slide_count(deck_brief_text)
+actual_slide_count = len(re.findall(r"<section\b", text, re.IGNORECASE))
+if requested_slide_count is not None and actual_slide_count != requested_slide_count:
+    print(f"Error: slides.html has {actual_slide_count} slide sections, but deck-brief.md requests {requested_slide_count}.")
+    print("Update slides.html or deck-brief.md so the slide count matches the user request.")
     sys.exit(1)
 PY
 
@@ -84,11 +124,11 @@ NODE_RUNTIME_BUN_CACHE="${WORK_DIR}/.skill-env/presentation/bun-cache"
 ensure_node_environment() {
   if ! command -v bun &> /dev/null; then
     echo "bun is required for script-managed HTML-first slide export."
-    exit 1
+    return 1
   fi
   if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ]; then
     echo "Slide export package manifest is missing: ${SKILL_ASSET_DIRECTORY}/package.json"
-    exit 1
+    return 1
   fi
   mkdir -p "$NODE_RUNTIME_ROOT" "$NODE_RUNTIME_TMP" "$NODE_RUNTIME_BUN_INSTALL" "$NODE_RUNTIME_BUN_CACHE"
   export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"
@@ -104,7 +144,9 @@ ensure_node_environment() {
   if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -d "${NODE_RUNTIME_ROOT}/node_modules/playwright-core" ]; then
     cp "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json"
     echo "[stage] bun_install_start $(date +%s)" >&2
-    (cd "$NODE_RUNTIME_ROOT" && bun install --production)
+    if ! (cd "$NODE_RUNTIME_ROOT" && bun install --production); then
+      return 1
+    fi
     echo "[stage] bun_install_done $(date +%s)" >&2
   fi
   cp "$HTML_RENDER_SCRIPT" "${NODE_RUNTIME_ROOT}/html_render.mjs"
@@ -115,7 +157,25 @@ ensure_node_environment() {
 export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
 export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
 
-ensure_node_environment
+needs_node_environment() {
+  local format_list=",${FORMATS},"
+  case "$format_list" in
+    *,all,*|*,pdf,*|*,pptx,*|*,review,*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+if needs_node_environment; then
+  if command -v bun &> /dev/null; then
+    if ! ensure_node_environment; then
+      echo "[warning] browser render environment is unavailable; continuing with fallback review/export" >&2
+    fi
+  else
+    echo "[warning] bun is unavailable; continuing with fallback review/export" >&2
+  fi
+fi
 
 mkdir -p "$BUILD_PATH"
 export TMPDIR="${BUILD_PATH}/.tmp"
