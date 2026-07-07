@@ -85,7 +85,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame with grid or flex layout.
+- Fixed 16:9 frame with grid or flex layout. Let the main content area grow to fill the frame height; a large empty band between content and footer reads as an unfinished slide.
 - Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 
