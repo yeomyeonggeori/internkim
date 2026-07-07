@@ -38,3 +38,4 @@ client_secret_*.apps.googleusercontent.com.json
 .superpowers/
 docs/superpowers/
 e2e-evidence/
+__pycache__/

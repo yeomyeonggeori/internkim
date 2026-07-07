@@ -28,6 +28,10 @@ DESIGN_REVIEW_PROMPT = (
 )
 STRUCTURE_DOMINANCE_RATIO = 0.55
 CLAIM_TITLE_WORD_MINIMUM = 5
+DESIGN_DOCUMENT_BODY_MINIMUM_CHARACTERS = 120
+VERTICAL_DEAD_ZONE_HEIGHT_RATIO = 0.27
+DECORATIVE_BAND_OCCUPANCY = 0.85
+DECORATIVE_BAND_MAXIMUM_DEPTH_RATIO = 0.15
 KOREAN_SENTENCE_ENDINGS = ("다", "요", "까", "죠")
 LABEL_ONLY_SLIDE_ROLES = {"title", "cover", "divider", "section"}
 DESIGN_WARNING_PREFIXES = (
@@ -43,6 +47,7 @@ DESIGN_WARNING_PREFIXES = (
     "tinyTextWarning",
     "languageMismatchWarning",
     "unsourcedCurrentDateWarning",
+    "verticalDeadZoneWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -57,6 +62,7 @@ DESIGN_WARNING_WEIGHTS = {
     "topicTitleWarning": 8,
     "languageMismatchWarning": 10,
     "unsourcedCurrentDateWarning": 10,
+    "verticalDeadZoneWarning": 10,
 }
 
 
@@ -214,8 +220,7 @@ def inspect_source_context(source_text: str, design_document_text: str, slide_co
     visual_system_count = source_text.casefold().count("data-visual-system")
     return {
         "hasVisualSystemAttribute": visual_system_count > 0,
-        "hasStylePrompt": "## style prompt" in design_document_text.casefold(),
-        "hasVisualIdentityGate": "## visual identity gate" in design_document_text.casefold(),
+        "designDocumentBodyCharacterCount": len(design_document_body(design_document_text)),
         "slideRoleCount": slide_role_count,
         "expectedSlideCount": slide_count,
         "missingSlideRoleCount": max(0, len(slide_sources) - slide_role_count),
@@ -373,12 +378,17 @@ def review_slide(path: typing.Optional[pathlib.Path], design: dict[str, str], in
         return review_slide_without_image(index, slide_text, structure)
     image = read_png(path)
     background = corner_background_color(image)
-    content_bounds = find_content_bounds(image, background)
+    analysis = analyze_image_content(image, background)
+    content_bounds = analysis["bounds"]
     density = content_density(image, background)
     margin = margin_pixels(image, design)
     checks = slide_checks(content_bounds, image, margin, density)
     risks = slide_risks(content_bounds, image, margin, slide_text)
     warnings = slide_warnings(checks, margin, density, risks, structure)
+    if analysis["verticalGapRatio"] >= VERTICAL_DEAD_ZONE_HEIGHT_RATIO and str(structure["slideRole"]) not in LABEL_ONLY_SLIDE_ROLES:
+        warnings.append(
+            f"verticalDeadZoneWarning: an empty band spans {analysis['verticalGapRatio']:.0%} of the slide height; distribute content to fill the frame"
+        )
     return {
         "index": index,
         "filename": path.name,
@@ -593,25 +603,78 @@ def median_color(samples: list[tuple[int, int, int, int]]) -> tuple[int, int, in
     return tuple(channels)
 
 
-def find_content_bounds(image: dict[str, object], background: tuple[int, int, int, int]) -> typing.Optional[dict[str, int]]:
-    rows = image["rows"]
+def analyze_image_content(image: dict[str, object], background: tuple[int, int, int, int]) -> dict[str, object]:
     width = image["width"]
     height = image["height"]
-    minimum_x = width
-    minimum_y = height
-    maximum_x = -1
-    maximum_y = -1
-    for y, row in enumerate(rows):
+    row_spans, column_counts = content_row_spans(image, background)
+    row_counts = [span["count"] for span in row_spans]
+    top_trim = decorative_band_depth(row_counts, width, height)
+    bottom_trim = decorative_band_depth(list(reversed(row_counts)), width, height)
+    interior_height = height - top_trim - bottom_trim
+    left_trim = decorative_band_depth(column_counts, interior_height, width)
+    right_trim = decorative_band_depth(list(reversed(column_counts)), interior_height, width)
+    left_limit = left_trim
+    right_limit = width - right_trim - 1
+    occupied_rows = [
+        y
+        for y in range(top_trim, height - bottom_trim)
+        if row_is_occupied(row_spans[y], left_limit, right_limit)
+    ]
+    if not occupied_rows:
+        return {"bounds": None, "verticalGapRatio": 0.0}
+    bounds = {
+        "left": max(left_limit, min(row_spans[y]["left"] for y in occupied_rows)),
+        "top": occupied_rows[0],
+        "right": min(right_limit, max(row_spans[y]["right"] for y in occupied_rows)),
+        "bottom": occupied_rows[-1],
+    }
+    largest_gap = largest_internal_gap(occupied_rows)
+    return {"bounds": bounds, "verticalGapRatio": round(largest_gap / height, 3)}
+
+
+def content_row_spans(
+    image: dict[str, object], background: tuple[int, int, int, int]
+) -> tuple[list[dict[str, object]], list[int]]:
+    width = image["width"]
+    column_counts = [0] * width
+    row_spans = []
+    for row in image["rows"]:
+        count = 0
+        left = None
+        right = None
         for x, pixel in enumerate(row):
             if is_background_pixel(pixel, background):
                 continue
-            minimum_x = min(minimum_x, x)
-            minimum_y = min(minimum_y, y)
-            maximum_x = max(maximum_x, x)
-            maximum_y = max(maximum_y, y)
-    if maximum_x < 0:
-        return None
-    return {"left": minimum_x, "top": minimum_y, "right": maximum_x, "bottom": maximum_y}
+            count += 1
+            column_counts[x] += 1
+            if left is None:
+                left = x
+            right = x
+        row_spans.append({"count": count, "left": left, "right": right})
+    return row_spans, column_counts
+
+
+def decorative_band_depth(counts: list[int], span_length: int, dimension_length: int) -> int:
+    maximum_depth = round(dimension_length * DECORATIVE_BAND_MAXIMUM_DEPTH_RATIO)
+    depth = 0
+    for count in counts:
+        if depth >= maximum_depth or count < span_length * DECORATIVE_BAND_OCCUPANCY:
+            break
+        depth += 1
+    return depth
+
+
+def row_is_occupied(span: dict[str, object], left_limit: int, right_limit: int) -> bool:
+    if span["count"] == 0:
+        return False
+    return int(span["right"]) >= left_limit and int(span["left"]) <= right_limit
+
+
+def largest_internal_gap(occupied_rows: list[int]) -> int:
+    largest = 0
+    for previous_row, next_row in zip(occupied_rows, occupied_rows[1:]):
+        largest = max(largest, next_row - previous_row - 1)
+    return largest
 
 
 def content_density(image: dict[str, object], background: tuple[int, int, int, int]) -> float:
@@ -745,7 +808,7 @@ def apply_deck_design_warnings(slides: list[dict[str, object]], source_context: 
     table_or_list_count = sum(1 for slide in slides if slide_has_dominant_raw_structure(slide))
     repeated_composition_count = repeated_composition_slide_count(slides)
     if not source_has_visual_identity(source_context):
-        append_deck_warning(slides, "weakVisualIdentityWarning: deck lacks a named visual system, Style Prompt, or Visual Identity Gate")
+        append_deck_warning(slides, "weakVisualIdentityWarning: deck lacks a data-visual-system attribute or a DESIGN.md that describes the visual system")
     if int(source_context["missingSlideRoleCount"]) > 0:
         append_deck_warning(slides, "missingSlideRoleWarning: one or more slide sections lack data-slide-role")
     if render_source != "browser":
@@ -823,11 +886,18 @@ def current_date_pattern(today: datetime.date) -> re.Pattern[str]:
     return re.compile(rf"(?<!\d){today.year}{separator}0?{today.month}{separator}0?{today.day}(?!\d)")
 
 
+def design_document_body(design_document_text: str) -> str:
+    if design_document_text.startswith("---"):
+        parts = design_document_text.split("---", 2)
+        if len(parts) == 3:
+            return parts[2].strip()
+    return design_document_text.strip()
+
+
 def source_has_visual_identity(source_context: dict[str, object]) -> bool:
     return (
         bool(source_context["hasVisualSystemAttribute"])
-        and bool(source_context["hasStylePrompt"])
-        and bool(source_context["hasVisualIdentityGate"])
+        and int(source_context["designDocumentBodyCharacterCount"]) >= DESIGN_DOCUMENT_BODY_MINIMUM_CHARACTERS
     )
 
 
