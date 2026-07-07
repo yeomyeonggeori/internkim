@@ -7,14 +7,25 @@ type ProseProps = {
 };
 
 export function Prose({ block, anchorID }: ProseProps) {
+	const paragraphs = splitParagraphs(block.body);
 	return (
-		<section id={anchorID} className="border-t border-border py-16">
-			{block.title ? <h2 className="text-2xl font-semibold tracking-tight">{block.title}</h2> : null}
-			{splitParagraphs(block.body).map((paragraph, paragraphIndex) => (
-				<p key={paragraphIndex} className="mt-4 max-w-2xl whitespace-pre-line leading-relaxed text-muted-foreground">
-					{paragraph}
-				</p>
-			))}
+		<section id={anchorID} className="py-20">
+			<div className="grid gap-8 md:grid-cols-[minmax(0,16rem)_1fr]">
+				{block.title ? <h2 className="text-3xl font-bold leading-tight tracking-tight">{block.title}</h2> : null}
+				<div className={block.title ? "" : "md:col-span-2"}>
+					{paragraphs.map((paragraph, paragraphIndex) => (
+						<p
+							key={paragraphIndex}
+							className={
+								(paragraphIndex === 0 ? "prose-lede" : "mt-5 leading-[1.85] text-muted-foreground") +
+								" max-w-[42rem] whitespace-pre-line"
+							}
+						>
+							{paragraph}
+						</p>
+					))}
+				</div>
+			</div>
 		</section>
 	);
 }

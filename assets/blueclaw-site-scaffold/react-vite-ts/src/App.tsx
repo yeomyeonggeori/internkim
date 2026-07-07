@@ -79,8 +79,8 @@ function App() {
 
 	return (
 		<div className="min-h-screen bg-background text-foreground antialiased">
-			<header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
-				<a href="#/" className="text-sm font-semibold tracking-tight">
+			<header className="site-header"><div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+				<a href="#/" className="font-semibold tracking-tight">
 					{siteName}
 				</a>
 				<nav className="hidden gap-6 text-sm text-muted-foreground sm:flex">
@@ -99,6 +99,7 @@ function App() {
 						</a>
 					))}
 				</nav>
+				</div>
 			</header>
 
 			<main className="mx-auto max-w-4xl px-6">

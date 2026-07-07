@@ -24,6 +24,12 @@
 	--radius: 0.5rem;
 	--font-heading: "에이투지체", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
 	--font-body: "에이투지체", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	--hero-background: var(--background);
+	--hero-foreground: var(--foreground);
+	--hero-muted: var(--muted-foreground);
+	--shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+	--shadow-card-hover: 0 12px 32px -12px rgb(0 0 0 / 0.18);
+	--motion-duration: 0.55s;
 	font-family: var(--font-body);
 	color: var(--foreground);
 	background: var(--background);
@@ -74,6 +80,11 @@ h4,
 h5,
 h6 {
 	font-family: var(--font-heading);
+	text-wrap: balance;
+}
+
+p {
+	text-wrap: pretty;
 }
 
 button,
@@ -81,4 +92,75 @@ input,
 textarea,
 select {
 	font: inherit;
+}
+
+.site-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	background: color-mix(in srgb, var(--background) 86%, transparent);
+	backdrop-filter: blur(12px);
+	border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.hero-band {
+	background: var(--hero-background);
+	color: var(--hero-foreground);
+}
+
+.hero-band .hero-muted {
+	color: var(--hero-muted);
+}
+
+.surface-card {
+	background: var(--card);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-card);
+	transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.surface-card:hover {
+	box-shadow: var(--shadow-card-hover);
+	transform: translateY(-2px);
+}
+
+.item-index {
+	font-family: var(--font-heading);
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	color: color-mix(in srgb, var(--accent) 72%, var(--muted-foreground));
+}
+
+.prose-lede {
+	font-size: 1.1875rem;
+	line-height: 1.75;
+	color: var(--foreground);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	main section {
+		animation: section-rise var(--motion-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+
+	main section:nth-child(2) {
+		animation-delay: 0.06s;
+	}
+
+	main section:nth-child(3) {
+		animation-delay: 0.12s;
+	}
+}
+
+@keyframes section-rise {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
 }
