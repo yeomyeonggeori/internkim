@@ -4,6 +4,7 @@ import {
 	computedPseudoStyle,
 	computedStyle,
 	routeCalendarEventDeletes,
+	routeCalendarEventDeletesWithFailures,
 	routeCalendarEvents,
 	routeDefaultCalendarAPI
 } from './calendar-embed-test-utils';
@@ -104,7 +105,7 @@ test.describe('embedded calendar mini calendar', () => {
 		expect(draftEventStyle.color).toBe('rgb(255, 255, 255)');
 	});
 
-	test('navigates from mini calendar and deletes selected events from the popover or keyboard', async ({ page }) => {
+	test('navigates from mini calendar and delays selected event deletes for undo', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'deletable-event',
@@ -134,6 +135,33 @@ test.describe('embedded calendar mini calendar', () => {
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('[data-event-id="deletable-event"]')).toHaveCount(0);
+		const deleteUndo = page.locator('.calendar-delete-undo-toast');
+		await expect(deleteUndo).toBeVisible();
+		await expect(deleteUndo).toContainText('일정을 삭제했습니다.');
+		expect(deletedEventIDs).toEqual([]);
+
+		await deleteUndo.getByRole('button', { name: '실행 취소' }).click();
+		await expect(deleteUndo).toHaveCount(0);
+		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
+		expect(deletedEventIDs).toEqual([]);
+
+		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
+		await expect(deleteUndo).toBeVisible();
+		await deleteUndo.getByRole('button', { name: '실행 취소' }).click();
+		await expect(deleteUndo).toHaveCount(0);
+		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
+		expect(deletedEventIDs).toEqual([]);
+
+		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(deleteUndo).toBeVisible();
+		await deleteUndo.evaluate((element) => element.setAttribute('data-stability', 'kept'));
 
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-11"]').click();
 		const keyboardDeleteEvent = page.locator('.calendar-stage [data-event-id="keyboard-delete-event"]:not(.df-right-panel-event-card)').first();
@@ -143,7 +171,83 @@ test.describe('embedded calendar mini calendar', () => {
 		await page.keyboard.press('Backspace');
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('[data-event-id="keyboard-delete-event"]')).toHaveCount(0);
-		expect(deletedEventIDs).toEqual(['deletable-event', 'keyboard-delete-event']);
+		await expect(deleteUndo).toBeVisible();
+		await expect.poll(() => deleteUndo.evaluate((element) => element.getAttribute('data-stability'))).toBe('kept');
+		await expect.poll(() => deletedEventIDs.slice(), { timeout: 7000 }).toEqual(['deletable-event', 'keyboard-delete-event']);
+		await expect(deleteUndo).toHaveCount(0);
+	});
+
+	test('keeps the current undo delete hidden when the previous delete request fails', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'failed-delete-event',
+				title: '실패할 삭제 일정',
+				startISO: '2026-06-10T02:00:00+09:00',
+				endISO: '2026-06-10T03:00:00+09:00',
+				isAllDay: false
+			},
+			{
+				id: 'pending-delete-event',
+				title: '대기 중 삭제 일정',
+				startISO: '2026-06-11T02:00:00+09:00',
+				endISO: '2026-06-11T03:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+		const deletedEventIDs = await routeCalendarEventDeletesWithFailures(page, ['failed-delete-event']);
+
+		await openCalendarEmbed(page, '일');
+		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
+		await page.locator('.calendar-stage [data-event-id="failed-delete-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
+		const deleteUndo = page.locator('.calendar-delete-undo-toast');
+		await expect(deleteUndo).toBeVisible();
+
+		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-11"]').click();
+		const pendingDeleteEvent = page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)').first();
+		await pendingDeleteEvent.click();
+		await page.keyboard.press('Backspace');
+		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
+		await expect.poll(() => deletedEventIDs.slice(), { timeout: 3000 }).toEqual(['failed-delete-event']);
+		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
+		await expect(deleteUndo).toBeVisible();
+		await expect.poll(() => deletedEventIDs.slice(), { timeout: 7000 }).toEqual([
+			'failed-delete-event',
+			'pending-delete-event'
+		]);
+		await expect(deleteUndo).toHaveCount(0);
+
+		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
+		await expect(page.locator('.calendar-stage [data-event-id="failed-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
+	});
+
+	test('flushes the pending undo delete when the page is hidden', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'pagehide-delete-event',
+				title: '이탈 전 삭제 일정',
+				startISO: '2026-06-10T02:00:00+09:00',
+				endISO: '2026-06-10T03:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+		const deletedEventIDs = await routeCalendarEventDeletes(page);
+
+		await openCalendarEmbed(page, '일');
+		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
+		await page.locator('.calendar-stage [data-event-id="pagehide-delete-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
+		const deleteUndo = page.locator('.calendar-delete-undo-toast');
+		await expect(deleteUndo).toBeVisible();
+
+		await page.evaluate(() => {
+			window.dispatchEvent(new Event('pagehide'));
+		});
+
+		await expect.poll(() => deletedEventIDs.slice()).toEqual(['pagehide-delete-event']);
+		await expect(deleteUndo).toHaveCount(0);
 	});
 
 	test('opens the right mini calendar month picker and syncs selected dates in week and month views', async ({ page }) => {

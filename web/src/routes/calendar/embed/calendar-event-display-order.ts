@@ -2,13 +2,11 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 
 export type CalendarEventDisplayOrderCandidate = {
-	eventID: string;
 	startDateKey: string;
 	endDateKey: string;
 	durationDays: number;
-	sortTimestamp: number;
-	isAllDay: boolean;
-	eventIndex: number;
+	startTimestamp: number;
+	updatedTimestamp: number;
 };
 
 export const calendarEventLocalSortMetadataKey = 'localSortAt';
@@ -17,23 +15,21 @@ const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
 export function calendarEventDisplayOrderCandidate(
 	event: DayFlowEvent,
-	eventIndex: number,
 	visibleStartDateKey: string,
 	visibleEndDateKey: string
 ): CalendarEventDisplayOrderCandidate | null {
-	const eventStartDateKey = calendarDateKey(startOfDay(eventStartDate(event)));
+	const startDate = eventStartDate(event);
+	const eventStartDateKey = calendarDateKey(startOfDay(startDate));
 	const eventEndDateKey = calendarDateKey(calendarEventDisplayEndDate(event));
 	if (eventEndDateKey < visibleStartDateKey || eventStartDateKey > visibleEndDateKey) return null;
 	const startDateKey = eventStartDateKey < visibleStartDateKey ? visibleStartDateKey : eventStartDateKey;
 	const endDateKey = eventEndDateKey > visibleEndDateKey ? visibleEndDateKey : eventEndDateKey;
 	return {
-		eventID: event.id,
 		startDateKey,
 		endDateKey,
 		durationDays: inclusiveDurationDays(startDateKey, endDateKey),
-		sortTimestamp: calendarEventSortTimestamp(event),
-		isAllDay: event.allDay ?? false,
-		eventIndex
+		startTimestamp: startDate.getTime(),
+		updatedTimestamp: calendarEventUpdatedTimestamp(event)
 	};
 }
 
@@ -47,23 +43,19 @@ export function compareCalendarEventDisplayOrderCandidates(
 	}
 	const durationComparison = secondCandidate.durationDays - firstCandidate.durationDays;
 	if (durationComparison !== 0) return durationComparison;
-	const timestampComparison = secondCandidate.sortTimestamp - firstCandidate.sortTimestamp;
+	const startTimestampComparison = firstCandidate.startTimestamp - secondCandidate.startTimestamp;
+	if (startTimestampComparison !== 0) return startTimestampComparison;
+	const timestampComparison = secondCandidate.updatedTimestamp - firstCandidate.updatedTimestamp;
 	if (timestampComparison !== 0) return timestampComparison;
-	const endComparison = secondCandidate.endDateKey.localeCompare(firstCandidate.endDateKey);
-	if (endComparison !== 0) return endComparison;
-	const allDayComparison = Number(secondCandidate.isAllDay) - Number(firstCandidate.isAllDay);
-	if (allDayComparison !== 0) return allDayComparison;
-	const insertionComparison = secondCandidate.eventIndex - firstCandidate.eventIndex;
-	if (insertionComparison !== 0) return insertionComparison;
-	return firstCandidate.eventID.localeCompare(secondCandidate.eventID);
+	return 0;
 }
 
 export function calendarDateKey(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function calendarEventSortTimestamp(event: DayFlowEvent): number {
-	return Math.max(metadataTimestamp(event.meta?.[calendarEventLocalSortMetadataKey]), metadataTimestamp(event.meta?.updatedAt));
+export function calendarEventUpdatedTimestamp(event: DayFlowEvent): number {
+	return metadataTimestamp(event.meta?.updatedAt);
 }
 
 function areOverlappingDateRanges(

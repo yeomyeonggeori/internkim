@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,57 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
+	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+			return response, nil
+		}
+		switch {
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})
+	if errorValue := service.writeOrgchartProfiles(context.Background(), []orgchartProfile{{
+		UserID:            "user-member",
+		Email:             "member@example.com",
+		JobTitle:          "Design Lead",
+		PrimaryGroupID:    "design",
+		GroupIDs:          []string{"design"},
+		SupervisorID:      "user-admin",
+		EmploymentStatus:  orgchartEmploymentStatusActive,
+		IsOrgchartVisible: true,
+	}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/users?includePolicy=true", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("user list status = %d body = %s", response.Code, response.Body.String())
+	}
+	var usersResponse pagesUsersResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &usersResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(usersResponse.Records) != 1 {
+		t.Fatalf("records = %d; want 1", len(usersResponse.Records))
+	}
+	record := usersResponse.Records[0]
+	if record.JobTitle != "Design Lead" || record.PrimaryGroupID != "design" || record.SupervisorID != "user-admin" {
+		t.Fatalf("record orgchart metadata = %#v", record)
+	}
+}
 
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	var pagesPayload map[string]any
@@ -128,6 +180,7 @@ func newAdminUsersProxyTestService(t *testing.T, transport roundTripFunc) *Servi
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
 		FleetIDPath:                 fleetIDPath,
 		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),

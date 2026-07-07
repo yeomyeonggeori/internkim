@@ -197,6 +197,8 @@ type adminSessionResponse struct {
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
 	Role                   string `json:"role"`
+	CanViewTasks           bool   `json:"canViewTasks"`
+	IsPoCSuperAdmin        bool   `json:"isPocSuperAdmin"`
 	IsClaimed              bool   `json:"isClaimed"`
 	BootstrapStatus        string `json:"bootstrapStatus"`
 	BootstrapError         string `json:"bootstrapError,omitempty"`
@@ -465,6 +467,8 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
+	multiplexer.HandleFunc("/poc-admin", service.serveProofOfConceptAdminPage)
+	multiplexer.HandleFunc("/poc-admin/", service.serveProofOfConceptAdminPage)
 	multiplexer.HandleFunc("/tasks", service.serveTasksPage)
 	multiplexer.HandleFunc("/tasks/api/", service.handleTasks)
 	multiplexer.HandleFunc("/tasks/", service.serveTasksPage)
@@ -504,6 +508,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/mail" ||
 		path == "/attendance" ||
 		path == "/files" ||
+		path == "/poc-admin" ||
 		path == "/tasks" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
@@ -515,6 +520,7 @@ func isInternKimCORSPath(path string) bool {
 		strings.HasPrefix(path, "/mail/") ||
 		strings.HasPrefix(path, "/attendance/") ||
 		strings.HasPrefix(path, "/files/") ||
+		strings.HasPrefix(path, "/poc-admin/") ||
 		strings.HasPrefix(path, "/tasks/") ||
 		strings.HasPrefix(path, "/_app/") ||
 		strings.HasPrefix(path, "/_internkim/")
@@ -895,11 +901,18 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	consoleEmail := service.adminConsoleActorEmail(request)
 	role := service.adminSessionRole(request.Context(), consoleEmail)
+	isPoCSuperAdmin := service.isMattermostHumanSystemAdmin(request.Context(), consoleEmail)
+	canViewTasks := role == adminUserRoleAdmin || role == adminUserRoleOperationsAdmin
+	if service.isProofOfConceptTenantMode() {
+		canViewTasks = isPoCSuperAdmin
+	}
 	response := adminSessionResponse{
 		Email:             consoleEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
 		IsAdmin:           role == adminUserRoleAdmin,
 		Role:              role,
+		CanViewTasks:      canViewTasks,
+		IsPoCSuperAdmin:   isPoCSuperAdmin,
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
