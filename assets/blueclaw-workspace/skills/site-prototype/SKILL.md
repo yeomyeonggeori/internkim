@@ -19,9 +19,9 @@ Create validation prototypes, not production software. Do not claim production r
 
 User-provided data is the source of truth. Preserve company names, products, people, dates, prices, menu items, locations, policies, and confirmation states exactly unless the user asks for translation or normalization. Do not invent missing vendors, reviews, discounts, delivery options, payment methods, addresses, phone numbers, integrations, or availability. If a useful value is missing, render the user's-language equivalent of "Not provided".
 
-Source-backed facts must appear in the rendered text, not only in `app/public/site-content.json` or the final reply. Keep a source checklist in `.internkim/artifact-brief.md` and verify it against rendered text before publish.
+Source-backed facts must appear in the rendered text, not only in `app/public/site-content.json` or the final reply. Write the must-appear facts one per line to `.internkim/required-visible-text.txt` — organization, product, people, prices, dates, and not-provided labels — and the content review checks that every line is visible.
 
-Block copy must be realistic, specific prose for the requested business — real service names, concrete benefits, outcome-focused calls to action. Placeholder or numbered filler such as `서비스 1`/`설명 1`, `Service 1`, or `Lorem ipsum` is never acceptable. When the request gives a hero tagline (보조 문구), use it verbatim as the hero block's tagline; do not paraphrase or drop it.
+Block copy must be realistic, specific prose for the requested business — real service names, concrete benefits, outcome-focused calls to action; never placeholder or numbered filler. When the request gives a hero tagline (보조 문구), use it verbatim as the hero block's tagline; do not paraphrase or drop it.
 
 ## Stack
 
@@ -45,11 +45,11 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Create, Update, Publish
 
-Website creation and update requests are incomplete until the site.publish operation succeeds and a final site.status operation returns `published`. A preview URL is only a draft. site.create is synchronous: a successful call returns the full site record immediately (`status: "draft"`, plus `siteID`) — there is no build to wait for, so never call site.status in a loop hoping create "finishes."
+Website creation and update requests are incomplete until the site.publish operation succeeds and a final site.status operation returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create to finish.
 
 1. Call the site.status operation once with the known `siteID`, slug, or empty input for the current conversation. Do not call it again until an action you took (create, publish, or a content change) could change the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
-3. If status is `not_found`, go straight to step 5 (site.create). Calling site.status again first changes nothing — it only becomes something other than `not_found` after site.create succeeds.
+3. If status is `not_found`, go straight to step 5 (site.create); polling status again changes nothing.
 4. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. Write it at `sourceWorkspacePath` (a sibling of `app/`) — never at `app/DESIGN.md`; publish only looks for `DESIGN.md` at the source root, and misplacing it also falsely marks the build stale. Publish renders `colors` and `typography` into `theme.css`, so pick them before site.create on every create or update.
 
    Publish validates the whole contract at once: all five top-level keys, `colors.primary`/`colors.background` as hex, one `typography` entry with `fontFamily`, and a resolvable `rounded`. Copy this minimal valid skeleton verbatim, then replace the values and add richer colors/typography/spacing/components detail:
@@ -80,13 +80,22 @@ Website creation and update requests are incomplete until the site.publish opera
    }
    ```
 
-   If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time. Never call site.create a third time for the same site, never resend the same failing input unchanged, and never substitute polling site.status for fixing the input — status cannot repair a create that never succeeded. If the second attempt also fails, stop and report the failure instead of retrying further.
-6. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided.
+   If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
+6. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided. Then run the content review with `terminal.run`:
+
+   ```json
+   {
+     "workingDirectoryPath": "<sourceWorkspacePath>",
+     "command": "python3 /workspace/skills/site-prototype/scripts/content_review.py"
+   }
+   ```
+
+   Run it again after every later `site-content.json` change. Resolve the listed warnings; never call site.publish on content whose final state has not passed this review, unless you consciously report the remaining notes.
 7. If `workspaceHealth` is `missing` or `permission_problem`, call site.status once more to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 9. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
 10. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
-11. For a content-only change — copy, tagline, block text, block order, or block additions/removals with no new component — rewrite `app/public/site-content.json` directly and skip straight to step 19 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
+11. For a content-only change — copy, tagline, block text, block order, or block additions/removals with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
 12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
 13. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
 14. Only after a structural change (step 12) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 11) needs no build step.
@@ -113,7 +122,7 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 `DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme: publish renders them into `theme.css`, so an unconsidered front matter ships as the visible site.
 
-Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately — editorial (`#111111`/`#ffffff`, accent `#2f6f4f`, serif/sans), playful (`#ff6b4a`/`#fffaf3`, accent `#1c3b52`, rounded-sans), dashboard (`#2563eb`/`#f8fafc`, accent `#0f172a`, sans).
+Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately — editorial (`#111111`/`#ffffff`, accent `#2f6f4f`, serif/sans) or dashboard (`#2563eb`/`#f8fafc`, accent `#0f172a`, sans).
 
 Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
 
