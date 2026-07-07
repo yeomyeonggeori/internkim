@@ -72,6 +72,7 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 		return service.runAction(contextValue, logger, request)
 	}
 	service.logEphemeralContext(logger, request)
+	service.reapOrphanedEphemeralContainers(contextValue, logger)
 	if !request.KeepArtifacts {
 		return service.runWithEphemeralCleanup(contextValue, logger, request)
 	}
@@ -80,6 +81,15 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 
 func (service Service) ConfigurationPath() string {
 	return service.configurationPath()
+}
+
+func (service Service) reapOrphanedEphemeralContainers(contextValue context.Context, logger Logger) {
+	reapContext, cancel := context.WithTimeout(contextValue, time.Minute)
+	defer cancel()
+	plan := service.shellPlan("reap orphaned ephemeral containers", service.reapOrphanedEphemeralContainersCommand())
+	if errorValue := service.runCleanupPlans(reapContext, logger, []CommandPlan{plan}); errorValue != nil {
+		logger.Info("orphaned container reap skipped: " + errorValue.Error())
+	}
 }
 
 func (service Service) CleanupEphemeral(contextValue context.Context, logger Logger) error {
