@@ -21,11 +21,21 @@ def optional_text(value):
     return value
 
 
+ALLOWED_SPECIFICATION_KEYS = {"title", "subtitle", "fontName", "fontSize", "page", "blocks"}
+SPECIFICATION_HINT = 'a --spec file must look like {"title": "...", "fontName": "...", "blocks": [{"type": "heading", "level": 2, "text": "..."}, {"type": "paragraph", "text": "..."}, {"type": "bullets", "items": ["..."]}, {"type": "table", "rows": [["..."]]}]}'
+
+
 def load_specification(specification_path):
     with open(specification_path, "r", encoding="utf-8") as specification_file:
         specification = json.load(specification_file)
     if not isinstance(specification, dict):
         raise ValueError("document specification must be an object")
+    unknown_keys = set(specification) - ALLOWED_SPECIFICATION_KEYS
+    if unknown_keys:
+        raise ValueError(f"unknown specification fields {sorted(unknown_keys)}; {SPECIFICATION_HINT}")
+    blocks = specification.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise ValueError(f"specification has no content: blocks must be a non-empty array; {SPECIFICATION_HINT}")
     return specification
 
 
@@ -54,7 +64,7 @@ def create_document(specification):
     section.bottom_margin = Inches(margin_inches)
     section.left_margin = Inches(margin_inches)
 
-    font_name = require_text(specification.get("fontName", "Arial"), "fontName")
+    font_name = require_text(specification.get("fontName", "맑은 고딕"), "fontName")
     font_size = float(specification.get("fontSize", 10.5))
     set_document_font(document, font_name, font_size, Pt)
 

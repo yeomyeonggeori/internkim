@@ -77,6 +77,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "mail.connection.status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
 	{ToolName: "mail.connection.start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
 	{ToolPrefix: "site.", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
+	{ToolPrefix: "company.", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
 	{ToolName: "google.docs.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google.sheets.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google.gmail.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
