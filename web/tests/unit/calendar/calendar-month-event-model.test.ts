@@ -118,18 +118,45 @@ describe('monthEventSegments', () => {
 		]);
 	});
 
-	test('places recently updated equal-length events and local drafts above older events', () => {
-		const olderEvent = createEvent({
-			id: 'z-older-event',
-			title: 'Older Event',
+	test('orders same displayed day span events by start time before recent update time', () => {
+		const laterEvent = createEvent({
+			id: 'later-event',
+			title: 'Later Event',
+			start: new Date(2026, 5, 10, 10, 0),
+			end: new Date(2026, 5, 10, 11, 0),
+			calendarId: 'internkim',
+			meta: { updatedAt: '2026-06-02T00:00:00.000Z' }
+		});
+		const earlierEvent = createEvent({
+			id: 'earlier-event',
+			title: 'Earlier Event',
+			start: new Date(2026, 5, 10, 8, 0),
+			end: new Date(2026, 5, 10, 9, 0),
+			calendarId: 'internkim',
+			meta: { updatedAt: '2026-06-01T00:00:00.000Z' }
+		});
+
+		expect(monthEventSegments([laterEvent, earlierEvent], [juneSecondWeek]).map((segment) => [segment.eventID, segment.lane])).toEqual([
+			['earlier-event', 0],
+			['later-event', 1]
+		]);
+	});
+
+	test('orders same displayed day span and start time events by updatedAt and ignores localSortAt', () => {
+		const locallySortedOlderEvent = createEvent({
+			id: 'locally-sorted-older-event',
+			title: 'Locally Sorted Older Event',
 			start: new Date(2026, 5, 10),
 			end: new Date(2026, 5, 11),
 			allDay: true,
 			calendarId: 'internkim',
-			meta: { updatedAt: '2026-06-01T00:00:00.000Z' }
+			meta: {
+				localSortAt: '2026-06-17T00:00:00.000Z',
+				updatedAt: '2026-06-01T00:00:00.000Z'
+			}
 		});
 		const newerEvent = createEvent({
-			id: 'a-newer-event',
+			id: 'newer-event',
 			title: 'Newer Event',
 			start: new Date(2026, 5, 10),
 			end: new Date(2026, 5, 11),
@@ -145,25 +172,15 @@ describe('monthEventSegments', () => {
 			allDay: true,
 			calendarId: 'internkim'
 		});
-		const draftWithoutMetadata = createEvent({
-			id: 'draft-without-metadata',
-			title: 'Draft Without Metadata',
-			start: new Date(2026, 5, 10),
-			end: new Date(2026, 5, 11),
-			allDay: true,
-			calendarId: 'internkim',
-			meta: { localSortAt: '2026-06-17T00:00:00.000Z' }
-		});
 
 		expect(
-			monthEventSegments([olderEvent, newerEvent, persistedWithoutMetadata, draftWithoutMetadata], [juneSecondWeek]).map(
+			monthEventSegments([locallySortedOlderEvent, newerEvent, persistedWithoutMetadata], [juneSecondWeek]).map(
 				(segment) => [segment.eventID, segment.lane]
 			)
 		).toEqual([
-			['draft-without-metadata', 0],
-			['a-newer-event', 1],
-			['z-older-event', 2],
-			['persisted-without-metadata', 3]
+			['newer-event', 0],
+			['locally-sorted-older-event', 1],
+			['persisted-without-metadata', 2]
 		]);
 	});
 
