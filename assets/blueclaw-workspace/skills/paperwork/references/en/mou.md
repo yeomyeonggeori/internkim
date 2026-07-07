@@ -20,7 +20,7 @@ Documents the intent of two organizations or companies to cooperate in a given a
 ```json
 {
   "title": "Memorandum of Understanding",
-  "fontName": "Noto Sans CJK KR",
+  "fontName": "맑은 고딕",
   "fontSize": 10.5,
   "page": { "marginInches": 0.9 },
   "blocks": [
