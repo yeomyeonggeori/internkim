@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Multi-turn ask.input e2e against a live 김인턴 on a fleet VM:
+# DM1 triggers a company-info question, the answer (with logo/stamp images) fills
+# the company table, DM2 must complete WITHOUT asking, DM3 records metrics.
+#
+# Usage: tools/e2e-ask-flow
+#   Bring up a fleet first (internkim test --keep ...). INTERNKIM_E2E_CONFIG overrides
+#   the run config. Evidence lands in .artifacts/paperwork-samples/.
+set -uo pipefail
+trap 'echo "e2e-ask-flow aborted at line $LINENO (last: $BASH_COMMAND)" >&2' ERR
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CFG="${INTERNKIM_E2E_CONFIG:-$(ls -dt "$ROOT"/.local/local-fleet/runs/*/config.json 2>/dev/null | head -1)}"
+[ -n "${CFG:-}" ] && [ -f "$CFG" ] || { echo "no fleet run config found; bring up a fleet first" >&2; exit 1; }
+
+EVIDENCE="$ROOT/.artifacts/paperwork-samples"
+mkdir -p "$EVIDENCE"
+
+vmssh() { "$ROOT/internkim" lab vm-ssh --config "$CFG" "$@" 2>/dev/null; }
+shell_quote() { printf "%q" "$1"; }
+remote() {
+	local command="" argument
+	for argument in "$@"; do
+		command="$command $(shell_quote "$argument")"
+	done
+	sed '/^case "\${1:-}" in$/,$d' "$ROOT/tools/e2e-crud-remote.sh" | cat - "$ROOT/tools/e2e-ask-flow-remote.sh" \
+		| timeout "${REMOTE_TIMEOUT:-600}" "$ROOT/internkim" lab vm-ssh --config "$CFG" "bash -s --${command}" 2>/dev/null | tail -1
+}
+
+save_files() { # result-json prefix
+	python3 - "$1" "$EVIDENCE" "$2" <<'PY'
+import base64, json, sys
+result = json.loads(sys.argv[1])
+for entry in result.get("downloadedFiles", []):
+    name = sys.argv[3] + "-" + entry["filename"].replace("/", "_")
+    with open(f"{sys.argv[2]}/{name}", "wb") as output:
+        output.write(base64.b64decode(entry["contentBase64"]))
+    print("saved", name)
+PY
+}
+
+echo "[1/8] pushing mock images to VM"
+vmssh "cat > /tmp/yeomyeong-logo.png" < "$EVIDENCE/mock-logo.png"
+vmssh "cat > /tmp/yeomyeong-stamp.png" < "$EVIDENCE/mock-stamp.png"
+
+echo "[2/8] setup persistent test user + DM channel"
+SETUP="$(remote setup)"
+echo "$SETUP"
+CHANNEL="$(jq -r '.channelID' <<<"$SETUP")"
+TOKEN="$(jq -r '.e2eToken' <<<"$SETUP")"
+[ -n "$CHANNEL" ] && [ -n "$TOKEN" ] || { echo "setup failed" >&2; exit 1; }
+
+PROMPT1="우리 다음 달부터 ABC물산이랑 김인턴 도입 컨설팅 용역 계약을 하려고 하는데, 용역계약서 초안 하나 만들어줘. 대금은 월 500만 원에 3개월이고, 상대방 대표는 박철수야."
+ANSWER="상호는 주식회사 여명거리, 대표는 김여명이야. 사업자등록번호 123-45-67890, 주소는 서울특별시 강남구 테헤란로 123 4층, 전화 02-1234-5678, 대표 메일 contact@example.com, 입금계좌는 신한은행 110-123-456789 (주식회사 여명거리). 로고랑 직인 이미지도 붙여줄게."
+PROMPT2="고생했어. ABC물산에 보낼 견적서도 하나 뽑아줘. 김인턴 도입 컨설팅 3개월, 월 500만 원, 부가세 별도."
+PROMPT3="참고로 작년 연매출은 12억이고 지금 직원은 9명이야. 그리고 작년 11월에 시드로 20억 투자받았어. 다 기록해둬."
+
+echo "[3/8] DM1: service agreement request (expect a company-info question)"
+START1="$(remote ask-start "$CHANNEL" "$TOKEN" "$PROMPT1" 300)"
+echo "$START1" | tee "$EVIDENCE/askflow-dm1-start.json"
+PHASE="$(jq -r '.phase' <<<"$START1")"
+TASK1="$(jq -r '.taskRunID' <<<"$START1")"
+ROOT1="$(jq -r '.rootPostID' <<<"$START1")"
+CREATED1="$(jq -r '.rootPostCreatedAt' <<<"$START1")"
+if [ "$PHASE" != "asked" ]; then
+	echo "FAIL: DM1 expected phase=asked, got $PHASE" >&2
+	exit 1
+fi
+
+echo "[4/8] answering with company data + logo/stamp attachments"
+remote ask-answer "$CHANNEL" "$TOKEN" "$ROOT1" "$ANSWER" /tmp/yeomyeong-logo.png /tmp/yeomyeong-stamp.png
+
+echo "[5/8] waiting for DM1 completion (contract draft)"
+FINISH1="$(remote ask-finish "$CHANNEL" "$TOKEN" "$TASK1" "$ROOT1" "$CREATED1" 480)"
+jq 'del(.downloadedFiles[]?.contentBase64)' <<<"$FINISH1" | tee "$EVIDENCE/askflow-dm1-finish.json"
+save_files "$FINISH1" "askflow-contract"
+
+echo "[6/8] DM2: quotation request (must NOT ask)"
+START2="$(remote ask-start "$CHANNEL" "$TOKEN" "$PROMPT2" 480)"
+echo "$START2" | tee "$EVIDENCE/askflow-dm2-start.json"
+PHASE2="$(jq -r '.phase' <<<"$START2")"
+TASK2="$(jq -r '.taskRunID' <<<"$START2")"
+ROOT2="$(jq -r '.rootPostID' <<<"$START2")"
+CREATED2="$(jq -r '.rootPostCreatedAt' <<<"$START2")"
+if [ "$PHASE2" = "asked" ]; then
+	echo "FAIL: DM2 asked about company info again: $(jq -r '.question' <<<"$START2")" >&2
+	exit 1
+fi
+FINISH2="$(remote ask-finish "$CHANNEL" "$TOKEN" "$TASK2" "$ROOT2" "$CREATED2" 60)"
+jq 'del(.downloadedFiles[]?.contentBase64)' <<<"$FINISH2" | tee "$EVIDENCE/askflow-dm2-finish.json"
+save_files "$FINISH2" "askflow-quote"
+if [ "$(jq -r '.askCount' <<<"$FINISH2")" != "0" ]; then
+	echo "FAIL: DM2 task contains ask.requested events" >&2
+	exit 1
+fi
+
+echo "[7/8] DM3: metric + funding recording"
+START3="$(remote ask-start "$CHANNEL" "$TOKEN" "$PROMPT3" 300)"
+echo "$START3" | tee "$EVIDENCE/askflow-dm3-start.json"
+TASK3="$(jq -r '.taskRunID' <<<"$START3")"
+ROOT3="$(jq -r '.rootPostID' <<<"$START3")"
+CREATED3="$(jq -r '.rootPostCreatedAt' <<<"$START3")"
+FINISH3="$(remote ask-finish "$CHANNEL" "$TOKEN" "$TASK3" "$ROOT3" "$CREATED3" 60)"
+jq 'del(.downloadedFiles[]?.contentBase64)' <<<"$FINISH3" | tee "$EVIDENCE/askflow-dm3-finish.json"
+
+echo "[8/8] company table state"
+remote company-state | jq '.' | tee "$EVIDENCE/askflow-company-state.json"
+
+echo "DONE — evidence in $EVIDENCE"
