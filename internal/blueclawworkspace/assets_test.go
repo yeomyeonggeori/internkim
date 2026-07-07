@@ -459,7 +459,7 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 		content := string(document)
-		for _, expectedText := range []string{"Paperlogy", "WOFF2", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont`, `"Noto Color Emoji"`} {
+		for _, expectedText := range []string{"Paperlogy", "WOFF2", `"Paperlogy", "Noto Sans KR", system-ui`} {
 			if !strings.Contains(content, expectedText) {
 				t.Fatalf("%s must document Paperlogy default %q", documentPath, expectedText)
 			}

@@ -215,6 +215,7 @@ def inject_screen_slide_viewer(source_text: str) -> str:
         return source_text
     viewer_style = """
 <style data-internkim-slide-viewer>
+section aside.notes, section aside[role="note"], section [data-speaker-notes] { display: none !important; }
 @media screen {
   html { background: #000; }
   body { min-height: 100vh; margin: 0; background: #000; }
