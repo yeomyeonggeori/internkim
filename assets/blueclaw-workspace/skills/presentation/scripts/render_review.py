@@ -51,6 +51,7 @@ DESIGN_WARNING_PREFIXES = (
     "absoluteFooterWarning",
     "emojiIconWarning",
     "missingRequiredTextWarning",
+    "inconsistentFooterBaselineWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -69,6 +70,7 @@ DESIGN_WARNING_WEIGHTS = {
     "absoluteFooterWarning": 12,
     "emojiIconWarning": 8,
     "missingRequiredTextWarning": 14,
+    "inconsistentFooterBaselineWarning": 8,
 }
 
 
@@ -119,6 +121,7 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     apply_unsourced_current_date_warning(slides, slide_texts, required_text_ledger)
     apply_emoji_icon_warning(slides, slide_texts)
     apply_missing_required_text_warning(slides, slide_texts, required_text_ledger)
+    apply_footer_baseline_warning(slides)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
@@ -947,6 +950,29 @@ def apply_missing_required_text_warning(
 
 def normalize_for_coverage(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+FOOTER_BASELINE_VARIANCE_RATIO = 0.05
+
+
+def apply_footer_baseline_warning(slides: list[dict[str, object]]) -> None:
+    content_slides = [
+        slide
+        for slide in slides
+        if slide["hasRenderEvidence"]
+        and slide["contentBounds"]
+        and str(slide["structure"]["slideRole"]) not in LABEL_ONLY_SLIDE_ROLES
+    ]
+    if len(content_slides) < 3:
+        return
+    bottoms = [int(slide["contentBounds"]["bottom"]) for slide in content_slides]
+    height = max(int(slide["height"]) for slide in content_slides)
+    variance = max(bottoms) - min(bottoms)
+    if variance > height * FOOTER_BASELINE_VARIANCE_RATIO:
+        append_deck_warning(
+            slides,
+            f"inconsistentFooterBaselineWarning: the content bottom edge varies by {variance}px across slides; keep the footer on the same baseline on every slide",
+        )
 
 
 EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF✅❌❎❗❓⭐⚠⌚⏰️]")
