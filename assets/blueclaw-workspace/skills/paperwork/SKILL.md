@@ -90,14 +90,16 @@ Validate with the pdf skill's validator, passing the key source values:
 
 ## DOCX documents (editable contracts)
 
-Specs marked `output: docx` are contracts the counterpart will edit. The SAME renderer generates them — only the output extension changes. `file.write` the blocks JSON (`{"title", "fontName", "fontSize", "page", "blocks"}` exactly as the spec's DOCX blocks mapping shows — no profile field) to `tmp/<slug>/contract.json`, then:
+Specs marked `output: docx` are contracts built from BUNDLED standard-form templates — every standard clause and all styling already live in the template, so you never write clause text. `file.write` only the context JSON (the flat values the spec's Context JSON skeleton shows) to `tmp/<slug>/context.json`, then fill:
 
 ```json
 {
-  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/render_paperwork.py contract.json <storageDirectory>/<filename>.docx",
+  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/fill_template.py <template-name> context.json <storageDirectory>/<filename>.docx",
   "workingDirectoryPath": "tmp/<slug>"
 }
 ```
+
+`<template-name>` is the catalog slug (employment-contract, service-agreement, nda, mou, offer-letter). The filler validates the context and lists any missing fields. Free-form contract changes the template cannot express ("이 조항은 빼줘", custom clauses) are the only case for the fallback blocks path: `render_paperwork.py contract.json <output>.docx` with `{"title", "blocks"}` JSON.
 
 ## Rules
 
