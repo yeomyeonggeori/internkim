@@ -198,6 +198,35 @@
         "010-"
       ],
       "fixedInstruction": "제공된 소스 데이터만 사용해서 Yeonnam Robotics의 2026년 2분기 이사회 분기 리뷰 발표 덱을 PPTX로 만들어줘. 대상 독자는 이사회이고, 목적은 2분기 실적을 보고하고 3분기 로드맵 승인을 받는 거야. 반드시 제목 슬라이드, 짧은 요약, 핵심 지표 슬라이드, 3분기 로드맵/일정 슬라이드, 리스크와 대응 슬라이드, 다음 단계 슬라이드를 포함해. 표나 지표 카드는 읽기 좋게 만들고, 슬라이드 프레임 밖으로 텍스트가 잘리지 않게 해. 최종 PPTX 파일만 첨부해."
+    },
+    {
+      "id": "site-pottery-multipage",
+      "skillName": "site-prototype",
+      "artifactKind": "website",
+      "outputFileName": null,
+      "sourceFile": "fixtures/site-pottery-studio-multipage.md",
+      "expectedTools": [
+        "site.create",
+        "site.publish"
+      ],
+      "requiredText": [
+        "새벽가마 도예공방",
+        "물레 원데이 클래스",
+        "핸드빌딩 4주 코스",
+        "유약 실험 워크숍",
+        "55,000",
+        "180,000",
+        "75,000",
+        "한서린",
+        "hello@dawnfirepottery.kr"
+      ],
+      "forbiddenText": [
+        "전화",
+        "할인",
+        "리뷰",
+        "배송"
+      ],
+      "fixedInstruction": "제공된 소스 데이터만 사용해서 도예공방 웹사이트 프로토타입을 만들고 게시해줘. 소스의 사이트 구조 요구대로 홈, 클래스, 공방 이야기, 문의를 별도 페이지로 나누고 페이지 간 이동이 되는 내비게이션을 넣어. 클래스 페이지에는 세 클래스의 가격과 일정이 모두 보여야 하고, 모바일과 데스크톱 모두에서 텍스트가 겹치지 않아야 해."
     }
   ]
 }
