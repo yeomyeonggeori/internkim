@@ -205,6 +205,56 @@ func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
 	}
 }
 
+func TestSitePublishBlockedByPublishedSiteLimit(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	var firstPublishedSiteID string
+	for index := 0; index < publishedSiteLimit; index++ {
+		publishedSite, errorValue := service.createSiteRecord(siteCreateRequest{
+			Slug:        "published-" + strconv.Itoa(index),
+			RequestedBy: "owner@example.com",
+		})
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		publishedSite.Status = SiteStatusPublished
+		if errorValue := service.storeSite(publishedSite); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if index == 0 {
+			firstPublishedSiteID = publishedSite.SiteID
+		}
+	}
+	draftSite, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "draft-overflow",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	_, publishError := service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:      draftSite.SiteID,
+		RequestedBy: "owner@example.com",
+	})
+	if publishError == nil {
+		t.Fatal("expected publish limit error")
+	}
+	if !strings.Contains(publishError.Error(), "site publish limit reached") {
+		t.Fatalf("publish error = %v", publishError)
+	}
+	if !strings.Contains(publishError.Error(), firstPublishedSiteID) {
+		t.Fatalf("publish error missing published siteID: %v", publishError)
+	}
+
+	_, republishError := service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:      firstPublishedSiteID,
+		RequestedBy: "owner@example.com",
+	})
+	if republishError != nil && strings.Contains(republishError.Error(), "site publish limit reached") {
+		t.Fatalf("republish of an already-published site should not be blocked by the cap: %v", republishError)
+	}
+}
+
 func TestSitePublishedURLFallsBackToFleetDomainWithoutDeviceURL(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	rootPath := t.TempDir()
@@ -1228,8 +1278,8 @@ func TestSitePublishDisablesPocketBaseForStaticSite(t *testing.T) {
 func TestSitePublishEnablesPocketBaseForBackendSite(t *testing.T) {
 	service, commandLog := newTestSiteService(t)
 	site := publishPocketBaseTestSite(t, service, "db-pub")
-	if !containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
-		t.Fatalf("db publish should enable pocketbase service: %+v", *commandLog)
+	if !containsCommand(*commandLog, "systemctl disable "+siteServiceName(site.SiteID)) {
+		t.Fatalf("db publish should leave pocketbase service disabled for lazy start: %+v", *commandLog)
 	}
 	if !containsCommand(*commandLog, "systemctl restart "+siteServiceName(site.SiteID)) {
 		t.Fatalf("db publish should restart pocketbase service: %+v", *commandLog)
@@ -1300,8 +1350,8 @@ func TestReconcileSiteRuntimeTogglesByBackendMarker(t *testing.T) {
 	if errorValue := service.reconcileSitePocketBaseRuntime(context.Background(), site, versionID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !containsCommand(*commandLog, "systemctl enable --now "+siteServiceName(site.SiteID)) {
-		t.Fatalf("backend version should enable pocketbase: %+v", *commandLog)
+	if !containsCommand(*commandLog, "systemctl disable "+siteServiceName(site.SiteID)) {
+		t.Fatalf("backend version should leave pocketbase disabled for lazy start: %+v", *commandLog)
 	}
 	if !containsCommand(*commandLog, "systemctl restart "+siteServiceName(site.SiteID)) {
 		t.Fatalf("backend version should restart pocketbase: %+v", *commandLog)
