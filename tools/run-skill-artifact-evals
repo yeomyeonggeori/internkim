@@ -13,8 +13,10 @@ import tempfile
 import urllib.error
 import urllib.request
 import shutil
+import socket
 import subprocess
 import sys
+import time
 import zipfile
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
@@ -453,7 +455,7 @@ def render_website_case(resultDirectory: Path, diagnosticDirectory: Path) -> dic
     clear_directory(diagnosticDirectory / ".site-screenshot-decode-tmp")
     return {
         "attempted": True,
-        "renderer": "reused site verification screenshots",
+        "renderer": "site verification screenshots or local scaffold render",
         "passed": True,
         "pageCount": len(copiedPaths),
         "pages": [relative_path(path) for path in copiedPaths],
@@ -466,7 +468,113 @@ def find_existing_site_screenshots(resultDirectory: Path, diagnosticDirectory: P
         pngPaths = sorted(path for path in screenshotsDirectory.glob("*.png") if path.is_file())
         if pngPaths:
             return pngPaths
-    return decode_site_screenshots_from_test_result(diagnosticDirectory)
+    decodedPaths = decode_site_screenshots_from_test_result(diagnosticDirectory)
+    if decodedPaths:
+        return decodedPaths
+    return render_recovered_site_screenshots(resultDirectory, diagnosticDirectory)
+
+
+SITE_RENDER_VIEWPORTS = [("desktop", 1440, 2200), ("mobile", 390, 1600)]
+SITE_RENDER_PAGE_LIMIT = 4
+
+
+def locate_chrome_binary() -> str | None:
+    candidates = [
+        os.environ.get("CHROME_PATH", ""),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def recover_site_files_from_test_result(diagnosticDirectory: Path) -> dict:
+    testResult = read_test_result(diagnosticDirectory)
+    recoveredFiles = {}
+
+    def walk(node):
+        if isinstance(node, dict):
+            body = node.get("body")
+            if isinstance(body, str) and '"file.write"' in body:
+                try:
+                    parsed = json.loads(body)
+                except json.JSONDecodeError:
+                    parsed = {}
+                toolInput = parsed.get("toolInput") or {}
+                writePath = str(toolInput.get("path", ""))
+                if parsed.get("toolName") == "file.write" and toolInput.get("content"):
+                    for fileName in ("site-content.json", "DESIGN.md"):
+                        if writePath.endswith(fileName):
+                            recoveredFiles[fileName] = toolInput["content"]
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(testResult)
+    return recoveredFiles
+
+
+def recovered_site_page_paths(contentDocument: str) -> list[str]:
+    try:
+        content = json.loads(contentDocument)
+    except json.JSONDecodeError:
+        return ["/"]
+    pages = content.get("pages") or []
+    paths = [str(page.get("path", "")) for page in pages if isinstance(page, dict) and str(page.get("path", "")).startswith("/")]
+    return paths[:SITE_RENDER_PAGE_LIMIT] if paths else ["/"]
+
+
+def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory: Path) -> list[Path]:
+    recoveredFiles = recover_site_files_from_test_result(diagnosticDirectory)
+    contentDocument = recoveredFiles.get("site-content.json")
+    chromeBinaryPath = locate_chrome_binary()
+    if not contentDocument or chromeBinaryPath is None:
+        return []
+    distSourcePath = REPOSITORY_ROOT / "internal" / "admind" / "site_scaffold_dist" / "react-vite-ts" / "dist"
+    if not distSourcePath.is_dir():
+        return []
+    stageDirectory = diagnosticDirectory / ".site-local-render"
+    clear_directory(stageDirectory)
+    shutil.copytree(distSourcePath, stageDirectory)
+    (stageDirectory / "site-content.json").write_text(contentDocument, encoding="utf-8")
+    fontsSourcePath = REPOSITORY_ROOT / "assets" / "fonts" / "files"
+    if fontsSourcePath.is_dir():
+        (stageDirectory / "fonts").symlink_to(fontsSourcePath)
+    recoveredDirectory = resultDirectory / "recovered"
+    recoveredDirectory.mkdir(parents=True, exist_ok=True)
+    for fileName, fileContent in recoveredFiles.items():
+        (recoveredDirectory / fileName).write_text(fileContent, encoding="utf-8")
+    with socket.socket() as probeSocket:
+        probeSocket.bind(("127.0.0.1", 0))
+        serverPort = probeSocket.getsockname()[1]
+    serverProcess = subprocess.Popen(
+        [sys.executable, "-m", "http.server", str(serverPort), "--bind", "127.0.0.1"],
+        cwd=stageDirectory, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    screenshotPaths = []
+    try:
+        time.sleep(0.8)
+        outputDirectory = screenshots_directory(resultDirectory)
+        outputDirectory.mkdir(parents=True, exist_ok=True)
+        for pageIndex, pagePath in enumerate(recovered_site_page_paths(contentDocument), start=1):
+            pageURL = f"http://127.0.0.1:{serverPort}/#" + pagePath
+            for viewportName, width, height in SITE_RENDER_VIEWPORTS:
+                screenshotPath = outputDirectory / f"local-{pageIndex:02d}-{viewportName}.png"
+                renderCommand = [
+                    chromeBinaryPath, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                    f"--window-size={width},{height}", "--virtual-time-budget=5000",
+                    f"--screenshot={screenshotPath}", pageURL,
+                ]
+                completed = subprocess.run(renderCommand, capture_output=True, timeout=60)
+                if completed.returncode == 0 and screenshotPath.is_file():
+                    screenshotPaths.append(screenshotPath)
+    finally:
+        serverProcess.terminate()
+    return sorted(screenshotPaths)
 
 
 def decode_site_screenshots_from_test_result(diagnosticDirectory: Path) -> list[Path]:

@@ -119,10 +119,37 @@ func parseSiteDesignTheme(document string) (siteTheme, error) {
 		BackgroundColor:   backgroundColor,
 		ForegroundColor:   foregroundColor,
 		AccentColor:       accentColor,
-		HeadingFontFamily: headingFontFamily,
-		BodyFontFamily:    bodyFontFamily,
+		HeadingFontFamily: catalogFontFamilyOrDefault(headingFontFamily),
+		BodyFontFamily:    catalogFontFamilyOrDefault(bodyFontFamily),
 		RadiusValue:       radiusValue,
 	}, nil
+}
+
+const siteDefaultFontFamily = "에이투지체"
+
+var genericCSSFontKeywords = map[string]bool{
+	"ui-sans-serif": true,
+	"ui-serif":      true,
+	"ui-monospace":  true,
+	"ui-rounded":    true,
+	"system-ui":     true,
+	"sans-serif":    true,
+	"serif":         true,
+	"monospace":     true,
+	"cursive":       true,
+	"fantasy":       true,
+}
+
+// catalogFontFamilyOrDefault treats generic CSS keyword families as "no
+// deliberate choice" — a keyword like ui-sans-serif resolves to a system
+// font ahead of every self-hosted face, silently discarding the platform
+// typography, so it is replaced by the catalog default instead.
+func catalogFontFamilyOrDefault(fontFamily string) string {
+	normalized := strings.ToLower(strings.Trim(strings.TrimSpace(fontFamily), `"'`))
+	if normalized == "" || genericCSSFontKeywords[normalized] {
+		return siteDefaultFontFamily
+	}
+	return fontFamily
 }
 
 // renderSiteThemeCSS emits the theme.css contract consumed by the scaffold:
