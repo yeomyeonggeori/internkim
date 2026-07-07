@@ -85,7 +85,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none` — so the body pushes the footer onto the identical baseline on every slide. Never absolutely position the footer or let it ride up under short content. A large empty band above the footer reads as unfinished.
+- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none; margin-top: auto` — so the footer sits on the identical baseline on every slide even when a body forgets to grow. Never absolutely position the footer. A large empty band above the footer reads as unfinished.
 - Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 - Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
