@@ -16,7 +16,7 @@ Create a useful, visually strong deck and attach the requested files. This is an
 1. Decide the requested format and slide spine before writing files.
 2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
 3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
-4. If budget allows, add compact helper files after `slides.html`: `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. These improve review but must not delay the primary source file.
+4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks DESIGN.md substance and ledger coverage, but they must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
 7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Keep revising while the score improves; stop when the gate passes, the score stalls across two rebuilds, or a budget status observation says consolidate or finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
@@ -46,7 +46,7 @@ Do not call `terminal.run` with an `arguments` array alone. Use the `command` st
 
 Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html`, `tmp/<deck-slug>/build/<deck-slug>.pdf`, or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
-Do not look for a content generator or template deck. There is no template to fill in. The content, layout, and HTML source are your responsibility.
+There is no template to fill in; the content, layout, and HTML source are your responsibility.
 
 ## Content Quality
 
