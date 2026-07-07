@@ -65,7 +65,25 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
+	descriptors = append(descriptors, CompanyDescriptors()...)
 	return descriptors
+}
+
+func CompanyDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "company.info.get", Description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as 사업자등록번호). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyInfoGetInputSchema(), PolicyResource: "tool:company.info.get", SideEffectClass: "read"},
+		{Name: "company.info.set", Description: "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report a change ('회사 주소 바뀌었어'). Put country-specific identifiers (사업자등록번호, 법인등록번호, 업태, 종목, EIN …) into legalAttributes as a label-to-value JSON object string.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyInfoSetInputSchema(), PolicyResource: "tool:company.info.set", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_company", "company")},
+		{Name: "company.metric.record", Description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Provide metric key, year, and value; add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyMetricRecordInputSchema(), PolicyResource: "tool:company.metric.record", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_company", "company")},
+		{Name: "company.metric.list", Description: "List recorded company metrics sorted by period. Filter by metric key and year range. Use for IR decks, business plans, and grant applications that need revenue/headcount/usage time series.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyMetricListInputSchema(), PolicyResource: "tool:company.metric.list", SideEffectClass: "read"},
+		{Name: "company.record.add", Description: "Add one company history/asset record: milestones (연혁), funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round …) into attributes as a label-to-value JSON object string.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyRecordAddInputSchema(), PolicyResource: "tool:company.record.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_company", "company")},
+		{Name: "company.record.list", Description: "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant …) or keyword query. Use to build 연혁 sections, funding tables, and product overviews.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyRecordListInputSchema(), PolicyResource: "tool:company.record.list", SideEffectClass: "read"},
+		{Name: "company.record.update", Description: "Update fields on an existing company record identified by id from a prior company.record.list result. Only provided fields change.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyRecordUpdateInputSchema(), PolicyResource: "tool:company.record.update", SideEffectClass: "workspace_write"},
+		{Name: "company.record.delete", Description: "Delete a company record by id from a prior company.record.list result. Use only when the user asks to remove a wrong entry.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyRecordDeleteInputSchema(), PolicyResource: "tool:company.record.delete", SideEffectClass: "destructive", RequiresApproval: true},
+		{Name: "company.document.register", Description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyDocumentRegisterInputSchema(), PolicyResource: "tool:company.document.register", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_company", "company")},
+		{Name: "company.document.list", Description: "List registered company documents newest first, with their numbers, counterparts, file paths, and summaries. Filter by type, counterpart, or keyword. Use to answer 'what quotes did we send to X'.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyDocumentListInputSchema(), PolicyResource: "tool:company.document.list", SideEffectClass: "read"},
+		{Name: "company.document.search", Description: "Semantically search registered company documents by a natural-language question ('ABC와 맺은 계약 조건'). Returns best-matching documents with summaries — answer from the summary first and open the file only when detail is needed.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyDocumentSearchInputSchema(), PolicyResource: "tool:company.document.search", SideEffectClass: "read"},
+		{Name: "company.document.update", Description: "Update a registered document's file path, title, counterpart, or summary by id from a prior list/search result. Use when a file was moved or renamed so the ledger keeps tracking it.", Version: "1", PrivacyClass: "workspace_company", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true, InputSchema: companyDocumentUpdateInputSchema(), PolicyResource: "tool:company.document.update", SideEffectClass: "workspace_write"},
+	}
 }
 
 func WebDescriptors() []Descriptor {
@@ -670,4 +688,126 @@ func CapabilityUnavailableUserReason(toolName string, code string) string {
 		}
 		return "Companion이 연결되어 있지 않습니다."
 	}
+}
+
+func companyInfoGetInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("language", jsonschema.String().WithDescription("Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.")),
+	).RawMessage()
+}
+
+func companyInfoSetInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("language", jsonschema.String().WithDescription("Language slot the localized values belong to, e.g. 'ko' or 'en'.")),
+		jsonschema.Field("name", jsonschema.String().WithDescription("Legal company name, e.g. '주식회사 여명거리'.")),
+		jsonschema.Field("brandName", jsonschema.String().WithDescription("Service or brand name when it differs from the legal name.")),
+		jsonschema.Field("slogan", jsonschema.String().WithDescription("Company slogan for letterheads and introductions.")),
+		jsonschema.Field("description", jsonschema.String().WithDescription("One-line company description for proposals and IR material.")),
+		jsonschema.Field("representative", jsonschema.String().WithDescription("Representative's name; use the romanized name for the 'en' slot.")),
+		jsonschema.Field("representativeTitle", jsonschema.String().WithDescription("Representative's title. Defaults to 대표이사 (ko) / CEO (en).")),
+		jsonschema.Field("address", jsonschema.String().WithDescription("Registered head-office address.")),
+		jsonschema.Field("officeAddress", jsonschema.String().WithDescription("Working office address when it differs from the registered address.")),
+		jsonschema.Field("jurisdiction", jsonschema.String().WithDescription("Jurisdiction of incorporation for contract preambles, e.g. '대한민국' or 'the State of Delaware'.")),
+		jsonschema.Field("bankAccount", jsonschema.String().WithDescription("One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).")),
+		jsonschema.Field("legalAttributes", jsonschema.String().WithDescription("JSON object string of country-specific label-to-value pairs, e.g. {\"사업자등록번호\": \"123-45-67890\", \"업태\": \"서비스\"}. Labels print on documents as-is.")),
+		jsonschema.Field("foundedDate", jsonschema.String().WithDescription("Founding date in YYYY-MM-DD format.")),
+		jsonschema.Field("capital", jsonschema.String().WithDescription("Paid-in capital, e.g. '5억 원'.")),
+		jsonschema.Field("fiscalYearEnd", jsonschema.String().WithDescription("Fiscal year end month, e.g. '12월'.")),
+		jsonschema.Field("employeeCount", jsonschema.Integer().WithDescription("Official employee headcount. Independent of platform member count.")),
+		jsonschema.Field("phone", jsonschema.String().WithDescription("Main company phone number.")),
+		jsonschema.Field("fax", jsonschema.String().WithDescription("Fax number.")),
+		jsonschema.Field("email", jsonschema.String().WithDescription("Main company email address.")),
+		jsonschema.Field("website", jsonschema.String().WithDescription("Company website URL.")),
+	).RawMessage()
+}
+
+func companyMetricRecordInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("metric", jsonschema.String().WithDescription("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.")),
+		jsonschema.Required("year", jsonschema.Integer().WithDescription("Four-digit year the value belongs to, e.g. 2025.")),
+		jsonschema.Required("value", jsonschema.Number().WithDescription("Numeric value, e.g. 1200000000 for 12억 원. Use the raw number, not a formatted string.")),
+		jsonschema.Field("quarter", jsonschema.Integer().WithDescription("Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.")),
+		jsonschema.Field("month", jsonschema.Integer().WithDescription("Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.")),
+		jsonschema.Field("unit", jsonschema.String().WithDescription("Unit of the value, e.g. 'KRW', 'USD', '명', '건'.")),
+		jsonschema.Field("note", jsonschema.String().WithDescription("Source or context note, e.g. '재무제표 기준'.")),
+	).RawMessage()
+}
+
+func companyMetricListInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("metric", jsonschema.String().WithDescription("Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.")),
+		jsonschema.Field("fromYear", jsonschema.Integer().WithDescription("Earliest year to include.")),
+		jsonschema.Field("toYear", jsonschema.Integer().WithDescription("Latest year to include.")),
+	).RawMessage()
+}
+
+func companyRecordAddInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("category", jsonschema.String().WithDescription("Record category: 'history' (연혁), 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.")),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Short title, e.g. '시드 투자 유치' or '김인턴 정식 출시'.")),
+		jsonschema.Field("date", jsonschema.String().WithDescription("Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.")),
+		jsonschema.Field("detail", jsonschema.String().WithDescription("One-to-three sentence description.")),
+		jsonschema.Field("attributes", jsonschema.String().WithDescription("JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"20억 원\", \"investors\": \"ABC벤처스\"}.")),
+	).RawMessage()
+}
+
+func companyRecordListInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("category", jsonschema.String().WithDescription("Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword filter matched against title, detail, and attributes.")),
+	).RawMessage()
+}
+
+func companyRecordUpdateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("id", jsonschema.String().WithDescription("Record id from a prior company.record.list result.")),
+		jsonschema.Field("category", jsonschema.String().WithDescription("New category. Omit to keep unchanged.")),
+		jsonschema.Field("date", jsonschema.String().WithDescription("New date. Omit to keep unchanged.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("New title. Omit to keep unchanged.")),
+		jsonschema.Field("detail", jsonschema.String().WithDescription("New detail text. Omit to keep unchanged.")),
+		jsonschema.Field("attributes", jsonschema.String().WithDescription("JSON object string replacing the stored attributes. Omit to keep unchanged.")),
+	).RawMessage()
+}
+
+func companyRecordDeleteInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("id", jsonschema.String().WithDescription("Record id from a prior company.record.list result. Never invent an id.")),
+	).RawMessage()
+}
+
+func companyDocumentRegisterInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("documentType", jsonschema.String().WithDescription("Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.")),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Document title including the counterpart, e.g. 'ABC물산 김인턴 도입 컨설팅 견적서'.")),
+		jsonschema.Required("summary", jsonschema.String().WithDescription("2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.")),
+		jsonschema.Field("kind", jsonschema.String().WithDescription("'issued' for documents the company creates (default, gets a document number), 'received' for documents from counterparts, 'internal' for internal-only files.")),
+		jsonschema.Field("counterpart", jsonschema.String().WithDescription("Counterpart company or person name, e.g. 'ABC물산'.")),
+		jsonschema.Field("language", jsonschema.String().WithDescription("Document language, e.g. 'ko' or 'en'.")),
+		jsonschema.Field("filePath", jsonschema.String().WithDescription("Workspace path of the file if it already exists. For issued documents you can also set it later with company.document.update after saving.")),
+	).RawMessage()
+}
+
+func companyDocumentListInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("type", jsonschema.String().WithDescription("Document type slug to filter by, e.g. 'quote'. Leave empty for all types.")),
+		jsonschema.Field("counterpart", jsonschema.String().WithDescription("Counterpart name to filter by, e.g. 'ABC물산'.")),
+		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword filter matched against title, summary, and counterpart.")),
+	).RawMessage()
+}
+
+func companyDocumentSearchInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("query", jsonschema.String().WithDescription("Natural-language question or topic, e.g. 'ABC물산이랑 맺은 용역 계약 대금 조건'.")),
+		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum documents to return. Defaults to 5.")),
+	).RawMessage()
+}
+
+func companyDocumentUpdateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("id", jsonschema.String().WithDescription("Document id from a prior company.document.list or search result.")),
+		jsonschema.Field("filePath", jsonschema.String().WithDescription("New workspace path after the file was saved, moved, or renamed.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("Corrected title. Omit to keep unchanged.")),
+		jsonschema.Field("counterpart", jsonschema.String().WithDescription("Corrected counterpart. Omit to keep unchanged.")),
+		jsonschema.Field("summary", jsonschema.String().WithDescription("Replacement summary. Omit to keep unchanged.")),
+	).RawMessage()
 }
