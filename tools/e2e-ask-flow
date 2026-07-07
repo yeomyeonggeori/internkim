@@ -62,13 +62,15 @@ PHASE="$(jq -r '.phase' <<<"$START1")"
 TASK1="$(jq -r '.taskRunID' <<<"$START1")"
 ROOT1="$(jq -r '.rootPostID' <<<"$START1")"
 CREATED1="$(jq -r '.rootPostCreatedAt' <<<"$START1")"
-if [ "$PHASE" != "asked" ]; then
-	echo "FAIL: DM1 expected phase=asked, got $PHASE" >&2
+if [ "$PHASE" = "asked" ]; then
+	echo "[4/8] answering with company data + logo/stamp attachments"
+	remote ask-answer "$CHANNEL" "$TOKEN" "$ROOT1" "$ANSWER" /tmp/pyobon-logo.png /tmp/pyobon-stamp.png
+elif [ "$PHASE" = "terminal" ] && [ "$(jq -r '.status' <<<"$START1")" = "completed" ]; then
+	echo "[4/8] company table already filled — no question asked (fill-once holds)"
+else
+	echo "FAIL: DM1 expected asked or completed, got $START1" >&2
 	exit 1
 fi
-
-echo "[4/8] answering with company data + logo/stamp attachments"
-remote ask-answer "$CHANNEL" "$TOKEN" "$ROOT1" "$ANSWER" /tmp/pyobon-logo.png /tmp/pyobon-stamp.png
 
 echo "[5/8] waiting for DM1 completion (contract draft)"
 FINISH1="$(remote ask-finish "$CHANNEL" "$TOKEN" "$TASK1" "$ROOT1" "$CREATED1" 480)"
