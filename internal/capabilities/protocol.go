@@ -652,6 +652,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, ArtifactDescriptors()...)
+	descriptors = append(descriptors, CompanyDescriptors()...)
 	return descriptors
 }
 
