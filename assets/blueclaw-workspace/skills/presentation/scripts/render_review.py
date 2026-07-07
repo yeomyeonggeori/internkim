@@ -392,10 +392,11 @@ def extract_section_attribute(slide_source: str, attribute_name: str) -> str:
 
 
 def first_heading_text(slide_source: str) -> str:
-    match = re.search(r"<h[1-3]\b[^>]*>(.*?)</h[1-3]>", slide_source, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return ""
-    return normalize_visible_text(html.unescape(convert_html_markup_to_text(match.group(1)))).replace("\n", " ")
+    for tag_name in ("h1", "h2", "h3"):
+        match = re.search(rf"<{tag_name}\b[^>]*>(.*?)</{tag_name}>", slide_source, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            return normalize_visible_text(html.unescape(convert_html_markup_to_text(match.group(1)))).replace("\n", " ")
+    return ""
 
 
 def normalize_structure_text(value: str) -> str:
@@ -842,7 +843,12 @@ def apply_deck_design_warnings(slides: list[dict[str, object]], source_context: 
     table_or_list_count = sum(1 for slide in slides if slide_has_dominant_raw_structure(slide))
     repeated_composition_count = repeated_composition_slide_count(slides)
     if not source_has_visual_identity(source_context):
-        append_deck_warning(slides, "weakVisualIdentityWarning: deck lacks a data-visual-system attribute or a DESIGN.md that describes the visual system")
+        missing_parts = []
+        if not source_context["hasVisualSystemAttribute"]:
+            missing_parts.append("a data-visual-system attribute in slides.html")
+        if int(source_context["designDocumentBodyCharacterCount"]) < DESIGN_DOCUMENT_BODY_MINIMUM_CHARACTERS:
+            missing_parts.append("a DESIGN.md body that describes the visual system")
+        append_deck_warning(slides, "weakVisualIdentityWarning: deck lacks " + " and ".join(missing_parts))
     if int(source_context["missingSlideRoleCount"]) > 0:
         append_deck_warning(slides, "missingSlideRoleWarning: one or more slide sections lack data-slide-role")
     if render_source != "browser":
@@ -878,7 +884,8 @@ def apply_language_mismatch_warning(slides: list[dict[str, object]], slide_texts
     mismatched_indexes = [
         str(slide_text["index"])
         for slide_text in slide_texts
-        if title_is_latin_only(str(slide_text["structure"]["title"]))
+        if str(slide_text["structure"]["slideRole"]) not in LABEL_ONLY_SLIDE_ROLES
+        and title_is_latin_only(str(slide_text["structure"]["title"]))
     ]
     if mismatched_indexes:
         append_deck_warning(
@@ -942,7 +949,7 @@ def normalize_for_coverage(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
-EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
+EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF✅❌❎❗❓⭐⚠⌚⏰️]")
 
 
 def apply_emoji_icon_warning(slides: list[dict[str, object]], slide_texts: list[dict[str, object]]) -> None:
