@@ -339,6 +339,9 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: stop blueclaw before payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
+	if errorValue := service.repairWorkspaceImageIfUnhealthy(ctx, jobID, target); errorValue != nil {
+		return errorValue
+	}
 	service.updateJob(jobID, "running", "installing", "")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", hostWorkspacePayloadSyncCommandForTarget(artifactPath, target)); errorValue != nil {
 		return fmt.Errorf("%s: sync blueclaw payload host workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
@@ -504,6 +507,34 @@ func (service *Service) blueclawWorkspaceManifestMatchesTarget(artifactPath stri
 		len(manifestDocument), truncateBlueclawUpdateDetail(string(manifestDocument)),
 		truncateBlueclawUpdateDetail(string(diagnosticOutput)),
 	)
+}
+
+func (service *Service) repairWorkspaceImageIfUnhealthy(ctx context.Context, jobID string, target blueclawPayloadInstallTarget) error {
+	probeCommand := "debugfs -R " + quoteBlueclawUpdateShellValue("stat /") + " " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + " 2>&1"
+	probeOutput, probeError := service.runCommand(ctx, "sh", "-lc", probeCommand)
+	if probeError == nil && !workspaceImageProbeLooksCorrupted(string(probeOutput)) {
+		return nil
+	}
+	if strings.Contains(strings.ToLower(string(probeOutput)), "no such file") {
+		return nil
+	}
+	service.updateJob(jobID, "running", "repairing", "")
+	repairCommand := "e2fsck -fy " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + "; repair_status=$?; [ \"$repair_status\" -le 2 ]"
+	repairOutput, repairError := service.runCommand(ctx, "sh", "-lc", repairCommand)
+	if repairError != nil {
+		return fmt.Errorf("%s: repair blueclaw workspace image: %s: %w", target.Name, truncateBlueclawUpdateDetail(string(repairOutput)), repairError)
+	}
+	return nil
+}
+
+func workspaceImageProbeLooksCorrupted(probeOutput string) bool {
+	lowered := strings.ToLower(probeOutput)
+	for _, marker := range []string{"checksum", "corrupt", "bad magic", "filesystem not open", "can't read", "cannot read"} {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func truncateBlueclawUpdateDetail(value string) string {
