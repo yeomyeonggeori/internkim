@@ -529,15 +529,25 @@ func (service *Service) repairWorkspaceImageIfUnhealthy(ctx context.Context, job
 
 func workspaceImageRepairCommand(target blueclawPayloadInstallTarget) string {
 	imagePath := quoteBlueclawUpdateShellValue(target.WorkspaceImagePath)
+	capabilitydService := quoteBlueclawUpdateShellValue(blueclawruntime.CapabilitydServiceName)
 	commands := []string{}
 	remountCommands := []string{}
 	if strings.TrimSpace(target.HostWorkspacePath) != "" {
 		hostPath := quoteBlueclawUpdateShellValue(target.HostWorkspacePath)
-		commands = append(commands, "if mountpoint -q "+hostPath+"; then umount "+hostPath+"; fi")
+		commands = append(commands,
+			"if mountpoint -q "+hostPath+"; then"+
+				" if ! umount "+hostPath+" 2>/dev/null; then"+
+				" systemctl stop "+capabilitydService+" 2>/dev/null || true; sleep 1;"+
+				" if ! umount "+hostPath+"; then"+
+				" echo 'workspace unmount blocked by:'; fuser -vm "+hostPath+" 2>&1 | head -6;"+
+				" systemctl start "+capabilitydService+" 2>/dev/null || true; exit 3;"+
+				" fi; fi; fi",
+		)
 		remountCommands = append(remountCommands, "mount -o loop "+imagePath+" "+hostPath+" || true")
 	}
 	commands = append(commands, "e2fsck -fy "+imagePath+"; repair_status=$?")
 	commands = append(commands, remountCommands...)
+	commands = append(commands, "systemctl start "+capabilitydService+" 2>/dev/null || true")
 	commands = append(commands, "[ \"$repair_status\" -le 2 ]")
 	return strings.Join(commands, "; ")
 }
