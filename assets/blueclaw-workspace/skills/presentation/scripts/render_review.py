@@ -50,6 +50,7 @@ DESIGN_WARNING_PREFIXES = (
     "verticalDeadZoneWarning",
     "absoluteFooterWarning",
     "emojiIconWarning",
+    "missingRequiredTextWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -67,6 +68,7 @@ DESIGN_WARNING_WEIGHTS = {
     "verticalDeadZoneWarning": 10,
     "absoluteFooterWarning": 12,
     "emojiIconWarning": 8,
+    "missingRequiredTextWarning": 14,
 }
 
 
@@ -116,6 +118,7 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     apply_language_mismatch_warning(slides, slide_texts)
     apply_unsourced_current_date_warning(slides, slide_texts, required_text_ledger)
     apply_emoji_icon_warning(slides, slide_texts)
+    apply_missing_required_text_warning(slides, slide_texts, required_text_ledger)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
@@ -915,6 +918,28 @@ def apply_unsourced_current_date_warning(
             "unsourcedCurrentDateWarning: slide " + ", ".join(dated_indexes)
             + f" shows today's date {today.isoformat()}, which is not in required-visible-text.txt; only show dates from the source material",
         )
+
+
+def apply_missing_required_text_warning(
+    slides: list[dict[str, object]],
+    slide_texts: list[dict[str, object]],
+    required_text_ledger: str,
+) -> None:
+    ledger_lines = [line.strip() for line in required_text_ledger.splitlines() if line.strip()]
+    if not ledger_lines:
+        return
+    deck_text = normalize_for_coverage("\n".join(str(slide_text["expectedVisibleText"]) for slide_text in slide_texts))
+    missing_lines = [line for line in ledger_lines if normalize_for_coverage(line) not in deck_text]
+    if missing_lines:
+        preview = "; ".join(missing_lines[:4]) + (" ..." if len(missing_lines) > 4 else "")
+        append_deck_warning(
+            slides,
+            f"missingRequiredTextWarning: {len(missing_lines)} of {len(ledger_lines)} required-visible-text.txt lines are not visible in the deck: {preview}",
+        )
+
+
+def normalize_for_coverage(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 
 EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
