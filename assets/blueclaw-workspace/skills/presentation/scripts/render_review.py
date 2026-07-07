@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import datetime
 import html
+import html.parser
 import json
 import pathlib
 import re
@@ -52,6 +53,7 @@ DESIGN_WARNING_PREFIXES = (
     "emojiIconWarning",
     "missingRequiredTextWarning",
     "inconsistentFooterBaselineWarning",
+    "unpinnedFooterWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -71,6 +73,7 @@ DESIGN_WARNING_WEIGHTS = {
     "emojiIconWarning": 8,
     "missingRequiredTextWarning": 14,
     "inconsistentFooterBaselineWarning": 8,
+    "unpinnedFooterWarning": 10,
 }
 
 
@@ -122,6 +125,7 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     apply_emoji_icon_warning(slides, slide_texts)
     apply_missing_required_text_warning(slides, slide_texts, required_text_ledger)
     apply_footer_baseline_warning(slides)
+    apply_unpinned_footer_warning(slides, source_text)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
@@ -961,6 +965,126 @@ def normalize_for_coverage(text: str) -> str:
 
 
 FOOTER_BASELINE_VARIANCE_RATIO = 0.05
+FOOTER_CANDIDATE_MINIMUM_SLIDES = 3
+FOOTER_CANDIDATE_MINIMUM_SHARE = 0.6
+VOID_HTML_TAGS = {"img", "br", "hr", "meta", "input", "link", "source", "track", "wbr", "area", "base", "col", "embed"}
+
+
+class DirectChildScanner(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.depth = 0
+        self.direct_children = []
+
+    def handle_starttag(self, tag, attributes):
+        if self.depth == 1:
+            self.direct_children.append((tag, dict(attributes)))
+        if tag not in VOID_HTML_TAGS:
+            self.depth += 1
+
+    def handle_startendtag(self, tag, attributes):
+        if self.depth == 1:
+            self.direct_children.append((tag, dict(attributes)))
+
+    def handle_endtag(self, tag):
+        if tag not in VOID_HTML_TAGS:
+            self.depth = max(0, self.depth - 1)
+
+
+def last_direct_child(slide_source: str) -> typing.Optional[tuple[str, dict]]:
+    scanner = DirectChildScanner()
+    try:
+        scanner.feed(slide_source)
+    except Exception:
+        return None
+    if not scanner.direct_children:
+        return None
+    return scanner.direct_children[-1]
+
+
+def footer_identity(child: typing.Optional[tuple[str, dict]]) -> str:
+    if child is None:
+        return ""
+    tag, attributes = child
+    if tag == "footer":
+        return "footer"
+    class_value = str(attributes.get("class") or "").strip()
+    if class_value:
+        return "." + class_value.split()[0]
+    return ""
+
+
+def apply_unpinned_footer_warning(slides: list[dict[str, object]], source_text: str) -> None:
+    slide_sources = split_slide_sources(source_text)
+    if len(slide_sources) < FOOTER_CANDIDATE_MINIMUM_SLIDES:
+        return
+    last_children = [last_direct_child(slide_source) for slide_source in slide_sources]
+    identities = [footer_identity(child) for child in last_children]
+    candidate = most_common_footer_identity(identities)
+    if not candidate:
+        return
+    footer_rule_text = collect_rule_text(source_text, candidate)
+    inline_styles = " ".join(
+        str(child[1].get("style") or "")
+        for child, identity in zip(last_children, identities)
+        if child is not None and identity == candidate
+    )
+    if re.search(r"position\s*:\s*absolute", footer_rule_text + inline_styles, flags=re.IGNORECASE):
+        return
+    if re.search(r"margin-top\s*:\s*auto", footer_rule_text + inline_styles, flags=re.IGNORECASE):
+        return
+    if grow_class_present_on_footer_slides(source_text, slide_sources, identities, candidate):
+        return
+    append_deck_warning(
+        slides,
+        f"unpinnedFooterWarning: the recurring bottom element {candidate} is not pinned to the frame bottom; give it margin-top: auto (or grow the body with flex: 1) inside the flex column slide",
+    )
+
+
+def most_common_footer_identity(identities: list[str]) -> str:
+    counts: dict[str, int] = {}
+    for identity in identities:
+        if identity:
+            counts[identity] = counts.get(identity, 0) + 1
+    if not counts:
+        return ""
+    candidate, count = max(counts.items(), key=lambda pair: pair[1])
+    if count < FOOTER_CANDIDATE_MINIMUM_SLIDES or count < len(identities) * FOOTER_CANDIDATE_MINIMUM_SHARE:
+        return ""
+    return candidate
+
+
+def collect_rule_text(source_text: str, identity: str) -> str:
+    if identity.startswith("."):
+        selector_pattern = re.escape(identity)
+    else:
+        selector_pattern = rf"(?:^|[,\s}}]){re.escape(identity)}"
+    parts = []
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", source_text):
+        if re.search(selector_pattern, match.group(1)):
+            parts.append(match.group(2))
+    return "\n".join(parts)
+
+
+def grow_class_present_on_footer_slides(
+    source_text: str,
+    slide_sources: list[str],
+    identities: list[str],
+    candidate: str,
+) -> bool:
+    grow_classes = set()
+    for match in re.finditer(r"\.([\w-]+)[^{}]*\{([^{}]*)\}", source_text):
+        if re.search(r"\bflex\s*:\s*1\b|\bflex-grow\s*:\s*[1-9]", match.group(2)):
+            grow_classes.add(match.group(1).casefold())
+    if not grow_classes:
+        return False
+    for slide_source, identity in zip(slide_sources, identities):
+        if identity != candidate:
+            continue
+        slide_classes = set(extract_class_names(slide_source))
+        if not (slide_classes & grow_classes):
+            return False
+    return True
 
 
 def apply_footer_baseline_warning(slides: list[dict[str, object]]) -> None:
