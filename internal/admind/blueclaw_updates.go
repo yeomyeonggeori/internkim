@@ -519,12 +519,27 @@ func (service *Service) repairWorkspaceImageIfUnhealthy(ctx context.Context, job
 		return nil
 	}
 	service.updateJob(jobID, "running", "repairing", "")
-	repairCommand := "e2fsck -fy " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + "; repair_status=$?; [ \"$repair_status\" -le 2 ]"
+	repairCommand := workspaceImageRepairCommand(target)
 	repairOutput, repairError := service.runCommand(ctx, "sh", "-lc", repairCommand)
 	if repairError != nil {
 		return fmt.Errorf("%s: repair blueclaw workspace image: %s: %w", target.Name, truncateBlueclawUpdateDetail(string(repairOutput)), repairError)
 	}
 	return nil
+}
+
+func workspaceImageRepairCommand(target blueclawPayloadInstallTarget) string {
+	imagePath := quoteBlueclawUpdateShellValue(target.WorkspaceImagePath)
+	commands := []string{}
+	remountCommands := []string{}
+	if strings.TrimSpace(target.HostWorkspacePath) != "" {
+		hostPath := quoteBlueclawUpdateShellValue(target.HostWorkspacePath)
+		commands = append(commands, "if mountpoint -q "+hostPath+"; then umount "+hostPath+"; fi")
+		remountCommands = append(remountCommands, "mount -o loop "+imagePath+" "+hostPath+" || true")
+	}
+	commands = append(commands, "e2fsck -fy "+imagePath+"; repair_status=$?")
+	commands = append(commands, remountCommands...)
+	commands = append(commands, "[ \"$repair_status\" -le 2 ]")
+	return strings.Join(commands, "; ")
 }
 
 func workspaceImageProbeLooksCorrupted(probeOutput string) bool {
