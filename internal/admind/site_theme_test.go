@@ -456,3 +456,19 @@ func publishedSiteThemeCSSPath(t *testing.T, service *Service, site *SiteRecord)
 	t.Helper()
 	return filepath.Join(service.sitePublishedVersionPath(site, site.CurrentVersionID), "frontend", "dist", "theme.css")
 }
+
+func TestCatalogFontFamilyOrDefaultReplacesGenericKeywords(t *testing.T) {
+	cases := map[string]string{
+		"ui-sans-serif": "에이투지체",
+		"system-ui":     "에이투지체",
+		"Sans-Serif":    "에이투지체",
+		"":              "에이투지체",
+		"마루부리":          "마루부리",
+		"Paperlogy":     "Paperlogy",
+	}
+	for input, expected := range cases {
+		if actual := catalogFontFamilyOrDefault(input); actual != expected {
+			t.Fatalf("catalogFontFamilyOrDefault(%q) = %q, expected %q", input, actual, expected)
+		}
+	}
+}
