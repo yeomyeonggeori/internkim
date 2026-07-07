@@ -113,10 +113,7 @@ def enabled_formats(raw_formats: str) -> set[str]:
         formats.update({"html", "pdf", "pptx", "notes", "review"})
     if "pptx" in formats:
         formats.update({"html", "pdf"})
-    if "pdf" in formats or "pptx" in formats:
-        formats.add("review")
-    if "pdf" in formats or "notes" in formats or "review" in formats:
-        formats.add("html")
+    formats.update({"review", "html"})
     allowed_formats = {"html", "pdf", "pptx", "notes", "review"}
     unknown_formats = sorted(formats - allowed_formats)
     if unknown_formats:
