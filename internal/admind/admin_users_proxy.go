@@ -223,20 +223,21 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		var usersResponse pagesUsersResponse
-		hasUsersResponse := false
 		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && usersResponse.Records != nil {
-			hasUsersResponse = true
-		}
-		if hasUsersResponse {
-			if enhancedBody, errorValue := service.withOrgchartMetadata(request.Context(), responseBody); errorValue == nil {
-				responseBody = enhancedBody
+			if metadataResponse, errorValue := service.orgchartMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
+				usersResponse = metadataResponse.response
+				if enhancedBody, errorValue := json.Marshal(usersResponse); errorValue == nil {
+					responseBody = enhancedBody
+				} else {
+					log.Printf("Orgchart metadata response marshal failed: %v", errorValue)
+				}
 			} else {
 				log.Printf("Orgchart metadata merge failed: %v", errorValue)
 			}
-		}
-		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && len(usersResponse.Records) > 0 {
-			if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
-				log.Printf("Mattermost bot DM sync failed: %v", errorValue)
+			if len(usersResponse.Records) > 0 {
+				if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
+					log.Printf("Mattermost bot DM sync failed: %v", errorValue)
+				}
 			}
 		}
 	}
