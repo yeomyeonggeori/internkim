@@ -219,7 +219,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
+	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "embed fonts only as WOFF2", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
@@ -781,7 +781,7 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 			t.Fatalf("render review must include density check %q", expectedText)
 		}
 	}
-	for _, expectedText := range []string{"DESIGN_REVIEW_PROMPT", "DESIGN_WARNING_PREFIXES", "Design Revision Needed", "topicTitleWarning", "rawTableWarning", "bareListWarning", "genericCardGridWarning", "repeatedCardGridWarning", "genericWhiteCardPatternWarning", "rawStructurePatternWarning", "weakVisualIdentityWarning", "missingSlideRoleWarning", "unreliableVisualEvidenceWarning", "sideStripeWarning", "ghostCardWarning", "tinyTextWarning", "thinPaddingWarning", "source_has_side_stripe", "source_has_ghost_card_pattern", "source_has_tiny_text_pattern", "source_has_thin_padding_pattern", "structure", "claim-style title", "purposeful executive artifact"} {
+	for _, expectedText := range []string{"DESIGN_REVIEW_PROMPT", "DESIGN_WARNING_PREFIXES", "Design Revision Needed", "topicTitleWarning", "rawTableWarning", "bareListWarning", "repeatedCompositionWarning", "rawStructurePatternWarning", "weakVisualIdentityWarning", "missingSlideRoleWarning", "unreliableVisualEvidenceWarning", "sideStripeWarning", "ghostCardWarning", "tinyTextWarning", "languageMismatchWarning", "unsourcedCurrentDateWarning", "staticGatePassed", "source_has_side_stripe", "source_has_ghost_card_pattern", "source_has_tiny_text_pattern", "structure", "claim-style title", "purposeful executive artifact"} {
 		if !strings.Contains(reviewContent, expectedText) {
 			t.Fatalf("render review must include design warning %q", expectedText)
 		}
