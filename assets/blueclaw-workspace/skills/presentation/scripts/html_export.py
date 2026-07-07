@@ -2,6 +2,7 @@
 import base64
 from dataclasses import dataclass
 import html
+import json
 import mimetypes
 import os
 import pathlib
@@ -81,7 +82,25 @@ def main() -> int:
         print(f"[stage] review {int(time.time())}", file=sys.stderr, flush=True)
         run_render_review(render_review_script, source_path, deck_name, build_path / "review")
     print_outputs(build_path, deck_name, formats, pptx_output_mode)
+    if "review" in formats:
+        print_review_gate_summary(build_path / "review")
     return 0
+
+
+def print_review_gate_summary(review_path: pathlib.Path) -> None:
+    report_path = review_path / "slide-review.json"
+    if not report_path.exists():
+        return
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    score = report.get("visualQualityScore", 0)
+    minimum = report.get("visualQualityScoreMinimum", 0)
+    if report.get("staticGatePassed"):
+        print(f"Static design gate PASSED (visualQualityScore {score}/{minimum} minimum).")
+        return
+    print(f"Static design gate FAILED (visualQualityScore {score}, minimum {minimum}).")
+    print("Revise slides.html to resolve these warnings, then rebuild before delivering:")
+    for warning in report.get("designWarnings", []):
+        print(f"  - {warning}")
 
 
 def enabled_formats(raw_formats: str) -> set[str]:
