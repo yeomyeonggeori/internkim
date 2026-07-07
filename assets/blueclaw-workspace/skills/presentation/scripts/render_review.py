@@ -395,11 +395,13 @@ def extract_section_attribute(slide_source: str, attribute_name: str) -> str:
 
 
 def first_heading_text(slide_source: str) -> str:
-    for tag_name in ("h1", "h2", "h3"):
-        match = re.search(rf"<{tag_name}\b[^>]*>(.*?)</{tag_name}>", slide_source, flags=re.IGNORECASE | re.DOTALL)
-        if match:
-            return normalize_visible_text(html.unescape(convert_html_markup_to_text(match.group(1)))).replace("\n", " ")
-    return ""
+    heading_texts = [
+        normalize_visible_text(html.unescape(convert_html_markup_to_text(match.group(2)))).replace("\n", " ")
+        for match in re.finditer(r"<(h[1-3])\b[^>]*>(.*?)</\1>", slide_source, flags=re.IGNORECASE | re.DOTALL)
+    ]
+    if not heading_texts:
+        return ""
+    return max(heading_texts, key=len)
 
 
 def normalize_structure_text(value: str) -> str:
@@ -939,7 +941,13 @@ def apply_missing_required_text_warning(
     if not ledger_lines:
         return
     deck_text = normalize_for_coverage("\n".join(str(slide_text["expectedVisibleText"]) for slide_text in slide_texts))
-    missing_lines = [line for line in ledger_lines if normalize_for_coverage(line) not in deck_text]
+    spaceless_deck_text = deck_text.replace(" ", "")
+    missing_lines = [
+        line
+        for line in ledger_lines
+        if normalize_for_coverage(line) not in deck_text
+        and normalize_for_coverage(line).replace(" ", "") not in spaceless_deck_text
+    ]
     if missing_lines:
         preview = "; ".join(missing_lines[:4]) + (" ..." if len(missing_lines) > 4 else "")
         append_deck_warning(
