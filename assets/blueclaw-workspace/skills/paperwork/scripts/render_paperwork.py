@@ -160,16 +160,22 @@ def set_body_font(pdf, size=10.0, color=INK_COLOR):
     pdf.set_text_color(*color)
 
 
+def company_display_name(profile):
+    if not isinstance(profile, dict):
+        return ""
+    return str(profile.get("name", "") or profile.get("companyName", "")).strip()
+
+
 def add_letterhead(pdf, profile):
-    if not isinstance(profile, dict) or not str(profile.get("companyName", "")).strip():
-        raise ValueError("profile.companyName is required")
+    if not company_display_name(profile):
+        raise ValueError("profile.name is required — insert the company.info.get result into profile")
     top_y = pdf.get_y()
     logo_path = str(profile.get("logoPath", "")).strip()
     if logo_path and Path(logo_path).exists():
         pdf.image(logo_path, x=pdf.l_margin, y=top_y, h=LETTERHEAD_LOGO_HEIGHT)
     set_body_font(pdf, size=11.5, color=HEADING_COLOR)
     pdf.set_y(top_y)
-    pdf.cell(0, 5.5, str(profile["companyName"]).strip(), align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5.5, company_display_name(profile), align="R", new_x="LMARGIN", new_y="NEXT")
     set_body_font(pdf, size=7.5, color=MUTED_COLOR)
     for line in letterhead_detail_lines(profile):
         pdf.cell(0, 3.8, line, align="R", new_x="LMARGIN", new_y="NEXT")
@@ -183,19 +189,26 @@ def add_letterhead(pdf, profile):
 
 def letterhead_detail_lines(profile):
     lines = []
-    registration_number = str(profile.get("registrationNumber", "")).strip()
-    representative = str(profile.get("representative", "")).strip()
     identity_parts = []
-    if registration_number:
-        identity_parts.append(f"사업자등록번호 {registration_number}")
+    legal_attributes = profile.get("legalAttributes")
+    if isinstance(legal_attributes, dict):
+        for label, value in list(legal_attributes.items())[:2]:
+            label, value = str(label).strip(), str(value).strip()
+            if label and value:
+                identity_parts.append(f"{label} {value}")
+    legacy_registration = str(profile.get("registrationNumber", "")).strip()
+    if legacy_registration and not identity_parts:
+        identity_parts.append(f"사업자등록번호 {legacy_registration}")
+    representative = str(profile.get("representative", "")).strip()
     if representative:
-        identity_parts.append(f"대표 {representative}")
+        representative_title = str(profile.get("representativeTitle", "")).strip() or "대표"
+        identity_parts.append(f"{representative_title} {representative}")
     if identity_parts:
         lines.append("  ".join(identity_parts))
     address = str(profile.get("address", "")).strip()
     if address:
         lines.append(address)
-    contact_parts = [str(profile.get(field, "")).strip() for field in ("phone", "email")]
+    contact_parts = [str(profile.get(field, "")).strip() for field in ("phone", "email", "website")]
     contact_line = "  ".join(part for part in contact_parts if part)
     if contact_line:
         lines.append(contact_line)

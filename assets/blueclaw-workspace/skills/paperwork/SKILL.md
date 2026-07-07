@@ -41,40 +41,22 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
 ## Workflow
 
 1. Identify the document type and language from the request. Read only that spec with the `file.read` tool: `/workspace/skills/paperwork/references/<lang>/<type>.md`. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
-2. Read the company profile with the `file.read` tool: `/workspace/circles/staff/company/profile.json`. Never use `capability.invoke` operations such as `file.pick` or `filesystem.mount.*` — those reach the user's personal computer and always fail for workspace files. If the profile file does not exist, ask the requester once for company name, registration number, representative, address, phone, email, and bank account, then create it exactly as shown in Company profile before continuing.
-3. Check the spec's required fields against what the requester provided. Ask only for missing critical values (counterpart, amounts, dates, names). Never invent facts; the spec lists what is required.
-4. Follow the spec's `output:` line: the PDF path or the DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. There is no paperwork capability operation — never call `capability.invoke` for any part of this skill.
-5. Inspect the result before delivering: run the validator with the key source values, and check the layout when the document is table-heavy.
-6. Save the accepted final file to `~/documents/<filename from the spec>` and deliver it from there with `file.deliver`.
+2. Read the company table: `capability.invoke` operation `company.info.get` with `{"language": "<ko|en>"}`. The response is the letterhead profile plus `missingFields`. Never use `file.pick` or `filesystem.mount.*` — those reach the user's personal computer.
+3. If `missingFields` is non-empty, or a legal attribute the spec requires (e.g. 사업자등록번호) is absent from `legalAttributes`, ask ONCE with `ask.input`, listing every missing field in one question, and invite optional extras ("설립일·직원 수·업태/종목·로고와 직인 이미지도 있으면 함께"). Save the answer with `company.info.set` (country-specific identifiers go into `legalAttributes` as a JSON object string). Save attached logo/stamp images with `terminal.run` (`mkdir -p /workspace/circles/staff/company` then copy to `logo.png` / `stamp.png` there). If `missingFields` is empty, NEVER ask about company info — proceed silently. When the user says "그냥 한글 상호 그대로 써" for an English document, store that value into the en slot so it is never asked again.
+4. Check the spec's required content fields against the request. Ask only for missing critical values (counterpart, amounts, dates, names). Never invent facts.
+5. Register the document BEFORE rendering: `capability.invoke` operation `company.document.register` with documentType, title, counterpart, language, and a 2-3 sentence summary of the key terms. The response returns `documentNumber` (put it in the document JSON) and `storageDirectory`.
+6. Produce the file per the spec's `output:` line — the PDF or DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. paperwork itself has no capability operation — the renderer only runs through `terminal.run`.
+7. Inspect the result (validator + layout check for table-heavy documents), save the final file under the returned `storageDirectory` (`mkdir -p` it first), deliver it from there with `file.deliver`, then record the location with `company.document.update` `{id, filePath}`.
 
-## Company profile
+## Company table
 
-`/workspace/circles/staff/company/profile.json` holds the letterhead data shared by every document:
-
-```json
-{
-  "companyName": "주식회사 던",
-  "registrationNumber": "123-45-67890",
-  "representative": "이샘플",
-  "address": "서울특별시 ...",
-  "phone": "02-1234-5678",
-  "email": "contact@example.com",
-  "bankAccount": "은행명 계좌번호 (예금주)",
-  "logoPath": "/workspace/circles/staff/company/logo.png",
-  "stampPath": "/workspace/circles/staff/company/stamp.png"
-}
-```
-
-`logoPath` and `stampPath` are optional; omit them until the images exist. Staff can edit this file directly, so re-read it for every task instead of remembering old values.
-
-To create it, first make the directory with `terminal.run`, then write the JSON with `file.write` to `/workspace/circles/staff/company/profile.json` — not to `tmp/` or `~/documents`, where other tasks cannot find it:
+The company profile lives in the workspace-wide company table (admin-managed, persistent). Build the document JSON's `profile` object from the `company.info.get` response fields — `name`, `representative`, `representativeTitle`, `address`, `bankAccount`, `legalAttributes`, `phone`, `email`, `website` — plus the image paths when the files exist:
 
 ```json
-{
-  "command": "mkdir -p /workspace/circles/staff/company",
-  "workingDirectoryPath": "~"
-}
+"profile": { ...company.info.get response fields..., "logoPath": "/workspace/circles/staff/company/logo.png", "stampPath": "/workspace/circles/staff/company/stamp.png" }
 ```
+
+Updates ("회사 주소 바뀌었어", "직인 등록해줘") go through `company.info.set` (partial — only provided fields change) or an image copy; never store company facts anywhere else. Past documents are found with `company.document.list` / `company.document.search` — answer content questions from the stored summary first and open the file only for details.
 
 ## Rendering PDF documents
 
@@ -93,7 +75,7 @@ Step 2 — `terminal.run` the renderer (a shell command, not a capability):
 }
 ```
 
-Step 3 — save to `~/documents/` and `file.deliver` it.
+Step 3 — save to the register's `storageDirectory` and `file.deliver` it.
 
 The renderer owns all layout: letterhead, approval boxes, title, meta table, item table with totals, sections, centered declarations, signature line with the company seal. The content JSON supplies only data — the spec's skeleton shows exactly which fields the document type uses. If the renderer reports that no Korean-capable font was found, download NanumGothic to `/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf` and rerun.
 
@@ -112,7 +94,7 @@ Specs marked `output: docx` are contracts the counterpart will edit. Build the b
 
 ```json
 {
-  "command": "python3 /workspace/skills/docx/scripts/skill_runtime.py python /workspace/skills/docx/scripts/create_docx.py ~/documents/<filename>.docx --spec contract.json",
+  "command": "python3 /workspace/skills/docx/scripts/skill_runtime.py python /workspace/skills/docx/scripts/create_docx.py <storageDirectory>/<filename>.docx --spec contract.json",
   "workingDirectoryPath": "tmp/<slug>"
 }
 ```
