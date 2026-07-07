@@ -39,6 +39,16 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
+			return jsonResponse(http.StatusOK, `[
+				{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff","roles":"system_user","delete_at":0},
+				{"id":"admin","email":"admin@example.com","username":"admin","nickname":"Admin","roles":"system_admin system_user","delete_at":0}
+			]`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
+			return jsonResponse(http.StatusOK, `[
+				{"user_id":"user-1","roles":"team_user"},
+				{"user_id":"admin","roles":"team_user team_admin"}
+			]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/attendance":
 			return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
@@ -61,6 +71,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","is_pinned":true,"message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"fallback":"출퇴근 기록","text":"출근과 퇴근 버튼을 구분해서 기록합니다.","actions":[{"id":"attendanceClockIn","name":"출근"},{"id":"attendanceClockOut","name":"퇴근"}]}]}}}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"Staff","emails":["staff@example.com"]},{"displayName":"Other","emails":["other@example.com"]},{"displayName":"Admin","emails":["admin@example.com"]}],"channels":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:

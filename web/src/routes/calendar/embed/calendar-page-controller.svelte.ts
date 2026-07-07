@@ -103,6 +103,9 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			},
 			getCalendarEvents: () => calendar.app.getAllEvents(),
 			addCalendarEvent: (event) => calendar.addEvent(event),
+			restoreCalendarEvent: (event) => {
+				calendar.app.applyEventsChanges({ delete: [event.id], add: [event] });
+			},
 			removeCalendarEvent: (eventID) => {
 				calendar.app.applyEventsChanges({ delete: [eventID], add: [] });
 			},
@@ -130,6 +133,12 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			text: {
 				get deleteError() {
 					return context.text.deleteError;
+				},
+				get deleteUndoAction() {
+					return context.text.deleteUndoAction;
+				},
+				get deleteUndoMessage() {
+					return context.text.deleteUndoMessage;
 				},
 				get draftTitlePlaceholder() {
 					return context.text.newEvent;
