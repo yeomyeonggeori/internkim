@@ -849,6 +849,30 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company-info":
+		service.writeCompanyInfo(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/company-info":
+		service.updateCompanyInfo(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/company-metrics":
+		service.recordCompanyMetric(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company-metrics":
+		service.listCompanyMetrics(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/company-records":
+		service.addCompanyRecord(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company-records":
+		service.listCompanyRecords(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/company-records":
+		service.updateCompanyRecord(responseWriter, request)
+	case request.Method == http.MethodDelete && path == "/company-records":
+		service.deleteCompanyRecord(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/company-documents":
+		service.registerCompanyDocument(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company-documents":
+		service.listCompanyDocuments(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/company-documents/search":
+		service.searchCompanyDocuments(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/company-documents":
+		service.updateCompanyDocument(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/attendance-locations":
 		service.writeAttendanceLocations(responseWriter)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
