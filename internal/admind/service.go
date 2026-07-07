@@ -98,6 +98,8 @@ type Service struct {
 	companionFileUploads    map[string]*CompanionFileUpload
 	companionMounts         map[string]*CompanionMountRecord
 	sites                   map[string]*SiteRecord
+	siteRuntimeMutex        sync.Mutex
+	siteRuntimeActivities   map[string]*siteRuntimeActivity
 	mailBackend             mailBackend
 	googleOAuthStates       sync.Map
 	webOAuthStates          sync.Map
@@ -314,6 +316,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
+	service.startSiteRuntimeJanitor(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
