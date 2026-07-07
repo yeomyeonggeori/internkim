@@ -48,6 +48,7 @@ DESIGN_WARNING_PREFIXES = (
     "languageMismatchWarning",
     "unsourcedCurrentDateWarning",
     "verticalDeadZoneWarning",
+    "absoluteFooterWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -63,6 +64,7 @@ DESIGN_WARNING_WEIGHTS = {
     "languageMismatchWarning": 10,
     "unsourcedCurrentDateWarning": 10,
     "verticalDeadZoneWarning": 10,
+    "absoluteFooterWarning": 12,
 }
 
 
@@ -227,7 +229,33 @@ def inspect_source_context(source_text: str, design_document_text: str, slide_co
         "hasSideStripePattern": source_has_side_stripe(source_text),
         "hasGhostCardPattern": source_has_ghost_card_pattern(source_text),
         "hasTinyTextPattern": source_has_tiny_text_pattern(source_text),
+        "absoluteTextFooterSlideCount": absolute_text_footer_slide_count(source_text, slide_sources),
     }
+
+
+def absolute_text_footer_slide_count(source_text: str, slide_sources: list[str]) -> int:
+    footer_classes = absolutely_positioned_bottom_classes(source_text)
+    if not footer_classes:
+        return 0
+    return sum(1 for slide_source in slide_sources if slide_has_text_in_classes(slide_source, footer_classes))
+
+
+def absolutely_positioned_bottom_classes(source_text: str) -> set[str]:
+    classes = set()
+    for match in re.finditer(r"\.([\w-]+)[^{}]*\{([^{}]*)\}", source_text):
+        rule = match.group(2).casefold()
+        if re.search(r"\bposition\s*:\s*absolute", rule) and re.search(r"\bbottom\s*:", rule):
+            classes.add(match.group(1).casefold())
+    return classes
+
+
+def slide_has_text_in_classes(slide_source: str, class_names: set[str]) -> bool:
+    for class_name in class_names:
+        element_pattern = rf"<(\w+)[^>]*class\s*=\s*[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>(.*?)</\1>"
+        for match in re.finditer(element_pattern, slide_source, flags=re.DOTALL | re.IGNORECASE):
+            if len(visible_slide_text(match.group(2)).strip()) >= 3:
+                return True
+    return False
 
 
 def source_has_side_stripe(source_text: str) -> bool:
@@ -819,6 +847,11 @@ def apply_deck_design_warnings(slides: list[dict[str, object]], source_context: 
         append_deck_warning(slides, "ghostCardWarning: thin-bordered boxes with soft shadows read as a default template surface")
     if source_context["hasTinyTextPattern"]:
         append_deck_warning(slides, "tinyTextWarning: multiple CSS font sizes below 16px may be unreadable in review contact sheets")
+    if int(source_context["absoluteTextFooterSlideCount"]) >= 2:
+        append_deck_warning(
+            slides,
+            "absoluteFooterWarning: an absolutely positioned bottom strip carries text on multiple slides and can overlap the body; make header, body, and footer sibling flow children",
+        )
     if repeated_composition_count >= 3:
         append_deck_warning(
             slides,

@@ -58,7 +58,7 @@ Reject shallow content: a welcome slide plus generic cards, repeated overview/fe
 
 Each slide needs a job: what the audience should learn, decide, or remember; what claim the title makes; what proof supports it; and what visual structure makes it easier to scan.
 
-Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean. Show only dates that come from the source material; do not stamp today's date on the cover or footer.
+Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean. Show only dates from the source material; never stamp today's date.
 
 Pick one deck archetype: pitch, research report, executive briefing, education, portfolio, product proposal, or status report. Use that choice to decide information density, section sequence, fake data style, and ending.
 
@@ -85,8 +85,8 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame with grid or flex layout. Let the main content area grow to fill the frame height; a large empty band between content and footer reads as an unfinished slide.
-- Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Inside a flex slide use `flex: none` for natural-height rows; `flex: 0` collapses the row to zero height and later siblings paint over its content.
+- Fixed 16:9 frame: each slide is a flex column with header, body, and footer as sibling flow children — body `flex: 1 1 0; min-height: 0` filling the frame height, header and footer `flex: none`, never an absolutely positioned footer. A large empty band above the footer reads as unfinished.
+- Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 
 Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
