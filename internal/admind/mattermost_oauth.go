@@ -103,7 +103,7 @@ func (service *Service) handleMattermostOAuthCallback(responseWriter http.Respon
 	if !ok {
 		return
 	}
-	if !service.isFlowStaffActor(request.Context(), userRecord.Email) {
+	if !service.canAuthenticateWebReturnPath(request.Context(), userRecord.Email, record.ReturnPath) {
 		respondMattermostAuthError(responseWriter, http.StatusForbidden, "InternKim 사용 권한이 없습니다.")
 		logAuditEvent("mattermost oauth callback denied: non_staff")
 		return

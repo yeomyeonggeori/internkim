@@ -164,8 +164,13 @@
 		return taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—';
 	}
 
+	function taskRunDetailPath(taskRunID: string): string {
+		const basePath = location.pathname.startsWith('/poc-admin') ? '/poc-admin' : '/tasks';
+		return `${basePath}/${encodeURIComponent(taskRunID)}`;
+	}
+
 	function openTaskRun(taskRunID: string) {
-		void goto(`/tasks/${taskRunID}`);
+		void goto(taskRunDetailPath(taskRunID));
 	}
 
 	function handleTaskRunKeydown(event: KeyboardEvent, taskRunID: string) {
@@ -181,7 +186,8 @@
 
 	async function loadViewerRole() {
 		try {
-			const response = await fetch('/auth/session', { credentials: 'include' });
+			const returnPath = `${location.pathname}${location.search}`;
+			const response = await fetch(`/auth/session?return=${encodeURIComponent(returnPath)}`, { credentials: 'include' });
 			if (!response.ok) return;
 			const session = (await response.json()) as { isAdmin?: boolean };
 			isAdmin = session.isAdmin === true;

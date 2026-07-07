@@ -4,6 +4,11 @@ import type { CalendarDraftEventDOMActions } from './calendar-draft-event-dom';
 import {
 	createCalendarPersistedEventActions
 } from './calendar-persisted-event-actions';
+import {
+	calendarDeleteUndoTimeoutMs,
+	dismissCalendarDeleteUndoToast,
+	showCalendarDeleteUndoToast
+} from './calendar-delete-undo';
 import type { CalendarEvent } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
@@ -22,6 +27,8 @@ export type CalendarEventPersistenceActions = {
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
+	flushPendingDelete: () => Promise<void>;
+	flushPendingDeleteOnPageHide: () => void;
 	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 };
 
@@ -29,6 +36,7 @@ export function createCalendarEventPersistenceActions(
 	options: CalendarEventPersistenceActionsContext
 ): CalendarEventPersistenceActions {
 	const persistedEvents = createCalendarPersistedEventActions(options.context, options.programmaticUpdates);
+	let pendingDelete: { event: DayFlowEvent; timeoutID: ReturnType<typeof setTimeout> } | null = null;
 
 	async function saveCreatedEvent(event: DayFlowEvent): Promise<void> {
 		options.draftEvents.addCreatedEvent(event);
@@ -84,18 +92,81 @@ export function createCalendarEventPersistenceActions(
 	}
 
 	async function deletePersistedEvent(eventID: string): Promise<void> {
+		void flushPreviousPendingDeleteWithoutClearingNotice();
+		const event = options.context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === eventID);
+		if (!event) return;
+		options.context.removeCalendarEvent(eventID);
+		options.refreshEventCountAfterRender();
+		pendingDelete = {
+			event,
+			timeoutID: setTimeout(() => {
+				void flushPendingDelete();
+			}, calendarDeleteUndoTimeoutMs)
+		};
+		showCalendarDeleteUndoToast({
+			message: options.context.text.deleteUndoMessage,
+			actionLabel: options.context.text.deleteUndoAction,
+			undo: () => undoPendingDelete(eventID)
+		});
+	}
+
+	function undoPendingDelete(eventID: string): void {
+		if (!pendingDelete || pendingDelete.event.id !== eventID) return;
+		const event = pendingDelete.event;
+		clearTimeout(pendingDelete.timeoutID);
+		pendingDelete = null;
+		if (!options.context.getCalendarEvents().some((calendarEvent) => calendarEvent.id === event.id)) {
+			options.context.restoreCalendarEvent(event);
+		}
+		dismissCalendarDeleteUndoToast();
+		options.refreshEventCountAfterRender();
+	}
+
+	async function flushPendingDelete(): Promise<void> {
+		await persistPendingDelete(true);
+	}
+
+	function flushPendingDeleteOnPageHide(): void {
+		const deleteToFlush = pendingDelete;
+		if (!deleteToFlush) return;
+		clearTimeout(deleteToFlush.timeoutID);
+		pendingDelete = null;
+		dismissCalendarDeleteUndoToast();
+		persistedEvents.deleteEventOnPageHide(deleteToFlush.event.id);
+		options.context.notifyEventsChanged();
+	}
+
+	async function flushPreviousPendingDeleteWithoutClearingNotice(): Promise<void> {
+		await persistPendingDelete(false);
+	}
+
+	async function persistPendingDelete(shouldClearNotice: boolean): Promise<void> {
+		const deleteToFlush = pendingDelete;
+		if (!deleteToFlush) return;
+		clearTimeout(deleteToFlush.timeoutID);
+		pendingDelete = null;
+		if (shouldClearNotice) dismissCalendarDeleteUndoToast();
 		beginDeletePersistence();
 		try {
-			await persistedEvents.deleteEvent(eventID);
-			options.context.removeCalendarEvent(eventID);
+			await persistedEvents.deleteEvent(deleteToFlush.event.id);
 			options.context.notifyEventsChanged();
 			options.refreshEventCountAfterRender();
 		} catch (error) {
+			if (!options.context.getCalendarEvents().some((event) => event.id === deleteToFlush.event.id)) {
+				options.context.restoreCalendarEvent(deleteToFlush.event);
+			}
 			showEventPersistenceError(error, options.context.text.deleteError);
 			await options.context.refreshCalendar();
+			hidePendingDeleteAfterRefresh();
 		} finally {
 			finishEventPersistence();
 		}
+	}
+
+	function hidePendingDeleteAfterRefresh(): void {
+		if (!pendingDelete) return;
+		options.context.removeCalendarEvent(pendingDelete.event.id);
+		options.refreshEventCountAfterRender();
 	}
 
 	async function createEventOnServer(event: DayFlowEvent): Promise<void> {
@@ -184,6 +255,8 @@ export function createCalendarEventPersistenceActions(
 		saveCreatedEvent,
 		saveUpdatedEvent,
 		deleteEvent,
+		flushPendingDelete,
+		flushPendingDeleteOnPageHide,
 		persistCreatedEvent
 	};
 }

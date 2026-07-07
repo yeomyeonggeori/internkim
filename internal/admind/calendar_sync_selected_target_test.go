@@ -135,6 +135,42 @@ func TestRunGoogleCalendarPullUsesSelectedCalendarTarget(t *testing.T) {
 	}
 }
 
+func TestRunGoogleCalendarPullSkipsMissingRemoteDeleteBeforeInitialSyncCompletes(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+
+	selectedCalendarEvent := newLocalTestCalendarEvent("selected-initial-missing", "Selected Initial Missing")
+	selectedCalendarEvent.RemoteSource = remoteCalendarProviderGoogle
+	selectedCalendarEvent.RemoteETag = `"etag-selected-initial-missing"`
+	selectedCalendarEvent.RemoteHref = "/calendars/company/selected-initial-missing.ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, selectedCalendarEvent, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed selected calendar event: %v", errorValue)
+	}
+
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("select calendar: %v", errorValue)
+	}
+	client := &fakeCalDAVPullClient{}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, client); errorValue != nil {
+		t.Fatalf("pull: %v", errorValue)
+	}
+
+	if _, found, errorValue := service.readCalendarEventByID(ctx, selectedCalendarEvent.ID); errorValue != nil {
+		t.Fatalf("read selected calendar event: %v", errorValue)
+	} else if !found {
+		t.Fatal("missing event should remain before initial sync completes")
+	}
+	refreshed, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if refreshed.InitialSyncCompletedAt == "" {
+		t.Fatal("InitialSyncCompletedAt should be set after protected initial sync")
+	}
+}
+
 func TestRunGoogleCalendarPullPreservesEventsFromOtherCalendarTargets(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -159,6 +195,10 @@ func TestRunGoogleCalendarPullPreservesEventsFromOtherCalendarTargets(t *testing
 	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
 	if errorValue != nil {
 		t.Fatalf("select calendar: %v", errorValue)
+	}
+	selectedAccount, errorValue = service.saveCalendarPullState(ctx, selectedAccount, selectedAccount.DefaultCalendarCTag, time.Now(), true)
+	if errorValue != nil {
+		t.Fatalf("mark initial sync completed: %v", errorValue)
 	}
 	client := &fakeCalDAVPullClient{}
 	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, client); errorValue != nil {
