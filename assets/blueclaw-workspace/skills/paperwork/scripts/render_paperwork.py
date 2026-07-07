@@ -6,8 +6,24 @@ import sys
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
+from paperwork_design import (
+    COLOR_BORDER,
+    COLOR_HEADER_FILL,
+    COLOR_INK,
+    COLOR_MUTED,
+    COLOR_RULE,
+    FONT_CANDIDATE_PATHS_PDF,
+    FONT_KOREAN_DOCX,
+    LINE_SPACING,
+    PDF_PAGE_MARGIN_MILLIMETERS,
+    SIZE_BODY,
+    SIZE_CLAUSE_HEADING,
+    SIZE_LETTERHEAD_DETAIL,
+    SIZE_LETTERHEAD_NAME,
+    SIZE_TITLE,
+)
 
-PAGE_MARGIN_MILLIMETERS = 16.0
+PAGE_MARGIN_MILLIMETERS = PDF_PAGE_MARGIN_MILLIMETERS
 LETTERHEAD_LOGO_HEIGHT = 10.0
 APPROVAL_BOX_WIDTH = 20.0
 APPROVAL_BOX_HEIGHT = 16.0
@@ -15,12 +31,12 @@ META_LABEL_WIDTH = 34.0
 TABLE_LINE_HEIGHT = 5.2
 TABLE_CELL_PADDING = 1.8
 STAMP_SIZE_MILLIMETERS = 16.0
-INK_COLOR = (31, 41, 55)
-HEADING_COLOR = (17, 24, 39)
-MUTED_COLOR = (107, 114, 128)
-RULE_COLOR = (55, 65, 81)
-BORDER_COLOR = (156, 163, 175)
-HEADER_FILL_COLOR = (243, 244, 246)
+INK_COLOR = COLOR_INK
+HEADING_COLOR = COLOR_INK
+MUTED_COLOR = COLOR_MUTED
+RULE_COLOR = COLOR_RULE
+BORDER_COLOR = COLOR_BORDER
+HEADER_FILL_COLOR = COLOR_HEADER_FILL
 
 
 ALLOWED_TOP_LEVEL_KEYS = {
@@ -99,15 +115,7 @@ def resolve_font(document):
 
 
 def candidate_font_paths():
-    return [
-        Path("/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf"),
-        Path("/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf"),
-        Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
-        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
-        Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
-        Path("/System/Library/Fonts/Supplemental/AppleGothic.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-    ]
+    return [Path(candidate) for candidate in FONT_CANDIDATE_PATHS_PDF]
 
 
 def render_document(document):
@@ -173,10 +181,10 @@ def add_letterhead(pdf, profile):
     logo_path = str(profile.get("logoPath", "")).strip()
     if logo_path and Path(logo_path).exists():
         pdf.image(logo_path, x=pdf.l_margin, y=top_y, h=LETTERHEAD_LOGO_HEIGHT)
-    set_body_font(pdf, size=11.5, color=HEADING_COLOR)
+    set_body_font(pdf, size=SIZE_LETTERHEAD_NAME, color=HEADING_COLOR)
     pdf.set_y(top_y)
     pdf.cell(0, 5.5, company_display_name(profile), align="R", new_x="LMARGIN", new_y="NEXT")
-    set_body_font(pdf, size=7.5, color=MUTED_COLOR)
+    set_body_font(pdf, size=SIZE_LETTERHEAD_DETAIL, color=MUTED_COLOR)
     for line in letterhead_detail_lines(profile):
         pdf.cell(0, 3.8, line, align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
@@ -236,7 +244,7 @@ def add_approval_line(pdf, labels):
 
 
 def add_title(pdf, document):
-    set_body_font(pdf, size=21, color=HEADING_COLOR)
+    set_body_font(pdf, size=SIZE_TITLE + 3, color=HEADING_COLOR)
     pdf.cell(0, 12, str(document["title"]).strip(), align="C", new_x="LMARGIN", new_y="NEXT")
     document_number = str(document.get("documentNumber", "")).strip()
     if document_number:
@@ -484,34 +492,51 @@ def load_docx_document(document_path):
 
 def generate_docx(document, output_path):
     from docx import Document
-    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches, Pt, RGBColor
 
     word_document = Document()
     section = word_document.sections[0]
     margin_inches = float((document.get("page") or {}).get("marginInches", 0.9))
     section.top_margin = section.bottom_margin = Inches(margin_inches)
     section.left_margin = section.right_margin = Inches(margin_inches)
-    font_name = str(document.get("fontName", "맑은 고딕"))
-    font_size = float(document.get("fontSize", 10.5))
+    font_name = str(document.get("fontName", FONT_KOREAN_DOCX))
+    font_size = float(document.get("fontSize", SIZE_BODY))
     style = word_document.styles["Normal"]
     style.font.name = font_name
     style.font.size = Pt(font_size)
+    style.font.color.rgb = RGBColor(*COLOR_INK)
+    style.paragraph_format.line_spacing = LINE_SPACING
     style.element.rPr.rFonts.set(
         "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", font_name)
     title = str(document.get("title", "")).strip()
     if title:
-        word_document.add_heading(title, level=0)
+        paragraph = word_document.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_after = Pt(18)
+        run = paragraph.add_run(title)
+        run.bold = True
+        run.font.size = Pt(SIZE_TITLE)
+        run.font.color.rgb = RGBColor(*COLOR_INK)
     for block in document["blocks"]:
         append_docx_block(word_document, block)
     word_document.save(str(output_path))
 
 
 def append_docx_block(word_document, block):
+    from docx.shared import Pt, RGBColor
+
     if not isinstance(block, dict):
         raise ValueError(f"each block must be an object; {DOCX_HINT}")
     block_type = str(block.get("type", "")).strip()
     if block_type == "heading":
-        word_document.add_heading(str(block.get("text", "")), level=int(block.get("level", 2)))
+        paragraph = word_document.add_paragraph()
+        paragraph.paragraph_format.space_before = Pt(10)
+        paragraph.paragraph_format.space_after = Pt(2)
+        run = paragraph.add_run(str(block.get("text", "")))
+        run.bold = True
+        run.font.size = Pt(SIZE_CLAUSE_HEADING)
+        run.font.color.rgb = RGBColor(*COLOR_INK)
     elif block_type == "paragraph":
         word_document.add_paragraph(str(block.get("text", "")))
     elif block_type == "bullets":
