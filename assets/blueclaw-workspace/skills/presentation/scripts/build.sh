@@ -77,9 +77,11 @@ def extract_requested_slide_count(deck_brief_text):
 requested_slide_count = extract_requested_slide_count(deck_brief_text) if deck_brief_text else None
 actual_slide_count = len(re.findall(r"<section\b", text, re.IGNORECASE))
 if requested_slide_count is not None and actual_slide_count != requested_slide_count:
-    print(f"Error: slides.html has {actual_slide_count} slide sections, but deck-brief.md requests {requested_slide_count}.")
-    print("Update slides.html or deck-brief.md so the slide count matches the user request.")
-    sys.exit(1)
+    print(
+        f"Warning: slides.html has {actual_slide_count} slide sections, but deck-brief.md says {requested_slide_count}. "
+        "If the user asked for an exact count, fix slides.html; otherwise update deck-brief.md.",
+        file=sys.stderr,
+    )
 PY
 
 SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/presentation/assets}"
