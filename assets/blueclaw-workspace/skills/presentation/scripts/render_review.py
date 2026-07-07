@@ -49,6 +49,7 @@ DESIGN_WARNING_PREFIXES = (
     "unsourcedCurrentDateWarning",
     "verticalDeadZoneWarning",
     "absoluteFooterWarning",
+    "emojiIconWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -65,6 +66,7 @@ DESIGN_WARNING_WEIGHTS = {
     "unsourcedCurrentDateWarning": 10,
     "verticalDeadZoneWarning": 10,
     "absoluteFooterWarning": 12,
+    "emojiIconWarning": 8,
 }
 
 
@@ -113,6 +115,7 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     apply_deck_design_warnings(slides, source_context, render_source)
     apply_language_mismatch_warning(slides, slide_texts)
     apply_unsourced_current_date_warning(slides, slide_texts, required_text_ledger)
+    apply_emoji_icon_warning(slides, slide_texts)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
@@ -911,6 +914,23 @@ def apply_unsourced_current_date_warning(
             slides,
             "unsourcedCurrentDateWarning: slide " + ", ".join(dated_indexes)
             + f" shows today's date {today.isoformat()}, which is not in required-visible-text.txt; only show dates from the source material",
+        )
+
+
+EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
+
+
+def apply_emoji_icon_warning(slides: list[dict[str, object]], slide_texts: list[dict[str, object]]) -> None:
+    emoji_indexes = [
+        str(slide_text["index"])
+        for slide_text in slide_texts
+        if EMOJI_PATTERN.search(str(slide_text["expectedVisibleText"]))
+    ]
+    if emoji_indexes:
+        append_deck_warning(
+            slides,
+            "emojiIconWarning: slide " + ", ".join(emoji_indexes)
+            + " uses emoji glyphs; use text labels, CSS markers, or inline SVG instead",
         )
 
 
