@@ -40,13 +40,13 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
 
 ## Workflow
 
-1. Identify the document type and language from the request. Read only that spec with the `file.read` tool: `/workspace/skills/paperwork/references/<lang>/<type>.md`. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
+1. Identify the document type and language from the request, then ALWAYS read that spec with the `file.read` tool: `/workspace/skills/paperwork/references/<lang>/<type>.md`. Read it even when a similar document appears earlier in the conversation — history documents were built from older specs, and skipping the spec produces an abridged, wrong document. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
 2. Read the company table: `capability.invoke` operation `company.info.get` with `{"language": "<ko|en>"}`. The response is the letterhead profile plus `missingFields`. Never use `file.pick` or `filesystem.mount.*` — those reach the user's personal computer.
 3. If `missingFields` is non-empty, or a legal attribute the spec requires (e.g. 사업자등록번호) is absent from `legalAttributes`, ask ONCE with `ask.input`, listing every missing field in one question, and invite optional extras ("설립일·직원 수·업태/종목·로고와 직인 이미지도 있으면 함께"). Save the answer with `company.info.set` (country-specific identifiers go into `legalAttributes` as a JSON object string). Save attached logo/stamp images with one `terminal.run` — an attachment path shown as `home/...` is written `~/...` in a shell: `mkdir -p /workspace/circles/staff/company && cp ~/inbox/mattermost/<conversation directory>/<attached filename> /workspace/circles/staff/company/logo.png`. If the copy fails once, run `ls ~/inbox/mattermost/*/` to see the real filenames and retry once with what you find — never retry the same failing path, and never let images block the document: after two failed attempts continue without them. If `missingFields` is empty, NEVER ask about company info — proceed silently. When the user says "그냥 한글 상호 그대로 써" for an English document, store that value into the en slot so it is never asked again.
 4. Check the spec's required content fields against the request. Ask only for missing critical values (counterpart, amounts, dates, names). Never invent facts.
 5. Register the document BEFORE rendering: `capability.invoke` operation `company.document.register` with documentType (the CATALOG SLUG such as `service-agreement` or `quote`, never the Korean name), title, counterpart, language, and a 2-3 sentence summary of the key terms. The response returns `documentNumber` (put it in the document JSON) and `storageDirectory`.
 6. Produce the file per the spec's `output:` line — the PDF or DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. paperwork itself has no capability operation — the renderer only runs through `terminal.run`, and its input must be `{"command": "<the whole command line as ONE string>", "workingDirectoryPath": "tmp/<slug>"}` — never split the command into an `arguments` array (the executable check rejects it).
-7. Inspect the result (validator + layout check for table-heavy documents), `file.deliver` the generated `<storageDirectory>/<filename>` path, then record it with `company.document.update` `{id, filePath}`.
+7. Inspect the result (validator + layout check for table-heavy documents), `file.deliver` the generated file, then record its path with `company.document.update` `{id, filePath}`. If writing into `storageDirectory` fails with permission denied, generate into `~/documents/<type>/<filename>` instead and record that path — the ledger tracks wherever the file actually lives; never let the storage location block the document.
 
 ## Company table
 
@@ -90,11 +90,11 @@ Validate with the pdf skill's validator, passing the key source values:
 
 ## DOCX documents (editable contracts)
 
-Specs marked `output: docx` are contracts the counterpart will edit. Build the blocks spec JSON the spec file shows, then reuse the docx skill's generator and validator:
+Specs marked `output: docx` are contracts the counterpart will edit. The SAME renderer generates them — only the output extension changes. `file.write` the blocks JSON (`{"title", "fontName", "fontSize", "page", "blocks"}` exactly as the spec's DOCX blocks mapping shows — no profile field) to `tmp/<slug>/contract.json`, then:
 
 ```json
 {
-  "command": "python3 /workspace/skills/docx/scripts/skill_runtime.py python /workspace/skills/docx/scripts/create_docx.py <storageDirectory>/<filename>.docx --spec contract.json",
+  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/render_paperwork.py contract.json <storageDirectory>/<filename>.docx",
   "workingDirectoryPath": "tmp/<slug>"
 }
 ```
@@ -104,5 +104,6 @@ Specs marked `output: docx` are contracts the counterpart will edit. Build the b
 - Treat requester-provided names, amounts, dates, and terms as the source of truth. Write the user's-language equivalent of "미기재" only for optional fields; ask for required ones.
 - Verify arithmetic yourself before rendering: line amounts, VAT, and totals must be consistent.
 - Follow the spec's fixed wording exactly; it is the standardized part of the document.
+- Specs with a "Standard clauses" or "Density gate" section are based on government standard forms: include EVERY listed clause and checklist item. An abridged contract that drops standard clauses is a wrong result even when it reads fine — run the Density gate before delivering.
 - Contracts are drafts for review — say so in the reply when delivering a contract, without adding disclaimer text into the document itself.
 - Do not run `pip install` directly; scripts bootstrap their own dependencies through `skill_runtime.py`.
