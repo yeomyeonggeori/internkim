@@ -66,7 +66,7 @@ Use these slide patterns as the default vocabulary: title thesis, section divide
 
 For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more design direction is needed, but do not spend tool turns on reference reading before `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
 
-Quarterly review decks should usually use this six-slide spine: decision title, executive summary, target-versus-actual metrics, roadmap timeline, risk-response matrix, and approval/next steps. The board floor in `composition-seeds.md` includes Decision cover, Executive dashboard, Metrics scoreboard, Roadmap timeline, Risk matrix, and Approval panel. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
+Quarterly review decks should usually use this six-slide spine: decision title, executive summary, target-versus-actual metrics, roadmap timeline, risk-response matrix, and approval/next steps. `composition-seeds.md` carries the board-floor composition set. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
 
 Do not deliver a board deck made of plain white title slides, unstyled tables, bare bullet lists, or the same 2x2 card dashboard across slides. Use an executive artifact surface: KPI cards, status chips, variance bars, owner-date timelines, risk matrices, approval panels, and at least one recurring primitive that makes the deck recognizable.
 
@@ -85,7 +85,8 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none; margin-top: auto` — so the footer sits on the identical baseline on every slide even when a body forgets to grow. Never absolutely position the footer. A large empty band above the footer reads as unfinished.
+- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none; margin-top: auto` — so the footer sits on the identical baseline on every slide. Never absolutely position the footer.
+- Fill the frame: give the body `display: flex; flex-direction: column; justify-content: space-between; gap` and stretch major blocks (card grids, tables, charts) with `flex: 1; min-height: 0`, centering card interiors vertically; do not stack everything in the top half.
 - Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 - Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
@@ -98,7 +99,7 @@ Before building, scan `slides.html`. If a slide is only a raw `<table>` or bare 
 
 ## Fonts
 
-Use web fonts in `slides.html` when they improve Korean typography, brand fit, or visual hierarchy. Read `assets/webfonts.md` before writing CSS for Korean-heavy or design-sensitive decks. Paperlogy is the default display and body font, and the exporter injects local WOFF2 fallback before rendering HTML/PDF/PPTX. You may import Pretendard, Freesentation, or Noto Sans KR, but keep Paperlogy in the stack so offline rendering still has a stable Korean fallback. Do not paste base64 font data into `slides.html`.
+Read `assets/webfonts.md` before writing CSS for Korean-heavy or design-sensitive decks. Paperlogy is the default display and body font, and the exporter injects local WOFF2 fallback before rendering HTML/PDF/PPTX. Also `@import` Pretendard, Freesentation, or Noto Sans KR in `slides.html` so the raw source renders with real typography, keeping Paperlogy first in the stack for offline fallback. Do not paste base64 font data into `slides.html`.
 
 Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`. Do not use emoji as functional icons or bullets; use text labels, CSS markers, inline SVG, or simple shapes.
 
