@@ -19,7 +19,7 @@ Create a useful, visually strong deck and attach the requested files. This is an
 4. If budget allows, add compact helper files after `slides.html`: `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. These improve review but must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
-7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` to resolve the listed warnings and rebuild before delivery. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
+7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Keep revising while the score improves; stop when the gate passes, the score stalls across two rebuilds, or a budget status observation says consolidate or finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
 8. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
@@ -40,7 +40,7 @@ For PPTX requests, use:
 }
 ```
 
-For PDF requests use `FORMATS=pdf /workspace/skills/presentation/scripts/build.sh`; for all outputs use `FORMATS=all /workspace/skills/presentation/scripts/build.sh`. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence; deliver HTML unless the user names another file format.
+For PDF requests use `FORMATS=pdf`, and for all outputs `FORMATS=all`, with the same build command. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence; deliver HTML unless the user names another file format.
 
 Do not call `terminal.run` with an `arguments` array alone. Use the `command` string examples above for this skill's build path.
 
