@@ -50,6 +50,8 @@ export type AdminSession = {
 	claimedAdminEmail: string;
 	isAdmin: boolean;
 	role?: UserRole;
+	canViewTasks?: boolean;
+	isPocSuperAdmin?: boolean;
 	isClaimed: boolean;
 	bootstrapStatus: string;
 	bootstrapError?: string;

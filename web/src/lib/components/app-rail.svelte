@@ -30,6 +30,8 @@
 	let isProfileMenuOpen = $state(false);
 	let isAPITokenSheetOpen = $state(false);
 	let adminRole = $state<UserRole>('member');
+	let canViewTasks = $state(false);
+	let isPocSuperAdmin = $state(false);
 	let userName = $state('');
 	const currentPath = $derived(page.url.pathname);
 	const displayUserName = $derived(userName || text.workspace);
@@ -45,8 +47,18 @@
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 
+	const taskRunsItem = $derived<AppRailItem | null>(
+		canViewTasks
+			? {
+					href: isPocSuperAdmin ? '/poc-admin/' : '/tasks/',
+					label: isPocSuperAdmin ? text.pocAdmin : text.tasks,
+					icon: ActivityIcon
+				}
+			: null
+	);
+
 	const workspace = $derived<AppRailItem[]>([
-		{ href: '/tasks/', label: text.tasks, icon: ActivityIcon },
+		...(taskRunsItem ? [taskRunsItem] : []),
 		...(canViewAdminNavigation ? [{ href: '/admin/', label: text.admin, icon: CogIcon }] : [])
 	]);
 
@@ -91,6 +103,8 @@
 			const hasWebUser = await loadWebUser();
 			if (!hasWebUser) {
 				adminRole = 'member';
+				canViewTasks = false;
+				isPocSuperAdmin = false;
 				return;
 			}
 		}
@@ -100,8 +114,17 @@
 				adminRole = 'member';
 				return;
 			}
-			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string; isAdmin?: boolean; role?: UserRole };
+			const session = (await response.json()) as {
+				email?: string;
+				claimedAdminEmail?: string;
+				isAdmin?: boolean;
+				role?: UserRole;
+				canViewTasks?: boolean;
+				isPocSuperAdmin?: boolean;
+			};
 			adminRole = normalizeSessionRole(session);
+			canViewTasks = session.canViewTasks === true || adminRole === 'admin';
+			isPocSuperAdmin = session.isPocSuperAdmin === true;
 			const adminEmail = session.email || session.claimedAdminEmail || '';
 			if (!adminEmail) {
 				adminRole = 'member';
@@ -116,24 +139,37 @@
 
 	async function loadWebUser() {
 		try {
-			const response = await fetch('/auth/session', { credentials: 'include' });
+			const response = await fetch(`/auth/session?return=${encodeURIComponent(currentPath)}`, { credentials: 'include' });
 			if (!response.ok) {
 				userEmail = '';
 				userName = '';
+				canViewTasks = false;
+				isPocSuperAdmin = false;
 				return false;
 			}
-			const session = (await response.json()) as { authenticated?: boolean; email?: string };
+			const session = (await response.json()) as {
+				authenticated?: boolean;
+				email?: string;
+				canViewTasks?: boolean;
+				isPocSuperAdmin?: boolean;
+			};
 			if (!session.authenticated) {
 				userEmail = '';
 				userName = '';
+				canViewTasks = false;
+				isPocSuperAdmin = false;
 				return false;
 			}
 			userEmail = session.email || '';
 			userName = userEmail ? userEmail.split('@')[0] : '';
+			canViewTasks = session.canViewTasks === true;
+			isPocSuperAdmin = session.isPocSuperAdmin === true;
 			return true;
 		} catch {
 			userEmail = '';
 			userName = '';
+			canViewTasks = false;
+			isPocSuperAdmin = false;
 			return false;
 		}
 	}

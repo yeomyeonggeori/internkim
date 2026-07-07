@@ -42,6 +42,8 @@ type webSessionResponse struct {
 	MattermostLoginURL string `json:"mattermostLoginURL,omitempty"`
 	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
 	IsAdmin            bool   `json:"isAdmin"`
+	CanViewTasks       bool   `json:"canViewTasks"`
+	IsPoCSuperAdmin    bool   `json:"isPocSuperAdmin"`
 }
 
 type webLogoutResponse struct {
@@ -54,9 +56,9 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 		http.NotFound(responseWriter, request)
 		return
 	}
-	email := service.webStaffActorEmail(request)
-	if email == "" {
-		returnPath := loginReturnPathForRequest(request)
+	returnPath := loginReturnPathForRequest(request)
+	email := service.webActorEmail(request)
+	if email == "" || !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
 		service.writeJSON(responseWriter, webSessionResponse{
 			Authenticated:      false,
 			LoginURL:           service.mattermostLoginURLForReturnPath(returnPath),
@@ -65,10 +67,14 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 		})
 		return
 	}
+	isTaskRunAdmin := service.canManageTaskRuns(request.Context(), email)
+	isPoCSuperAdmin := service.isMattermostHumanSystemAdmin(request.Context(), email)
 	service.writeJSON(responseWriter, webSessionResponse{
-		Authenticated: true,
-		Email:         email,
-		IsAdmin:       service.isFlowAdminEmail(request.Context(), email),
+		Authenticated:   true,
+		Email:           email,
+		IsAdmin:         isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
+		CanViewTasks:    service.canViewTaskRuns(request.Context(), email),
+		IsPoCSuperAdmin: isPoCSuperAdmin,
 	})
 }
 
@@ -115,7 +121,7 @@ func (service *Service) handleCloudflareAuthCallback(responseWriter http.Respons
 		logAuditEvent("cloudflare auth callback denied: missing identity")
 		return
 	}
-	if !service.isFlowStaffActor(request.Context(), email) {
+	if !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
 		respondMattermostAuthError(responseWriter, http.StatusForbidden, "InternKim 사용 권한이 없습니다.")
 		logAuditEvent("cloudflare auth callback denied: non_staff")
 		return
@@ -371,7 +377,7 @@ func safeWebReturnPath(value string) string {
 	if strings.Contains(parsedURL.Path, "/api/") || strings.HasSuffix(parsedURL.Path, "/api") {
 		return ""
 	}
-	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/", "/files/", "/tasks/"} {
+	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/", "/files/", "/tasks/", "/poc-admin/"} {
 		if parsedURL.Path == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(parsedURL.Path, prefix) {
 			return parsedURL.RequestURI()
 		}

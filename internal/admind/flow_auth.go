@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,56 @@ func (service *Service) webStaffActorEmail(request *http.Request) string {
 		return ""
 	}
 	return actorEmail
+}
+
+func (service *Service) webTaskRunActorEmail(request *http.Request) string {
+	actorEmail := service.webActorEmail(request)
+	if !service.canViewTaskRuns(request.Context(), actorEmail) {
+		return ""
+	}
+	return actorEmail
+}
+
+func (service *Service) canViewTaskRuns(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if service.isProofOfConceptTenantMode() {
+		return service.isMattermostHumanSystemAdmin(ctx, actorEmail)
+	}
+	return service.isFlowStaffActor(ctx, actorEmail)
+}
+
+func (service *Service) canManageTaskRuns(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if service.isProofOfConceptTenantMode() {
+		return service.isMattermostHumanSystemAdmin(ctx, actorEmail)
+	}
+	return service.isFlowAdminEmail(ctx, actorEmail)
+}
+
+func (service *Service) canAuthenticateWebReturnPath(ctx context.Context, actorEmail string, returnPath string) bool {
+	if isTaskRunWebPath(returnPath) {
+		return service.canViewTaskRuns(ctx, actorEmail)
+	}
+	return service.isFlowStaffActor(ctx, actorEmail)
+}
+
+func isTaskRunWebPath(path string) bool {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(path))
+	if errorValue != nil {
+		return false
+	}
+	switch {
+	case parsedURL.Path == "/tasks" || strings.HasPrefix(parsedURL.Path, "/tasks/"):
+		return true
+	case parsedURL.Path == "/poc-admin" || strings.HasPrefix(parsedURL.Path, "/poc-admin/"):
+		return true
+	default:
+		return false
+	}
 }
 
 func (service *Service) authorizeWebStaffRequest(request *http.Request) bool {
@@ -219,6 +270,55 @@ func (service *Service) isFlowAdminEmail(ctx context.Context, actorEmail string)
 	}
 	adminEmail := service.seedAdminEmail()
 	return adminEmail != "" && strings.EqualFold(actorEmail, adminEmail)
+}
+
+func (service *Service) isMattermostHumanSystemAdmin(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if !service.isProofOfConceptTenantMode() {
+		return false
+	}
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return false
+	}
+	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, token, actorEmail)
+	if errorValue != nil || !found {
+		return false
+	}
+	return isMattermostHumanSystemAdminRecord(userRecord)
+}
+
+func isMattermostHumanSystemAdminRecord(userRecord mattermostUserRecord) bool {
+	if userRecord.DeleteAt != 0 || userRecord.IsBot {
+		return false
+	}
+	return strings.Contains(" "+userRecord.Roles+" ", " system_admin ")
+}
+
+func (service *Service) isProofOfConceptTenantMode() bool {
+	if service.hasDeviceAuth() {
+		return false
+	}
+	return isProofOfConceptTenantName(service.Configuration.MattermostTeamName)
+}
+
+func isProofOfConceptTenantName(teamName string) bool {
+	normalizedTeamName := strings.ToLower(strings.TrimSpace(teamName))
+	if !strings.HasPrefix(normalizedTeamName, "tenant") {
+		return false
+	}
+	suffix := strings.TrimPrefix(normalizedTeamName, "tenant")
+	if suffix == "" {
+		return false
+	}
+	for _, character := range suffix {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func isActiveFlowUser(record adminUserMutation) bool {

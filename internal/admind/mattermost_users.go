@@ -33,6 +33,7 @@ type mattermostUserRecord struct {
 	Position    string `json:"position"`
 	Roles       string `json:"roles"`
 	DeleteAt    int64  `json:"delete_at"`
+	IsBot       bool   `json:"is_bot"`
 }
 
 type mattermostTeamRecord struct {

@@ -26,13 +26,14 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/admin/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
 
 	function currentApp(pathname: string) {
 		if (pathname.startsWith('/admin')) return text.admin;
+		if (pathname.startsWith('/poc-admin')) return text.pocAdmin;
 		if (pathname.startsWith('/tasks')) return text.tasks;
 		if (pathname.startsWith('/memory')) return text.memory;
 		if (pathname.startsWith('/calendar')) return text.calendar;
@@ -44,7 +45,7 @@
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/poc-admin/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
