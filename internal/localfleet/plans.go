@@ -301,6 +301,17 @@ func (service Service) resetCommand() string {
 	}, " && ")
 }
 
+func (service Service) reapOrphanedEphemeralContainersCommand() string {
+	containerBinary := quoteShell("container")
+	currentName := quoteShell(service.options.VirtualMachineName)
+	listOrphans := containerBinary + ` ls -a 2>/dev/null | awk '$1 ~ /^internkim-e2e-/ && $5 == "stopped" { print $1 }'`
+	return strings.Join([]string{
+		"for orphan in $(" + listOrphans + ")",
+		`do if [ "$orphan" != ` + currentName + ` ]; then ` + containerBinary + ` rm "$orphan" >/dev/null 2>&1 || true; fi`,
+		"done",
+	}, "; ")
+}
+
 func (service Service) removeVirtualMachineCommand() string {
 	containerBinary := quoteShell("container")
 	containerName := quoteShell(service.options.VirtualMachineName)
