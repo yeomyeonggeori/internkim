@@ -492,7 +492,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 	content := string(document)
 	for _, expectedText := range []string{
 		"deck archetype",
-		"pitch, research report, executive briefing, education, portfolio, product proposal, or status report",
+		"Pick one deck archetype",
 		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
 		"slide-review.json",
 		"needsDesignRevision",
