@@ -68,6 +68,26 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	}
 }
 
+func TestProofOfConceptAdminSessionHidesTasksForTenantAdmin(t *testing.T) {
+	service := newProofOfConceptTaskAccessTestService(t, "admin01@example.test", `{"id":"tenant-admin","email":"admin01@example.test","username":"admin01","roles":"system_user","delete_at":0}`)
+
+	responseDocument := requestAdminSession(t, service, "admin01@example.test")
+
+	if responseDocument["role"] != "admin" || responseDocument["canViewTasks"] != false || responseDocument["isPocSuperAdmin"] != false {
+		t.Fatalf("admin session = %#v", responseDocument)
+	}
+}
+
+func TestProofOfConceptAdminSessionShowsTasksForMattermostSystemAdmin(t *testing.T) {
+	service := newProofOfConceptTaskAccessTestService(t, "admin@localhost", `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user","delete_at":0}`)
+
+	responseDocument := requestAdminSession(t, service, "admin@localhost")
+
+	if responseDocument["canViewTasks"] != true || responseDocument["isPocSuperAdmin"] != true {
+		t.Fatalf("admin session = %#v", responseDocument)
+	}
+}
+
 func TestOperationsAdminCanUseAllowedAdminEndpoint(t *testing.T) {
 	service := newOperationsAdminAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)

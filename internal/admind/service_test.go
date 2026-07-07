@@ -2228,6 +2228,48 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	}
 }
 
+func TestProofOfConceptTaskWebSessionRejectsTenantAdmin(t *testing.T) {
+	service := newProofOfConceptTaskAccessTestService(t, "admin01@example.test", `{"id":"tenant-admin","email":"admin01@example.test","username":"admin01","roles":"system_user","delete_at":0}`)
+	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/tasks/", nil)
+	request.RemoteAddr = "203.0.113.10:12345"
+	request.Header.Set("X-Forwarded-Email", "admin01@example.test")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("session status = %d body = %s", response.Code, response.Body.String())
+	}
+	var session webSessionResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if session.Authenticated || session.CanViewTasks || session.IsPoCSuperAdmin {
+		t.Fatalf("session = %+v", session)
+	}
+}
+
+func TestProofOfConceptTaskWebSessionAllowsMattermostSystemAdmin(t *testing.T) {
+	service := newProofOfConceptTaskAccessTestService(t, "admin@localhost", `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user","delete_at":0}`)
+	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/poc-admin/", nil)
+	request.RemoteAddr = "203.0.113.10:12345"
+	request.Header.Set("X-Forwarded-Email", "admin@localhost")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("session status = %d body = %s", response.Code, response.Body.String())
+	}
+	var session webSessionResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !session.Authenticated || !session.CanViewTasks || !session.IsPoCSuperAdmin || !session.IsAdmin {
+		t.Fatalf("session = %+v", session)
+	}
+}
+
 func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
