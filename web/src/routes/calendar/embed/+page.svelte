@@ -118,7 +118,8 @@
 
 	onMount(() => {
 		void loadParticipantCandidates();
-		return installCalendarPageLifecycle({
+		window.addEventListener('pagehide', eventActions.flushPendingDeleteOnPageHide);
+		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
 			},
@@ -163,6 +164,11 @@
 			syncCalendarThemeToDocument: () => syncCalendarThemeToDocument(calendar.app),
 			text
 		});
+		return () => {
+			window.removeEventListener('pagehide', eventActions.flushPendingDeleteOnPageHide);
+			uninstallCalendarPageLifecycle();
+			void eventActions.flushPendingDelete();
+		};
 	});
 
 	const currentMonthTitle = $derived(
