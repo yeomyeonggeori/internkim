@@ -529,27 +529,36 @@ func (service *Service) repairWorkspaceImageIfUnhealthy(ctx context.Context, job
 
 func workspaceImageRepairCommand(target blueclawPayloadInstallTarget) string {
 	imagePath := quoteBlueclawUpdateShellValue(target.WorkspaceImagePath)
+	hostPath := quoteBlueclawUpdateShellValue(target.HostWorkspacePath)
 	capabilitydService := quoteBlueclawUpdateShellValue(blueclawruntime.CapabilitydServiceName)
-	commands := []string{}
-	remountCommands := []string{}
-	if strings.TrimSpace(target.HostWorkspacePath) != "" {
-		hostPath := quoteBlueclawUpdateShellValue(target.HostWorkspacePath)
-		commands = append(commands,
-			"if mountpoint -q "+hostPath+"; then"+
-				" if ! umount "+hostPath+" 2>/dev/null; then"+
-				" systemctl stop "+capabilitydService+" 2>/dev/null || true; sleep 1;"+
-				" if ! umount "+hostPath+"; then"+
-				" echo 'workspace unmount blocked by:'; fuser -vm "+hostPath+" 2>&1 | head -6;"+
-				" systemctl start "+capabilitydService+" 2>/dev/null || true; exit 3;"+
-				" fi; fi; fi",
-		)
-		remountCommands = append(remountCommands, "mount -o loop "+imagePath+" "+hostPath+" || true")
-	}
-	commands = append(commands, "e2fsck -fy "+imagePath+"; repair_status=$?")
-	commands = append(commands, remountCommands...)
-	commands = append(commands, "systemctl start "+capabilitydService+" 2>/dev/null || true")
-	commands = append(commands, "[ \"$repair_status\" -le 2 ]")
-	return strings.Join(commands, "; ")
+	return strings.TrimSpace(fmt.Sprintf(`
+image=%s
+for loop_device in $(losetup -j "$image" 2>/dev/null | cut -d: -f1); do
+  for mount_target in $(findmnt -rn -o TARGET -S "$loop_device" 2>/dev/null); do
+    if ! umount "$mount_target" 2>/dev/null; then
+      systemctl stop %s 2>/dev/null || true
+      sleep 1
+      if ! umount "$mount_target"; then
+        echo "unmount blocked at $mount_target:"
+        fuser -vm "$mount_target" 2>&1 | head -6
+        systemctl start %s 2>/dev/null || true
+        exit 3
+      fi
+    fi
+  done
+done
+e2fsck -fy "$image"
+repair_status=$?
+if [ "$repair_status" -gt 2 ]; then
+  echo '-- mounts:'
+  mount | grep -i -e blueclaw -e workspace || true
+  echo '-- losetup:'
+  losetup -j "$image" || true
+fi
+if [ -n %s ] && ! mountpoint -q %s; then mount -o loop "$image" %s || true; fi
+systemctl start %s 2>/dev/null || true
+[ "$repair_status" -le 2 ]
+`, imagePath, capabilitydService, capabilitydService, hostPath, hostPath, hostPath, capabilitydService))
 }
 
 func workspaceImageProbeLooksCorrupted(probeOutput string) bool {
