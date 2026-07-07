@@ -48,6 +48,11 @@ func TestReleaseUpdateStateReportsUpdating(t *testing.T) {
 
 func TestReleaseUpdateUploadAppliesThroughReleaseJob(t *testing.T) {
 	service := newReleaseUpdateUploadTestService(t)
+	commands := []string{}
+	service.RunCommand = func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		return []byte("ok\n"), nil
+	}
 	bundlePath, manifest := writeTestReleaseBundle(t, service)
 	bundleSHA256 := fileSHA256(bundlePath)
 	bundleSize := fileSize(t, bundlePath)
@@ -92,6 +97,16 @@ func TestReleaseUpdateUploadAppliesThroughReleaseJob(t *testing.T) {
 	installedSkillPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "skills", "test-skill", "SKILL.md")
 	if strings.TrimSpace(readTrimmedFile(installedSkillPath)) != "test skill" {
 		t.Fatalf("skill was not installed at %s", installedSkillPath)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	if !strings.Contains(joinedCommands, "blueclaw-supervisor sync-workspace") {
+		t.Fatalf("expected skills release to sync Blueclaw workspace, got %s", joinedCommands)
+	}
+	if !strings.Contains(joinedCommands, "resize2fs") || !strings.Contains(joinedCommands, "68719476736") {
+		t.Fatalf("expected skills release to ensure Blueclaw workspace image capacity, got %s", joinedCommands)
+	}
+	if !strings.Contains(joinedCommands, service.Configuration.BlueclawWorkspacePath) {
+		t.Fatalf("expected skills sync to use configured workspace path, got %s", joinedCommands)
 	}
 }
 

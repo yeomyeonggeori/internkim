@@ -176,6 +176,47 @@ type siteContent struct {
 	HeroActionHref  string               `json:"heroActionHref,omitempty"`
 	Sections        []siteContentSection `json:"sections,omitempty"`
 	Blocks          []siteContentBlock   `json:"blocks,omitempty"`
+	Pages           []siteContentPage    `json:"pages,omitempty"`
+}
+
+type siteContentPage struct {
+	Path   string             `json:"path"`
+	Title  string             `json:"title"`
+	Blocks []siteContentBlock `json:"blocks"`
+}
+
+var siteContentReservedPathPrefixes = []string{"/api", "/_", "/fonts"}
+
+func validateSiteContentPages(pages []siteContentPage) error {
+	seenPaths := map[string]bool{}
+	for pageIndex, page := range pages {
+		path := strings.TrimSpace(page.Path)
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("pages[%d].path must start with /", pageIndex)
+		}
+		for _, reservedPrefix := range siteContentReservedPathPrefixes {
+			if path == reservedPrefix || strings.HasPrefix(path, reservedPrefix+"/") {
+				return fmt.Errorf("pages[%d].path %q is reserved for the site backend", pageIndex, path)
+			}
+		}
+		if seenPaths[path] {
+			return fmt.Errorf("pages[%d].path %q is duplicated", pageIndex, path)
+		}
+		seenPaths[path] = true
+		if strings.TrimSpace(page.Title) == "" {
+			return fmt.Errorf("pages[%d].title is required", pageIndex)
+		}
+		if len(page.Blocks) == 0 {
+			return fmt.Errorf("pages[%d].blocks must include at least one block", pageIndex)
+		}
+		if errorValue := validateSiteContentBlocks(page.Blocks); errorValue != nil {
+			return fmt.Errorf("pages[%d]: %s", pageIndex, errorValue.Error())
+		}
+	}
+	if !seenPaths["/"] {
+		return errors.New("pages must include a / page")
+	}
+	return nil
 }
 
 type sitePublishRequest struct {
@@ -290,6 +331,10 @@ func (service *Service) serveSiteHost(responseWriter http.ResponseWriter, reques
 	site := service.findSiteBySlug(slug)
 	if site == nil {
 		http.NotFound(responseWriter, request)
+		return
+	}
+	if fontPath, isFontRequest := strings.CutPrefix(request.URL.Path, "/fonts/"); isFontRequest {
+		service.serveSiteFont(responseWriter, request, fontPath)
 		return
 	}
 	switch site.Status {
@@ -3114,6 +3159,9 @@ func validateSiteContent(content *siteContent) error {
 	}
 	if strings.TrimSpace(content.SiteName) == "" {
 		return errors.New("siteName is required")
+	}
+	if len(content.Pages) > 0 {
+		return validateSiteContentPages(content.Pages)
 	}
 	if len(content.Blocks) > 0 {
 		return validateSiteContentBlocks(content.Blocks)

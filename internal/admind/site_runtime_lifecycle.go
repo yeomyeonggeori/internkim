@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -96,6 +97,16 @@ func (service *Service) markSitePocketBaseRunning(siteID string, isRunning bool)
 	defer service.siteRuntimeMutex.Unlock()
 	activity.isRunning = isRunning
 	activity.lastRequestAt = time.Now()
+}
+
+func (service *Service) serveSiteFont(responseWriter http.ResponseWriter, request *http.Request, fontPath string) {
+	cleanedPath := filepath.Clean(fontPath)
+	if cleanedPath == "." || strings.HasPrefix(cleanedPath, "..") || filepath.IsAbs(cleanedPath) {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	responseWriter.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.FontsDirectory, cleanedPath))
 }
 
 func (service *Service) serveDraftSitePocketBase(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {

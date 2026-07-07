@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+import json
+import pathlib
+import re
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+FONTS_ROOT = REPOSITORY_ROOT / "assets" / "fonts"
+FILES_ROOT = FONTS_ROOT / "files"
+OUTPUT_PATH = FILES_ROOT / "fonts.css"
+
+SIMPLE_FAMILIES = {
+    "a2z": ["에이투지체", "A2Z"],
+    "pretendard": ["Pretendard"],
+    "paperlogy": ["Paperlogy"],
+    "maruburi": ["마루부리", "MaruBuri"],
+    "galmuri": ["Galmuri"],
+}
+SUBSET_FAMILIES = {
+    "gowun-batang": "Gowun Batang",
+    "gowun-dodum": "Gowun Dodum",
+}
+TRUETYPE_FAMILIES = {
+    "d2coding": ["D2Coding"],
+}
+
+WEIGHT_PATTERN = re.compile(r"-(\d{3})(?:-\d+)?\.(woff2|ttf)$")
+FONT_FACE_BLOCK_PATTERN = re.compile(r"@font-face\s*\{[^}]*\}", re.DOTALL)
+WEIGHT_IN_BLOCK_PATTERN = re.compile(r"font-weight:\s*(\d+)")
+SOURCE_URL_PATTERN = re.compile(r"url\([^)]*\)")
+
+
+def font_face_rule(family_name, slug, file_name, weight, source_format):
+    return (
+        "@font-face {\n"
+        f'  font-family: "{family_name}";\n'
+        "  font-style: normal;\n"
+        f"  font-weight: {weight};\n"
+        "  font-display: swap;\n"
+        f'  src: url("/fonts/{slug}/{file_name}") format("{source_format}");\n'
+        "}\n"
+    )
+
+
+def simple_family_rules(slug, family_names, source_format):
+    directory = FILES_ROOT / slug
+    if not directory.is_dir():
+        return []
+    rules = []
+    extension = "ttf" if source_format == "truetype" else "woff2"
+    for file_path in sorted(directory.glob(f"*.{extension}")):
+        match = WEIGHT_PATTERN.search(file_path.name)
+        if not match:
+            continue
+        for family_name in family_names:
+            rules.append(font_face_rule(family_name, slug, file_path.name, match.group(1), source_format))
+    return rules
+
+
+def subset_family_rules(slug, family_name):
+    directory = FILES_ROOT / slug
+    css_files = list(directory.glob("*.css"))
+    if len(css_files) != 1:
+        raise SystemExit(f"{slug}: expected exactly one saved css, found {len(css_files)}")
+    blocks = FONT_FACE_BLOCK_PATTERN.findall(css_files[0].read_text())
+    local_files_by_weight = {}
+    for file_path in sorted(directory.glob("*.woff2")):
+        match = WEIGHT_PATTERN.search(file_path.name)
+        if match:
+            local_files_by_weight.setdefault(match.group(1), []).append(file_path.name)
+    consumed_by_weight = {weight: 0 for weight in local_files_by_weight}
+    rules = []
+    for block in blocks:
+        weight_match = WEIGHT_IN_BLOCK_PATTERN.search(block)
+        if not weight_match:
+            raise SystemExit(f"{slug}: @font-face block without font-weight")
+        weight = weight_match.group(1)
+        index = consumed_by_weight[weight]
+        local_files = local_files_by_weight[weight]
+        if index >= len(local_files):
+            raise SystemExit(f"{slug}: more css blocks than files for weight {weight}")
+        replacement = f'url("/fonts/{slug}/{local_files[index]}")'
+        rules.append(SOURCE_URL_PATTERN.sub(replacement, block, count=1) + "\n")
+        consumed_by_weight[weight] = index + 1
+    for weight, consumed in consumed_by_weight.items():
+        if consumed != len(local_files_by_weight[weight]):
+            raise SystemExit(f"{slug}: {len(local_files_by_weight[weight]) - consumed} unused files for weight {weight}")
+    return rules
+
+
+def main():
+    catalog = json.loads((FONTS_ROOT / "catalog.json").read_text())
+    catalog_families = {font["family"] for font in catalog["fonts"]}
+    rules = []
+    for slug, family_names in SIMPLE_FAMILIES.items():
+        if family_names[0] not in catalog_families:
+            raise SystemExit(f"{slug}: family {family_names[0]} is not in catalog.json")
+        rules.extend(simple_family_rules(slug, family_names, "woff2"))
+    for slug, family_names in TRUETYPE_FAMILIES.items():
+        rules.extend(simple_family_rules(slug, family_names, "truetype"))
+    for slug, family_name in SUBSET_FAMILIES.items():
+        rules.extend(subset_family_rules(slug, family_name))
+    OUTPUT_PATH.write_text("".join(rules))
+    print(f"wrote {OUTPUT_PATH} with {len(rules)} @font-face rules")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

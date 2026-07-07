@@ -33,8 +33,11 @@ def main() -> int:
     except json.JSONDecodeError as error:
         print(f"Content review FAILED: site-content.json is not valid JSON: {error}")
         return 0
-    blocks = content.get("blocks") or []
+    pages = content.get("pages") or []
+    blocks = [block for page in pages for block in page.get("blocks") or []] or content.get("blocks") or []
     visible_text = collect_visible_text(content, blocks)
+    for page in pages:
+        visible_text += "\n" + str(page.get("title") or "")
     ledger_text = read_optional(source_root / ".internkim" / "required-visible-text.txt")
     warnings = []
     warnings += required_text_warnings(visible_text, ledger_text)
