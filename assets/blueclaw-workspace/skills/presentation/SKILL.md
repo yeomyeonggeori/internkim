@@ -40,7 +40,7 @@ For PPTX requests, use:
 }
 ```
 
-For PDF requests use `FORMATS=pdf`, and for all outputs `FORMATS=all`, with the same build command. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence; deliver HTML unless the user names another file format.
+For PDF requests use `FORMATS=pdf`, and for all outputs `FORMATS=all`, with the same build command. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence.
 
 Do not call `terminal.run` with an `arguments` array alone. Use the `command` string examples above for this skill's build path.
 
@@ -85,7 +85,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame: each slide is a flex column with header, body, and footer as sibling flow children — body `flex: 1 1 0; min-height: 0` filling the frame height, header and footer `flex: none`, never an absolutely positioned footer. A large empty band above the footer reads as unfinished.
+- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none` — so the body pushes the footer onto the identical baseline on every slide. Never absolutely position the footer or let it ride up under short content. A large empty band above the footer reads as unfinished.
 - Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 
