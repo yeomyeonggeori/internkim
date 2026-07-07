@@ -44,6 +44,8 @@ const (
 	sitePortEnd   = 19999
 )
 
+const publishedSiteLimit = 10
+
 const (
 	staffCircleSitesWorkspacePath = "/workspace/circles/staff/sites"
 	siteIDStorageDirectoryName    = ".ids"
@@ -301,6 +303,10 @@ func (service *Service) serveSiteHost(responseWriter http.ResponseWriter, reques
 		}
 		http.NotFound(responseWriter, request)
 	case SiteStatusDraft:
+		if isPocketBasePath(request.URL.Path) {
+			service.serveDraftSitePocketBase(responseWriter, request, site)
+			return
+		}
 		previewID, _ := sitePreviewRequestPath(request.URL.Path)
 		if sitePreviewActive(site, previewID) {
 			service.serveSiteFrontend(responseWriter, request, site)
@@ -343,6 +349,11 @@ func isPocketBasePath(path string) bool {
 }
 
 func (service *Service) proxySitePocketBase(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {
+	if errorValue := service.ensureSitePocketBaseRunning(request.Context(), site); errorValue != nil {
+		http.Error(responseWriter, "site backend is starting up, retry shortly: "+errorValue.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	defer service.finishSitePocketBaseRequest(site.SiteID)
 	targetURL, errorValue := url.Parse("http://127.0.0.1:" + strconv.Itoa(site.Port))
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -923,6 +934,9 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	if !siteModificationAllowed(site, payload.RequestedBy, payload.Requester, false) {
 		return nil, errors.New("site editor permission is required")
 	}
+	if errorValue := service.enforcePublishedSiteLimit(site); errorValue != nil {
+		return nil, errorValue
+	}
 	if errorValue := validateWorkspaceOnlyPublish(payload); errorValue != nil {
 		return nil, errorValue
 	}
@@ -969,6 +983,51 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	site.DeletedAt = time.Time{}
 	site.LastError = ""
 	return site, service.storeSite(site)
+}
+
+func (service *Service) enforcePublishedSiteLimit(site *SiteRecord) error {
+	if site.Status == SiteStatusPublished {
+		return nil
+	}
+	publishedSites := service.publishedSites()
+	if len(publishedSites) < publishedSiteLimit {
+		return nil
+	}
+	sort.Slice(publishedSites, func(leftIndex int, rightIndex int) bool {
+		return publishedSites[leftIndex].UpdatedAt.After(publishedSites[rightIndex].UpdatedAt)
+	})
+	descriptions := make([]string, 0, len(publishedSites))
+	for _, publishedSite := range publishedSites {
+		descriptions = append(descriptions, describePublishedSiteForLimitError(publishedSite))
+	}
+	return fmt.Errorf(
+		"site publish limit reached (%d/%d); unpublish one of the published sites first: %s",
+		publishedSiteLimit,
+		publishedSiteLimit,
+		strings.Join(descriptions, "; "),
+	)
+}
+
+func (service *Service) publishedSites() []*SiteRecord {
+	publishedSites := []*SiteRecord{}
+	for _, site := range service.siteList() {
+		if site.Status == SiteStatusPublished {
+			publishedSites = append(publishedSites, site)
+		}
+	}
+	return publishedSites
+}
+
+func describePublishedSiteForLimitError(site *SiteRecord) string {
+	displayName := firstNonEmpty(strings.TrimSpace(site.Title), site.Slug)
+	publishedURL := firstNonEmpty(strings.TrimSpace(site.PublishedURL), site.Slug)
+	return fmt.Sprintf(
+		"%s (siteID=%s, url=%s, publishedAt=%s)",
+		displayName,
+		site.SiteID,
+		publishedURL,
+		site.UpdatedAt.Format(time.RFC3339),
+	)
 }
 
 func (service *Service) previewSite(ctx context.Context, payload sitePublishRequest) (*SiteRecord, error) {
@@ -1713,12 +1772,13 @@ func (service *Service) reconcileSitePocketBaseRuntime(ctx context.Context, site
 		_ = service.stopSitePocketBaseRuntime(ctx, site)
 		return nil
 	}
-	if _, errorValue := service.runCommand(ctx, "systemctl", "enable", "--now", siteServiceName(site.SiteID)); errorValue != nil {
+	if _, errorValue := service.runCommand(ctx, "systemctl", "disable", siteServiceName(site.SiteID)); errorValue != nil {
 		return errorValue
 	}
 	if _, errorValue := service.runCommand(ctx, "systemctl", "restart", siteServiceName(site.SiteID)); errorValue != nil {
 		return fmt.Errorf("systemctl restart %s failed: %w", siteServiceName(site.SiteID), errorValue)
 	}
+	service.markSitePocketBaseRunning(site.SiteID, true)
 	return nil
 }
 
@@ -1727,6 +1787,7 @@ func (service *Service) stopSitePocketBaseRuntime(ctx context.Context, site *Sit
 		log.Printf("disable static site %s pocketbase runtime failed: %v", site.SiteID, errorValue)
 		return errorValue
 	}
+	service.markSitePocketBaseRunning(site.SiteID, false)
 	return nil
 }
 

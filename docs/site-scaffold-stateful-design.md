@@ -37,7 +37,8 @@ version/pages 부재 시 기존 {siteName, tagline, blocks}를 public "/" 단일
   "version": 3,
   "siteName": "...", "tagline": "...",
   "navigation": { "items": [{ "label": "...", "href": "..." }] },
-  "auth": { "enabled": false, "userCollection": "users", "allowSignup": true,
+  "auth": { "enabled": false, "methods": ["password", "passkey"],
+            "identity": "username | email", "userCollection": "users", "allowSignup": true,
             "loginPath": "/login", "signupPath": "/signup",
             "redirectAfterLogin": "/", "redirectAfterLogout": "/" },
   "collections": [{ "name": "...", "label": "...",
@@ -64,7 +65,9 @@ collection/field 이름·타입, permissions 프리셋, recordIDParam. AuthGate�
 - P0 (독립 선행 가능): 발행 캡 10 + 선택 플로우; 프리뷰 pb 프록시; pb lazy-start/idle-stop.
 - P1: manifest v3 + 해시 라우터 + 내비 + 테마 토큰 확장 + 폰트 카탈로그 서빙/연결 + admind 검증.
   스캐폴드 CSS 전면 변수화(토큰이 실제 지배). 자산 경로 절대화.
-- P2: auth 모듈(로그인/가입/세션/AuthGate) + page.access.
+- P2: auth 모듈(로그인/가입/세션/AuthGate) + page.access. 방식은 username/email+비밀번호(PB 내장)와
+  passkey(WebAuthn) 둘 다 — passkey는 PB에 내장이 없으므로 우리가 프리베이크한 pb_hooks 번들로
+  제공하고 manifest의 auth.methods 선언으로만 켠다(모델이 hooks를 직접 쓰지 않음).
 - P3: collections 코드젠 + dataList/recordForm/recordDetail + 권한 프리셋.
 - P4: 모션 프리셋, content_review pages[] 확장, eval 러너에 호스트측 발행 URL 스크린샷
   (데스크톱/모바일/페이지별) + 스크립트드 auth 스모크(가입→로그인→레코드 생성, 결정론).
