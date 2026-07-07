@@ -86,7 +86,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
 - `@page { size: 1600px 900px; margin: 0; }`.
 - Fixed 16:9 frame with grid or flex layout. Let the main content area grow to fill the frame height; a large empty band between content and footer reads as an unfinished slide.
-- Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`.
+- Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Inside a flex slide use `flex: none` for natural-height rows; `flex: 0` collapses the row to zero height and later siblings paint over its content.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 
 Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
