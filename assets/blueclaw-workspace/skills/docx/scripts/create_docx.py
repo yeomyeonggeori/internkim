@@ -64,7 +64,7 @@ def create_document(specification):
     section.bottom_margin = Inches(margin_inches)
     section.left_margin = Inches(margin_inches)
 
-    font_name = require_text(specification.get("fontName", "Arial"), "fontName")
+    font_name = require_text(specification.get("fontName", "맑은 고딕"), "fontName")
     font_size = float(specification.get("fontSize", 10.5))
     set_document_font(document, font_name, font_size, Pt)
 

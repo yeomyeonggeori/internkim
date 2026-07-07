@@ -6,7 +6,7 @@ from skill_runtime import ensure_requirements
 
 INK = (0x1C, 0x24, 0x30)
 MUTED = (0x6A, 0x72, 0x80)
-BODY_FONT = "Noto Sans CJK KR"
+BODY_FONT = "맑은 고딕"
 
 
 def styled_document():
@@ -23,7 +23,9 @@ def styled_document():
     normal.font.color.rgb = RGBColor(*INK)
     set_east_asia_font(normal.element, BODY_FONT)
     normal.paragraph_format.space_after = Pt(4)
-    normal.paragraph_format.line_spacing = 1.25
+    normal.paragraph_format.line_spacing = 1.3
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     return document
 
 
@@ -44,6 +46,26 @@ def add_title(document, text):
     run.bold = True
     run.font.size = Pt(18)
     run.font.color.rgb = RGBColor(*INK)
+    add_bottom_rule(paragraph)
+    return paragraph
+
+
+def add_bottom_rule(paragraph):
+    from docx.oxml.ns import qn
+
+    pPr = paragraph._p.get_or_add_pPr()
+    pBdr = pPr.makeelement(qn("w:pBdr"), {})
+    bottom = pPr.makeelement(qn("w:bottom"), {
+        qn("w:val"): "single", qn("w:sz"): "12", qn("w:space"): "8", qn("w:color"): "1C2430"})
+    pBdr.append(bottom)
+    pPr.append(pBdr)
+
+
+def add_centered(document, text):
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    paragraph = document.add_paragraph(text)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     return paragraph
 
 
@@ -65,6 +87,7 @@ def add_body(document, text):
 
 
 def add_signature_table(document, left_lines, right_lines):
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Pt
 
     table = document.add_table(rows=1, cols=2)
@@ -74,6 +97,7 @@ def add_signature_table(document, left_lines, right_lines):
         cell.text = ""
         for line_index, line in enumerate(lines):
             paragraph = cell.paragraphs[0] if line_index == 0 else cell.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = paragraph.add_run(line)
             if line_index == 0:
                 run.bold = True
@@ -112,7 +136,7 @@ def build_employment_contract(output_path):
     add_clause_heading(document, "11. 기타")
     add_body(document, "이 계약에 정함이 없는 사항은 근로기준법령에 의함")
     add_body(document, "")
-    add_body(document, "{{ contractDate }}")
+    add_centered(document, "{{ contractDate }}")
     add_body(document, "")
     add_signature_table(document,
         ["(사업주)", "사업체명: {{ companyName }} (전화: {{ companyPhone }})", "주소: {{ companyAddress }}", "대표자: {{ representative }} (서명)"],
@@ -168,7 +192,7 @@ def build_service_agreement(output_path):
     add_body(document, "")
     add_body(document, "본 계약의 성립을 증명하기 위하여 계약서 2통을 작성하여 \"갑\"과 \"을\"이 서명 또는 기명날인한 후 각 1통씩 보관한다.")
     add_body(document, "")
-    add_body(document, "{{ contractDate }}")
+    add_centered(document, "{{ contractDate }}")
     add_body(document, "")
     add_signature_table(document,
         ["(갑)", "상호: {{ clientName }}", "주소: {{ clientAddress }}", "대표자: {{ clientRepresentative }} (인)"],
@@ -208,7 +232,7 @@ def build_nda(output_path):
     add_clause_heading(document, "제13조 (보칙)")
     add_body(document, "\"갑\"과 \"을\"은 본 협약의 성립을 증명하기 위하여 본 협약서 2부를 작성하여 각각 서명(또는 기명날인)한 후 각자 1부씩 보관한다.")
     add_body(document, "")
-    add_body(document, "{{ contractDate }}")
+    add_centered(document, "{{ contractDate }}")
     add_body(document, "")
     add_signature_table(document,
         ["(갑)", "명칭: {{ partyAName }}", "주소: {{ partyAAddress }}", "대표자: {{ partyARepresentative }} (인)"],
@@ -253,7 +277,7 @@ def build_mou(output_path):
     add_body(document, "")
     add_body(document, "이 협약의 내용을 성실히 준행하고 협약을 증명하기 위하여 본 협약서 2부를 작성하여 양 기관의 대표자가 서명(날인)한 후 각 1부씩 보관한다.")
     add_body(document, "")
-    add_body(document, "{{ contractDate }}")
+    add_centered(document, "{{ contractDate }}")
     add_body(document, "")
     add_signature_table(document,
         ["(기관A)", "기관명: {{ orgAName }}", "대표자: {{ orgARepresentative }} (서명 또는 인)"],
@@ -284,7 +308,7 @@ def build_offer_letter(output_path):
     add_body(document, "")
     add_body(document, "다시 한번 좋은 인연으로 함께하게 되기를 기대합니다.")
     add_body(document, "")
-    add_body(document, "{{ offerDate }}")
+    add_centered(document, "{{ offerDate }}")
     add_body(document, "{{ companyName }}")
     add_body(document, "대표이사 {{ representative }}")
     document.save(str(output_path))

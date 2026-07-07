@@ -462,7 +462,7 @@ def write_multiline(pdf, height, text):
 
 
 DOCX_ALLOWED_KEYS = {"title", "fontName", "fontSize", "page", "blocks"}
-DOCX_HINT = 'a .docx document JSON must look like {"title": "...", "fontName": "Noto Sans CJK KR", "blocks": [{"type": "heading", "level": 2, "text": "제1조 (목적)"}, {"type": "paragraph", "text": "..."}, {"type": "bullets", "items": ["..."]}, {"type": "table", "rows": [["...", "..."]]}]} — copy the spec\'s DOCX blocks skeleton'
+DOCX_HINT = 'a .docx document JSON must look like {"title": "...", "fontName": "맑은 고딕", "blocks": [{"type": "heading", "level": 2, "text": "제1조 (목적)"}, {"type": "paragraph", "text": "..."}, {"type": "bullets", "items": ["..."]}, {"type": "table", "rows": [["...", "..."]]}]} — copy the spec\'s DOCX blocks skeleton'
 
 
 def load_docx_document(document_path):
@@ -491,7 +491,7 @@ def generate_docx(document, output_path):
     margin_inches = float((document.get("page") or {}).get("marginInches", 0.9))
     section.top_margin = section.bottom_margin = Inches(margin_inches)
     section.left_margin = section.right_margin = Inches(margin_inches)
-    font_name = str(document.get("fontName", "Noto Sans CJK KR"))
+    font_name = str(document.get("fontName", "맑은 고딕"))
     font_size = float(document.get("fontSize", 10.5))
     style = word_document.styles["Normal"]
     style.font.name = font_name
