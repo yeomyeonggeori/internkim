@@ -54,6 +54,7 @@ DESIGN_WARNING_PREFIXES = (
     "missingRequiredTextWarning",
     "inconsistentFooterBaselineWarning",
     "unpinnedFooterWarning",
+    "missingSpeakerNotesWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
@@ -74,6 +75,7 @@ DESIGN_WARNING_WEIGHTS = {
     "missingRequiredTextWarning": 14,
     "inconsistentFooterBaselineWarning": 8,
     "unpinnedFooterWarning": 10,
+    "missingSpeakerNotesWarning": 8,
 }
 
 
@@ -126,6 +128,7 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     apply_missing_required_text_warning(slides, slide_texts, required_text_ledger)
     apply_footer_baseline_warning(slides)
     apply_unpinned_footer_warning(slides, source_text)
+    apply_missing_speaker_notes_warning(slides, source_text)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
@@ -997,9 +1000,17 @@ def last_direct_child(slide_source: str) -> typing.Optional[tuple[str, dict]]:
         scanner.feed(slide_source)
     except Exception:
         return None
-    if not scanner.direct_children:
-        return None
-    return scanner.direct_children[-1]
+    for child in reversed(scanner.direct_children):
+        if not is_speaker_note_child(child):
+            return child
+    return None
+
+
+def is_speaker_note_child(child: tuple[str, dict]) -> bool:
+    tag, attributes = child
+    if tag == "aside" or "data-speaker-notes" in attributes:
+        return True
+    return "notes" in str(attributes.get("class") or "")
 
 
 def footer_identity(child: typing.Optional[tuple[str, dict]]) -> str:
@@ -1039,6 +1050,29 @@ def apply_unpinned_footer_warning(slides: list[dict[str, object]], source_text: 
         slides,
         f"unpinnedFooterWarning: the recurring bottom element {candidate} is not pinned to the frame bottom; give it margin-top: auto (or grow the body with flex: 1) inside the flex column slide",
     )
+
+
+SPEAKER_NOTES_PATTERN = re.compile(
+    r"<aside\b[^>]*(?:class=[\"'][^\"']*notes[^\"']*[\"']|role=[\"']note[\"'])|data-speaker-notes",
+    flags=re.IGNORECASE,
+)
+
+
+def apply_missing_speaker_notes_warning(slides: list[dict[str, object]], source_text: str) -> None:
+    slide_sources = split_slide_sources(source_text)
+    if not slide_sources:
+        return
+    missing_indexes = [
+        str(index)
+        for index, slide_source in enumerate(slide_sources, start=1)
+        if not SPEAKER_NOTES_PATTERN.search(slide_source)
+    ]
+    if missing_indexes:
+        append_deck_warning(
+            slides,
+            "missingSpeakerNotesWarning: slide " + ", ".join(missing_indexes)
+            + " lacks an <aside class=\"notes\"> speaker script the presenter can read aloud",
+        )
 
 
 def most_common_footer_identity(identities: list[str]) -> str:

@@ -42,9 +42,11 @@ For PPTX requests, use:
 
 For PDF requests use `FORMATS=pdf`, and for all outputs `FORMATS=all`, with the same build command. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence.
 
-Do not call `terminal.run` with an `arguments` array alone. Use the `command` string examples above for this skill's build path.
+Do not call `terminal.run` with an `arguments` array alone.
 
-Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html`, `tmp/<deck-slug>/build/<deck-slug>.pdf`, or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
+Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html` or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
+
+Give every slide a speaker script: an `<aside class="notes">` holding 2-4 spoken sentences in the request language that the presenter can read aloud verbatim. The presenter view shows them; they never render on the slide.
 
 There is no template to fill in; the content, layout, and HTML source are your responsibility.
 
@@ -66,7 +68,7 @@ Use these slide patterns as the default vocabulary: title thesis, section divide
 
 For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more design direction is needed, but do not spend tool turns on reference reading before `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
 
-Quarterly review decks should usually use this six-slide spine: decision title, executive summary, target-versus-actual metrics, roadmap timeline, risk-response matrix, and approval/next steps. `composition-seeds.md` carries the board-floor composition set. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
+Quarterly review decks usually follow the six-slide board spine in `composition-seeds.md`, which carries the board-floor composition set. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
 
 Do not deliver a board deck made of plain white title slides, unstyled tables, bare bullet lists, or the same 2x2 card dashboard across slides. Use an executive artifact surface: KPI cards, status chips, variance bars, owner-date timelines, risk matrices, approval panels, and at least one recurring primitive that makes the deck recognizable.
 
@@ -101,7 +103,7 @@ Before building, scan `slides.html`. If a slide is only a raw `<table>` or bare 
 
 Read `assets/webfonts.md` before writing CSS for Korean-heavy or design-sensitive decks. Paperlogy is the default display and body font, and the exporter injects local WOFF2 fallback before rendering HTML/PDF/PPTX. Also `@import` Pretendard, Freesentation, or Noto Sans KR in `slides.html` so the raw source renders with real typography, keeping Paperlogy first in the stack for offline fallback. Do not paste base64 font data into `slides.html`.
 
-Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`. Do not use emoji as functional icons or bullets; use text labels, CSS markers, inline SVG, or simple shapes.
+Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, sans-serif`. Do not use emoji as functional icons or bullets; use text labels, CSS markers, inline SVG, or simple shapes.
 
 ## Review and Delivery
 

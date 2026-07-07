@@ -51,14 +51,17 @@ h1, h2 { font-size: 48px; }
 <section class="slide" data-slide-role="title" data-visual-system="signal-ledger">
   <h1>성장은 확인됐지만 품질 스프린트 승인이 필요합니다</h1>
   <p>연남로보틱스 2026년 2분기 이사회 보고</p>
+  <aside class="notes">안녕하십니까, 연남로보틱스 2026년 2분기 이사회 보고를 시작하겠습니다.</aside>
 </section>
 <section class="slide" data-slide-role="metrics" data-visual-system="signal-ledger">
   <h2>매출과 가동률은 목표를 넘겼고 결함률만 남았습니다</h2>
   <div class="variance-scoreboard"><div>매출 4.12억 원 (목표 4억 달성)</div><div>가동률 97.4% (목표 96.0% 달성)</div><div>결함 보고율 2.6% (목표 2.0% 미달)</div></div>
+  <aside class="notes">매출과 가동률은 목표를 넘겼고, 결함 보고율만 목표를 초과했습니다.</aside>
 </section>
 <section class="slide" data-slide-role="closing" data-visual-system="signal-ledger">
   <h2>3분기 품질 스프린트와 파일럿 2건 승인을 요청합니다</h2>
   <div class="decision-panel"><div class="timeline-rail">2026년 8월 28일까지 결함률 2.0% 미만 달성</div></div>
+  <aside class="notes">3분기 품질 스프린트와 파일럿 두 건의 승인을 요청드립니다.</aside>
 </section>
 </body>
 </html>
@@ -138,6 +141,7 @@ def main() -> int:
         "rawStructurePatternWarning",
         "absoluteFooterWarning",
         "emojiIconWarning",
+        "missingSpeakerNotesWarning",
     }
     missing = expected - warning_prefixes(templated)
     assert not missing, f"missing expected warnings: {missing}"
