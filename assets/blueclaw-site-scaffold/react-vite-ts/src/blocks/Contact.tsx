@@ -9,18 +9,20 @@ type ContactProps = {
 
 export function Contact({ block, anchorID }: ContactProps) {
 	return (
-		<section id={anchorID} className="border-t border-border py-16">
-			{block.title ? <h2 className="text-2xl font-semibold tracking-tight">{block.title}</h2> : null}
-			{splitParagraphs(block.body).map((paragraph, paragraphIndex) => (
-				<p key={paragraphIndex} className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
-					{paragraph}
-				</p>
-			))}
-			{block.actionLabel ? (
-				<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "mt-6" })}>
-					{block.actionLabel}
-				</a>
-			) : null}
+		<section id={anchorID} className="py-20">
+			<div className="surface-card px-8 py-12 sm:px-12">
+				{block.title ? <h2 className="text-3xl font-bold tracking-tight">{block.title}</h2> : null}
+				{splitParagraphs(block.body).map((paragraph, paragraphIndex) => (
+					<p key={paragraphIndex} className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+						{paragraph}
+					</p>
+				))}
+				{block.actionLabel ? (
+					<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "mt-8 px-8" })}>
+						{block.actionLabel}
+					</a>
+				) : null}
+			</div>
 		</section>
 	);
 }

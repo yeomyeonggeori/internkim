@@ -120,19 +120,19 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 ## Design Quality
 
-`DESIGN.md` is required for every create or update: request-specific, Stitch canonical format, decided before site.create so block composition already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme (rendered into `theme.css`).
+`DESIGN.md` is required for every create or update: request-specific, Stitch canonical format, decided before site.create so block composition already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme (rendered into `theme.css`), and an optional top-level `style:` picks a mood preset — editorial, soft, dark, brutalist, playful — that shapes the hero band, card shadows, and motion.
 
 Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately. `typography` fontFamily defaults to `에이투지체`; every served family comes from the platform font catalog (`에이투지체`, `Pretendard`, `Paperlogy`, `마루부리`, `Gowun Batang`, `Gowun Dodum`, `Galmuri`, `D2Coding`) — a family outside it silently falls back, so stay inside the list and match the font's voice to the request.
 
 Avoid the dark navy shell, slate, purple, gradients, decorative filler, generic SaaS cards, and empty heroes.
 
-The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, calculator, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport. Verify desktop and mobile screenshots for overlap, clipping, horizontal scroll, and excessive whitespace.
+The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport.
 
 If login, saved records, realtime, reservations, or CRUD is needed, use PocketBase as the default local backend. Use fake seed credentials and include them in the final reply.
 
 ## Follow-Ups
 
-For feedback in the same conversation, call site.status once with empty input or the known slug, update the resolved site (never site.create again for it), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from the status result to decide whether a follow-up should update this site.
+For same-conversation feedback, call site.status once, update the resolved site (never site.create again), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from the status result to decide whether a follow-up should update this site.
 
 Short continuations such as "해줘", "진행", "좋아", "게시해", or "publish" mean finish the current workflow: resolve status, complete missing work, review, publish, reply with the public URL. Do not ask for publish approval.
 

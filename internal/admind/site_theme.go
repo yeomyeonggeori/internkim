@@ -44,6 +44,47 @@ type siteTheme struct {
 	HeadingFontFamily string
 	BodyFontFamily    string
 	RadiusValue       string
+	StylePreset       string
+}
+
+var siteStylePresetCSSVariables = map[string]string{
+	"editorial": "",
+	"soft": `  --hero-background: color-mix(in srgb, var(--primary) 7%, var(--background));
+  --hero-foreground: var(--foreground);
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 0 18px 44px -16px rgb(0 0 0 / 0.16);
+`,
+	"dark": `  --hero-background: var(--foreground);
+  --hero-foreground: var(--background);
+  --hero-muted: color-mix(in srgb, var(--background) 68%, transparent);
+`,
+	"brutalist": `  --hero-background: var(--primary);
+  --hero-foreground: var(--primary-foreground);
+  --hero-muted: color-mix(in srgb, var(--primary-foreground) 78%, transparent);
+  --shadow-card: 4px 4px 0 var(--foreground);
+  --shadow-card-hover: 7px 7px 0 var(--foreground);
+  --motion-duration: 0s;
+`,
+	"playful": `  --hero-background: color-mix(in srgb, var(--accent) 12%, var(--background));
+  --hero-foreground: var(--foreground);
+  --shadow-card: 0 3px 0 color-mix(in srgb, var(--accent) 35%, transparent);
+  --shadow-card-hover: 0 10px 24px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  --motion-duration: 0.7s;
+`,
+}
+
+var siteStylePresetPattern = regexp.MustCompile(`(?m)^style\s*:\s*(\S+)`)
+
+func parseSiteDesignStylePreset(frontMatter string) (string, error) {
+	match := siteStylePresetPattern.FindStringSubmatch(frontMatter)
+	if match == nil {
+		return "editorial", nil
+	}
+	preset := strings.ToLower(strings.Trim(strings.TrimSpace(match[1]), `"'`))
+	if _, isKnown := siteStylePresetCSSVariables[preset]; !isKnown {
+		return "", fmt.Errorf("style %q is not a known preset (editorial, soft, dark, brutalist, playful)", preset)
+	}
+	return preset, nil
 }
 
 // applySiteDesignTheme renders DESIGN.md's front matter into theme.css at the
@@ -102,6 +143,11 @@ func parseSiteDesignTheme(document string) (siteTheme, error) {
 		validationErrors = append(validationErrors, "rounded "+radiusError.Error())
 	}
 
+	stylePreset, styleError := parseSiteDesignStylePreset(frontMatter)
+	if styleError != nil {
+		validationErrors = append(validationErrors, styleError.Error())
+	}
+
 	if len(validationErrors) > 0 {
 		return siteTheme{}, errors.New(strings.Join(validationErrors, "; "))
 	}
@@ -122,6 +168,7 @@ func parseSiteDesignTheme(document string) (siteTheme, error) {
 		HeadingFontFamily: catalogFontFamilyOrDefault(headingFontFamily),
 		BodyFontFamily:    catalogFontFamilyOrDefault(bodyFontFamily),
 		RadiusValue:       radiusValue,
+		StylePreset:       stylePreset,
 	}, nil
 }
 
@@ -162,7 +209,7 @@ func renderSiteThemeCSS(theme siteTheme) string {
 	primaryForegroundColor := readableForegroundColor(theme.PrimaryColor)
 	headingFontStack := siteDesignFontStack(theme.HeadingFontFamily)
 	bodyFontStack := siteDesignFontStack(theme.BodyFontFamily)
-	return ":root {\n" +
+	return ":root:root {\n" +
 		"  --primary: " + theme.PrimaryColor + ";\n" +
 		"  --primary-foreground: " + primaryForegroundColor + ";\n" +
 		"  --background: " + theme.BackgroundColor + ";\n" +
@@ -171,6 +218,7 @@ func renderSiteThemeCSS(theme siteTheme) string {
 		"  --radius: " + theme.RadiusValue + ";\n" +
 		"  --font-heading: " + headingFontStack + ";\n" +
 		"  --font-body: " + bodyFontStack + ";\n" +
+		siteStylePresetCSSVariables[theme.StylePreset] +
 		"}\n"
 }
 
