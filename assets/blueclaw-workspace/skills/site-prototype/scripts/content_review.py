@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+import datetime
+import json
+import pathlib
+import re
+import sys
+
+CONTENT_GATE_SCORE_MINIMUM = 82
+WARNING_WEIGHTS = {
+    "missingRequiredTextWarning": 16,
+    "numberedFillerWarning": 14,
+    "emptyBlockTextWarning": 12,
+    "repeatedVariantWarning": 10,
+    "heroPlacementWarning": 10,
+    "languageMismatchWarning": 10,
+    "unsourcedCurrentDateWarning": 10,
+    "emojiIconWarning": 8,
+    "missingDesignDocumentWarning": 12,
+}
+HANGUL_PATTERN = re.compile(r"[가-힣]")
+LATIN_LETTER_PATTERN = re.compile(r"[A-Za-z]")
+EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF✅❌❎❗❓⭐⚠⌚⏰️]")
+
+
+def main() -> int:
+    source_root = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(".")
+    content_path = source_root / "app" / "public" / "site-content.json"
+    if not content_path.exists():
+        print(f"Error: {content_path} not found; run from the source workspace root or pass it as the argument.")
+        return 2
+    try:
+        content = json.loads(content_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        print(f"Content review FAILED: site-content.json is not valid JSON: {error}")
+        return 0
+    blocks = content.get("blocks") or []
+    visible_text = collect_visible_text(content, blocks)
+    ledger_text = read_optional(source_root / ".internkim" / "required-visible-text.txt")
+    warnings = []
+    warnings += required_text_warnings(visible_text, ledger_text)
+    warnings += numbered_filler_warnings(blocks)
+    warnings += empty_text_warnings(blocks)
+    warnings += variant_structure_warnings(blocks)
+    warnings += language_warnings(blocks, visible_text)
+    warnings += current_date_warnings(visible_text, ledger_text)
+    warnings += emoji_warnings(visible_text)
+    warnings += design_document_warnings(source_root)
+    score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
+    verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
+    print(f"Content review: {len(blocks)} blocks, score {score}/100 (minimum {CONTENT_GATE_SCORE_MINIMUM})")
+    if warnings:
+        print(f"Content gate {verdict}. Resolve these before site.publish:" if verdict == "FAILED" else f"Content gate {verdict} with notes:")
+        for warning in warnings:
+            print(f"  - {warning}")
+    else:
+        print("Content gate PASSED.")
+    return 0
+
+
+def collect_visible_text(content: dict, blocks: list) -> str:
+    parts = [str(content.get("siteName") or ""), str(content.get("tagline") or "")]
+    for block in blocks:
+        parts += [str(block.get("title") or ""), str(block.get("body") or ""), str(block.get("actionLabel") or "")]
+        for item in block.get("items") or []:
+            parts += [str(item.get("title") or ""), str(item.get("body") or "")]
+    return "\n".join(part for part in parts if part)
+
+
+def read_optional(path: pathlib.Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def required_text_warnings(visible_text: str, ledger_text: str) -> list:
+    lines = [line.strip() for line in ledger_text.splitlines() if line.strip()]
+    if not lines:
+        return []
+    haystack = normalize(visible_text)
+    spaceless = haystack.replace(" ", "")
+    missing = [
+        line for line in lines
+        if normalize(line) not in haystack and normalize(line).replace(" ", "") not in spaceless
+    ]
+    if not missing:
+        return []
+    preview = "; ".join(missing[:4]) + (" ..." if len(missing) > 4 else "")
+    return [f"missingRequiredTextWarning: {len(missing)} of {len(lines)} required-visible-text.txt lines are not in the rendered text: {preview}"]
+
+
+def numbered_filler_warnings(blocks: list) -> list:
+    warnings = []
+    for index, block in enumerate(blocks, start=1):
+        stems = []
+        for item in block.get("items") or []:
+            title = str(item.get("title") or "").strip()
+            stem = re.sub(r"[\s\-#.]*\d+$", "", title).strip()
+            if stem and stem != title:
+                stems.append(stem.casefold())
+        counted = {stem: stems.count(stem) for stem in stems}
+        if any(count >= 2 for count in counted.values()):
+            warnings.append(f"numberedFillerWarning: block {index} items are the same title with a trailing number; write real content for each item")
+    return warnings
+
+
+def empty_text_warnings(blocks: list) -> list:
+    empty_indexes = []
+    for index, block in enumerate(blocks, start=1):
+        texts = [str(block.get("title") or ""), str(block.get("body") or "")]
+        texts += [str(item.get("title") or "") + str(item.get("body") or "") for item in block.get("items") or []]
+        if not any(text.strip() for text in texts):
+            empty_indexes.append(str(index))
+    if empty_indexes:
+        return ["emptyBlockTextWarning: block " + ", ".join(empty_indexes) + " has no visible text"]
+    return []
+
+
+def variant_structure_warnings(blocks: list) -> list:
+    warnings = []
+    variants = [str(block.get("variant") or "") for block in blocks]
+    hero_positions = [index for index, variant in enumerate(variants) if variant == "hero"]
+    if hero_positions and (hero_positions[0] != 0 or len(hero_positions) > 1):
+        warnings.append("heroPlacementWarning: use exactly one hero block and place it first")
+    for variant in set(variants):
+        if variant and variant != "hero" and variants.count(variant) >= 3:
+            warnings.append(f"repeatedVariantWarning: the {variant} variant appears {variants.count(variant)} times; vary the block sequence")
+    return warnings
+
+
+def language_warnings(blocks: list, visible_text: str) -> list:
+    hangul_count = len(HANGUL_PATTERN.findall(visible_text))
+    latin_count = len(LATIN_LETTER_PATTERN.findall(visible_text))
+    if hangul_count < 40 or hangul_count * 3 < latin_count:
+        return []
+    mismatched = [
+        str(index)
+        for index, block in enumerate(blocks, start=1)
+        if title_is_latin_only(str(block.get("title") or ""))
+    ]
+    if mismatched:
+        return ["languageMismatchWarning: block " + ", ".join(mismatched) + " titles are Latin-only while the site text is Korean"]
+    return []
+
+
+def title_is_latin_only(title: str) -> bool:
+    return len(LATIN_LETTER_PATTERN.findall(title)) >= 4 and not HANGUL_PATTERN.search(title)
+
+
+def current_date_warnings(visible_text: str, ledger_text: str) -> list:
+    today = datetime.date.today()
+    separator = r"\s*[.\-/년월]\s*"
+    pattern = re.compile(rf"(?<!\d){today.year}{separator}0?{today.month}{separator}0?{today.day}(?!\d)")
+    if pattern.search(ledger_text) or not pattern.search(visible_text):
+        return []
+    return [f"unsourcedCurrentDateWarning: the rendered text shows today's date {today.isoformat()}, which is not in required-visible-text.txt"]
+
+
+def emoji_warnings(visible_text: str) -> list:
+    if EMOJI_PATTERN.search(visible_text):
+        return ["emojiIconWarning: rendered text uses emoji glyphs; use plain labels or the scaffold's icons"]
+    return []
+
+
+def design_document_warnings(source_root: pathlib.Path) -> list:
+    design_text = read_optional(source_root / "DESIGN.md")
+    body = design_text.split("---", 2)[2].strip() if design_text.startswith("---") and design_text.count("---") >= 2 else design_text.strip()
+    if len(body) >= 80:
+        return []
+    return ["missingDesignDocumentWarning: DESIGN.md at the source root is missing or does not describe the design beyond front matter"]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
