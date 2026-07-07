@@ -25,7 +25,7 @@ h2 { border-left: 12px solid #0052cc; font-size: 48px; }
 </section>
 <section class="slide">
   <h2>Executive Summary</h2>
-  <ul><li>2분기 출하량이 증가했고 가동률 목표를 상회 달성했습니다</li><li>파일럿 고객 수는 목표에 미달했습니다</li></ul>
+  <ul><li>✅ 2분기 출하량이 증가했고 가동률 목표를 상회 달성했습니다</li><li>파일럿 고객 수는 목표에 미달했습니다</li></ul>
   <div class="footer">Yeonnam Robotics</div>
 </section>
 <section class="slide">
@@ -122,6 +122,7 @@ def main() -> int:
         "topicTitleWarning",
         "rawStructurePatternWarning",
         "absoluteFooterWarning",
+        "emojiIconWarning",
     }
     missing = expected - warning_prefixes(templated)
     assert not missing, f"missing expected warnings: {missing}"
