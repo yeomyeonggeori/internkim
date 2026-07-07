@@ -3,10 +3,18 @@ import sys
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
+from paperwork_design import (
+    COLOR_INK,
+    DOCX_PAGE_MARGIN_INCHES,
+    FONT_KOREAN_DOCX,
+    LINE_SPACING,
+    SIZE_BODY,
+    SIZE_CLAUSE_HEADING,
+    SIZE_TITLE,
+)
 
-INK = (0x1C, 0x24, 0x30)
-MUTED = (0x6A, 0x72, 0x80)
-BODY_FONT = "맑은 고딕"
+INK = COLOR_INK
+BODY_FONT = FONT_KOREAN_DOCX
 
 
 def styled_document():
@@ -15,15 +23,15 @@ def styled_document():
 
     document = Document()
     section = document.sections[0]
-    section.top_margin = section.bottom_margin = Inches(0.9)
-    section.left_margin = section.right_margin = Inches(1.0)
+    section.top_margin = section.bottom_margin = Inches(DOCX_PAGE_MARGIN_INCHES * 0.9)
+    section.left_margin = section.right_margin = Inches(DOCX_PAGE_MARGIN_INCHES)
     normal = document.styles["Normal"]
     normal.font.name = BODY_FONT
-    normal.font.size = Pt(10.5)
+    normal.font.size = Pt(SIZE_BODY)
     normal.font.color.rgb = RGBColor(*INK)
     set_east_asia_font(normal.element, BODY_FONT)
     normal.paragraph_format.space_after = Pt(4)
-    normal.paragraph_format.line_spacing = 1.3
+    normal.paragraph_format.line_spacing = LINE_SPACING
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     return document
@@ -44,7 +52,7 @@ def add_title(document, text):
     paragraph.paragraph_format.space_after = Pt(18)
     run = paragraph.add_run(text)
     run.bold = True
-    run.font.size = Pt(18)
+    run.font.size = Pt(SIZE_TITLE)
     run.font.color.rgb = RGBColor(*INK)
     add_bottom_rule(paragraph)
     return paragraph
@@ -77,7 +85,7 @@ def add_clause_heading(document, text):
     paragraph.paragraph_format.space_after = Pt(2)
     run = paragraph.add_run(text)
     run.bold = True
-    run.font.size = Pt(11)
+    run.font.size = Pt(SIZE_CLAUSE_HEADING)
     run.font.color.rgb = RGBColor(*INK)
     return paragraph
 
