@@ -337,3 +337,42 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 		t.Fatalf("expected host-specific fields preserved, got:\n%s", refreshed)
 	}
 }
+
+func TestRepairWorkspaceImageOnlyRunsOnCorruptProbe(t *testing.T) {
+	target := canonicalBlueclawPayloadInstallTarget()
+	cases := []struct {
+		name         string
+		probeOutput  string
+		expectRepair bool
+	}{
+		{name: "healthy", probeOutput: "Inode: 2   Type: directory    Mode:  0755", expectRepair: false},
+		{name: "missing image", probeOutput: "/var/lib/blueclaw/workspace.ext4: No such file or directory", expectRepair: false},
+		{name: "corrupt bitmap", probeOutput: "Block bitmap checksum does not match bitmap while reading allocation bitmaps\nstat: Filesystem not open", expectRepair: true},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := &Service{}
+			commands := []string{}
+			service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+				command := strings.Join(append([]string{name}, arguments...), " ")
+				commands = append(commands, command)
+				if strings.Contains(command, "debugfs") {
+					return []byte(testCase.probeOutput), nil
+				}
+				return []byte("e2fsck done"), nil
+			}
+			if errorValue := service.repairWorkspaceImageIfUnhealthy(context.Background(), "job-1", target); errorValue != nil {
+				t.Fatalf("unexpected repair error: %v", errorValue)
+			}
+			ranRepair := false
+			for _, command := range commands {
+				if strings.Contains(command, "e2fsck") {
+					ranRepair = true
+				}
+			}
+			if ranRepair != testCase.expectRepair {
+				t.Fatalf("expected repair=%v, commands=%v", testCase.expectRepair, commands)
+			}
+		})
+	}
+}
