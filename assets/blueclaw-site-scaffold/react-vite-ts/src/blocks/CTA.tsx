@@ -8,17 +8,19 @@ type CTAProps = {
 
 export function CTA({ block, anchorID }: CTAProps) {
 	return (
-		<section id={anchorID} className="my-16 rounded-lg bg-primary px-8 py-12 text-primary-foreground">
-			{block.title ? <h2 className="text-3xl font-semibold tracking-tight">{block.title}</h2> : null}
-			{block.body ? <p className="mt-3 max-w-2xl leading-relaxed opacity-80">{block.body}</p> : null}
-			{block.actionLabel ? (
-				<a
-					href={block.actionHref ?? "#"}
-					className={buttonVariants({ variant: "secondary", size: "lg", className: "mt-6" })}
-				>
-					{block.actionLabel}
-				</a>
-			) : null}
+		<section id={anchorID} className="py-16">
+			<div className="rounded-[calc(var(--radius-lg)*1.5)] bg-primary px-10 py-16 text-center text-primary-foreground sm:px-16">
+				{block.title ? <h2 className="mx-auto max-w-2xl text-[clamp(1.75rem,3.5vw,2.5rem)] font-bold leading-tight tracking-tight">{block.title}</h2> : null}
+				{block.body ? <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed opacity-85">{block.body}</p> : null}
+				{block.actionLabel ? (
+					<a
+						href={block.actionHref ?? "#"}
+						className={buttonVariants({ variant: "secondary", size: "lg", className: "mt-8 px-8" })}
+					>
+						{block.actionLabel}
+					</a>
+				) : null}
+			</div>
 		</section>
 	);
 }

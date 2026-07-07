@@ -9,20 +9,26 @@ type HeroProps = {
 
 export function Hero({ block, anchorID }: HeroProps) {
 	return (
-		<section id={anchorID} className="pt-20 pb-12">
-			{block.title ? (
-				<h1 className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight">{block.title}</h1>
-			) : null}
-			{splitParagraphs(block.body).map((paragraph, paragraphIndex) => (
-				<p key={paragraphIndex} className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-					{paragraph}
-				</p>
-			))}
-			{block.actionLabel ? (
-				<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "mt-8" })}>
-					{block.actionLabel}
-				</a>
-			) : null}
+		<section id={anchorID} className="hero-band -mx-6 px-6">
+			<div className="mx-auto flex min-h-[52vh] max-w-4xl flex-col justify-center py-24">
+				{block.title ? (
+					<h1 className="max-w-3xl text-[clamp(2.75rem,6vw,4.25rem)] font-bold leading-[1.04] tracking-tight">
+						{block.title}
+					</h1>
+				) : null}
+				{splitParagraphs(block.body).map((paragraph, paragraphIndex) => (
+					<p key={paragraphIndex} className="hero-muted mt-7 max-w-2xl text-xl leading-relaxed">
+						{paragraph}
+					</p>
+				))}
+				{block.actionLabel ? (
+					<div className="mt-10">
+						<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "px-8 py-6 text-base" })}>
+							{block.actionLabel}
+						</a>
+					</div>
+				) : null}
+			</div>
 		</section>
 	);
 }

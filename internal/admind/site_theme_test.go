@@ -254,7 +254,7 @@ func TestRenderSiteThemeCSSContract(t *testing.T) {
 	}
 	css := renderSiteThemeCSS(theme)
 	expectedLines := []string{
-		":root {",
+		":root:root {",
 		"--primary: #111111;",
 		"--primary-foreground: #ffffff;",
 		"--background: #ffffff;",
@@ -470,5 +470,27 @@ func TestCatalogFontFamilyOrDefaultReplacesGenericKeywords(t *testing.T) {
 		if actual := catalogFontFamilyOrDefault(input); actual != expected {
 			t.Fatalf("catalogFontFamilyOrDefault(%q) = %q, expected %q", input, actual, expected)
 		}
+	}
+}
+
+func TestParseSiteDesignStylePreset(t *testing.T) {
+	cases := map[string]string{
+		"":                      "editorial",
+		"style: brutalist":      "brutalist",
+		"style: \"soft\"":       "soft",
+		"style: PLAYFUL":        "playful",
+	}
+	for frontMatter, expected := range cases {
+		preset, errorValue := parseSiteDesignStylePreset(frontMatter)
+		if errorValue != nil || preset != expected {
+			t.Fatalf("parseSiteDesignStylePreset(%q) = %q, %v; expected %q", frontMatter, preset, errorValue, expected)
+		}
+	}
+	if _, errorValue := parseSiteDesignStylePreset("style: vaporwave"); errorValue == nil {
+		t.Fatal("unknown preset must fail validation")
+	}
+	css := renderSiteThemeCSS(siteTheme{PrimaryColor: "#111111", BackgroundColor: "#ffffff", ForegroundColor: "#111111", AccentColor: "#111111", HeadingFontFamily: "에이투지체", BodyFontFamily: "에이투지체", RadiusValue: "8px", StylePreset: "brutalist"})
+	if !strings.Contains(css, "--hero-background: var(--primary);") || !strings.Contains(css, "--shadow-card: 4px 4px 0 var(--foreground);") {
+		t.Fatalf("brutalist preset variables missing from theme css:\n%s", css)
 	}
 }
