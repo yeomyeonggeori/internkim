@@ -23,9 +23,10 @@
 - 디자인 자유는 DESIGN.md가 담는다(테마 단일 진실, JSON에 중복 금지): 토큰 확장(style 프리셋,
   palette, typography, rounded/spacing/density, elevation, heroTreatment, motion) + 자유 서술 브리프
   (Style Prompt/Visual System/Signature Move). 원시 CSS 필드는 두지 않는다.
-- 폰트는 김인턴 소유 카탈로그(assets/fonts/catalog.json, 31종 라이선스 검증·voice/bestFor 서술).
+- 폰트는 김인턴 소유 카탈로그(assets/fonts/catalog.json, 라이선스 검증·voice/bestFor 서술).
   admind가 /fonts/로 셀프호스팅 서빙, 게스트엔 presentation vendoring용 투영만 프로비저닝.
-  DESIGN.md fontFamily는 카탈로그 family만 유효(결정론 검증).
+  DESIGN.md fontFamily는 카탈로그 family만 유효(결정론 검증). 웹사이트 기본 서체는
+  에이투지체(catalog defaultFor: website) — DESIGN.md가 지정하지 않으면 theme.css가 이걸 쓴다.
 
 ## Manifest v3 (site-content.json, 하위호환)
 
