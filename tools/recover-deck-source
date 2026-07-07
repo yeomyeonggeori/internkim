@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+import pathlib
+import re
+import sys
+
+
+def recover_source(delivered_html: str) -> str:
+    recovered = re.sub(
+        r'\n?<style data-internkim-vendored-fonts>.*?</style>', '', delivered_html, flags=re.DOTALL
+    )
+    recovered = re.sub(
+        r'\n?<style data-internkim-slide-viewer>.*?</style>', '', recovered, flags=re.DOTALL
+    )
+    recovered = re.sub(
+        r'\n?<script data-internkim-slide-viewer>.*?</script>', '', recovered, flags=re.DOTALL
+    )
+    return recovered
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("Usage: recover-deck-source <delivered.html> <recovered-slides.html>", file=sys.stderr)
+        return 2
+    delivered_path = pathlib.Path(sys.argv[1])
+    recovered_path = pathlib.Path(sys.argv[2])
+    recovered = recover_source(delivered_path.read_text(encoding="utf-8"))
+    if "data-internkim" in recovered:
+        print("Warning: recovered source still contains injected data-internkim blocks", file=sys.stderr)
+    recovered_path.write_text(recovered, encoding="utf-8")
+    print(f"recovered {recovered_path} ({len(recovered)} bytes)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
