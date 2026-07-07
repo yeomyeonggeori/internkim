@@ -25,6 +25,10 @@ func (service *Service) orgchartMetadataResponse(ctx context.Context, responseBo
 	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
 	}
+	return service.orgchartMetadataUsersResponse(ctx, usersResponse)
+}
+
+func (service *Service) orgchartMetadataUsersResponse(ctx context.Context, usersResponse pagesUsersResponse) (orgchartMetadataResponse, error) {
 	groups, errorValue := service.readOrgchartGroupsOrInitialize(ctx, usersResponse.AvailableGroups)
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
