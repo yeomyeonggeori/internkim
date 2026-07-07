@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+import datetime
+import json
+import pathlib
+import subprocess
+import sys
+import tempfile
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REVIEW_SCRIPT = REPOSITORY_ROOT / "assets/blueclaw-workspace/skills/site-prototype/scripts/content_review.py"
+
+FILLER_CONTENT = {
+    "siteName": "연남로보틱스",
+    "tagline": "레거시 창고 자동화",
+    "blocks": [
+        {"variant": "features", "title": "Our Services", "items": [
+            {"title": "서비스 1", "body": "설명 1"},
+            {"title": "서비스 2", "body": "설명 2"},
+            {"title": "서비스 3", "body": "✅ 설명 3"},
+        ]},
+        {"variant": "hero", "title": "환영합니다", "body": "DATE_PLACEHOLDER 기준"},
+        {"variant": "features", "title": "특징", "items": [{"title": "빠른 도입", "body": "5일 설치"}]},
+        {"variant": "features", "title": "혜택", "items": [{"title": "비용 절감", "body": "공사비 0원"}]},
+        {"variant": "cta", "title": ""},
+    ],
+}
+
+CLEAN_CONTENT = {
+    "siteName": "연남로보틱스",
+    "tagline": "좁은 통로 창고 자동화를 5일 만에",
+    "blocks": [
+        {"variant": "hero", "title": "공사 없이 도입하는 소형 AMR", "body": "80cm 통로에서 회전하는 YR-1으로 레거시 창고를 자동화하세요.", "actionLabel": "도입 상담"},
+        {"variant": "features", "title": "도입 효과", "items": [
+            {"title": "공사비 0원", "body": "랙 재배치 없이 기존 창고 그대로 사용합니다."},
+            {"title": "평균 5일 설치", "body": "경쟁 솔루션의 3~6주 대비 즉시 투입됩니다."},
+        ]},
+        {"variant": "contact", "title": "상담 문의", "body": "도입 상담을 신청하세요.", "actionLabel": "문의하기"},
+    ],
+}
+
+DESIGN_DOCUMENT = """---
+colors:
+  primary: "#111111"
+  background: "#ffffff"
+typography:
+  display:
+    fontFamily: ui-serif
+---
+
+## Overview
+
+연남로보틱스 도입 상담용 랜딩. 흑백 미니멀에 로봇 정밀함을 담은 얇은 괘선 그리드와 큰 수치 타이포가 시그니처. 버튼과 카드 모서리는 각지게 유지한다.
+"""
+
+
+def run_review(content: dict, design_document: str, ledger: str) -> str:
+    with tempfile.TemporaryDirectory() as raw_directory:
+        root = pathlib.Path(raw_directory)
+        (root / "app" / "public").mkdir(parents=True)
+        (root / ".internkim").mkdir()
+        (root / "app" / "public" / "site-content.json").write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
+        if design_document:
+            (root / "DESIGN.md").write_text(design_document, encoding="utf-8")
+        if ledger:
+            (root / ".internkim" / "required-visible-text.txt").write_text(ledger, encoding="utf-8")
+        completed = subprocess.run(
+            [sys.executable, str(REVIEW_SCRIPT), str(root)], capture_output=True, text=True, check=True
+        )
+        return completed.stdout
+
+
+def main() -> int:
+    today_text = datetime.date.today().strftime("%Y-%m-%d")
+    filler = json.loads(json.dumps(FILLER_CONTENT).replace("DATE_PLACEHOLDER", today_text))
+    filler_output = run_review(filler, "", "연남로보틱스\n가격 89만 원\n")
+    for expected in [
+        "Content gate FAILED",
+        "numberedFillerWarning",
+        "heroPlacementWarning",
+        "repeatedVariantWarning",
+        "emptyBlockTextWarning",
+        "languageMismatchWarning",
+        "unsourcedCurrentDateWarning",
+        "emojiIconWarning",
+        "missingRequiredTextWarning",
+        "missingDesignDocumentWarning",
+    ]:
+        assert expected in filler_output, f"missing {expected} in:\n{filler_output}"
+
+    clean_output = run_review(CLEAN_CONTENT, DESIGN_DOCUMENT, "연남로보틱스\n80cm\n5일\n")
+    assert "Content gate PASSED" in clean_output, clean_output
+    assert "Warning" not in clean_output, clean_output
+
+    print("test-site-content-review: all checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
