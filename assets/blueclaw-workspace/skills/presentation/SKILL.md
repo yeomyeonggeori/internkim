@@ -92,7 +92,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 
 Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
 
-If a `file.edit` patch misses its target text, rewrite the file with `file.write` instead of retrying. Preserve explicit request constraints such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
+If a `file.edit` patch misses its target text, rewrite the file with `file.write` instead of retrying. Preserve the user's explicit constraints: slide count, output format, scope, and their exact wording.
 
 Before building, scan `slides.html`. If a slide is only a raw `<table>` or bare `<ul>`, revise it into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two or more slides share the same `.grid` plus `.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable. Do not use colored side stripes, tiny rail labels, or border-plus-shadow white cards as the main identity.
 
