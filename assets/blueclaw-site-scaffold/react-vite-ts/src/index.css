@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url("/fonts/fonts.css");
 
 :root {
 	--background: #ffffff;
@@ -21,8 +22,8 @@
 	--input: #d1d5db;
 	--ring: #111111;
 	--radius: 0.5rem;
-	--font-heading: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
-	--font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	--font-heading: "에이투지체", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	--font-body: "에이투지체", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
 	font-family: var(--font-body);
 	color: var(--foreground);
 	background: var(--background);

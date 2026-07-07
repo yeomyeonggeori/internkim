@@ -91,3 +91,45 @@ func TestFinishSitePocketBaseRequestDecrementsInflight(t *testing.T) {
 		t.Fatalf("expected inflight 1, got %d", activity.inflightCount)
 	}
 }
+
+func TestValidateSiteContentPages(t *testing.T) {
+	block := siteContentBlock{Variant: "prose", Title: "소개", Body: "본문"}
+	cases := []struct {
+		name          string
+		pages         []siteContentPage
+		expectedError string
+	}{
+		{name: "valid two pages", pages: []siteContentPage{
+			{Path: "/", Title: "홈", Blocks: []siteContentBlock{block}},
+			{Path: "/about", Title: "소개", Blocks: []siteContentBlock{block}},
+		}},
+		{name: "reserved api path", pages: []siteContentPage{
+			{Path: "/", Title: "홈", Blocks: []siteContentBlock{block}},
+			{Path: "/api/things", Title: "목록", Blocks: []siteContentBlock{block}},
+		}, expectedError: "reserved"},
+		{name: "missing root page", pages: []siteContentPage{
+			{Path: "/about", Title: "소개", Blocks: []siteContentBlock{block}},
+		}, expectedError: "must include a / page"},
+		{name: "duplicate path", pages: []siteContentPage{
+			{Path: "/", Title: "홈", Blocks: []siteContentBlock{block}},
+			{Path: "/", Title: "홈2", Blocks: []siteContentBlock{block}},
+		}, expectedError: "duplicated"},
+		{name: "empty blocks", pages: []siteContentPage{
+			{Path: "/", Title: "홈", Blocks: nil},
+		}, expectedError: "at least one block"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			errorValue := validateSiteContent(&siteContent{SiteName: "테스트", Pages: testCase.pages})
+			if testCase.expectedError == "" {
+				if errorValue != nil {
+					t.Fatalf("expected valid, got %v", errorValue)
+				}
+				return
+			}
+			if errorValue == nil || !strings.Contains(errorValue.Error(), testCase.expectedError) {
+				t.Fatalf("expected error containing %q, got %v", testCase.expectedError, errorValue)
+			}
+		})
+	}
+}

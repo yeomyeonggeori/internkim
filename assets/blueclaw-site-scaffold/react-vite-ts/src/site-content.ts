@@ -14,32 +14,50 @@ export type Block = {
 	actionHref?: string;
 };
 
+export type SitePage = {
+	path: string;
+	title: string;
+	blocks: Block[];
+};
+
+export type NavigationItem = {
+	label: string;
+	href: string;
+};
+
 export type SiteContent = {
 	siteName: string;
 	tagline?: string;
-	blocks: Block[];
+	pages: SitePage[];
+	navigationItems?: NavigationItem[];
 };
 
 export const fallbackContent: SiteContent = {
 	siteName: "__SITE_TITLE__",
 	tagline: "이 사이트가 무엇에 대한 것인지 한 줄로 소개하세요.",
-	blocks: [
+	pages: [
 		{
-			variant: "hero",
+			path: "/",
 			title: "__SITE_TITLE__",
-			body: "이 사이트가 무엇에 대한 것인지 한 줄로 소개하세요.",
-			actionLabel: "자세히 보기",
-			actionHref: "#block-2",
-		},
-		{
-			variant: "prose",
-			title: "소개",
-			body: "이 섹션에 요청에 맞는 소개 내용을 채워 주세요.",
-		},
-		{
-			variant: "contact",
-			title: "연락처",
-			body: "이메일, 전화 등 연락 방법을 적어 주세요.",
+			blocks: [
+				{
+					variant: "hero",
+					title: "__SITE_TITLE__",
+					body: "이 사이트가 무엇에 대한 것인지 한 줄로 소개하세요.",
+					actionLabel: "자세히 보기",
+					actionHref: "#block-2",
+				},
+				{
+					variant: "prose",
+					title: "소개",
+					body: "이 섹션에 요청에 맞는 소개 내용을 채워 주세요.",
+				},
+				{
+					variant: "contact",
+					title: "연락처",
+					body: "이메일, 전화 등 연락 방법을 적어 주세요.",
+				},
+			],
 		},
 	],
 };
@@ -127,16 +145,58 @@ function normalizeLegacySections(value: Record<string, unknown>): Block[] {
 	return [heroBlock, ...proseBlocks];
 }
 
+function normalizePagePath(value: unknown): string | undefined {
+	if (!isNonEmptyString(value)) return undefined;
+	if (!value.startsWith("/")) return undefined;
+	return value.length > 1 && value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function parsePage(value: unknown): SitePage | undefined {
+	if (!isRecord(value)) return undefined;
+	const path = normalizePagePath(value.path);
+	if (path === undefined) return undefined;
+	if (!isNonEmptyString(value.title)) return undefined;
+	if (!Array.isArray(value.blocks)) return undefined;
+	const blocks = parseBlocks(value.blocks);
+	if (blocks.length === 0) return undefined;
+	return { path, title: value.title, blocks };
+}
+
+function parsePages(value: unknown): SitePage[] {
+	if (!Array.isArray(value)) return [];
+	return value.map(parsePage).filter((page): page is SitePage => page !== undefined);
+}
+
+function parseNavigationItems(value: unknown): NavigationItem[] | undefined {
+	if (!isRecord(value) || !Array.isArray(value.items)) return undefined;
+	const items = value.items.flatMap((item) => {
+		if (!isRecord(item)) return [];
+		if (!isNonEmptyString(item.label) || !isNonEmptyString(item.href)) return [];
+		return [{ label: item.label, href: item.href }];
+	});
+	return items.length > 0 ? items : undefined;
+}
+
+function pagesFrom(value: Record<string, unknown>): SitePage[] {
+	const pages = parsePages(value.pages);
+	if (pages.length > 0) return pages;
+	const blocks = Array.isArray(value.blocks) ? parseBlocks(value.blocks) : normalizeLegacySections(value);
+	if (blocks.length === 0) return [];
+	const title = isNonEmptyString(value.siteName) ? value.siteName : "홈";
+	return [{ path: "/", title, blocks }];
+}
+
 function parseSiteContent(value: unknown): SiteContent | undefined {
 	if (!isRecord(value)) return undefined;
 	if (!isNonEmptyString(value.siteName)) return undefined;
 	if (!isOptionalString(value.tagline)) return undefined;
-	const blocks = Array.isArray(value.blocks) ? parseBlocks(value.blocks) : normalizeLegacySections(value);
-	if (blocks.length === 0) return undefined;
+	const pages = pagesFrom(value);
+	if (pages.length === 0) return undefined;
 	return {
 		siteName: value.siteName,
 		tagline: value.tagline,
-		blocks,
+		pages,
+		navigationItems: parseNavigationItems(value.navigation),
 	};
 }
 

@@ -148,7 +148,7 @@ func renderSiteThemeCSS(theme siteTheme) string {
 }
 
 func siteDesignFontStack(requestedFontFamily string) string {
-	return requestedFontFamily + ", Pretendard, system-ui, sans-serif"
+	return requestedFontFamily + ", \"에이투지체\", Pretendard, system-ui, sans-serif"
 }
 
 // extractSiteDesignFrontMatter mirrors the tolerance of the scaffold's

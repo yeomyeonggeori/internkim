@@ -66,7 +66,7 @@ Deploy a release to the target device over Admin HTTPS.
 
 Options:
   --components <list>  Comma-separated component names to include.
-                       Available: admind, blueclawPayload, capabilityd, internkim, mattermostPlugins, skills, web
+                       Available: admind, blueclawPayload, blueclawSupervisor, capabilityd, fonts, internkim, mattermostPlugins, skills, web
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).

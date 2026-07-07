@@ -73,6 +73,7 @@ type Configuration struct {
 	RepositoryRoot                 string
 	CompanionFileDirectory         string
 	SitesRoot                      string
+	FontsDirectory                 string
 	SiteSecretDirectory            string
 	SiteSystemdDirectory           string
 	BotProfilePath                 string
@@ -264,6 +265,7 @@ func DefaultConfiguration() Configuration {
 		RepositoryRoot:                 "/",
 		CompanionFileDirectory:         "/tmp/internkim-companion-files",
 		SitesRoot:                      "/root/.internkim/sites",
+		FontsDirectory:                 "/opt/internkim/fonts",
 		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:           "/etc/systemd/system",
 		BotProfilePath:                 "/root/.internkim/config/bot-profile.yaml",
@@ -2521,6 +2523,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.SitesRoot == "" {
 		configuration.SitesRoot = defaultConfiguration.SitesRoot
+	}
+	if configuration.FontsDirectory == "" {
+		configuration.FontsDirectory = defaultConfiguration.FontsDirectory
 	}
 	if configuration.SiteSecretDirectory == "" {
 		configuration.SiteSecretDirectory = defaultConfiguration.SiteSecretDirectory

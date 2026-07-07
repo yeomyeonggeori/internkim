@@ -243,7 +243,10 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseSkills(stagingPath); errorValue != nil {
+	if errorValue := service.installReleaseSkills(ctx, stagingPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.installReleaseFonts(stagingPath); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := service.installReleaseMattermostPlugins(stagingPath); errorValue != nil {
@@ -411,7 +414,7 @@ func (service *Service) releaseWebComponentRoot(stagingPath string) (string, err
 	return releaseComponentRoot(filepath.Join(stagingPath, "adminWeb"))
 }
 
-func (service *Service) installReleaseSkills(stagingPath string) error {
+func (service *Service) installReleaseSkills(ctx context.Context, stagingPath string) error {
 	componentRoot, errorValue := releaseComponentRoot(filepath.Join(stagingPath, "skills"))
 	if errorValue != nil {
 		if errors.Is(errorValue, os.ErrNotExist) {
@@ -430,7 +433,62 @@ func (service *Service) installReleaseSkills(stagingPath string) error {
 		return errorValue
 	}
 	_, _ = service.runCommand(context.Background(), "chown", "-R", "blueclaw:blueclaw", targetPath)
+	return service.syncReleaseSkillsWorkspace(ctx)
+}
+
+func (service *Service) installReleaseFonts(stagingPath string) error {
+	componentRoot, errorValue := releaseComponentRoot(filepath.Join(stagingPath, "fonts"))
+	if errorValue != nil {
+		if errors.Is(errorValue, os.ErrNotExist) {
+			return nil
+		}
+		return errorValue
+	}
+	targetPath := service.Configuration.FontsDirectory
+	temporaryPath := targetPath + ".new"
+	_ = os.RemoveAll(temporaryPath)
+	if errorValue := copyReleaseDirectory(componentRoot, temporaryPath, 0o755); errorValue != nil {
+		return errorValue
+	}
+	_ = os.RemoveAll(targetPath)
+	return os.Rename(temporaryPath, targetPath)
+}
+
+func (service *Service) syncReleaseSkillsWorkspace(ctx context.Context) error {
+	target := canonicalBlueclawPayloadInstallTarget()
+	target.HostWorkspacePath = service.Configuration.BlueclawWorkspacePath
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("sync blueclaw skills workspace: stop %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawWorkspaceResizeCommand(target.WorkspaceImagePath)); errorValue != nil {
+		return fmt.Errorf("sync blueclaw skills workspace: resize workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	syncCommand := strings.Join([]string{
+		blueclawruntime.BlueclawSupervisorBinaryPath,
+		"sync-workspace",
+		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
+		"--source", quoteBlueclawUpdateShellValue(target.HostWorkspacePath),
+	}, " ")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
+		return fmt.Errorf("sync blueclaw skills workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("sync blueclaw skills workspace: start %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
 	return nil
+}
+
+func blueclawWorkspaceResizeCommand(workspaceImagePath string) string {
+	return strings.Join([]string{
+		"minimum_workspace_bytes=68719476736",
+		"workspace_image=" + quoteBlueclawUpdateShellValue(workspaceImagePath),
+		`workspace_bytes="$(stat -c '%s' "$workspace_image" 2>/dev/null || echo 0)"`,
+		`if [ "$workspace_bytes" -lt "$minimum_workspace_bytes" ]; then`,
+		`  truncate -s "$minimum_workspace_bytes" "$workspace_image"`,
+		`  e2fsck -fy "$workspace_image" >/dev/null`,
+		`  resize2fs "$workspace_image" >/dev/null`,
+		"fi",
+	}, "\n")
 }
 
 func (service *Service) installReleaseMattermostPlugins(stagingPath string) error {

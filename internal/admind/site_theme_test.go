@@ -261,8 +261,8 @@ func TestRenderSiteThemeCSSContract(t *testing.T) {
 		"--foreground: #000000;",
 		"--accent: #ff8800;",
 		"--radius: 8px;",
-		"--font-heading: ui-serif, Pretendard, system-ui, sans-serif;",
-		"--font-body: ui-sans-serif, Pretendard, system-ui, sans-serif;",
+		"--font-heading: ui-serif, \"에이투지체\", Pretendard, system-ui, sans-serif;",
+		"--font-body: ui-sans-serif, \"에이투지체\", Pretendard, system-ui, sans-serif;",
 		"}",
 	}
 	for _, expectedLine := range expectedLines {
