@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import datetime
 import html
 import json
 import pathlib
@@ -25,73 +26,37 @@ DESIGN_REVIEW_PROMPT = (
     "Also judge whether the deck looks like a purposeful executive artifact: varied slide roles, claim-style titles, "
     "clear decision logic, and no generic repeated card-grid or raw table/list slides."
 )
-GENERIC_TOPIC_TITLES = {
-    "요약",
-    "개요",
-    "실행 요약",
-    "경영 요약",
-    "성과 지표",
-    "운영 지표",
-    "로드맵",
-    "리스크",
-    "승인 요청",
-    "결론",
-    "감사합니다",
-    "summary",
-    "overview",
-    "roadmap",
-    "risks",
-    "approval",
-    "conclusion",
-}
-DESIGN_PRIMITIVE_TOKENS = {
-    "variance",
-    "decision",
-    "rail",
-    "timeline",
-    "matrix",
-    "evidence",
-    "owner",
-    "status",
-    "badge",
-    "strip",
-    "map",
-    "cockpit",
-    "risk",
-    "lane",
-    "wall",
-}
+STRUCTURE_DOMINANCE_RATIO = 0.55
+CLAIM_TITLE_WORD_MINIMUM = 5
+KOREAN_SENTENCE_ENDINGS = ("다", "요", "까", "죠")
+LABEL_ONLY_SLIDE_ROLES = {"title", "cover", "divider", "section"}
 DESIGN_WARNING_PREFIXES = (
     "topicTitleWarning",
     "rawTableWarning",
     "bareListWarning",
-    "genericCardGridWarning",
-    "repeatedCardGridWarning",
-    "genericWhiteCardPatternWarning",
+    "repeatedCompositionWarning",
     "rawStructurePatternWarning",
     "weakVisualIdentityWarning",
     "missingSlideRoleWarning",
-    "unreliableVisualEvidenceWarning",
     "sideStripeWarning",
     "ghostCardWarning",
     "tinyTextWarning",
-    "thinPaddingWarning",
+    "languageMismatchWarning",
+    "unsourcedCurrentDateWarning",
 )
 DESIGN_WARNING_WEIGHTS = {
     "weakVisualIdentityWarning": 24,
     "missingSlideRoleWarning": 16,
-    "unreliableVisualEvidenceWarning": 24,
     "sideStripeWarning": 14,
     "ghostCardWarning": 14,
     "tinyTextWarning": 8,
-    "thinPaddingWarning": 10,
-    "repeatedCardGridWarning": 14,
-    "genericWhiteCardPatternWarning": 14,
-    "genericCardGridWarning": 10,
+    "repeatedCompositionWarning": 14,
     "rawStructurePatternWarning": 12,
     "rawTableWarning": 10,
     "bareListWarning": 10,
     "topicTitleWarning": 8,
+    "languageMismatchWarning": 10,
+    "unsourcedCurrentDateWarning": 10,
 }
 
 
@@ -105,8 +70,10 @@ def main() -> int:
     print(
         f"  - Slide render review: {report['slideCount']} slides, "
         f"passed={str(report['passed']).lower()}, "
+        f"staticGatePassed={str(report['staticGatePassed']).lower()}, "
         f"visualQualityScore={report['visualQualityScore']}, "
-        f"needsDesignRevision={str(report['needsDesignRevision']).lower()}"
+        f"needsDesignRevision={str(report['needsDesignRevision']).lower()}, "
+        f"renderSource={report['renderSource']}"
     )
     return 0
 
@@ -126,37 +93,47 @@ def build_review_report(source_path: pathlib.Path, deck_name: str, review_direct
     render_source = read_render_source(review_directory_path, image_paths)
     source_text = source_path.read_text(encoding="utf-8")
     design_document_text = read_optional_text(source_path.parent / "DESIGN.md")
+    required_text_ledger = read_optional_text(source_path.parent / "required-visible-text.txt")
     design = read_design_tokens(design_document_text)
-    source_context = inspect_source_context(source_text, design_document_text, len(image_paths))
-    slide_texts = read_slide_texts(source_text, len(image_paths))
-    slides = [review_slide(path, design, index + 1, slide_texts[index]) for index, path in enumerate(image_paths)]
+    slide_count = max(len(split_slide_sources(source_text)), len(image_paths))
+    source_context = inspect_source_context(source_text, design_document_text, slide_count)
+    slide_texts = read_slide_texts(source_text, slide_count)
+    slides = [
+        review_slide(image_paths[index] if index < len(image_paths) else None, design, index + 1, slide_texts[index])
+        for index in range(slide_count)
+    ]
     apply_deck_design_warnings(slides, source_context, render_source)
+    apply_language_mismatch_warning(slides, slide_texts)
+    apply_unsourced_current_date_warning(slides, slide_texts, required_text_ledger)
     annotate_design_revision_need(slides)
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
     fit_reviews = create_fit_reviews(contact_sheets, slides)
     design_warnings = unique_design_warnings(slides)
     visual_evidence_reliable = render_source == "browser"
     visual_quality_score = calculate_visual_quality_score(design_warnings)
+    static_gate_passed = visual_quality_score >= VISUAL_QUALITY_SCORE_MINIMUM
     quality_gate_passed = (
         all(slide["passed"] for slide in slides)
         and len(slides) > 0
         and visual_evidence_reliable
-        and visual_quality_score >= VISUAL_QUALITY_SCORE_MINIMUM
+        and static_gate_passed
     )
     return {
         "passed": quality_gate_passed,
         "qualityGatePassed": quality_gate_passed,
+        "staticGatePassed": static_gate_passed,
         "visualQualityScore": visual_quality_score,
         "visualQualityScoreMinimum": VISUAL_QUALITY_SCORE_MINIMUM,
         "visualEvidenceReliable": visual_evidence_reliable,
-        "needsDesignRevision": bool(design_warnings) or visual_quality_score < VISUAL_QUALITY_SCORE_MINIMUM,
-        "reviewUnavailable": len(slides) == 0,
+        "needsDesignRevision": bool(design_warnings) or not static_gate_passed,
+        "reviewUnavailable": slide_count == 0,
         "renderSource": render_source,
         "designWarnings": design_warnings,
         "sourceContext": source_context,
         "source": source_path.name,
         "deckName": deck_name,
-        "slideCount": len(slides),
+        "slideCount": slide_count,
+        "renderedSlideCount": len(image_paths),
         "design": design,
         "designReviewPrompt": DESIGN_REVIEW_PROMPT,
         "contactSheets": attach_fit_review_metadata(contact_sheets, fit_reviews),
@@ -245,7 +222,6 @@ def inspect_source_context(source_text: str, design_document_text: str, slide_co
         "hasSideStripePattern": source_has_side_stripe(source_text),
         "hasGhostCardPattern": source_has_ghost_card_pattern(source_text),
         "hasTinyTextPattern": source_has_tiny_text_pattern(source_text),
-        "hasThinPaddingPattern": source_has_thin_padding_pattern(source_text),
     }
 
 
@@ -256,18 +232,15 @@ def source_has_side_stripe(source_text: str) -> bool:
                 return True
         except ValueError:
             continue
-    lowered = source_text.casefold()
-    return "side-stripe" in lowered or "accent-stripe" in lowered
+    return False
 
 
 def source_has_ghost_card_pattern(source_text: str) -> bool:
-    rules = re.findall(r"\.[\w-]*card[\w-]*\s*\{.*?\}", source_text, flags=re.DOTALL | re.IGNORECASE)
-    for rule in rules:
+    for rule in re.findall(r"\{[^{}]*\}", source_text):
         lowered = rule.casefold()
         if "box-shadow" in lowered and re.search(r"\bborder\s*:\s*1px\s+solid", lowered):
             return True
-    lowered_source = source_text.casefold()
-    return "box-shadow" in lowered_source and "card" in lowered_source and "border: 1px solid" in lowered_source
+    return False
 
 
 def source_has_tiny_text_pattern(source_text: str) -> bool:
@@ -278,51 +251,6 @@ def source_has_tiny_text_pattern(source_text: str) -> bool:
         except ValueError:
             continue
     return sum(1 for font_size in font_sizes if font_size < 16) >= 2
-
-
-def source_has_thin_padding_pattern(source_text: str) -> bool:
-    content_selector_pattern = re.compile(
-        r"\.(?:[\w-]*(?:stage|row|item|panel|rail|ledger|step|proof|score|strip|board)[\w-]*)\s*\{(.*?)\}",
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    for match in content_selector_pattern.finditer(source_text):
-        if rule_has_thin_vertical_padding(match.group(1)):
-            return True
-    return False
-
-
-def rule_has_thin_vertical_padding(rule_text: str) -> bool:
-    for match in re.finditer(r"\bpadding\s*:\s*([^;]+)", rule_text, flags=re.IGNORECASE):
-        values = parse_padding_values(match.group(1))
-        if not values:
-            continue
-        top_padding, bottom_padding = vertical_padding_values(values)
-        if min(top_padding, bottom_padding) < 12:
-            return True
-    return False
-
-
-def parse_padding_values(value: str) -> list[float]:
-    numbers = []
-    for raw_part in value.strip().split():
-        match = re.fullmatch(r"([0-9.]+)px", raw_part.strip(), flags=re.IGNORECASE)
-        if not match:
-            return []
-        try:
-            numbers.append(float(match.group(1)))
-        except ValueError:
-            return []
-    return numbers
-
-
-def vertical_padding_values(values: list[float]) -> tuple[float, float]:
-    if len(values) == 1:
-        return values[0], values[0]
-    if len(values) == 2:
-        return values[0], values[0]
-    if len(values) == 3:
-        return values[0], values[2]
-    return values[0], values[2]
 
 
 def split_slide_sources(source_text: str) -> list[str]:
@@ -387,12 +315,23 @@ def inspect_slide_structure(slide_source: str) -> dict[str, object]:
         "hasSlideRole": bool(slide_role),
         "hasVisualSystem": bool(visual_system),
         "classNames": class_names,
-        "cardCount": count_card_classes(class_names),
-        "gridCount": count_grid_classes(class_names, slide_source),
         "hasTable": has_tag(slide_source, "table"),
         "hasList": has_tag(slide_source, "ul") or has_tag(slide_source, "ol"),
-        "hasDesignPrimitive": has_design_primitive(class_names),
+        "tableTextRatio": tag_text_ratio(slide_source, r"<table\b.*?</table>"),
+        "listTextRatio": tag_text_ratio(slide_source, r"<[ou]l\b.*?</[ou]l>"),
     }
+
+
+def tag_text_ratio(slide_source: str, tag_pattern: str) -> float:
+    body_source = re.sub(r"<h[1-3]\b[^>]*>.*?</h[1-3]>", " ", slide_source, flags=re.DOTALL | re.IGNORECASE)
+    body_characters = len(visible_slide_text(body_source).replace("\n", ""))
+    if body_characters == 0:
+        return 0.0
+    tagged_characters = sum(
+        len(visible_slide_text(match).replace("\n", ""))
+        for match in re.findall(tag_pattern, body_source, flags=re.DOTALL | re.IGNORECASE)
+    )
+    return round(min(1.0, tagged_characters / body_characters), 3)
 
 
 def extract_class_names(slide_source: str) -> list[str]:
@@ -424,25 +363,14 @@ def normalize_structure_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().casefold()
 
 
-def count_card_classes(class_names: list[str]) -> int:
-    return sum(1 for name in class_names if "card" in name or "tile" in name)
-
-
-def count_grid_classes(class_names: list[str], slide_source: str) -> int:
-    class_count = sum(1 for name in class_names if "grid" in name or "dashboard" in name or "cards" in name)
-    style_count = len(re.findall(r"display\s*:\s*grid", slide_source, flags=re.IGNORECASE))
-    return class_count + style_count
-
-
 def has_tag(slide_source: str, tag_name: str) -> bool:
     return re.search(rf"<{tag_name}\b", slide_source, flags=re.IGNORECASE) is not None
 
 
-def has_design_primitive(class_names: list[str]) -> bool:
-    return any(any(token in name for token in DESIGN_PRIMITIVE_TOKENS) for name in class_names)
-
-
-def review_slide(path: pathlib.Path, design: dict[str, str], index: int, slide_text: dict[str, object]) -> dict[str, object]:
+def review_slide(path: typing.Optional[pathlib.Path], design: dict[str, str], index: int, slide_text: dict[str, object]) -> dict[str, object]:
+    structure = slide_text["structure"]
+    if path is None:
+        return review_slide_without_image(index, slide_text, structure)
     image = read_png(path)
     background = corner_background_color(image)
     content_bounds = find_content_bounds(image, background)
@@ -450,11 +378,11 @@ def review_slide(path: pathlib.Path, design: dict[str, str], index: int, slide_t
     margin = margin_pixels(image, design)
     checks = slide_checks(content_bounds, image, margin, density)
     risks = slide_risks(content_bounds, image, margin, slide_text)
-    structure = slide_text["structure"]
     warnings = slide_warnings(checks, margin, density, risks, structure)
     return {
         "index": index,
         "filename": path.name,
+        "hasRenderEvidence": True,
         "width": image["width"],
         "height": image["height"],
         "contentBounds": content_bounds or {},
@@ -466,6 +394,34 @@ def review_slide(path: pathlib.Path, design: dict[str, str], index: int, slide_t
         "marginPixel": margin,
         "passed": all(checks.values()),
         "checks": checks,
+        "risks": risks,
+        "warnings": warnings,
+        "needsDesignRevision": False,
+        "structure": structure,
+    }
+
+
+def review_slide_without_image(index: int, slide_text: dict[str, object], structure: dict[str, object]) -> dict[str, object]:
+    risks = {"textOverflowRisk": text_overflow_risk(slide_text), "frameFitRisk": False}
+    warnings = []
+    if risks["textOverflowRisk"]:
+        warnings.append("textOverflowRisk: extracted slide text is long enough to require contact sheet verification")
+    warnings.extend(slide_design_warnings(structure))
+    return {
+        "index": index,
+        "filename": "",
+        "hasRenderEvidence": False,
+        "width": 0,
+        "height": 0,
+        "contentBounds": {},
+        "contentDensity": 0.0,
+        "expectedVisibleText": slide_text["expectedVisibleText"],
+        "textCharacterCount": slide_text["textCharacterCount"],
+        "textLineCount": slide_text["textLineCount"],
+        "textPreview": slide_text["textPreview"],
+        "marginPixel": 0,
+        "passed": False,
+        "checks": {},
         "risks": risks,
         "warnings": warnings,
         "needsDesignRevision": False,
@@ -748,26 +704,46 @@ def slide_design_warnings(structure: dict[str, object]) -> list[str]:
     if not structure["hasSlideRole"]:
         warnings.append("missingSlideRoleWarning: slide lacks data-slide-role, so its job is not explicit")
     if has_generic_topic_title(structure):
-        warnings.append("topicTitleWarning: title is a topic label; use a claim-style title with a conclusion")
-    if structure["hasTable"] and not structure["hasDesignPrimitive"]:
-        warnings.append("rawTableWarning: table-only slide may need a matrix, variance band, or decision panel")
-    if structure["hasList"] and not structure["hasDesignPrimitive"] and int(structure["cardCount"]) == 0:
-        warnings.append("bareListWarning: list-only slide may need cards, columns, a rail, or an evidence wall")
-    if int(structure["cardCount"]) >= 4 and int(structure["gridCount"]) > 0 and not structure["hasDesignPrimitive"]:
-        warnings.append("genericCardGridWarning: repeated cards without a stronger visual system can look templated")
+        warnings.append("topicTitleWarning: title reads as a topic label rather than a claim with a conclusion")
+    if slide_is_table_dominated(structure):
+        warnings.append("rawTableWarning: a raw table is the slide's primary composition")
+    if slide_is_list_dominated(structure):
+        warnings.append("bareListWarning: a bare list is the slide's primary composition")
     return warnings
 
 
+def slide_is_table_dominated(structure: dict[str, object]) -> bool:
+    return bool(structure["hasTable"]) and float(structure["tableTextRatio"]) >= STRUCTURE_DOMINANCE_RATIO
+
+
+def slide_is_list_dominated(structure: dict[str, object]) -> bool:
+    return bool(structure["hasList"]) and float(structure["listTextRatio"]) >= STRUCTURE_DOMINANCE_RATIO
+
+
 def has_generic_topic_title(structure: dict[str, object]) -> bool:
-    normalized_title = str(structure["normalizedTitle"])
-    if normalized_title in GENERIC_TOPIC_TITLES:
-        return True
-    return len(normalized_title) <= 12 and any(normalized_title == title.casefold() for title in GENERIC_TOPIC_TITLES)
+    if str(structure["slideRole"]) in LABEL_ONLY_SLIDE_ROLES:
+        return False
+    return title_reads_as_topic_label(str(structure["title"]))
+
+
+def title_reads_as_topic_label(title: str) -> bool:
+    stripped = strip_parenthetical(title).strip()
+    if not stripped:
+        return False
+    if stripped[-1] in ".!?…":
+        return False
+    if stripped.rstrip("\"'」』 ").endswith(KOREAN_SENTENCE_ENDINGS):
+        return False
+    return len(stripped.split()) < CLAIM_TITLE_WORD_MINIMUM
+
+
+def strip_parenthetical(title: str) -> str:
+    return re.sub(r"\s*[(（][^)）]*[)）]\s*", " ", title).strip()
 
 
 def apply_deck_design_warnings(slides: list[dict[str, object]], source_context: dict[str, object], render_source: str) -> None:
-    repeated_card_grid_count = sum(1 for slide in slides if slide_has_generic_card_grid(slide))
-    table_or_list_count = sum(1 for slide in slides if slide_has_raw_table_or_list(slide))
+    table_or_list_count = sum(1 for slide in slides if slide_has_dominant_raw_structure(slide))
+    repeated_composition_count = repeated_composition_slide_count(slides)
     if not source_has_visual_identity(source_context):
         append_deck_warning(slides, "weakVisualIdentityWarning: deck lacks a named visual system, Style Prompt, or Visual Identity Gate")
     if int(source_context["missingSlideRoleCount"]) > 0:
@@ -775,19 +751,76 @@ def apply_deck_design_warnings(slides: list[dict[str, object]], source_context: 
     if render_source != "browser":
         append_deck_warning(slides, "unreliableVisualEvidenceWarning: review images did not come from browser rendering")
     if source_context["hasSideStripePattern"]:
-        append_deck_warning(slides, "sideStripeWarning: colored side stripes are doing visual-identity work")
+        append_deck_warning(slides, "sideStripeWarning: thick left or right border accents are doing the visual-identity work")
     if source_context["hasGhostCardPattern"]:
-        append_deck_warning(slides, "ghostCardWarning: bordered cards with soft shadows create a generic AI deck surface")
+        append_deck_warning(slides, "ghostCardWarning: thin-bordered boxes with soft shadows read as a default template surface")
     if source_context["hasTinyTextPattern"]:
         append_deck_warning(slides, "tinyTextWarning: multiple CSS font sizes below 16px may be unreadable in review contact sheets")
-    if source_context["hasThinPaddingPattern"]:
-        append_deck_warning(slides, "thinPaddingWarning: content containers use very small vertical padding and may look cramped")
-    if repeated_card_grid_count >= 2:
-        append_deck_warning(slides, "repeatedCardGridWarning: deck repeats the same card-grid pattern across multiple slides")
-    if repeated_card_grid_count >= max(3, len(slides) - 1):
-        append_deck_warning(slides, "genericWhiteCardPatternWarning: deck appears dominated by white bordered cards")
+    if repeated_composition_count >= 3:
+        append_deck_warning(
+            slides,
+            f"repeatedCompositionWarning: {repeated_composition_count} slides share the same composition classes; vary slide composition",
+        )
     if table_or_list_count >= 2:
-        append_deck_warning(slides, "rawStructurePatternWarning: multiple slides rely on raw tables or bare lists")
+        append_deck_warning(slides, "rawStructurePatternWarning: multiple slides use a raw table or bare list as the primary composition")
+
+
+HANGUL_PATTERN = re.compile(r"[가-힣]")
+LATIN_LETTER_PATTERN = re.compile(r"[A-Za-z]")
+
+
+def apply_language_mismatch_warning(slides: list[dict[str, object]], slide_texts: list[dict[str, object]]) -> None:
+    deck_text = "\n".join(str(slide_text["expectedVisibleText"]) for slide_text in slide_texts)
+    if not deck_text_is_korean(deck_text):
+        return
+    mismatched_indexes = [
+        str(slide_text["index"])
+        for slide_text in slide_texts
+        if title_is_latin_only(str(slide_text["structure"]["title"]))
+    ]
+    if mismatched_indexes:
+        append_deck_warning(
+            slides,
+            "languageMismatchWarning: slide " + ", ".join(mismatched_indexes)
+            + " titles are Latin-only while the deck text is Korean; write slide titles in the request language",
+        )
+
+
+def deck_text_is_korean(text: str) -> bool:
+    hangul_count = len(HANGUL_PATTERN.findall(text))
+    latin_count = len(LATIN_LETTER_PATTERN.findall(text))
+    return hangul_count >= 40 and hangul_count * 3 >= latin_count
+
+
+def title_is_latin_only(title: str) -> bool:
+    return len(LATIN_LETTER_PATTERN.findall(title)) >= 4 and not HANGUL_PATTERN.search(title)
+
+
+def apply_unsourced_current_date_warning(
+    slides: list[dict[str, object]],
+    slide_texts: list[dict[str, object]],
+    required_text_ledger: str,
+) -> None:
+    today = datetime.date.today()
+    date_pattern = current_date_pattern(today)
+    if date_pattern.search(required_text_ledger):
+        return
+    dated_indexes = [
+        str(slide_text["index"])
+        for slide_text in slide_texts
+        if date_pattern.search(str(slide_text["expectedVisibleText"]))
+    ]
+    if dated_indexes:
+        append_deck_warning(
+            slides,
+            "unsourcedCurrentDateWarning: slide " + ", ".join(dated_indexes)
+            + f" shows today's date {today.isoformat()}, which is not in required-visible-text.txt; only show dates from the source material",
+        )
+
+
+def current_date_pattern(today: datetime.date) -> re.Pattern[str]:
+    separator = r"\s*[.\-/년월]\s*"
+    return re.compile(rf"(?<!\d){today.year}{separator}0?{today.month}{separator}0?{today.day}(?!\d)")
 
 
 def source_has_visual_identity(source_context: dict[str, object]) -> bool:
@@ -798,14 +831,22 @@ def source_has_visual_identity(source_context: dict[str, object]) -> bool:
     )
 
 
-def slide_has_generic_card_grid(slide: dict[str, object]) -> bool:
+def slide_has_dominant_raw_structure(slide: dict[str, object]) -> bool:
     structure = slide["structure"]
-    return int(structure["cardCount"]) >= 3 and int(structure["gridCount"]) > 0 and not bool(structure["hasDesignPrimitive"])
+    return slide_is_table_dominated(structure) or slide_is_list_dominated(structure)
 
 
-def slide_has_raw_table_or_list(slide: dict[str, object]) -> bool:
-    structure = slide["structure"]
-    return (bool(structure["hasTable"]) or bool(structure["hasList"])) and not bool(structure["hasDesignPrimitive"])
+def repeated_composition_slide_count(slides: list[dict[str, object]]) -> int:
+    if len(slides) < 3:
+        return 0
+    signatures = [frozenset(slide["structure"]["classNames"]) for slide in slides]
+    universal_classes = frozenset.intersection(*signatures)
+    distinctive_signatures = [signature - universal_classes for signature in signatures]
+    counts: dict[frozenset, int] = {}
+    for signature in distinctive_signatures:
+        if signature:
+            counts[signature] = counts.get(signature, 0) + 1
+    return max(counts.values(), default=0)
 
 
 def append_deck_warning(slides: list[dict[str, object]], warning: str) -> None:
@@ -1080,11 +1121,13 @@ def write_markdown(path: pathlib.Path, report: dict[str, object]) -> None:
         "",
         f"- Passed: {report['passed']}",
         f"- Quality gate passed: {report['qualityGatePassed']}",
+        f"- Static gate passed: {report['staticGatePassed']}",
         f"- Visual quality score: {report['visualQualityScore']} / 100 (minimum {report['visualQualityScoreMinimum']})",
         f"- Visual evidence reliable: {report['visualEvidenceReliable']}",
         f"- Render source: {report['renderSource']}",
         f"- Needs design revision: {report['needsDesignRevision']}",
         f"- Slide count: {report['slideCount']}",
+        f"- Rendered slide count: {report['renderedSlideCount']}",
         f"- Contact sheets: {', '.join(sheet['filename'] for sheet in report['contactSheets'])}",
         f"- Fit reviews: {', '.join(review['filename'] for review in report['fitReviews'])}",
         "",
@@ -1108,12 +1151,15 @@ def write_markdown(path: pathlib.Path, report: dict[str, object]) -> None:
             lines.append(f"- {warning}")
         lines.append("")
     for slide in report["slides"]:
-        status = "PASS" if slide["passed"] else "WARN"
+        status = "PASS" if slide["passed"] else ("WARN" if slide["hasRenderEvidence"] else "NO-RENDER")
         warning_text = "; ".join(slide["warnings"]) if slide["warnings"] else "none"
         lines.append(f"## Slide {slide['index']}: {status}")
         lines.append("")
-        lines.append(f"- File: {slide['filename']}")
-        lines.append(f"- Content density: {slide['contentDensity']:.1%}")
+        if slide["hasRenderEvidence"]:
+            lines.append(f"- File: {slide['filename']}")
+            lines.append(f"- Content density: {slide['contentDensity']:.1%}")
+        else:
+            lines.append("- File: (no render image; static source review only)")
         lines.append(f"- Text length: {slide['textCharacterCount']} chars, {slide['textLineCount']} lines")
         lines.append(f"- Warnings: {warning_text}")
         lines.append(f"- Needs design revision: {slide['needsDesignRevision']}")

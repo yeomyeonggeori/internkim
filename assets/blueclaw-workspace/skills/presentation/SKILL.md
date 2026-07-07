@@ -18,8 +18,8 @@ Create a useful, visually strong deck and attach the requested files. This is an
 3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
 4. If budget allows, add compact helper files after `slides.html`: `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. These improve review but must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
-6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
-7. If `qualityGatePassed=false`, `needsDesignRevision`, rendered image evidence, or review notes show useful improvements, revise `slides.html` and rebuild. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
+6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
+7. If `staticGatePassed=false` or `needsDesignRevision=true`, revise `slides.html` to resolve the listed warnings and rebuild before delivery. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
 8. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
@@ -58,7 +58,7 @@ Reject shallow content: a welcome slide plus generic cards, repeated overview/fe
 
 Each slide needs a job: what the audience should learn, decide, or remember; what claim the title makes; what proof supports it; and what visual structure makes it easier to scan.
 
-Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean.
+Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean. Show only dates that come from the source material; do not stamp today's date on the cover or footer.
 
 Pick one deck archetype: pitch, research report, executive briefing, education, portfolio, product proposal, or status report. Use that choice to decide information density, section sequence, fake data style, and ending.
 
@@ -105,13 +105,13 @@ Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, -apple-system
 
 The default build, `FORMATS=review`, PDF builds, and PPTX builds create PNGs, `slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and `fit-review-XX.md` when browser rendering or native preview rendering is available. Check each contact sheet with its matching fit review. Every expected visible text item must appear fully inside the slide frame. Missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision is revision input. If `visualEvidenceReliable=false`, the review came from fallback images rather than the browser and cannot prove visual quality.
 
-Review substance and surface: answer to the request, story flow, claim titles, credible examples, visual balance, readability, and fit. A clean export is not acceptance. `qualityGatePassed=true` means the browser render is available, fit checks pass, and the deterministic visual score clears the threshold.
+Review substance and surface: answer to the request, story flow, claim titles, credible examples, visual balance, readability, and fit. A clean export is not acceptance. The static source review always runs, even when browser rendering is unavailable, so `staticGatePassed` and the design warnings stay authoritative without render images. `qualityGatePassed=true` additionally requires browser render evidence and passing fit checks.
 
-If `slide-review.json` says `qualityGatePassed=false`, `needsDesignRevision: true`, or if warnings mention weak visual identity, unreliable visual evidence, side stripes, ghost cards, generic card grids, raw tables, bare lists, or topic titles, make at least one design pass before delivery unless the user only asked for a mechanical export. Change the composition, not just the colors: convert a repeated card grid into a rail, matrix, evidence wall, variance scoreboard, risk room, or approval panel.
+If `slide-review.json` says `staticGatePassed=false` or `needsDesignRevision: true`, resolve the listed warnings and rebuild before delivery unless the user only asked for a mechanical export. Change the composition, not just the colors.
 
 Before delivery, compare the deck against the user's source facts. Check that required company names, period wording, metric values, dates, owners, targets, missed targets, and explicit missing-value labels are present. If the source says a value is unavailable, include `제공된 자료 없음` in the relevant table or note rather than omitting the field.
 
-Remaining visual review notes are not a delivery blocker after the required review and revision loop. If requested PPTX/PDF/HTML exists and is usable after the improvement budget, attach it and mention top remaining notes briefly. Do not spend delivery budget creating or attaching internal review-decision files unless the user asks.
+Remaining visual review notes are not a delivery blocker after the required review and revision loop. If requested PPTX/PDF/HTML exists and is usable after the improvement budget, attach it and mention top remaining notes briefly, including when `visualEvidenceReliable=false` meant visual fit could not be verified. Do not spend delivery budget creating or attaching internal review-decision files unless the user asks.
 
 ## Revisions and Formats
 
