@@ -113,6 +113,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityLanguageModel["model"] != BlueclawDefaultModelName {
 		t.Fatalf("expected default runtime model %q, got %+v", BlueclawDefaultModelName, capabilityLanguageModel)
 	}
+	if capabilityLanguageModel["highModel"] != BlueclawHighModelName {
+		t.Fatalf("expected default high model %q, got %+v", BlueclawHighModelName, capabilityLanguageModel)
+	}
 	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
 		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, capabilityLanguageModel)
 	}
@@ -158,6 +161,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 	if agent["defaultEffortLevel"] != "standard" {
 		t.Fatalf("expected default effort level, got %v", agent["defaultEffortLevel"])
+	}
+	if agent["skillEffortFloor"] != "deep" {
+		t.Fatalf("expected deep skill effort floor, got %v", agent["skillEffortFloor"])
 	}
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])

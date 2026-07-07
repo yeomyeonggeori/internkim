@@ -153,6 +153,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         languageModelExecutionMode,
 		"model":                 BlueclawDefaultModelName,
+		"highModel":             BlueclawHighModelName,
 		"contextWindowTokens":   BlueclawDefaultModelContextTokens,
 		"requireParameters":     true,
 		"enableResponseHealing": true,
@@ -165,6 +166,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				capabilityLanguageModel[tierModelField] = modelName
 			}
 			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
+		} else {
+			delete(capabilityLanguageModel, "highModel")
 		}
 	}
 
@@ -208,6 +211,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"executionMode": "auto",
 		},
 		"defaultEffortLevel": "standard",
+		"skillEffortFloor":   "deep",
 		"toolResultMaxBytes": 32768,
 		"failureRecovery": map[string]any{
 			"failureDebtFinalizationGate": true,
