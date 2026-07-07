@@ -20,6 +20,7 @@ export type CalendarEventActionsContext = {
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	getCalendarEvents: () => DayFlowEvent[];
 	addCalendarEvent: (event: DayFlowEvent) => void;
+	restoreCalendarEvent: (event: DayFlowEvent) => void;
 	removeCalendarEvent: (eventID: string) => void;
 	updateCalendarEvent: (eventID: string, changes: Partial<DayFlowEvent>, shouldRender: boolean) => Promise<void>;
 	setEventCount: (eventCount: number) => void;
@@ -33,6 +34,8 @@ export type CalendarEventActionsContext = {
 	refreshCalendar: () => Promise<void>;
 	text: {
 		deleteError: string;
+		deleteUndoAction: string;
+		deleteUndoMessage: string;
 		draftTitlePlaceholder: string;
 		saveError: string;
 		shared: string;
@@ -53,6 +56,8 @@ export type CalendarEventActions = {
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
+	flushPendingDelete: () => Promise<void>;
+	flushPendingDeleteOnPageHide: () => void;
 	scheduleDraftTitleInputPlaceholderUpdates: () => void;
 	scheduleDraftEventVisibilitySync: () => void;
 };
@@ -168,6 +173,8 @@ export function createCalendarEventActions(
 		saveCreatedEvent: persistenceActions.saveCreatedEvent,
 		saveUpdatedEvent: persistenceActions.saveUpdatedEvent,
 		deleteEvent: persistenceActions.deleteEvent,
+		flushPendingDelete: persistenceActions.flushPendingDelete,
+		flushPendingDeleteOnPageHide: persistenceActions.flushPendingDeleteOnPageHide,
 		scheduleDraftTitleInputPlaceholderUpdates: draftEventDOM.scheduleDraftTitleInputPlaceholderUpdates,
 		scheduleDraftEventVisibilitySync: draftEventDOM.scheduleDraftEventVisibilitySync
 	};
