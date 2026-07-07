@@ -17,10 +17,10 @@ Create a useful, visually strong deck and attach the requested files. This is an
 2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
 3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
 4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks DESIGN.md substance and ledger coverage, but they must not delay the primary source file.
-5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
+5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`. HTML is the source of truth for every format: iterate with the default command, which builds and reviews the HTML each time.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
 7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Keep revising while the score improves; stop when the gate passes, the score stalls across two rebuilds, or a budget status observation says consolidate or finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
-8. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
+8. After the loop ends, convert once for PDF/PPTX requests, then deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
 
@@ -31,7 +31,7 @@ Use this build command shape:
 }
 ```
 
-For PPTX requests, use:
+For PPTX requests, convert with one final build after the review loop:
 
 ```json
 {
@@ -40,7 +40,7 @@ For PPTX requests, use:
 }
 ```
 
-For PDF requests use `FORMATS=pdf`, and for all outputs `FORMATS=all`, with the same build command. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence.
+For PDF requests convert with `FORMATS=pdf`, and for all outputs `FORMATS=all`, in that final build only; every conversion reads the same `slides.html`. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence.
 
 Do not call `terminal.run` with an `arguments` array alone.
 
@@ -56,13 +56,13 @@ The deck must be useful before it is beautiful. A good deck gives the audience a
 
 Build the story spine before authoring: situation, tension, thesis, proof, and close.
 
-Reject shallow content: a welcome slide plus generic cards, repeated overview/features/benefits labels, claims without examples, vague business adjectives, empty mock data, or slides that only restate the prompt are not enough. When source material is thin, create realistic but clearly labeled assumptions or example data. Prefer concrete evidence, a worked example, scenario numbers, workflow states, or a recommendation.
+Reject shallow content: generic cards, claims without examples, or slides that only restate the prompt are not enough. When source material is thin, create realistic but clearly labeled assumptions or example data. Prefer concrete evidence, a worked example, scenario numbers, workflow states, or a recommendation.
 
 Each slide needs a job: what the audience should learn, decide, or remember; what claim the title makes; what proof supports it; and what visual structure makes it easier to scan.
 
 Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean. Show only dates from the source material; never stamp today's date.
 
-Pick one deck archetype: pitch, research report, executive briefing, education, portfolio, product proposal, or status report. Use that choice to decide information density, section sequence, fake data style, and ending.
+Pick one deck archetype, such as pitch, executive briefing, or status report, and use it to decide information density, section sequence, and ending.
 
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask.
 
