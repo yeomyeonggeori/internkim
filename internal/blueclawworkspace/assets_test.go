@@ -545,7 +545,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"HTML is the default deliverable",
 		"PPTX is image-backed by default",
 		"PRESENTATION_PPTX_MODE=native",
-		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus internal review evidence",
+		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
 		"FORMATS=pptx",
 		`"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`,
 		"`file.write` tool directly",
