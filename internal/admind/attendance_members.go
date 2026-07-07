@@ -16,7 +16,7 @@ func (service *Service) attendanceMembersForSummary(request *http.Request, actor
 			DisplayName: strings.TrimSuffix(normalizedActorEmail, "@"+emailDomain(normalizedActorEmail)),
 		}}
 	}
-	records, found := service.attendanceUserRecordsForMembers(request, actorEmail)
+	records, found := service.attendanceUserRecordsForMembers(request)
 	if !found {
 		return []attendanceMember{}
 	}
@@ -24,19 +24,21 @@ func (service *Service) attendanceMembersForSummary(request *http.Request, actor
 	return members
 }
 
-func (service *Service) attendanceUserRecordsForMembers(request *http.Request, actorEmail string) ([]adminUserMutation, bool) {
+func (service *Service) attendanceUserRecordsForMembers(request *http.Request) ([]adminUserMutation, bool) {
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
+	if fleetID != "" && fleetSecret != "" {
+		records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
+		if errorValue != nil {
+			return nil, false
+		}
+		return records, true
+	}
+	response, errorValue := service.buildLocalUsersResponse(request.Context())
+	if errorValue != nil {
 		return nil, false
 	}
-	var records []adminUserMutation
-	if fetched, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil {
-		records = fetched
-	} else {
-		return nil, false
-	}
-	return withActorUserRecord(records, actorEmail), true
+	return response.Records, true
 }
 
 func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attendanceMember {

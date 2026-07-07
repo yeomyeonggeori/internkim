@@ -131,6 +131,9 @@ func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account
 		return errorValue
 	}
 	service.markCalendarPushUIDsObserved(remoteUIDs)
+	if target.NeedsInitialSyncCompletion {
+		return nil
+	}
 	return service.softDeleteMissingRemoteEvents(ctx, account.ID, target, activeEvents, remoteUIDs, mergeCalendarProtectedUIDs(protectedUIDs, pendingLocalChanges))
 }
 

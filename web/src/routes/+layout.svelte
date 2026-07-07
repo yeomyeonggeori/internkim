@@ -6,6 +6,7 @@
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { currentLocale, initializeLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
@@ -25,13 +26,14 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/admin/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
 
 	function currentApp(pathname: string) {
 		if (pathname.startsWith('/admin')) return text.admin;
+		if (pathname.startsWith('/poc-admin')) return text.pocAdmin;
 		if (pathname.startsWith('/tasks')) return text.tasks;
 		if (pathname.startsWith('/memory')) return text.memory;
 		if (pathname.startsWith('/calendar')) return text.calendar;
@@ -43,7 +45,7 @@
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/poc-admin/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
@@ -58,6 +60,7 @@
 </svelte:head>
 
 <ModeWatcher />
+<Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>

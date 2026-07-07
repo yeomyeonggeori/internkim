@@ -72,6 +72,8 @@ export type CalendarLocaleText = {
 	error: string;
 	saveError: string;
 	deleteError: string;
+	deleteUndoMessage: string;
+	deleteUndoAction: string;
 	allDay: string;
 	today: string;
 	previous: string;
@@ -248,6 +250,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: '일정을 불러오지 못했습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
+		deleteUndoMessage: '일정을 삭제했습니다.',
+		deleteUndoAction: '실행 취소',
 		allDay: '종일',
 		today: '오늘',
 		previous: '이전',
@@ -390,6 +394,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: 'Could not load the calendar.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
+		deleteUndoMessage: 'Event deleted.',
+		deleteUndoAction: 'Undo',
 		allDay: 'All day',
 		today: 'Today',
 		previous: 'Previous',

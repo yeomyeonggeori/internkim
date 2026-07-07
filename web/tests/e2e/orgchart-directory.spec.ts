@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import type { UsersResponse } from './admin-orgchart-fixtures';
+
+const mobilePanelInset = 12;
+const mobilePanelBottomTolerance = 8;
 
 const usersResponse: UsersResponse = {
 	availableGroups: [
@@ -116,8 +120,7 @@ test.describe('employee orgchart directory', () => {
 		await expect(page.getByTestId('orgchart-canvas').getByText(/^구성원 1명$/)).toHaveCount(0);
 
 		await page.getByTestId('orgchart-person-node-user-dabin').click();
-		await expect(page.getByTestId('orgchart-person-detail-panel')).toContainText('dabin@example.com');
-		await expect(page.getByTestId('orgchart-person-detail-panel')).toContainText('프론트엔드 개발자');
+		await expectPersonDetailPanelContent(page.getByTestId('orgchart-person-detail-panel'));
 		await expect(page.getByTestId('orgchart-person-detail-panel').getByText('계정 권한 관리는 관리자 탭에서 관리해 주세요.')).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-person-detail-panel').getByRole('link', { name: '인사 정보 수정' })).toHaveCount(0);
 		await page.getByRole('button', { name: '상세 닫기' }).click();
@@ -140,9 +143,57 @@ test.describe('employee orgchart directory', () => {
 		await expect(page.getByTestId('orgchart-people-list')).toBeVisible();
 		await expect(page.getByTestId('orgchart-list-row-user-dabin')).toBeVisible();
 	});
+
+	test('renders the person detail panel as a bounded mobile bottom panel', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await mockOrgchartDirectory(page);
+
+		await page.goto('/orgchart/');
+		await page.getByTestId('orgchart-person-node-user-dabin').click();
+
+		const detailPanel = page.getByTestId('orgchart-person-detail-panel');
+		await expectPersonDetailPanelContent(detailPanel);
+		await expectMobileDetailPanelLayout(page);
+	});
 });
 
-async function expectOrgchartTeamGridToFillCanvas(page: import('@playwright/test').Page): Promise<void> {
+async function expectPersonDetailPanelContent(detailPanel: Locator): Promise<void> {
+	await expect(detailPanel).toBeVisible();
+	await expect(detailPanel).toContainText('직원 상세');
+	await expect(detailPanel).toContainText('김다빈');
+	await expect(detailPanel).toContainText('프론트엔드 개발자');
+	await expect(detailPanel).toContainText('dabin@example.com');
+	await expect(detailPanel).toContainText('제품팀');
+	await expect(detailPanel).toContainText('2026-03-11');
+	await expect(detailPanel.locator('[aria-hidden="true"] svg').first()).toBeVisible();
+}
+
+async function expectMobileDetailPanelLayout(page: Page): Promise<void> {
+	const layout = await page.getByTestId('orgchart-person-detail-panel').evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+
+		return {
+			top: rect.top,
+			left: rect.left,
+			right: rect.right,
+			bottom: rect.bottom,
+			width: rect.width,
+			height: rect.height,
+			viewportWidth: window.innerWidth,
+			viewportHeight: window.innerHeight
+		};
+	});
+
+	expect(layout.left).toBeGreaterThanOrEqual(mobilePanelInset);
+	expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth - mobilePanelInset);
+	expect(layout.top).toBeGreaterThanOrEqual(mobilePanelInset);
+	expect(layout.bottom).toBeGreaterThanOrEqual(layout.viewportHeight - mobilePanelInset - mobilePanelBottomTolerance);
+	expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight - mobilePanelBottomTolerance);
+	expect(layout.width).toBeLessThanOrEqual(layout.viewportWidth - mobilePanelInset * 2);
+	expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight - mobilePanelInset * 2);
+}
+
+async function expectOrgchartTeamGridToFillCanvas(page: Page): Promise<void> {
 	const [teamGridBox, connectorBox, canvasBox] = await Promise.all([
 		page.getByTestId('orgchart-team-grid').boundingBox(),
 		page.getByTestId('orgchart-connector-layer').boundingBox(),
@@ -156,7 +207,7 @@ async function expectOrgchartTeamGridToFillCanvas(page: import('@playwright/test
 	expect(Math.abs((teamGridBox?.x ?? 0) - (connectorBox?.x ?? 0))).toBeLessThanOrEqual(1);
 }
 
-async function mockOrgchartDirectory(page: import('@playwright/test').Page): Promise<void> {
+async function mockOrgchartDirectory(page: Page): Promise<void> {
 	await page.route('**/admin/api/locale', async (route) => {
 		await route.fulfill({ json: { locale: 'ko' } });
 	});

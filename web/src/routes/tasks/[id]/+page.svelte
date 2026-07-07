@@ -58,6 +58,7 @@
 	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
 	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
+	const taskListPath = $derived(page.url.pathname.startsWith('/poc-admin') ? '/poc-admin' : '/tasks');
 
 	async function load() {
 		loadError = '';
@@ -156,7 +157,7 @@
 
 <main class="flex min-h-[calc(100svh-48px)] w-full self-start flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<Button href="/tasks" variant="ghost" size="sm">
+		<Button href={taskListPath} variant="ghost" size="sm">
 			<ArrowLeftIcon data-icon="inline-start" />
 			{text.backToList}
 		</Button>
