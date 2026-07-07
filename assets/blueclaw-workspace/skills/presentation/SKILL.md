@@ -88,6 +88,7 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none` — so the body pushes the footer onto the identical baseline on every slide. Never absolutely position the footer or let it ride up under short content. A large empty band above the footer reads as unfinished.
 - Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
+- Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
 
 Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
 
@@ -123,4 +124,4 @@ If the user does not name a format, build with the default command, run the revi
 
 To check an existing `.pptx` file for empty slides, missing titles, excessive shape count, or leftover default fonts, run `python3 /workspace/skills/presentation/scripts/skill_runtime.py python /workspace/skills/presentation/scripts/validate_pptx.py <path-to-file>.pptx`.
 
-This validator reports structurally, not visually; it does not judge design quality. `skill_runtime.py` bootstraps `python-pptx` from `scripts/requirements.txt` on first use.
+`skill_runtime.py` bootstraps `python-pptx` from `scripts/requirements.txt` on first use.
