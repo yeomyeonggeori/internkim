@@ -6,6 +6,7 @@
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { currentLocale, initializeLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
@@ -58,6 +59,7 @@
 </svelte:head>
 
 <ModeWatcher />
+<Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
