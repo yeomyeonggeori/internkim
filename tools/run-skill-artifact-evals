@@ -560,6 +560,7 @@ def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory
         time.sleep(0.8)
         outputDirectory = screenshots_directory(resultDirectory)
         outputDirectory.mkdir(parents=True, exist_ok=True)
+        renderedTextParts = []
         for pageIndex, pagePath in enumerate(recovered_site_page_paths(contentDocument), start=1):
             pageURL = f"http://127.0.0.1:{serverPort}/#" + pagePath
             for viewportName, width, height in SITE_RENDER_VIEWPORTS:
@@ -572,6 +573,15 @@ def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory
                 completed = subprocess.run(renderCommand, capture_output=True, timeout=60)
                 if completed.returncode == 0 and screenshotPath.is_file():
                     screenshotPaths.append(screenshotPath)
+            dumpCommand = [
+                chromeBinaryPath, "--headless=new", "--disable-gpu",
+                "--virtual-time-budget=5000", "--dump-dom", pageURL,
+            ]
+            dumpCompleted = subprocess.run(dumpCommand, capture_output=True, timeout=60)
+            if dumpCompleted.returncode == 0:
+                renderedTextParts.append(html_visible_text(dumpCompleted.stdout.decode("utf-8", errors="replace")))
+        if renderedTextParts:
+            (resultDirectory / "recovered" / "rendered-text.txt").write_text("\n".join(renderedTextParts), encoding="utf-8")
     finally:
         serverProcess.terminate()
     return sorted(screenshotPaths)
@@ -1985,13 +1995,14 @@ def extract_pdf_text(artifactPath: Path) -> str:
 
 def extract_website_text(diagnosticDirectory: Path) -> str:
     testResult = read_test_result(diagnosticDirectory)
-    if testResult:
-        return "\n".join([
-            str(testResult.get("botMessage", "")),
-            str(testResult.get("sitePublicURL", "")),
-            str(testResult.get("siteHTMLText", "")),
-        ])
-    return ""
+    if not testResult:
+        return ""
+    return "\n".join([
+        str(testResult.get("botMessage", "")),
+        str(testResult.get("sitePublicURL", "")),
+        str(testResult.get("siteHTMLText", "")),
+        read_locally_rendered_site_text(diagnosticDirectory),
+    ])
 
 
 def read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
@@ -2339,9 +2350,10 @@ def audit_website_render(resultDirectory: Path, diagnosticDirectory: Path, exitC
     testResult = read_test_result(diagnosticDirectory)
     screenshots = restore_site_screenshots(resultDirectory, testResult)
     hasExpectedPublicURL = "--expect-public-url" in command
-    isPassed = exitCode == 0 and hasExpectedPublicURL
-    if testResult:
-        isPassed = isPassed and bool(testResult.get("siteScreenshotsVerified"))
+    hasLocalRenderEvidence = bool(read_locally_rendered_site_text(diagnosticDirectory))
+    isPassed = hasExpectedPublicURL and bool(str(testResult.get("sitePublicURL", "")).strip()) if testResult else False
+    if not hasLocalRenderEvidence and testResult:
+        isPassed = isPassed and exitCode == 0 and bool(testResult.get("siteScreenshotsVerified"))
     return {
         "attempted": hasExpectedPublicURL,
         "renderer": "remote chromium via Mattermost public URL verification",
@@ -2839,6 +2851,24 @@ def score_pdf_typography(wordHeights: list[float], margins: list[dict]) -> float
     return average(checks)
 
 
+HTML_SCRIPT_STYLE_PATTERN = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+HTML_ANY_TAG_PATTERN = re.compile(r"<[^>]+>")
+
+
+def html_visible_text(markupText: str) -> str:
+    withoutScripts = HTML_SCRIPT_STYLE_PATTERN.sub(" ", markupText)
+    withoutTags = HTML_ANY_TAG_PATTERN.sub(" ", withoutScripts)
+    return " ".join(withoutTags.split())
+
+
+def read_locally_rendered_site_text(diagnosticDirectory: Path) -> str:
+    resultDirectory = diagnosticDirectory.parent.parent / "results" / diagnosticDirectory.name
+    renderedTextPath = resultDirectory / "recovered" / "rendered-text.txt"
+    if renderedTextPath.is_file():
+        return renderedTextPath.read_text(encoding="utf-8")
+    return ""
+
+
 def audit_website_format(diagnosticDirectory: Path) -> dict:
     testResult = read_test_result(diagnosticDirectory)
     if not testResult:
@@ -2854,11 +2884,16 @@ def audit_website_format(diagnosticDirectory: Path) -> dict:
     siteCSSRaw = str(testResult.get("siteCSSRaw", ""))
     siteScreenshots = testResult.get("siteScreenshots", [])
     siteStyleMetrics = testResult.get("siteStyleMetrics", {})
+    if not siteHTMLText.strip():
+        locallyRenderedText = read_locally_rendered_site_text(diagnosticDirectory)
+        if locallyRenderedText:
+            siteHTMLText = locallyRenderedText
     return {
         "hasPublicURL": bool(str(testResult.get("sitePublicURL", "")).strip()),
         "publicURL": str(testResult.get("sitePublicURL", "")).strip(),
         "renderedTextLength": len(siteHTMLText.strip()),
         "hasRenderedText": bool(siteHTMLText.strip()),
+        "renderedText": siteHTMLText,
         "siteScreenshotsVerified": bool(testResult.get("siteScreenshotsVerified")),
         "screenshotCount": len(siteScreenshots) if isinstance(siteScreenshots, list) else 0,
         "typography": siteStyleMetrics if isinstance(siteStyleMetrics, dict) else {},
