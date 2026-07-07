@@ -19,7 +19,7 @@ Create a useful, visually strong deck and attach the requested files. This is an
 4. If budget allows, add compact helper files after `slides.html`: `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. These improve review but must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"` using the command string for the requested format.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
-7. If `staticGatePassed=false` or `needsDesignRevision=true`, revise `slides.html` to resolve the listed warnings and rebuild before delivery. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
+7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` to resolve the listed warnings and rebuild before delivery. Repeat at most three times. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
 8. Deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
 
 Use this build command shape:
