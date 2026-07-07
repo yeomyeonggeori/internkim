@@ -1,10 +1,12 @@
 ---
 name: pdf
 description:
-  "Generate PDF documents using fpdf2 (Python). Use when creating PDFs, generating documents,
-  reports, invoices, forms, or when user mentions PDF generation or document creation. Also use
-  pypdf for reading or editing existing PDF files."
-when_to_use: Use for PDF, document, report, invoice, 문서, 보고서, 견적서, 청구서, PDF generation, or PDF reading/editing requests.
+  "Generate PDF documents using fpdf2 (Python). Use when creating free-form PDFs, generating documents
+  or reports, or when user mentions PDF generation or document creation. Also use
+  pypdf for reading or editing existing PDF files. Do not use for standardized company letterhead forms
+  (견적서, 청구서, 발주서, 품의서, 증명서, quotation, invoice, purchase order, certificate) — the paperwork
+  skill owns those layouts."
+when_to_use: Use for free-form PDF, document, report, 문서, 보고서, PDF generation, or PDF reading/editing requests. For 견적서, 청구서, 발주서, 품의서, 증명서 and other standardized company forms use the paperwork skill.
 completion:
   requiredEvidenceTools:
     - file.deliver

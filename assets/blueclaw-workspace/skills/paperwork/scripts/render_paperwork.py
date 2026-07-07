@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from skill_runtime import ensure_requirements
@@ -22,14 +23,69 @@ BORDER_COLOR = (156, 163, 175)
 HEADER_FILL_COLOR = (243, 244, 246)
 
 
+ALLOWED_TOP_LEVEL_KEYS = {
+    "title", "documentNumber", "profile", "approvalLine", "recipient",
+    "meta", "items", "sections", "notes", "signature", "footer", "fontPath",
+}
+CONTENT_KEYS = {"recipient", "meta", "items", "sections", "notes", "signature"}
+SPEC_HINT = "read the document type's spec at /workspace/skills/paperwork/references/<ko|en>/<type>.md and copy its Document JSON skeleton exactly"
+
+
 def load_document(document_path):
     with open(document_path, "r", encoding="utf-8") as document_file:
         document = json.load(document_file)
     if not isinstance(document, dict):
         raise ValueError("document must be a JSON object")
-    if not str(document.get("title", "")).strip():
-        raise ValueError("document.title is required")
+    normalize_document(document)
+    validate_document(document)
     return document
+
+
+def normalize_document(document):
+    signature = document.get("signature")
+    if isinstance(signature, str) and signature.strip():
+        lines = [line.strip() for line in signature.splitlines() if line.strip()]
+        if len(lines) >= 2:
+            document["signature"] = {"date": lines[0], "line": " ".join(lines[1:])}
+        else:
+            document["signature"] = {"line": lines[0]}
+    notes = document.get("notes")
+    if isinstance(notes, str) and notes.strip():
+        document["notes"] = [notes.strip()]
+
+
+def validate_document(document):
+    problems = []
+    if not str(document.get("title", "")).strip():
+        problems.append("document.title is required")
+    unknown_keys = set(document) - ALLOWED_TOP_LEVEL_KEYS
+    if unknown_keys:
+        problems.append(f"unknown document fields {sorted(unknown_keys)}; allowed fields are {sorted(ALLOWED_TOP_LEVEL_KEYS - {'fontPath'})}")
+    if not any(key in document for key in CONTENT_KEYS):
+        problems.append(f"document has no content blocks ({sorted(CONTENT_KEYS)} all missing)")
+    items = document.get("items")
+    if items is not None and (not isinstance(items, dict) or not isinstance(items.get("headers"), list) or not isinstance(items.get("rows"), list)):
+        problems.append("items must be an object with headers[], rows[][], optional aligns[] and totals[]")
+    totals = items.get("totals") if isinstance(items, dict) else None
+    if totals is not None and (not isinstance(totals, list) or any(not isinstance(row, dict) for row in totals)):
+        problems.append('items.totals must be an ARRAY of objects like [{"label": "공급가액 합계", "value": "12,000,000원"}, {"label": "부가세(10%)", "value": "1,200,000원"}, {"label": "총 합계", "value": "13,200,000원"}]')
+    meta = document.get("meta")
+    if meta is not None and (not isinstance(meta, list) or any(not isinstance(row, dict) for row in meta)):
+        problems.append("meta must be an array of {label, value} objects")
+    sections = document.get("sections")
+    if sections is not None and (not isinstance(sections, list) or any(not isinstance(section, dict) for section in sections)):
+        problems.append("sections must be an array of {title, paragraphs, bullets} objects")
+    signature = document.get("signature")
+    if signature is not None and not isinstance(signature, dict):
+        problems.append('signature must be an object like {"date": "2026년 7월 7일", "line": "주식회사 던 대표이사 이동하", "stamp": true}')
+    recipient = document.get("recipient")
+    if recipient is not None and (not isinstance(recipient, dict) or not isinstance(recipient.get("lines", []), list)):
+        problems.append("recipient must be an object {label, lines[]}")
+    notes = document.get("notes")
+    if notes is not None and not isinstance(notes, list):
+        problems.append("notes must be an array of strings")
+    if problems:
+        raise ValueError("fix ALL of these in document.json, then rerun: " + " | ".join(problems) + f" — {SPEC_HINT}")
 
 
 def resolve_font(document):
@@ -397,8 +453,15 @@ def main():
     parser.add_argument("document_path", help="Path to the document JSON file")
     parser.add_argument("output_path", help="Path to the output .pdf file")
     arguments = parser.parse_args()
-    document = load_document(os.path.expanduser(arguments.document_path))
-    pdf = render_document(document)
+    try:
+        document = load_document(os.path.expanduser(arguments.document_path))
+        pdf = render_document(document)
+    except FileNotFoundError:
+        print(f"paperwork renderer error: document JSON not found at {arguments.document_path}; write it with file.write first, following the spec's Document JSON skeleton", file=sys.stderr)
+        raise SystemExit(1)
+    except (ValueError, json.JSONDecodeError) as validation_error:
+        print(f"paperwork renderer error: {validation_error}", file=sys.stderr)
+        raise SystemExit(1)
     output_path = Path(os.path.expanduser(arguments.output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pdf.output(str(output_path))

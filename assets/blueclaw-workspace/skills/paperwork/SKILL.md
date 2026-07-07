@@ -9,7 +9,9 @@ completion:
 
 # Company Paperwork
 
-Produce standardized business documents with consistent letterhead, layout, and wording. Each document type has a spec file; you fill a content JSON and a deterministic renderer guarantees the layout. Do not hand-design these documents with custom scripts.
+Produce standardized business documents with consistent letterhead, layout, and wording. Each document type has a spec file; you fill a content JSON and a deterministic renderer guarantees the layout.
+
+Never build a catalog document another way: not with the pdf skill's `create_pdf.py`, not with ad-hoc docx blocks, not with hand-written scripts. The company letterhead, approval boxes, item table, and seal only come from this skill's renderer and specs; a generic PDF is a wrong result even if it contains the same text.
 
 ## Document catalog
 
@@ -38,10 +40,10 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
 
 ## Workflow
 
-1. Identify the document type and language from the request. Read only that spec: `cat /workspace/skills/paperwork/references/<lang>/<type>.md`. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
-2. Read the company profile: `cat /workspace/circles/staff/company/profile.json`. If it does not exist, ask the requester once for company name, registration number, representative, address, phone, email, and bank account, then create the file (see Company profile) before continuing.
+1. Identify the document type and language from the request. Read only that spec with the `file.read` tool: `/workspace/skills/paperwork/references/<lang>/<type>.md`. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
+2. Read the company profile with the `file.read` tool: `/workspace/circles/staff/company/profile.json`. Never use `capability.invoke` operations such as `file.pick` or `filesystem.mount.*` — those reach the user's personal computer and always fail for workspace files. If the profile file does not exist, ask the requester once for company name, registration number, representative, address, phone, email, and bank account, then create it exactly as shown in Company profile before continuing.
 3. Check the spec's required fields against what the requester provided. Ask only for missing critical values (counterpart, amounts, dates, names). Never invent facts; the spec lists what is required.
-4. Build the content JSON in `tmp/<slug>/document.json` following the spec's skeleton, insert the profile object verbatim into `profile`, and render or generate per the spec's `output:` line.
+4. Follow the spec's `output:` line: the PDF path or the DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. There is no paperwork capability operation — never call `capability.invoke` for any part of this skill.
 5. Inspect the result before delivering: run the validator with the key source values, and check the layout when the document is table-heavy.
 6. Save the accepted final file to `~/documents/<filename from the spec>` and deliver it from there with `file.deliver`.
 
@@ -65,7 +67,24 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
 
 `logoPath` and `stampPath` are optional; omit them until the images exist. Staff can edit this file directly, so re-read it for every task instead of remembering old values.
 
+To create it, first make the directory with `terminal.run`, then write the JSON with `file.write` to `/workspace/circles/staff/company/profile.json` — not to `tmp/` or `~/documents`, where other tasks cannot find it:
+
+```json
+{
+  "command": "mkdir -p /workspace/circles/staff/company",
+  "workingDirectoryPath": "~"
+}
+```
+
 ## Rendering PDF documents
+
+Step 1 — `file.write` the content JSON following the spec's skeleton, with the profile object inserted verbatim:
+
+```json
+{ "path": "tmp/<slug>/document.json", "content": "{ \"title\": \"견 적 서\", \"profile\": { ... }, ... }" }
+```
+
+Step 2 — `terminal.run` the renderer (a shell command, not a capability):
 
 ```json
 {
@@ -73,6 +92,8 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
   "workingDirectoryPath": "tmp/<slug>"
 }
 ```
+
+Step 3 — save to `~/documents/` and `file.deliver` it.
 
 The renderer owns all layout: letterhead, approval boxes, title, meta table, item table with totals, sections, centered declarations, signature line with the company seal. The content JSON supplies only data — the spec's skeleton shows exactly which fields the document type uses. If the renderer reports that no Korean-capable font was found, download NanumGothic to `/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf` and rerun.
 
