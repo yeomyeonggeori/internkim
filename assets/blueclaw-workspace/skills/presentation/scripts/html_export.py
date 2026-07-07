@@ -63,6 +63,7 @@ def main() -> int:
     render_error = ""
     if needs_rendered_slides(formats):
         print(f"[stage] render {int(time.time())}", file=sys.stderr, flush=True)
+        clear_stale_render_evidence(build_path / "review", deck_name)
         render_error = try_html_render(html_render_script, html_output_path, deck_name, build_path, formats)
         slide_image_paths = sorted((build_path / "review").glob(f"{deck_name}.[0-9][0-9][0-9].png"))
         if not render_error and slide_image_paths:
@@ -886,17 +887,46 @@ def pptx_mode() -> str:
 
 
 def try_html_render(html_render_script: pathlib.Path, source_path: pathlib.Path, deck_name: str, build_path: pathlib.Path, formats: set[str]) -> str:
+    marker_path = browser_unavailable_marker_path(build_path)
+    if marker_path.exists():
+        message = "browser previously unavailable in this workspace; skipping render attempt"
+        print(f"[warning] {message}", file=sys.stderr, flush=True)
+        return message
     try:
         run_html_render(html_render_script, source_path, deck_name, build_path, formats)
         return ""
     except subprocess.CalledProcessError as error_value:
         message = f"browser render failed with exit code {error_value.returncode}"
         print(f"[warning] {message}; continuing with available browserless outputs", file=sys.stderr, flush=True)
+        write_browser_unavailable_marker(marker_path)
         return message
     except OSError as error_value:
         message = f"browser render unavailable: {error_value}"
         print(f"[warning] {message}; continuing with available browserless outputs", file=sys.stderr, flush=True)
+        write_browser_unavailable_marker(marker_path)
         return message
+
+
+def clear_stale_render_evidence(review_path: pathlib.Path, deck_name: str) -> None:
+    if not review_path.exists():
+        return
+    stale_paths = [
+        *review_path.glob(f"{deck_name}.[0-9][0-9][0-9].png"),
+        *review_path.glob("contact-sheet-*.png"),
+        review_path / "render-source.txt",
+    ]
+    for stale_path in stale_paths:
+        if stale_path.exists():
+            stale_path.unlink()
+
+
+def browser_unavailable_marker_path(build_path: pathlib.Path) -> pathlib.Path:
+    return build_path.parent / ".skill-env" / "presentation" / "browser-unavailable"
+
+
+def write_browser_unavailable_marker(marker_path: pathlib.Path) -> None:
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text("browser launch failed; delete this file to retry browser rendering\n", encoding="utf-8")
 
 
 def run_html_render(html_render_script: pathlib.Path, source_path: pathlib.Path, deck_name: str, build_path: pathlib.Path, formats: set[str]) -> None:
