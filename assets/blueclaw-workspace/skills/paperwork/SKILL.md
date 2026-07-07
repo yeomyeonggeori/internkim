@@ -42,11 +42,11 @@ Every type has a Korean and an English spec at `references/<ko|en>/<slug>.md`; p
 
 1. Identify the document type and language from the request. Read only that spec with the `file.read` tool: `/workspace/skills/paperwork/references/<lang>/<type>.md`. If the requested language has no spec file, follow the other language's spec structure and translate labels and fixed wording faithfully.
 2. Read the company table: `capability.invoke` operation `company.info.get` with `{"language": "<ko|en>"}`. The response is the letterhead profile plus `missingFields`. Never use `file.pick` or `filesystem.mount.*` — those reach the user's personal computer.
-3. If `missingFields` is non-empty, or a legal attribute the spec requires (e.g. 사업자등록번호) is absent from `legalAttributes`, ask ONCE with `ask.input`, listing every missing field in one question, and invite optional extras ("설립일·직원 수·업태/종목·로고와 직인 이미지도 있으면 함께"). Save the answer with `company.info.set` (country-specific identifiers go into `legalAttributes` as a JSON object string). Save attached logo/stamp images with `terminal.run` (`mkdir -p /workspace/circles/staff/company` then copy to `logo.png` / `stamp.png` there). If `missingFields` is empty, NEVER ask about company info — proceed silently. When the user says "그냥 한글 상호 그대로 써" for an English document, store that value into the en slot so it is never asked again.
+3. If `missingFields` is non-empty, or a legal attribute the spec requires (e.g. 사업자등록번호) is absent from `legalAttributes`, ask ONCE with `ask.input`, listing every missing field in one question, and invite optional extras ("설립일·직원 수·업태/종목·로고와 직인 이미지도 있으면 함께"). Save the answer with `company.info.set` (country-specific identifiers go into `legalAttributes` as a JSON object string). Save attached logo/stamp images with one `terminal.run` — an attachment path shown as `home/...` is written `~/...` in a shell: `mkdir -p /workspace/circles/staff/company && cp ~/inbox/mattermost/<conversation directory>/<attached filename> /workspace/circles/staff/company/logo.png`. If the copy fails once, run `ls ~/inbox/mattermost/*/` to see the real filenames and retry once with what you find — never retry the same failing path, and never let images block the document: after two failed attempts continue without them. If `missingFields` is empty, NEVER ask about company info — proceed silently. When the user says "그냥 한글 상호 그대로 써" for an English document, store that value into the en slot so it is never asked again.
 4. Check the spec's required content fields against the request. Ask only for missing critical values (counterpart, amounts, dates, names). Never invent facts.
-5. Register the document BEFORE rendering: `capability.invoke` operation `company.document.register` with documentType, title, counterpart, language, and a 2-3 sentence summary of the key terms. The response returns `documentNumber` (put it in the document JSON) and `storageDirectory`.
-6. Produce the file per the spec's `output:` line — the PDF or DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. paperwork itself has no capability operation — the renderer only runs through `terminal.run`.
-7. Inspect the result (validator + layout check for table-heavy documents), save the final file under the returned `storageDirectory` (`mkdir -p` it first), deliver it from there with `file.deliver`, then record the location with `company.document.update` `{id, filePath}`.
+5. Register the document BEFORE rendering: `capability.invoke` operation `company.document.register` with documentType (the CATALOG SLUG such as `service-agreement` or `quote`, never the Korean name), title, counterpart, language, and a 2-3 sentence summary of the key terms. The response returns `documentNumber` (put it in the document JSON) and `storageDirectory`.
+6. Produce the file per the spec's `output:` line — the PDF or DOCX path below. Both are exactly three tool calls: `file.write` the content JSON, `terminal.run` the generator, `file.deliver` the result. paperwork itself has no capability operation — the renderer only runs through `terminal.run`, and its input must be `{"command": "<the whole command line as ONE string>", "workingDirectoryPath": "tmp/<slug>"}` — never split the command into an `arguments` array (the executable check rejects it).
+7. Inspect the result (validator + layout check for table-heavy documents), `file.deliver` the generated `<storageDirectory>/<filename>` path, then record it with `company.document.update` `{id, filePath}`.
 
 ## Company table
 
@@ -66,16 +66,16 @@ Step 1 — `file.write` the content JSON following the spec's skeleton, with the
 { "path": "tmp/<slug>/document.json", "content": "{ \"title\": \"견 적 서\", \"profile\": { ... }, ... }" }
 ```
 
-Step 2 — `terminal.run` the renderer (a shell command, not a capability):
+Step 2 — `terminal.run` the renderer (a shell command, not a capability), writing the PDF DIRECTLY into the register's `storageDirectory` — the renderer creates the directory, so no mkdir or copy step exists:
 
 ```json
 {
-  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/render_paperwork.py document.json <filename>.pdf",
+  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/render_paperwork.py document.json <storageDirectory>/<filename>.pdf",
   "workingDirectoryPath": "tmp/<slug>"
 }
 ```
 
-Step 3 — save to the register's `storageDirectory` and `file.deliver` it.
+Step 3 — `file.deliver` that exact `<storageDirectory>/<filename>.pdf` path, then `company.document.update` `{id, filePath}` with it.
 
 The renderer owns all layout: letterhead, approval boxes, title, meta table, item table with totals, sections, centered declarations, signature line with the company seal. The content JSON supplies only data — the spec's skeleton shows exactly which fields the document type uses. If the renderer reports that no Korean-capable font was found, download NanumGothic to `/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf` and rerun.
 

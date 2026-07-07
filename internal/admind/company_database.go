@@ -354,8 +354,11 @@ func companyDocumentNumberPrefix(documentType string) string {
 	}
 	initials := ""
 	for _, segment := range strings.Split(documentType, "-") {
-		if segment != "" {
-			initials += strings.ToUpper(segment[:1])
+		for _, character := range segment {
+			if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') {
+				initials += strings.ToUpper(string(character))
+				break
+			}
 		}
 	}
 	if initials == "" {
