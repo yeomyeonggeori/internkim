@@ -461,23 +461,109 @@ def write_multiline(pdf, height, text):
     pdf.multi_cell(0, height, text, new_x="LMARGIN", new_y="NEXT")
 
 
+DOCX_ALLOWED_KEYS = {"title", "fontName", "fontSize", "page", "blocks"}
+DOCX_HINT = 'a .docx document JSON must look like {"title": "...", "fontName": "Noto Sans CJK KR", "blocks": [{"type": "heading", "level": 2, "text": "제1조 (목적)"}, {"type": "paragraph", "text": "..."}, {"type": "bullets", "items": ["..."]}, {"type": "table", "rows": [["...", "..."]]}]} — copy the spec\'s DOCX blocks skeleton'
+
+
+def load_docx_document(document_path):
+    with open(document_path, "r", encoding="utf-8") as document_file:
+        document = json.load(document_file)
+    if not isinstance(document, dict):
+        raise ValueError(f"document must be a JSON object; {DOCX_HINT}")
+    unknown_keys = set(document) - DOCX_ALLOWED_KEYS
+    if unknown_keys:
+        raise ValueError(f"unknown document fields {sorted(unknown_keys)}; {DOCX_HINT}")
+    blocks = document.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise ValueError(f"document has no content: blocks must be a non-empty array; {DOCX_HINT}")
+    page = document.get("page")
+    if page is not None and not isinstance(page, dict):
+        raise ValueError('page must be an object like {"marginInches": 0.9} or omitted; ' + DOCX_HINT)
+    return document
+
+
+def generate_docx(document, output_path):
+    from docx import Document
+    from docx.shared import Inches, Pt
+
+    word_document = Document()
+    section = word_document.sections[0]
+    margin_inches = float((document.get("page") or {}).get("marginInches", 0.9))
+    section.top_margin = section.bottom_margin = Inches(margin_inches)
+    section.left_margin = section.right_margin = Inches(margin_inches)
+    font_name = str(document.get("fontName", "Noto Sans CJK KR"))
+    font_size = float(document.get("fontSize", 10.5))
+    style = word_document.styles["Normal"]
+    style.font.name = font_name
+    style.font.size = Pt(font_size)
+    style.element.rPr.rFonts.set(
+        "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", font_name)
+    title = str(document.get("title", "")).strip()
+    if title:
+        word_document.add_heading(title, level=0)
+    for block in document["blocks"]:
+        append_docx_block(word_document, block)
+    word_document.save(str(output_path))
+
+
+def append_docx_block(word_document, block):
+    if not isinstance(block, dict):
+        raise ValueError(f"each block must be an object; {DOCX_HINT}")
+    block_type = str(block.get("type", "")).strip()
+    if block_type == "heading":
+        word_document.add_heading(str(block.get("text", "")), level=int(block.get("level", 2)))
+    elif block_type == "paragraph":
+        word_document.add_paragraph(str(block.get("text", "")))
+    elif block_type == "bullets":
+        for item in block.get("items", []):
+            word_document.add_paragraph(str(item), style="List Bullet")
+    elif block_type == "table":
+        rows = block.get("rows", [])
+        if not rows or not isinstance(rows[0], list):
+            raise ValueError(f"table.rows must be a non-empty array of row arrays; {DOCX_HINT}")
+        table = word_document.add_table(rows=len(rows), cols=len(rows[0]))
+        table.style = "Table Grid"
+        for row_index, row in enumerate(rows):
+            for column_index, value in enumerate(row):
+                if column_index < len(table.rows[row_index].cells):
+                    table.rows[row_index].cells[column_index].text = "" if value is None else str(value)
+    else:
+        raise ValueError(f"unknown block type {block_type!r}; {DOCX_HINT}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Render a paperwork document JSON to a letterhead PDF.")
+    parser = argparse.ArgumentParser(description="Render a paperwork document JSON to a letterhead PDF or a DOCX contract.")
     parser.add_argument("document_path", help="Path to the document JSON file")
-    parser.add_argument("output_path", help="Path to the output .pdf file")
+    parser.add_argument("output_path", help="Path to the output .pdf or .docx file")
     arguments = parser.parse_args()
+    output_path = Path(os.path.expanduser(arguments.output_path))
+    is_docx = output_path.suffix.lower() == ".docx"
     try:
+        if is_docx:
+            if not ensure_requirements("paperwork"):
+                raise RuntimeError("paperwork dependencies are unavailable after bootstrap")
+            document = load_docx_document(os.path.expanduser(arguments.document_path))
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            generate_docx(document, output_path)
+            print(output_path)
+            return
         document = load_document(os.path.expanduser(arguments.document_path))
         pdf = render_document(document)
     except FileNotFoundError:
-        print(f"paperwork renderer error: document JSON not found at {arguments.document_path}; write it with file.write first, following the spec's Document JSON skeleton", file=sys.stderr)
+        print(f"paperwork renderer error: document JSON not found at {arguments.document_path}; write it with file.write first, following the spec's skeleton", file=sys.stderr)
+        raise SystemExit(1)
+    except PermissionError:
+        print(f"paperwork renderer error: cannot write to {output_path} (permission denied); rerun the SAME command with the output changed to ~/documents/{output_path.parent.name}/{output_path.name}", file=sys.stderr)
         raise SystemExit(1)
     except (ValueError, json.JSONDecodeError) as validation_error:
         print(f"paperwork renderer error: {validation_error}", file=sys.stderr)
         raise SystemExit(1)
-    output_path = Path(os.path.expanduser(arguments.output_path))
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    pdf.output(str(output_path))
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf.output(str(output_path))
+    except PermissionError:
+        print(f"paperwork renderer error: cannot write to {output_path} (permission denied); rerun the SAME command with the output changed to ~/documents/{output_path.parent.name}/{output_path.name}", file=sys.stderr)
+        raise SystemExit(1)
     print(output_path)
 
 
