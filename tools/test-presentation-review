@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+import datetime
+import importlib.util
+import json
+import pathlib
+import subprocess
+import sys
+import tempfile
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+RENDER_REVIEW_SCRIPT = REPOSITORY_ROOT / "assets/blueclaw-workspace/skills/presentation/scripts/render_review.py"
+
+TEMPLATED_DECK = """<!DOCTYPE html>
+<html lang="ko">
+<head><style>
+.slide { width: 1600px; height: 900px; }
+h2 { border-left: 12px solid #0052cc; font-size: 48px; }
+.card { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+</style></head>
+<body>
+<section class="slide" data-slide-role="title" data-visual-system="executive">
+  <h1>2026년 2분기 이사회 리뷰</h1>
+  <p>DATE_PLACEHOLDER</p>
+</section>
+<section class="slide">
+  <h2>Executive Summary</h2>
+  <ul><li>2분기 출하량이 증가했고 가동률 목표를 상회 달성했습니다</li><li>파일럿 고객 수는 목표에 미달했습니다</li></ul>
+</section>
+<section class="slide">
+  <h2>핵심 지표 (Core Metrics)</h2>
+  <table><tr><th>지표</th><th>결과</th></tr><tr><td>매출</td><td>4.12억 원</td></tr></table>
+</section>
+</body>
+</html>
+"""
+
+COMPLIANT_DECK = """<!-- design-source: DESIGN.md -->
+<!DOCTYPE html>
+<html lang="ko">
+<head><style>
+.slide { width: 1600px; height: 900px; padding: 80px; }
+h1, h2 { font-size: 48px; }
+.variance-scoreboard { display: grid; padding: 32px; gap: 24px; }
+.timeline-rail { padding: 28px; }
+.decision-panel { padding: 36px; }
+</style></head>
+<body data-visual-system="signal-ledger">
+<section class="slide" data-slide-role="title" data-visual-system="signal-ledger">
+  <h1>성장은 확인됐지만 품질 스프린트 승인이 필요합니다</h1>
+  <p>연남로보틱스 2026년 2분기 이사회 보고</p>
+</section>
+<section class="slide" data-slide-role="metrics" data-visual-system="signal-ledger">
+  <h2>매출과 가동률은 목표를 넘겼고 결함률만 남았습니다</h2>
+  <div class="variance-scoreboard"><div>매출 4.12억 원 (목표 4억 달성)</div><div>가동률 97.4% (목표 96.0% 달성)</div><div>결함 보고율 2.6% (목표 2.0% 미달)</div></div>
+</section>
+<section class="slide" data-slide-role="closing" data-visual-system="signal-ledger">
+  <h2>3분기 품질 스프린트와 파일럿 2건 승인을 요청합니다</h2>
+  <div class="decision-panel"><div class="timeline-rail">2026년 8월 28일까지 결함률 2.0% 미만 달성</div></div>
+</section>
+</body>
+</html>
+"""
+
+DESIGN_DOCUMENT = """---
+colors:
+  accent: "#0b3d2e"
+typography:
+  display: "Paperlogy"
+layout:
+  margin: "80px"
+---
+
+## Style Prompt
+
+Signal ledger: dark green ledger surfaces with oversized variance numerals.
+
+## Visual Identity Gate
+
+Every slide repeats the ledger scoreboard primitive.
+"""
+
+
+def run_review(deck_html: str, design_document: str, required_text: str) -> dict:
+    with tempfile.TemporaryDirectory() as raw_directory:
+        directory = pathlib.Path(raw_directory)
+        (directory / "slides.html").write_text(deck_html, encoding="utf-8")
+        if design_document:
+            (directory / "DESIGN.md").write_text(design_document, encoding="utf-8")
+        if required_text:
+            (directory / "required-visible-text.txt").write_text(required_text, encoding="utf-8")
+        review_directory = directory / "review"
+        review_directory.mkdir()
+        subprocess.run(
+            [sys.executable, str(RENDER_REVIEW_SCRIPT), str(directory / "slides.html"), "deck", str(review_directory)],
+            check=True,
+            capture_output=True,
+        )
+        return json.loads((review_directory / "slide-review.json").read_text(encoding="utf-8"))
+
+
+def warning_prefixes(report: dict) -> set:
+    return {warning.split(":")[0] for warning in report["designWarnings"]}
+
+
+def main() -> int:
+    today_text = datetime.date.today().strftime("%Y. %m. %d")
+    templated = run_review(TEMPLATED_DECK.replace("DATE_PLACEHOLDER", today_text), "", "")
+    assert templated["slideCount"] == 3, templated["slideCount"]
+    assert templated["staticGatePassed"] is False
+    assert templated["needsDesignRevision"] is True
+    assert templated["qualityGatePassed"] is False
+    expected = {
+        "weakVisualIdentityWarning",
+        "missingSlideRoleWarning",
+        "sideStripeWarning",
+        "ghostCardWarning",
+        "languageMismatchWarning",
+        "unsourcedCurrentDateWarning",
+        "topicTitleWarning",
+        "rawStructurePatternWarning",
+    }
+    missing = expected - warning_prefixes(templated)
+    assert not missing, f"missing expected warnings: {missing}"
+
+    compliant = run_review(COMPLIANT_DECK, DESIGN_DOCUMENT, "연남로보틱스\n2026년 2분기\n4.12억 원\n")
+    assert compliant["slideCount"] == 3
+    assert compliant["designWarnings"] == [], compliant["designWarnings"]
+    assert compliant["staticGatePassed"] is True
+    assert compliant["visualQualityScore"] == 100
+    assert compliant["qualityGatePassed"] is False
+    assert compliant["visualEvidenceReliable"] is False
+
+    ledger_with_today = "자료 기준일: " + today_text
+    dated = run_review(TEMPLATED_DECK.replace("DATE_PLACEHOLDER", today_text), "", ledger_with_today)
+    assert "unsourcedCurrentDateWarning" not in warning_prefixes(dated)
+
+    specification = importlib.util.spec_from_file_location("render_review", RENDER_REVIEW_SCRIPT)
+    render_review = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(render_review)
+    pattern = render_review.current_date_pattern(datetime.date(2026, 7, 7))
+    for text in ["2026.07.07", "2026. 07. 07", "2026-07-07", "2026/7/7", "2026년 7월 7일"]:
+        assert pattern.search(text), text
+    for text in ["2026-07-17", "2026-07-071", "2025-07-07", "2026년 6월 30일"]:
+        assert not pattern.search(text), text
+
+    print("test-presentation-review: all checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
