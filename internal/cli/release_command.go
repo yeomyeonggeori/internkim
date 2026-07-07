@@ -390,6 +390,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: blueclawworkspace.SkillsPath(repositoryRootPath)},
+		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "assets", "fonts", "files")},
 		{name: "mattermostPlugins", revision: gitRevision, restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
 	}
 	blobs := []releaseBlob{}

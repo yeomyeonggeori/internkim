@@ -1,31 +1,61 @@
 import { useEffect, useState } from "react";
 import { resolveBlockComponent } from "./blocks";
-import { fallbackContent, loadSiteContent, type Block, type SiteContent } from "./site-content";
+import {
+	fallbackContent,
+	loadSiteContent,
+	type Block,
+	type NavigationItem,
+	type SiteContent,
+	type SitePage,
+} from "./site-content";
 
 function blockAnchor(index: number): string {
 	return `block-${index + 1}`;
 }
 
-type NavItem = {
-	anchorID: string;
-	title: string;
-};
+function currentHashPath(): string {
+	const hash = window.location.hash.replace(/^#/, "");
+	return hash.startsWith("/") ? hash : "/";
+}
 
-function navItemsFrom(blocks: Block[], siteName: string): NavItem[] {
+function useHashPath(): string {
+	const [path, setPath] = useState(currentHashPath());
+	useEffect(() => {
+		const handleHashChange = () => setPath(currentHashPath());
+		window.addEventListener("hashchange", handleHashChange);
+		return () => window.removeEventListener("hashchange", handleHashChange);
+	}, []);
+	return path;
+}
+
+function activePageFor(pages: SitePage[], path: string): SitePage {
+	return pages.find((page) => page.path === path) ?? pages[0];
+}
+
+function anchorNavItemsFrom(blocks: Block[], siteName: string): NavigationItem[] {
 	const seenTitles = new Set<string>();
-	const navItems: NavItem[] = [];
+	const navigationItems: NavigationItem[] = [];
 	blocks.forEach((block, index) => {
 		if (block.variant === "hero") return;
 		if (!block.title || block.title === siteName) return;
 		if (seenTitles.has(block.title)) return;
 		seenTitles.add(block.title);
-		navItems.push({ anchorID: blockAnchor(index), title: block.title });
+		navigationItems.push({ label: block.title, href: "#" + blockAnchor(index) });
 	});
-	return navItems;
+	return navigationItems;
+}
+
+function navigationItemsFrom(content: SiteContent): NavigationItem[] {
+	if (content.navigationItems) return content.navigationItems;
+	if (content.pages.length > 1) {
+		return content.pages.map((page) => ({ label: page.title, href: "#" + page.path }));
+	}
+	return anchorNavItemsFrom(content.pages[0].blocks, content.siteName);
 }
 
 function App() {
 	const [content, setContent] = useState<SiteContent>(fallbackContent);
+	const path = useHashPath();
 
 	useEffect(() => {
 		let isMounted = true;
@@ -37,34 +67,44 @@ function App() {
 		};
 	}, []);
 
-	useEffect(() => {
-		document.title = content.siteName;
-	}, [content.siteName]);
+	const page = activePageFor(content.pages, path);
 
-	const { siteName, blocks } = content;
-	const navItems = navItemsFrom(blocks, siteName);
+	useEffect(() => {
+		document.title = page.path === "/" ? content.siteName : `${page.title} — ${content.siteName}`;
+		window.scrollTo(0, 0);
+	}, [content.siteName, page]);
+
+	const { siteName } = content;
+	const navigationItems = navigationItemsFrom(content);
 
 	return (
 		<div className="min-h-screen bg-background text-foreground antialiased">
 			<header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
-				<span className="text-sm font-semibold tracking-tight">{siteName}</span>
+				<a href="#/" className="text-sm font-semibold tracking-tight">
+					{siteName}
+				</a>
 				<nav className="hidden gap-6 text-sm text-muted-foreground sm:flex">
-					{navItems.map((navItem) => (
+					{navigationItems.map((navigationItem) => (
 						<a
-							key={navItem.anchorID}
-							href={"#" + navItem.anchorID}
-							className="transition-colors hover:text-foreground"
+							key={navigationItem.href}
+							href={navigationItem.href}
+							className={
+								"transition-colors hover:text-foreground" +
+								(navigationItem.href === "#" + page.path && content.pages.length > 1
+									? " font-semibold text-foreground"
+									: "")
+							}
 						>
-							{navItem.title}
+							{navigationItem.label}
 						</a>
 					))}
 				</nav>
 			</header>
 
 			<main className="mx-auto max-w-4xl px-6">
-				{blocks.map((block, index) => {
+				{page.blocks.map((block, index) => {
 					const BlockComponent = resolveBlockComponent(block.variant);
-					return <BlockComponent key={blockAnchor(index)} block={block} anchorID={blockAnchor(index)} />;
+					return <BlockComponent key={page.path + blockAnchor(index)} block={block} anchorID={blockAnchor(index)} />;
 				})}
 			</main>
 

@@ -219,7 +219,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "no dark navy shell", "embed fonts only as WOFF2", `format("woff2")`} {
+	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "dark navy shell", "embed fonts only as WOFF2", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}

@@ -34,7 +34,7 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Block Library
 
-`app/public/site-content.json` composes the page from `siteName`, optional `tagline`, and an ordered `blocks` array. Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, and `actionHref` the variant needs. Choose and order variants to fit the request instead of repeating one fixed skeleton — a restaurant, a portfolio, and a dashboard should end up with different block sequences.
+`app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one-page site) or a `pages` array for a multi-page site: `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; paths under `/api`, `/_`, and `/fonts` are reserved. Links between pages use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, and `actionHref` the variant needs. Choose page count and block order to fit the request instead of repeating one fixed skeleton — a restaurant, a portfolio, and a dashboard should end up with different structures.
 
 - `hero`: opening title, tagline body, and one primary call-to-action; use once, first.
 - `features`: titled grid of `items` for capabilities, services, or benefits.
@@ -81,7 +81,7 @@ Website creation and update requests are incomplete until the site.publish opera
    ```
 
    If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
-6. Compose the page by writing `app/public/site-content.json` with an ordered `blocks` array from the Block Library above — block choice and order is how the page structure gets decided. Then run the content review with `terminal.run`:
+6. Compose the site by writing `app/public/site-content.json` from the Block Library above — page split and block order is the structure decision. Then run the content review with `terminal.run`:
 
    ```json
    {
@@ -95,7 +95,7 @@ Website creation and update requests are incomplete until the site.publish opera
 8. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 9. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
 10. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
-11. For a content-only change — copy, tagline, block text, block order, or block additions/removals with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); there is no `app/src/**` edit and no build step for a content-only change.
+11. For a content-only change — copy, tagline, blocks, pages, or navigation with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); no `app/src/**` edit and no build step.
 12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
 13. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
 14. Only after a structural change (step 12) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 11) needs no build step.
@@ -120,21 +120,21 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 ## Design Quality
 
-`DESIGN.md` is required for every create or update. It must be specific to the request and use Stitch canonical format, decided before site.create so the block composition in step 5 already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme: publish renders them into `theme.css`, so an unconsidered front matter ships as the visible site.
+`DESIGN.md` is required for every create or update: request-specific, Stitch canonical format, decided before site.create so block composition already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme (rendered into `theme.css`).
 
-Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately — editorial (`#111111`/`#ffffff`, accent `#2f6f4f`, serif/sans) or dashboard (`#2563eb`/`#f8fafc`, accent `#0f172a`, sans).
+Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately. `typography` fontFamily defaults to `에이투지체`; every served family comes from the platform font catalog (`에이투지체`, `Pretendard`, `Paperlogy`, `마루부리`, `Gowun Batang`, `Gowun Dodum`, `Galmuri`, `D2Coding`) — a family outside it silently falls back, so stay inside the list and match the font's voice to the request.
 
-Use no dark navy shell by default, and avoid slate, purple, gradients, decorative filler, generic SaaS cards, or empty heroes. A restaurant, portfolio, dashboard, campaign site, internal tool, game, and marketplace should not share the same block sequence.
+Avoid the dark navy shell, slate, purple, gradients, decorative filler, generic SaaS cards, and empty heroes.
 
-The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, calculator, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport. Verify desktop and mobile screenshots for overlap, clipping, horizontal scroll, excessive whitespace, one-note palette, and missing app-owned control styles.
+The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, calculator, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport. Verify desktop and mobile screenshots for overlap, clipping, horizontal scroll, and excessive whitespace.
 
-If login, saved records, files, realtime, reservations, admin state, or CRUD is needed, use PocketBase as the default local backend unless the user explicitly requests another backend. Use fake seed credentials and include them in the final reply.
+If login, saved records, realtime, reservations, or CRUD is needed, use PocketBase as the default local backend. Use fake seed credentials and include them in the final reply.
 
 ## Follow-Ups
 
 For feedback in the same conversation, call site.status once with empty input or the known slug, update the resolved site (never site.create again for it), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from the status result to decide whether a follow-up should update this site.
 
-Short continuations such as "해줘", "진행", "좋아", "응", "게시해", "배포해", or "publish" mean finish the current site workflow: resolve status, complete missing implementation, build, review, publish, and reply with the public URL. Do not ask for publish approval.
+Short continuations such as "해줘", "진행", "좋아", "게시해", or "publish" mean finish the current workflow: resolve status, complete missing work, review, publish, reply with the public URL. Do not ask for publish approval.
 
 ## Owner Audit and Destructive Actions
 
