@@ -102,6 +102,74 @@
       ]
     },
     {
+      "family": "에이투지체",
+      "aliases": [
+        "A2Z"
+      ],
+      "foundry": "오토노머스에이투지 × 이주임 (Freesentation)",
+      "license": "OFL-1.1",
+      "sourceURL": "https://freesentation.blog/a2z",
+      "roles": [
+        "display",
+        "body",
+        "ui"
+      ],
+      "classification": "geometric-sans",
+      "weights": [
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900
+      ],
+      "variable": false,
+      "hangulCoverage": "full",
+      "voice": "제목부터 본문까지 한 벌로 해결되는 올인원 고딕. 획이 시원하게 뻗어 화면에서 현대적이고 기술적인 인상을 준다.",
+      "bestFor": "웹사이트 전반의 기본 서체(제목+본문+UI 통일), 테크·프로덕트 랜딩",
+      "avoidFor": "고전적·문학적 무드(명조 계열이 낫다)",
+      "pairsWith": [
+        "마루부리",
+        "Gowun Batang"
+      ],
+      "defaultFor": [
+        "website"
+      ]
+    },
+    {
+      "family": "Freesentation",
+      "foundry": "Freesentation (이주임)",
+      "license": "OFL-1.1",
+      "sourceURL": "https://github.com/Freesentation/freesentation",
+      "roles": [
+        "display",
+        "body"
+      ],
+      "classification": "geometric-sans",
+      "weights": [
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900
+      ],
+      "variable": true,
+      "hangulCoverage": "full",
+      "voice": "발표 화면을 전제로 그린 고딕. 자간이 넉넉하고 획이 굵기 변화에 잘 버텨 원거리 가독이 좋다.",
+      "bestFor": "발표자료 전반, 스크린 세미나 슬라이드, 배너",
+      "avoidFor": "인쇄 장문 본문",
+      "pairsWith": [
+        "Pretendard"
+      ]
+    },
+    {
       "family": "나눔명조",
       "foundry": "네이버 (폰트릭스)",
       "license": "OFL-1.1",
