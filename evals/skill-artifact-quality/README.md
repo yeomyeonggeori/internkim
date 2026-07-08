@@ -1,6 +1,6 @@
 # Skill Artifact Quality Evals
 
-These evals measure output quality for the bundled `docx`, `pdf`, `xlsx`, and `site-prototype` skills.
+These evals measure output quality for the bundled `document`, `pdf`, `spreadsheet`, `website`, and `presentation` skills.
 
 Each evaluation is self-contained. `evals.json` stores the fixed instruction, and `fixtures/` stores the fixed source data. The runner combines them into the exact prompt saved in each run directory.
 
