@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -121,7 +123,31 @@ func (service *Service) updateCompanyInfo(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if errorValue := service.syncCompanySnapshotToBlueclaw(request.Context(), info); errorValue != nil {
+		fmt.Printf("warning: company snapshot policy sync failed: %v\n", errorValue)
+	}
 	service.writeJSON(responseWriter, resolveCompanyInfoView(info, language))
+}
+
+func companyPolicySnapshot(info companyInfo) map[string]string {
+	primaryLanguage := "ko"
+	return map[string]string{
+		"name":           resolveAnyLocalized(info.Name, primaryLanguage),
+		"brandName":      resolveAnyLocalized(info.BrandName, primaryLanguage),
+		"slogan":         resolveAnyLocalized(info.Slogan, primaryLanguage),
+		"description":    resolveAnyLocalized(info.Description, primaryLanguage),
+		"representative": resolveAnyLocalized(info.Representative, primaryLanguage),
+		"website":        strings.TrimSpace(info.Website),
+	}
+}
+
+func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info companyInfo) error {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
+	}
+	policyDocument["company"] = companyPolicySnapshot(info)
+	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
 }
 
 func applyCompanyInfoUpdate(info *companyInfo, update companyInfoUpdate, language string) {
