@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEditor, openOrgchartEditor, selectCardOption } from './admin-orgchart-helpers';
+import { applySavedProfiles, cloneUsersResponse, enableOrgchartEditMode, mockAdminOrgchart, openCardEditor, openOrgchartEditor, selectCardOption } from './admin-orgchart-helpers';
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-orgchart-fixtures';
 
 test.describe('admin org chart profile editing', () => {
@@ -161,6 +161,35 @@ test.describe('admin org chart profile editing', () => {
 		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('');
 	});
 
+	test('keeps unsaved direct manager edits visible when closing edit mode', async ({ page }) => {
+		const savedProfiles: OrgProfileUpdate[] = [];
+		const usersResponse = cloneUsersResponse(initialUsersResponse);
+		usersResponse.records = usersResponse.records.map((record) =>
+			record.userID === 'user-grace'
+				? { ...record, primaryGroupID: 'operations', groupIDs: ['operations'] }
+				: record
+		);
+		await mockAdminOrgchart(page, {
+			getUsersResponse: () => usersResponse,
+			saveProfiles: async (profiles) => {
+				savedProfiles.push(...profiles);
+				return usersResponse;
+			}
+		});
+
+		await openOrgchartEditor(page);
+		const graceCard = page.getByTestId('orgchart-profile-user-grace');
+		await openCardEditor(graceCard);
+
+		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
+		await page.getByLabel('편집').click();
+
+		await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toBeVisible();
+		await expect(graceCard.getByLabel('직속 상관')).toContainText('Ada Kim');
+		await expect(graceCard.getByLabel('소속 조직')).toContainText('Operations');
+		await expect.poll(() => savedProfiles).toEqual([]);
+	});
+
 	test('keeps saved organization metadata after reload', async ({ page }) => {
 		let usersResponse = cloneUsersResponse(initialUsersResponse);
 		await mockAdminOrgchart(page, {
@@ -177,16 +206,49 @@ test.describe('admin org chart profile editing', () => {
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
+		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 		await expect(graceCard.getByRole('button', { name: '편집' })).toBeVisible();
 
 		await page.reload();
-		await page.getByLabel('편집').click();
+		await enableOrgchartEditMode(page);
 
 		const reloadedGraceCard = page.getByTestId('orgchart-profile-user-grace');
 		await openCardEditor(reloadedGraceCard);
 		await expect(reloadedGraceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
 		await expect(reloadedGraceCard.getByLabel('소속 조직')).toContainText('Engineering');
+		await expect(reloadedGraceCard.getByLabel('직속 상관')).toContainText('Ada Kim');
+	});
+
+	test('reflects saved admin org chart changes on the public org chart page', async ({ page }) => {
+		let usersResponse = cloneUsersResponse(initialUsersResponse);
+		await mockAdminOrgchart(page, {
+			getUsersResponse: () => usersResponse,
+			saveProfiles: async (profiles) => {
+				usersResponse = applySavedProfiles(usersResponse, profiles);
+				return usersResponse;
+			}
+		});
+		await page.route('**/orgchart/api/people', async (route) => {
+			await route.fulfill({ json: usersResponse });
+		});
+
+		await openOrgchartEditor(page);
+		const graceCard = page.getByTestId('orgchart-profile-user-grace');
+		await openCardEditor(graceCard);
+
+		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
+		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
+		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
+		await graceCard.getByRole('button', { name: '저장' }).click();
+		await expect(graceCard.getByRole('button', { name: '편집' })).toBeVisible();
+
+		await page.goto('/orgchart/');
+
+		await expect(page.getByTestId('orgchart-person-node-user-ada')).toBeVisible();
+		await expect(page.getByTestId('orgchart-team-column-engineering')).toBeVisible();
+		await expect(page.getByTestId('orgchart-tree-node-user-grace')).toBeVisible();
+		await expect(page.getByTestId('orgchart-team-column-__unassigned__')).toHaveCount(0);
 	});
 
 	test('keeps failed saves visible', async ({ page }) => {

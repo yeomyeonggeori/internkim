@@ -50,6 +50,24 @@
 		return !isSupervisorCandidateForRecord(userRecords, record);
 	}
 
+	function hasUnsavedProfileEdits() {
+		return Object.values(editingRecordsByUserID).some((record) => isChanged(record));
+	}
+
+	function setEditMode(nextIsEditing: boolean) {
+		if (nextIsEditing) {
+			errorMessage = '';
+			isEditing = true;
+			return;
+		}
+		if (hasUnsavedProfileEdits()) {
+			errorMessage = text.orgchart.unsavedChanges;
+			return;
+		}
+		errorMessage = '';
+		isEditing = false;
+	}
+
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
 		loadedAdminBaseURL = adminBaseURL;
@@ -182,7 +200,7 @@
 	{#if isDeviceContext && userRecords.length > 0}
 		<div class="flex items-center gap-3">
 			<label class="flex items-center gap-2 text-sm">
-				<Switch bind:checked={isEditing} aria-label={text.orgchart.editMode} />
+				<Switch checked={isEditing} onCheckedChange={setEditMode} aria-label={text.orgchart.editMode} />
 				{text.orgchart.editMode}
 			</label>
 		</div>
