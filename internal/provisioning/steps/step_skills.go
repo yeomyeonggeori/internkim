@@ -25,7 +25,7 @@ var StepSkills = Step{
 			if localManifest == "" {
 				return false
 			}
-			return sshFileExists(context, "/root/.blueclaw/workspace/skills/simple-slides/SKILL.md") &&
+			return sshFileExists(context, "/root/.blueclaw/workspace/skills/presentation/SKILL.md") &&
 				trimmedRun(context, "printf '%s' "+shellQuote(localManifest)+" | cmp -s - "+shellQuote(skillsManifestPath)+" && echo ok || echo missing") == "ok"
 		case BackendSD:
 			return true
