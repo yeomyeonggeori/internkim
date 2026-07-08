@@ -78,15 +78,15 @@ Do not deliver a board deck made of plain white title slides, unstyled tables, b
 
 ## Source Files
 
-`slides.html` is the source of truth for the deck and must be the first file written. Include `<!-- design-source: DESIGN.md -->` even if `DESIGN.md` is only a compact helper, mirror the chosen colors/typography/layout in CSS, keep one main message per slide, set `data-visual-system` on `<body>` or every slide, set `data-slide-role` on every `<section class="slide">`, and use one top-level slide section per slide.
+`slides.html` is the source of truth and the first file written. Include `<!-- design-source: DESIGN.md -->`, mirror the chosen colors/typography/layout in CSS, keep one main message per slide, set `data-visual-system` on `<body>` or every slide, `data-slide-role` on every `<section class="slide">`, one top-level slide section per slide.
 
 `DESIGN.md` is useful for design-sensitive decks but not more important than the deck. If you create it, use Stitch-compatible YAML front matter with only `colors`, `typography`, and `layout`, followed by Markdown headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, and `Anti-default Check`.
 
-`deck-brief.md` is an optional brief planning note, not a second deliverable. It pins the deck archetype, story spine, slide count, visual system, signature move, and what would be too shallow.
+`deck-brief.md` is an optional planning note, not a deliverable: archetype, story spine, slide count, visual system, signature move, what would be too shallow.
 
-`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter. Put one source fact or must-appear phrase per line, then intentionally represent those facts in `slides.html` with natural layout copy, tables, charts, or labels. Include organization, product, exact period wording, user-provided metric values, target values, owners, dates, and missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`; include both only if both are visible.
+`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter: one source fact or must-appear phrase per line, then represent those facts in `slides.html` with natural layout copy, tables, charts, or labels — organization, product, exact period wording, metric and target values, owners, dates, missing-value labels such as `제공된 자료 없음`. Keep Korean period wording like `2026년 2분기` as written.
 
-Use HTML as the layout surface. Browser rendering is the source for PDF, review images, and image-backed PPTX. The build can still create a native text-backed PPTX when Chromium is unavailable or `PRESENTATION_PPTX_MODE=native` is set:
+HTML is the layout surface; browser rendering feeds PDF, review images, and image-backed PPTX. The build falls back to native text-backed PPTX when Chromium is unavailable or `PRESENTATION_PPTX_MODE=native` is set:
 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
@@ -97,11 +97,11 @@ Use HTML as the layout surface. Browser rendering is the source for PDF, review 
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 - Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
 
-Avoid bullet-only decks. Bullets may live inside cards, columns, matrix cells, timelines, or appendix blocks, but each slide needs visible structure. Read `assets/layouts.md` when choosing structures, `assets/visual-styles.md` when the deck needs stronger identity, `assets/composition-seeds.md` when a deck risks looking sparse or generic, and `assets/minimal-design.md` when a sober presentation style is needed.
+Avoid bullet-only decks; bullets may live inside cards, columns, matrix cells, or timelines, but each slide needs visible structure. Read `assets/layouts.md` for structures, `assets/visual-styles.md` for stronger identity, `assets/composition-seeds.md` against sparse or generic decks, `assets/minimal-design.md` for a sober style.
 
 If a `file.edit` patch misses its target text, rewrite the file with `file.write` instead of retrying. Preserve the user's explicit constraints: slide count, output format, scope, and their exact wording.
 
-Before building, scan `slides.html`. If a slide is only a raw `<table>` or bare `<ul>`, revise it into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two or more slides share the same `.grid` plus `.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable. Do not use colored side stripes, tiny rail labels, or border-plus-shadow white cards as the main identity.
+Before building, scan `slides.html`. Revise slides that are only a raw `<table>` or bare `<ul>` into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two slides share the same `.grid`+`.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable — not colored side stripes, tiny rail labels, or border-plus-shadow white cards.
 
 ## Fonts
 
