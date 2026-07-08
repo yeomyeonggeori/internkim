@@ -7,7 +7,7 @@ func TestClassifyWorkspacePath(t *testing.T) {
 		path string
 		mode string
 	}{
-		{"/root/.blueclaw/workspace/skills/simple-slides/SKILL.md", WorkspaceSyncModeContent},
+		{"/root/.blueclaw/workspace/skills/presentation/SKILL.md", WorkspaceSyncModeContent},
 		{"/workspace/sites/demo/app/dist/index.html", WorkspaceSyncModeContent},
 		{"/workspace/.blueclaw/postgres/base/1", WorkspaceSyncModeSealedSnapshot},
 		{"/workspace/.blueclaw/graphiti/kuzu/data.kz", WorkspaceSyncModeSealedSnapshot},
