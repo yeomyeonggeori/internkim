@@ -9,7 +9,7 @@ import {
 	type SitePage,
 } from "./site-content";
 import { AuthPage } from "./auth/AuthPage";
-import { clearSession, useSession } from "./auth/session";
+import { clearSession, refreshSession, useSession } from "./auth/session";
 
 function blockAnchor(index: number): string {
 	return `block-${index + 1}`;
@@ -71,6 +71,9 @@ function App() {
 	}, []);
 
 	const auth = content.auth;
+	useEffect(() => {
+		if (content.auth) refreshSession(content.auth.userCollection);
+	}, [content.auth]);
 	const authMode = auth && path === auth.loginPath ? "login" : auth && auth.allowSignup && path === auth.signupPath ? "signup" : undefined;
 	const page = activePageFor(content.pages, path);
 	const requiresSession = auth !== undefined && page.access === "authenticated" && session === null;
