@@ -12,6 +12,9 @@ import (
 //go:embed site_scaffold/react-vite-ts
 var siteScaffoldFS embed.FS
 
+//go:embed site_pb_hooks/passkey-lib.js site_pb_hooks/passkey.pb.js
+var sitePBHooksFS embed.FS
+
 //go:embed site_scaffold_dist/react-vite-ts
 var siteScaffoldDistFS embed.FS
 

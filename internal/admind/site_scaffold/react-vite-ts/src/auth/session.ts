@@ -108,3 +108,86 @@ export async function signUp(userCollection: string, username: string, password:
 	}
 	return signIn(userCollection, username, password);
 }
+
+function base64urlToBuffer(text: string): ArrayBuffer {
+	const padded = text.replace(/-/g, "+").replace(/_/g, "/");
+	const raw = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+	return Uint8Array.from(raw, (character) => character.charCodeAt(0)).buffer;
+}
+
+function bufferToBase64url(buffer: ArrayBuffer): string {
+	return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "");
+}
+
+export function supportsPasskey(): boolean {
+	return typeof window !== "undefined" && !!window.PublicKeyCredential;
+}
+
+async function postJSON(path: string, body: unknown): Promise<{ ok: boolean; payload: Record<string, unknown> }> {
+	const response = await fetch(path, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	const payload = await response.json().catch(() => ({}));
+	return { ok: response.ok, payload };
+}
+
+function storeAuthPayload(payload: Record<string, unknown>) {
+	storeSession({ token: String(payload.token), user: extractUser((payload.record as Record<string, unknown>) ?? {}) });
+}
+
+export async function passkeySignUp(userCollection: string, username: string): Promise<AuthResult> {
+	void userCollection;
+	const optionsResponse = await postJSON("/api/site-auth/passkey/register-options", { username });
+	if (!optionsResponse.ok) return { ok: false, message: String(optionsResponse.payload.message ?? "패스키 등록 준비에 실패했습니다.") };
+	const publicKey = optionsResponse.payload.publicKey as Record<string, unknown>;
+	publicKey.challenge = base64urlToBuffer(String(publicKey.challenge));
+	(publicKey.user as Record<string, unknown>).id = base64urlToBuffer(String((publicKey.user as Record<string, unknown>).id));
+	const credential = (await navigator.credentials.create({ publicKey: publicKey as unknown as PublicKeyCredentialCreationOptions })) as PublicKeyCredential;
+	const attestation = credential.response as AuthenticatorAttestationResponse;
+	const verifyResponse = await postJSON("/api/site-auth/passkey/register", {
+		username,
+		credential: {
+			id: credential.id,
+			response: {
+				clientDataJSON: bufferToBase64url(attestation.clientDataJSON),
+				attestationObject: bufferToBase64url(attestation.attestationObject),
+			},
+		},
+	});
+	if (!verifyResponse.ok) return { ok: false, message: String(verifyResponse.payload.message ?? "패스키 등록에 실패했습니다.") };
+	storeAuthPayload(verifyResponse.payload);
+	return { ok: true };
+}
+
+export async function passkeyLogin(userCollection: string, username: string): Promise<AuthResult> {
+	void userCollection;
+	const optionsResponse = await postJSON("/api/site-auth/passkey/login-options", { username });
+	if (!optionsResponse.ok) return { ok: false, message: String(optionsResponse.payload.message ?? "패스키 로그인 준비에 실패했습니다.") };
+	const publicKey = optionsResponse.payload.publicKey as Record<string, unknown>;
+	publicKey.challenge = base64urlToBuffer(String(publicKey.challenge));
+	publicKey.allowCredentials = ((publicKey.allowCredentials as Array<Record<string, unknown>>) ?? []).map((entry) => ({
+		...entry,
+		id: base64urlToBuffer(String(entry.id)),
+	}));
+	const credential = (await navigator.credentials.get({ publicKey: publicKey as unknown as PublicKeyCredentialRequestOptions })) as PublicKeyCredential;
+	const assertion = credential.response as AuthenticatorAssertionResponse;
+	const verifyResponse = await postJSON("/api/site-auth/passkey/login", {
+		username,
+		credential: {
+			id: credential.id,
+			response: {
+				clientDataJSON: bufferToBase64url(assertion.clientDataJSON),
+				authenticatorData: bufferToBase64url(assertion.authenticatorData),
+				signature: bufferToBase64url(assertion.signature),
+			},
+		},
+	});
+	if (!verifyResponse.ok) return { ok: false, message: String(verifyResponse.payload.message ?? "패스키 로그인에 실패했습니다.") };
+	storeAuthPayload(verifyResponse.payload);
+	return { ok: true };
+}
