@@ -26,7 +26,7 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Stack
 
-- The scaffold is a working React + Tailwind + shadcn black-on-white template composed from reusable blocks. Start from it and customize content; the build installs npm dependencies online.
+- The scaffold is a React + Tailwind + shadcn black-on-white template composed from reusable blocks. Start from it and customize content; the build installs npm dependencies online.
 - Reuse the shadcn primitives in `app/src/components/ui/*` (Button, Card, Badge, Input, Tabs, Dialog, etc.) and the block components in `app/src/blocks/*`. Keep the black-on-white default unless the request asks otherwise.
 - Use PocketBase only when the prototype needs local data, auth, files, realtime, or migrations.
 - Do not add Next.js, SvelteKit, Node servers, cloud databases, hosted backends, or paid APIs unless the user explicitly asks and accepts the cost/reliability tradeoff.
@@ -37,14 +37,14 @@ Block copy must be realistic, specific prose for the requested business — real
 
 `app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one page) or `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; `/api`, `/_`, `/fonts` paths are reserved; page links use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, `actionHref` it needs. Choose page count and block order to fit the request — a restaurant, a portfolio, and a dashboard should end up with different structures.
 
-- `hero`: opening title, tagline body, and one primary call-to-action; use once, first.
-- `features`: titled grid of `items` for capabilities, services, or benefits.
-- `prose`: titled block of free-form paragraphs for narrative, policy, or about content.
-- `cta`: high-contrast banner with a title, short body, and one action button.
-- `faq`: titled list of expandable `items` as question/answer pairs.
+- `hero`: opening title, tagline, one primary call-to-action; once, first.
+- `features`: titled grid of `items` for capabilities or benefits.
+- `prose`: titled free-form paragraphs for narrative or about content.
+- `cta`: high-contrast banner with title, short body, one action.
+- `faq`: expandable `items` as question/answer pairs.
 - `contact`: titled block with body text, structured `items` (email, instagram, address entries), and one action; emails, URLs, and @handles in text auto-link.
 
-Items accept `icon` and hero/prose accept `image` + `imageAlt` — read `references/blocks.md` for the icon list and image sourcing rules (license-free photos first, generation last).
+Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (mesh, aurora, grain, grid, dots) — read `references/blocks.md` for icon names, image sourcing (license-free photos first, generation last), and backdrop moods. A hero with no image should carry a matching backdrop.
 
 ## Create, Update, Publish
 
@@ -94,10 +94,10 @@ Requests are incomplete until site.publish succeeds and a final site.status retu
    ```
 
    Run it again after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: keep revising while it improves, stop when the gate passes or the score stalls across two runs, and never call site.publish on a final state that was not reviewed.
-7. If `workspaceHealth` is `missing` or `permission_problem`, call site.status once more to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
+7. If `workspaceHealth` is `missing` or `permission_problem`, recheck site.status once; if still unhealthy, report honestly. If `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present.
 9. Update `.internkim/idea.md` when positioning changes.
-10. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
+10. Write `.internkim/artifact-brief.md` before source edits: intent, audience, archetype, visual direction, must-show source content, forbidden invented content, what would be too shallow.
 11. For a content-only change — copy, tagline, blocks, pages, or navigation with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); no `app/src/**` edit and no build step.
 12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
 13. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
