@@ -10,7 +10,7 @@ type OrgchartMockHandlers = {
 
 export async function mockAdminOrgchart(page: Page, handlers: OrgchartMockHandlers): Promise<void> {
 	await page.route('**/admin/api/session', async (route) => {
-		await route.fulfill({ json: { email: 'admin@example.com', deviceManaged: handlers.deviceManaged ?? true } });
+		await route.fulfill({ json: { email: 'admin@example.com', role: 'admin', deviceManaged: handlers.deviceManaged ?? true } });
 	});
 	await page.route('**/admin/api/locale', async (route) => {
 		await route.fulfill({ json: { locale: 'ko' } });
@@ -43,8 +43,16 @@ export async function mockAdminOrgchart(page: Page, handlers: OrgchartMockHandle
 
 export async function openOrgchartEditor(page: Page): Promise<void> {
 	await page.goto('/admin/?fleet_id=demo&section=orgchart');
+	await expect(page.getByRole('button', { name: '조직도' })).toBeVisible();
+	await page.getByRole('button', { name: '조직도' }).click();
 	await page.getByLabel('편집').click();
 	await expect(page.getByTestId('orgchart-profile-user-grace')).toBeVisible();
+}
+
+export async function enableOrgchartEditMode(page: Page): Promise<void> {
+	await expect(page.getByRole('button', { name: '조직도' })).toBeVisible();
+	await page.getByRole('button', { name: '조직도' }).click();
+	await page.getByLabel('편집').click();
 }
 
 export async function openCardEditor(card: Locator): Promise<void> {
