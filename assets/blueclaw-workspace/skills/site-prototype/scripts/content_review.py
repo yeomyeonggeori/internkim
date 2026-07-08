@@ -191,7 +191,7 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
     for path_label, blocks in page_entries:
         variants = [str(block.get("variant") or "") for block in blocks]
         page_text = collect_visible_text({}, blocks)
-        if len(blocks) == 1 and len(page_text) < 220:
+        if len(blocks) == 1 and len(page_text) < 220 and variants[0] not in ("contact", "cta"):
             warnings.append(f"thinPageWarning: page {path_label} is a single block with little text; add supporting blocks or depth")
         for position in range(len(variants) - 2):
             if variants[position] == variants[position + 1] == variants[position + 2]:
