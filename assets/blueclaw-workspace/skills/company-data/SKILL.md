@@ -10,7 +10,11 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 ## Metrics — 수치 시계열
 
-"작년 연매출은 12억이었어" → `company.metric.record`:
+"작년 연매출은 12억이었어" → FIRST check what already exists for that year, THEN write:
+
+1. `company.metric.list {"fromYear": 2025, "toYear": 2025}` — all rows for the year (add `metric` to narrow).
+2. An existing row states the same fact (maybe at a different quarter/month granularity)? Re-record THAT row's period with the corrected value — do not add a second row for the same fact.
+3. Nothing overlaps? Add the new row:
 
 ```json
 { "operation": "company.metric.record", "input": "{\"metric\": \"annualRevenue\", \"year\": 2025, \"value\": 1200000000, \"unit\": \"KRW\"}" }
@@ -18,18 +22,18 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 - Period granularity: year only = annual, add `quarter` (1-4) OR `month` (1-12) — never both.
 - Reuse the same metric key across periods: `annualRevenue`, `operatingProfit`, `mau`, `employees`, `gmv`.
-- Corrections are the same call with the same period. Read with `company.metric.list` (`metric`, `fromYear`, `toYear`).
+- `company.metric.record` upserts on (metric, year, quarter, month) — a correction is the same call with the same period.
 
 ## Records — 연혁·투자·제품·인증
 
-"작년 11월에 시드로 20억 투자받았어" → `company.record.add`:
+"작년 11월에 시드로 20억 투자받았어" → FIRST `company.record.list {"category": "funding"}` and scan for the same event in that year. Same event already recorded? `company.record.update` (id from list) with the corrected date/detail/attributes. Nothing overlaps? `company.record.add`:
 
 ```json
 { "operation": "company.record.add", "input": "{\"category\": \"funding\", \"date\": \"2025-11\", \"title\": \"시드 투자 유치\", \"attributes\": \"{\\\"round\\\": \\\"Seed\\\", \\\"amount\\\": \\\"20억 원\\\", \\\"investors\\\": \\\"ABC벤처스\\\"}\"}" }
 ```
 
 - Categories: `history`(연혁), `funding`, `product`, `certification`, `ip`(특허), `award`, `reference`(주요 고객·파트너), `grant`(정부과제). Pick the closest; new kebab-case categories are allowed.
-- Query with `company.record.list` (`category`, `query`); fix with `company.record.update` (id from list); `company.record.delete` only on explicit user request.
+- `company.record.delete` only on explicit user request.
 
 ## Profile — 회사 기본 정보
 
@@ -39,8 +43,16 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 "ABC랑 맺은 계약 조건이 뭐였지" → `company.document.search {"query": "ABC 용역 계약 대금"}`. Answer from the returned summaries; open the file with `file.read` only when the summary is not enough. "ABC에 보낸 견적서 목록" → `company.document.list`. A received contract the user attaches for safekeeping → save the file under `/workspace/circles/staff/documents/<type>/`, then `company.document.register` with `kind: "received"` and a 2-3 sentence summary.
 
+## Table schema
+
+- `company_metrics` — key `(metric, year, quarter, month)`, columns `value`, `unit`, `note`, `updatedAt`. quarter/month are 0 when unset; quarter AND month together is rejected.
+- `company_records` — `id`, `category`, `date` (YYYY-MM[-DD]), `title`, `detail`, `attributes` (free JSON object per category), `updatedAt`.
+- `company_documents` — `id`, `documentNumber` (server-assigned, issued only), `kind` (issued/received/internal), `documentType`, `title`, `counterpart`, `language`, `filePath`, `summary`, `updatedAt`.
+- Profile (`company.info.*`) — localized: `name`, `brandName`, `slogan`, `description`, `representative`, `representativeTitle`, `address`, `officeAddress`, `jurisdiction`, `bankAccount`, `legalAttributes` (label→value map); neutral: `foundedDate`, `capital`, `fiscalYearEnd`, `employeeCount`, `phone`, `fax`, `email`, `website`.
+
 ## Rules
 
+- Never blindly append: search existing rows for the year/category first; update overlaps, add only genuinely new facts.
 - Record only user-stated facts — never estimate values, dates, or investor names.
 - Confirm the stored result back to the user in one line (metric, period, value) so mistakes surface immediately.
 - These tables feed IR decks, business plans, and grant applications later — prefer structured `attributes` over prose in `detail`.
