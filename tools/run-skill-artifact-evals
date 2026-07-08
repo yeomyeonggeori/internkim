@@ -474,7 +474,7 @@ def find_existing_site_screenshots(resultDirectory: Path, diagnosticDirectory: P
     return render_recovered_site_screenshots(resultDirectory, diagnosticDirectory)
 
 
-SITE_RENDER_VIEWPORTS = [("desktop", 1440, 2200), ("mobile", 390, 1600)]
+SITE_RENDER_VIEWPORTS = [("desktop", 1440, 900), ("mobile", 390, 844)]
 SITE_RENDER_PAGE_LIMIT = 4
 
 
@@ -528,6 +528,80 @@ def recovered_site_page_paths(contentDocument: str) -> list[str]:
     return paths[:SITE_RENDER_PAGE_LIMIT] if paths else ["/"]
 
 
+SITE_THEME_STYLE_PRESET_VARIABLES = {
+    "editorial": "",
+    "soft": """  --hero-background: color-mix(in srgb, var(--primary) 7%, var(--background));
+  --hero-foreground: var(--foreground);
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 0 18px 44px -16px rgb(0 0 0 / 0.16);
+""",
+    "dark": """  --hero-background: var(--foreground);
+  --hero-foreground: var(--background);
+  --hero-muted: color-mix(in srgb, var(--background) 68%, transparent);
+""",
+    "brutalist": """  --hero-background: var(--primary);
+  --hero-foreground: var(--primary-foreground);
+  --hero-muted: color-mix(in srgb, var(--primary-foreground) 78%, transparent);
+  --shadow-card: 4px 4px 0 var(--foreground);
+  --shadow-card-hover: 7px 7px 0 var(--foreground);
+  --motion-duration: 0s;
+""",
+    "playful": """  --hero-background: color-mix(in srgb, var(--accent) 12%, var(--background));
+  --hero-foreground: var(--foreground);
+  --shadow-card: 0 3px 0 color-mix(in srgb, var(--accent) 35%, transparent);
+  --shadow-card-hover: 0 10px 24px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  --motion-duration: 0.7s;
+""",
+}
+
+SITE_THEME_GENERIC_FONT_KEYWORDS = {
+    "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
+    "sans-serif", "serif", "monospace", "cursive", "fantasy",
+}
+
+
+def render_site_theme_css_from_design(designDocument: str) -> str:
+    frontMatterMatch = re.match(r"^---\n(.*?)\n---", designDocument, re.DOTALL)
+    if not frontMatterMatch:
+        return ""
+    frontMatter = frontMatterMatch.group(1)
+
+    def nested_value(section: str, key: str) -> str:
+        sectionMatch = re.search(rf"(?m)^{section}:\n((?:[ \t]+.*\n?)*)", frontMatter)
+        if not sectionMatch:
+            return ""
+        valueMatch = re.search(rf"(?m)^\s+{key}:\s*\"?([^\"\n]+)", sectionMatch.group(1))
+        return valueMatch.group(1).strip() if valueMatch else ""
+
+    def font_or_default(value: str) -> str:
+        cleaned = value.strip().strip("\"'")
+        if not cleaned or cleaned.lower() in SITE_THEME_GENERIC_FONT_KEYWORDS:
+            return "에이투지체"
+        return cleaned
+
+    primary = nested_value("colors", "primary") or "#111111"
+    background = nested_value("colors", "background") or "#ffffff"
+    foreground = nested_value("colors", "foreground") or ("#111111" if background.lower() in ("#ffffff", "#fff") else "#111111")
+    accent = nested_value("colors", "accent") or primary
+    headingFont = font_or_default(re.search(r"fontFamily:\s*\"?([^\"\n]+)", frontMatter).group(1) if re.search(r"fontFamily:", frontMatter) else "")
+    styleMatch = re.search(r"(?m)^style\s*:\s*(\S+)", frontMatter)
+    preset = styleMatch.group(1).strip("\"'").lower() if styleMatch else "editorial"
+    presetVariables = SITE_THEME_STYLE_PRESET_VARIABLES.get(preset, "")
+    fontStack = f'"{headingFont}", "에이투지체", Pretendard, system-ui, sans-serif'
+    return (
+        ":root:root {\n"
+        f"  --primary: {primary};\n"
+        "  --primary-foreground: #ffffff;\n"
+        f"  --background: {background};\n"
+        f"  --foreground: {foreground};\n"
+        f"  --accent: {accent};\n"
+        f"  --font-heading: {fontStack};\n"
+        f"  --font-body: {fontStack};\n"
+        + presetVariables +
+        "}\n"
+    )
+
+
 def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory: Path) -> list[Path]:
     recoveredFiles = recover_site_files_from_test_result(diagnosticDirectory)
     contentDocument = recoveredFiles.get("site-content.json")
@@ -541,6 +615,9 @@ def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory
     clear_directory(stageDirectory)
     shutil.copytree(distSourcePath, stageDirectory)
     (stageDirectory / "site-content.json").write_text(contentDocument, encoding="utf-8")
+    themeCSS = render_site_theme_css_from_design(recoveredFiles.get("DESIGN.md", ""))
+    if themeCSS:
+        (stageDirectory / "theme.css").write_text(themeCSS, encoding="utf-8")
     fontsSourcePath = REPOSITORY_ROOT / "assets" / "fonts" / "files"
     if fontsSourcePath.is_dir():
         (stageDirectory / "fonts").symlink_to(fontsSourcePath)
