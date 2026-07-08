@@ -44,13 +44,13 @@ Block copy must be realistic, specific prose for the requested business — real
 - `faq`: expandable question/answer `items`.
 - `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Membership: `"auth": {"enabled": true}` top-level + member pages `"access": "authenticated"` — login/signup/session/gate are built in (`references/blocks.md` § Auth). Fetch at least a hero image unless the request wants a text-only look. Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots exist) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. 
+Membership: `"auth": {"enabled": true}` top-level + member pages `"access": "authenticated"` — login/signup/session/gate are built in (`references/blocks.md` § Auth). Fetch at least a hero image unless the request wants text-only. Items accept `icon`; hero/prose accept `image`+`imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. 
 
 ## Create, Update, Publish
 
 A request is incomplete until site.publish succeeds and site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
 
-1. Call site.status once with the known `siteID`, slug, or empty input. Do not call it again until an action you took could change the answer.
+1. Call site.status once; recall only after an action changed the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
 3. If status is `not_found`, go straight to step 5 (site.create); polling status again changes nothing.
 4. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. Write it at `sourceWorkspacePath` (a sibling of `app/`) — never at `app/DESIGN.md`; publish only looks for `DESIGN.md` at the source root, and misplacing it also falsely marks the build stale. Publish renders `colors` and `typography` into `theme.css`, so pick them before site.create on every create or update.
@@ -93,7 +93,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    }
    ```
 
-   Rerun after every content or design change: revise while the score improves, stop when the gate passes or stalls twice, never publish unreviewed.
+   Rerun after every change: revise while the score improves, stop when the gate passes or stalls twice, never publish unreviewed. After site.publish run `scripts/site_smoke.py <public URL>` and fix every reported failure.
 7. If `workspaceHealth` is `missing` or `permission_problem`, recheck site.status once; if still unhealthy, report honestly. If `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present.
 9. Update `.internkim/idea.md` on positioning changes.
