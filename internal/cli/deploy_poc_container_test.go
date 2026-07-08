@@ -28,6 +28,16 @@ func TestNormalizePocContainerComponentMapsBlueclawPayload(t *testing.T) {
 	}
 }
 
+func TestNormalizePocContainerComponentAcceptsSkills(t *testing.T) {
+	component, errorValue := normalizePocContainerComponent("skills")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if component != "skills" {
+		t.Fatalf("component = %q, want skills", component)
+	}
+}
+
 func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {
 	target := deployops.Target{ImageTag: "internkim-poc-tenant:flow"}
 	command := pocContainerRecreateCommand(target)
