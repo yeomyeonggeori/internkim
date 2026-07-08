@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -373,6 +373,14 @@ func releaseChannelHistoryKey(channel string) string {
 	return "channels/" + strings.Trim(strings.TrimSpace(channel), "/") + "-history.json"
 }
 
+func deviceAssetSourcePath(assetName string, repositoryRootPath string) string {
+	asset, found := deviceassets.Find(assetName)
+	if !found {
+		panic("deviceassets: unknown asset " + assetName)
+	}
+	return asset.SourcePath(repositoryRootPath)
+}
+
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
 	gitRevision := gitRevision(repositoryRootPath)
 	blobInputs := []struct {
@@ -389,8 +397,8 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
-		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: blueclawworkspace.SkillsPath(repositoryRootPath)},
-		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "assets", "fonts", "files")},
+		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
+		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
 		{name: "mattermostPlugins", revision: gitRevision, restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
 	}
 	blobs := []releaseBlob{}

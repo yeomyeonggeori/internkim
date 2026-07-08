@@ -84,7 +84,7 @@ Do not deliver a board deck made of plain white title slides, unstyled tables, b
 
 `deck-brief.md` is an optional planning note, not a deliverable: archetype, story spine, slide count, visual system, signature move, what would be too shallow.
 
-`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter: one source fact or must-appear phrase per line, then represent those facts in `slides.html` with natural layout copy, tables, charts, or labels — organization, product, exact period wording, metric and target values, owners, dates, missing-value labels such as `제공된 자료 없음`. Keep Korean period wording like `2026년 2분기` as written.
+`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter: one source fact or must-appear phrase per line, then represent those facts in `slides.html` with natural layout copy, tables, charts, or labels — organization, product, exact period wording, metric and target values, owners, dates, missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`.
 
 HTML is the layout surface; browser rendering feeds PDF, review images, and image-backed PPTX. The build falls back to native text-backed PPTX when Chromium is unavailable or `PRESENTATION_PPTX_MODE=native` is set:
 
