@@ -45,6 +45,76 @@ test.describe('calendar route Google Calendar readiness', () => {
 		expect(Math.abs(switchAccountBox.y - titleBox.y)).toBeLessThan(16);
 	});
 
+	test('shows selected Google Calendar initial sync progress', async ({ page }) => {
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company@example.com',
+					selectedCalendarName: '회사 일정',
+					selectedCalendarAccessRole: 'writer',
+					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
+		await expect(page.getByText('초기 동기화 중')).toBeVisible();
+		await expect(page.getByText('동기화 가능')).toHaveCount(0);
+	});
+
+	test('keeps long selected Google Calendar status contained on mobile', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company-long-calendar@example.com',
+					selectedCalendarName: '회사 전체 일정 및 외부 협력사 공유 캘린더 긴 이름',
+					selectedCalendarAccessRole: 'writer',
+					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		const sheet = page.locator('[data-slot="sheet-content"]');
+		const selectedCalendar = page.getByText(/사용 중인 캘린더:/);
+		const readiness = page.getByText('초기 동기화 중');
+		await expect(selectedCalendar).toBeVisible();
+		await expect(readiness).toBeVisible();
+		const sheetBox = await sheet.boundingBox();
+		const selectedCalendarBox = await selectedCalendar.boundingBox();
+		const readinessBox = await readiness.boundingBox();
+		expect(sheetBox).not.toBeNull();
+		expect(selectedCalendarBox).not.toBeNull();
+		expect(readinessBox).not.toBeNull();
+		if (!sheetBox || !selectedCalendarBox || !readinessBox) return;
+		expect(selectedCalendarBox.x).toBeGreaterThanOrEqual(sheetBox.x);
+		expect(selectedCalendarBox.x + selectedCalendarBox.width).toBeLessThanOrEqual(sheetBox.x + sheetBox.width + 1);
+		expect(readinessBox.x).toBeGreaterThanOrEqual(sheetBox.x);
+		expect(readinessBox.x + readinessBox.width).toBeLessThanOrEqual(sheetBox.x + sheetBox.width + 1);
+	});
+
 	test('shows reconnect state when Google calendar selection requires reauth', async ({ page }) => {
 		let didFailCalendarSelection = false;
 		await page.unroute('**/calendar/api/account-status');

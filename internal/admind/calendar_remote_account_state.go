@@ -68,8 +68,85 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 func (service *Service) saveCalendarPullState(ctx context.Context, account remoteCalendarAccount, calendarCTag string, completedAt time.Time, isInitialSyncCompleted bool) (remoteCalendarAccount, error) {
 	account.DefaultCalendarCTag = strings.TrimSpace(calendarCTag)
 	if isInitialSyncCompleted {
-		account.InitialSyncCompletedAt = completedAt.UTC().Format(time.RFC3339Nano)
-		account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
+		hasPendingBackfill, errorValue := service.hasPendingCalendarPutsForTarget(ctx, account.ID, selectedRemoteCalendarTarget(account))
+		if errorValue != nil {
+			return remoteCalendarAccount{}, errorValue
+		}
+		if hasPendingBackfill {
+			account.SelectedCalendarReadinessStatus = calendarReadinessStatusInitialExportPending
+		} else {
+			account.InitialSyncCompletedAt = completedAt.UTC().Format(time.RFC3339Nano)
+			account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
+		}
+		if selectedRemoteCalendarTarget(account).IsSelectedCalendar {
+			return account, service.updateSelectedCalendarPullState(ctx, account)
+		}
 	}
 	return service.upsertRemoteCalendarAccount(ctx, account)
+}
+
+func (service *Service) updateSelectedCalendarPullState(ctx context.Context, account remoteCalendarAccount) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `
+	UPDATE calendar_remote_accounts
+	SET default_calendar_ctag = ?, selected_calendar_readiness_status = ?, initial_sync_completed_at = ?, updated_at = ?
+	WHERE id = ?
+		AND selected_calendar_id = ?
+		AND selected_calendar_url = ?
+		AND COALESCE(initial_sync_completed_at, '') = ''`,
+		strings.TrimSpace(account.DefaultCalendarCTag),
+		strings.TrimSpace(account.SelectedCalendarReadinessStatus),
+		strings.TrimSpace(account.InitialSyncCompletedAt),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		strings.TrimSpace(account.ID),
+		strings.TrimSpace(account.SelectedCalendarID),
+		strings.TrimSpace(account.SelectedCalendarURL),
+	)
+	return errorValue
+}
+
+func (service *Service) completeCalendarInitialSyncIfReady(ctx context.Context, account remoteCalendarAccount, completedAt time.Time) error {
+	if strings.TrimSpace(account.InitialSyncCompletedAt) != "" {
+		return nil
+	}
+	if strings.TrimSpace(account.SelectedCalendarReadinessStatus) != calendarReadinessStatusInitialExportPending {
+		return nil
+	}
+	hasPendingBackfill, errorValue := service.hasPendingCalendarPutsForTarget(ctx, account.ID, selectedRemoteCalendarTarget(account))
+	if errorValue != nil {
+		return errorValue
+	}
+	if hasPendingBackfill {
+		return nil
+	}
+	return service.markSelectedCalendarInitialSyncCompleted(ctx, account, completedAt)
+}
+
+func (service *Service) markSelectedCalendarInitialSyncCompleted(ctx context.Context, account remoteCalendarAccount, completedAt time.Time) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `
+	UPDATE calendar_remote_accounts
+	SET initial_sync_completed_at = ?, selected_calendar_readiness_status = ?, updated_at = ?
+	WHERE id = ?
+		AND selected_calendar_id = ?
+		AND selected_calendar_url = ?
+		AND selected_calendar_readiness_status = ?
+		AND COALESCE(initial_sync_completed_at, '') = ''`,
+		completedAt.UTC().Format(time.RFC3339Nano),
+		calendarReadinessStatusSyncReady,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		strings.TrimSpace(account.ID),
+		strings.TrimSpace(account.SelectedCalendarID),
+		strings.TrimSpace(account.SelectedCalendarURL),
+		calendarReadinessStatusInitialExportPending,
+	)
+	return errorValue
 }

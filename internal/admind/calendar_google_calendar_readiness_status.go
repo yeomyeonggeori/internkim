@@ -5,6 +5,7 @@ import "strings"
 const (
 	calendarReadinessStatusCalendarSelectionRequired = "calendar_selection_required"
 	calendarReadinessStatusInitialSyncPending        = "initial_sync_pending"
+	calendarReadinessStatusInitialExportPending      = "initial_export_pending"
 	calendarReadinessStatusSyncReady                 = "sync_ready"
 	calendarReadinessStatusWritePermissionRequired   = "write_permission_required"
 	calendarReadinessStatusCalendarInaccessible      = "calendar_inaccessible"
