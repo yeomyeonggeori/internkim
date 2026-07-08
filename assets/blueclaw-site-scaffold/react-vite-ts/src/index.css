@@ -124,6 +124,15 @@ select {
 	z-index: 1;
 }
 
+.hero-band .backdrop-canvas {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
 [class*="backdrop-"] {
 	position: relative;
 	overflow: hidden;
