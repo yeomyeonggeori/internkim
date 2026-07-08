@@ -1332,8 +1332,15 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 	return service.initializeSiteGitRepository(ctx, site)
 }
 
-const siteAuthBootstrapMigration = `/// up
-migrate((db) => {}, (db) => {});
+const siteAuthBootstrapMigration = `migrate((app) => {
+	const collection = app.findCollectionByNameOrId("users");
+	const emailField = collection.fields.getByName("email");
+	if (emailField) {
+		emailField.required = false;
+	}
+	collection.passwordAuth.identityFields = ["username", "email"];
+	app.save(collection);
+}, (app) => {});
 `
 
 func ensureSiteAuthRuntimeBootstrap(hostSourcePath string) error {
@@ -1355,7 +1362,7 @@ func ensureSiteAuthRuntimeBootstrap(hostSourcePath string) error {
 	if errorValue := os.MkdirAll(migrationsPath, 0o755); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(filepath.Join(migrationsPath, "1700000000_auth_bootstrap.js"), []byte(siteAuthBootstrapMigration), 0o644)
+	return os.WriteFile(filepath.Join(migrationsPath, "1700000001_auth_bootstrap.js"), []byte(siteAuthBootstrapMigration), 0o644)
 }
 
 // copySiteSourceTree mirrors a site source tree into the publish ledger, skipping

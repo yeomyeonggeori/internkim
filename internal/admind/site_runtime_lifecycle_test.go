@@ -200,7 +200,7 @@ func TestAuthEnabledPublishBootstrapsPocketBaseRuntime(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("auth-enabled publish failed: %v", errorValue)
 	}
-	migrationPath := filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "1700000000_auth_bootstrap.js")
+	migrationPath := filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "1700000001_auth_bootstrap.js")
 	if _, errorValue := os.Stat(migrationPath); errorValue != nil {
 		t.Fatalf("auth-enabled publish must bootstrap the PocketBase runtime marker: %v", errorValue)
 	}
