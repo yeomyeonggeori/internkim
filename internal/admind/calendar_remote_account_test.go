@@ -318,6 +318,51 @@ func TestSaveSelectedCalendarRetriesMissingBackfillForWritableSelection(t *testi
 	}
 }
 
+func TestSaveSelectedCalendarPreservesInitialExportPendingForSameSelection(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                              "account-google-1",
+		Provider:                        remoteCalendarProviderGoogle,
+		AccountEmail:                    "user@example.com",
+		DefaultCalendarURL:              "/calendars/default/",
+		DefaultCalendarCTag:             `"selected-ctag"`,
+		SelectedCalendarID:              "company@example.com",
+		SelectedCalendarSummary:         "Company",
+		SelectedCalendarAccessRole:      "writer",
+		SelectedCalendarURL:             "/calendars/company/",
+		SelectedCalendarSelectedAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		SelectedCalendarReadinessStatus: calendarReadinessStatusInitialExportPending,
+	})
+	if errorValue != nil {
+		t.Fatalf("seed account: %v", errorValue)
+	}
+	event := newLocalTestCalendarEvent("existing-export-pending", "Existing Export Pending")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write existing event: %v", errorValue)
+	}
+
+	updated, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("save same selected calendar: %v", errorValue)
+	}
+	if updated.SelectedCalendarReadinessStatus != calendarReadinessStatusInitialExportPending {
+		t.Fatalf("SelectedCalendarReadinessStatus: got %q", updated.SelectedCalendarReadinessStatus)
+	}
+
+	client := &fakeCalDAVPushClient{
+		putETags: map[string]string{
+			"/calendars/company/" + event.UID + ".ics": `"etag-exported"`,
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, updated, client); errorValue != nil {
+		t.Fatalf("push pending export: %v", errorValue)
+	}
+	if len(client.putCalls) != 1 {
+		t.Fatalf("pending export should push after same selection save, got %d calls", len(client.putCalls))
+	}
+}
+
 func TestRemoteCalendarAccountSchemaMigratesLegacyColumns(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()

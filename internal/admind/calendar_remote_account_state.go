@@ -17,6 +17,7 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 	selectedCalendarID := strings.TrimSpace(calendarID)
 	selectedCalendarURL := strings.TrimSpace(calendarURL)
 	isSameSelectedCalendar := strings.TrimSpace(account.SelectedCalendarID) == selectedCalendarID && strings.TrimSpace(account.SelectedCalendarURL) == selectedCalendarURL
+	previousReadinessStatus := strings.TrimSpace(account.SelectedCalendarReadinessStatus)
 	if !isSameSelectedCalendar {
 		account.DefaultCalendarCTag = ""
 		account.InitialSyncCompletedAt = ""
@@ -27,6 +28,9 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 	account.SelectedCalendarURL = selectedCalendarURL
 	account.SelectedCalendarSelectedAt = selectedAt.UTC().Format(time.RFC3339Nano)
 	account.SelectedCalendarReadinessStatus = calendarReadinessStatusInitialSyncPending
+	if isSameSelectedCalendar && previousReadinessStatus == calendarReadinessStatusInitialExportPending {
+		account.SelectedCalendarReadinessStatus = calendarReadinessStatusInitialExportPending
+	}
 	if strings.TrimSpace(account.InitialSyncCompletedAt) != "" {
 		account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
 	}
