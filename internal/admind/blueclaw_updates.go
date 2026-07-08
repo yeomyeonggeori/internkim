@@ -555,10 +555,10 @@ if [ "$repair_status" -gt 2 ]; then
   echo '-- losetup:'
   losetup -j "$image" || true
 fi
-if [ -n %s ] && ! mountpoint -q %s; then mount -o loop "$image" %s || true; fi
+if [ -n %s ]; then mkdir -p %s; fi
 systemctl start %s 2>/dev/null || true
 [ "$repair_status" -le 2 ]
-`, imagePath, capabilitydService, capabilitydService, hostPath, hostPath, hostPath, capabilitydService))
+`, imagePath, capabilitydService, capabilitydService, hostPath, hostPath, capabilitydService))
 }
 
 func workspaceImageProbeLooksCorrupted(probeOutput string) bool {
