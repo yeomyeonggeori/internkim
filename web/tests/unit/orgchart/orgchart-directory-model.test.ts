@@ -96,6 +96,31 @@ describe('orgchart directory model', () => {
 		expect(model.columns[2]?.records.map((record) => record.userID)).toEqual(['yuna']);
 	});
 
+	test('orders people on the same level by hire date before name', () => {
+		const groups: OrgGroup[] = [{ id: 'engineering', name: '엔지니어링' }];
+		const records = [
+			userRecord({ userID: 'root-missing-zara', name: 'Zara Root' }),
+			userRecord({ userID: 'root-dated', name: 'Dated Root', hireDate: '2026-01-01' }),
+			userRecord({ userID: 'root-missing-ada', name: 'Ada Root' }),
+			userRecord({ userID: 'lead', name: 'Lead', hireDate: '2026-01-02', primaryGroupID: 'engineering', groupIDs: ['engineering'], supervisorID: 'root-dated' }),
+			userRecord({ userID: 'sibling-missing-zara', name: 'Zara Sibling', primaryGroupID: 'engineering', groupIDs: ['engineering'], supervisorID: 'lead' }),
+			userRecord({ userID: 'sibling-dated-bora', name: 'Bora Sibling', hireDate: '2026-02-01', primaryGroupID: 'engineering', groupIDs: ['engineering'], supervisorID: 'lead' }),
+			userRecord({ userID: 'sibling-dated-ada', name: 'Ada Sibling', hireDate: '2026-02-01', primaryGroupID: 'engineering', groupIDs: ['engineering'], supervisorID: 'lead' }),
+			userRecord({ userID: 'sibling-missing-ada', name: 'Ada Missing', primaryGroupID: 'engineering', groupIDs: ['engineering'], supervisorID: 'lead' })
+		];
+
+		const model = orgchartCanvasModel(records, groups, '팀 미지정');
+		const leadNode = model.columns[0]?.treeRoots[0];
+
+		expect(model.roots.map((record) => record.userID)).toEqual(['root-dated', 'root-missing-ada', 'root-missing-zara']);
+		expect(leadNode?.children.map((node) => node.record.userID)).toEqual([
+			'sibling-dated-ada',
+			'sibling-dated-bora',
+			'sibling-missing-ada',
+			'sibling-missing-zara'
+		]);
+	});
+
 	test('promotes missing supervisors and supervisor cycles to roots', () => {
 		const groups: OrgGroup[] = [{ id: 'engineering', name: '엔지니어링' }];
 		const records = [

@@ -1,3 +1,4 @@
+import { compareOrgchartPeople } from '$lib/orgchart/person-order';
 import type { UserRecord } from './admin-types';
 
 export type OrgNode = {
@@ -62,15 +63,5 @@ function descendantUserIDs(userRecords: UserRecord[], userID: string): string[] 
 }
 
 function byHireDate(first: UserRecord, second: UserRecord): number {
-	const hireDateDifference = hireDateSortValue(first).localeCompare(hireDateSortValue(second));
-	if (hireDateDifference !== 0) return hireDateDifference;
-	return personLabel(first).localeCompare(personLabel(second));
-}
-
-function hireDateSortValue(record: UserRecord): string {
-	return record.hireDate || '9999-12-31';
-}
-
-function personLabel(record: UserRecord): string {
-	return record.name || record.email;
+	return compareOrgchartPeople(first, second);
 }
