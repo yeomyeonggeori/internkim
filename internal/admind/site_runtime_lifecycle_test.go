@@ -3,6 +3,8 @@ package admind
 import (
 	"context"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -131,5 +133,43 @@ func TestValidateSiteContentPages(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", testCase.expectedError, errorValue)
 			}
 		})
+	}
+}
+
+func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "image-republish", Title: "Image Republish"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
+	imagePath := filepath.Join(site.HostSourcePath, "app", "public", "images", "hero.jpg")
+	if errorValue := os.MkdirAll(filepath.Dir(imagePath), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, imagePath, "fake-jpeg-bytes")
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatalf("first publish with public image failed: %v", errorValue)
+	}
+
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "images", "about.jpg"), "fake-jpeg-bytes-2")
+	setFileModTime(t, filepath.Join(site.HostSourcePath, "app", "public", "images", "about.jpg"), time.Now().UTC().Add(2*time.Hour))
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatalf("second publish after adding a public image must stay content-only, got: %v", errorValue)
 	}
 }
