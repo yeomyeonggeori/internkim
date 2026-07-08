@@ -1,3 +1,4 @@
+import { compareOrgchartPeople } from '$lib/orgchart/person-order';
 import type { OrgGroup, UserRecord } from '../admin/admin-types';
 
 export type OrgchartDirectoryFilters = {
@@ -154,9 +155,7 @@ function sortedColumnRecords(records: UserRecord[], recordDepths: Map<string, nu
 }
 
 function compareRecords(first: UserRecord, second: UserRecord): number {
-	const hireDateDifference = (first.hireDate || '9999-12-31').localeCompare(second.hireDate || '9999-12-31');
-	if (hireDateDifference !== 0) return hireDateDifference;
-	return personLabel(first).localeCompare(personLabel(second));
+	return compareOrgchartPeople(first, second);
 }
 
 function recordDepthMap(records: UserRecord[], roots: UserRecord[]): Map<string, number> {
@@ -188,8 +187,4 @@ function hasSupervisorCycle(record: UserRecord, records: UserRecord[]): boolean 
 		current = supervisor;
 	}
 	return false;
-}
-
-function personLabel(record: UserRecord): string {
-	return record.name || record.email;
 }
