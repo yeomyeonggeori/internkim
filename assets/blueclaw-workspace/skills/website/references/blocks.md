@@ -47,7 +47,7 @@ Served families (anything else silently falls back to the platform default): `ì—
 
 ## Auth (membership)
 
-Declare at the manifest top level:
+Most sites need no auth â€” add it only when the request has genuinely member-only content, never as decoration. When it does, declare at the manifest top level:
 
 ```json
 "auth": {"enabled": true}

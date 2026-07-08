@@ -44,7 +44,7 @@ Block copy must be realistic, specific prose for the requested business — real
 - `faq`: expandable question/answer `items`.
 - `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Membership: `"auth": {"enabled": true}` top-level + member pages `"access": "authenticated"` — login/signup/session/gate are built in (`references/blocks.md` § Auth). Fetch at least a hero image unless the request wants text-only. Items accept `icon`; hero/prose accept `image`+`imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. 
+Membership only when the request truly needs member-only areas — most sites need none: `"auth": {"enabled": true}` + member pages `"access": "authenticated"` (`references/blocks.md` § Auth). Fetch at least a hero image unless the request wants text-only. Items accept `icon`; hero/prose accept `image`+`imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. 
 
 ## Create, Update, Publish
 
