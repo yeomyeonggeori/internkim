@@ -26,6 +26,8 @@ export function googleCalendarConnectionStateLabel(
 			return text.googleCalendarInaccessible;
 		case 'sync_ready':
 			return text.googleCalendarSyncReady;
+		case 'initial_export_pending':
+			return text.googleCalendarInitialExportPending;
 		case 'initial_sync_pending':
 		default:
 			return text.googleCalendarInitialSyncPending;
@@ -39,6 +41,9 @@ export function googleCalendarConnectionStateClass(accountStatus: CalendarAccoun
 	const readinessStatus = googleCalendarReadinessStatus(accountStatus);
 	if (readinessStatus === 'sync_ready') {
 		return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+	}
+	if (readinessStatus === 'initial_export_pending') {
+		return 'border-amber-200 bg-amber-50 text-amber-700';
 	}
 	if (
 		readinessStatus === 'reauth_required' ||

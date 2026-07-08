@@ -26,6 +26,7 @@ export type CalendarLocaleText = {
 	googleCalendarWritePermissionRequired: string;
 	googleCalendarInaccessible: string;
 	googleCalendarInitialSyncPending: string;
+	googleCalendarInitialExportPending: string;
 	googleCalendarSyncReady: string;
 	googleCalendarConnectAction: string;
 	googleCalendarReconnectAction: string;
@@ -145,6 +146,7 @@ export type CalendarGoogleAccountText = Pick<
 	| 'googleCalendarWritePermissionRequired'
 	| 'googleCalendarInaccessible'
 	| 'googleCalendarInitialSyncPending'
+	| 'googleCalendarInitialExportPending'
 	| 'googleCalendarSyncReady'
 	| 'googleCalendarConnectAction'
 	| 'googleCalendarReconnectAction'
@@ -203,6 +205,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarWritePermissionRequired: '쓰기 권한 필요',
 		googleCalendarInaccessible: '캘린더 접근 불가',
 		googleCalendarInitialSyncPending: '초기 동기화 중',
+		googleCalendarInitialExportPending: '초기 내보내기 중',
 		googleCalendarSyncReady: '동기화 가능',
 		googleCalendarConnectAction: '연결',
 		googleCalendarReconnectAction: '다시 연결',
@@ -347,6 +350,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarWritePermissionRequired: 'Write permission required',
 		googleCalendarInaccessible: 'Calendar access unavailable',
 		googleCalendarInitialSyncPending: 'Initial sync pending',
+		googleCalendarInitialExportPending: 'Initial export pending',
 		googleCalendarSyncReady: 'Ready to sync',
 		googleCalendarConnectAction: 'Connect',
 		googleCalendarReconnectAction: 'Reconnect',
