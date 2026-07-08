@@ -44,7 +44,7 @@ Block copy must be realistic, specific prose for the requested business — real
 - `faq`: expandable `items` as question/answer pairs.
 - `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` — read `references/blocks.md` for icons, image sourcing (license-free first, generation last), and backdrop moods. A hero without an image should carry a matching backdrop.
+Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` — `references/blocks.md` lists icons, image sourcing, and backdrop moods. A hero without an image should carry a matching backdrop.
 
 ## Create, Update, Publish
 
@@ -84,7 +84,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    ```
 
    If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
-6. Compose the site in `app/public/site-content.json` from the Block Library — page split and block order is the structure decision. Then run the content review with `terminal.run`:
+6. Read `references/blocks.md` once to know the full expressive palette (icons, images, backdrops, links), then compose the site in `app/public/site-content.json` — page split and block order is the structure decision. Then run the content review with `terminal.run`:
 
    ```json
    {
