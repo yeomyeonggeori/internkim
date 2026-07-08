@@ -44,3 +44,13 @@ A hero with no image should almost always carry a backdrop that matches the mood
 ## Font Catalog
 
 Served families (anything else silently falls back to the platform default): `에이투지체` (default; all-round geometric sans), `Pretendard` (neutral body/UI), `Paperlogy` (display-friendly geometric), `마루부리` (screen serif with brush warmth), `Gowun Batang` (quiet literary serif), `Gowun Dodum` (handwritten-humanist), `Galmuri` (retro pixel), `D2Coding` (mono). Match the voice to the request and say why in DESIGN.md.
+
+## Auth (membership)
+
+Declare at the manifest top level:
+
+```json
+"auth": {"enabled": true}
+```
+
+and mark member-only pages with `"access": "authenticated"`. The runtime then provides `/login` and `/signup` pages (email + password, PocketBase-backed), a session-aware navigation entry, and redirects visitors from protected pages to login. Optional keys: `userCollection` (default `users`), `allowSignup` (default true), `loginPath`, `signupPath`, `redirectAfterLogin`. Do not build custom login forms or fake auth with prose blocks.

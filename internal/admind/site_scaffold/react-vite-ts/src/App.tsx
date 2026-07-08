@@ -8,6 +8,8 @@ import {
 	type SiteContent,
 	type SitePage,
 } from "./site-content";
+import { AuthPage } from "./auth/AuthPage";
+import { clearSession, useSession } from "./auth/session";
 
 function blockAnchor(index: number): string {
 	return `block-${index + 1}`;
@@ -56,6 +58,7 @@ function navigationItemsFrom(content: SiteContent): NavigationItem[] {
 function App() {
 	const [content, setContent] = useState<SiteContent>(fallbackContent);
 	const path = useHashPath();
+	const session = useSession();
 
 	useEffect(() => {
 		let isMounted = true;
@@ -67,7 +70,10 @@ function App() {
 		};
 	}, []);
 
+	const auth = content.auth;
+	const authMode = auth && path === auth.loginPath ? "login" : auth && auth.allowSignup && path === auth.signupPath ? "signup" : undefined;
 	const page = activePageFor(content.pages, path);
+	const requiresSession = auth !== undefined && page.access === "authenticated" && session === null;
 
 	useEffect(() => {
 		document.title = page.path === "/" ? content.siteName : `${page.title} — ${content.siteName}`;
@@ -83,7 +89,7 @@ function App() {
 				<a href="#/" className="font-semibold tracking-tight">
 					{siteName}
 				</a>
-				<nav className="flex max-w-[60vw] gap-5 overflow-x-auto whitespace-nowrap text-sm text-muted-foreground sm:max-w-none sm:gap-6">
+				<nav className="flex max-w-[60vw] items-center gap-5 overflow-x-auto whitespace-nowrap text-sm text-muted-foreground sm:max-w-none sm:gap-6">
 					{navigationItems.map((navigationItem) => (
 						<a
 							key={navigationItem.href}
@@ -98,15 +104,36 @@ function App() {
 							{navigationItem.label}
 						</a>
 					))}
+					{auth ? (
+						session ? (
+							<button
+								type="button"
+								onClick={() => clearSession()}
+								className="transition-colors hover:text-foreground"
+							>
+								로그아웃
+							</button>
+						) : (
+							<a href={"#" + auth.loginPath} className="transition-colors hover:text-foreground">
+								로그인
+							</a>
+						)
+					) : null}
 				</nav>
 				</div>
 			</header>
 
 			<main className="mx-auto max-w-4xl px-6">
-				{page.blocks.map((block, index) => {
-					const BlockComponent = resolveBlockComponent(block.variant);
-					return <BlockComponent key={page.path + blockAnchor(index)} block={block} anchorID={blockAnchor(index)} />;
-				})}
+				{authMode && auth ? (
+					<AuthPage mode={authMode} auth={auth} />
+				) : requiresSession && auth ? (
+					<AuthPage mode="login" auth={auth} />
+				) : (
+					page.blocks.map((block, index) => {
+						const BlockComponent = resolveBlockComponent(block.variant);
+						return <BlockComponent key={page.path + blockAnchor(index)} block={block} anchorID={blockAnchor(index)} />;
+					})
+				)}
 			</main>
 
 			<footer className="border-t border-border">
