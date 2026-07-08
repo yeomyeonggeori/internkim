@@ -45,7 +45,7 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Create, Update, Publish
 
-Website creation and update requests are incomplete until the site.publish operation succeeds and a final site.status operation returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create to finish.
+Requests are incomplete until site.publish succeeds and a final site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
 
 1. Call the site.status operation once with the known `siteID`, slug, or empty input for the current conversation. Do not call it again until an action you took (create, publish, or a content change) could change the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
@@ -90,7 +90,7 @@ Website creation and update requests are incomplete until the site.publish opera
    }
    ```
 
-   Run it again after every later `site-content.json` change. Resolve the listed warnings; never call site.publish on content whose final state has not passed this review, unless you consciously report the remaining notes.
+   Run it again after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: keep revising while it improves, stop when the gate passes or the score stalls across two runs, and never call site.publish on a final state that was not reviewed.
 7. If `workspaceHealth` is `missing` or `permission_problem`, call site.status once more to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
 9. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.

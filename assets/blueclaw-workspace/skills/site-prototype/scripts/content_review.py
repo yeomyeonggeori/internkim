@@ -16,6 +16,16 @@ WARNING_WEIGHTS = {
     "unsourcedCurrentDateWarning": 10,
     "emojiIconWarning": 8,
     "missingDesignDocumentWarning": 12,
+    "thinPageWarning": 10,
+    "blockRhythmWarning": 8,
+    "sparseItemsWarning": 8,
+    "duplicatedPageCompositionWarning": 8,
+    "defaultPaletteWarning": 10,
+    "genericFontWarning": 8,
+}
+GENERIC_FONT_KEYWORDS = {
+    "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
+    "sans-serif", "serif", "monospace", "cursive", "fantasy",
 }
 HANGUL_PATTERN = re.compile(r"[가-힣]")
 LATIN_LETTER_PATTERN = re.compile(r"[A-Za-z]")
@@ -43,11 +53,17 @@ def main() -> int:
     warnings += required_text_warnings(visible_text, ledger_text)
     warnings += numbered_filler_warnings(blocks)
     warnings += empty_text_warnings(blocks)
-    warnings += variant_structure_warnings(blocks)
+    if pages:
+        for page in pages:
+            warnings += variant_structure_warnings(page.get("blocks") or [])
+    else:
+        warnings += variant_structure_warnings(blocks)
     warnings += language_warnings(blocks, visible_text)
     warnings += current_date_warnings(visible_text, ledger_text)
     warnings += emoji_warnings(visible_text)
     warnings += design_document_warnings(source_root)
+    warnings += page_structure_warnings(pages, blocks)
+    warnings += design_intent_warnings(source_root)
     score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
     verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
     print(f"Content review: {len(blocks)} blocks, score {score}/100 (minimum {CONTENT_GATE_SCORE_MINIMUM})")
@@ -164,6 +180,51 @@ def emoji_warnings(visible_text: str) -> list:
     if EMOJI_PATTERN.search(visible_text):
         return ["emojiIconWarning: rendered text uses emoji glyphs; use plain labels or the scaffold's icons"]
     return []
+
+
+def page_structure_warnings(pages: list, all_blocks: list) -> list:
+    warnings = []
+    page_entries = [(str(page.get("path") or f"#{index}"), page.get("blocks") or []) for index, page in enumerate(pages, start=1)]
+    if not page_entries:
+        page_entries = [("/", all_blocks)]
+    compositions = {}
+    for path_label, blocks in page_entries:
+        variants = [str(block.get("variant") or "") for block in blocks]
+        page_text = collect_visible_text({}, blocks)
+        if len(blocks) == 1 and len(page_text) < 220:
+            warnings.append(f"thinPageWarning: page {path_label} is a single block with little text; add supporting blocks or depth")
+        for position in range(len(variants) - 2):
+            if variants[position] == variants[position + 1] == variants[position + 2]:
+                warnings.append(f"blockRhythmWarning: page {path_label} repeats the {variants[position]} variant three times in a row; vary the rhythm")
+                break
+        signature = ">".join(variants)
+        if len(variants) >= 2 and signature in compositions:
+            warnings.append(f"duplicatedPageCompositionWarning: pages {compositions[signature]} and {path_label} share the exact block sequence; give each page its own composition")
+        compositions.setdefault(signature, path_label)
+        for block_index, block in enumerate(blocks, start=1):
+            variant = str(block.get("variant") or "")
+            items = block.get("items") or []
+            if variant in ("features", "faq") and len(items) == 1:
+                warnings.append(f"sparseItemsWarning: page {path_label} block {block_index} is a {variant} with a single item; use a different variant or add real items")
+    return warnings
+
+
+def design_intent_warnings(source_root: pathlib.Path) -> list:
+    design_text = read_optional(source_root / "DESIGN.md")
+    if not design_text.startswith("---"):
+        return []
+    front_matter = design_text.split("---", 2)[1]
+    warnings = []
+    primary = (re.search(r"primary:\s*\"?(#[0-9a-fA-F]{3,6})", front_matter) or [None, ""])[1].lower()
+    background = (re.search(r"background:\s*\"?(#[0-9a-fA-F]{3,6})", front_matter) or [None, ""])[1].lower()
+    has_style_preset = bool(re.search(r"(?m)^style\s*:", front_matter))
+    if primary in ("#111111", "#000000", "#111") and background in ("#ffffff", "#fff") and not has_style_preset:
+        warnings.append("defaultPaletteWarning: colors are the template default black-on-white with no style preset; choose a palette and style that fit this request")
+    font_families = re.findall(r"fontFamily:\s*\"?([^\"\n]+)", front_matter)
+    generic = [family.strip().strip("\"'") for family in font_families if family.strip().strip("\"'").lower() in GENERIC_FONT_KEYWORDS]
+    if generic:
+        warnings.append(f"genericFontWarning: typography uses generic keyword families ({', '.join(sorted(set(generic)))}); pick a catalog typeface that matches the request")
+    return warnings
 
 
 def design_document_warnings(source_root: pathlib.Path) -> list:
