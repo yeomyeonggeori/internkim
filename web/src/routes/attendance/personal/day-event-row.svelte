@@ -6,6 +6,8 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import LogInIcon from '@lucide/svelte/icons/log-in';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import type { UpdateAttendanceEventRequest } from '../attendance-api';
 	import type { AttendanceEvent, AttendanceLocation } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
@@ -61,11 +63,7 @@
 	}
 
 	function eventKindLabel(kind: AttendanceEvent['kind']): string {
-		return kind === 'clock_in' ? `▶ ${text.clockIn}` : `◀ ${text.clockOut}`;
-	}
-
-	function formatAgentConfidence(confidence: number): string {
-		return text.agentConfidenceTemplate.replace('{percent}', String(Math.round(confidence * 100)));
+		return kind === 'clock_in' ? text.clockIn : text.clockOut;
 	}
 
 	function formatEditedAt(user: string, time: string): string {
@@ -145,9 +143,16 @@
 		class="flex w-full min-w-0 items-center justify-between gap-2 p-2 text-left hover:bg-accent/40"
 		onclick={() => onToggle(event.id)}
 	>
-		<span data-testid="personal-day-event-label" class={`min-w-0 truncate ${event.canceledAt ? 'line-through' : ''}`}>
-			{eventKindLabel(event.kind)} {event.localTime}
-			{#if event.locationName}<span class="text-muted-foreground"> · {event.locationName}</span>{/if}
+		<span data-testid="personal-day-event-label" class={`flex min-w-0 items-center gap-1.5 truncate ${event.canceledAt ? 'line-through' : ''}`}>
+			{#if event.kind === 'clock_in'}
+				<LogInIcon class="size-3 shrink-0 text-muted-foreground" />
+			{:else}
+				<LogOutIcon class="size-3 shrink-0 text-muted-foreground" />
+			{/if}
+			<span class="min-w-0 truncate">
+				{eventKindLabel(event.kind)} {event.localTime}
+				{#if event.locationName}<span class="text-muted-foreground"> · {event.locationName}</span>{/if}
+			</span>
 		</span>
 		<span class="flex shrink-0 items-center">
 			{#if isExpanded}
@@ -166,10 +171,6 @@
 				</div>
 			{:else if event.manualEntry}
 				<div class="text-muted-foreground">{text.manualEntry}</div>
-			{/if}
-
-			{#if event.confidence !== undefined}
-				<div class="text-muted-foreground">{formatAgentConfidence(event.confidence)}</div>
 			{/if}
 
 			{#if parsedMismatch}

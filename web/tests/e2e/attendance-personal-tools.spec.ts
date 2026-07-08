@@ -83,7 +83,7 @@ test.describe('attendance personal tools', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
 		await expect(secondDayDialog.getByText('00:00:00~')).toBeVisible();
-		await expect(secondDayDialog.getByText('진행 중')).toBeVisible();
+		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByText('01시간', { exact: true })).toBeVisible();
 	});
 
 	test('registers own absence without sending an email override', async ({ page }) => {

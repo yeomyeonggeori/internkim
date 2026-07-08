@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	buildSeries,
 	chartPointTotalMinutes,
+	summarizeDailyValues,
 } from '../../../src/routes/attendance/shared/work-time-chart-model';
 
 describe('work time chart model', () => {
@@ -80,11 +81,11 @@ describe('work time chart model', () => {
 
 		expect(englishSeries.map((point) => point.label)).toEqual(['W1', 'W2', 'W3', 'W4', 'W5']);
 		expect(englishSeries.map((point) => point.values)).toEqual([
-			{ office: 3, remote: 2 },
+			{ office: 60, remote: 40 },
 			{},
 			{},
 			{},
-			{ remote: 5, office: 7 },
+			{ remote: (5 / 12) * 100, office: (7 / 12) * 100 },
 		]);
 	});
 
@@ -143,18 +144,18 @@ describe('work time chart model', () => {
 			'12월',
 		]);
 		expect(koreanSeries.map((point) => point.values)).toEqual([
-			{ 사무실: 2 },
+			{ 사무실: 100 },
 			{},
 			{},
 			{},
 			{},
-			{ 사무실: 3, 재택: 2 },
+			{ 사무실: 60, 재택: 40 },
 			{},
 			{},
 			{},
 			{},
 			{},
-			{ 재택: 7 },
+			{ 재택: 100 },
 		]);
 	});
 
@@ -243,5 +244,38 @@ describe('work time chart model', () => {
 		const series = buildSeries('2025-06', [], 'month', labels, { today: '2026-06-08' });
 
 		expect(series.length).toBe(12);
+	});
+});
+
+describe('summarizeDailyValues', () => {
+	const dailyValues: { date: string; minutesByLocation: Record<string, number> }[] = [
+		{ date: '2026-06-01', minutesByLocation: { office: 480 } },
+		{ date: '2026-06-02', minutesByLocation: { office: 300, remote: 120 } },
+		{ date: '2026-06-08', minutesByLocation: { remote: 600 } },
+	];
+
+	test('summarizes the whole month per day in day and month modes', () => {
+		const expected = { averageMinutes: 500, maximumMinutes: 600, minimumMinutes: 420 };
+
+		expect(summarizeDailyValues(dailyValues, 'day', '2026-06-10')).toEqual(expected);
+		expect(summarizeDailyValues(dailyValues, 'month', '2026-06-10')).toEqual(expected);
+	});
+
+	test('scopes week mode to the week containing today', () => {
+		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-03')).toEqual({
+			averageMinutes: 450,
+			maximumMinutes: 480,
+			minimumMinutes: 420,
+		});
+		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-10')).toEqual({
+			averageMinutes: 600,
+			maximumMinutes: 600,
+			minimumMinutes: 600,
+		});
+	});
+
+	test('returns null without worked days in scope', () => {
+		expect(summarizeDailyValues([], 'day', '2026-06-10')).toEqual(null);
+		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-20')).toEqual(null);
 	});
 });

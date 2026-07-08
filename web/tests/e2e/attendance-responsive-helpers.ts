@@ -3,15 +3,15 @@ import type { AttendanceSummary } from '../../src/routes/attendance/attendance-c
 
 type MobileTeamStatusTableLayout = {
 	canScrollDates: boolean;
-	initialEmployeeLeft: number;
-	initialEmployeeRowLeft: number;
-	initialTargetLeft: number;
-	scrolledEmployeeLeft: number;
-	scrolledEmployeeRowLeft: number;
-	scrolledTargetLeft: number;
+	canScrollEmployees: boolean;
+	initialEmployeeHeaderTop: number;
+	scrolledEmployeeHeaderTop: number;
+	initialDateRowHeaderLeft: number;
+	scrolledDateRowHeaderLeft: number;
+	initialTargetTop: number;
+	scrolledTargetTop: number;
 	employeeColumnWidth: number;
-	employeeRowHeight: number;
-	tableLeft: number;
+	dateRowHeight: number;
 	overflowingLabels: string[];
 	overflowingEmployeeDetails: string[];
 	visibleLocationLabels: string[];
@@ -38,24 +38,30 @@ export async function measureMobileTeamStatusTable(
 ): Promise<MobileTeamStatusTableLayout> {
 	return statusTable.evaluate((tableElement, date) => {
 		const table = tableElement as HTMLElement;
-		const employeeHeader = table.querySelector<HTMLElement>('[role="columnheader"]');
-		const employeeRowHeader = table.querySelector<HTMLElement>('[role="rowheader"]');
+		const employeeHeader = table.querySelector<HTMLElement>('[role="columnheader"]:not(:first-child)');
+		const dateRowHeader = table.querySelector<HTMLElement>(`[data-testid="team-status-day-${date}"]`);
 		const targetCell = table.querySelector<HTMLElement>(`[data-testid="team-status-cell-kim@example.com-${date}"]`);
-		if (!employeeHeader || !employeeRowHeader || !targetCell) {
+		if (!employeeHeader || !dateRowHeader || !targetCell) {
 			throw new Error('Missing monthly attendance table cells');
 		}
 
+		table.scrollTop = 0;
 		table.scrollLeft = 0;
-		const initialEmployeeLeft = Math.round(employeeHeader.getBoundingClientRect().left);
-		const initialEmployeeRowLeft = Math.round(employeeRowHeader.getBoundingClientRect().left);
-		const initialTargetLeft = Math.round(targetCell.getBoundingClientRect().left);
+		const initialEmployeeHeaderTop = Math.round(employeeHeader.getBoundingClientRect().top);
+		const initialDateRowHeaderLeft = Math.round(dateRowHeader.getBoundingClientRect().left);
+		const initialTargetTop = Math.round(targetCell.getBoundingClientRect().top);
 		const employeeColumnWidth = Math.round(employeeHeader.getBoundingClientRect().width);
-		const employeeRowHeight = Math.round(employeeRowHeader.getBoundingClientRect().height);
-		const tableLeft = Math.round(table.getBoundingClientRect().left);
-		table.scrollLeft = 480;
-		const scrolledEmployeeLeft = Math.round(employeeHeader.getBoundingClientRect().left);
-		const scrolledEmployeeRowLeft = Math.round(employeeRowHeader.getBoundingClientRect().left);
-		const scrolledTargetLeft = Math.round(targetCell.getBoundingClientRect().left);
+		const dateRowHeight = Math.round(dateRowHeader.getBoundingClientRect().height);
+		const canScrollDates = table.scrollHeight > table.clientHeight;
+		const canScrollEmployees = table.scrollWidth > table.clientWidth;
+
+		table.scrollTop = 480;
+		const scrolledEmployeeHeaderTop = Math.round(employeeHeader.getBoundingClientRect().top);
+		const scrolledTargetTop = Math.round(targetCell.getBoundingClientRect().top);
+
+		table.scrollLeft = canScrollEmployees ? 80 : 0;
+		const scrolledDateRowHeaderLeft = Math.round(dateRowHeader.getBoundingClientRect().left);
+
 		const overflowingLabels = Array.from(
 			table.querySelectorAll<HTMLButtonElement>('button[data-testid^="team-status-cell-"]')
 		)
@@ -63,7 +69,9 @@ export async function measureMobileTeamStatusTable(
 			.filter((label): label is HTMLElement => label instanceof HTMLElement)
 			.filter((label) => label.scrollWidth > label.clientWidth + 1)
 			.map((label) => label.textContent?.trim() ?? '');
-		const overflowingEmployeeDetails = Array.from(table.querySelectorAll<HTMLElement>('[role="rowheader"] span'))
+		const overflowingEmployeeDetails = Array.from(
+			table.querySelectorAll<HTMLElement>('[role="columnheader"] div, [role="columnheader"] span')
+		)
 			.filter((label) => label.scrollWidth > label.clientWidth + 1)
 			.map((label) => label.textContent?.trim() ?? '');
 		const visibleLocationLabels = Array.from(table.querySelectorAll<HTMLElement>('[data-testid="team-status-current-location"]'))
@@ -71,16 +79,16 @@ export async function measureMobileTeamStatusTable(
 			.map((label) => label.textContent?.trim() ?? '');
 
 		return {
-			canScrollDates: table.scrollWidth > table.clientWidth,
-			initialEmployeeLeft,
-			initialEmployeeRowLeft,
-			initialTargetLeft,
-			scrolledEmployeeLeft,
-			scrolledEmployeeRowLeft,
-			scrolledTargetLeft,
+			canScrollDates,
+			canScrollEmployees,
+			initialEmployeeHeaderTop,
+			scrolledEmployeeHeaderTop,
+			initialDateRowHeaderLeft,
+			scrolledDateRowHeaderLeft,
+			initialTargetTop,
+			scrolledTargetTop,
 			employeeColumnWidth,
-			employeeRowHeight,
-			tableLeft,
+			dateRowHeight,
 			overflowingLabels,
 			overflowingEmployeeDetails,
 			visibleLocationLabels,
@@ -91,12 +99,11 @@ export async function measureMobileTeamStatusTable(
 
 export function expectReadableMobileTeamStatusTable(layout: MobileTeamStatusTableLayout): void {
 	expect(layout.canScrollDates).toBe(true);
-	expect(Math.abs(layout.scrolledEmployeeLeft - layout.tableLeft)).toBeLessThanOrEqual(1);
-	expect(Math.abs(layout.scrolledEmployeeRowLeft - layout.tableLeft)).toBeLessThanOrEqual(1);
-	expect(Math.abs(layout.scrolledEmployeeRowLeft - layout.initialEmployeeRowLeft)).toBeLessThanOrEqual(1);
+	expect(Math.abs(layout.scrolledEmployeeHeaderTop - layout.initialEmployeeHeaderTop)).toBeLessThanOrEqual(1);
+	expect(Math.abs(layout.scrolledDateRowHeaderLeft - layout.initialDateRowHeaderLeft)).toBeLessThanOrEqual(1);
+	expect(layout.scrolledTargetTop).toBeLessThan(layout.initialTargetTop);
 	expect(layout.employeeColumnWidth).toBeLessThanOrEqual(224);
-	expect(layout.employeeRowHeight).toBeLessThanOrEqual(72);
-	expect(layout.scrolledTargetLeft).toBeLessThan(layout.initialTargetLeft);
+	expect(layout.dateRowHeight).toBeLessThanOrEqual(64);
 	expect(layout.overflowingLabels).toEqual([]);
 	expect(layout.overflowingEmployeeDetails).toEqual([]);
 	expect(layout.visibleLocationLabels).toContain('사무실본관회의실A');
