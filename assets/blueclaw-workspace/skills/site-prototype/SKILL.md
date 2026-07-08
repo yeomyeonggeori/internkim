@@ -5,6 +5,7 @@ when_to_use: Use when the user asks the assistant to make, deploy, publish, upda
 completion:
   requiredEvidenceTools:
     - site.status
+    - terminal.run
     - artifact.review
     - site.publish
 ---
