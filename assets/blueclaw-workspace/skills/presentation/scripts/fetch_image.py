@@ -66,10 +66,10 @@ def anchor_site_output(output_value: str) -> pathlib.Path:
     suffix = as_posix.split("app/public/", 1)[-1]
     probe = pathlib.Path.cwd()
     for _ in range(6):
-        if (probe / "app" / "public").is_dir():
-            return probe / "app" / "public" / suffix
         if probe.name == "app" and (probe / "public").is_dir():
             return probe / "public" / suffix
+        if (probe / "app" / "public").is_dir():
+            return probe / "app" / "public" / suffix
         probe = probe.parent
     return output_path
 
