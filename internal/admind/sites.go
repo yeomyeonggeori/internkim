@@ -1334,6 +1334,16 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 
 const siteAuthBootstrapMigration = `migrate((app) => {
 	const collection = app.findCollectionByNameOrId("users");
+	if (!collection.fields.getByName("username")) {
+		collection.fields.add(new TextField({
+			name: "username",
+			required: true,
+			min: 3,
+			max: 60,
+			pattern: "^[a-z0-9_.-]+$",
+		}));
+		collection.addIndex("idx_users_username", true, "username", "");
+	}
 	const emailField = collection.fields.getByName("email");
 	if (emailField) {
 		emailField.required = false;
@@ -2009,7 +2019,7 @@ User=internkim-site
 Group=internkim-site
 EnvironmentFile=` + service.Configuration.SiteSecretDirectory + `/%i/environment
 WorkingDirectory=` + service.Configuration.SitesRoot + `/%i/current
-ExecStart=/usr/local/bin/pocketbase serve --http=127.0.0.1:${INTERNKIM_SITE_PORT} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --encryptionEnv=PB_ENCRYPTION_KEY
+ExecStart=/usr/local/bin/pocketbase serve --http=127.0.0.1:${INTERNKIM_SITE_PORT} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --encryptionEnv=PB_ENCRYPTION_KEY
 Restart=always
 RestartSec=5
 
