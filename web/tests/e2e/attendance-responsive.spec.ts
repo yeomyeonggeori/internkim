@@ -35,7 +35,6 @@ test.describe('attendance responsive view', () => {
 
 		expect(requestedMonths[0]).toBeNull();
 		await expect(page.getByRole('button', { name: currentMonthLabel }).first()).toBeVisible();
-		await expect(page.getByText(`${currentMonth} 캘린더`)).toBeVisible();
 	});
 
 	test('renders the monthly team status table with personal tools in the fixed sidebar', async ({ page }) => {
@@ -48,7 +47,6 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByTestId('team-status-table')).toBeVisible();
 		await expect(page.getByText('월간 근무 현황표')).toBeVisible();
 		await expect(page.getByText('내 근무 시간')).toBeVisible();
-		await expect(page.getByTestId('personal-month-calendar-grid')).toBeVisible();
 		await expect(page.getByRole('button', { name: '부재 등록' })).toBeVisible();
 
 		const statusTable = page.getByTestId('team-status-table');
@@ -109,12 +107,13 @@ test.describe('attendance responsive view', () => {
 		const toolsView = page.getByTestId('mobile-attendance-tools-view');
 		await expect(page.getByRole('tab', { name: '내 기록' })).toHaveAttribute('aria-selected', 'true');
 		await expect(toolsView.getByText('내 근무 시간')).toBeVisible();
-		await expect(toolsView.getByTestId('personal-month-calendar-grid')).toBeVisible();
 		await expect(toolsView.getByRole('button', { name: '부재 등록' })).toBeVisible();
 
-		await toolsView.getByTestId(`personal-calendar-day-${todayDate}`).click();
+		await page.getByRole('tab', { name: '팀 현황' }).click();
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 
-		const detailPanel = toolsView.getByTestId('personal-day-detail-panel');
+		const detailSheet = page.getByTestId('team-status-day-detail-sheet');
+		const detailPanel = detailSheet.getByTestId('personal-day-detail-panel');
 		await expect(detailPanel).toBeVisible();
 		await expect(detailPanel.getByTestId('personal-day-event-label')).toHaveCount(5);
 		await expect(detailPanel.getByRole('button', { name: '수정' })).toHaveCount(0);

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -236,15 +237,16 @@
 						</label>
 						<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
 							<span>{text.location}</span>
-							<select
-								class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm text-foreground"
-								bind:value={draftLocationID}
-								disabled={isSaving}
-							>
-								{#each locations as location (location.id)}
-									<option value={location.id}>{location.name}</option>
-								{/each}
-							</select>
+							<Select.Root type="single" bind:value={draftLocationID} disabled={isSaving}>
+								<Select.Trigger class="w-full">
+									{locationNameOf(draftLocationID) || text.location}
+								</Select.Trigger>
+								<Select.Content>
+									{#each locations as location (location.id)}
+										<Select.Item value={location.id} label={location.name}>{location.name}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
 						</label>
 						<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
 							<span>{text.editReason}</span>

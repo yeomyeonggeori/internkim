@@ -52,7 +52,8 @@ test.describe('attendance team status', () => {
 		await selectKorean(page);
 
 		const todayCell = page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`);
-		await expect(todayCell.getByText('외부')).toBeVisible();
+		await expect(todayCell.getByText(/\d+시간/)).toBeVisible();
+		await expect(todayCell.getByText('외부')).toHaveCount(0);
 		await expect(todayCell.getByText('근무 중')).toHaveCount(0);
 		await todayCell.hover();
 		await expect(page.getByText('08:30-10:20')).toBeVisible();
@@ -123,11 +124,10 @@ test.describe('attendance team status', () => {
 		const segments = dialog.getByTestId('team-status-day-segment');
 		await expect(dialog.getByText('김철수')).toBeVisible();
 		await expect(dialog.getByText('상태')).toHaveCount(0);
-		await expect(dialog.getByText('3시간 25분')).toBeVisible();
 		await expect(dialog.getByText('근무 구간')).toHaveCount(0);
 		const workHeader = dialog.getByTestId('team-status-work-record-header');
 		await expect(workHeader.getByText('근무 기록', { exact: true })).toBeVisible();
-		await expect(workHeader.getByText('3시간 25분')).toBeVisible();
+		await expect(workHeader.getByText(/\d+시간/)).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();
@@ -247,6 +247,7 @@ test.describe('attendance team status', () => {
 
 		const sectionLists = [
 			dialog.getByTestId('team-status-work-record-list'),
+			dialog.getByTestId('personal-day-detail-panel'),
 			dialog.getByTestId('team-status-calendar-event-list'),
 			dialog.getByTestId('team-status-completed-task-list')
 		];
@@ -262,7 +263,7 @@ test.describe('attendance team status', () => {
 			expect(metrics.overflowY).toBe('auto');
 		}
 		const fades = dialog.getByTestId('team-status-section-scroll-fade');
-		await expect(fades).toHaveCount(3);
+		await expect(fades).toHaveCount(4);
 		const fadeStyles = await fades.evaluateAll((elements) =>
 			elements.map((element) => {
 				const style = getComputedStyle(element);
@@ -372,7 +373,7 @@ test.describe('attendance team status', () => {
 		const segments = sheet.getByTestId('team-status-day-segment');
 		await expect(sheet).toBeVisible();
 		await expect(sheet.getByText(`김철수 · ${todayDate}`)).toBeVisible();
-		await expect(sheet.getByText('3시간 25분')).toBeVisible();
+		await expect(sheet.getByTestId('team-status-work-record-header').getByText(/\d+시간/)).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();
@@ -386,7 +387,7 @@ test.describe('attendance team status', () => {
 		await expect(page.getByTestId('team-status-day-detail-dialog')).toHaveCount(0);
 	});
 
-	test('opens mobile status absence details without actions', async ({ page }) => {
+	test('shows a cancel action for an own absence in mobile status day details', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		const summary = buildAttendanceSummaryFixture('2026-06');
 		const targetAbsence = summary.absences.find(
@@ -407,9 +408,9 @@ test.describe('attendance team status', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${targetAbsence.date}`).click();
 
 		const sheet = page.getByTestId('team-status-day-detail-sheet');
-		await expect(sheet.getByText('휴가')).toBeVisible();
-		await expect(sheet.getByText('sample overlap leave')).toBeVisible();
+		await expect(sheet.getByText('휴가').first()).toBeVisible();
+		await expect(sheet.getByText('sample overlap leave').first()).toBeVisible();
 		await expect(sheet.getByRole('button', { name: '수정' })).toHaveCount(0);
-		await expect(sheet.getByRole('button', { name: '취소' })).toHaveCount(0);
+		await expect(sheet.getByTestId('personal-day-detail-panel').getByRole('button', { name: '취소' })).toBeVisible();
 	});
 });

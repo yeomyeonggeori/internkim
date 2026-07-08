@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { Badge } from '$lib/components/ui/badge';
 	import type { TeamStatusPersonRow } from './team-status-table-model';
 
 	type Props = {
@@ -7,10 +8,6 @@
 	};
 
 	let { row }: Props = $props();
-
-	function locationIndicatorColor(color: string | undefined): string {
-		return color ?? 'hsl(var(--muted-foreground))';
-	}
 </script>
 
 <div class="sticky left-0 z-10 min-w-0 border-r bg-card px-3 py-3 sm:px-2 sm:py-2" role="rowheader">
@@ -24,12 +21,8 @@
 		<div class="min-w-0 flex-1">
 			<div class="whitespace-normal break-all text-base font-semibold leading-tight text-foreground sm:text-sm sm:font-medium">{row.displayName}</div>
 			{#if row.currentLocationName}
-				<div class="mt-1 flex min-w-0 items-start gap-1.5 text-sm leading-tight text-foreground sm:mt-0.5 sm:gap-1 sm:text-[11px]" data-testid="team-status-current-location">
-					<span
-						class="mt-1 size-2 shrink-0 rounded-full sm:size-1.5"
-						style:background-color={locationIndicatorColor(row.currentLocationColor)}
-					></span>
-					<span class="min-w-0 whitespace-normal break-all">{row.currentLocationName}</span>
+				<div class="mt-1 min-w-0 sm:mt-0.5" data-testid="team-status-current-location">
+					<Badge variant="outline" class="max-w-full whitespace-normal break-all">{row.currentLocationName}</Badge>
 				</div>
 			{/if}
 		</div>
