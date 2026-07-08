@@ -161,6 +161,7 @@ type siteContentBlock struct {
 	ActionHref  string                 `json:"actionHref,omitempty"`
 	Image       string                 `json:"image,omitempty"`
 	ImageAlt    string                 `json:"imageAlt,omitempty"`
+	Backdrop    string                 `json:"backdrop,omitempty"`
 }
 
 var siteContentKnownBlockVariants = map[string]bool{

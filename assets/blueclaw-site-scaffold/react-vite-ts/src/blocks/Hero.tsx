@@ -2,6 +2,8 @@ import { buttonVariants } from "../components/ui/button";
 import type { Block } from "../site-content";
 import { splitParagraphs } from "./textParagraphs";
 
+const knownBackdrops = new Set(["mesh", "aurora", "grain", "grid", "dots"]);
+
 type HeroProps = {
 	block: Block;
 	anchorID: string;
@@ -29,8 +31,9 @@ export function Hero({ block, anchorID }: HeroProps) {
 			) : null}
 		</div>
 	);
+	const backdropClass = knownBackdrops.has(block.backdrop ?? "") ? ` backdrop-${block.backdrop}` : "";
 	return (
-		<section id={anchorID} className="hero-band full-bleed px-6">
+		<section id={anchorID} className={"hero-band full-bleed px-6" + backdropClass}>
 			<div className="mx-auto max-w-4xl py-24">
 				{block.image ? (
 					<div className="grid min-h-[52vh] items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
