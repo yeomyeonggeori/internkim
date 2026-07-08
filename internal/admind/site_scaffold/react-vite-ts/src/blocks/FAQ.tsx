@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { Block } from "../site-content";
+import { normalizeEscapedNewlines } from "./textParagraphs";
 
 type FAQProps = {
 	block: Block;
@@ -18,7 +19,7 @@ export function FAQ({ block, anchorID }: FAQProps) {
 							{item.title}
 							<ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
 						</summary>
-						<p className="mt-3 leading-relaxed text-muted-foreground">{item.body}</p>
+						<p className="mt-3 whitespace-pre-line leading-relaxed text-muted-foreground">{normalizeEscapedNewlines(item.body)}</p>
 					</details>
 				))}
 			</div>

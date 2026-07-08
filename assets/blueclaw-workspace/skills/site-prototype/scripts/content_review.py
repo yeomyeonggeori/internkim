@@ -23,6 +23,9 @@ WARNING_WEIGHTS = {
     "defaultPaletteWarning": 10,
     "genericFontWarning": 8,
     "bareHeroWarning": 6,
+    "escapedNewlineWarning": 10,
+    "pipeDelimitedBodyWarning": 8,
+    "iconConsistencyWarning": 6,
 }
 GENERIC_FONT_KEYWORDS = {
     "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
@@ -64,6 +67,8 @@ def main() -> int:
     warnings += emoji_warnings(visible_text)
     warnings += design_document_warnings(source_root)
     warnings += page_structure_warnings(pages, blocks)
+    if "\\n" in visible_text:
+        warnings.append("escapedNewlineWarning: rendered text contains a literal backslash-n; write real newlines inside JSON strings")
     warnings += design_intent_warnings(source_root)
     score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
     verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
@@ -209,6 +214,14 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
                 warnings.append(f"sparseItemsWarning: page {path_label} block {block_index} is a {variant} with a single item; use a different variant or add real items")
             if variant == "hero" and not block.get("image") and not block.get("backdrop"):
                 warnings.append(f"bareHeroWarning: page {path_label} hero has neither image nor backdrop; add a backdrop (mesh, aurora, grain, grid, dots) or an image")
+            icon_flags = [bool(str(item.get("icon") or "").strip()) for item in items]
+            if any(icon_flags) and not all(icon_flags):
+                warnings.append(f"iconConsistencyWarning: page {path_label} block {block_index} mixes icon and no-icon items; give every item an icon or none")
+            for item_index, item in enumerate(items, start=1):
+                body_text = str(item.get("body") or "")
+                if body_text.count(" | ") >= 2 or body_text.count("|") >= 3:
+                    warnings.append(f"pipeDelimitedBodyWarning: page {path_label} block {block_index} item {item_index} crams data with | separators; use line breaks or separate labeled items")
+                    break
     return warnings
 
 
