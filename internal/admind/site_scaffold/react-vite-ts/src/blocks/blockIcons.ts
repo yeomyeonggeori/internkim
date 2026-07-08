@@ -1,5 +1,8 @@
 import {
 	Award,
+	Brush,
+	FlaskConical,
+	Layers,
 	BookOpen,
 	Calendar,
 	CheckCircle2,
@@ -34,6 +37,9 @@ import {
 
 export const blockIcons: Record<string, LucideIcon> = {
 	award: Award,
+	brush: Brush,
+	"flask-conical": FlaskConical,
+	layers: Layers,
 	"book-open": BookOpen,
 	calendar: Calendar,
 	"check-circle": CheckCircle2,
@@ -67,5 +73,6 @@ export const blockIcons: Record<string, LucideIcon> = {
 
 export function resolveBlockIcon(name: string | undefined): LucideIcon | undefined {
 	if (!name) return undefined;
-	return blockIcons[name.trim().toLowerCase()];
+	const kebab = name.trim().replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[\s_]+/g, "-").toLowerCase();
+	return blockIcons[kebab];
 }
