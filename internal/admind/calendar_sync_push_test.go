@@ -153,6 +153,13 @@ func TestPushCalendarOutboxCreatesNewObjectInSelectedCalendar(t *testing.T) {
 	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
 		t.Fatalf("write: %v", errorValue)
 	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{ctag: `"selected-ctag"`}); errorValue != nil {
+		t.Fatalf("initial pull: %v", errorValue)
+	}
+	selectedAccount, _, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read selected account: %v", errorValue)
+	}
 	expectedPath := selectedCalendarURL + event.UID + ".ics"
 	client := &fakeCalDAVPushClient{
 		putETags: map[string]string{expectedPath: `"etag-selected-push"`},
