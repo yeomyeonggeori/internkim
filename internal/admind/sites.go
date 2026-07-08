@@ -1613,7 +1613,7 @@ func (service *Service) markSiteBuildQualityPassedPrebuilt(site *SiteRecord) {
 
 func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath string) error {
 	applicationPath := filepath.Join(workspacePath, "app")
-	latestSourceModTime, errorValue := latestFrontendSourceModTime(applicationPath)
+	latestSourceModTime, latestSourcePath, errorValue := latestFrontendSourceModTimeWithPath(applicationPath)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -1625,7 +1625,7 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 		return errors.New("site workspace app/dist must contain build files")
 	}
 	if latestSourceModTime.After(earliestBuildModTime) {
-		return fmt.Errorf("site workspace app/dist is stale; content-only edits via %s never need a build — a build (bun scripts/build.ts in the app workspace) is needed only after app/src or app config changes; run it before publishing", siteApplicationContentPath)
+		return fmt.Errorf("site workspace app/dist is stale: %s changed at %s after the build at %s; content-only edits via %s never need a build — rebuild (bun scripts/build.ts) only after app/src or app config changes", latestSourcePath, latestSourceModTime.UTC().Format(time.RFC3339), earliestBuildModTime.UTC().Format(time.RFC3339), siteApplicationContentPath)
 	}
 	return nil
 }
@@ -1686,7 +1686,7 @@ func summarizeSiteBuildQuality(workspacePath string) siteBuildQualitySummary {
 			Path:   path,
 		}
 	}
-	latestSourceModTime, errorValue := latestFrontendSourceModTime(filepath.Join(workspacePath, "app"))
+	latestSourceModTime, _, errorValue := latestFrontendSourceModTimeWithPath(filepath.Join(workspacePath, "app"))
 	if errorValue == nil && latestSourceModTime.After(qualityInformation.ModTime()) {
 		return siteBuildQualitySummary{
 			Status:     "stale_report",
@@ -1732,8 +1732,9 @@ func siteBuildQualityLines(issues []siteBuildQualityIssue) []string {
 	return lines
 }
 
-func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
+func latestFrontendSourceModTimeWithPath(applicationPath string) (time.Time, string, error) {
 	latestModTime := time.Time{}
+	latestPath := ""
 	errorValue := filepath.Walk(applicationPath, func(path string, information os.FileInfo, walkError error) error {
 		if walkError != nil {
 			return walkError
@@ -1747,10 +1748,11 @@ func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
 		}
 		if information.Mode().IsRegular() && information.ModTime().After(latestModTime) {
 			latestModTime = information.ModTime()
+			latestPath = filepath.Join("app", relativePath)
 		}
 		return nil
 	})
-	return latestModTime, errorValue
+	return latestModTime, latestPath, errorValue
 }
 
 func frontendSourcePathIsIgnored(relativePath string) bool {
