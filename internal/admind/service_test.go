@@ -1323,6 +1323,7 @@ func TestAdminUserPasswordResetDeletesDMHistoryBeforeReturningPassword(t *testin
 	service := NewService(Configuration{
 		APIBaseURL:                  "https://api.intern.kim",
 		MattermostBaseURL:           "http://mattermost.local",
+		BlueclawBaseURL:             "http://blueclaw.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
@@ -1332,16 +1333,18 @@ func TestAdminUserPasswordResetDeletesDMHistoryBeforeReturningPassword(t *testin
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		command := strings.Join(append([]string{name}, arguments...), " ")
-		if !strings.Contains(command, "dm:dm-1") || !strings.Contains(command, "thread:dm-1:%") {
-			t.Fatalf("blueclaw reset command = %s", command)
-		}
-		blueclawReset = true
-		return nil, nil
-	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.URL.String() == "http://blueclaw.local/admin/api/conversation/reset" && request.Method == http.MethodPost:
+			requestBody, _ := io.ReadAll(request.Body)
+			if !strings.Contains(string(requestBody), `"channelID":"dm-1"`) {
+				t.Fatalf("blueclaw reset body = %s", requestBody)
+			}
+			if passwordReset {
+				t.Fatal("Blueclaw DM history was reset after password reset")
+			}
+			blueclawReset = true
+			return jsonResponse(http.StatusOK, `{"deletedRows":2}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e":
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
