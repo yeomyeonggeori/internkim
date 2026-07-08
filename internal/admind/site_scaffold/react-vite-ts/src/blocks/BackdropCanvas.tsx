@@ -14,6 +14,7 @@ uniform vec3 u_background;
 uniform vec3 u_primary;
 uniform vec3 u_accent;
 uniform float u_mode;
+uniform float u_seed;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -26,15 +27,15 @@ float blob(vec2 st, vec2 center, float radius) {
 void main() {
 	vec2 st = gl_FragCoord.xy / u_resolution;
 	st.x *= u_resolution.x / u_resolution.y;
-	float t = u_time * (u_mode > 1.5 ? 0.05 : 0.12);
+	float t = u_time * (u_mode > 1.5 ? 0.05 : 0.12) + u_seed * 37.0;
 	float drift = u_scroll * 0.15;
 
-	vec2 c1 = vec2(0.25 + 0.18 * sin(t * 0.9), 0.72 + 0.14 * cos(t * 0.7) - drift);
-	vec2 c2 = vec2(1.05 + 0.2 * cos(t * 0.6), 0.3 + 0.18 * sin(t * 0.8) - drift * 0.6);
-	vec2 c3 = vec2(0.6 + 0.24 * sin(t * 0.5 + 2.0), 0.85 + 0.12 * cos(t * 1.1) - drift * 0.8);
+	vec2 c1 = vec2(0.25 + 0.3 * sin(t * 0.9 + u_seed * 9.0), 0.72 + 0.2 * cos(t * 0.7 + u_seed * 5.0) - drift);
+	vec2 c2 = vec2(1.05 + 0.28 * cos(t * 0.6 + u_seed * 3.0), 0.3 + 0.24 * sin(t * 0.8 + u_seed * 7.0) - drift * 0.6);
+	vec2 c3 = vec2(0.6 + 0.32 * sin(t * 0.5 + 2.0 + u_seed * 11.0), 0.85 + 0.18 * cos(t * 1.1 + u_seed * 4.0) - drift * 0.8);
 	vec2 pointer = vec2(u_pointer.x * (u_resolution.x / u_resolution.y), 1.0 - u_pointer.y);
 
-	float softness = u_mode > 0.5 ? 0.95 : 0.62;
+	float softness = (u_mode > 0.5 ? 0.95 : 0.62) + 0.18 * fract(u_seed * 13.7);
 	float w1 = blob(st, c1, softness);
 	float w2 = blob(st, c2, softness * 0.9);
 	float w3 = blob(st, c3, softness * 1.05);
@@ -68,6 +69,15 @@ function cssColorToRGB(value: string): [number, number, number] {
 	if (!channels || channels.length < 3) return [1, 1, 1];
 	const scale = resolved.startsWith("color(") ? 1 : 255;
 	return [Number(channels[0]) / scale, Number(channels[1]) / scale, Number(channels[2]) / scale];
+}
+
+function siteSeed(): number {
+	const identity = document.title + location.host + location.pathname;
+	let hash = 0;
+	for (let index = 0; index < identity.length; index += 1) {
+		hash = (hash * 31 + identity.charCodeAt(index)) >>> 0;
+	}
+	return (hash % 1000) / 1000;
 }
 
 function themeColor(variable: string): [number, number, number] {
@@ -115,6 +125,7 @@ export function BackdropCanvas({ kind }: BackdropCanvasProps) {
 			primary: gl.getUniformLocation(program, "u_primary"),
 			accent: gl.getUniformLocation(program, "u_accent"),
 			mode: gl.getUniformLocation(program, "u_mode"),
+			seed: gl.getUniformLocation(program, "u_seed"),
 		};
 
 		const heroBackground = themeColor("--hero-background");
@@ -124,6 +135,7 @@ export function BackdropCanvas({ kind }: BackdropCanvasProps) {
 		gl.uniform3fv(uniforms.primary, primary);
 		gl.uniform3fv(uniforms.accent, accent);
 		gl.uniform1f(uniforms.mode, kind === "mesh" ? 0 : kind === "aurora" ? 1 : 2);
+		gl.uniform1f(uniforms.seed, siteSeed());
 
 		const pointer = { x: 0.7, y: 0.3, targetX: 0.7, targetY: 0.3 };
 		let scrollOffset = 0;

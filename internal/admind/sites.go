@@ -181,12 +181,23 @@ type siteContent struct {
 	Sections        []siteContentSection `json:"sections,omitempty"`
 	Blocks          []siteContentBlock   `json:"blocks,omitempty"`
 	Pages           []siteContentPage    `json:"pages,omitempty"`
+	Auth            *siteContentAuth     `json:"auth,omitempty"`
+}
+
+type siteContentAuth struct {
+	Enabled            bool   `json:"enabled"`
+	UserCollection     string `json:"userCollection,omitempty"`
+	AllowSignup        *bool  `json:"allowSignup,omitempty"`
+	LoginPath          string `json:"loginPath,omitempty"`
+	SignupPath         string `json:"signupPath,omitempty"`
+	RedirectAfterLogin string `json:"redirectAfterLogin,omitempty"`
 }
 
 type siteContentPage struct {
 	Path   string             `json:"path"`
 	Title  string             `json:"title"`
 	Blocks []siteContentBlock `json:"blocks"`
+	Access string             `json:"access,omitempty"`
 }
 
 var siteContentReservedPathPrefixes = []string{"/api", "/_", "/fonts"}
@@ -1315,7 +1326,36 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 	if errorValue := service.writeSiteMetadataMirror(site); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureSiteAuthRuntimeBootstrap(site.HostSourcePath); errorValue != nil {
+		return errorValue
+	}
 	return service.initializeSiteGitRepository(ctx, site)
+}
+
+const siteAuthBootstrapMigration = `/// up
+migrate((db) => {}, (db) => {});
+`
+
+func ensureSiteAuthRuntimeBootstrap(hostSourcePath string) error {
+	document, errorValue := os.ReadFile(filepath.Join(hostSourcePath, siteApplicationContentPath))
+	if errorValue != nil {
+		return nil
+	}
+	var content siteContent
+	if errorValue := json.Unmarshal(document, &content); errorValue != nil {
+		return nil
+	}
+	if content.Auth == nil || !content.Auth.Enabled {
+		return nil
+	}
+	migrationsPath := filepath.Join(hostSourcePath, "pocketbase", "pb_migrations")
+	if directoryHasOperationalFiles(migrationsPath) || directoryHasOperationalFiles(filepath.Join(hostSourcePath, "pocketbase", "pb_hooks")) {
+		return nil
+	}
+	if errorValue := os.MkdirAll(migrationsPath, 0o755); errorValue != nil {
+		return errorValue
+	}
+	return os.WriteFile(filepath.Join(migrationsPath, "1700000000_auth_bootstrap.js"), []byte(siteAuthBootstrapMigration), 0o644)
 }
 
 // copySiteSourceTree mirrors a site source tree into the publish ledger, skipping

@@ -29,6 +29,7 @@ WARNING_WEIGHTS = {
     "deadContactWarning": 19,
     "unknownBackdropWarning": 10,
     "hotlinkedImageWarning": 19,
+    "missingImageryWarning": 8,
 }
 KNOWN_BACKDROPS = {"mesh", "aurora", "grain", "grid", "dots"}
 GENERIC_FONT_KEYWORDS = {
@@ -75,6 +76,8 @@ def main() -> int:
         warnings.append("escapedNewlineWarning: rendered text contains a literal backslash-n; write real newlines inside JSON strings")
     warnings += design_intent_warnings(source_root)
     warnings += dead_contact_warnings(pages, blocks)
+    if not any(block.get("image") for block in blocks):
+        warnings.append("missingImageryWarning: no photography anywhere on the site — visitors expect at least a hero image; fetch a CC0 photo with scripts/fetch_image.py \"<english query>\" app/public/images/<name>.jpg (skip only for an intentionally text-only look)")
     score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
     verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
     print(f"Content review: {len(blocks)} blocks, score {score}/100 (minimum {CONTENT_GATE_SCORE_MINIMUM})")
@@ -95,9 +98,7 @@ def unused_palette_notes(blocks: list) -> list:
     has_icons = any(item.get("icon") for block in blocks for item in block.get("items") or [])
     if has_items and not has_icons:
         notes.append("palette: items accept icon (mail, instagram, map-pin, calendar, clock, flame, leaf, star, heart, users, sparkles, palette, hammer, coffee, sun, gift, award, compass, ... full list in references/blocks.md) when meaning calls for it")
-    has_images = any(block.get("image") for block in blocks)
-    if not has_images:
-        notes.append("palette: hero/prose accept image + imageAlt — one command fetches a CC0 photo: python3 /workspace/skills/website/scripts/fetch_image.py \"<english query>\" app/public/images/<name>.jpg")
+
     has_backdrops = any(str(block.get("backdrop") or "") for block in blocks)
     if not has_backdrops:
         notes.append("palette: hero/cta accept backdrop — mesh (blended color field), aurora (soft glow), grain (analog texture), grid (technical lines), dots (playful matrix)")

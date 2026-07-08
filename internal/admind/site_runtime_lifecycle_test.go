@@ -173,3 +173,38 @@ func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
 		t.Fatalf("second publish after adding a public image must stay content-only, got: %v", errorValue)
 	}
 }
+
+func TestAuthEnabledPublishBootstrapsPocketBaseRuntime(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "auth-bootstrap", Title: "Auth Bootstrap"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#123123", "#fafafa"))
+	contentPath := filepath.Join(site.HostSourcePath, "app", "public", "site-content.json")
+	document, errorValue := os.ReadFile(contentPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	authDocument := strings.Replace(string(document), "{", `{"auth":{"enabled":true},`, 1)
+	writeFile(t, contentPath, authDocument)
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatalf("auth-enabled publish failed: %v", errorValue)
+	}
+	migrationPath := filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "1700000000_auth_bootstrap.js")
+	if _, errorValue := os.Stat(migrationPath); errorValue != nil {
+		t.Fatalf("auth-enabled publish must bootstrap the PocketBase runtime marker: %v", errorValue)
+	}
+	if !service.siteVersionHasPocketBaseBackend(site, site.CurrentVersionID) {
+		t.Fatal("published version must carry a PocketBase backend when auth is enabled")
+	}
+}
