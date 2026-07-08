@@ -37,10 +37,13 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleOAuthClientReplaceHint.includes('disconnects the current Google account')).toBe(true);
 		expect(calendarText.en.googleOAuthClientGuide.title).toBe('How to create client.json');
 		expect(calendarText.en.googleOAuthClientGuide.checks.includes(
-			'Confirm the Google Cloud profile in the top right is the company admin account.'
+			'If you only connect a personal calendar or a personally owned calendar, you can create client.json in a Google Cloud project you can manage.'
 		)).toBe(true);
 		expect(calendarText.en.googleOAuthClientGuide.checks.includes(
-			'Confirm the project is owned by the company organization, not a personal account.'
+			'If you connect a team or company shared calendar, sign in to Google Cloud with the company admin account and create client.json in an organization-owned project.'
+		)).toBe(true);
+		expect(calendarText.en.googleOAuthClientGuide.checks.includes(
+			'Connect Google Calendar with a Google account that has access and write permission for the selected calendar.'
 		)).toBe(true);
 		expect(calendarText.en.googleOAuthClientGuide.checks.join(' ').includes('dawn.kim')).toBe(false);
 		expect(calendarText.en.googleOAuthClientGuide.steps[0]?.action).toEqual({
@@ -93,10 +96,13 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleOAuthClientReplaceHint.includes('현재 Google 계정 연결이 해제')).toBe(true);
 		expect(calendarText.ko.googleOAuthClientGuide.title).toBe('client.json 만드는 방법');
 		expect(calendarText.ko.googleOAuthClientGuide.checks.includes(
-			'Google Cloud 오른쪽 위 프로필이 회사 관리자 계정인지 확인하세요.'
+			'개인 캘린더나 개인 소유 캘린더만 연결할 경우, 관리 가능한 Google Cloud 프로젝트에서 client.json을 만들어도 됩니다.'
 		)).toBe(true);
 		expect(calendarText.ko.googleOAuthClientGuide.checks.includes(
-			'프로젝트 소유자가 개인 계정이 아니라 회사 조직인지 확인하세요.'
+			'팀/회사 공유 캘린더를 연결할 경우, 회사 관리자 계정으로 Google Cloud에 로그인하고 조직 소유 프로젝트에서 client.json을 만드세요.'
+		)).toBe(true);
+		expect(calendarText.ko.googleOAuthClientGuide.checks.includes(
+			'캘린더 연결은 선택할 캘린더에 접근 및 쓰기 권한이 있는 Google 계정으로 진행하세요.'
 		)).toBe(true);
 		expect(calendarText.ko.googleOAuthClientGuide.checks.join(' ').includes('dawn.kim')).toBe(false);
 		expect(calendarText.ko.googleOAuthClientGuide.steps[0]?.action).toEqual({
