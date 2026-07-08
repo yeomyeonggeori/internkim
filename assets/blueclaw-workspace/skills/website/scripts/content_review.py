@@ -30,6 +30,7 @@ WARNING_WEIGHTS = {
     "unknownBackdropWarning": 10,
     "hotlinkedImageWarning": 19,
     "missingImageryWarning": 8,
+    "referencedImageMissingWarning": 19,
 }
 KNOWN_BACKDROPS = {"mesh", "aurora", "grain", "grid", "dots"}
 GENERIC_FONT_KEYWORDS = {
@@ -87,6 +88,15 @@ def main() -> int:
         warnings.append("escapedNewlineWarning: rendered text contains a literal backslash-n; write real newlines inside JSON strings")
     warnings += design_intent_warnings(source_root)
     warnings += dead_contact_warnings(pages, blocks)
+    for page_path, block_index, image in ((page.get("path") or "/", index, str(block.get("image") or "")) for page in pages for index, block in enumerate(page.get("blocks") or [])):
+        if not image.startswith("/"):
+            continue
+        expected = source_root / "app" / "public" / image.lstrip("/")
+        if expected.exists():
+            continue
+        stray = list(source_root.rglob(pathlib.Path(image).name))
+        hint = f"; a file with that name sits at {stray[0].relative_to(source_root)} — move it to app/public{image}" if stray else ""
+        warnings.append(f"referencedImageMissingWarning: page {page_path} block {block_index} references {image} but app/public{image} does not exist{hint}")
     if not any(block.get("image") for block in blocks):
         warnings.append("missingImageryWarning: no photography anywhere on the site — visitors expect at least a hero image; fetch a CC0 photo with scripts/fetch_image.py \"<english query>\" app/public/images/<name>.jpg (skip only for an intentionally text-only look)")
     score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
