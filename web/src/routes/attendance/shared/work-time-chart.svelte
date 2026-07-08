@@ -4,17 +4,27 @@
 	import * as Chart from '$lib/components/ui/chart';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
-	import { LineChart } from 'layerchart';
+	import { BarChart } from 'layerchart';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
-	import { buildSeries, type DailyValue } from './work-time-chart-model';
+	import { todayDateInTimeZone } from './attendance-date';
+	import {
+		buildSeries,
+		chartPointTotalMinutes,
+		type ChartPoint,
+		type DailyValue,
+		type WorkTimeChartLocation,
+	} from './work-time-chart-model';
 
 	type Props = {
 		title: string;
 		dailyValues: DailyValue[];
+		locations: WorkTimeChartLocation[];
 		formatValue: (value: number) => string;
 		compact?: boolean;
 	};
+
+	const fallbackLocationColor = 'var(--color-muted-foreground)';
 
 	type ChartModeOption = {
 		value: ChartMode;
@@ -24,6 +34,7 @@
 	let {
 		title,
 		dailyValues,
+		locations,
 		formatValue,
 		compact = false,
 	}: Props = $props();
@@ -37,35 +48,51 @@
 	]);
 
 	const series = $derived(
-		buildSeries(attendance.summary?.month ?? '', dailyValues, attendance.chartMode, {
-			weekLabelTemplate: text.weekLabelTemplate,
-			monthLabelTemplate: text.monthLabelTemplate,
-			total: text.total,
-			weekdaySunday: text.weekdaySunday,
-			weekdayMonday: text.weekdayMonday,
-			weekdayTuesday: text.weekdayTuesday,
-			weekdayWednesday: text.weekdayWednesday,
-			weekdayThursday: text.weekdayThursday,
-			weekdayFriday: text.weekdayFriday,
-			weekdaySaturday: text.weekdaySaturday,
-		})
+		buildSeries(
+			attendance.summary?.month ?? '',
+			dailyValues,
+			attendance.chartMode,
+			{
+				weekLabelTemplate: text.weekLabelTemplate,
+				monthLabelTemplate: text.monthLabelTemplate,
+				total: text.total,
+				weekdaySunday: text.weekdaySunday,
+				weekdayMonday: text.weekdayMonday,
+				weekdayTuesday: text.weekdayTuesday,
+				weekdayWednesday: text.weekdayWednesday,
+				weekdayThursday: text.weekdayThursday,
+				weekdayFriday: text.weekdayFriday,
+				weekdaySaturday: text.weekdaySaturday,
+			},
+			{ today: todayDateInTimeZone(attendance.summary?.timeZone) }
+		)
 	);
 
 	const chartData = $derived(series.map((point, index) => ({ ...point, index })));
-	const chartConfig = $derived({
-		value: {
-			label: title,
-			color: 'var(--color-primary)',
-		},
-	} satisfies Chart.ChartConfig);
+	const chartConfig = $derived<Chart.ChartConfig>(
+		Object.fromEntries(
+			locations.map((location) => [
+				location.key,
+				{ label: location.name, color: location.color ?? fallbackLocationColor },
+			])
+		)
+	);
+	const chartSeries = $derived(
+		locations.map((location) => ({
+			key: location.key,
+			label: location.name,
+			value: (point: ChartPoint) => {
+				const minutes = point.values[location.key] ?? 0;
+				return minutes > 0 ? minutes : undefined;
+			},
+			color: location.color ?? fallbackLocationColor,
+		}))
+	);
 	const tooltipLabelByIndex = $derived(new Map(chartData.map((point) => [point.index, point.tooltipLabel])));
 	const axisLabelIndexes = $derived(createAxisLabelIndexes(attendance.chartMode, chartData.length));
 	const axisLabelIndexSet = $derived(new Set(axisLabelIndexes));
 	const axisTickLabelProps = $derived(chartData.length === 1 ? { textAnchor: 'start' as const } : undefined);
-	const maxValue = $derived(Math.max(1, ...chartData.map((point) => point.value)));
-	const visiblePointData = $derived(
-		attendance.chartMode === 'month' ? chartData.filter((point) => point.value > 0) : chartData
-	);
+	const maxTotal = $derived(Math.max(1, ...chartData.map(chartPointTotalMinutes)));
 
 	function createAxisLabelIndexes(mode: ChartMode, count: number): number[] {
 		if (mode === 'month') return [0, 3, 6, 9, 11].filter((index) => index < count);
@@ -113,51 +140,28 @@
 	<Card.Content class={compact ? 'px-3 pb-3 pt-0' : undefined}>
 		<Chart.Container
 			config={chartConfig}
-			class={compact
-				? 'h-24 w-full [&_.lc-axis-tick-label]:text-[9px] [&_.lc-spline-path]:stroke-[2.5px]'
-				: 'h-72 w-full'}
+			class={compact ? 'h-24 w-full [&_.lc-axis-tick-label]:text-[9px]' : 'h-72 w-full'}
 			aria-label={title}
 		>
-			<LineChart
+			<BarChart
 				data={chartData}
 				x="index"
-				y="value"
-				yDomain={[0, maxValue]}
+				yDomain={[0, maxTotal]}
 				axis="x"
 				grid
-				points={attendance.chartMode === 'month'}
 				rule={false}
-				highlight={{
-					points: {
-						r: compact ? 3.5 : 4,
-						stroke: 'var(--background)',
-						strokeWidth: compact ? 2.5 : 3,
-					},
-					lines: true,
-				}}
-				series={[
-					{
-						key: 'value',
-						label: title,
-						value: 'value',
-						color: 'var(--color-value)',
-					},
-				]}
+				series={chartSeries}
+				seriesLayout="stack"
 				props={{
 					grid: { class: 'stroke-border/60' },
-					points: {
-						data: visiblePointData,
-						r: compact ? 3.5 : 4,
-						stroke: 'var(--background)',
-						strokeWidth: compact ? 2.5 : 3,
-					},
 					xAxis: {
 						ticks: axisLabelIndexes,
 						format: axisLabelFormatter,
 						tickLabelProps: axisTickLabelProps,
 					},
-					spline: {
-						stroke: 'var(--color-value)',
+					bars: {
+						strokeWidth: 0,
+						radius: 2,
 					},
 				}}
 			>
@@ -167,23 +171,27 @@
 						contained={false}
 						indicator="dot"
 						labelFormatter={tooltipLabelFormatter}
-						class="min-w-28"
+						class="w-max min-w-28"
 						motion="none"
 						x="data"
 						y="data"
 						yOffset={8}
 					>
-						{#snippet formatter({ value, name })}
+						{#snippet formatter({ value, name, item })}
+							<div
+								class="size-2.5 shrink-0 rounded-[2px]"
+								style="background-color: {item.color ?? fallbackLocationColor};"
+							></div>
 							<div class="flex flex-1 items-center justify-between gap-3 leading-none">
-								<span class="text-muted-foreground">{name}</span>
-								<span class="text-foreground font-mono font-medium tabular-nums">
+								<span class="whitespace-nowrap text-muted-foreground">{name}</span>
+								<span class="whitespace-nowrap text-foreground font-mono font-medium tabular-nums">
 									{typeof value === 'number' ? formatValue(value) : String(value)}
 								</span>
 							</div>
 						{/snippet}
 					</Chart.Tooltip>
 				{/snippet}
-			</LineChart>
+			</BarChart>
 		</Chart.Container>
 	</Card.Content>
 </Card.Root>

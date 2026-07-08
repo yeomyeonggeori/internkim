@@ -7,6 +7,7 @@ import type {
 	AttendanceSummary
 } from '../../../src/routes/attendance/attendance-context.svelte';
 import { attendanceText } from '../../../src/routes/attendance/text';
+import { dayWidthPercent } from '../../../src/routes/attendance/shared/day-timeline';
 import { buildTeamStatusRows } from '../../../src/routes/attendance/team/team-status-table-model';
 
 describe('team status table model', () => {
@@ -31,7 +32,7 @@ describe('team status table model', () => {
 			]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17');
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17', summary, '15:00');
 		const kim = rows.find((row) => row.email === 'kim@example.com');
 		const lee = rows.find((row) => row.email === 'lee@example.com');
 		const park = rows.find((row) => row.email === 'park@example.com');
@@ -41,6 +42,8 @@ describe('team status table model', () => {
 			currentLocationName: '고객사',
 			currentLocationColor: '#f59e0b',
 		});
+		const labAWidthPercent = dayWidthPercent('09:00', '10:00');
+		const clientSiteWidthPercent = dayWidthPercent('11:00', '12:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
 			label: '2시간',
 			tone: 'finished',
@@ -51,7 +54,7 @@ describe('team status table model', () => {
 					locationColor: '#22c55e',
 					timeLabel: '09:00-10:00',
 					durationLabel: '1시간',
-					sharePercent: 50,
+					widthPercent: labAWidthPercent,
 					tooltipLabel: 'Lab A 09:00-10:00 · 1시간',
 				},
 				{
@@ -59,24 +62,26 @@ describe('team status table model', () => {
 					locationColor: '#f59e0b',
 					timeLabel: '11:00-12:00',
 					durationLabel: '1시간',
-					sharePercent: 50,
+					widthPercent: clientSiteWidthPercent,
 					tooltipLabel: '고객사 11:00-12:00 · 1시간',
 				},
 			],
 		});
+		const openSegmentWidthPercent = dayWidthPercent('13:00', '15:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '고객사',
+			label: '2시간',
 			tone: 'working',
 			locationName: '고객사',
 			locationColor: '#f59e0b',
 			detailLabel: '13:00',
+			totalDurationLabel: '2시간',
 			segments: [
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
 					timeLabel: '13:00~',
 					durationLabel: '진행 중',
-					sharePercent: 100,
+					widthPercent: openSegmentWidthPercent,
 					tooltipLabel: '고객사 13:00~ · 진행 중',
 					isOpen: true,
 				},
@@ -118,18 +123,18 @@ describe('team status table model', () => {
 			[]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-16');
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-16', summary, '09:45');
 		const choiDay = rows.find((row) => row.email === 'choi@example.com')?.days.find((day) => day.date === '2026-06-16');
 		const jungDay = rows.find((row) => row.email === 'jung@example.com')?.days.find((day) => day.date === '2026-06-16');
 
 		expect(choiDay).toMatchObject({
-			label: '회의실 A',
+			label: '45분',
 			tone: 'working',
 			locationName: '회의실 A',
 			locationColor: '#a855f7',
 		});
 		expect(jungDay).toMatchObject({
-			label: 'remote',
+			label: '45분',
 			tone: 'working',
 			locationName: 'remote',
 		});

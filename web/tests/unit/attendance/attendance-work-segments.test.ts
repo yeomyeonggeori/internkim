@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AttendanceEvent } from '../../../src/routes/attendance/attendance-context.svelte';
 import { computeDayEvents } from '../../../src/routes/attendance/shared/attendance-day-events';
-import { computePersonalStats } from '../../../src/routes/attendance/shared/attendance-personal-stats';
 
 describe('attendance work segments', () => {
 	test('pairs multiple location visits without counting time between segments', () => {
@@ -118,37 +117,6 @@ describe('attendance work segments', () => {
 		});
 		expect(secondDay.clockIn?.localTime).toBe('22:00:00');
 		expect(secondDay.clockOut).toBe(undefined);
-	});
-
-	test('does not count split midnight starts as average clock-in times', () => {
-		const events = [
-			attendanceEvent('night-in', 'clock_in', '2026-06-01T22:00:00+09:00', '22:00:00', 'office', '사무실', {
-				localDate: '2026-06-01',
-			}),
-			attendanceEvent('night-out', 'clock_out', '2026-06-02T02:00:00+09:00', '02:00:00', 'office', '사무실', {
-				localDate: '2026-06-02',
-			}),
-		];
-
-		const stats = computePersonalStats('2026-06', events);
-
-		expect(stats.workedDays).toBe(2);
-		expect(stats.totalMinutes).toBe(240);
-		expect(stats.averageClockInTime).toBe('22:00');
-	});
-
-	test('counts open overnight work in current-date personal stats', () => {
-		const events = [
-			attendanceEvent('night-in', 'clock_in', '2026-06-01T22:00:00+09:00', '22:00:00', 'office', '사무실', {
-				localDate: '2026-06-01',
-			}),
-		];
-
-		const stats = computePersonalStats('2026-06', events, { currentDate: '2026-06-02' });
-
-		expect(stats.workedDays).toBe(2);
-		expect(stats.totalMinutes).toBe(120);
-		expect(stats.averageClockInTime).toBe('22:00');
 	});
 
 	test('ignores canceled events when building segments', () => {

@@ -5,7 +5,6 @@
 	import type { AttendanceText } from '../text';
 	import TeamStatusDateHeader from './team-status-date-header.svelte';
 	import TeamStatusDayCell from './team-status-day-cell.svelte';
-	import type { TeamStatusDayDetail } from './team-status-day-detail';
 	import { buildTeamStatusDayContext } from './team-status-day-context';
 	import { loadTeamStatusDayContextData } from './team-status-day-context-loader';
 	import TeamStatusDayDetailDialog from './team-status-day-detail-dialog.svelte';
@@ -25,7 +24,7 @@
 	let scrollContainer: HTMLDivElement | undefined = $state();
 	let scrollContainerWidth = $state(0);
 	let isDetailOpen = $state(false);
-	let selectedDetailBase = $state<Omit<TeamStatusDayDetail, 'context'> | null>(null);
+	let selectedDetailKey = $state<{ email: string; date: string } | null>(null);
 	let calendarEvents = $state<CalendarEvent[]>([]);
 	let flowState = $state<FlowState | null>(null);
 	let isCalendarContextLoading = $state(false);
@@ -56,6 +55,18 @@
 	const employeeColumnWidth = $derived(calculateEmployeeColumnWidth(rows, minimumResponsiveEmployeeColumnWidth, maximumResponsiveEmployeeColumnWidth));
 	const gridTemplateColumns = $derived(`${employeeColumnWidth}rem repeat(${statusDates.length}, minmax(${dayColumnWidth}rem, ${dayColumnWidth}rem))`);
 	const tableWidth = $derived(`${employeeColumnWidth + statusDates.length * dayColumnWidth}rem`);
+	const selectedDetailBase = $derived.by(() => {
+		if (!selectedDetailKey) return null;
+		const selectedRow = rows.find((row) => row.email === selectedDetailKey?.email);
+		const selectedDay = selectedRow?.days.find((day) => day.date === selectedDetailKey?.date);
+		if (!selectedRow || !selectedDay) return null;
+		return {
+			displayName: selectedRow.displayName,
+			email: selectedRow.email,
+			mattermostUsername: selectedRow.mattermostUsername,
+			day: selectedDay
+		};
+	});
 	const selectedDetail = $derived(selectedDetailBase ? {
 		...selectedDetailBase,
 		context: buildTeamStatusDayContext(
@@ -122,12 +133,7 @@
 	}
 
 	function openDayDetail(row: TeamStatusPersonRow, day: TeamStatusPersonDay): void {
-		selectedDetailBase = {
-			displayName: row.displayName,
-			email: row.email,
-			mattermostUsername: row.mattermostUsername,
-			day
-		};
+		selectedDetailKey = { email: row.email, date: day.date };
 		isDetailOpen = true;
 		const firstDate = statusDates[0];
 		const lastDate = statusDates.at(-1);

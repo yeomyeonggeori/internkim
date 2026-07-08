@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import SegmentTooltip from '../shared/segment-tooltip.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
 	type Props = {
@@ -15,18 +17,12 @@
 	function cellToneClass(dayToStyle: TeamStatusPersonDay): string {
 		if (dayToStyle.tone === 'working') return 'bg-background text-foreground';
 		if (dayToStyle.tone === 'finished') return 'bg-background text-foreground';
-		if (dayToStyle.tone === 'absence') return absenceBackgroundClass(dayToStyle);
 		if (dayToStyle.tone === 'absent') return 'bg-background text-destructive';
 		return 'text-muted-foreground';
 	}
 
-	function absenceBackgroundClass(dayToStyle: TeamStatusPersonDay): string {
-		if (dayToStyle.absenceTone === 'other') return 'bg-background text-foreground';
-		return 'bg-[color-mix(in_oklab,var(--color-info)_8%,var(--color-background))] text-foreground';
-	}
-
 	function cellButtonClass(dayToStyle: TeamStatusPersonDay): string {
-		return `flex h-full min-h-12 w-full max-w-none flex-col items-center justify-center gap-1 px-1.5 text-center text-xs font-medium transition hover:bg-muted/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-16 ${cellToneClass(dayToStyle)}`;
+		return `relative flex h-full min-h-12 w-full max-w-none flex-col items-center justify-center gap-1 px-1.5 pb-2 text-center text-xs font-medium transition hover:bg-muted/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-16 ${cellToneClass(dayToStyle)}`;
 	}
 
 	function cellTitle(dayToTitle: TeamStatusPersonDay): string {
@@ -37,12 +33,35 @@
 	}
 
 	function segmentBarColor(segment: TeamStatusPersonDay['segments'][number]): string {
-		return segment.locationColor ?? 'hsl(var(--muted-foreground))';
+		return segment.locationColor ?? 'var(--color-muted-foreground)';
 	}
 
 	function tooltipTimeLabel(segment: TeamStatusPersonDay['segments'][number]): string {
 		return segment.durationLabel ? segment.timeLabel : segment.tooltipLabel;
 	}
+
+	function absenceBadgeClass(dayToStyle: TeamStatusPersonDay): string {
+		if (dayToStyle.absenceTone === 'other') return '';
+		return 'border-info/40 bg-info/10 text-info';
+	}
+
+	function daySegmentsTotalPercent(dayToMeasure: TeamStatusPersonDay): number {
+		const totalPercent = dayToMeasure.segments.reduce(
+			(total, segment) => total + segment.widthPercent,
+			0
+		);
+		return Math.min(100, totalPercent);
+	}
+
+	const tooltipRows = $derived(
+		day.segments.map((segment) => ({
+			id: segment.id,
+			color: segment.locationColor,
+			locationName: segment.locationName,
+			timeLabel: tooltipTimeLabel(segment),
+			durationLabel: segment.durationLabel,
+		}))
+	);
 </script>
 
 <div class={`flex items-stretch justify-stretch text-center ${index === 0 ? '' : 'border-l'}`} role="cell">
@@ -57,16 +76,10 @@
 				<Tooltip.Content
 					side="top"
 					sideOffset={6}
-					class="grid w-max max-w-[calc(100vw-2rem)] grid-cols-[0.375rem_max-content_max-content_max-content] gap-x-2 gap-y-1.5 overflow-x-auto"
+					class="w-max max-w-[calc(100vw-2rem)] border bg-popover text-popover-foreground shadow-md"
+					arrowClasses="hidden"
 				>
-					{#each day.segments as segment (segment.id)}
-						<div class="contents text-left tabular-nums">
-							<span class="size-1.5 shrink-0 rounded-full" style:background-color={segmentBarColor(segment)}></span>
-							<span class="whitespace-nowrap text-left">{segment.locationName}</span>
-							<span class="whitespace-nowrap text-left">{tooltipTimeLabel(segment)}</span>
-							<span class="whitespace-nowrap text-left">{segment.durationLabel ?? ''}</span>
-						</div>
-					{/each}
+					<SegmentTooltip rows={tooltipRows} />
 				</Tooltip.Content>
 			{/if}
 		</Tooltip.Root>
@@ -84,16 +97,22 @@
 		data-testid={`team-status-cell-${personEmail}-${day.date}`}
 		onclick={() => onOpenDayDetail(day)}
 	>
-		<span class="min-w-0 max-w-full whitespace-normal break-all leading-tight text-foreground">{day.label}</span>
+		{#if day.tone === 'absence'}
+			<Badge variant="outline" class={absenceBadgeClass(day)}>{day.label}</Badge>
+		{:else}
+			<span class="min-w-0 max-w-full whitespace-normal break-all leading-tight text-foreground">{day.label}</span>
+		{/if}
 		{#if day.segments.length > 0}
-			<span class="flex h-1.5 w-[88%] min-w-0 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-				{#each day.segments as segment (segment.id)}
-					<span
-						class="h-full min-w-1"
-						style:width={`${segment.sharePercent}%`}
-						style:background-color={segmentBarColor(segment)}
-					></span>
-				{/each}
+			<span class="absolute inset-x-1.5 bottom-1 h-[3px] rounded-full bg-muted" aria-hidden="true">
+				<span class="flex h-full overflow-hidden rounded-full" style:width={`${daySegmentsTotalPercent(day)}%`}>
+					{#each day.segments as segment (segment.id)}
+						<span
+							class="h-full"
+							style:flex-grow={segment.widthPercent}
+							style:background-color={segmentBarColor(segment)}
+						></span>
+					{/each}
+				</span>
 			</span>
 		{:else if day.detailLabel}
 			<span class="max-w-full whitespace-normal break-all text-[10px] leading-tight text-foreground/70">
