@@ -1223,6 +1223,14 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if errorValue := state.sshClient.scpDir(toolsDirectoryPath, remoteToolsDirectoryPath); errorValue != nil {
 		return errorValue
 	}
+	fontsDirectoryPath := filepath.Join(state.scriptDir, "assets", "fonts", "files")
+	if info, errorValue := os.Stat(fontsDirectoryPath); errorValue == nil && info.IsDir() {
+		state.sshClient.run("rm -rf /opt/internkim/fonts.new && mkdir -p /opt/internkim/fonts.new")
+		if errorValue := state.sshClient.scpDir(fontsDirectoryPath, "/opt/internkim/fonts.new"); errorValue != nil {
+			return errorValue
+		}
+		state.sshClient.run("rm -rf /opt/internkim/fonts && mv /opt/internkim/fonts.new /opt/internkim/fonts")
+	}
 
 	manifest := state.skillsManifest()
 	if manifest == "" {
