@@ -34,3 +34,7 @@ Contact body text and item bodies auto-link emails (mailto:), full URLs, and @in
 - `dots`: fading dot matrix; playful, precise.
 
 A hero with no image should almost always carry a backdrop that matches the mood. Combine with the `style:` preset in DESIGN.md — e.g. pottery studio: `grain`; tech product: `grid` or `mesh`; kids brand: `dots`.
+
+## Font Catalog
+
+Served families (anything else silently falls back to the platform default): `에이투지체` (default; all-round geometric sans), `Pretendard` (neutral body/UI), `Paperlogy` (display-friendly geometric), `마루부리` (screen serif with brush warmth), `Gowun Batang` (quiet literary serif), `Gowun Dodum` (handwritten-humanist), `Galmuri` (retro pixel), `D2Coding` (mono). Match the voice to the request and say why in DESIGN.md.
