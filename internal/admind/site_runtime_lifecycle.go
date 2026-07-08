@@ -2,8 +2,10 @@ package admind
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -156,4 +158,11 @@ func (service *Service) idleSiteRuntimeIDs() []string {
 		}
 	}
 	return idleSiteIDs
+}
+
+func (service *Service) warnWhenFontAssetsMissing() {
+	fontsCSSPath := filepath.Join(service.Configuration.FontsDirectory, "fonts.css")
+	if _, errorValue := os.Stat(fontsCSSPath); errorValue != nil {
+		log.Printf("font assets missing at %s: published sites fall back to system fonts; install the fonts release component or rerun provisioning", fontsCSSPath)
+	}
 }
