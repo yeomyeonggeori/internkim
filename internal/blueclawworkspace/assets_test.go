@@ -100,7 +100,7 @@ func TestCapabilityToolAssetExistsAndIsExecutable(t *testing.T) {
 
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillNames := []string{"docx", "xlsx", "presentation", "pdf"}
+	skillNames := []string{"document", "spreadsheet", "presentation", "pdf"}
 	for _, skillName := range skillNames {
 		path := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
 		document, errorValue := os.ReadFile(path)
@@ -120,8 +120,8 @@ func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	documentPaths := []string{
 		AgentsPath(repositoryRootPath),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "skill-management", "SKILL.md"),
 	}
@@ -194,9 +194,9 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	documentPaths := []string{
 		AgentsPath(repositoryRootPath),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"),
 	}
@@ -213,7 +213,7 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 
 func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website", "SKILL.md")
 	document, errorValue := os.ReadFile(skillPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -221,12 +221,12 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 	content := string(document)
 	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "dark navy shell", "embed fonts only as WOFF2", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
-			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
+			t.Fatalf("website must document managed scaffold contract %q", expectedText)
 		}
 	}
 	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "warm limestone", "green secondary accents", "amber tertiary"} {
 		if strings.Contains(content, forbiddenText) {
-			t.Fatalf("site-prototype must not document stale site workspace pattern %q", forbiddenText)
+			t.Fatalf("website must not document stale site workspace pattern %q", forbiddenText)
 		}
 	}
 }
@@ -253,8 +253,8 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillNames := []string{"docx", "xlsx"}
-	for _, skillName := range skillNames {
+	createScriptNames := map[string]string{"document": "create_docx.py", "spreadsheet": "create_xlsx.py"}
+	for skillName, createScriptName := range createScriptNames {
 		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName)
 		runtimePath := filepath.Join(skillPath, "scripts", "skill_runtime.py")
 		if _, errorValue := os.Stat(runtimePath); errorValue != nil {
@@ -279,7 +279,7 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 			t.Fatalf("%s skill must not instruct the model to bypass bundled scripts with inline Python", skillName)
 		}
 
-		createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "create_"+skillName+".py"))
+		createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", createScriptName))
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -308,7 +308,7 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 
 func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	for _, skillName := range []string{"docx", "xlsx", "pdf", "site-prototype"} {
+	for _, skillName := range []string{"document", "spreadsheet", "pdf", "website"} {
 		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
 		document, errorValue := os.ReadFile(skillPath)
 		if errorValue != nil {
@@ -320,7 +320,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	docxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "scripts", "create_docx.py"))
+	docxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "scripts", "create_docx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -330,7 +330,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	xlsxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "create_xlsx.py"))
+	xlsxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "create_xlsx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -341,8 +341,8 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 	}
 
 	for _, validationScriptPath := range []string{
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "scripts", "validate_docx.py"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "validate_xlsx.py"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "scripts", "validate_docx.py"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "validate_xlsx.py"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "scripts", "validate_pdf.py"),
 	} {
 		document, errorValue := os.ReadFile(validationScriptPath)
@@ -354,7 +354,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	xlsxValidationScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "scripts", "validate_xlsx.py"))
+	xlsxValidationScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "validate_xlsx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -379,7 +379,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	siteSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md"))
+	siteSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

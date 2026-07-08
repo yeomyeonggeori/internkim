@@ -9,7 +9,7 @@ completion:
 
 # Presentation
 
-Create a useful, visually strong deck and attach the requested files. This is an HTML-first skill: `slides.html` is the source of truth, `DESIGN.md` is the design brief, and HTML is the default deliverable. PDF and PPTX are derived formats; PPTX is image-backed by default so it preserves the actual HTML render.
+Create a useful, visually strong deck and attach the requested files. HTML-first: `slides.html` is the source of truth, `DESIGN.md` the design brief, and HTML is the default deliverable. PDF and PPTX are derived; PPTX is image-backed by default to preserve the HTML render.
 
 ## Workflow
 
@@ -46,17 +46,21 @@ Do not call `terminal.run` with an `arguments` array alone.
 
 Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html` or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
-Give every slide a speaker script: an `<aside class="notes">` holding 2-4 spoken sentences in the request language that the presenter can read aloud verbatim. The presenter view shows them; they never render on the slide.
+Give every slide a speaker script: `<aside class="notes">` with 2-4 spoken sentences in the request language that the presenter can read aloud verbatim. The presenter view shows them; they never render on the slide.
 
 There is no template to fill in; the content, layout, and HTML source are your responsibility.
 
+## Imagery
+
+When a slide needs photography, fetch a CC0 photo in one command and reference the local file — `python3 scripts/fetch_image.py "<english query>" assets/images/<name>.jpg`. Prefer fetched or user-provided files over hotlinks; generation is the last resort.
+
 ## Company Data
 
-For IR, 회사소개, and proposal decks pull real data instead of inventing: `company.info.get` (identity), `company.metric.list` (revenue/headcount series for growth charts), `company.record.list` (연혁·funding·products timeline). Company logo: `/workspace/circles/staff/company/logo.png` if present.
+For IR, 회사소개, and proposal decks pull real data instead of inventing: `company.info.get`, `company.metric.list` (growth series), `company.record.list` (연혁·funding·products). Logo: `/workspace/circles/staff/company/logo.png` if present.
 
 ## Content Quality
 
-The deck must be useful before it is beautiful. A good deck gives the audience a decision, explanation, lesson, or next action they did not already have.
+Useful before beautiful: a good deck gives the audience a decision, explanation, lesson, or next action they did not already have.
 
 Build the story spine before authoring: situation, tension, thesis, proof, and close.
 
@@ -78,15 +82,15 @@ Do not deliver a board deck made of plain white title slides, unstyled tables, b
 
 ## Source Files
 
-`slides.html` is the source of truth and the first file written. Include `<!-- design-source: DESIGN.md -->`, mirror the chosen colors/typography/layout in CSS, keep one main message per slide, set `data-visual-system` on `<body>` or every slide, `data-slide-role` on every `<section class="slide">`, one top-level slide section per slide.
+`slides.html` is the source of truth and the first file written: `<!-- design-source: DESIGN.md -->` included, chosen colors/typography mirrored in CSS, one main message per slide, `data-visual-system` on `<body>`, `data-slide-role` on every `<section class="slide">`, one top-level section per slide.
 
-`DESIGN.md` is useful for design-sensitive decks but not more important than the deck. If you create it, use Stitch-compatible YAML front matter with only `colors`, `typography`, and `layout`, followed by Markdown headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, and `Anti-default Check`.
+`DESIGN.md` is useful for design-sensitive decks but not more important than the deck. If created, use Stitch-compatible YAML front matter with only `colors`, `typography`, `layout`, then headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, `Anti-default Check`.
 
 `deck-brief.md` is an optional planning note, not a deliverable: archetype, story spine, slide count, visual system, signature move, what would be too shallow.
 
 `required-visible-text.txt` is an optional source-fact ledger for review, not a token filter: one source fact or must-appear phrase per line, then represent those facts in `slides.html` with natural layout copy, tables, charts, or labels — organization, product, exact period wording, metric and target values, owners, dates, missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`.
 
-HTML is the layout surface; browser rendering feeds PDF, review images, and image-backed PPTX. The build falls back to native text-backed PPTX when Chromium is unavailable or `PRESENTATION_PPTX_MODE=native` is set:
+HTML is the layout surface; browser rendering feeds PDF, review images, and image-backed PPTX. Without Chromium (or with `PRESENTATION_PPTX_MODE=native`) the build falls back to native text-backed PPTX:
 
 - Complete HTML document with `<style>` in the head.
 - Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
@@ -97,7 +101,7 @@ HTML is the layout surface; browser rendering feeds PDF, review images, and imag
 - No `overflow: hidden` on variable text containers unless cropped content is intentional.
 - Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
 
-Avoid bullet-only decks; bullets may live inside cards, columns, matrix cells, or timelines, but each slide needs visible structure. Read `assets/layouts.md` for structures, `assets/visual-styles.md` for stronger identity, `assets/composition-seeds.md` against sparse or generic decks, `assets/minimal-design.md` for a sober style.
+Avoid bullet-only decks; each slide needs visible structure. Read `assets/layouts.md` for structures, `assets/visual-styles.md` for identity, `assets/composition-seeds.md` against sparse decks, `assets/minimal-design.md` for a sober style.
 
 If a `file.edit` patch misses its target text, rewrite the file with `file.write` instead of retrying. Preserve the user's explicit constraints: slide count, output format, scope, and their exact wording.
 

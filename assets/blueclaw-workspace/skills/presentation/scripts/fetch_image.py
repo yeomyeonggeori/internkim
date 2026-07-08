@@ -8,7 +8,7 @@ import urllib.request
 OPENVERSE_ENDPOINT = "https://api.openverse.org/v1/images/"
 SAFE_LICENSES = "cc0,pdm"
 MAXIMUM_BYTES = 3_500_000
-USER_AGENT = "internkim-site-prototype/1.0 (prototype image sourcing)"
+USER_AGENT = "internkim-skill-image/1.0 (prototype image sourcing)"
 
 
 def search_openverse(query: str) -> list:
