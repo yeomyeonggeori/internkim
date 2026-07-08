@@ -349,8 +349,9 @@ async function readVoid(response: Response, fallbackMessage: string): Promise<vo
 }
 
 async function responseErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
-	const text = await response.text();
-	return text.trim() || fallbackMessage;
+	const text = (await response.text()).trim();
+	if (!text || text.startsWith('<') || text.length > 300) return fallbackMessage;
+	return text;
 }
 
 export function apiErrorMessage(error: unknown, fallbackMessage: string): string {
