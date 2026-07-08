@@ -15,9 +15,8 @@ export type TeamStatusPersonDaySegment = {
 	locationID?: string;
 	locationColor?: string;
 	timeLabel: string;
-	durationLabel?: string;
+	durationMinutes?: number;
 	widthPercent: number;
-	tooltipLabel: string;
 	isOpen: boolean;
 };
 
@@ -38,6 +37,7 @@ export type TeamStatusPersonDay = {
 	locationID?: string;
 	locationColor?: string;
 	detailLabel?: string;
+	durationMinutes?: number;
 	totalDurationLabel?: string;
 	segments: TeamStatusPersonDaySegment[];
 };
@@ -163,25 +163,28 @@ function buildTeamStatusPersonDay(
 		const openElapsedMinutes = person.activeSegment
 			? Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(person.activeSegment.startTime))
 			: 0;
-		const totalDurationLabel = formatHoursMinutes(person.workedMinutes + openElapsedMinutes, text);
+		const durationMinutes = person.workedMinutes + openElapsedMinutes;
 		return {
 			date,
-			label: totalDurationLabel,
+			label: formatHoursMinutes(durationMinutes, text),
 			tone: 'working',
 			locationName,
 			locationID,
 			locationColor: findLocationColor(locationColors, locationID, locationName),
 			detailLabel: person.activeSegment?.startTime,
-			totalDurationLabel,
+			durationMinutes,
+			totalDurationLabel: formatHoursMinutes(durationMinutes, text),
 			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
 		};
 	}
 	if (person.status === 'finished') {
-		const totalDurationLabel = person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes, text) : undefined;
+		const durationMinutes = person.workedMinutes > 0 ? person.workedMinutes : undefined;
+		const totalDurationLabel = durationMinutes ? formatHoursMinutes(durationMinutes, text) : undefined;
 		return {
 			date,
 			label: totalDurationLabel ?? '-',
 			tone: 'finished',
+			durationMinutes,
 			totalDurationLabel,
 			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
 		};
@@ -224,11 +227,8 @@ function buildTeamStatusPersonDaySegments(
 	return segments.map((segment) => {
 		const locationName = segment.locationName || '-';
 		const timeLabel = segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`;
-		const durationLabel = segment.isOpen
-			? text.inProgress
-			: segment.workedMinutes > 0
-				? formatHoursMinutes(segment.workedMinutes, text)
-				: undefined;
+		const openElapsedMinutes = Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(segment.startTime));
+		const durationMinutes = segment.isOpen ? openElapsedMinutes : segment.workedMinutes;
 		const widthPercent = dayWidthPercent(
 			segment.startTime,
 			segment.isOpen ? nowLocalTime : segment.endTime ?? segment.startTime
@@ -239,9 +239,8 @@ function buildTeamStatusPersonDaySegments(
 			locationID: segment.locationID,
 			locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
 			timeLabel,
-			durationLabel,
+			durationMinutes: durationMinutes > 0 ? durationMinutes : undefined,
 			widthPercent,
-			tooltipLabel: durationLabel ? `${locationName} ${timeLabel} · ${durationLabel}` : `${locationName} ${timeLabel}`,
 			isOpen: segment.isOpen,
 		};
 	});

@@ -121,7 +121,7 @@ test.describe('attendance responsive view', () => {
 		await expect(detailPanel.getByRole('button', { name: '수정' })).toBeVisible();
 	});
 
-	test('keeps the mobile monthly status table readable while date columns scroll', async ({ page }) => {
+	test('keeps the mobile monthly status table readable while scrolling through dates', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());

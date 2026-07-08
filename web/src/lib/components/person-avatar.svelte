@@ -21,7 +21,7 @@
 	const avatarLabel = $derived(name || email || 'Person');
 </script>
 
-<Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-muted', className)}>
+<Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-background', className)}>
 	{#if image}
 		<Avatar.Image src={image} alt={avatarLabel} />
 	{/if}

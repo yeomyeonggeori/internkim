@@ -20,7 +20,7 @@
 
 <div
 	class={cn(
-		'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted [&>svg]:absolute [&>svg]:inset-0 [&>svg]:size-full',
+		'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-background [&>svg]:absolute [&>svg]:inset-0 [&>svg]:size-full',
 		className
 	)}
 	aria-hidden="true"

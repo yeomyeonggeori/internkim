@@ -2,9 +2,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
 	import * as Select from '$lib/components/ui/select';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import ZapIcon from '@lucide/svelte/icons/zap';
@@ -16,16 +14,14 @@
 	import { timeInTimeZone, todayDateInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
 	import { dayWidthPercent } from './shared/day-timeline';
-	import SegmentTooltip from './shared/segment-tooltip.svelte';
+	import DurationText from './shared/duration-text.svelte';
+	import LocationLabel from './shared/location-label.svelte';
 	import { attendanceText } from './text';
 
 	type SegmentBar = {
 		id: string;
 		widthPercent: number;
 		color: string;
-		locationName: string;
-		timeLabel: string;
-		durationLabel: string;
 	};
 
 	const attendance = getAttendanceState();
@@ -55,24 +51,6 @@
 		return todayDay.workedMinutes;
 	});
 
-	const statusLabel = $derived(
-		status === 'working'
-			? text.working
-			: status === 'finished'
-				? text.finished
-				: status === 'absence'
-					? text.absence
-					: text.absent
-	);
-	const statusDot = $derived(
-		status === 'working'
-			? 'bg-success'
-			: status === 'absence'
-				? 'bg-info'
-				: status === 'finished'
-					? 'bg-muted-foreground'
-					: 'bg-muted-foreground/50'
-	);
 	const activeLocationName = $derived(
 		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
 	);
@@ -118,10 +96,7 @@
 			return {
 				id: segment.id,
 				widthPercent: dayWidthPercent(segment.startTime, segment.isOpen ? currentTime : segment.endTime ?? segment.startTime),
-				color: segmentColor(segment) ?? 'hsl(var(--muted-foreground))',
-				locationName: segment.locationName ?? segment.locationID ?? text.location,
-				timeLabel: segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`,
-				durationLabel: formatHoursMinutes(segmentDisplayMinutes(segment), text),
+				color: segmentColor(segment) ?? 'var(--color-muted-foreground)',
 			};
 		});
 	}
@@ -129,12 +104,6 @@
 	function segmentBarsTotalPercent(segmentBars: SegmentBar[]): number {
 		const totalPercent = segmentBars.reduce((total, segment) => total + segment.widthPercent, 0);
 		return Math.min(100, totalPercent);
-	}
-
-	function segmentDisplayMinutes(segment: AttendanceWorkSegment): number {
-		if (!segment.isOpen) return segment.workedMinutes;
-		const elapsed = (Date.now() - new Date(segment.clockIn.occurredAt).getTime()) / 60000;
-		return Math.max(0, Math.round(elapsed));
 	}
 
 	function segmentColor(segment: AttendanceWorkSegment | undefined): string | undefined {
@@ -159,50 +128,25 @@
 		</Card.Title>
 	</Card.Header>
 	<Card.Content class="space-y-2.5 pt-0">
-		<div class="flex items-center justify-between gap-2">
-			<div class="flex min-w-0 items-center gap-1.5">
-				<span class={`size-2 shrink-0 rounded-full ${statusDot}`}></span>
-				<span class="shrink-0 text-sm font-semibold">{statusLabel}</span>
+		{#if todayDay.clockIn}
+			<div class="flex items-center justify-between gap-2">
+				<DurationText minutes={elapsedMinutes} class="shrink-0 text-sm font-semibold" />
 				{#if status === 'working'}
-					<Badge variant="outline" class="min-w-0 shrink">{activeLocationName}</Badge>
+					<LocationLabel name={activeLocationName} class="min-w-0" />
 				{/if}
 			</div>
-			{#if todayDay.clockIn}
-				<span class="shrink-0 text-sm font-semibold tabular-nums">{formatHoursMinutes(elapsedMinutes, text)}</span>
-			{/if}
-		</div>
+		{/if}
 		{#if todaySegmentBars.length > 0}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							type="button"
-							class="block w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							data-testid="quick-actions-current-bar"
-						>
-							<span class="block h-1.5 w-full rounded-full bg-muted" aria-hidden="true">
-								<span class="flex h-full overflow-hidden rounded-full" style:width={`${segmentBarsTotalPercent(todaySegmentBars)}%`}>
-									{#each todaySegmentBars as segment (segment.id)}
-										<span class="h-full" style:flex-grow={segment.widthPercent} style:background-color={segment.color}></span>
-									{/each}
-								</span>
-							</span>
-						</button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content
-					side="top"
-					sideOffset={6}
-					class="w-max max-w-[calc(100vw-2rem)] border bg-popover text-popover-foreground shadow-md"
-					arrowClasses="hidden"
-				>
-					<SegmentTooltip rows={todaySegmentBars} />
-				</Tooltip.Content>
-			</Tooltip.Root>
+			<div class="h-1.5 w-full rounded-full bg-muted" data-testid="quick-actions-current-bar" aria-hidden="true">
+				<div class="flex h-full overflow-hidden rounded-full" style:width={`${segmentBarsTotalPercent(todaySegmentBars)}%`}>
+					{#each todaySegmentBars as segment (segment.id)}
+						<span class="h-full" style:flex-grow={segment.widthPercent} style:background-color={segment.color}></span>
+					{/each}
+				</div>
+			</div>
 		{/if}
 		{#if todayDay.clockIn}
-			<div class="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
+			<div class="flex min-w-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">
 				<span class="flex items-center gap-1">
 					<LogInIcon class="size-3" />
 					{todayDay.clockIn.localTime}
