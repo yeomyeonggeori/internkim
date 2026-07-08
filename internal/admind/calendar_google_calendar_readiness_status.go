@@ -22,8 +22,12 @@ func calendarReadinessStatusForAccount(account remoteCalendarAccount) string {
 	if !remoteCalendarAccountCanWrite(account) {
 		return calendarReadinessStatusWritePermissionRequired
 	}
-	if strings.TrimSpace(account.SelectedCalendarReadinessStatus) == calendarReadinessStatusCalendarInaccessible {
+	selectedCalendarReadinessStatus := strings.TrimSpace(account.SelectedCalendarReadinessStatus)
+	if selectedCalendarReadinessStatus == calendarReadinessStatusCalendarInaccessible {
 		return calendarReadinessStatusCalendarInaccessible
+	}
+	if selectedCalendarReadinessStatus == calendarReadinessStatusInitialExportPending {
+		return calendarReadinessStatusInitialExportPending
 	}
 	if strings.TrimSpace(account.InitialSyncCompletedAt) == "" {
 		return calendarReadinessStatusInitialSyncPending

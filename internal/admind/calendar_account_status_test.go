@@ -236,6 +236,33 @@ func TestServeCalendarAccountStatusWaitsForInitialSync(t *testing.T) {
 	}
 }
 
+func TestServeCalendarAccountStatusReportsInitialExportPending(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account = seedSelectedCalendar(t, service, ctx, account, "writer", false)
+	account.SelectedCalendarReadinessStatus = calendarReadinessStatusInitialExportPending
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+		t.Fatalf("save readiness status: %v", errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	recorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(recorder, request)
+	var body calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatalf("decode: %v", errorValue)
+	}
+	if body.InitialSyncCompleted {
+		t.Error("InitialSyncCompleted should stay false while initial export is pending")
+	}
+	if body.CalendarSyncReady {
+		t.Error("CalendarSyncReady should be false while initial export is pending")
+	}
+	if body.CalendarReadinessStatus != calendarReadinessStatusInitialExportPending {
+		t.Errorf("CalendarReadinessStatus: got %q", body.CalendarReadinessStatus)
+	}
+}
+
 func TestServeCalendarAccountStatusRequiresWritableCalendar(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
