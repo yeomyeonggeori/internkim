@@ -32,6 +32,7 @@ export type SiteAuth = {
 	loginPath: string;
 	signupPath: string;
 	redirectAfterLogin: string;
+	providers: string[];
 };
 
 export type NavigationItem = {
@@ -209,6 +210,9 @@ function parseAuth(value: unknown): SiteAuth | undefined {
 	if (!isRecord(value) || value.enabled !== true) return undefined;
 	const pathOr = (candidate: unknown, fallback: string) =>
 		isNonEmptyString(candidate) && candidate.startsWith("/") ? candidate : fallback;
+	const providers = Array.isArray(value.providers)
+		? value.providers.filter(isNonEmptyString).map((provider) => provider.trim().toLowerCase())
+		: [];
 	return {
 		enabled: true,
 		userCollection: isNonEmptyString(value.userCollection) ? value.userCollection : "users",
@@ -216,6 +220,7 @@ function parseAuth(value: unknown): SiteAuth | undefined {
 		loginPath: pathOr(value.loginPath, "/login"),
 		signupPath: pathOr(value.signupPath, "/signup"),
 		redirectAfterLogin: pathOr(value.redirectAfterLogin, "/"),
+		providers,
 	};
 }
 

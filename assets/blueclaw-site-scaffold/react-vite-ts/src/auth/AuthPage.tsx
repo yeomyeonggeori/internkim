@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import type { SiteAuth } from "../site-content";
-import { passkeyLogin, passkeySignUp, signIn, signUp, supportsPasskey, useSession } from "./session";
+import { passkeyLogin, passkeySignUp, signIn, signInWithProvider, signUp, supportsPasskey, useSession } from "./session";
 
 type AuthPageProps = {
 	mode: "login" | "signup";
@@ -21,6 +21,18 @@ export function AuthPage({ mode, auth }: AuthPageProps) {
 	useEffect(() => {
 		if (session) window.location.hash = auth.redirectAfterLogin;
 	}, [session, auth.redirectAfterLogin]);
+
+	const continueWithProvider = async (provider: string) => {
+		setIsBusy(true);
+		setMessage("");
+		const result = await signInWithProvider(auth.userCollection, provider);
+		setIsBusy(false);
+		if (!result.ok) {
+			setMessage(result.message);
+			return;
+		}
+		window.location.hash = auth.redirectAfterLogin;
+	};
 
 	const continueWithPasskey = async () => {
 		if (!username) {
@@ -90,6 +102,11 @@ export function AuthPage({ mode, auth }: AuthPageProps) {
 						{isSignup ? "패스키로 가입" : "패스키로 로그인"}
 					</Button>
 				) : null}
+				{auth.providers.map((provider) => (
+					<Button key={provider} type="button" variant="outline" disabled={isBusy} onClick={() => continueWithProvider(provider)}>
+						{provider} 계정으로 계속
+					</Button>
+				))}
 			</form>
 			<p className="mt-6 text-sm text-muted-foreground">
 				{isSignup ? (
