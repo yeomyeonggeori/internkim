@@ -3184,6 +3184,8 @@ func validateSiteContent(content *siteContent) error {
 	return nil
 }
 
+var siteContentKnownBackdrops = map[string]bool{"mesh": true, "aurora": true, "grain": true, "grid": true, "dots": true}
+
 func validateSiteContentBlocks(blocks []siteContentBlock) error {
 	for blockIndex, block := range blocks {
 		variant := strings.TrimSpace(block.Variant)
@@ -3192,6 +3194,9 @@ func validateSiteContentBlocks(blocks []siteContentBlock) error {
 		}
 		if !siteContentKnownBlockVariants[variant] {
 			return fmt.Errorf("blocks[%d].variant %q is not a known block variant", blockIndex, variant)
+		}
+		if backdrop := strings.TrimSpace(block.Backdrop); backdrop != "" && !siteContentKnownBackdrops[backdrop] {
+			return fmt.Errorf("blocks[%d].backdrop %q does not exist; choose mesh, aurora, grain, grid, or dots", blockIndex, backdrop)
 		}
 		for itemIndex, item := range block.Items {
 			if strings.TrimSpace(item.Title) == "" {
