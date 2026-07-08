@@ -35,7 +35,7 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Block Library
 
-`app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one page) or `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; `/api`, `/_`, `/fonts` paths are reserved; page links use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, `actionHref` it needs. Choose page count and block order to fit the request — a restaurant, a portfolio, and a dashboard should end up with different structures.
+`app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one page) or `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; `/api`, `/_`, `/fonts` paths are reserved; page links use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, `actionHref` it needs. Write real newlines in JSON strings (never a literal `\n`), and give specs like price/capacity/schedule their own lines or items instead of `|`-joined strings. Choose page count and block order to fit the request — a restaurant, a portfolio, and a dashboard should end up with different structures.
 
 - `hero`: opening title, tagline, one primary call-to-action; once, first.
 - `features`: titled grid of `items` for capabilities or benefits.
@@ -99,8 +99,8 @@ Requests are incomplete until site.publish succeeds and a final site.status retu
 9. Update `.internkim/idea.md` when positioning changes.
 10. Write `.internkim/artifact-brief.md` before source edits: intent, audience, archetype, visual direction, must-show source content, forbidden invented content, what would be too shallow.
 11. For a content-only change — copy, tagline, blocks, pages, or navigation with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); no `app/src/**` edit and no build step.
-12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
-13. Do not edit managed scaffold files: `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/scripts/preview.ts`, `app/tsconfig.json`, or `app/vite.config.ts`. `app/public/site-content.json` is the primary content-editing surface and is not on this list.
+12. For a structural change beyond the block library — a new variant, primitive, or layout — build it as a reusable component under `app/src/blocks/` or `app/src/components/` consuming the theme variables, then compose it; never inline one-off markup into `App.tsx` like a scratchpad.
+13. Do not edit managed scaffold files (`app/package.json`, `app/index.html`, `app/scripts/*`, `app/tsconfig.json`, `app/vite.config.ts`); `app/public/site-content.json` is the primary content surface and is not managed.
 14. Only after a structural change (step 12) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 11) needs no build step.
 15. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
 16. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
@@ -131,13 +131,13 @@ Avoid the dark navy shell, slate, purple, gradients, decorative filler, generic 
 
 The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport.
 
-If login, saved records, realtime, reservations, or CRUD is needed, use PocketBase as the default local backend. Use fake seed credentials and include them in the final reply.
+If login, records, realtime, or CRUD is needed, use PocketBase as the default backend with fake seed credentials included in the final reply.
 
 ## Follow-Ups
 
-For same-conversation feedback, call site.status once, update the resolved site (never site.create again), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and collaborators from the status result to decide whether a follow-up should update this site.
+For same-conversation feedback, call site.status once, update the resolved site (never site.create again), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use the status result's identity fields (`idea`, `audience`, `archetype`, `createdBy`, `ownerIdentity`, collaborators) to decide whether a follow-up updates this site.
 
-Short continuations such as "해줘", "진행", "좋아", "게시해", or "publish" mean finish the current workflow: resolve status, complete missing work, review, publish, reply with the public URL. Do not ask for publish approval.
+Short continuations ("해줘", "진행", "좋아", "게시해", "publish") mean finish the workflow: resolve status, complete missing work, review, publish, reply with the URL. Do not ask for publish approval.
 
 ## Owner Audit and Destructive Actions
 

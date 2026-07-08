@@ -2,7 +2,7 @@ import { buttonVariants } from "../components/ui/button";
 import type { Block } from "../site-content";
 import { autoLink } from "./autoLink";
 import { resolveBlockIcon } from "./blockIcons";
-import { splitParagraphs } from "./textParagraphs";
+import { normalizeEscapedNewlines, splitParagraphs } from "./textParagraphs";
 
 type ContactProps = {
 	block: Block;
@@ -33,7 +33,7 @@ export function Contact({ block, anchorID }: ContactProps) {
 									) : null}
 									<div>
 										<dt className="text-sm font-semibold">{item.title}</dt>
-										<dd className="mt-1 leading-relaxed text-muted-foreground">{autoLink(item.body)}</dd>
+										<dd className="mt-1 whitespace-pre-line leading-relaxed text-muted-foreground">{autoLink(normalizeEscapedNewlines(item.body))}</dd>
 									</div>
 								</div>
 							);
