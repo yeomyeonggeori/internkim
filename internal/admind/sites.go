@@ -185,12 +185,13 @@ type siteContent struct {
 }
 
 type siteContentAuth struct {
-	Enabled            bool   `json:"enabled"`
-	UserCollection     string `json:"userCollection,omitempty"`
-	AllowSignup        *bool  `json:"allowSignup,omitempty"`
-	LoginPath          string `json:"loginPath,omitempty"`
-	SignupPath         string `json:"signupPath,omitempty"`
-	RedirectAfterLogin string `json:"redirectAfterLogin,omitempty"`
+	Enabled            bool     `json:"enabled"`
+	UserCollection     string   `json:"userCollection,omitempty"`
+	AllowSignup        *bool    `json:"allowSignup,omitempty"`
+	LoginPath          string   `json:"loginPath,omitempty"`
+	SignupPath         string   `json:"signupPath,omitempty"`
+	RedirectAfterLogin string   `json:"redirectAfterLogin,omitempty"`
+	Providers          []string `json:"providers,omitempty"`
 }
 
 type siteContentPage struct {
