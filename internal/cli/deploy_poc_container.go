@@ -93,8 +93,7 @@ func syncPocContainerSkills(target deployops.Target, repositoryRootPath string, 
 		return errorValue
 	}
 	return runRemote(target, fmt.Sprintf(
-		"for tenantWorkspace in workspace/tenant_*; do rm -rf \"$tenantWorkspace/skills\" && tar -C \"$tenantWorkspace\" -xf %s; done && rm -f %s\n"+
-			"container ls --format '{{.Names}}' 2>/dev/null | grep '^poc-tenant-' | xargs -n1 container restart",
+		"for tenantWorkspace in workspace/tenant_*; do rm -rf \"$tenantWorkspace/skills\" && tar -C \"$tenantWorkspace\" -xf %s; done && rm -f %s",
 		quoteShellValue(remoteArchivePath),
 		quoteShellValue(remoteArchivePath),
 	))
