@@ -73,6 +73,35 @@ test.describe('calendar route Google Calendar readiness', () => {
 		await expect(page.getByText('동기화 가능')).toHaveCount(0);
 	});
 
+	test('shows selected Google Calendar initial export progress separately', async ({ page }) => {
+		await page.unroute('**/calendar/api/account-status');
+		await page.route('**/calendar/api/account-status', async (route) => {
+			await route.fulfill({
+				json: {
+					connected: true,
+					accountEmail: 'calendar-admin@example.com',
+					selectedCalendarID: 'company@example.com',
+					selectedCalendarName: '회사 일정',
+					selectedCalendarAccessRole: 'writer',
+					needsReauth: false,
+					needsCalendarSelection: false,
+					initialSyncCompleted: false,
+					calendarSyncReady: false,
+					calendarReadinessStatus: 'initial_export_pending',
+					googleOAuthConfigured: true,
+					canManageGoogleOAuth: true
+				}
+			});
+		});
+
+		await page.goto('/calendar/');
+		await openCalendarSettings(page);
+
+		await expect(page.getByText('사용 중인 캘린더: 회사 일정')).toBeVisible();
+		await expect(page.getByText('초기 내보내기 중')).toBeVisible();
+		await expect(page.getByText('초기 동기화 중')).toHaveCount(0);
+	});
+
 	test('keeps long selected Google Calendar status contained on mobile', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.unroute('**/calendar/api/account-status');

@@ -25,6 +25,7 @@ export type CalendarAccountStatusResponse = {
 export type CalendarReadinessStatus =
 	| 'calendar_selection_required'
 	| 'initial_sync_pending'
+	| 'initial_export_pending'
 	| 'sync_ready'
 	| 'write_permission_required'
 	| 'calendar_inaccessible'
