@@ -42,15 +42,15 @@ Block copy must be realistic, specific prose for the requested business — real
 - `prose`: titled free-form paragraphs for narrative or about content.
 - `cta`: high-contrast banner with title, short body, one action.
 - `faq`: expandable `items` as question/answer pairs.
-- `contact`: titled block with body text, structured `items` (email, instagram, address entries), and one action; emails, URLs, and @handles in text auto-link.
+- `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (mesh, aurora, grain, grid, dots) — read `references/blocks.md` for icon names, image sourcing (license-free photos first, generation last), and backdrop moods. A hero with no image should carry a matching backdrop.
+Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` — read `references/blocks.md` for icons, image sourcing (license-free first, generation last), and backdrop moods. A hero without an image should carry a matching backdrop.
 
 ## Create, Update, Publish
 
 A request is incomplete until site.publish succeeds and site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
 
-1. Call the site.status operation once with the known `siteID`, slug, or empty input for the current conversation. Do not call it again until an action you took (create, publish, or a content change) could change the answer.
+1. Call site.status once with the known `siteID`, slug, or empty input. Do not call it again until an action you took could change the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
 3. If status is `not_found`, go straight to step 5 (site.create); polling status again changes nothing.
 4. If no site is resolved, choose the UI archetype — landing, dashboard, admin tool, booking, marketplace, portfolio, content site, or a domain-specific app shell — and write a request-specific `DESIGN.md` in Stitch canonical format: YAML front matter with `colors`, `typography`, `rounded`, `spacing`, and `components`, followed by `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`. Write it at `sourceWorkspacePath` (a sibling of `app/`) — never at `app/DESIGN.md`; publish only looks for `DESIGN.md` at the source root, and misplacing it also falsely marks the build stale. Publish renders `colors` and `typography` into `theme.css`, so pick them before site.create on every create or update.
@@ -84,7 +84,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    ```
 
    If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
-6. Compose the site by writing `app/public/site-content.json` from the Block Library above — page split and block order is the structure decision. Then run the content review with `terminal.run`:
+6. Compose the site in `app/public/site-content.json` from the Block Library — page split and block order is the structure decision. Then run the content review with `terminal.run`:
 
    ```json
    {
@@ -93,7 +93,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    }
    ```
 
-   Run it again after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: keep revising while it improves, stop when the gate passes or the score stalls across two runs, and never call site.publish on a final state that was not reviewed.
+   Rerun after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: revise while it improves, stop when the gate passes or the score stalls twice, never call site.publish on an unreviewed final state.
 7. If `workspaceHealth` is `missing` or `permission_problem`, recheck site.status once; if still unhealthy, report honestly. If `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present.
 9. Update `.internkim/idea.md` on positioning changes.
@@ -123,19 +123,23 @@ Do not run `cd <appWorkspacePath> && bun scripts/build.ts`; the working director
 
 ## Design Quality
 
-`DESIGN.md` is required for every create or update: request-specific, Stitch canonical format, decided before site.create so block composition already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme (rendered into `theme.css`), and an optional top-level `style:` picks a mood preset — editorial, soft, dark, brutalist, playful — that shapes the hero band, card shadows, and motion.
+`DESIGN.md` is required for every create or update: request-specific, Stitch canonical format, decided before site.create so block composition already matches the palette, type, radius, and spacing choices. Its `colors` and `typography` keys are the published theme (rendered into `theme.css`), and an optional top-level `style:` picks a mood preset — editorial, soft, dark, brutalist, playful. The created file is a decision brief with TODO(design) markers; publish rejects it until you decide and delete them.
 
-Default to black-on-white minimal styling unless the request calls for another direction; pick a palette deliberately. `typography` fontFamily defaults to `에이투지체`; every served family comes from the platform font catalog (`에이투지체`, `Pretendard`, `Paperlogy`, `마루부리`, `Gowun Batang`, `Gowun Dodum`, `Galmuri`, `D2Coding`) — a family outside it silently falls back, so stay inside the list and match the font's voice to the request.
+Judge the design by visitor outcomes, not checklists:
 
-Avoid the dark navy shell, slate, purple, gradients, decorative filler, generic SaaS cards, and empty heroes.
+- Everything that looks pressable does what a visitor expects when pressed — contact details reach real mail, profiles, or maps; buttons and navigation land somewhere meaningful.
+- The first screen is the visitor's errand (booking, menu, inquiry, dashboard state), not a brochure opening.
+- Same-level elements share one grammar: all icons or none, one spacing rhythm, one tone.
+- Data reads as data — prices, capacities, schedules live in lines, items, or tables, never crammed into sentences.
+- Palette, typeface, and texture visibly derive from the request's mood; black-on-white is valid only as a deliberate choice. Avoid the dark navy shell, slate, purple, gradients, decorative filler, generic SaaS cards, and empty heroes.
 
-The first screen must be the requested usable experience or a meaningful landing page. For booking, checkout, dashboard, CRUD, or admin-tool prompts, show workflow controls and current state in the first viewport.
+`typography` fontFamily defaults to `에이투지체`; pick served families from the platform catalog listed in `references/blocks.md` — outside names silently fall back.
 
 If login, records, realtime, or CRUD is needed, use PocketBase as the default backend with fake seed credentials included in the final reply.
 
 ## Follow-Ups
 
-For same-conversation feedback, call site.status once, update the resolved site (never site.create again), and publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present. Use the status result's identity fields (`idea`, `audience`, `archetype`, `createdBy`, `ownerIdentity`, collaborators) to decide whether a follow-up updates this site.
+For same-conversation feedback, call site.status once, update the resolved site (never site.create again), publish the same URL. Read existing `DESIGN.md` (source root, not `app/`), `app/public/site-content.json`, and `.internkim/review-log.json` when present. Use the status result's identity fields (`idea`, `audience`, `archetype`, `createdBy`, `ownerIdentity`, collaborators) to decide whether a follow-up updates this site.
 
 Short continuations ("해줘", "진행", "좋아", "게시해", "publish") mean finish the workflow: resolve status, complete missing work, review, publish, reply with the URL. Do not ask for publish approval.
 

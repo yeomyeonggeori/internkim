@@ -453,12 +453,15 @@ def render_website_case(resultDirectory: Path, diagnosticDirectory: Path) -> dic
         shutil.copyfile(sourcePath, destinationPath)
         copiedPaths.append(destinationPath)
     clear_directory(diagnosticDirectory / ".site-screenshot-decode-tmp")
+    fontProbePath = resultDirectory / "recovered" / "font-probe.json"
+    fontProbe = read_json(fontProbePath) if fontProbePath.exists() else None
     return {
         "attempted": True,
         "renderer": "site verification screenshots or local scaffold render",
         "passed": True,
         "pageCount": len(copiedPaths),
         "pages": [relative_path(path) for path in copiedPaths],
+        "fontProbe": fontProbe,
     }
 
 
@@ -602,6 +605,28 @@ def render_site_theme_css_from_design(designDocument: str) -> str:
     )
 
 
+FONT_PROBE_HTML = """<!doctype html><html><head>
+<link rel="stylesheet" href="/fonts/fonts.css" />
+<link rel="stylesheet" href="./theme.css" />
+<title>pending</title></head><body><script>
+(async () => {
+  const heading = getComputedStyle(document.documentElement).getPropertyValue("--font-heading");
+  const family = (heading.split(",")[0] || "").trim().replace(/["']/g, "") || "unset";
+  const sample = "새벽가마도예한글검증";
+  try {
+    await document.fonts.load('28px "' + family + '"', sample);
+    await document.fonts.load('700 28px "' + family + '"', sample);
+  } catch (probeError) {}
+  await document.fonts.ready;
+  const context = document.createElement("canvas").getContext("2d");
+  const measure = (stack) => { context.font = "28px " + stack; return context.measureText(sample).width; };
+  const familyWidth = measure('"' + family + '", monospace');
+  const monoWidth = measure("monospace");
+  document.title = JSON.stringify({ family, realized: Math.abs(familyWidth - monoWidth) > 0.5 });
+})();
+</script></body></html>"""
+
+
 def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory: Path) -> list[Path]:
     recoveredFiles = recover_site_files_from_test_result(diagnosticDirectory)
     contentDocument = recoveredFiles.get("site-content.json")
@@ -625,6 +650,7 @@ def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory
     recoveredDirectory.mkdir(parents=True, exist_ok=True)
     for fileName, fileContent in recoveredFiles.items():
         (recoveredDirectory / fileName).write_text(fileContent, encoding="utf-8")
+    (stageDirectory / "font-probe.html").write_text(FONT_PROBE_HTML, encoding="utf-8")
     with socket.socket() as probeSocket:
         probeSocket.bind(("127.0.0.1", 0))
         serverPort = probeSocket.getsockname()[1]
@@ -659,6 +685,15 @@ def render_recovered_site_screenshots(resultDirectory: Path, diagnosticDirectory
                 renderedTextParts.append(html_visible_text(dumpCompleted.stdout.decode("utf-8", errors="replace")))
         if renderedTextParts:
             (resultDirectory / "recovered" / "rendered-text.txt").write_text("\n".join(renderedTextParts), encoding="utf-8")
+        probeCommand = [
+            chromeBinaryPath, "--headless=new", "--disable-gpu",
+            "--virtual-time-budget=8000", "--dump-dom",
+            f"http://127.0.0.1:{serverPort}/font-probe.html",
+        ]
+        probeCompleted = subprocess.run(probeCommand, capture_output=True, timeout=60)
+        probeMatch = re.search(r"<title>(\{.*?\})</title>", probeCompleted.stdout.decode("utf-8", errors="replace"))
+        if probeMatch:
+            (resultDirectory / "recovered" / "font-probe.json").write_text(probeMatch.group(1), encoding="utf-8")
     finally:
         serverProcess.terminate()
     return sorted(screenshotPaths)

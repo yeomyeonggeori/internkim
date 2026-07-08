@@ -74,10 +74,10 @@ func TestParseSiteDesignThemeHappyPath(t *testing.T) {
 	if theme.AccentColor != "#ff8800" {
 		t.Fatalf("accent color = %q", theme.AccentColor)
 	}
-	if theme.HeadingFontFamily != "ui-serif" {
+	if theme.HeadingFontFamily != "에이투지체" {
 		t.Fatalf("heading font family = %q", theme.HeadingFontFamily)
 	}
-	if theme.BodyFontFamily != "ui-sans-serif" {
+	if theme.BodyFontFamily != "에이투지체" {
 		t.Fatalf("body font family = %q", theme.BodyFontFamily)
 	}
 	if theme.RadiusValue != "8px" {
@@ -231,10 +231,10 @@ func TestParseSiteDesignThemeDefaultScaffoldTemplateParses(t *testing.T) {
 	if theme.AccentColor != "#111111" {
 		t.Fatalf("expected accent to fall back to primary, got %q", theme.AccentColor)
 	}
-	if theme.HeadingFontFamily != "ui-serif" {
+	if theme.HeadingFontFamily != "에이투지체" {
 		t.Fatalf("heading font family = %q", theme.HeadingFontFamily)
 	}
-	if theme.BodyFontFamily != "ui-sans-serif" {
+	if theme.BodyFontFamily != "에이투지체" {
 		t.Fatalf("body font family = %q", theme.BodyFontFamily)
 	}
 	if theme.RadiusValue != "8px" {
