@@ -153,6 +153,60 @@ func TestRunCalendarUserSyncCyclePushesBeforePull(t *testing.T) {
 	}
 }
 
+func TestRunCalendarUserSyncCyclePushesAgainAfterChangedPull(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	now := time.Unix(1000, 0).UTC()
+	calls := []string{}
+	pushCallCount := 0
+	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+		calls = append(calls, "pull")
+		return true, nil
+	}
+	push := func(ctx context.Context) (map[string]struct{}, error) {
+		calls = append(calls, "push")
+		pushCallCount++
+		if pushCallCount == 2 {
+			return map[string]struct{}{"exported-after-pull@google": {}}, nil
+		}
+		return nil, nil
+	}
+	clock := func() time.Time { return now }
+	result := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	if !result.Succeeded() || !result.PullAttempted || !result.Changed {
+		t.Fatalf("changed pull result: %#v", result)
+	}
+	if len(calls) != 3 || calls[0] != "push" || calls[1] != "pull" || calls[2] != "push" {
+		t.Fatalf("sync order: got %v, want push pull push", calls)
+	}
+	protectedUIDs := service.recentlyPushedCalendarUIDs(now)
+	if _, found := protectedUIDs["exported-after-pull@google"]; !found {
+		t.Fatalf("second push UID was not recorded for protection: %#v", protectedUIDs)
+	}
+}
+
+func TestRunCalendarUserSyncCycleSkipsSecondPushAfterPushFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	now := time.Unix(1000, 0).UTC()
+	var pushCalls atomic.Int32
+	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+		return true, nil
+	}
+	push := func(ctx context.Context) (map[string]struct{}, error) {
+		pushCalls.Add(1)
+		return nil, errors.New("push unavailable")
+	}
+	clock := func() time.Time { return now }
+	result := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	if pushCalls.Load() != 1 {
+		t.Fatalf("failed first push should not be retried after pull: got %d calls", pushCalls.Load())
+	}
+	if !result.PushFailed || !result.PullAttempted || !result.Changed || result.Succeeded() {
+		t.Fatalf("failed push result should preserve successful pull state: %#v", result)
+	}
+}
+
 func TestRunCalendarUserSyncCycleRespectsPullCache(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -180,8 +234,8 @@ func TestRunCalendarUserSyncCycleRespectsPullCache(t *testing.T) {
 	if secondResult.PullAttempted || !secondResult.PullSkippedByCache {
 		t.Fatalf("second pull should be skipped by shared cache: %#v", secondResult)
 	}
-	if pushCalls.Load() != 2 {
-		t.Fatalf("push calls: got %d, want 2", pushCalls.Load())
+	if pushCalls.Load() != 3 {
+		t.Fatalf("push calls: got %d, want 3", pushCalls.Load())
 	}
 }
 
