@@ -26,6 +26,7 @@ WARNING_WEIGHTS = {
     "escapedNewlineWarning": 10,
     "pipeDelimitedBodyWarning": 8,
     "iconConsistencyWarning": 6,
+    "deadContactWarning": 19,
 }
 GENERIC_FONT_KEYWORDS = {
     "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
@@ -70,6 +71,7 @@ def main() -> int:
     if "\\n" in visible_text:
         warnings.append("escapedNewlineWarning: rendered text contains a literal backslash-n; write real newlines inside JSON strings")
     warnings += design_intent_warnings(source_root)
+    warnings += dead_contact_warnings(pages, blocks)
     score = max(0, 100 - sum(WARNING_WEIGHTS.get(warning.split(":")[0], 6) for warning in warnings))
     verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
     print(f"Content review: {len(blocks)} blocks, score {score}/100 (minimum {CONTENT_GATE_SCORE_MINIMUM})")
@@ -216,12 +218,28 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
                 warnings.append(f"bareHeroWarning: page {path_label} hero has neither image nor backdrop; add a backdrop (mesh, aurora, grain, grid, dots) or an image")
             icon_flags = [bool(str(item.get("icon") or "").strip()) for item in items]
             if any(icon_flags) and not all(icon_flags):
-                warnings.append(f"iconConsistencyWarning: page {path_label} block {block_index} mixes icon and no-icon items; give every item an icon or none")
+                warnings.append(f"iconConsistencyWarning: page {path_label} block {block_index} splits the grammar of same-level cards; give every item an icon or none")
             for item_index, item in enumerate(items, start=1):
                 body_text = str(item.get("body") or "")
                 if " | " in body_text or body_text.count("|") >= 2:
-                    warnings.append(f"pipeDelimitedBodyWarning: page {path_label} block {block_index} item {item_index} crams data with | separators; use line breaks or separate labeled items")
+                    warnings.append(f"pipeDelimitedBodyWarning: page {path_label} block {block_index} item {item_index} crams scannable specs into a sentence; give data structure with line breaks or separate labeled items")
                     break
+    return warnings
+
+
+CONTACT_REACHABLE_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|https?://\S+|(?<![\w.])@[\w.]{2,30}")
+
+
+def dead_contact_warnings(pages: list, all_blocks: list) -> list:
+    page_entries = [(str(page.get("path") or ""), page.get("blocks") or []) for page in pages] or [("/", all_blocks)]
+    warnings = []
+    for path_label, blocks in page_entries:
+        for block in blocks:
+            if str(block.get("variant") or "") != "contact":
+                continue
+            contact_text = collect_visible_text({}, [block])
+            if not CONTACT_REACHABLE_PATTERN.search(contact_text):
+                warnings.append(f"deadContactWarning: page {path_label} contact block gives visitors no way to actually reach anyone; include an email, URL, or handle so it links")
     return warnings
 
 

@@ -817,6 +817,8 @@ func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	designPath := filepath.Join(site.HostSourcePath, "DESIGN.md")
+	writeFile(t, designPath, validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:             site.SiteID,
 		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
@@ -826,7 +828,6 @@ func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	designPath := filepath.Join(site.HostSourcePath, "DESIGN.md")
 	writeFile(t, designPath, validSiteDesignMarkdownWithColors("#336699", "#ffffff"))
 	setFileModTime(t, designPath, time.Now().UTC().Add(2*time.Hour))
 

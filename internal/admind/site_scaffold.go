@@ -102,6 +102,8 @@ func siteDesignMD(site *SiteRecord) string {
 version: alpha
 name: ` + quotedTitle + `
 description: Beautiful default prototype design system for a shadcn React site.
+# TODO(design): decide this site's palette, typefaces, and style preset from the request's mood before publishing.
+# TODO(design): replace the placeholder values below with your decisions and delete these markers.
 colors:
   primary: "#111111"
   primary-foreground: "#FFFFFF"
@@ -175,15 +177,15 @@ components:
 
 ## Overview
 
-The interface should feel like a polished prototype made for immediate idea validation: useful on the first screen, composed with confident spacing, and refined without looking like a generic SaaS landing page. Default to a black-on-white minimal utility style unless the user request clearly calls for another archetype.
+This file is a decision brief, not a template to keep: derive palette, typefaces, texture, and the style preset from what the request is for and who visits it, then record those decisions here. The interface should feel like a polished prototype made for immediate idea validation, refined without looking like a generic SaaS landing page. Black-on-white minimal utility is one valid choice among many — choose it deliberately, not by leaving defaults.
 
 ## Colors
 
-The default palette is black-on-white: white background, near-black text, quiet gray borders, and restrained monochrome controls. Use color only when the domain clearly benefits from it, and keep any accent small enough that navy, blue, purple, or gradient themes do not become the default.
+State the palette you chose and why it fits the request. Keep any accent deliberate; navy, blue, purple, or gradient themes must never appear by default.
 
 ## Typography
 
-Use a serif display voice for high-level narrative headings and a clean system sans for product UI, labels, forms, and dense data. Keep letter spacing at 0px unless a specific brand direction requires otherwise.
+Pick heading and body typefaces from the platform font catalog to match the site's voice, and say why. Generic keyword families (ui-serif, ui-sans-serif) are treated as no choice and replaced by the platform default.
 
 ## Layout
 
