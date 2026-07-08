@@ -71,8 +71,9 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 
 func (service *Service) saveCalendarPullState(ctx context.Context, account remoteCalendarAccount, calendarCTag string, completedAt time.Time, isInitialSyncCompleted bool) (remoteCalendarAccount, error) {
 	account.DefaultCalendarCTag = strings.TrimSpace(calendarCTag)
+	selectedTarget := selectedRemoteCalendarTarget(account)
 	if isInitialSyncCompleted {
-		hasPendingBackfill, errorValue := service.hasPendingCalendarPutsForTarget(ctx, account.ID, selectedRemoteCalendarTarget(account))
+		hasPendingBackfill, errorValue := service.hasPendingCalendarPutsForTarget(ctx, account.ID, selectedTarget)
 		if errorValue != nil {
 			return remoteCalendarAccount{}, errorValue
 		}
@@ -82,14 +83,38 @@ func (service *Service) saveCalendarPullState(ctx context.Context, account remot
 			account.InitialSyncCompletedAt = completedAt.UTC().Format(time.RFC3339Nano)
 			account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
 		}
-		if selectedRemoteCalendarTarget(account).IsSelectedCalendar {
-			return account, service.updateSelectedCalendarPullState(ctx, account)
+		if selectedTarget.IsSelectedCalendar {
+			return account, service.updateSelectedCalendarInitialSyncState(ctx, account)
 		}
+	}
+	if selectedTarget.IsSelectedCalendar {
+		return account, service.updateSelectedCalendarCTag(ctx, account)
 	}
 	return service.upsertRemoteCalendarAccount(ctx, account)
 }
 
-func (service *Service) updateSelectedCalendarPullState(ctx context.Context, account remoteCalendarAccount) error {
+func (service *Service) updateSelectedCalendarCTag(ctx context.Context, account remoteCalendarAccount) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `
+	UPDATE calendar_remote_accounts
+	SET default_calendar_ctag = ?, updated_at = ?
+	WHERE id = ?
+		AND selected_calendar_id = ?
+		AND selected_calendar_url = ?`,
+		strings.TrimSpace(account.DefaultCalendarCTag),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		strings.TrimSpace(account.ID),
+		strings.TrimSpace(account.SelectedCalendarID),
+		strings.TrimSpace(account.SelectedCalendarURL),
+	)
+	return errorValue
+}
+
+func (service *Service) updateSelectedCalendarInitialSyncState(ctx context.Context, account remoteCalendarAccount) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue

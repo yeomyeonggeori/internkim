@@ -94,7 +94,7 @@ func (service *Service) runCalendarSyncCycleWithHooks(
 					result.PushFailed = true
 					log.Printf("calendar push after pull failed: %v", errorValue)
 				}
-				service.recordRecentlyPushedCalendarUIDs(nowValue, pushedUIDs)
+				service.recordRecentlyPushedCalendarUIDs(now(), pushedUIDs)
 			}
 		}
 	} else if allowPull {
