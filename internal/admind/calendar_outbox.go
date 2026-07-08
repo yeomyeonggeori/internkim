@@ -240,8 +240,28 @@ func hasPendingCalendarPutForTargetWithRunner(ctx context.Context, queryRunner c
 	if trimmedEventUID == "" {
 		return false, nil
 	}
-	query := `SELECT remote_href FROM calendar_outbox WHERE event_uid = ? AND operation = ?`
-	arguments := []any{trimmedEventUID, calendarOutboxOperationPut}
+	return hasPendingCalendarPutsForTargetWithRunner(ctx, queryRunner, accountID, trimmedEventUID, target)
+}
+
+func (service *Service) hasPendingCalendarPutsForTarget(ctx context.Context, accountID string, target remoteCalendarTarget) (bool, error) {
+	if target.CalendarURL == "" {
+		return false, nil
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer database.Close()
+	return hasPendingCalendarPutsForTargetWithRunner(ctx, database, accountID, "", target)
+}
+
+func hasPendingCalendarPutsForTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
+	query := `SELECT remote_href FROM calendar_outbox WHERE operation = ?`
+	arguments := []any{calendarOutboxOperationPut}
+	if strings.TrimSpace(eventUID) != "" {
+		query += " AND event_uid = ?"
+		arguments = append(arguments, strings.TrimSpace(eventUID))
+	}
 	if strings.TrimSpace(accountID) != "" {
 		query += " AND account_id = ?"
 		arguments = append(arguments, strings.TrimSpace(accountID))
