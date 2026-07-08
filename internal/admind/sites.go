@@ -149,6 +149,7 @@ func (text *siteContentText) UnmarshalJSON(document []byte) error {
 type siteContentBlockItem struct {
 	Title string          `json:"title"`
 	Body  siteContentText `json:"body"`
+	Icon  string          `json:"icon,omitempty"`
 }
 
 type siteContentBlock struct {
@@ -158,6 +159,8 @@ type siteContentBlock struct {
 	Items       []siteContentBlockItem `json:"items,omitempty"`
 	ActionLabel string                 `json:"actionLabel,omitempty"`
 	ActionHref  string                 `json:"actionHref,omitempty"`
+	Image       string                 `json:"image,omitempty"`
+	ImageAlt    string                 `json:"imageAlt,omitempty"`
 }
 
 var siteContentKnownBlockVariants = map[string]bool{

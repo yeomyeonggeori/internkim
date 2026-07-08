@@ -35,14 +35,16 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Block Library
 
-`app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one-page site) or a `pages` array for a multi-page site: `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; paths under `/api`, `/_`, and `/fonts` are reserved. Links between pages use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, and `actionHref` the variant needs. Choose page count and block order to fit the request instead of repeating one fixed skeleton — a restaurant, a portfolio, and a dashboard should end up with different structures.
+`app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one page) or `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; `/api`, `/_`, `/fonts` paths are reserved; page links use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, `actionHref` it needs. Choose page count and block order to fit the request — a restaurant, a portfolio, and a dashboard should end up with different structures.
 
 - `hero`: opening title, tagline body, and one primary call-to-action; use once, first.
 - `features`: titled grid of `items` for capabilities, services, or benefits.
 - `prose`: titled block of free-form paragraphs for narrative, policy, or about content.
 - `cta`: high-contrast banner with a title, short body, and one action button.
 - `faq`: titled list of expandable `items` as question/answer pairs.
-- `contact`: titled block with body text and one action for reaching out.
+- `contact`: titled block with body text, structured `items` (email, instagram, address entries), and one action; emails, URLs, and @handles in text auto-link.
+
+Items accept `icon` and hero/prose accept `image` + `imageAlt` — read `references/blocks.md` for the icon list and image sourcing rules (license-free photos first, generation last).
 
 ## Create, Update, Publish
 
@@ -93,8 +95,8 @@ Requests are incomplete until site.publish succeeds and a final site.status retu
 
    Run it again after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: keep revising while it improves, stop when the gate passes or the score stalls across two runs, and never call site.publish on a final state that was not reviewed.
 7. If `workspaceHealth` is `missing` or `permission_problem`, call site.status once more to recheck; if it stays unhealthy, report the problem honestly instead of guessing. If it is `stale_build`, edit or build.
-8. Read control files only when `sourceManifest` marks them present: `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, `.internkim/review-log.json`.
-9. Update `.internkim/idea.md` when idea, audience, purpose, or positioning changes.
+8. Read control files only when `sourceManifest` marks them present.
+9. Update `.internkim/idea.md` when positioning changes.
 10. Write `.internkim/artifact-brief.md` before source edits. Include request intent, audience, archetype, workflow, visual direction, must-show source content, forbidden invented content, and what would be too shallow.
 11. For a content-only change — copy, tagline, blocks, pages, or navigation with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); no `app/src/**` edit and no build step.
 12. For a structural change beyond the block library — a new block variant, a new primitive, or a layout the existing blocks cannot express — edit `app/src/blocks/*` or `app/src/App.tsx` and `app/src/index.css`, reusing the shadcn primitives.
