@@ -1,6 +1,6 @@
 {
-  "scaffoldSourceSHA256": "41f649944146d56b76c66b4009a61830c1a35793b2e288b229406678284e6c4c",
-  "generatedAt": "2026-07-08T01:05:00.210481+00:00",
+  "scaffoldSourceSHA256": "0da01fed706b02373f6ed1107535b8336402f6855a9cf2577de4314458d9808f",
+  "generatedAt": "2026-07-08T03:55:11.024128+00:00",
   "files": [
     "index.html",
     "package.json",
@@ -13,6 +13,8 @@
     "src/blocks/Features.tsx",
     "src/blocks/Hero.tsx",
     "src/blocks/Prose.tsx",
+    "src/blocks/autoLink.tsx",
+    "src/blocks/blockIcons.ts",
     "src/blocks/index.ts",
     "src/blocks/textParagraphs.ts",
     "src/components/ui/badge.tsx",

@@ -16,6 +16,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -1213,23 +1214,10 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if errorValue := state.sshClient.scp(agentsPath, filepath.Join(blueclaw.BlueclawWorkspacePath, "AGENTS.md")); errorValue != nil {
 		return errorValue
 	}
-	remoteSkillsDirectoryPath := filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")
-	state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillsDirectoryPath) + " && mkdir -p " + quoteShellValue(remoteSkillsDirectoryPath))
-	if errorValue := state.sshClient.scpDir(skillsDirectoryPath, remoteSkillsDirectoryPath); errorValue != nil {
-		return errorValue
-	}
-	remoteToolsDirectoryPath := filepath.Join(blueclaw.BlueclawWorkspacePath, "tools")
-	state.sshClient.run("rm -rf " + quoteShellValue(remoteToolsDirectoryPath) + " && mkdir -p " + quoteShellValue(remoteToolsDirectoryPath))
-	if errorValue := state.sshClient.scpDir(toolsDirectoryPath, remoteToolsDirectoryPath); errorValue != nil {
-		return errorValue
-	}
-	fontsDirectoryPath := filepath.Join(state.scriptDir, "assets", "fonts", "files")
-	if info, errorValue := os.Stat(fontsDirectoryPath); errorValue == nil && info.IsDir() {
-		state.sshClient.run("rm -rf /opt/internkim/fonts.new && mkdir -p /opt/internkim/fonts.new")
-		if errorValue := state.sshClient.scpDir(fontsDirectoryPath, "/opt/internkim/fonts.new"); errorValue != nil {
+	for _, asset := range deviceassets.All() {
+		if errorValue := state.installDeviceAssetSSH(asset); errorValue != nil {
 			return errorValue
 		}
-		state.sshClient.run("rm -rf /opt/internkim/fonts && mv /opt/internkim/fonts.new /opt/internkim/fonts")
 	}
 
 	manifest := state.skillsManifest()
@@ -1262,6 +1250,25 @@ chmod -R a+rX,go-w /root/.blueclaw/workspace/tools 2>/dev/null || true
 chown root:root /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
 chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
 	return nil
+}
+
+func (state *setupFlowState) installDeviceAssetSSH(asset deviceassets.Asset) error {
+	sourceDirectoryPath := asset.SourcePath(state.scriptDir)
+	if asset.DeviceKind == deviceassets.DeviceKindHost {
+		info, errorValue := os.Stat(sourceDirectoryPath)
+		if errorValue != nil || !info.IsDir() {
+			return nil
+		}
+		stagingPath := asset.DevicePath + ".new"
+		state.sshClient.run("rm -rf " + quoteShellValue(stagingPath) + " && mkdir -p " + quoteShellValue(stagingPath))
+		if errorValue := state.sshClient.scpDir(sourceDirectoryPath, stagingPath); errorValue != nil {
+			return errorValue
+		}
+		state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mv " + quoteShellValue(stagingPath) + " " + quoteShellValue(asset.DevicePath))
+		return nil
+	}
+	state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mkdir -p " + quoteShellValue(asset.DevicePath))
+	return state.sshClient.scpDir(sourceDirectoryPath, asset.DevicePath)
 }
 
 func (state *setupFlowState) installSkillPythonDependenciesSSH() error {

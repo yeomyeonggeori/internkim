@@ -3,6 +3,7 @@ export type BlockVariant = "hero" | "features" | "prose" | "cta" | "faq" | "cont
 export type BlockItem = {
 	title: string;
 	body: string;
+	icon?: string;
 };
 
 export type Block = {
@@ -12,6 +13,8 @@ export type Block = {
 	items?: BlockItem[];
 	actionLabel?: string;
 	actionHref?: string;
+	image?: string;
+	imageAlt?: string;
 };
 
 export type SitePage = {
@@ -94,7 +97,7 @@ function parseLegacySiteSection(value: unknown): LegacySiteSection | undefined {
 function parseBlockItem(value: unknown): BlockItem | undefined {
 	if (!isRecord(value)) return undefined;
 	if (!isNonEmptyString(value.title) || !isNonEmptyString(value.body)) return undefined;
-	return { title: value.title, body: value.body };
+	return { title: value.title, body: value.body, icon: isNonEmptyString(value.icon) ? value.icon : undefined };
 }
 
 function parseBlockItems(value: unknown): BlockItem[] | undefined {
@@ -115,6 +118,8 @@ function parseBlock(value: unknown): Block | undefined {
 		items: parseBlockItems(value.items),
 		actionLabel: value.actionLabel,
 		actionHref: value.actionHref,
+		image: isNonEmptyString(value.image) ? value.image : undefined,
+		imageAlt: isNonEmptyString(value.imageAlt) ? value.imageAlt : undefined,
 	};
 }
 
