@@ -23,10 +23,9 @@ export const googleOAuthClientGuideText: Record<'ko' | 'en', CalendarGoogleOAuth
 			'이미 client.json 파일이 있으면 바로 업로드하세요. 처음 설정하는 경우 아래 순서대로 Google Cloud에서 OAuth 클라이언트를 만들고 JSON 파일을 다운로드합니다.',
 		checklistTitle: '진행 전 확인하세요.',
 		checks: [
-			'Google Cloud 오른쪽 위 프로필이 회사 관리자 계정인지 확인하세요.',
-			'개인 Gmail이나 다른 조직 계정이면 계정을 전환한 뒤 진행하세요.',
-			'상단 프로젝트가 internkim-calendar인지 확인하세요.',
-			'프로젝트 소유자가 개인 계정이 아니라 회사 조직인지 확인하세요.'
+			'개인 캘린더나 개인 소유 캘린더만 연결할 경우, 관리 가능한 Google Cloud 프로젝트에서 client.json을 만들어도 됩니다.',
+			'팀/회사 공유 캘린더를 연결할 경우, 회사 관리자 계정으로 Google Cloud에 로그인하고 조직 소유 프로젝트에서 client.json을 만드세요.',
+			'캘린더 연결은 선택할 캘린더에 접근 및 쓰기 권한이 있는 Google 계정으로 진행하세요.'
 		],
 		stepsTitle: '설정 순서',
 		steps: [
@@ -80,10 +79,9 @@ export const googleOAuthClientGuideText: Record<'ko' | 'en', CalendarGoogleOAuth
 			'If you already have client.json, upload it here. For first-time setup, create an OAuth client in Google Cloud and download the JSON file.',
 		checklistTitle: 'Check before continuing.',
 		checks: [
-			'Confirm the Google Cloud profile in the top right is the company admin account.',
-			'Switch accounts first if you are using a personal Gmail account or another organization account.',
-			'Confirm the selected project is internkim-calendar.',
-			'Confirm the project is owned by the company organization, not a personal account.'
+			'If you only connect a personal calendar or a personally owned calendar, you can create client.json in a Google Cloud project you can manage.',
+			'If you connect a team or company shared calendar, sign in to Google Cloud with the company admin account and create client.json in an organization-owned project.',
+			'Connect Google Calendar with a Google account that has access and write permission for the selected calendar.'
 		],
 		stepsTitle: 'Setup steps',
 		steps: [
