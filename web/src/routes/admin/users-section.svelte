@@ -3,6 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { toast } from 'svelte-sonner';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
@@ -62,7 +64,6 @@
 	let temporaryPasswordResult = $state<TemporaryPasswordResult | null>(null);
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
-	let errorMessage = $state('');
 	const currentAdminRole = $derived(adminSessionRole(adminSession));
 	const canGrantAdminRole = $derived(currentAdminRole === 'admin');
 
@@ -121,11 +122,10 @@
 		if (!fleetID || !adminBaseURL) return;
 
 		isLoadingUsers = true;
-		errorMessage = '';
 		try {
 			applyUsersResponse(await fetchUsers(adminBaseURL, text.messages.usersLoadError));
 		} catch (error) {
-			errorMessage = usersErrorMessage(error, text.messages.usersLoadError);
+			toast.error(usersErrorMessage(error, text.messages.usersLoadError));
 		} finally {
 			isLoadingUsers = false;
 		}
@@ -135,7 +135,6 @@
 		if (!adminBaseURL || !newCircleID.trim()) return;
 
 		isSavingUser = true;
-		errorMessage = '';
 		try {
 			await createCircle(
 				adminBaseURL,
@@ -151,7 +150,7 @@
 			newCircleMattermostManaged = true;
 			await loadUsers();
 		} catch (error) {
-			errorMessage = apiErrorMessage(error, text.messages.userSaveError);
+			toast.error(apiErrorMessage(error, text.messages.userSaveError));
 		} finally {
 			isSavingUser = false;
 		}
@@ -161,12 +160,11 @@
 		if (!adminBaseURL || isReservedCircleID(circleID)) return;
 
 		isSavingUser = true;
-		errorMessage = '';
 		try {
 			await deleteCircle(adminBaseURL, circleID, text.messages.userRemoveError);
 			await loadUsers();
 		} catch (error) {
-			errorMessage = apiErrorMessage(error, text.messages.userRemoveError);
+			toast.error(apiErrorMessage(error, text.messages.userRemoveError));
 		} finally {
 			isSavingUser = false;
 		}
@@ -179,7 +177,6 @@
 		if (!email || !handle || !name || !fleetID || !adminBaseURL) return;
 
 		isSavingUser = true;
-		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
 			applyUsersResponse(await createUser(adminBaseURL, { handle, name, email, hireDate: newHireDate, role: newUserRole }, text.messages.userInviteError));
@@ -190,7 +187,7 @@
 			newHireDate = '';
 			newUserRole = 'member';
 		} catch (error) {
-			errorMessage = usersErrorMessage(error, text.messages.userInviteError);
+			toast.error(usersErrorMessage(error, text.messages.userInviteError));
 		} finally {
 			isSavingUser = false;
 		}
@@ -200,7 +197,6 @@
 		if (!fleetID || !adminBaseURL) return false;
 
 		isSavingUser = true;
-		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
 			applyUsersResponse(await saveUser(
@@ -222,7 +218,7 @@
 			));
 			return true;
 		} catch (error) {
-			errorMessage = usersErrorMessage(error, text.messages.userSaveError, text.messages.adminAuthRequired);
+			toast.error(usersErrorMessage(error, text.messages.userSaveError, text.messages.adminAuthRequired));
 			return false;
 		} finally {
 			isSavingUser = false;
@@ -242,12 +238,11 @@
 		if (!fleetID || !adminBaseURL) return;
 
 		isSavingUser = true;
-		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
 			applyUsersResponse(await removeUser(adminBaseURL, email, text.messages.userRemoveError));
 		} catch (error) {
-			errorMessage = usersErrorMessage(error, text.messages.userRemoveError);
+			toast.error(usersErrorMessage(error, text.messages.userRemoveError));
 		} finally {
 			isSavingUser = false;
 		}
@@ -258,7 +253,6 @@
 		if (!confirm(text.users.resetPasswordConfirm)) return;
 
 		isSavingUser = true;
-		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
 			const response = await resetUserPassword(adminBaseURL, record.email, text.users.resetPasswordError);
@@ -269,7 +263,7 @@
 				};
 			}
 		} catch (error) {
-			errorMessage = apiErrorMessage(error, text.users.resetPasswordError);
+			toast.error(apiErrorMessage(error, text.users.resetPasswordError));
 		} finally {
 			isSavingUser = false;
 		}
@@ -399,22 +393,31 @@
 		</Card.Content>
 	</Card.Root>
 
-	{#if temporaryPasswordResult}
-		<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-			<div class="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<p class="font-semibold">{text.users.temporaryPasswordTitle}: {temporaryPasswordResult.email} / {temporaryPasswordResult.password}</p>
-					<p class="mt-1">{text.users.temporaryPasswordNotice}</p>
-					<code class="mt-3 block rounded-md bg-white px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
+	<AlertDialog.Root
+		open={temporaryPasswordResult !== null}
+		onOpenChange={(open) => {
+			if (!open) temporaryPasswordResult = null;
+		}}
+	>
+		<AlertDialog.Content class="sm:max-w-md">
+			{#if temporaryPasswordResult}
+				<AlertDialog.Header>
+					<AlertDialog.Title>{text.users.temporaryPasswordTitle}</AlertDialog.Title>
+					<AlertDialog.Description>{temporaryPasswordResult.email}</AlertDialog.Description>
+				</AlertDialog.Header>
+				<div class="flex items-center gap-2">
+					<code class="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
+					<CopyButton text={temporaryPasswordResult.password} />
 				</div>
-				<CopyButton text={temporaryPasswordResult.password} />
-			</div>
-		</div>
-	{/if}
-
-	{#if errorMessage}
-		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
-	{/if}
+				<p class="text-muted-foreground text-sm">{text.users.temporaryPasswordNotice}</p>
+				<AlertDialog.Footer>
+					<AlertDialog.Action onclick={() => (temporaryPasswordResult = null)}>
+						{text.users.temporaryPasswordClose}
+					</AlertDialog.Action>
+				</AlertDialog.Footer>
+			{/if}
+		</AlertDialog.Content>
+	</AlertDialog.Root>
 
 		{#if isLoadingUsers}
 			<p class="text-muted-foreground text-sm">{text.users.loading}</p>
