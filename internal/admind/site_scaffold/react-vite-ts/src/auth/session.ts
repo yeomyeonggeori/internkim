@@ -1,4 +1,8 @@
+import PocketBase, { type AuthRecord } from "pocketbase";
 import { useEffect, useState } from "react";
+
+export const pocketbaseClient = new PocketBase("/");
+pocketbaseClient.autoCancellation(false);
 
 export type SessionUser = {
 	id: string;
@@ -10,103 +14,71 @@ type SessionState = {
 	user: SessionUser;
 };
 
-const STORAGE_KEY = "site-session";
-const listeners = new Set<() => void>();
-
-function readStoredSession(): SessionState | null {
-	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return null;
-		const parsed = JSON.parse(raw);
-		if (typeof parsed?.token === "string" && typeof parsed?.user?.id === "string") return parsed;
-	} catch {
-		return null;
-	}
-	return null;
-}
-
-function notify() {
-	for (const listener of listeners) listener();
+function toSessionUser(record: AuthRecord): SessionUser | null {
+	if (!record) return null;
+	return { id: record.id, username: String(record.username ?? "") };
 }
 
 export function currentSession(): SessionState | null {
-	return readStoredSession();
-}
-
-export function storeSession(state: SessionState) {
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-	notify();
+	const user = toSessionUser(pocketbaseClient.authStore.record);
+	if (!pocketbaseClient.authStore.isValid || !user) return null;
+	return { token: pocketbaseClient.authStore.token, user };
 }
 
 export function clearSession() {
-	localStorage.removeItem(STORAGE_KEY);
-	notify();
+	pocketbaseClient.authStore.clear();
 }
 
 export function useSession(): SessionState | null {
 	const [session, setSession] = useState<SessionState | null>(currentSession());
 	useEffect(() => {
-		const listener = () => setSession(currentSession());
-		listeners.add(listener);
-		return () => {
-			listeners.delete(listener);
-		};
+		return pocketbaseClient.authStore.onChange(() => setSession(currentSession()));
 	}, []);
 	return session;
 }
 
 type AuthResult = { ok: true } | { ok: false; message: string };
 
-function extractUser(record: Record<string, unknown>): SessionUser {
-	return {
-		id: String(record.id ?? ""),
-		username: String(record.username ?? ""),
-	};
+function firstErrorMessage(error: unknown, fallback: string): string {
+	const response = (error as { response?: { data?: Record<string, { message?: string }>; message?: string } }).response;
+	const fieldMessages = response?.data ? Object.values(response.data).map((entry) => entry?.message ?? "").filter(Boolean) : [];
+	return fieldMessages[0] ?? response?.message ?? fallback;
 }
 
 export async function signIn(userCollection: string, username: string, password: string): Promise<AuthResult> {
-	const response = await fetch(`/api/collections/${userCollection}/auth-with-password`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ identity: username, password }),
-	});
-	const body = await response.json().catch(() => ({}));
-	if (!response.ok) {
-		return { ok: false, message: String(body?.message ?? "로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.") };
-	}
-	storeSession({ token: String(body.token), user: extractUser(body.record ?? {}) });
-	return { ok: true };
-}
-
-export async function refreshSession(userCollection: string): Promise<void> {
-	const session = currentSession();
-	if (!session) return;
-	const response = await fetch(`/api/collections/${userCollection}/auth-refresh`, {
-		method: "POST",
-		headers: { Authorization: session.token },
-	});
-	if (response.status === 401 || response.status === 403 || response.status === 404) {
-		clearSession();
-		return;
-	}
-	if (response.ok) {
-		const body = await response.json().catch(() => null);
-		if (body?.token) storeSession({ token: String(body.token), user: extractUser(body.record ?? {}) });
+	try {
+		await pocketbaseClient.collection(userCollection).authWithPassword(username, password);
+		return { ok: true };
+	} catch (error) {
+		return { ok: false, message: firstErrorMessage(error, "로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.") };
 	}
 }
 
 export async function signUp(userCollection: string, username: string, password: string): Promise<AuthResult> {
-	const createResponse = await fetch(`/api/collections/${userCollection}/records`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ username, password, passwordConfirm: password }),
-	});
-	if (!createResponse.ok) {
-		const body = await createResponse.json().catch(() => ({}));
-		const fieldErrors = body?.data ? Object.values(body.data).map((entry) => String((entry as { message?: string })?.message ?? "")).filter(Boolean) : [];
-		return { ok: false, message: fieldErrors[0] ?? String(body?.message ?? "가입에 실패했습니다.") };
+	try {
+		await pocketbaseClient.collection(userCollection).create({ username, password, passwordConfirm: password });
+	} catch (error) {
+		return { ok: false, message: firstErrorMessage(error, "가입에 실패했습니다.") };
 	}
 	return signIn(userCollection, username, password);
+}
+
+export async function signInWithProvider(userCollection: string, provider: string): Promise<AuthResult> {
+	try {
+		await pocketbaseClient.collection(userCollection).authWithOAuth2({ provider });
+		return { ok: true };
+	} catch (error) {
+		return { ok: false, message: firstErrorMessage(error, provider + " 로그인이 아직 설정되지 않았습니다. 관리자에게 문의해 주세요.") };
+	}
+}
+
+export async function refreshSession(userCollection: string): Promise<void> {
+	if (!pocketbaseClient.authStore.isValid) return;
+	try {
+		await pocketbaseClient.collection(userCollection).authRefresh();
+	} catch {
+		pocketbaseClient.authStore.clear();
+	}
 }
 
 function base64urlToBuffer(text: string): ArrayBuffer {
@@ -137,7 +109,7 @@ async function postJSON(path: string, body: unknown): Promise<{ ok: boolean; pay
 }
 
 function storeAuthPayload(payload: Record<string, unknown>) {
-	storeSession({ token: String(payload.token), user: extractUser((payload.record as Record<string, unknown>) ?? {}) });
+	pocketbaseClient.authStore.save(String(payload.token), payload.record as AuthRecord);
 }
 
 export async function passkeySignUp(userCollection: string, username: string): Promise<AuthResult> {
