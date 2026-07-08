@@ -38,7 +38,7 @@ Block copy must be realistic, specific prose for the requested business — real
 `app/public/site-content.json` composes the site from `siteName`, optional `tagline`, and either a single `blocks` array (one page) or `pages: [{ "path": "/", "title": "홈", "blocks": [...] }, ...]` plus optional `navigation: { "items": [{ "label", "href": "#/path" }] }`. A `/` page is required; `/api`, `/_`, `/fonts` paths are reserved; page links use hash hrefs (`#/menu`). Each block sets `variant` plus whichever of `title`, `body`, `items` (`{ title, body }` pairs), `actionLabel`, `actionHref` it needs. Write real newlines in JSON strings (never a literal `\n`), and give specs like price/capacity/schedule their own lines or items instead of `|`-joined strings. Choose page count and block order to fit the request — a restaurant, a portfolio, and a dashboard should end up with different structures.
 
 - `hero`: opening title, tagline, one call-to-action; once, first.
-- `features`: titled grid of `items` for capabilities or benefits.
+- `features`: titled grid of `items`.
 - `prose`: titled free-form paragraphs for narrative or about content.
 - `cta`: high-contrast banner with title, short body, one action.
 - `faq`: expandable `items` as question/answer pairs.
