@@ -50,6 +50,10 @@ Give every slide a speaker script: an `<aside class="notes">` holding 2-4 spoken
 
 There is no template to fill in; the content, layout, and HTML source are your responsibility.
 
+## Company Data
+
+For IR, 회사소개, and proposal decks pull real data instead of inventing: `company.info.get` (identity), `company.metric.list` (revenue/headcount series for growth charts), `company.record.list` (연혁·funding·products timeline). Company logo: `/workspace/circles/staff/company/logo.png` if present.
+
 ## Content Quality
 
 The deck must be useful before it is beautiful. A good deck gives the audience a decision, explanation, lesson, or next action they did not already have.
