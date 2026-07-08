@@ -41,8 +41,19 @@ LATIN_LETTER_PATTERN = re.compile(r"[A-Za-z]")
 EMOJI_PATTERN = re.compile("[\U0001F000-\U0001FAFF✅❌❎❗❓⭐⚠⌚⏰️]")
 
 
+def locate_source_root(candidate: pathlib.Path) -> pathlib.Path:
+    probe = candidate.resolve()
+    for _ in range(6):
+        if (probe / "app" / "public" / "site-content.json").exists():
+            return probe
+        if probe.name == "app" and (probe / "public" / "site-content.json").exists():
+            return probe.parent
+        probe = probe.parent
+    return candidate
+
+
 def main() -> int:
-    source_root = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(".")
+    source_root = locate_source_root(pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path("."))
     content_path = source_root / "app" / "public" / "site-content.json"
     if not content_path.exists():
         print(f"Error: {content_path} not found; run from the source workspace root or pass it as the argument.")
