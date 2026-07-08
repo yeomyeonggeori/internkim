@@ -118,6 +118,15 @@ select {
 	color: var(--hero-muted);
 }
 
+.hero-band .hero-cta {
+	background: var(--hero-foreground);
+	color: var(--hero-background);
+}
+
+.hero-band .hero-cta:hover {
+	background: color-mix(in srgb, var(--hero-foreground) 88%, var(--hero-background));
+}
+
 .surface-card {
 	background: var(--card);
 	border: 1px solid var(--border);
