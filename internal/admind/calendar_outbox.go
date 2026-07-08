@@ -240,31 +240,7 @@ func hasPendingCalendarPutForTargetWithRunner(ctx context.Context, queryRunner c
 	if trimmedEventUID == "" {
 		return false, nil
 	}
-	query := `SELECT remote_href FROM calendar_outbox WHERE event_uid = ? AND operation = ?`
-	arguments := []any{trimmedEventUID, calendarOutboxOperationPut}
-	if strings.TrimSpace(accountID) != "" {
-		query += " AND account_id = ?"
-		arguments = append(arguments, strings.TrimSpace(accountID))
-	}
-	query += " ORDER BY id"
-	rows, errorValue := queryRunner.QueryContext(ctx, query, arguments...)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var remoteHref string
-		if errorValue := rows.Scan(&remoteHref); errorValue != nil {
-			return false, errorValue
-		}
-		if calendarOutboxPutTargetsRemoteTarget(calendarOutboxRow{
-			Operation:  calendarOutboxOperationPut,
-			RemoteHref: remoteHref,
-		}, target) {
-			return true, nil
-		}
-	}
-	return false, rows.Err()
+	return hasPendingCalendarPutsForTargetWithRunner(ctx, queryRunner, accountID, trimmedEventUID, target)
 }
 
 func (service *Service) hasPendingCalendarPutsForTarget(ctx context.Context, accountID string, target remoteCalendarTarget) (bool, error) {
@@ -276,14 +252,22 @@ func (service *Service) hasPendingCalendarPutsForTarget(ctx context.Context, acc
 		return false, errorValue
 	}
 	defer database.Close()
+	return hasPendingCalendarPutsForTargetWithRunner(ctx, database, accountID, "", target)
+}
+
+func hasPendingCalendarPutsForTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
 	query := `SELECT remote_href FROM calendar_outbox WHERE operation = ?`
 	arguments := []any{calendarOutboxOperationPut}
+	if strings.TrimSpace(eventUID) != "" {
+		query += " AND event_uid = ?"
+		arguments = append(arguments, strings.TrimSpace(eventUID))
+	}
 	if strings.TrimSpace(accountID) != "" {
 		query += " AND account_id = ?"
 		arguments = append(arguments, strings.TrimSpace(accountID))
 	}
 	query += " ORDER BY id"
-	rows, errorValue := database.QueryContext(ctx, query, arguments...)
+	rows, errorValue := queryRunner.QueryContext(ctx, query, arguments...)
 	if errorValue != nil {
 		return false, errorValue
 	}
