@@ -460,7 +460,7 @@ func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
 		"rounded:",
 		"spacing:",
 		"components:",
-		"black-on-white",
+		"TODO(design)",
 		"primary: \"#111111\"",
 		"background: \"#FFFFFF\"",
 		"## Overview",
@@ -738,6 +738,7 @@ func TestSitePristinePublishSucceedsWithoutAppDistOrFreshnessCheck(t *testing.T)
 	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	if errorValue := os.RemoveAll(filepath.Join(site.HostSourcePath, "app", "dist")); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -771,6 +772,7 @@ func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:             site.SiteID,
 		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
@@ -898,6 +900,7 @@ func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
 	if errorValue := service.materializeSiteSourceWorkspace(context.Background(), site, nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:             site.SiteID,
 		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
