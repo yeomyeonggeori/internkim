@@ -87,7 +87,15 @@ func (service *Service) runCalendarSyncCycleWithHooks(
 			log.Printf("calendar pull failed: %v", errorValue)
 		} else {
 			result.Changed = pulled
-			service.markCalendarPullCompleted(nowValue)
+			service.markCalendarPullCompleted(now())
+			if pulled && !result.PushFailed {
+				pushedUIDs, errorValue = push(cycleCtx)
+				if errorValue != nil {
+					result.PushFailed = true
+					log.Printf("calendar push after pull failed: %v", errorValue)
+				}
+				service.recordRecentlyPushedCalendarUIDs(now(), pushedUIDs)
+			}
 		}
 	} else if allowPull {
 		result.PullSkippedByCache = true

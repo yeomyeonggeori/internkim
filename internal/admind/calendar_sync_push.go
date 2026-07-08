@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 )
 
 const calendarOutboxMaxAttempts = 10
@@ -73,6 +74,9 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 		return pushedUIDs, nil
 	}
 	target := activeRemoteCalendarTarget(account)
+	if target.NeedsInitialSyncCompletion && strings.TrimSpace(account.SelectedCalendarReadinessStatus) != calendarReadinessStatusInitialExportPending {
+		return pushedUIDs, nil
+	}
 	hasAuthError := false
 	hasSuccessfulRemoteOperation := false
 	for _, row := range rows {
@@ -114,6 +118,11 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 	}
 	if hasSuccessfulRemoteOperation && !hasAuthError {
 		service.clearRemoteCalendarAccountAuthError(ctx, account)
+	}
+	if target.NeedsInitialSyncCompletion {
+		if errorValue := service.completeCalendarInitialSyncIfReady(ctx, account, time.Now()); errorValue != nil {
+			return pushedUIDs, errorValue
+		}
 	}
 	return pushedUIDs, nil
 }
