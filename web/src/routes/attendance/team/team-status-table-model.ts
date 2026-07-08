@@ -1,7 +1,8 @@
 import type { AttendanceAbsence, AttendanceEvent, AttendanceLocation, AttendanceMember, AttendanceSummary } from '../attendance-context.svelte';
 import type { AttendanceText } from '../text';
-import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
+import { eachDayOfMonth, isWeekend, timeInTimeZone, todayDateInTimeZone } from '../shared/attendance-date';
 import { formatHoursMinutes } from '../shared/attendance-format';
+import { dayWidthPercent, localTimeMinutes } from '../shared/day-timeline';
 import type { AttendanceWorkSegment, PersonToday } from '../shared/attendance-aggregation';
 import { computePeopleToday, uniquePeople } from '../shared/attendance-aggregation';
 
@@ -15,7 +16,7 @@ export type TeamStatusPersonDaySegment = {
 	locationColor?: string;
 	timeLabel: string;
 	durationLabel?: string;
-	sharePercent: number;
+	widthPercent: number;
 	tooltipLabel: string;
 	isOpen: boolean;
 };
@@ -57,9 +58,10 @@ export function buildTeamStatusRows(
 	summary: AttendanceSummary,
 	text: AttendanceText,
 	today: string = todayDateInTimeZone(summary.timeZone),
-	currentSummary: AttendanceSummary = summary
+	currentSummary: AttendanceSummary = summary,
+	nowLocalTime: string = timeInTimeZone(summary.timeZone)
 ): TeamStatusPersonRow[] {
-	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today, currentSummary);
+	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today, currentSummary, nowLocalTime);
 }
 
 export function resolveDefaultDate(
@@ -82,7 +84,8 @@ function buildTeamRowsForDates(
 	summary: AttendanceSummary,
 	text: AttendanceText,
 	today: string,
-	currentSummary: AttendanceSummary
+	currentSummary: AttendanceSummary,
+	nowLocalTime: string
 ): TeamStatusPersonRow[] {
 	const people = buildTeamPeopleForDates(summary, dates);
 	const locationColors = buildLocationColors(summary.locations);
@@ -114,7 +117,7 @@ function buildTeamRowsForDates(
 			days: dates.map((date) => {
 				const dayPerson = peopleByDate.get(date)?.get(person.email);
 				return dayPerson
-					? buildTeamStatusPersonDay(date, dayPerson, text, locationColors)
+					? buildTeamStatusPersonDay(date, dayPerson, text, locationColors, nowLocalTime)
 					: fallbackTeamStatusPersonDay(date, today);
 			}),
 		};
@@ -150,22 +153,27 @@ function buildTeamStatusPersonDay(
 	date: string,
 	person: PersonToday | undefined,
 	text: AttendanceText,
-	locationColors: LocationColorLookup
+	locationColors: LocationColorLookup,
+	nowLocalTime: string
 ): TeamStatusPersonDay {
 	if (!person) return emptyTeamStatusPersonDay(date);
 	if (person.status === 'working') {
 		const locationName = person.activeSegment?.locationName ?? person.locationName;
 		const locationID = person.activeSegment?.locationID ?? person.locationID;
+		const openElapsedMinutes = person.activeSegment
+			? Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(person.activeSegment.startTime))
+			: 0;
+		const totalDurationLabel = formatHoursMinutes(person.workedMinutes + openElapsedMinutes, text);
 		return {
 			date,
-			label: locationName || text.working,
+			label: totalDurationLabel,
 			tone: 'working',
 			locationName,
 			locationID,
 			locationColor: findLocationColor(locationColors, locationID, locationName),
 			detailLabel: person.activeSegment?.startTime,
-			totalDurationLabel: person.workedMinutes > 0 ? formatHoursMinutes(person.workedMinutes, text) : undefined,
-			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors),
+			totalDurationLabel,
+			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
 		};
 	}
 	if (person.status === 'finished') {
@@ -175,7 +183,7 @@ function buildTeamStatusPersonDay(
 			label: totalDurationLabel ?? '-',
 			tone: 'finished',
 			totalDurationLabel,
-			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors),
+			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
 		};
 	}
 	if (person.status === 'absence' && person.absence) {
@@ -210,10 +218,9 @@ function fallbackTeamStatusPersonDay(date: string, today: string): TeamStatusPer
 function buildTeamStatusPersonDaySegments(
 	segments: AttendanceWorkSegment[],
 	text: AttendanceText,
-	locationColors: LocationColorLookup
+	locationColors: LocationColorLookup,
+	nowLocalTime: string
 ): TeamStatusPersonDaySegment[] {
-	const totalWorkedMinutes = segments.reduce((totalMinutes, segment) => totalMinutes + segment.workedMinutes, 0);
-	const fallbackSharePercent = segments.length > 0 ? Math.round(100 / segments.length) : 0;
 	return segments.map((segment) => {
 		const locationName = segment.locationName || '-';
 		const timeLabel = segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`;
@@ -222,9 +229,10 @@ function buildTeamStatusPersonDaySegments(
 			: segment.workedMinutes > 0
 				? formatHoursMinutes(segment.workedMinutes, text)
 				: undefined;
-		const sharePercent = totalWorkedMinutes > 0
-			? Math.max(1, Math.round((segment.workedMinutes / totalWorkedMinutes) * 100))
-			: fallbackSharePercent;
+		const widthPercent = dayWidthPercent(
+			segment.startTime,
+			segment.isOpen ? nowLocalTime : segment.endTime ?? segment.startTime
+		);
 		return {
 			id: segment.id,
 			locationName,
@@ -232,7 +240,7 @@ function buildTeamStatusPersonDaySegments(
 			locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
 			timeLabel,
 			durationLabel,
-			sharePercent,
+			widthPercent,
 			tooltipLabel: durationLabel ? `${locationName} ${timeLabel} · ${durationLabel}` : `${locationName} ${timeLabel}`,
 			isOpen: segment.isOpen,
 		};

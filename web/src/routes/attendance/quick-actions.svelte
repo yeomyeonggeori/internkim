@@ -1,21 +1,27 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
-	import { Button } from '$lib/components/ui/button';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as Select from '$lib/components/ui/select';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { cn } from '$lib/utils';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import { getAttendanceState, type AttendanceKind } from './attendance-context.svelte';
 	import { computeDayEvents, statusForDay, type AttendanceWorkSegment } from './shared/attendance-aggregation';
-	import { todayDateInTimeZone } from './shared/attendance-date';
+	import { timeInTimeZone, todayDateInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
+	import { dayWidthPercent } from './shared/day-timeline';
+	import SegmentTooltip from './shared/segment-tooltip.svelte';
 	import { attendanceText } from './text';
 
 	type SegmentBar = {
 		id: string;
-		sharePercent: number;
+		widthPercent: number;
 		color: string;
 		locationName: string;
 		timeLabel: string;
@@ -67,14 +73,12 @@
 					? 'bg-muted-foreground'
 					: 'bg-muted-foreground/50'
 	);
+	const activeLocationName = $derived(
+		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
+	);
 
 	const nextKind = $derived<AttendanceKind>(status === 'working' ? 'clock_out' : 'clock_in');
 	const actionLabel = $derived(nextKind === 'clock_in' ? text.clockIn : text.clockOut);
-	const currentStatusLabel = $derived(
-		status === 'working'
-			? todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? statusLabel
-			: statusLabel
-	);
 
 	let selectedLocationID = $state<string>('');
 	$effect(() => {
@@ -105,23 +109,26 @@
 	}
 
 	const locations = $derived(attendance.currentMonthSummary?.locations ?? []);
-	const currentLocationColor = $derived(status === 'working' ? segmentColor(todayDay.activeSegment) : undefined);
 	const todaySegmentBars = $derived(buildSegmentBars(todayDay.segments));
 	const showLocationPicker = $derived(nextKind === 'clock_in' && locations.length > 1);
 
 	function buildSegmentBars(segments: AttendanceWorkSegment[]): SegmentBar[] {
-		if (segments.length === 0) return [];
-		const segmentMinutes = segments.map((segment) => segmentDisplayMinutes(segment));
-		const totalMinutes = segmentMinutes.reduce((total, minutes) => total + minutes, 0);
-		const fallbackSharePercent = Math.round(100 / segments.length);
-		return segments.map((segment, index) => ({
-			id: segment.id,
-			sharePercent: totalMinutes > 0 ? Math.max(1, Math.round((segmentMinutes[index] / totalMinutes) * 100)) : fallbackSharePercent,
-			color: segmentColor(segment) ?? 'hsl(var(--muted-foreground))',
-			locationName: segment.locationName ?? segment.locationID ?? text.location,
-			timeLabel: segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`,
-			durationLabel: formatHoursMinutes(segmentMinutes[index], text),
-		}));
+		const currentTime = timeInTimeZone(attendance.currentMonthSummary?.timeZone);
+		return segments.map((segment) => {
+			return {
+				id: segment.id,
+				widthPercent: dayWidthPercent(segment.startTime, segment.isOpen ? currentTime : segment.endTime ?? segment.startTime),
+				color: segmentColor(segment) ?? 'hsl(var(--muted-foreground))',
+				locationName: segment.locationName ?? segment.locationID ?? text.location,
+				timeLabel: segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`,
+				durationLabel: formatHoursMinutes(segmentDisplayMinutes(segment), text),
+			};
+		});
+	}
+
+	function segmentBarsTotalPercent(segmentBars: SegmentBar[]): number {
+		const totalPercent = segmentBars.reduce((total, segment) => total + segment.widthPercent, 0);
+		return Math.min(100, totalPercent);
 	}
 
 	function segmentDisplayMinutes(segment: AttendanceWorkSegment): number {
@@ -151,95 +158,110 @@
 			{text.today}
 		</Card.Title>
 	</Card.Header>
-	<Card.Content class="space-y-2 pt-0">
-		<div class="flex items-start justify-between gap-3">
-			<div class="min-w-0 space-y-1.5">
-				<div class="flex items-center gap-1.5">
-					<span
-						class={`size-2 rounded-full ${currentLocationColor ? '' : statusDot}`}
-						style:background-color={currentLocationColor}
-					></span>
-					<span class="truncate text-sm font-semibold">{currentStatusLabel}</span>
-				</div>
-				{#if todayDay.clockIn}
-					<div class="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
-						<span class="flex items-center gap-1">
-							<LogInIcon class="size-3" />
-							{todayDay.clockIn.localTime}
-						</span>
-						{#if todayDay.clockOut && status !== 'working'}
-							<span class="flex items-center gap-1">
-								<LogOutIcon class="size-3" />
-								{todayDay.clockOut.localTime}
-							</span>
-						{/if}
-					</div>
+	<Card.Content class="space-y-2.5 pt-0">
+		<div class="flex items-center justify-between gap-2">
+			<div class="flex min-w-0 items-center gap-1.5">
+				<span class={`size-2 shrink-0 rounded-full ${statusDot}`}></span>
+				<span class="shrink-0 text-sm font-semibold">{statusLabel}</span>
+				{#if status === 'working'}
+					<Badge variant="outline" class="min-w-0 shrink">{activeLocationName}</Badge>
 				{/if}
 			</div>
-			{#if todaySegmentBars.length > 0}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								type="button"
-								class="-mt-0.5 grid w-24 shrink-0 grid-rows-[0.75rem_1rem] justify-items-end text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								data-testid="quick-actions-current-bar"
-							>
-								<div class="text-xs font-semibold leading-3 tabular-nums text-foreground">
-									{formatHoursMinutes(elapsedMinutes, text)}
-								</div>
-								<div class="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
-									{#each todaySegmentBars as segment (segment.id)}
-										<span
-											class="h-full min-w-1"
-											style:width={`${segment.sharePercent}%`}
-											style:background-color={segment.color}
-										></span>
-									{/each}
-								</div>
-							</button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={6} class="grid w-max max-w-[calc(100vw-2rem)] grid-cols-[0.375rem_max-content_max-content_max-content] gap-x-2 gap-y-1.5 overflow-x-auto">
-						{#each todaySegmentBars as segment (segment.id)}
-							<div class="contents text-left tabular-nums">
-								<span
-									class="size-1.5 shrink-0 rounded-full"
-									style:background-color={segment.color}
-								></span>
-								<span class="whitespace-nowrap text-left">{segment.locationName}</span>
-								<span class="whitespace-nowrap text-left">{segment.timeLabel}</span>
-								<span class="whitespace-nowrap text-left">{segment.durationLabel}</span>
-							</div>
-						{/each}
-					</Tooltip.Content>
-				</Tooltip.Root>
+			{#if todayDay.clockIn}
+				<span class="shrink-0 text-sm font-semibold tabular-nums">{formatHoursMinutes(elapsedMinutes, text)}</span>
 			{/if}
 		</div>
-
-		{#if showLocationPicker}
-			<select
-				class="border-input bg-background h-8 w-full rounded-md border px-2 text-xs"
-				bind:value={selectedLocationID}
-				disabled={isToggling}
-			>
-				{#each locations as location (location.id)}
-					<option value={location.id}>{location.name}</option>
-				{/each}
-			</select>
+		{#if todaySegmentBars.length > 0}
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							type="button"
+							class="block w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							data-testid="quick-actions-current-bar"
+						>
+							<span class="block h-1.5 w-full rounded-full bg-muted" aria-hidden="true">
+								<span class="flex h-full overflow-hidden rounded-full" style:width={`${segmentBarsTotalPercent(todaySegmentBars)}%`}>
+									{#each todaySegmentBars as segment (segment.id)}
+										<span class="h-full" style:flex-grow={segment.widthPercent} style:background-color={segment.color}></span>
+									{/each}
+								</span>
+							</span>
+						</button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content
+					side="top"
+					sideOffset={6}
+					class="w-max max-w-[calc(100vw-2rem)] border bg-popover text-popover-foreground shadow-md"
+					arrowClasses="hidden"
+				>
+					<SegmentTooltip rows={todaySegmentBars} />
+				</Tooltip.Content>
+			</Tooltip.Root>
+		{/if}
+		{#if todayDay.clockIn}
+			<div class="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
+				<span class="flex items-center gap-1">
+					<LogInIcon class="size-3" />
+					{todayDay.clockIn.localTime}
+				</span>
+				{#if todayDay.clockOut && status !== 'working'}
+					<span class="flex items-center gap-1">
+						<LogOutIcon class="size-3" />
+						{todayDay.clockOut.localTime}
+					</span>
+				{/if}
+			</div>
 		{/if}
 
-		<Button class="w-full" onclick={handleToggle} disabled={isToggling}>
-			{#if isToggling}
-				<LoaderIcon class="size-3.5 animate-spin" />
-			{:else if nextKind === 'clock_in'}
-				<LogInIcon class="size-3.5" />
-			{:else}
-				<LogOutIcon class="size-3.5" />
-			{/if}
-			{actionLabel}
-		</Button>
+		{#if showLocationPicker}
+			<Select.Root type="single" bind:value={selectedLocationID} disabled={isToggling}>
+				<Select.Trigger size="sm" class="w-full text-xs">
+					{locations.find((location) => location.id === selectedLocationID)?.name ?? text.location}
+				</Select.Trigger>
+				<Select.Content>
+					{#each locations as location (location.id)}
+						<Select.Item value={location.id} label={location.name}>{location.name}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		{/if}
+
+		{#if nextKind === 'clock_out'}
+			<AlertDialog.Root>
+				<AlertDialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')} disabled={isToggling}>
+					{#if isToggling}
+						<LoaderIcon class="size-3.5 animate-spin" />
+					{:else}
+						<LogOutIcon class="size-3.5" />
+					{/if}
+					{actionLabel}
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>{text.clockOutConfirmTitle}</AlertDialog.Title>
+						<AlertDialog.Description>
+							{text.clockOutConfirmDescriptionTemplate.replace('{duration}', formatHoursMinutes(elapsedMinutes, text))}
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
+						<AlertDialog.Action onclick={handleToggle}>{text.clockOut}</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+		{:else}
+			<Button class="w-full" onclick={handleToggle} disabled={isToggling}>
+				{#if isToggling}
+					<LoaderIcon class="size-3.5 animate-spin" />
+				{:else}
+					<LogInIcon class="size-3.5" />
+				{/if}
+				{actionLabel}
+			</Button>
+		{/if}
 
 		{#if errorMessage}
 			<p class="text-xs text-destructive">{errorMessage}</p>

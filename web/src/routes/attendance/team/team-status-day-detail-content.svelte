@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import DayEventRow from '../personal/day-event-row.svelte';
+	import { getAttendanceState } from '../attendance-context.svelte';
+	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
 	import { absenceDisplayClass } from '../shared/color-tokens';
 	import type { AttendanceText } from '../text';
 	import { observeScrollOverflow } from './scroll-overflow-action';
@@ -10,9 +15,29 @@
 	};
 
 	let { text, detail }: Props = $props();
+	const attendance = getAttendanceState();
 	let hasWorkRecordScrollOverflow = $state(false);
 	let hasCalendarEventScrollOverflow = $state(false);
 	let hasCompletedTaskScrollOverflow = $state(false);
+	let hasPersonalPanelScrollOverflow = $state(false);
+	let expandedEventIDs = $state<Record<string, boolean>>({});
+	let deletingAbsenceID = $state('');
+	let absenceErrorID = $state('');
+	let absenceErrorMessage = $state('');
+
+	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
+	const ownDayAbsences = $derived(
+		isOwnDay && attendance.summary
+			? absencesForDate(attendance.summary.absences, detail.day.date, attendance.summary.currentUserEmail)
+			: []
+	);
+	const ownDayEvents = $derived(
+		isOwnDay && attendance.summary
+			? attendance.summary.events
+					.filter((event) => event.email === attendance.summary?.currentUserEmail && event.localDate === detail.day.date)
+					.sort((first, second) => first.occurredAt.localeCompare(second.occurredAt))
+			: []
+	);
 
 	const totalDurationLabel = $derived(detail.day.totalDurationLabel);
 	const sectionFrameClass = 'relative min-h-0';
@@ -31,6 +56,29 @@
 
 	function setCompletedTaskScrollOverflow(hasScrollOverflow: boolean) {
 		hasCompletedTaskScrollOverflow = hasScrollOverflow;
+	}
+
+	function setPersonalPanelScrollOverflow(hasScrollOverflow: boolean) {
+		hasPersonalPanelScrollOverflow = hasScrollOverflow;
+	}
+
+	function toggleEventExpanded(eventID: string) {
+		expandedEventIDs[eventID] = !expandedEventIDs[eventID];
+	}
+
+	async function deleteAbsence(absenceID: string) {
+		if (deletingAbsenceID) return;
+		deletingAbsenceID = absenceID;
+		absenceErrorID = '';
+		absenceErrorMessage = '';
+		try {
+			await attendance.deleteAbsence(absenceID);
+		} catch (error) {
+			absenceErrorID = absenceID;
+			absenceErrorMessage = error instanceof Error ? error.message : text.processingFailed;
+		} finally {
+			deletingAbsenceID = '';
+		}
 	}
 </script>
 
@@ -64,13 +112,7 @@
 						<div class={`flex items-center justify-between gap-3 ${blockClass}`} data-testid="team-status-day-segment">
 							<div class="min-w-0">
 								<div class="flex min-w-0 items-center gap-2 text-sm font-medium">
-									{#if segment.locationName !== '-'}
-										<span
-											class={`size-2 shrink-0 rounded-full ${segment.locationColor ? '' : 'bg-success'}`}
-											style:background-color={segment.locationColor}
-										></span>
-									{/if}
-									<span class="min-w-0 truncate text-foreground">{segment.locationName}</span>
+									<Badge variant="outline">{segment.locationName}</Badge>
 								</div>
 								<div class="mt-0.5 text-xs tabular-nums text-muted-foreground">{segment.timeLabel}</div>
 							</div>
@@ -92,6 +134,60 @@
 			{/if}
 		</div>
 	</div>
+
+	{#if isOwnDay}
+		<div class="grid min-h-0 gap-2">
+			<div class={sectionFrameClass}>
+				<div
+					class={sectionListClass}
+					data-testid="personal-day-detail-panel"
+					use:observeScrollOverflow={setPersonalPanelScrollOverflow}
+				>
+					{#each ownDayAbsences as absence (absence.id)}
+						<div class="rounded-md border border-info/30 bg-info/10 p-3 text-xs">
+							<div class="flex items-center justify-between gap-3">
+								<p class="font-medium text-info">{absenceLabelText(absence, text)}</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									disabled={!!deletingAbsenceID}
+									onclick={() => deleteAbsence(absence.id)}
+								>
+									{text.cancel}
+								</Button>
+							</div>
+							{#if hasAbsenceDetails(absence)}
+								<div class="mt-1 space-y-1 text-muted-foreground">
+									{#if absence.reason}
+										<p>{absence.reason}</p>
+									{/if}
+									{#if absence.createdBy}
+										<p>{text.absenceCreatedByTemplate.replace('{user}', absence.createdBy)}</p>
+									{/if}
+								</div>
+							{/if}
+							{#if absenceErrorMessage && absenceErrorID === absence.id}
+								<p class="mt-2 text-destructive">{absenceErrorMessage}</p>
+							{/if}
+						</div>
+					{/each}
+					{#each ownDayEvents as event (event.id)}
+						<DayEventRow
+							{event}
+							locations={attendance.summary?.locations ?? []}
+							isExpanded={!!expandedEventIDs[event.id]}
+							onToggle={toggleEventExpanded}
+							onSaveOverride={(eventID, request) => attendance.updateEvent(eventID, request)}
+						/>
+					{/each}
+				</div>
+				{#if hasPersonalPanelScrollOverflow}
+					<div class={scrollFadeClass} data-testid="team-status-section-scroll-fade"></div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	<div class="grid min-h-0 gap-2">
 		<div class="text-sm font-semibold">{text.calendarEvents}</div>

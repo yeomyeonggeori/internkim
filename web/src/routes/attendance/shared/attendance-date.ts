@@ -13,6 +13,15 @@ export function timeInTimeZone(timeZone?: string, date: Date = new Date()): stri
 	return `${parts.hour}:${parts.minute}`;
 }
 
+export function timeZoneDisplayLabel(timeZone?: string, date: Date = new Date()): string {
+	const zone = normalizeTimeZone(timeZone);
+	const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' })
+		.formatToParts(date)
+		.find((part) => part.type === 'timeZoneName')?.value;
+	const city = zone.split('/').pop()?.replaceAll('_', ' ') ?? zone;
+	return offset ? `${city} (${offset})` : city;
+}
+
 export function utcDateKey(date: Date): string {
 	return [
 		String(date.getUTCFullYear()).padStart(4, '0'),

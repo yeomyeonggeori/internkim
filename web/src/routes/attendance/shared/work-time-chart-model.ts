@@ -1,9 +1,9 @@
 import type { ChartMode } from '../attendance-context.svelte';
 import { addDays, eachDayOfMonth, utcDateKey } from './attendance-date';
 
-export type DailyValue = { date: string; value: number };
-export type ChartPoint = { key: string; label: string; tooltipLabel: string; value: number };
-export type PlottedPoint = { x: number; y: number; point: ChartPoint };
+export type DailyValue = { date: string; minutesByLocation: Record<string, number> };
+export type ChartPoint = { key: string; label: string; tooltipLabel: string; values: Record<string, number> };
+export type WorkTimeChartLocation = { key: string; name: string; color?: string };
 
 export type WorkTimeChartLabels = {
 	weekLabelTemplate: string;
@@ -18,56 +18,71 @@ export type WorkTimeChartLabels = {
 	weekdaySaturday: string;
 };
 
-export const VIEW_WIDTH = 1000;
-export const VIEW_HEIGHT = 220;
-export const PADDING_X = 24;
-export const PADDING_TOP = 16;
-export const PADDING_BOTTOM = 28;
+export type BuildSeriesOptions = { today?: string };
 
-const innerWidth = VIEW_WIDTH - PADDING_X * 2;
-const innerHeight = VIEW_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
-
-export const baselineY = VIEW_HEIGHT - PADDING_BOTTOM;
+export function chartPointTotalMinutes(point: ChartPoint): number {
+	return Object.values(point.values).reduce((sum, minutes) => sum + minutes, 0);
+}
 
 export function buildSeries(
 	month: string,
 	dailyValues: DailyValue[],
 	mode: ChartMode,
-	labels: WorkTimeChartLabels
+	labels: WorkTimeChartLabels,
+	options: BuildSeriesOptions = {}
 ): ChartPoint[] {
 	if (!month) return [];
-	const valueByDate = new Map(dailyValues.map((dailyValue) => [dailyValue.date, dailyValue.value]));
-	const dailyPoints = eachDayOfMonth(month).map((date) => ({ date, value: valueByDate.get(date) ?? 0 }));
+	const valuesByDate = new Map(dailyValues.map((dailyValue) => [dailyValue.date, dailyValue.minutesByLocation]));
+	const dailyPoints = eachDayOfMonth(month).map((date) => ({ date, values: valuesByDate.get(date) ?? {} }));
 
 	if (mode === 'day') {
-		return dailyPoints.map((dailyPoint) => ({
+		const visibleDailyPoints = trimFuturePoints(dailyPoints, options.today, (dailyPoint) => dailyPoint.date);
+		return visibleDailyPoints.map((dailyPoint) => ({
 			key: dailyPoint.date,
 			label: dailyPoint.date.slice(8, 10),
 			tooltipLabel: dailyTooltipLabel(dailyPoint.date, labels),
-			value: dailyPoint.value
+			values: dailyPoint.values
 		}));
 	}
 	if (mode === 'week') {
-		return buildWeeklySeries(month, valueByDate, labels.weekLabelTemplate);
+		return buildWeeklySeries(month, valuesByDate, labels.weekLabelTemplate, options.today);
 	}
-	return buildMonthlySeries(month, dailyValues, labels.monthLabelTemplate);
+	return buildMonthlySeries(month, dailyValues, labels.monthLabelTemplate, options.today);
+}
+
+function sumMinutesByLocation(valuesList: Record<string, number>[]): Record<string, number> {
+	const totals: Record<string, number> = {};
+	for (const values of valuesList) {
+		for (const [location, minutes] of Object.entries(values)) {
+			totals[location] = (totals[location] ?? 0) + minutes;
+		}
+	}
+	return totals;
+}
+
+function trimFuturePoints<T>(points: T[], today: string | undefined, dateOf: (point: T) => string): T[] {
+	if (!today) return points;
+	const pastOrPresentPoints = points.filter((point) => dateOf(point) <= today);
+	if (!pastOrPresentPoints.length && points.length) return points;
+	return pastOrPresentPoints;
 }
 
 function buildWeeklySeries(
 	month: string,
-	valueByDate: Map<string, number>,
-	weekLabelTemplate: string
+	valuesByDate: Map<string, Record<string, number>>,
+	weekLabelTemplate: string,
+	today?: string
 ): ChartPoint[] {
-	return calendarWeekRanges(month).map((weekRange, index) => {
-		const value = eachDateInRange(weekRange.startDate, weekRange.endDate).reduce(
-			(sum, date) => sum + (valueByDate.get(date) ?? 0),
-			0
+	const weekRanges = trimFuturePoints(calendarWeekRanges(month), today, (weekRange) => weekRange.startDate);
+	return weekRanges.map((weekRange, index) => {
+		const values = sumMinutesByLocation(
+			eachDateInRange(weekRange.startDate, weekRange.endDate).map((date) => valuesByDate.get(date) ?? {})
 		);
 		return {
 			key: `${weekRange.startDate}/${weekRange.endDate}`,
 			label: weekLabelTemplate.replace('{index}', String(index + 1)),
 			tooltipLabel: weekLabelTemplate.replace('{index}', String(index + 1)),
-			value
+			values
 		};
 	});
 }
@@ -106,10 +121,11 @@ function eachDateInRange(startDate: string, endDate: string): string[] {
 function buildMonthlySeries(
 	month: string,
 	dailyValues: DailyValue[],
-	monthLabelTemplate: string
+	monthLabelTemplate: string,
+	today?: string
 ): ChartPoint[] {
 	const year = month.slice(0, 4);
-	return Array.from({ length: 12 }, (_, index) => {
+	const monthlyPoints = Array.from({ length: 12 }, (_, index) => {
 		const monthIndex = index + 1;
 		const monthKey = `${year}-${String(monthIndex).padStart(2, '0')}`;
 		const label = monthLabelTemplate.replace('{index}', String(monthIndex));
@@ -117,12 +133,16 @@ function buildMonthlySeries(
 			key: monthKey,
 			label,
 			tooltipLabel: label,
-			value: dailyValues.reduce((sum, dailyValue) => {
-				if (!dailyValue.date.startsWith(monthKey)) return sum;
-				return sum + dailyValue.value;
-			}, 0)
+			values: sumMinutesByLocation(
+				dailyValues
+					.filter((dailyValue) => dailyValue.date.startsWith(monthKey))
+					.map((dailyValue) => dailyValue.minutesByLocation)
+			)
 		};
 	});
+	if (!today || year !== today.slice(0, 4)) return monthlyPoints;
+	const todayMonthKey = today.slice(0, 7);
+	return monthlyPoints.filter((monthlyPoint) => monthlyPoint.key <= todayMonthKey);
 }
 
 function dailyTooltipLabel(date: string, labels: WorkTimeChartLabels): string {
@@ -142,22 +162,4 @@ function weekdayLabel(date: string, labels: WorkTimeChartLabels): string {
 		labels.weekdaySaturday,
 	];
 	return weekdays[day] ?? '';
-}
-
-export function plotPoints(points: ChartPoint[], maxValue: number): PlottedPoint[] {
-	const count = points.length;
-	return points.map((point, index) => {
-		const x = count === 1 ? PADDING_X + innerWidth / 2 : PADDING_X + (innerWidth * index) / (count - 1);
-		const ratio = point.value / maxValue;
-		const y = baselineY - ratio * innerHeight;
-		return { x, y, point };
-	});
-}
-
-export function buildAreaPath(points: PlottedPoint[]): string {
-	if (!points.length) return '';
-	const head = `M ${points[0].x.toFixed(1)} ${baselineY}`;
-	const top = points.map((point) => `L ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
-	const tail = `L ${points[points.length - 1].x.toFixed(1)} ${baselineY} Z`;
-	return `${head} ${top} ${tail}`;
 }
