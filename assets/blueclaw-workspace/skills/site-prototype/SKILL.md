@@ -48,7 +48,7 @@ Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `ba
 
 ## Create, Update, Publish
 
-Requests are incomplete until site.publish succeeds and a final site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
+A request is incomplete until site.publish succeeds and site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
 
 1. Call the site.status operation once with the known `siteID`, slug, or empty input for the current conversation. Do not call it again until an action you took (create, publish, or a content change) could change the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
@@ -96,7 +96,7 @@ Requests are incomplete until site.publish succeeds and a final site.status retu
    Run it again after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: keep revising while it improves, stop when the gate passes or the score stalls across two runs, and never call site.publish on a final state that was not reviewed.
 7. If `workspaceHealth` is `missing` or `permission_problem`, recheck site.status once; if still unhealthy, report honestly. If `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present.
-9. Update `.internkim/idea.md` when positioning changes.
+9. Update `.internkim/idea.md` on positioning changes.
 10. Write `.internkim/artifact-brief.md` before source edits: intent, audience, archetype, visual direction, must-show source content, forbidden invented content, what would be too shallow.
 11. For a content-only change — copy, tagline, blocks, pages, or navigation with no new component — rewrite `app/public/site-content.json` directly, run the step 6 content review on the result, then go to step 19 (site.publish); no `app/src/**` edit and no build step.
 12. For a structural change beyond the block library — a new variant, primitive, or layout — build it as a reusable component under `app/src/blocks/` or `app/src/components/` consuming the theme variables, then compose it; never inline one-off markup into `App.tsx` like a scratchpad.
