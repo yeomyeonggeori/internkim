@@ -18,6 +18,8 @@ def search_openverse(query: str) -> list:
         "page_size": 10,
         "aspect_ratio": "wide",
         "size": "large",
+        "category": "photograph",
+        "extension": "jpg",
     })
     request = urllib.request.Request(OPENVERSE_ENDPOINT + "?" + parameters, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=20) as response:
