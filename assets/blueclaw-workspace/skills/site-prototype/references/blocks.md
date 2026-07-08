@@ -14,8 +14,14 @@ Choose icons that match each item's meaning: contact items usually pair `mail`, 
 
 Sourcing order:
 1. Files the user attached or that already exist in the site workspace.
-2. License-free photo sources fetched with the web tools (Unsplash, Pexels, Pixabay class licenses that allow commercial use without attribution). Download into `app/public/images/<name>.jpg` and reference as `/images/<name>.jpg` — never hotlink.
-3. Image generation skills, only when no suitable license-free photo exists (abstract brand art, product mockups that do not exist yet).
+2. One command fetches a CC0/public-domain photo — search, license filter, download, and the reference path in one step:
+
+   ```
+   python3 /workspace/skills/site-prototype/scripts/fetch_image.py "pottery hands clay wheel" app/public/images/hero.jpg
+   ```
+
+   Query in simple English; the script prints the `/images/...` path to use. Prototype images are placeholders the user can later replace with real photos through a normal update request.
+3. Image generation skills, only when no suitable photo exists (abstract brand art, products that do not exist yet).
 
 Always set `imageAlt`. Keep files under about 400KB; prefer 1600px-wide JPEG.
 
