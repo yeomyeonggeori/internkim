@@ -405,7 +405,7 @@ func (service *Service) servePublishedSite(responseWriter http.ResponseWriter, r
 }
 
 func isPocketBasePath(path string) bool {
-	return strings.HasPrefix(path, "/api/") || path == "/api" || strings.HasPrefix(path, "/_/")
+	return strings.HasPrefix(path, "/api/") || path == "/api"
 }
 
 func (service *Service) proxySitePocketBase(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {
@@ -2000,9 +2000,17 @@ func (service *Service) ensureSiteEnvironment(site *SiteRecord) error {
 		return errorValue
 	}
 	if isRegularFile(secretPath) {
-		return nil
+		existing, errorValue := os.ReadFile(secretPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		if strings.Contains(string(existing), "PB_SUPERUSER_EMAIL=") {
+			return nil
+		}
+		upgraded := strings.TrimRight(string(existing), "\n") + "\nPB_SUPERUSER_EMAIL=site-admin@internkim.local\nPB_SUPERUSER_PASSWORD=" + randomHex(16) + "\n"
+		return os.WriteFile(secretPath, []byte(upgraded), 0o600)
 	}
-	document := "INTERNKIM_SITE_PORT=" + strconv.Itoa(site.Port) + "\nPB_ENCRYPTION_KEY=" + randomHex(16) + "\n"
+	document := "INTERNKIM_SITE_PORT=" + strconv.Itoa(site.Port) + "\nPB_ENCRYPTION_KEY=" + randomHex(16) + "\nPB_SUPERUSER_EMAIL=site-admin@internkim.local\nPB_SUPERUSER_PASSWORD=" + randomHex(16) + "\n"
 	return os.WriteFile(secretPath, []byte(document), 0o600)
 }
 
@@ -2019,6 +2027,7 @@ User=internkim-site
 Group=internkim-site
 EnvironmentFile=` + service.Configuration.SiteSecretDirectory + `/%i/environment
 WorkingDirectory=` + service.Configuration.SitesRoot + `/%i/current
+ExecStartPre=/usr/local/bin/pocketbase superuser upsert ${PB_SUPERUSER_EMAIL} ${PB_SUPERUSER_PASSWORD} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --encryptionEnv=PB_ENCRYPTION_KEY
 ExecStart=/usr/local/bin/pocketbase serve --http=127.0.0.1:${INTERNKIM_SITE_PORT} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --encryptionEnv=PB_ENCRYPTION_KEY
 Restart=always
 RestartSec=5
