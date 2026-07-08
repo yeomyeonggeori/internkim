@@ -1,8 +1,14 @@
 import { buttonVariants } from "../components/ui/button";
 import type { Block } from "../site-content";
 import { splitParagraphs } from "./textParagraphs";
+import { BackdropCanvas } from "./BackdropCanvas";
 
 const knownBackdrops = new Set(["mesh", "aurora", "grain", "grid", "dots"]);
+
+function canvasKindFor(backdrop: string | undefined): "mesh" | "aurora" | "grain" | undefined {
+	if (backdrop === "mesh" || backdrop === "aurora" || backdrop === "grain") return backdrop;
+	return undefined;
+}
 
 type HeroProps = {
 	block: Block;
@@ -34,6 +40,7 @@ export function Hero({ block, anchorID }: HeroProps) {
 	const backdropClass = knownBackdrops.has(block.backdrop ?? "") ? ` backdrop-${block.backdrop}` : "";
 	return (
 		<section id={anchorID} className={"hero-band full-bleed px-6" + backdropClass}>
+			{canvasKindFor(block.backdrop) ? <BackdropCanvas kind={canvasKindFor(block.backdrop) ?? "mesh"} /> : null}
 			<div className="mx-auto max-w-4xl py-24">
 				{block.image ? (
 					<div className="grid min-h-[52vh] items-center gap-12 md:grid-cols-[1.1fr_0.9fr]">
