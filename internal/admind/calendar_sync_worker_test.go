@@ -185,6 +185,34 @@ func TestRunCalendarUserSyncCyclePushesAgainAfterChangedPull(t *testing.T) {
 	}
 }
 
+func TestRunCalendarUserSyncCycleRecordsSecondPushProtectionAfterPull(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	start := time.Unix(1000, 0).UTC()
+	now := start
+	pushCallCount := 0
+	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+		now = start.Add(4*time.Minute + 30*time.Second)
+		return true, nil
+	}
+	push := func(ctx context.Context) (map[string]struct{}, error) {
+		pushCallCount++
+		if pushCallCount == 2 {
+			return map[string]struct{}{"exported-after-slow-pull@google": {}}, nil
+		}
+		return nil, nil
+	}
+	clock := func() time.Time { return now }
+	result := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	if !result.Succeeded() || !result.PullAttempted || !result.Changed {
+		t.Fatalf("changed pull result: %#v", result)
+	}
+	protectedUIDs := service.recentlyPushedCalendarUIDs(start.Add(calendarPushVisibilityGracePeriod + time.Second))
+	if _, found := protectedUIDs["exported-after-slow-pull@google"]; !found {
+		t.Fatalf("second push UID expired from the cycle start instead of the second push time: %#v", protectedUIDs)
+	}
+}
+
 func TestRunCalendarUserSyncCycleSkipsSecondPushAfterPushFailure(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
