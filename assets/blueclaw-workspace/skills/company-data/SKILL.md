@@ -13,8 +13,9 @@ The company has one persistent master table set: profile (`company.info.*`), num
 "작년 연매출은 12억이었어" → FIRST check what already exists for that year, THEN write:
 
 1. `company.metric.list {"fromYear": 2025, "toYear": 2025}` — all rows for the year (add `metric` to narrow).
-2. An existing row states the same fact (maybe at a different quarter/month granularity)? Re-record THAT row's period with the corrected value — do not add a second row for the same fact.
-3. Nothing overlaps? Add the new row:
+2. An existing row already states the identical fact? No write — just confirm it is on record.
+3. An existing row states the same fact with different value or granularity (quarter/month)? Re-record THAT row's period with the corrected value — do not add a second row for the same fact.
+4. Nothing overlaps? Add the new row:
 
 ```json
 { "operation": "company.metric.record", "input": "{\"metric\": \"annualRevenue\", \"year\": 2025, \"value\": 1200000000, \"unit\": \"KRW\"}" }
@@ -26,7 +27,7 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 ## Records — 연혁·투자·제품·인증
 
-"작년 11월에 시드로 20억 투자받았어" → FIRST `company.record.list {"category": "funding"}` and scan for the same event in that year. Same event already recorded? `company.record.update` (id from list) with the corrected date/detail/attributes. Nothing overlaps? `company.record.add`:
+"작년 11월에 시드로 20억 투자받았어" → FIRST `company.record.list {"category": "funding"}` and scan for the same event in that year. Already recorded identically? No write — confirm it exists. Same event with different details? `company.record.update` (id from list). Nothing overlaps? `company.record.add`:
 
 ```json
 { "operation": "company.record.add", "input": "{\"category\": \"funding\", \"date\": \"2025-11\", \"title\": \"시드 투자 유치\", \"attributes\": \"{\\\"round\\\": \\\"Seed\\\", \\\"amount\\\": \\\"20억 원\\\", \\\"investors\\\": \\\"ABC벤처스\\\"}\"}" }
@@ -52,7 +53,7 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 ## Rules
 
-- Never blindly append: search existing rows for the year/category first; update overlaps, add only genuinely new facts.
+- Never blindly append: search existing rows for the year/category first; identical → no write, overlap → update, add only genuinely new facts.
 - Record only user-stated facts — never estimate values, dates, or investor names.
 - Confirm the stored result back to the user in one line (metric, period, value) so mistakes surface immediately.
 - These tables feed IR decks, business plans, and grant applications later — prefer structured `attributes` over prose in `detail`.
