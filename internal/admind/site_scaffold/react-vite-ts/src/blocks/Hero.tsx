@@ -23,7 +23,7 @@ export function Hero({ block, anchorID }: HeroProps) {
 				))}
 				{block.actionLabel ? (
 					<div className="mt-10">
-						<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "px-8 py-6 text-base" })}>
+						<a href={block.actionHref ?? "#"} className={buttonVariants({ size: "lg", className: "hero-cta px-8 py-6 text-base" })}>
 							{block.actionLabel}
 						</a>
 					</div>
