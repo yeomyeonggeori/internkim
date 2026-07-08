@@ -9,7 +9,7 @@ type HeroProps = {
 
 export function Hero({ block, anchorID }: HeroProps) {
 	return (
-		<section id={anchorID} className="hero-band -mx-6 px-6">
+		<section id={anchorID} className="hero-band full-bleed px-6">
 			<div className="mx-auto flex min-h-[52vh] max-w-4xl flex-col justify-center py-24">
 				{block.title ? (
 					<h1 className="max-w-3xl text-[clamp(2.75rem,6vw,4.25rem)] font-bold leading-[1.04] tracking-tight">
