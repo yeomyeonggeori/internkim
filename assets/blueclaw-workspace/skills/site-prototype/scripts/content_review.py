@@ -27,7 +27,9 @@ WARNING_WEIGHTS = {
     "pipeDelimitedBodyWarning": 8,
     "iconConsistencyWarning": 6,
     "deadContactWarning": 19,
+    "unknownBackdropWarning": 10,
 }
+KNOWN_BACKDROPS = {"mesh", "aurora", "grain", "grid", "dots"}
 GENERIC_FONT_KEYWORDS = {
     "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
     "sans-serif", "serif", "monospace", "cursive", "fantasy",
@@ -214,7 +216,10 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
             items = block.get("items") or []
             if variant in ("features", "faq") and len(items) == 1:
                 warnings.append(f"sparseItemsWarning: page {path_label} block {block_index} is a {variant} with a single item; use a different variant or add real items")
-            if variant == "hero" and not block.get("image") and not block.get("backdrop"):
+            backdrop = str(block.get("backdrop") or "").strip()
+            if backdrop and backdrop not in KNOWN_BACKDROPS:
+                warnings.append(f"unknownBackdropWarning: page {path_label} block {block_index} backdrop {backdrop!r} does not exist and renders as nothing; choose mesh, aurora, grain, grid, or dots")
+            if variant == "hero" and not block.get("image") and backdrop not in KNOWN_BACKDROPS:
                 warnings.append(f"bareHeroWarning: page {path_label} hero has neither image nor backdrop; add a backdrop (mesh, aurora, grain, grid, dots) or an image")
             icon_flags = [bool(str(item.get("icon") or "").strip()) for item in items]
             if any(icon_flags) and not all(icon_flags):
