@@ -56,12 +56,35 @@ def parse_arguments(argv: list) -> tuple:
     return query, output_value
 
 
+def anchor_site_output(output_value: str) -> pathlib.Path:
+    output_path = pathlib.Path(output_value)
+    as_posix = output_path.as_posix()
+    if "app/public/" not in as_posix:
+        return output_path
+    suffix = as_posix.split("app/public/", 1)[-1]
+    probe = pathlib.Path.cwd()
+    for _ in range(6):
+        if (probe / "app" / "public").is_dir():
+            return probe / "app" / "public" / suffix
+        if probe.name == "app" and (probe / "public").is_dir():
+            return probe / "public" / suffix
+        probe = probe.parent
+    return output_path
+
+
+def reference_path(output_path: pathlib.Path) -> str:
+    as_posix = output_path.as_posix()
+    if "public/" in as_posix:
+        return "/" + as_posix.split("public/", 1)[-1]
+    return output_path.name
+
+
 def main() -> int:
     query, output_value = parse_arguments(sys.argv[1:])
     if not query or not output_value:
         print("usage: fetch_image.py <search query> <output path>   (also accepts --output <path>)")
         return 2
-    output_path = pathlib.Path(output_value)
+    output_path = anchor_site_output(output_value)
     try:
         results = search_openverse(query)
     except Exception as error:
@@ -79,7 +102,7 @@ def main() -> int:
             title = result.get("title") or "untitled"
             creator = result.get("creator") or "unknown"
             print(f"saved {output_path} ({written // 1024}KB) — \"{title}\" by {creator}, license {result.get('license', '?').upper()} (no attribution required)")
-            print(f"reference it as /{output_path.as_posix().split('public/', 1)[-1] if 'public/' in output_path.as_posix() else output_path.name}")
+            print(f"reference it as {reference_path(output_path)}")
             return 0
     print(f"no usable cc0/public-domain image found for {query!r}; try a simpler English query or skip imagery")
     return 1
