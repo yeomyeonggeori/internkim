@@ -39,7 +39,70 @@ test.describe('attendance team status', () => {
 		await expect(page.getByTestId(`team-status-cell-${registeredMemberWithoutRecords.email}-2026-06-16`)).toBeVisible();
 	});
 
-	test('shows location bars and segment tooltip in a team status cell', async ({ page }) => {
+	test('marks the today row header with an inverted color treatment', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
+			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+		});
+
+		const todayDate = todayDateInSeoul();
+		const otherDate = todayDate.endsWith('-01') ? `${todayDate.slice(0, 8)}02` : `${todayDate.slice(0, 8)}01`;
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const todayRowHeader = page.getByTestId(`team-status-day-${todayDate}`);
+		const otherRowHeader = page.getByTestId(`team-status-day-${otherDate}`);
+
+		await expect(todayRowHeader).toBeVisible();
+		const [todayStyle, otherStyle] = await Promise.all([
+			todayRowHeader.evaluate((element) => getComputedStyle(element).backgroundColor),
+			otherRowHeader.evaluate((element) => getComputedStyle(element).backgroundColor)
+		]);
+		expect(todayStyle).not.toBe('rgba(0, 0, 0, 0)');
+		expect(todayStyle).not.toBe(otherStyle);
+	});
+
+	test('keeps the today row visible while scrolling past it in both directions', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-25T09:00:00+09:00'));
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: buildAttendanceSummaryFixture('2026-06') });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const statusTable = page.getByTestId('team-status-table');
+		const todayRowHeader = page.getByTestId('team-status-day-2026-06-25');
+		await expect(todayRowHeader).toBeVisible();
+
+		await statusTable.evaluate((table) => {
+			table.scrollTop = 0;
+		});
+		const containerBoxNearTop = await statusTable.boundingBox();
+		const rowBoxNearTop = await todayRowHeader.boundingBox();
+		if (!containerBoxNearTop || !rowBoxNearTop) throw new Error('Expected the status table and today row to be measurable');
+		expect(rowBoxNearTop.y).toBeGreaterThanOrEqual(containerBoxNearTop.y - 1);
+		expect(rowBoxNearTop.y + rowBoxNearTop.height).toBeLessThanOrEqual(containerBoxNearTop.y + containerBoxNearTop.height + 1);
+
+		await statusTable.evaluate((table) => {
+			table.scrollTop = table.scrollHeight;
+		});
+		const containerBoxNearBottom = await statusTable.boundingBox();
+		const rowBoxNearBottom = await todayRowHeader.boundingBox();
+		if (!containerBoxNearBottom || !rowBoxNearBottom) throw new Error('Expected the status table and today row to be measurable');
+		expect(rowBoxNearBottom.y).toBeGreaterThanOrEqual(containerBoxNearBottom.y - 1);
+		expect(rowBoxNearBottom.y + rowBoxNearBottom.height).toBeLessThanOrEqual(containerBoxNearBottom.y + containerBoxNearBottom.height + 1);
+
+		const otherVisibleRowHeader = page.getByTestId('team-status-day-2026-06-30');
+		await expect(otherVisibleRowHeader).toBeVisible();
+		const otherRowText = await otherVisibleRowHeader.textContent();
+		expect(otherRowText?.trim()).toContain('6/30');
+	});
+
+	test('shows location bars without a hover tooltip in a team status cell', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
@@ -55,56 +118,9 @@ test.describe('attendance team status', () => {
 		await expect(todayCell.getByText(/\d+시간/)).toBeVisible();
 		await expect(todayCell.getByText('외부')).toHaveCount(0);
 		await expect(todayCell.getByText('근무 중')).toHaveCount(0);
+		await expect(todayCell.locator('span[style*="background-color"]')).toHaveCount(3);
 		await todayCell.hover();
-		await expect(page.getByText('08:30-10:20')).toBeVisible();
-		await expect(page.getByText('1시간 50분')).toBeVisible();
-		await expect(page.getByText('10:45-12:20')).toBeVisible();
-		await expect(page.getByText('1시간 35분')).toBeVisible();
-		await expect(page.getByText('12:45~')).toBeVisible();
-		await expect(page.getByText('진행 중')).toBeVisible();
-	});
-
-	test('sizes team status tooltip columns to fit long segment labels', async ({ page }) => {
-		await page.unroute('**/attendance/api/summary**');
-		await page.route('**/attendance/api/summary**', async (route) => {
-			const requestURL = new URL(route.request().url());
-			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
-			await route.fulfill({ json: buildWideTooltipSummary(month, todayDateInSeoul()) });
-		});
-
-		const todayDate = todayDateInSeoul();
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).hover();
-
-		const tooltip = page.locator('[data-slot="tooltip-content"]').filter({ hasText: '사무실본관회의실A' });
-		await expect(tooltip).toBeVisible();
-
-		const layout = await tooltip.evaluate((content) => {
-			const rows = Array.from(content.children).filter((child): child is HTMLElement => {
-				return child instanceof HTMLElement && child.querySelectorAll('span').length >= 4;
-			});
-			const overflowingCells = rows.flatMap((row) => {
-				return Array.from(row.querySelectorAll('span'))
-					.filter((span) => (span.textContent ?? '').trim().length > 0)
-					.filter((span) => span.scrollWidth > span.clientWidth + 1)
-					.map((span) => (span.textContent ?? '').trim());
-			});
-			const columnLefts = rows.map((row) => {
-				const spans = Array.from(row.querySelectorAll('span'));
-				return spans.slice(1, 4).map((span) => Math.round(span.getBoundingClientRect().left));
-			});
-			const maximumColumnDrift = columnLefts[0]
-				? Math.max(
-						...columnLefts.flatMap((lefts) =>
-							lefts.map((left, index) => Math.abs(left - (columnLefts[0]?.[index] ?? left)))
-						)
-					)
-				: 0;
-			return { overflowingCells, maximumColumnDrift };
-		});
-		expect(layout.overflowingCells).toEqual([]);
-		expect(layout.maximumColumnDrift).toBeLessThanOrEqual(1);
+		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
 	});
 
 	test('opens status day details from a team status cell', async ({ page }) => {
@@ -222,7 +238,7 @@ test.describe('attendance team status', () => {
 		await expect(completedTaskItems.filter({ hasText: '다른 사람 캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(0);
 	});
 
-	test('limits desktop status day details with independent section scroll areas', async ({ page }) => {
+	test('uses the desktop side sheet as the only scroll area for long status day details', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 		await routeOverflowStatusDay(page);
 
@@ -230,65 +246,39 @@ test.describe('attendance team status', () => {
 		await selectKorean(page);
 		await page.getByTestId(`team-status-cell-kim@example.com-${overflowTargetDate}`).click();
 
-		const dialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(dialog).toBeVisible();
-		const layout = await dialog.evaluate((element) => {
-			const bounds = element.getBoundingClientRect();
-			return {
-				top: bounds.top,
-				bottom: bounds.bottom,
-				height: bounds.height,
-				viewportHeight: window.innerHeight
-			};
-		});
-		expect(layout.top).toBeGreaterThanOrEqual(16);
-		expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight - 16);
-		expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight - 32);
+		const sheet = page.getByTestId('team-status-day-detail-dialog');
+		await expect(sheet).toBeVisible();
+		const sheetMetrics = await sheet.evaluate((element) => ({
+			clientHeight: element.clientHeight,
+			scrollHeight: element.scrollHeight,
+			overflowY: getComputedStyle(element).overflowY
+		}));
+		expect(sheetMetrics.overflowY).toBe('auto');
+		expect(sheetMetrics.scrollHeight).toBeGreaterThan(sheetMetrics.clientHeight);
 
 		const sectionLists = [
-			dialog.getByTestId('team-status-work-record-list'),
-			dialog.getByTestId('personal-day-detail-panel'),
-			dialog.getByTestId('team-status-calendar-event-list'),
-			dialog.getByTestId('team-status-completed-task-list')
+			sheet.getByTestId('team-status-work-record-list'),
+			sheet.getByTestId('personal-day-detail-panel'),
+			sheet.getByTestId('team-status-calendar-event-list'),
+			sheet.getByTestId('team-status-completed-task-list')
 		];
 		for (const sectionList of sectionLists) {
 			const metrics = await sectionList.evaluate((element) => ({
 				clientHeight: element.clientHeight,
-				scrollHeight: element.scrollHeight,
-				overflowY: getComputedStyle(element).overflowY
+				scrollHeight: element.scrollHeight
 			}));
-			expect(metrics.clientHeight).toBeGreaterThanOrEqual(130);
-			expect(metrics.clientHeight).toBeLessThanOrEqual(220);
-			expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
-			expect(metrics.overflowY).toBe('auto');
+			expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
 		}
-		const fades = dialog.getByTestId('team-status-section-scroll-fade');
-		await expect(fades).toHaveCount(4);
-		const fadeStyles = await fades.evaluateAll((elements) =>
-			elements.map((element) => {
-				const style = getComputedStyle(element);
-				return {
-					backgroundImage: style.backgroundImage,
-					height: style.height,
-					pointerEvents: style.pointerEvents
-				};
-			})
-		);
-		expect(fadeStyles.every((style) => style.backgroundImage.includes('linear-gradient'))).toBe(true);
-		expect(fadeStyles.every((style) => style.height === '12px')).toBe(true);
-		expect(fadeStyles.every((style) => style.pointerEvents === 'none')).toBe(true);
 
-		const cardStyle = await dialog.getByTestId('team-status-calendar-event').first().evaluate((element) => {
+		const cardStyle = await sheet.getByTestId('team-status-calendar-event').first().evaluate((element) => {
 			const style = getComputedStyle(element);
 			return {
 				backgroundColor: style.backgroundColor,
-				boxShadow: style.boxShadow,
-				borderColor: style.borderTopColor
+				boxShadow: style.boxShadow
 			};
 		});
 		expect(cardStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 		expect(cardStyle.boxShadow).not.toBe('none');
-		expect(cardStyle.borderColor).not.toBe('rgb(228, 228, 231)');
 	});
 
 	test('uses the bottom sheet as the only mobile scroll area for long status day details', async ({ page }) => {

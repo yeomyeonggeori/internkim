@@ -45,44 +45,41 @@ describe('team status table model', () => {
 		const labAWidthPercent = dayWidthPercent('09:00', '10:00');
 		const clientSiteWidthPercent = dayWidthPercent('11:00', '12:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '2시간',
+			label: '02시간',
 			tone: 'finished',
-			totalDurationLabel: '2시간',
+			totalDurationLabel: '02시간',
 			segments: [
 				{
 					locationName: 'Lab A',
 					locationColor: '#22c55e',
 					timeLabel: '09:00-10:00',
-					durationLabel: '1시간',
+					durationMinutes: 60,
 					widthPercent: labAWidthPercent,
-					tooltipLabel: 'Lab A 09:00-10:00 · 1시간',
 				},
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
 					timeLabel: '11:00-12:00',
-					durationLabel: '1시간',
+					durationMinutes: 60,
 					widthPercent: clientSiteWidthPercent,
-					tooltipLabel: '고객사 11:00-12:00 · 1시간',
 				},
 			],
 		});
 		const openSegmentWidthPercent = dayWidthPercent('13:00', '15:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '2시간',
+			label: '02시간',
 			tone: 'working',
 			locationName: '고객사',
 			locationColor: '#f59e0b',
 			detailLabel: '13:00',
-			totalDurationLabel: '2시간',
+			totalDurationLabel: '02시간',
 			segments: [
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
 					timeLabel: '13:00~',
-					durationLabel: '진행 중',
+					durationMinutes: 120,
 					widthPercent: openSegmentWidthPercent,
-					tooltipLabel: '고객사 13:00~ · 진행 중',
 					isOpen: true,
 				},
 			],
@@ -169,7 +166,7 @@ describe('team status table model', () => {
 		expect(kim?.days[0]?.date).toBe('2026-06-01');
 		expect(kim?.days[29]?.date).toBe('2026-06-30');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '9시간',
+			label: '09시간',
 			tone: 'finished',
 		});
 		expect(lee?.days.find((day) => day.date === '2026-06-01')).toMatchObject({
@@ -253,7 +250,7 @@ describe('team status table model', () => {
 			currentLocationColor: '#f59e0b',
 		});
 		expect(kim?.days.find((day) => day.date === '2026-05-20')).toMatchObject({
-			label: '9시간',
+			label: '09시간',
 			tone: 'finished',
 		});
 	});

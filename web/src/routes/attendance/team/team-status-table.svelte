@@ -17,12 +17,13 @@
 		selectedDate: string;
 		today: string;
 		text: AttendanceText;
-		onSelectDate: (date: string) => void;
 	};
 
-	let { rows, statusDates, selectedDate, today, text, onSelectDate }: Props = $props();
+	let { rows, statusDates, selectedDate, today, text }: Props = $props();
 	let scrollContainer: HTMLDivElement | undefined = $state();
+	let headerRow: HTMLDivElement | undefined = $state();
 	let scrollContainerWidth = $state(0);
+	let headerRowHeight = $state(0);
 	let isDetailOpen = $state(false);
 	let selectedDetailKey = $state<{ email: string; date: string } | null>(null);
 	let calendarEvents = $state<CalendarEvent[]>([]);
@@ -37,12 +38,13 @@
 	let activeContextLoadKey = $state('');
 	let contextRequestID = 0;
 
-	const minimumMobileEmployeeColumnWidth = 14;
-	const minimumEmployeeColumnWidth = 7;
+	const minimumMobileEmployeeColumnWidth = 8;
+	const minimumEmployeeColumnWidth = 6;
 	const maximumMobileEmployeeColumnWidth = 14;
 	const maximumEmployeeColumnWidth = 13;
-	const employeeColumnChromeWidth = 2;
-	const dayColumnWidth = 5.75;
+	const employeeColumnChromeWidth = 3;
+	const locationLabelIconAllowance = 1.25;
+	const dateColumnWidth = 4.5;
 	const wideTableMinimumWidth = 640;
 	const contextReloadTTLMilliseconds = 30_000;
 	const minimumResponsiveEmployeeColumnWidth = $derived(
@@ -51,10 +53,9 @@
 	const maximumResponsiveEmployeeColumnWidth = $derived(
 		scrollContainerWidth >= wideTableMinimumWidth ? maximumEmployeeColumnWidth : maximumMobileEmployeeColumnWidth
 	);
-	const canShowCellTooltip = $derived(scrollContainerWidth >= wideTableMinimumWidth);
 	const employeeColumnWidth = $derived(calculateEmployeeColumnWidth(rows, minimumResponsiveEmployeeColumnWidth, maximumResponsiveEmployeeColumnWidth));
-	const gridTemplateColumns = $derived(`${employeeColumnWidth}rem repeat(${statusDates.length}, minmax(${dayColumnWidth}rem, ${dayColumnWidth}rem))`);
-	const tableWidth = $derived(`${employeeColumnWidth + statusDates.length * dayColumnWidth}rem`);
+	const gridTemplateColumns = $derived(`${dateColumnWidth}rem repeat(${rows.length}, minmax(${employeeColumnWidth}rem, 1fr))`);
+	const tableWidth = $derived(`${dateColumnWidth + rows.length * employeeColumnWidth}rem`);
 	const selectedDetailBase = $derived.by(() => {
 		if (!selectedDetailKey) return null;
 		const selectedRow = rows.find((row) => row.email === selectedDetailKey?.email);
@@ -96,13 +97,23 @@
 	});
 
 	$effect(() => {
+		if (!headerRow) return;
+		headerRowHeight = headerRow.getBoundingClientRect().height;
+		const resizeObserver = new ResizeObserver((entries) => {
+			headerRowHeight = entries[0]?.contentRect.height ?? headerRow?.getBoundingClientRect().height ?? 0;
+		});
+		resizeObserver.observe(headerRow);
+		return () => resizeObserver.disconnect();
+	});
+
+	$effect(() => {
 		const targetDate = selectedDate;
 		const dates = statusDates.join(',');
 		if (!scrollContainer || !targetDate || !dates) return;
 		const scrollKey = `${targetDate}:${dates}`;
 		if (lastScrollKey === scrollKey) return;
 		lastScrollKey = scrollKey;
-		tick().then(() => scrollToDate(targetDate));
+		tick().then(() => scrollToDateRow(targetDate));
 	});
 
 	$effect(() => {
@@ -113,12 +124,17 @@
 	});
 
 	function calculateEmployeeColumnWidth(employeeRows: TeamStatusPersonRow[], minimumWidth: number, maximumWidth: number): number {
-		const longestNameWidth = Math.max(0, ...employeeRows.map(row => estimateDisplayNameWidth(row.displayName)));
-		return clampWidth(longestNameWidth + employeeColumnChromeWidth, minimumWidth, maximumWidth);
+		const longestNameWidth = Math.max(0, ...employeeRows.map((row) => estimateTextWidth(row.displayName)));
+		const longestLocationLabelWidth = Math.max(
+			0,
+			...employeeRows.map((row) => (row.currentLocationName ? estimateTextWidth(row.currentLocationName) + locationLabelIconAllowance : 0))
+		);
+		const longestContentWidth = Math.max(longestNameWidth, longestLocationLabelWidth);
+		return clampWidth(longestContentWidth + employeeColumnChromeWidth, minimumWidth, maximumWidth);
 	}
 
-	function estimateDisplayNameWidth(displayName: string): number {
-		return Array.from(displayName).reduce((width, character) => width + estimateCharacterWidth(character), 0);
+	function estimateTextWidth(textToMeasure: string): number {
+		return Array.from(textToMeasure).reduce((width, character) => width + estimateCharacterWidth(character), 0);
 	}
 
 	function estimateCharacterWidth(character: string): number {
@@ -130,6 +146,11 @@
 
 	function clampWidth(width: number, minimumWidth: number, maximumWidth: number): number {
 		return Math.min(maximumWidth, Math.max(minimumWidth, width));
+	}
+
+	function dateRowClass(date: string): string {
+		if (date === today) return 'sticky z-[15] grid border-y bg-background shadow-md';
+		return 'grid border-b last:border-b-0';
 	}
 
 	function openDayDetail(row: TeamStatusPersonRow, day: TeamStatusPersonDay): void {
@@ -171,46 +192,50 @@
 		activeContextLoadKey = '';
 	}
 
-	function scrollToDate(date: string): void {
-		const index = statusDates.indexOf(date);
-		if (!scrollContainer || index < 0) return;
-		const remInPixels = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
-		const employeeWidth = employeeColumnWidth * remInPixels;
-		const columnWidth = dayColumnWidth * remInPixels;
-		const targetCenter = employeeWidth + index * columnWidth + columnWidth / 2;
-		const viewportCenter = scrollContainer.clientWidth / 2;
-		scrollContainer.scrollLeft = Math.max(0, targetCenter - viewportCenter);
+	function scrollToDateRow(date: string): void {
+		if (!scrollContainer) return;
+		const dateRowHeader = scrollContainer.querySelector<HTMLElement>(`[data-testid="team-status-day-${date}"]`);
+		if (!dateRowHeader) return;
+		const containerRect = scrollContainer.getBoundingClientRect();
+		const rowHeaderRect = dateRowHeader.getBoundingClientRect();
+		const rowTop = rowHeaderRect.top - containerRect.top + scrollContainer.scrollTop;
+		const targetCenter = rowTop + rowHeaderRect.height / 2;
+		const viewportCenter = scrollContainer.clientHeight / 2;
+		scrollContainer.scrollTop = Math.max(0, targetCenter - viewportCenter);
 	}
 </script>
 
 <div bind:this={scrollContainer} class="h-full max-h-[calc(100vh-12rem)] max-w-full overflow-auto rounded-md border" data-testid="team-status-table">
 	<div style:min-width={tableWidth} role="table" aria-label={text.teamMonthlyStatusTable}>
-		<div role="rowgroup">
-			<div class="sticky top-0 z-20 grid border-b bg-muted/30" style:grid-template-columns={gridTemplateColumns} role="row">
-				<div class="sticky left-0 z-30 border-r bg-muted px-3 py-2 text-xs font-medium text-muted-foreground" role="columnheader">
-					{text.teamMember}
-				</div>
-				{#each statusDates as date (date)}
-					<TeamStatusDateHeader {date} {selectedDate} {today} {text} {onSelectDate} />
-				{/each}
-			</div>
+		<div bind:this={headerRow} class="sticky top-0 z-20 grid border-b bg-muted" style:grid-template-columns={gridTemplateColumns} role="row">
+			<div class="sticky left-0 z-30 border-r bg-muted" role="columnheader"></div>
+			{#each rows as row, employeeIndex (row.email)}
+				<TeamStatusPersonHeader {row} columnIndex={employeeIndex} isLastColumn={employeeIndex === rows.length - 1} />
+			{/each}
 		</div>
 		<div role="rowgroup">
-			{#each rows as row (row.email)}
-				<div class="grid border-b last:border-b-0" style:grid-template-columns={gridTemplateColumns} role="row">
-					<TeamStatusPersonHeader {row} />
-					{#each row.days as day, index (day.date)}
-						<TeamStatusDayCell
-							{day}
-							{index}
-							personEmail={row.email}
-							canShowTooltip={canShowCellTooltip}
-							onOpenDayDetail={(selectedDay) => openDayDetail(row, selectedDay)}
-						/>
-					{/each}
-				</div>
-			{/each}
-			{#if rows.length === 0}
+			{#if rows.length > 0}
+				{#each statusDates as date, dateIndex (date)}
+					<div
+						class={dateRowClass(date)}
+						style:grid-template-columns={gridTemplateColumns}
+						style:top={date === today ? `${headerRowHeight}px` : undefined}
+						style:bottom={date === today ? '0px' : undefined}
+						role="row"
+					>
+						<TeamStatusDateHeader {date} {today} {text} />
+						{#each rows as row, employeeIndex (row.email)}
+							<TeamStatusDayCell
+								day={row.days[dateIndex]}
+								columnIndex={employeeIndex}
+								isLastColumn={employeeIndex === rows.length - 1}
+								personEmail={row.email}
+								onOpenDayDetail={(selectedDay) => openDayDetail(row, selectedDay)}
+							/>
+						{/each}
+					</div>
+				{/each}
+			{:else}
 				<div class="py-8 text-center text-sm text-muted-foreground" role="row">
 					<div role="cell">{text.noMembers}</div>
 				</div>

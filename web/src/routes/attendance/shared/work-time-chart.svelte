@@ -8,9 +8,10 @@
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
 	import { todayDateInTimeZone } from './attendance-date';
+	import DurationText from './duration-text.svelte';
 	import {
 		buildSeries,
-		chartPointTotalMinutes,
+		summarizeDailyValues,
 		type ChartPoint,
 		type DailyValue,
 		type WorkTimeChartLocation,
@@ -92,7 +93,18 @@
 	const axisLabelIndexes = $derived(createAxisLabelIndexes(attendance.chartMode, chartData.length));
 	const axisLabelIndexSet = $derived(new Set(axisLabelIndexes));
 	const axisTickLabelProps = $derived(chartData.length === 1 ? { textAnchor: 'start' as const } : undefined);
-	const maxTotal = $derived(Math.max(1, ...chartData.map(chartPointTotalMinutes)));
+	const isPercentMode = $derived(attendance.chartMode !== 'day');
+	const maxTotal = $derived(
+		isPercentMode ? 100 : Math.max(1, ...chartData.map((point) => point.totalMinutes))
+	);
+	const pointsSummary = $derived(
+		summarizeDailyValues(dailyValues, attendance.chartMode, todayDateInTimeZone(attendance.summary?.timeZone))
+	);
+
+	function formatChartValue(value: number): string {
+		if (isPercentMode) return `${Math.round(value)}%`;
+		return formatValue(value);
+	}
 
 	function createAxisLabelIndexes(mode: ChartMode, count: number): number[] {
 		if (mode === 'month') return [0, 3, 6, 9, 11].filter((index) => index < count);
@@ -119,17 +131,17 @@
 </script>
 
 <Card.Root class={compact ? 'gap-2' : undefined}>
-	<Card.Header class={compact ? 'flex flex-col items-start gap-1 space-y-0 pb-0' : 'flex flex-row items-center justify-between space-y-0'}>
+	<Card.Header class={compact ? 'flex flex-col gap-2 space-y-0 pb-0' : 'flex flex-row items-center justify-between space-y-0'}>
 		<Card.Title class="flex items-center gap-1.5 text-sm">
 			<ClockIcon class="size-3.5 text-muted-foreground" />
 			{title}
 		</Card.Title>
-		<div class="flex items-center gap-1 rounded-md border p-0.5">
+		<div class={compact ? 'grid w-full grid-cols-3 gap-1 rounded-md border p-0.5' : 'flex items-center gap-1 rounded-md border p-0.5'}>
 			{#each modes as mode (mode.value)}
 				<Button
-					variant={attendance.chartMode === mode.value ? 'secondary' : 'ghost'}
+					variant={attendance.chartMode === mode.value ? 'default' : 'ghost'}
 					size="sm"
-					class={compact ? 'h-6 px-2 text-[10px]' : 'h-7 px-3 text-xs'}
+					class={compact ? 'h-6 w-full px-0 text-[10px]' : 'h-7 px-3 text-xs'}
 					onclick={() => (attendance.chartMode = mode.value)}
 				>
 					{mode.label}
@@ -137,7 +149,7 @@
 			{/each}
 		</div>
 	</Card.Header>
-	<Card.Content class={compact ? 'px-3 pb-3 pt-0' : undefined}>
+	<Card.Content class={compact ? 'px-3 pb-3 pt-1' : undefined}>
 		<Chart.Container
 			config={chartConfig}
 			class={compact ? 'h-24 w-full [&_.lc-axis-tick-label]:text-[9px]' : 'h-72 w-full'}
@@ -150,6 +162,7 @@
 				axis="x"
 				grid
 				rule={false}
+				padding={{ left: 6, right: 6, bottom: 18 }}
 				series={chartSeries}
 				seriesLayout="stack"
 				props={{
@@ -185,7 +198,7 @@
 							<div class="flex flex-1 items-center justify-between gap-3 leading-none">
 								<span class="whitespace-nowrap text-muted-foreground">{name}</span>
 								<span class="whitespace-nowrap text-foreground font-mono font-medium tabular-nums">
-									{typeof value === 'number' ? formatValue(value) : String(value)}
+									{typeof value === 'number' ? formatChartValue(value) : String(value)}
 								</span>
 							</div>
 						{/snippet}
@@ -193,5 +206,21 @@
 				{/snippet}
 			</BarChart>
 		</Chart.Container>
+		{#if pointsSummary}
+			<div class={compact ? 'mt-2 grid gap-1 border-t pt-2 text-[11px]' : 'mt-3 flex items-center gap-6 text-xs'}>
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.average}</span>
+					<DurationText minutes={pointsSummary.averageMinutes} class="font-medium" />
+				</div>
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.maximum}</span>
+					<DurationText minutes={pointsSummary.maximumMinutes} class="font-medium" />
+				</div>
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.minimum}</span>
+					<DurationText minutes={pointsSummary.minimumMinutes} class="font-medium" />
+				</div>
+			</div>
+		{/if}
 	</Card.Content>
 </Card.Root>

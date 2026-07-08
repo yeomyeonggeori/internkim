@@ -4,13 +4,11 @@
 
 	type Props = {
 		date: string;
-		selectedDate: string;
 		today: string;
 		text: AttendanceText;
-		onSelectDate: (date: string) => void;
 	};
 
-	let { date, selectedDate, today, text, onSelectDate }: Props = $props();
+	let { date, today, text }: Props = $props();
 
 	const header = $derived(dayHeaderParts(date));
 
@@ -35,27 +33,23 @@
 		return labels[day] ?? '';
 	}
 
-	function dayHeaderButtonClass(dateToStyle: string): string {
-		if (dateToStyle === today) return 'border-primary bg-primary text-primary-foreground hover:bg-primary/90';
-		if (selectedDate === dateToStyle) return 'border-primary bg-sky-50 text-foreground hover:bg-sky-50 dark:bg-sky-950/30';
-		return 'border-transparent bg-transparent text-muted-foreground hover:bg-background';
+	function dayHeaderContainerClass(dateToStyle: string): string {
+		if (dateToStyle === today) return 'z-[16] bg-foreground text-background';
+		return 'z-10 bg-card';
 	}
 
-	function dayHeaderWeekdayClass(dateToStyle: string): string {
-		if (dateToStyle === today) return 'text-primary-foreground';
+	function dayHeaderToneClass(dateToStyle: string): string {
+		if (dateToStyle === today) return '';
 		if (isWeekend(dateToStyle)) return 'text-destructive';
 		return '';
 	}
 </script>
 
-<div class="p-1 text-center" role="columnheader">
-	<button
-		type="button"
-		class={`flex h-8 w-full flex-col items-center justify-center rounded-sm border text-xs transition ${dayHeaderButtonClass(date)}`}
-		data-testid={`team-status-day-${date}`}
-		onclick={() => onSelectDate(date)}
-	>
-		<span class={`font-semibold ${dayHeaderWeekdayClass(date)}`}>{header.weekday}</span>
-		<span class="font-medium tabular-nums">{header.dateLabel}</span>
-	</button>
+<div
+	class={`sticky left-0 flex h-full items-center justify-center gap-1 whitespace-nowrap border-r p-1 text-xs ${dayHeaderContainerClass(date)}`}
+	role="rowheader"
+	data-testid={`team-status-day-${date}`}
+>
+	<span class={`font-medium tabular-nums ${dayHeaderToneClass(date)}`}>{header.dateLabel}</span>
+	<span class={`font-semibold ${dayHeaderToneClass(date)}`}>{header.weekday}</span>
 </div>

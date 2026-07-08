@@ -1,30 +1,36 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import { Badge } from '$lib/components/ui/badge';
+	import LocationLabel from '../shared/location-label.svelte';
 	import type { TeamStatusPersonRow } from './team-status-table-model';
 
 	type Props = {
 		row: TeamStatusPersonRow;
+		columnIndex: number;
+		isLastColumn: boolean;
 	};
 
-	let { row }: Props = $props();
+	let { row, columnIndex, isLastColumn }: Props = $props();
+
+	const dividerClass = $derived(
+		`${columnIndex === 0 ? '' : 'border-l'} ${isLastColumn ? 'border-r' : ''}`
+	);
 </script>
 
-<div class="sticky left-0 z-10 min-w-0 border-r bg-card px-3 py-3 sm:px-2 sm:py-2" role="rowheader">
+<div class={`flex min-w-0 flex-col justify-start gap-1 px-2 py-2 ${dividerClass}`} role="columnheader">
 	<div class="flex min-w-0 items-center gap-2">
 		<PersonAvatar
 			name={row.displayName}
 			email={row.email}
 			seed={row.email || row.mattermostUsername || row.displayName}
-			class="size-9 shrink-0 sm:size-6"
+			class="size-7 shrink-0"
 		/>
-		<div class="min-w-0 flex-1">
-			<div class="whitespace-normal break-all text-base font-semibold leading-tight text-foreground sm:text-sm sm:font-medium">{row.displayName}</div>
-			{#if row.currentLocationName}
-				<div class="mt-1 min-w-0 sm:mt-0.5" data-testid="team-status-current-location">
-					<Badge variant="outline" class="max-w-full whitespace-normal break-all">{row.currentLocationName}</Badge>
-				</div>
-			{/if}
+		<div class="min-w-0 flex-1 whitespace-normal break-all text-sm font-medium leading-tight text-foreground">
+			{row.displayName}
 		</div>
 	</div>
+	{#if row.currentLocationName}
+		<div class="flex min-w-0 justify-end" data-testid="team-status-current-location">
+			<LocationLabel name={row.currentLocationName} class="max-w-full" />
+		</div>
+	{/if}
 </div>

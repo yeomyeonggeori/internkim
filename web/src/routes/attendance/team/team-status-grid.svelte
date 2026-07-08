@@ -33,10 +33,6 @@
 	);
 	const filteredRows = $derived(filterRows(rows, searchText));
 
-	function selectDate(date: string) {
-		attendance.selectedDate = date;
-	}
-
 	function selectMonth(month: string) {
 		attendance.selectedMonth = month;
 		attendance.load();
@@ -74,7 +70,6 @@
 			selectedDate={attendance.selectedDate || defaultAnchorDate}
 			{today}
 			{text}
-			onSelectDate={selectDate}
 		/>
 	</Card.Content>
 </Card.Root>
