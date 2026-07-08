@@ -56,7 +56,7 @@
 	}
 </script>
 
-<div class="space-y-2 rounded-md border p-3">
+<div class="min-w-0 max-w-full space-y-2 overflow-hidden rounded-md border p-3">
 	<GoogleAccountStatus
 		{text}
 		{accountStatus}
