@@ -118,6 +118,105 @@ func TestSaveSelectedCalendarResetsPullStateWhenCalendarChanges(t *testing.T) {
 	}
 }
 
+func TestInitialSyncStateDoesNotOverwriteChangedSelection(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                              "account-google-1",
+		Provider:                        remoteCalendarProviderGoogle,
+		AccountEmail:                    "user@example.com",
+		DefaultCalendarURL:              "/calendars/default/",
+		SelectedCalendarID:              "company@example.com",
+		SelectedCalendarSummary:         "Company",
+		SelectedCalendarAccessRole:      "writer",
+		SelectedCalendarURL:             "/calendars/company/",
+		SelectedCalendarReadinessStatus: calendarReadinessStatusInitialExportPending,
+	})
+	if errorValue != nil {
+		t.Fatalf("seed account: %v", errorValue)
+	}
+	if _, errorValue := service.saveSelectedCalendar(ctx, account, "new-company@example.com", "New Company", "writer", "/calendars/new-company/", time.Now()); errorValue != nil {
+		t.Fatalf("change selection: %v", errorValue)
+	}
+	if _, errorValue := service.saveCalendarPullState(ctx, account, `"old-selected-ctag"`, time.Now(), true); errorValue != nil {
+		t.Fatalf("save stale pull state: %v", errorValue)
+	}
+	if errorValue := service.completeCalendarInitialSyncIfReady(ctx, account, time.Now()); errorValue != nil {
+		t.Fatalf("complete stale initial sync: %v", errorValue)
+	}
+	loaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("account should exist")
+	}
+	if loaded.SelectedCalendarID != "new-company@example.com" {
+		t.Errorf("SelectedCalendarID: got %q", loaded.SelectedCalendarID)
+	}
+	if loaded.SelectedCalendarURL != "/calendars/new-company/" {
+		t.Errorf("SelectedCalendarURL: got %q", loaded.SelectedCalendarURL)
+	}
+	if loaded.DefaultCalendarCTag != "" {
+		t.Errorf("DefaultCalendarCTag should not be set by stale pull: %q", loaded.DefaultCalendarCTag)
+	}
+	if loaded.InitialSyncCompletedAt != "" {
+		t.Errorf("InitialSyncCompletedAt should not be set by stale completion: %q", loaded.InitialSyncCompletedAt)
+	}
+	if loaded.SelectedCalendarReadinessStatus != calendarReadinessStatusInitialSyncPending {
+		t.Errorf("SelectedCalendarReadinessStatus: got %q", loaded.SelectedCalendarReadinessStatus)
+	}
+}
+
+func TestSelectedCalendarPullStateDoesNotOverwriteChangedSelection(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                              "account-google-1",
+		Provider:                        remoteCalendarProviderGoogle,
+		AccountEmail:                    "user@example.com",
+		DefaultCalendarURL:              "/calendars/default/",
+		DefaultCalendarCTag:             `"old-selected-ctag"`,
+		SelectedCalendarID:              "company@example.com",
+		SelectedCalendarSummary:         "Company",
+		SelectedCalendarAccessRole:      "writer",
+		SelectedCalendarURL:             "/calendars/company/",
+		SelectedCalendarReadinessStatus: calendarReadinessStatusSyncReady,
+		InitialSyncCompletedAt:          "2026-07-01T10:05:00Z",
+	})
+	if errorValue != nil {
+		t.Fatalf("seed account: %v", errorValue)
+	}
+	if _, errorValue := service.saveSelectedCalendar(ctx, account, "new-company@example.com", "New Company", "writer", "/calendars/new-company/", time.Now()); errorValue != nil {
+		t.Fatalf("change selection: %v", errorValue)
+	}
+	if _, errorValue := service.saveCalendarPullState(ctx, account, `"stale-selected-ctag"`, time.Now(), false); errorValue != nil {
+		t.Fatalf("save stale pull state: %v", errorValue)
+	}
+	loaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("account should exist")
+	}
+	if loaded.SelectedCalendarID != "new-company@example.com" {
+		t.Errorf("SelectedCalendarID: got %q", loaded.SelectedCalendarID)
+	}
+	if loaded.SelectedCalendarURL != "/calendars/new-company/" {
+		t.Errorf("SelectedCalendarURL: got %q", loaded.SelectedCalendarURL)
+	}
+	if loaded.DefaultCalendarCTag != "" {
+		t.Errorf("DefaultCalendarCTag should not be set by stale pull: %q", loaded.DefaultCalendarCTag)
+	}
+	if loaded.InitialSyncCompletedAt != "" {
+		t.Errorf("InitialSyncCompletedAt should not be restored by stale pull: %q", loaded.InitialSyncCompletedAt)
+	}
+	if loaded.SelectedCalendarReadinessStatus != calendarReadinessStatusInitialSyncPending {
+		t.Errorf("SelectedCalendarReadinessStatus: got %q", loaded.SelectedCalendarReadinessStatus)
+	}
+}
+
 func TestSaveSelectedCalendarBackfillsExistingEventsWhenWritable(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -265,6 +364,51 @@ func TestSaveSelectedCalendarRetriesMissingBackfillForWritableSelection(t *testi
 	}
 	if rows[0].EventID != event.ID {
 		t.Fatalf("backfill event: got %q, want %q", rows[0].EventID, event.ID)
+	}
+}
+
+func TestSaveSelectedCalendarPreservesInitialExportPendingForSameSelection(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                              "account-google-1",
+		Provider:                        remoteCalendarProviderGoogle,
+		AccountEmail:                    "user@example.com",
+		DefaultCalendarURL:              "/calendars/default/",
+		DefaultCalendarCTag:             `"selected-ctag"`,
+		SelectedCalendarID:              "company@example.com",
+		SelectedCalendarSummary:         "Company",
+		SelectedCalendarAccessRole:      "writer",
+		SelectedCalendarURL:             "/calendars/company/",
+		SelectedCalendarSelectedAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		SelectedCalendarReadinessStatus: calendarReadinessStatusInitialExportPending,
+	})
+	if errorValue != nil {
+		t.Fatalf("seed account: %v", errorValue)
+	}
+	event := newLocalTestCalendarEvent("existing-export-pending", "Existing Export Pending")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write existing event: %v", errorValue)
+	}
+
+	updated, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("save same selected calendar: %v", errorValue)
+	}
+	if updated.SelectedCalendarReadinessStatus != calendarReadinessStatusInitialExportPending {
+		t.Fatalf("SelectedCalendarReadinessStatus: got %q", updated.SelectedCalendarReadinessStatus)
+	}
+
+	client := &fakeCalDAVPushClient{
+		putETags: map[string]string{
+			"/calendars/company/" + event.UID + ".ics": `"etag-exported"`,
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, updated, client); errorValue != nil {
+		t.Fatalf("push pending export: %v", errorValue)
+	}
+	if len(client.putCalls) != 1 {
+		t.Fatalf("pending export should push after same selection save, got %d calls", len(client.putCalls))
 	}
 }
 

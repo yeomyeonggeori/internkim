@@ -133,6 +133,114 @@ func TestRunGoogleCalendarPullUsesSelectedCalendarTarget(t *testing.T) {
 	if refreshed.DefaultCalendarCTag != `"selected-ctag"` {
 		t.Errorf("DefaultCalendarCTag: got %q", refreshed.DefaultCalendarCTag)
 	}
+	imported, found, errorValue := service.readCalendarEventByUID(ctx, "evt-selected@google")
+	if errorValue != nil {
+		t.Fatalf("read imported event: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("selected calendar remote event should be imported")
+	}
+	if imported.RemoteSource != remoteCalendarProviderGoogle {
+		t.Errorf("RemoteSource: got %q", imported.RemoteSource)
+	}
+	if imported.RemoteHref == "" {
+		t.Error("RemoteHref should be stored")
+	}
+	if imported.RemoteETag != `"etag-selected"` {
+		t.Errorf("RemoteETag: got %q", imported.RemoteETag)
+	}
+	if imported.RawICS == "" {
+		t.Error("RawICS should be stored")
+	}
+}
+
+func TestRunGoogleCalendarPullDoesNotDuplicateRemoteEventsOnRetry(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("select calendar: %v", errorValue)
+	}
+	firstClient := &fakeCalDAVPullClient{
+		ctag: `"selected-ctag-1"`,
+		objects: []calDAVCalendarObject{
+			fakeRemoteObject(t, "retry-existing@google", `"etag-retry-1"`, "Retry Existing"),
+		},
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, firstClient); errorValue != nil {
+		t.Fatalf("first pull: %v", errorValue)
+	}
+	refreshed, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	secondClient := &fakeCalDAVPullClient{
+		ctag: `"selected-ctag-2"`,
+		objects: []calDAVCalendarObject{
+			fakeRemoteObject(t, "retry-existing@google", `"etag-retry-2"`, "Retry Existing Updated"),
+		},
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, refreshed, secondClient); errorValue != nil {
+		t.Fatalf("retry pull: %v", errorValue)
+	}
+	events, errorValue := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
+	if errorValue != nil {
+		t.Fatalf("read events: %v", errorValue)
+	}
+	count := 0
+	for _, event := range events {
+		if event.UID == "retry-existing@google" {
+			count++
+			if event.RemoteETag != `"etag-retry-2"` {
+				t.Errorf("RemoteETag after retry: got %q", event.RemoteETag)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("remote UID should not duplicate after retry: got %d", count)
+	}
+}
+
+func TestInitialSyncWaitsForSelectedCalendarBackfillOutbox(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	localEvent := newLocalTestCalendarEvent("local-before-selection", "Local Before Selection")
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatalf("write local event: %v", errorValue)
+	}
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("select calendar: %v", errorValue)
+	}
+	client := &fakeCalDAVPullClient{ctag: `"selected-ctag"`}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, client); errorValue != nil {
+		t.Fatalf("pull: %v", errorValue)
+	}
+	refreshed, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account after pull: %v", errorValue)
+	}
+	if refreshed.InitialSyncCompletedAt != "" {
+		t.Fatal("InitialSyncCompletedAt should wait until selected calendar backfill outbox is pushed")
+	}
+
+	pushClient := &fakeCalDAVPushClient{
+		putETags: map[string]string{
+			"/calendars/company/local-before-selection@internkim.ics": `"etag-exported"`,
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, refreshed, pushClient); errorValue != nil {
+		t.Fatalf("push backfill: %v", errorValue)
+	}
+	refreshed, _, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account after push: %v", errorValue)
+	}
+	if refreshed.InitialSyncCompletedAt == "" {
+		t.Fatal("InitialSyncCompletedAt should be set after selected calendar backfill outbox is pushed")
+	}
 }
 
 func TestRunGoogleCalendarPullSkipsMissingRemoteDeleteBeforeInitialSyncCompletes(t *testing.T) {
@@ -195,6 +303,15 @@ func TestRunGoogleCalendarPullPreservesEventsFromOtherCalendarTargets(t *testing
 	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
 	if errorValue != nil {
 		t.Fatalf("select calendar: %v", errorValue)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, selectedAccount.ID)
+	if errorValue != nil {
+		t.Fatalf("list pending backfill: %v", errorValue)
+	}
+	for _, row := range rows {
+		if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
+			t.Fatalf("clear pending backfill %d: %v", row.ID, errorValue)
+		}
 	}
 	selectedAccount, errorValue = service.saveCalendarPullState(ctx, selectedAccount, selectedAccount.DefaultCalendarCTag, time.Now(), true)
 	if errorValue != nil {
