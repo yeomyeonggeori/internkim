@@ -40,11 +40,11 @@ Block copy must be realistic, specific prose for the requested business — real
 - `hero`: opening title, tagline, one call-to-action; once, first.
 - `features`: titled grid of `items`.
 - `prose`: titled free-form paragraphs for narrative or about content.
-- `cta`: high-contrast banner with title, short body, one action.
-- `faq`: expandable `items` as question/answer pairs.
+- `cta`: high-contrast banner, one action.
+- `faq`: expandable question/answer `items`.
 - `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` — `references/blocks.md` lists icons, image sourcing, and backdrop moods. A hero without an image should carry a matching backdrop.
+Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots exist) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. A hero without an image should carry a matching backdrop.
 
 ## Create, Update, Publish
 

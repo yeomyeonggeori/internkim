@@ -29,22 +29,23 @@ CLEAN_CONTENT = {
     "siteName": "연남로보틱스",
     "tagline": "좁은 통로 창고 자동화를 5일 만에",
     "blocks": [
-        {"variant": "hero", "title": "공사 없이 도입하는 소형 AMR", "body": "80cm 통로에서 회전하는 YR-1으로 레거시 창고를 자동화하세요.", "actionLabel": "도입 상담"},
+        {"variant": "hero", "title": "공사 없이 도입하는 소형 AMR", "body": "80cm 통로에서 회전하는 YR-1으로 레거시 창고를 자동화하세요.", "actionLabel": "도입 상담", "backdrop": "grid"},
         {"variant": "features", "title": "도입 효과", "items": [
-            {"title": "공사비 0원", "body": "랙 재배치 없이 기존 창고 그대로 사용합니다."},
-            {"title": "평균 5일 설치", "body": "경쟁 솔루션의 3~6주 대비 즉시 투입됩니다."},
+            {"title": "공사비 0원", "body": "랙 재배치 없이 기존 창고 그대로 사용합니다.", "icon": "hammer"},
+            {"title": "평균 5일 설치", "body": "경쟁 솔루션의 3~6주 대비 즉시 투입됩니다.", "icon": "clock"},
         ]},
-        {"variant": "contact", "title": "상담 문의", "body": "도입 상담을 신청하세요.", "actionLabel": "문의하기"},
+        {"variant": "contact", "title": "상담 문의", "body": "도입 상담은 hello@yeonnam-robotics.kr 로 신청하세요.", "actionLabel": "문의하기"},
     ],
 }
 
 DESIGN_DOCUMENT = """---
 colors:
-  primary: "#111111"
-  background: "#ffffff"
+  primary: "#16324f"
+  background: "#f7fafc"
 typography:
   display:
-    fontFamily: ui-serif
+    fontFamily: Paperlogy
+style: editorial
 ---
 
 ## Overview
