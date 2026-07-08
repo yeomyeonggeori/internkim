@@ -21,6 +21,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 					needsCalendarSelection: false,
 					initialSyncCompleted: true,
 					calendarSyncReady: true,
+					calendarReadinessStatus: 'sync_ready',
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -60,6 +61,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 					needsCalendarSelection: false,
 					initialSyncCompleted: false,
 					calendarSyncReady: false,
+					calendarReadinessStatus: 'initial_sync_pending',
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -118,6 +120,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 					needsCalendarSelection: false,
 					initialSyncCompleted: false,
 					calendarSyncReady: false,
+					calendarReadinessStatus: 'initial_sync_pending',
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -161,6 +164,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 					needsCalendarSelection: !didFailCalendarSelection,
 					initialSyncCompleted: false,
 					calendarSyncReady: false,
+					calendarReadinessStatus: didFailCalendarSelection ? 'reauth_required' : 'calendar_selection_required',
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
@@ -219,6 +223,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 					needsCalendarSelection: false,
 					initialSyncCompleted: true,
 					calendarSyncReady: false,
+					calendarReadinessStatus: 'write_permission_required',
 					googleOAuthConfigured: true,
 					canManageGoogleOAuth: true
 				}
