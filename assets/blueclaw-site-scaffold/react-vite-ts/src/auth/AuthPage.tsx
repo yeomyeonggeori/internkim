@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import type { SiteAuth } from "../site-content";
-import { signIn, signUp } from "./session";
+import { signIn, signUp, useSession } from "./session";
 
 type AuthPageProps = {
 	mode: "login" | "signup";
@@ -11,20 +11,24 @@ type AuthPageProps = {
 };
 
 export function AuthPage({ mode, auth }: AuthPageProps) {
-	const [email, setEmail] = useState("");
-	const [name, setName] = useState("");
+	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const [message, setMessage] = useState("");
 	const [isBusy, setIsBusy] = useState(false);
+	const session = useSession();
 	const isSignup = mode === "signup";
+
+	useEffect(() => {
+		if (session) window.location.hash = auth.redirectAfterLogin;
+	}, [session, auth.redirectAfterLogin]);
 
 	const submit = async (event: React.FormEvent) => {
 		event.preventDefault();
 		setIsBusy(true);
 		setMessage("");
 		const result = isSignup
-			? await signUp(auth.userCollection, email, password, name)
-			: await signIn(auth.userCollection, email, password);
+			? await signUp(auth.userCollection, username, password)
+			: await signIn(auth.userCollection, username, password);
 		setIsBusy(false);
 		if (!result.ok) {
 			setMessage(result.message);
@@ -37,19 +41,27 @@ export function AuthPage({ mode, auth }: AuthPageProps) {
 		<section className="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center py-20">
 			<h1 className="text-3xl font-bold tracking-tight">{isSignup ? "회원가입" : "로그인"}</h1>
 			<form onSubmit={submit} className="mt-8 flex flex-col gap-4">
-				{isSignup ? (
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="auth-name">이름</Label>
-						<Input id="auth-name" value={name} onChange={(event) => setName(event.target.value)} required />
-					</div>
-				) : null}
 				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="auth-email">이메일</Label>
-					<Input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+					<Label htmlFor="auth-username">아이디</Label>
+					<Input
+						id="auth-username"
+						autoComplete="username"
+						value={username}
+						onChange={(event) => setUsername(event.target.value)}
+						required
+					/>
 				</div>
 				<div className="flex flex-col gap-1.5">
 					<Label htmlFor="auth-password">비밀번호</Label>
-					<Input id="auth-password" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required />
+					<Input
+						id="auth-password"
+						type="password"
+						autoComplete={isSignup ? "new-password" : "current-password"}
+						minLength={8}
+						value={password}
+						onChange={(event) => setPassword(event.target.value)}
+						required
+					/>
 				</div>
 				{message ? <p className="text-sm text-destructive">{message}</p> : null}
 				<Button type="submit" disabled={isBusy} className="mt-2">
