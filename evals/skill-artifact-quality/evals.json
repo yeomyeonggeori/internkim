@@ -50,7 +50,7 @@
   "evaluations": [
     {
       "id": "docx-business-review",
-      "skillName": "docx",
+      "skillName": "document",
       "artifactKind": "docx",
       "outputFileName": "han-river-ops-q2-review.docx",
       "sourceFile": "fixtures/docx-business-review.md",
@@ -107,7 +107,7 @@
     },
     {
       "id": "site-mealkit-reservation",
-      "skillName": "site-prototype",
+      "skillName": "website",
       "artifactKind": "website",
       "outputFileName": null,
       "sourceFile": "fixtures/site-mealkit-reservation.md",
@@ -137,7 +137,7 @@
     },
     {
       "id": "xlsx-popup-budget",
-      "skillName": "xlsx",
+      "skillName": "spreadsheet",
       "artifactKind": "xlsx",
       "outputFileName": "jamsil-studio-popup-budget.xlsx",
       "sourceFile": "fixtures/xlsx-popup-budget.md",
@@ -201,7 +201,7 @@
     },
     {
       "id": "site-pottery-multipage",
-      "skillName": "site-prototype",
+      "skillName": "website",
       "artifactKind": "website",
       "outputFileName": null,
       "sourceFile": "fixtures/site-pottery-studio-multipage.md",

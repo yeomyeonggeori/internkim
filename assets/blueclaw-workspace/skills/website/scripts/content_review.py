@@ -97,7 +97,7 @@ def unused_palette_notes(blocks: list) -> list:
         notes.append("palette: items accept icon (mail, instagram, map-pin, calendar, clock, flame, leaf, star, heart, users, sparkles, palette, hammer, coffee, sun, gift, award, compass, ... full list in references/blocks.md) when meaning calls for it")
     has_images = any(block.get("image") for block in blocks)
     if not has_images:
-        notes.append("palette: hero/prose accept image + imageAlt — one command fetches a CC0 photo: python3 /workspace/skills/site-prototype/scripts/fetch_image.py \"<english query>\" app/public/images/<name>.jpg")
+        notes.append("palette: hero/prose accept image + imageAlt — one command fetches a CC0 photo: python3 /workspace/skills/website/scripts/fetch_image.py \"<english query>\" app/public/images/<name>.jpg")
     has_backdrops = any(str(block.get("backdrop") or "") for block in blocks)
     if not has_backdrops:
         notes.append("palette: hero/cta accept backdrop — mesh (blended color field), aurora (soft glow), grain (analog texture), grid (technical lines), dots (playful matrix)")

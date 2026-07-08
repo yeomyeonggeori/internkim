@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-REVIEW_SCRIPT = REPOSITORY_ROOT / "assets/blueclaw-workspace/skills/site-prototype/scripts/content_review.py"
+REVIEW_SCRIPT = REPOSITORY_ROOT / "assets/blueclaw-workspace/skills/website/scripts/content_review.py"
 
 FILLER_CONTENT = {
     "siteName": "연남로보틱스",
