@@ -15,6 +15,7 @@ export const orgchartText = {
 		editMode: '편집',
 		save: '저장',
 		cancel: '취소',
+		unsavedChanges: '저장하지 않은 조직도 변경사항이 있습니다. 각 카드에서 저장 또는 취소를 먼저 선택해 주세요.',
 		none: '없음'
 	},
 	en: {
@@ -33,6 +34,7 @@ export const orgchartText = {
 		editMode: 'Edit',
 		save: 'Save',
 		cancel: 'Cancel',
+		unsavedChanges: 'There are unsaved org chart changes. Save or cancel each card before closing edit mode.',
 		none: 'None'
 	}
 } as const;
