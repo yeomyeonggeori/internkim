@@ -4,6 +4,12 @@
 
 이 문서는 새 Codex 세션이 현재 작업을 이어받기 위한 실행 기록이다. 사용자와의 대화 맥락보다 이 문서를 우선 읽고, 실제 파일 상태를 다시 확인한 뒤 진행한다.
 
+> 정정 (2026-07-08): 아래 본문의 비실환경 테스트 모델 `google/gemma-4-31b-it:free`는
+> 이 문서 작성 시점의 값이다. 현행 기본 핀은 `xiaomi/mimo-v2.5`다
+> (`internal/cli/dev_command.go`의 `INTERNKIM_TEST_MODEL`/`--llm-model` 기본값,
+> `tools/reprovision-local-fleet`, `tools/e2e-crud`). 본문 로그는 기록 보존을 위해
+> 수정하지 않는다.
+
 ## 목표
 
 - 기존 변경을 보존한 상태에서 Blueclaw tool/kernel 정리 작업을 계속한다.
