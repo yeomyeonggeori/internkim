@@ -219,7 +219,7 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
                 warnings.append(f"iconConsistencyWarning: page {path_label} block {block_index} mixes icon and no-icon items; give every item an icon or none")
             for item_index, item in enumerate(items, start=1):
                 body_text = str(item.get("body") or "")
-                if body_text.count(" | ") >= 2 or body_text.count("|") >= 3:
+                if " | " in body_text or body_text.count("|") >= 2:
                     warnings.append(f"pipeDelimitedBodyWarning: page {path_label} block {block_index} item {item_index} crams data with | separators; use line breaks or separate labeled items")
                     break
     return warnings
