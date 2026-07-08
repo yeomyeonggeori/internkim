@@ -3198,6 +3198,9 @@ func validateSiteContentBlocks(blocks []siteContentBlock) error {
 		if backdrop := strings.TrimSpace(block.Backdrop); backdrop != "" && !siteContentKnownBackdrops[backdrop] {
 			return fmt.Errorf("blocks[%d].backdrop %q does not exist; choose mesh, aurora, grain, grid, or dots", blockIndex, backdrop)
 		}
+		if image := strings.TrimSpace(block.Image); strings.HasPrefix(image, "http://") || strings.HasPrefix(image, "https://") {
+			return fmt.Errorf("blocks[%d].image hotlinks an external URL; fetch the photo into app/public/images/ with scripts/fetch_image.py and reference /images/<name>", blockIndex)
+		}
 		for itemIndex, item := range block.Items {
 			if strings.TrimSpace(item.Title) == "" {
 				return fmt.Errorf("blocks[%d].items[%d].title is required", blockIndex, itemIndex)

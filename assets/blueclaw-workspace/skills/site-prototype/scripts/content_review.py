@@ -28,6 +28,7 @@ WARNING_WEIGHTS = {
     "iconConsistencyWarning": 6,
     "deadContactWarning": 19,
     "unknownBackdropWarning": 10,
+    "hotlinkedImageWarning": 19,
 }
 KNOWN_BACKDROPS = {"mesh", "aurora", "grain", "grid", "dots"}
 GENERIC_FONT_KEYWORDS = {
@@ -233,6 +234,9 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
             items = block.get("items") or []
             if variant in ("features", "faq") and len(items) == 1:
                 warnings.append(f"sparseItemsWarning: page {path_label} block {block_index} is a {variant} with a single item; use a different variant or add real items")
+            image_value = str(block.get("image") or "").strip()
+            if image_value.startswith("http://") or image_value.startswith("https://"):
+                warnings.append(f"hotlinkedImageWarning: page {path_label} block {block_index} hotlinks an external image whose subject and availability cannot be trusted; fetch a CC0 photo with scripts/fetch_image.py into app/public/images/ and reference /images/<name>")
             backdrop = str(block.get("backdrop") or "").strip()
             if backdrop and backdrop not in KNOWN_BACKDROPS:
                 warnings.append(f"unknownBackdropWarning: page {path_label} block {block_index} backdrop {backdrop!r} does not exist and renders as nothing; choose mesh, aurora, grain, grid, or dots")
