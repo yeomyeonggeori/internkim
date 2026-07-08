@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { openCalendarSettings, routeCalendarShellAPI } from './calendar-route-shell-test-utils';
+import { openCalendarSettings, routeCalendarShellAPI, routeWritableGoogleCalendars } from './calendar-route-shell-test-utils';
 
 test.describe('calendar route Google Calendar readiness', () => {
 	test.beforeEach(async ({ page }) => {
 		await routeCalendarShellAPI(page);
+		await routeWritableGoogleCalendars(page, { setSelectedCalendarID: () => {} });
 	});
 
 	test('shows selected Google Calendar sync readiness', async ({ page }) => {
@@ -147,6 +148,7 @@ test.describe('calendar route Google Calendar readiness', () => {
 	test('shows reconnect state when Google calendar selection requires reauth', async ({ page }) => {
 		let didFailCalendarSelection = false;
 		await page.unroute('**/calendar/api/account-status');
+		await page.unroute('**/calendar/api/google-calendars**');
 		await page.route('**/calendar/api/account-status', async (route) => {
 			await route.fulfill({
 				json: {
