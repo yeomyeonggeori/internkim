@@ -218,6 +218,15 @@ func renderSiteThemeCSS(theme siteTheme) string {
 		"  --background: " + theme.BackgroundColor + ";\n" +
 		"  --foreground: " + theme.ForegroundColor + ";\n" +
 		"  --accent: " + theme.AccentColor + ";\n" +
+		"  --secondary: color-mix(in srgb, " + theme.PrimaryColor + " 8%, " + theme.BackgroundColor + ");\n" +
+		"  --secondary-foreground: " + theme.ForegroundColor + ";\n" +
+		"  --muted: color-mix(in srgb, " + theme.ForegroundColor + " 4%, " + theme.BackgroundColor + ");\n" +
+		"  --muted-foreground: color-mix(in srgb, " + theme.ForegroundColor + " 64%, " + theme.BackgroundColor + ");\n" +
+		"  --border: color-mix(in srgb, " + theme.ForegroundColor + " 12%, " + theme.BackgroundColor + ");\n" +
+		"  --input: color-mix(in srgb, " + theme.ForegroundColor + " 18%, " + theme.BackgroundColor + ");\n" +
+		"  --card: color-mix(in srgb, " + theme.BackgroundColor + " 92%, #ffffff);\n" +
+		"  --card-foreground: " + theme.ForegroundColor + ";\n" +
+		"  --ring: " + theme.AccentColor + ";\n" +
 		"  --radius: " + theme.RadiusValue + ";\n" +
 		"  --font-heading: " + headingFontStack + ";\n" +
 		"  --font-body: " + bodyFontStack + ";\n" +
