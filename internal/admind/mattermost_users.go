@@ -571,59 +571,8 @@ func (service *Service) deleteBlueclawDirectConversationHistory(ctx context.Cont
 	if normalizedChannelID == "" {
 		return nil
 	}
-	sql := blueclawDirectConversationResetSQL(normalizedChannelID)
-	command := "su -s /bin/bash postgres -c " + quoteShellValue("psql -d blueclaw -v ON_ERROR_STOP=1 <<'SQL'\n"+sql+"\nSQL")
-	_, errorValue := service.runCommand(ctx, "sh", "-c", command)
-	return errorValue
-}
-
-func blueclawDirectConversationResetSQL(channelID string) string {
-	directConversationID := "dm:" + channelID
-	threadConversationPattern := "thread:" + channelID + ":%"
-	return fmt.Sprintf(`DO $$
-DECLARE
-  direct_conversation_id text := %s;
-  thread_conversation_pattern text := %s;
-BEGIN
-  IF to_regclass('public.task_run') IS NOT NULL THEN
-    DELETE FROM task_run
-    WHERE origin_conversation_id = direct_conversation_id
-       OR origin_conversation_id LIKE thread_conversation_pattern;
-  END IF;
-
-  IF to_regclass('public.raw_event') IS NOT NULL THEN
-    DELETE FROM raw_event
-    WHERE conversation_id IN (
-      SELECT conversation_id FROM conversation
-      WHERE platform = 'mattermost'
-        AND (external_conversation_id = direct_conversation_id
-          OR external_conversation_id LIKE thread_conversation_pattern)
-    );
-  END IF;
-
-  IF to_regclass('public.graphiti_episode') IS NOT NULL THEN
-    DELETE FROM graphiti_episode
-    WHERE conversation_id = direct_conversation_id
-       OR conversation_id LIKE thread_conversation_pattern;
-  END IF;
-
-  IF to_regclass('public.graphiti_namespace') IS NOT NULL THEN
-    DELETE FROM graphiti_namespace
-    WHERE scope_conversation_id = direct_conversation_id
-       OR scope_conversation_id LIKE thread_conversation_pattern;
-  END IF;
-
-  IF to_regclass('public.conversation') IS NOT NULL THEN
-    DELETE FROM conversation
-    WHERE platform = 'mattermost'
-      AND (external_conversation_id = direct_conversation_id
-        OR external_conversation_id LIKE thread_conversation_pattern);
-  END IF;
-END $$;`, quoteSQLLiteral(directConversationID), quoteSQLLiteral(threadConversationPattern))
-}
-
-func quoteSQLLiteral(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+	body := map[string]string{"channelID": normalizedChannelID}
+	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/conversation/reset", body, nil)
 }
 
 func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context, token string, password string) error {
