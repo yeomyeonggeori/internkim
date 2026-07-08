@@ -29,7 +29,7 @@
 	type="button"
 	class={[
 		'grid h-24 min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-3 bg-background p-3 text-left transition',
-		isAttachedToHeader ? 'rounded-b-md rounded-t-none border shadow-sm hover:border-primary/50 hover:bg-muted/40' : 'rounded-md border shadow-sm hover:border-primary/50 hover:bg-muted/40',
+		isAttachedToHeader ? 'rounded-b-md rounded-t-none border hover:border-primary/50 hover:bg-muted/40' : 'rounded-md border hover:border-primary/50 hover:bg-muted/40',
 		isRoot ? 'w-full max-w-80' : 'w-full',
 		isSelected ? 'border-primary ring-1 ring-primary' : 'border-border'
 	]}

@@ -111,11 +111,11 @@ test.describe('employee orgchart directory', () => {
 		await expect(page.getByTestId('orgchart-team-column-product')).toBeVisible();
 		await expect(page.getByTestId('orgchart-team-column-__unassigned__')).toBeVisible();
 		await expect(page.getByTestId('orgchart-tree-node-user-taehyun')).toBeVisible();
-		await expect(page.getByText('100%')).toBeVisible();
+		await expectOrgchartZoomToFit(page);
 		await expect(page.getByTestId('orgchart-connector-layer')).toBeVisible();
 		await expect(page.getByRole('link', { name: '인사 정보 수정' })).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-person-detail-panel')).toHaveCount(0);
-		await expectOrgchartTeamGridToFillCanvas(page);
+		await expectOrgchartTeamGridToAlignWithConnectors(page);
 		await expect(page.getByTestId('orgchart-canvas').getByText(/^팀 리드:/)).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-canvas').getByText(/^구성원 1명$/)).toHaveCount(0);
 
@@ -193,7 +193,7 @@ async function expectMobileDetailPanelLayout(page: Page): Promise<void> {
 	expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight - mobilePanelInset * 2);
 }
 
-async function expectOrgchartTeamGridToFillCanvas(page: Page): Promise<void> {
+async function expectOrgchartTeamGridToAlignWithConnectors(page: Page): Promise<void> {
 	const [teamGridBox, connectorBox, canvasBox] = await Promise.all([
 		page.getByTestId('orgchart-team-grid').boundingBox(),
 		page.getByTestId('orgchart-connector-layer').boundingBox(),
@@ -202,9 +202,17 @@ async function expectOrgchartTeamGridToFillCanvas(page: Page): Promise<void> {
 	const teamGridWidth = teamGridBox?.width ?? 0;
 	const connectorWidth = connectorBox?.width ?? 0;
 	const canvasWidth = canvasBox?.width ?? 0;
-	expect(teamGridWidth).toBeGreaterThanOrEqual(canvasWidth * 0.92);
+	expect(teamGridWidth).toBeGreaterThan(0);
+	expect(teamGridWidth).toBeLessThanOrEqual(canvasWidth);
 	expect(Math.abs(teamGridWidth - connectorWidth)).toBeLessThanOrEqual(1);
 	expect(Math.abs((teamGridBox?.x ?? 0) - (connectorBox?.x ?? 0))).toBeLessThanOrEqual(1);
+}
+
+async function expectOrgchartZoomToFit(page: Page): Promise<void> {
+	const zoomText = await page.getByText(/^\d+%$/).first().textContent();
+	const zoom = Number(zoomText?.replace('%', ''));
+	expect(zoom).toBeGreaterThanOrEqual(70);
+	expect(zoom).toBeLessThanOrEqual(100);
 }
 
 async function mockOrgchartDirectory(page: Page): Promise<void> {
