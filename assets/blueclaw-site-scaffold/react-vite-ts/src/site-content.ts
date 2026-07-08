@@ -15,6 +15,7 @@ export type Block = {
 	actionHref?: string;
 	image?: string;
 	imageAlt?: string;
+	backdrop?: string;
 };
 
 export type SitePage = {
@@ -120,6 +121,7 @@ function parseBlock(value: unknown): Block | undefined {
 		actionHref: value.actionHref,
 		image: isNonEmptyString(value.image) ? value.image : undefined,
 		imageAlt: isNonEmptyString(value.imageAlt) ? value.imageAlt : undefined,
+		backdrop: isNonEmptyString(value.backdrop) ? value.backdrop : undefined,
 	};
 }
 

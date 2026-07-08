@@ -22,3 +22,15 @@ Always set `imageAlt`. Keep files under about 400KB; prefer 1600px-wide JPEG.
 ## Contact Links
 
 Contact body text and item bodies auto-link emails (mailto:), full URLs, and @instagram handles — write them as plain text like `hello@example.com`, `https://example.com`, `@studio.handle`, and the renderer makes them clickable. Use contact `items` for structured entries: `{ "title": "이메일", "body": "hello@example.com", "icon": "mail" }`.
+
+## Backdrops
+
+`hero` and `cta` blocks accept `backdrop` with one of: `mesh`, `aurora`, `grain`, `grid`, `dots`. Each renders a designer-grade decorative layer from the theme palette — no image needed, colors always harmonize:
+
+- `mesh`: blended multi-point color gradient; warm, contemporary hero default.
+- `aurora`: large soft blurred color fields; dreamy, premium.
+- `grain`: film-grain texture over a soft tint; crafted, analog.
+- `grid`: fine fading line grid; technical, product-focused.
+- `dots`: fading dot matrix; playful, precise.
+
+A hero with no image should almost always carry a backdrop that matches the mood. Combine with the `style:` preset in DESIGN.md — e.g. pottery studio: `grain`; tech product: `grid` or `mesh`; kids brand: `dots`.

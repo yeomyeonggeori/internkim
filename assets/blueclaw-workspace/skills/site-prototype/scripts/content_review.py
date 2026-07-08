@@ -22,6 +22,7 @@ WARNING_WEIGHTS = {
     "duplicatedPageCompositionWarning": 8,
     "defaultPaletteWarning": 10,
     "genericFontWarning": 8,
+    "bareHeroWarning": 6,
 }
 GENERIC_FONT_KEYWORDS = {
     "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded", "system-ui",
@@ -206,6 +207,8 @@ def page_structure_warnings(pages: list, all_blocks: list) -> list:
             items = block.get("items") or []
             if variant in ("features", "faq") and len(items) == 1:
                 warnings.append(f"sparseItemsWarning: page {path_label} block {block_index} is a {variant} with a single item; use a different variant or add real items")
+            if variant == "hero" and not block.get("image") and not block.get("backdrop"):
+                warnings.append(f"bareHeroWarning: page {path_label} hero has neither image nor backdrop; add a backdrop (mesh, aurora, grain, grid, dots) or an image")
     return warnings
 
 
