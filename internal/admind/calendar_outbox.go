@@ -267,6 +267,42 @@ func hasPendingCalendarPutForTargetWithRunner(ctx context.Context, queryRunner c
 	return false, rows.Err()
 }
 
+func (service *Service) hasPendingCalendarPutsForTarget(ctx context.Context, accountID string, target remoteCalendarTarget) (bool, error) {
+	if target.CalendarURL == "" {
+		return false, nil
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer database.Close()
+	query := `SELECT remote_href FROM calendar_outbox WHERE operation = ?`
+	arguments := []any{calendarOutboxOperationPut}
+	if strings.TrimSpace(accountID) != "" {
+		query += " AND account_id = ?"
+		arguments = append(arguments, strings.TrimSpace(accountID))
+	}
+	query += " ORDER BY id"
+	rows, errorValue := database.QueryContext(ctx, query, arguments...)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var remoteHref string
+		if errorValue := rows.Scan(&remoteHref); errorValue != nil {
+			return false, errorValue
+		}
+		if calendarOutboxPutTargetsRemoteTarget(calendarOutboxRow{
+			Operation:  calendarOutboxOperationPut,
+			RemoteHref: remoteHref,
+		}, target) {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
+}
+
 func mergeCalendarFieldLists(left []string, right []string) []string {
 	if len(left) == 0 {
 		return append([]string(nil), right...)

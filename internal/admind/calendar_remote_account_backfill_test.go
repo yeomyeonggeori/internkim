@@ -61,6 +61,23 @@ func TestSelectedCalendarBackfillRetargetsPendingPutFromPreviousCalendar(t *test
 	if freshRows != 1 || oldRows != 1 {
 		t.Fatalf("pending rows after backfill: fresh=%d old=%d rows=%+v", freshRows, oldRows, rows)
 	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, selectedAccount, &fakeCalDAVPushClient{}); errorValue != nil {
+		t.Fatalf("push before initial pull: %v", errorValue)
+	}
+	rowsBeforePull, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatalf("list outbox before pull: %v", errorValue)
+	}
+	if len(rowsBeforePull) != len(rows) {
+		t.Fatalf("initial export should wait for selected calendar pull: got %d rows, want %d", len(rowsBeforePull), len(rows))
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{ctag: `"selected-ctag"`}); errorValue != nil {
+		t.Fatalf("initial pull: %v", errorValue)
+	}
+	selectedAccount, _, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read selected account: %v", errorValue)
+	}
 
 	expectedPath := "/calendars/company/" + event.UID + ".ics"
 	client := &fakeCalDAVPushClient{
@@ -81,5 +98,50 @@ func TestSelectedCalendarBackfillRetargetsPendingPutFromPreviousCalendar(t *test
 	}
 	if len(remaining) != 0 {
 		t.Fatalf("outbox should be empty after stale cleanup and selected push: %+v", remaining)
+	}
+}
+
+func TestSelectedCalendarBackfillDoesNotCreateFreshPutForImportedUID(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	event := newLocalTestCalendarEvent("existing-imported", "Existing Imported")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write existing event: %v", errorValue)
+	}
+	account := seedAccountWithDiscovery(t, service)
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatalf("save selected calendar: %v", errorValue)
+	}
+	remoteObject := fakeRemoteObject(t, event.UID, `"etag-imported"`, "Existing Imported")
+	remoteObject.Path = "/calendars/company/" + event.UID + ".ics"
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{
+		ctag:    `"selected-ctag"`,
+		objects: []calDAVCalendarObject{remoteObject},
+	}); errorValue != nil {
+		t.Fatalf("initial pull: %v", errorValue)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, selectedAccount.ID)
+	if errorValue != nil {
+		t.Fatalf("list outbox: %v", errorValue)
+	}
+	freshRows := 0
+	selectedUpdateRows := 0
+	for _, row := range rows {
+		if row.EventUID != event.UID || row.Operation != calendarOutboxOperationPut {
+			continue
+		}
+		if row.RemoteHref == "" {
+			freshRows++
+		}
+		if row.RemoteHref == remoteObject.Path && row.IfMatchETag == `"etag-imported"` {
+			selectedUpdateRows++
+		}
+	}
+	if freshRows != 0 {
+		t.Fatalf("imported UID should not keep fresh duplicate export rows: %+v", rows)
+	}
+	if selectedUpdateRows != 1 {
+		t.Fatalf("imported UID should retarget pending put to selected remote identity: got %d rows=%+v", selectedUpdateRows, rows)
 	}
 }
