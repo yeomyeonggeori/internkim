@@ -385,7 +385,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 	}
 	for _, expectedText := range []string{"must-show source content", "rendered text", "source checklist"} {
 		if !strings.Contains(string(siteSkillDocument), expectedText) {
-			t.Fatalf("site-prototype skill must include %q", expectedText)
+			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
 }
@@ -631,49 +631,6 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 	}
 }
 
-func TestSimpleSlidesDelegatesToPresentation(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
-	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"compatibility alias",
-		"presentation skill contract",
-		"/workspace/skills/presentation/scripts/build.sh",
-		"required-visible-text.txt",
-		"slides.html` first",
-		"Visual Identity Gate",
-		"Preserve the user's exact organization, product, period",
-		"Do not run `/workspace/skills/simple-slides/scripts/build.sh` directly",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("simple-slides must delegate to presentation with %q", expectedText)
-		}
-	}
-
-	buildPath := filepath.Join(skillPath, "scripts", "build.sh")
-	buildInfo, errorValue := os.Stat(buildPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if buildInfo.Mode()&0111 == 0 {
-		t.Fatal("simple-slides build wrapper must be executable")
-	}
-
-	buildScript, errorValue := os.ReadFile(buildPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	buildContent := string(buildScript)
-	for _, expectedText := range []string{"/workspace/skills/presentation/scripts/build.sh", "../../presentation/scripts/build.sh", `exec "$PRESENTATION_BUILD_PATH" "$@"`} {
-		if !strings.Contains(buildContent, expectedText) {
-			t.Fatalf("simple-slides build wrapper must contain %q", expectedText)
-		}
-	}
-}
 
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
