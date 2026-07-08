@@ -20,6 +20,8 @@ Environment=RUST_LOG=%s
 ExecStart=%s -runtime %s
 Restart=on-failure
 RestartSec=2
+KillMode=mixed
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
