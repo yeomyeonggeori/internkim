@@ -11,9 +11,11 @@ INLINE_PATTERN = re.compile(r"(\*\*.+?\*\*|\*.+?\*|`.+?`)")
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Render a markdown source of truth into a .docx deliverable")
     parser.add_argument("markdown_path", help="path to content.md")
-    parser.add_argument("--output", help="output .docx path; defaults next to the markdown")
-    parser.add_argument("--font", default="맑은 고딕", help="base font family name")
+    parser.add_argument("--output", help="output path; defaults next to the markdown")
+    parser.add_argument("--format", default="docx", choices=["docx", "pdf"], help="deliverable format")
+    parser.add_argument("--font", default="맑은 고딕", help="base font family name for docx")
     parser.add_argument("--font-size", type=float, default=10.5)
+    parser.add_argument("--font-path", default="", help="Korean-capable TTF for pdf output")
     return parser.parse_args()
 
 
@@ -125,21 +127,114 @@ def render_markdown(document, markdown_text, point_class):
         add_inline_runs(paragraph, " ".join(paragraph_lines), point_class)
 
 
+PDF_FONT_CANDIDATES = [
+    Path("/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf"),
+    Path("/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+    Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+]
+
+
+def resolve_pdf_font(font_path_argument):
+    if font_path_argument:
+        return Path(font_path_argument)
+    for candidate in PDF_FONT_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def export_pdf(markdown_text, output_path, font_path_argument, font_size):
+    from fpdf import FPDF
+
+    font_path = resolve_pdf_font(font_path_argument)
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    family = "Helvetica"
+    if font_path and font_path.exists():
+        family = "DocumentFont"
+        pdf.add_font(family, "", str(font_path))
+        pdf.add_font(family, "B", str(font_path))
+        pdf.add_font(family, "I", str(font_path))
+    elif any(ord(character) > 0x2000 for character in markdown_text):
+        raise SystemExit("non-Latin PDF text requires --font-path or an installed Korean-capable font")
+
+    def write_line(text, size, style="", indent=0, spacing=2):
+        pdf.set_font(family, style, size)
+        pdf.set_x(pdf.l_margin + indent)
+        pdf.multi_cell(0, size * 0.55, strip_inline_markers(text))
+        pdf.ln(spacing)
+
+    lines = markdown_text.splitlines()
+    index = 0
+    heading_sizes = {1: 20, 2: 15, 3: 12.5, 4: 11}
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if not stripped:
+            index += 1
+            continue
+        heading_match = re.match(r"^(#{1,4})\s+(.*)$", stripped)
+        if heading_match:
+            write_line(heading_match.group(2), heading_sizes[len(heading_match.group(1))], "B", spacing=3)
+            index += 1
+            continue
+        if is_table_line(lines[index]):
+            table_lines = []
+            while index < len(lines) and is_table_line(lines[index]):
+                table_lines.append(lines[index])
+                index += 1
+            rows = [split_table_row(line) for line in table_lines if not is_divider_row(line)]
+            pdf.set_font(family, "", font_size)
+            with pdf.table() as table:
+                for row in rows:
+                    table_row = table.row()
+                    for cell in row:
+                        table_row.cell(strip_inline_markers(cell))
+            pdf.ln(3)
+            continue
+        list_match = re.match(r"^\s*(?:[-*]|\d+[.)])\s+(.*)$", lines[index])
+        if list_match:
+            marker = "• " if re.match(r"^\s*[-*]", lines[index]) else re.match(r"^\s*(\d+[.)])", lines[index]).group(1) + " "
+            write_line(marker + list_match.group(1), font_size, indent=4, spacing=1)
+            index += 1
+            continue
+        if stripped.startswith(">"):
+            write_line(stripped.lstrip("> ").strip(), font_size, "I", indent=8)
+            index += 1
+            continue
+        paragraph_lines = []
+        while index < len(lines) and lines[index].strip() and not re.match(r"^(#{1,4})\s+", lines[index].strip()) and not is_table_line(lines[index]) and not re.match(r"^\s*([-*]|\d+[.)])\s+", lines[index]):
+            paragraph_lines.append(lines[index].strip())
+            index += 1
+        write_line(" ".join(paragraph_lines), font_size)
+    pdf.output(str(output_path))
+
+
+def strip_inline_markers(text):
+    return re.sub(r"\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`", lambda match: next(group for group in match.groups() if group is not None), text)
+
+
 def main():
     arguments = parse_arguments()
     ensure_requirements("document")
-    from docx import Document
-    from docx.shared import Pt
 
     markdown_path = Path(arguments.markdown_path)
     markdown_text = markdown_path.read_text(encoding="utf-8")
-    output_path = Path(arguments.output) if arguments.output else markdown_path.with_suffix(".docx")
-
-    document = Document()
-    set_base_font(document, arguments.font, arguments.font_size, Pt)
-    render_markdown(document, markdown_text, Pt)
+    default_suffix = "." + arguments.format
+    output_path = Path(arguments.output) if arguments.output else markdown_path.with_suffix(default_suffix)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    document.save(output_path)
+
+    if arguments.format == "pdf":
+        export_pdf(markdown_text, output_path, arguments.font_path, arguments.font_size)
+    else:
+        from docx import Document
+        from docx.shared import Pt
+
+        document = Document()
+        set_base_font(document, arguments.font, arguments.font_size, Pt)
+        render_markdown(document, markdown_text, Pt)
+        document.save(output_path)
     print(f"exported {output_path} from {markdown_path}")
 
 
