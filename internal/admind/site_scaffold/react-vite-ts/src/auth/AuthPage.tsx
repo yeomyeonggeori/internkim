@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import type { SiteAuth } from "../site-content";
-import { signIn, signUp, useSession } from "./session";
+import { passkeyLogin, passkeySignUp, signIn, signUp, supportsPasskey, useSession } from "./session";
 
 type AuthPageProps = {
 	mode: "login" | "signup";
@@ -21,6 +21,24 @@ export function AuthPage({ mode, auth }: AuthPageProps) {
 	useEffect(() => {
 		if (session) window.location.hash = auth.redirectAfterLogin;
 	}, [session, auth.redirectAfterLogin]);
+
+	const continueWithPasskey = async () => {
+		if (!username) {
+			setMessage("아이디를 먼저 입력해 주세요.");
+			return;
+		}
+		setIsBusy(true);
+		setMessage("");
+		const result = isSignup
+			? await passkeySignUp(auth.userCollection, username).catch((error: Error) => ({ ok: false as const, message: error.message }))
+			: await passkeyLogin(auth.userCollection, username).catch((error: Error) => ({ ok: false as const, message: error.message }));
+		setIsBusy(false);
+		if (!result.ok) {
+			setMessage(result.message);
+			return;
+		}
+		window.location.hash = auth.redirectAfterLogin;
+	};
 
 	const submit = async (event: React.FormEvent) => {
 		event.preventDefault();
@@ -67,6 +85,11 @@ export function AuthPage({ mode, auth }: AuthPageProps) {
 				<Button type="submit" disabled={isBusy} className="mt-2">
 					{isBusy ? "처리 중..." : isSignup ? "가입하기" : "로그인"}
 				</Button>
+				{supportsPasskey() ? (
+					<Button type="button" variant="outline" disabled={isBusy} onClick={continueWithPasskey}>
+						{isSignup ? "패스키로 가입" : "패스키로 로그인"}
+					</Button>
+				) : null}
 			</form>
 			<p className="mt-6 text-sm text-muted-foreground">
 				{isSignup ? (

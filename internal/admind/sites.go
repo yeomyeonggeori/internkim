@@ -1350,6 +1350,20 @@ const siteAuthBootstrapMigration = `migrate((app) => {
 	}
 	collection.passwordAuth.identityFields = ["username", "email"];
 	app.save(collection);
+
+	const passkeys = new Collection({
+		type: "base",
+		name: "sitePasskeys",
+		fields: [
+			{ type: "relation", name: "user", required: true, collectionId: collection.id, maxSelect: 1, cascadeDelete: true },
+			{ type: "text", name: "credentialID", required: true },
+			{ type: "text", name: "publicKey", required: true },
+			{ type: "number", name: "counter" },
+			{ type: "autodate", name: "created", onCreate: true },
+		],
+		indexes: ["CREATE UNIQUE INDEX idx_sitePasskeys_credential ON sitePasskeys (credentialID)"],
+	});
+	app.save(passkeys);
 }, (app) => {});
 `
 
@@ -1372,7 +1386,26 @@ func ensureSiteAuthRuntimeBootstrap(hostSourcePath string) error {
 	if errorValue := os.MkdirAll(migrationsPath, 0o755); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(filepath.Join(migrationsPath, "1700000001_auth_bootstrap.js"), []byte(siteAuthBootstrapMigration), 0o644)
+	if errorValue := os.WriteFile(filepath.Join(migrationsPath, "1700000002_auth_bootstrap.js"), []byte(siteAuthBootstrapMigration), 0o644); errorValue != nil {
+		return errorValue
+	}
+	return writeSitePasskeyHooks(filepath.Join(hostSourcePath, "pocketbase", "pb_hooks"))
+}
+
+func writeSitePasskeyHooks(hooksPath string) error {
+	if errorValue := os.MkdirAll(hooksPath, 0o755); errorValue != nil {
+		return errorValue
+	}
+	for _, name := range []string{"passkey-lib.js", "passkey.pb.js"} {
+		document, errorValue := sitePBHooksFS.ReadFile("site_pb_hooks/" + name)
+		if errorValue != nil {
+			return errorValue
+		}
+		if errorValue := os.WriteFile(filepath.Join(hooksPath, name), document, 0o644); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 // copySiteSourceTree mirrors a site source tree into the publish ledger, skipping
@@ -2027,8 +2060,8 @@ User=internkim-site
 Group=internkim-site
 EnvironmentFile=` + service.Configuration.SiteSecretDirectory + `/%i/environment
 WorkingDirectory=` + service.Configuration.SitesRoot + `/%i/current
-ExecStartPre=/usr/local/bin/pocketbase superuser upsert ${PB_SUPERUSER_EMAIL} ${PB_SUPERUSER_PASSWORD} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --encryptionEnv=PB_ENCRYPTION_KEY
-ExecStart=/usr/local/bin/pocketbase serve --http=127.0.0.1:${INTERNKIM_SITE_PORT} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --encryptionEnv=PB_ENCRYPTION_KEY
+ExecStartPre=/usr/local/bin/pocketbase superuser upsert ${PB_SUPERUSER_EMAIL} ${PB_SUPERUSER_PASSWORD} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --hooksDir ` + service.Configuration.SitesRoot + `/%i/current/pb_hooks --encryptionEnv=PB_ENCRYPTION_KEY
+ExecStart=/usr/local/bin/pocketbase serve --http=127.0.0.1:${INTERNKIM_SITE_PORT} --dir ` + service.Configuration.SitesRoot + `/%i/pb_data --migrationsDir ` + service.Configuration.SitesRoot + `/%i/current/pb_migrations --hooksDir ` + service.Configuration.SitesRoot + `/%i/current/pb_hooks --encryptionEnv=PB_ENCRYPTION_KEY
 Restart=always
 RestartSec=5
 
@@ -2553,9 +2586,35 @@ func (service *Service) copyApprovedPocketBaseHooks(site *SiteRecord, versionPat
 		return nil
 	}
 	if !payload.PocketBaseHooksApproved {
-		return errors.New("PocketBase hooks require explicit admin approval")
+		if errorValue := ensureOnlyPlatformPocketBaseHooks(hooksPath); errorValue != nil {
+			return errorValue
+		}
 	}
 	return copyDirectory(hooksPath, filepath.Join(versionPath, "pb_hooks"))
+}
+
+func ensureOnlyPlatformPocketBaseHooks(hooksPath string) error {
+	entries, errorValue := os.ReadDir(hooksPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return errors.New("PocketBase hooks require explicit admin approval")
+		}
+		embedded, errorValue := sitePBHooksFS.ReadFile("site_pb_hooks/" + entry.Name())
+		if errorValue != nil {
+			return errors.New("PocketBase hooks require explicit admin approval")
+		}
+		actual, errorValue := os.ReadFile(filepath.Join(hooksPath, entry.Name()))
+		if errorValue != nil {
+			return errorValue
+		}
+		if !bytes.Equal(embedded, actual) {
+			return errors.New("PocketBase hooks require explicit admin approval")
+		}
+	}
+	return nil
 }
 
 func (service *Service) updateSiteStatus(siteID string, status string, lastError string) {
