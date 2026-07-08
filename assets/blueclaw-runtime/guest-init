@@ -25,8 +25,25 @@ ensure_blueclaw_account() {
   fi
 }
 
+ensure_workspace_directory() {
+  if mkdir -p "$1" 2>/dev/null; then
+    return 0
+  fi
+  local component="$1"
+  while [ "$component" != "/workspace" ] && [ "$component" != "/" ]; do
+    if [ -e "$component" ] && [ ! -d "$component" ]; then
+      log_guest_init "quarantining non-directory $component"
+      mv "$component" "$component.broken.$(date +%s)" || rm -f "$component"
+    fi
+    component="$(dirname "$component")"
+  done
+  mkdir -p "$1"
+}
+
 prepare_blueclaw_workspace() {
-  mkdir -p /workspace/.blueclaw/postgres/data \
+  local workspaceDirectory
+  for workspaceDirectory in \
+    /workspace/.blueclaw/postgres/data \
     /workspace/.blueclaw/graphiti \
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
@@ -42,7 +59,9 @@ prepare_blueclaw_workspace() {
     /workspace/private/people \
     /workspace/shared/public \
     /workspace/shared/cache/dependencies \
-    /workspace/shared/cache/dependencies/bun
+    /workspace/shared/cache/dependencies/bun; do
+    ensure_workspace_directory "$workspaceDirectory"
+  done
 
   rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
 

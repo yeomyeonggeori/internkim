@@ -58,9 +58,18 @@ test.describe('calendar route Google OAuth client setup', () => {
 		await googleOAuthClientGuide.getByText('client.json 만드는 방법').click();
 
 		await expect(
-			googleOAuthClientGuide.getByText('Google Cloud 오른쪽 위 프로필이 회사 관리자 계정인지 확인하세요.')
+			googleOAuthClientGuide.getByText(
+				'개인 캘린더나 개인 소유 캘린더만 연결할 경우, 관리 가능한 Google Cloud 프로젝트에서 client.json을 만들어도 됩니다.'
+			)
 		).toBeVisible();
-		await expect(googleOAuthClientGuide.getByText('상단 프로젝트가 internkim-calendar인지 확인하세요.')).toBeVisible();
+		await expect(
+			googleOAuthClientGuide.getByText(
+				'팀/회사 공유 캘린더를 연결할 경우, 회사 관리자 계정으로 Google Cloud에 로그인하고 조직 소유 프로젝트에서 client.json을 만드세요.'
+			)
+		).toBeVisible();
+		await expect(
+			googleOAuthClientGuide.getByText('캘린더 연결은 선택할 캘린더에 접근 및 쓰기 권한이 있는 Google 계정으로 진행하세요.')
+		).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText('CalDAV API를 사용 설정합니다.')).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText(/비밀번호가 표시되면 안전한 곳에 따로 저장하세요/)).toBeVisible();
 		await expect(googleOAuthClientGuide.getByText('승인된 리디렉션 URI', { exact: true })).toBeVisible();

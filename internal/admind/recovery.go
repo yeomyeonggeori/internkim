@@ -57,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair":
 		return true
 	default:
 		return false
@@ -98,6 +98,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw Firecracker", "sh", "-lc", blueclawResourceLimitCommand()))
 	case "restart-blueclaw":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart Blueclaw", "sh", "-lc", blueclawRestartDiagnosticCommand()))
+	case "blueclaw-boot-diagnose":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "diagnose Blueclaw guest boot", "sh", "-lc", blueclawBootDiagnoseCommand()))
+	case "blueclaw-workspace-repair":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Blueclaw workspace image", "sh", "-lc", blueclawWorkspaceRepairCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -134,6 +138,86 @@ journalctl -u %s -n 180 --no-pager 2>/dev/null || true
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 	))
+}
+
+func blueclawBootDiagnoseCommand() string {
+	return strings.TrimSpace(`
+set +e
+printf '== firecracker processes ==\n'
+ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|firecracker|jailer' || true
+printf '\n== newest guest log directories ==\n'
+ls -dt /var/log/blueclaw-supervisor/* 2>/dev/null | head -4 || true
+for logDirectory in $(ls -dt /var/log/blueclaw-supervisor/* 2>/dev/null | head -2); do
+  printf '\n== %s stderr.log ==\n' "$logDirectory"
+  tail -c 4000 "$logDirectory/stderr.log" 2>/dev/null || printf '(missing)\n'
+  printf '\n== %s stdout.log ==\n' "$logDirectory"
+  tail -c 4000 "$logDirectory/stdout.log" 2>/dev/null || printf '(missing)\n'
+done
+newestJailerRoot=$(ls -dt /var/lib/bc/firecracker/*/root 2>/dev/null | head -1)
+printf '\n== jailer root %s ==\n' "$newestJailerRoot"
+ls -la "$newestJailerRoot" 2>/dev/null || true
+printf '\n== firecracker-config.json ==\n'
+head -c 4000 "$newestJailerRoot/firecracker-config.json" 2>/dev/null || printf '(missing)\n'
+printf '\n== boot input images ==\n'
+ls -la /var/lib/blueclaw/ 2>/dev/null || true
+df -h /var/lib/bc /var/lib/blueclaw 2>/dev/null || true
+`)
+}
+
+func blueclawWorkspaceRepairCommand() string {
+	repairScript := strings.TrimSpace(`
+set +e
+exec >/var/log/internkim-workspace-repair.log 2>&1
+workspaceImage=/var/lib/blueclaw/workspace.ext4
+hostPath=/root/.blueclaw/workspace
+printf '== stopping blueclaw ==\n'
+systemctl stop blueclaw
+sleep 2
+printf '\n== detaching every mount of the image ==\n'
+for loopDevice in $(losetup -j "$workspaceImage" 2>/dev/null | cut -d: -f1); do
+  for mountTarget in $(findmnt -rn -o TARGET -S "$loopDevice" 2>/dev/null); do
+    printf 'umount %s\n' "$mountTarget"
+    umount "$mountTarget" 2>&1 || { fuser -vm "$mountTarget" 2>&1 | head -6; umount -l "$mountTarget" 2>&1; }
+  done
+  losetup -d "$loopDevice" 2>/dev/null
+done
+printf '\n== fsck ==\n'
+e2fsck -fy "$workspaceImage" 2>&1 | tail -40
+printf 'e2fsck exit=%s\n' "$?"
+printf '\n== quarantining broken paths inside the image ==\n'
+inspectMount=$(mktemp -d)
+if mount -o loop "$workspaceImage" "$inspectMount"; then
+  stat "$inspectMount/.blueclaw/postgres" "$inspectMount/.blueclaw/postgres/data" 2>&1 | head -20
+  for brokenCandidate in "$inspectMount/.blueclaw/postgres/data" "$inspectMount/.blueclaw/postgres"; do
+    if [ -e "$brokenCandidate" ] && [ ! -d "$brokenCandidate" ]; then
+      printf 'quarantining %s\n' "$brokenCandidate"
+      mv "$brokenCandidate" "$brokenCandidate.broken.$(date +%s)" || rm -f "$brokenCandidate"
+    fi
+  done
+  umount "$inspectMount"
+fi
+rmdir "$inspectMount" 2>/dev/null
+printf '\n== ensuring host staging path is a plain directory ==\n'
+mountpoint -q "$hostPath" && umount "$hostPath"
+mkdir -p "$hostPath"
+printf '\n== starting blueclaw ==\n'
+systemctl start blueclaw
+for attempt in $(seq 1 120); do
+  if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/dev/null 2>&1; then
+    printf 'blueclaw health ok\n'
+    exit 0
+  fi
+  sleep 2
+done
+printf 'blueclaw health failed\n'
+`)
+	return "systemd-run --unit=internkim-blueclaw-workspace-repair --collect sh -c " +
+		quoteRecoveryShellValue(repairScript) +
+		" && echo 'repair started; tail /var/log/internkim-workspace-repair.log for progress'"
+}
+
+func quoteRecoveryShellValue(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func blueclawResourceLimitCommand() string {
