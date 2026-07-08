@@ -127,6 +127,40 @@ func TestRunCalendarUserSyncCycleSkipsPullWithinCacheTTL(t *testing.T) {
 	}
 }
 
+func TestRunCalendarUserSyncCycleCachesPullFromCompletionTime(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	start := time.Unix(1000, 0).UTC()
+	now := start
+	var pullCalls atomic.Int32
+	var pushCalls atomic.Int32
+	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+		pullCalls.Add(1)
+		now = start.Add(70 * time.Second)
+		return false, nil
+	}
+	push := func(ctx context.Context) (map[string]struct{}, error) {
+		pushCalls.Add(1)
+		return nil, nil
+	}
+	clock := func() time.Time { return now }
+	firstResult := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	now = start.Add(90 * time.Second)
+	secondResult := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	if pullCalls.Load() != 1 {
+		t.Fatalf("pull cache should start after pull completion, got %d pull calls", pullCalls.Load())
+	}
+	if !firstResult.PullAttempted || firstResult.PullSkippedByCache {
+		t.Fatalf("first pull result: %#v", firstResult)
+	}
+	if secondResult.PullAttempted || !secondResult.PullSkippedByCache {
+		t.Fatalf("second pull should be skipped from completion-time cache: %#v", secondResult)
+	}
+	if pushCalls.Load() != 2 {
+		t.Fatalf("push calls: got %d, want 2", pushCalls.Load())
+	}
+}
+
 func TestRunCalendarUserSyncCyclePushesBeforePull(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
