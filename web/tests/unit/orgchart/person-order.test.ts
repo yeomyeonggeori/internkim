@@ -19,4 +19,36 @@ describe('orgchart person ordering', () => {
 			'missing-zara'
 		]);
 	});
+
+	test('orders Korean names before English names on the same hire date', () => {
+		const people = [
+			{ userID: 'pptx', name: 'PPTX Tester', hireDate: '2026-04-01' },
+			{ userID: 'dongha', name: '이샘플', hireDate: '2026-04-01' },
+			{ userID: 'yeomyeong', name: '김여명', hireDate: '2026-04-01' },
+			{ userID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
+		];
+
+		expect([...people].sort(compareOrgchartPeople).map((person) => person.userID)).toEqual([
+			'yeomyeong',
+			'dongha',
+			'aaron',
+			'pptx'
+		]);
+	});
+
+	test('orders Korean names before English names when hire dates are missing', () => {
+		const people = [
+			{ userID: 'pptx', name: 'PPTX Tester' },
+			{ userID: 'dongha', name: '이샘플' },
+			{ userID: 'yeomyeong', name: '김여명' },
+			{ userID: 'aaron', name: 'Aaron' }
+		];
+
+		expect([...people].sort(compareOrgchartPeople).map((person) => person.userID)).toEqual([
+			'yeomyeong',
+			'dongha',
+			'aaron',
+			'pptx'
+		]);
+	});
 });
