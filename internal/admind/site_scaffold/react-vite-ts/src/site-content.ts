@@ -22,6 +22,16 @@ export type SitePage = {
 	path: string;
 	title: string;
 	blocks: Block[];
+	access?: "public" | "authenticated";
+};
+
+export type SiteAuth = {
+	enabled: boolean;
+	userCollection: string;
+	allowSignup: boolean;
+	loginPath: string;
+	signupPath: string;
+	redirectAfterLogin: string;
 };
 
 export type NavigationItem = {
@@ -34,6 +44,7 @@ export type SiteContent = {
 	tagline?: string;
 	pages: SitePage[];
 	navigationItems?: NavigationItem[];
+	auth?: SiteAuth;
 };
 
 export const fallbackContent: SiteContent = {
@@ -166,7 +177,8 @@ function parsePage(value: unknown): SitePage | undefined {
 	if (!Array.isArray(value.blocks)) return undefined;
 	const blocks = parseBlocks(value.blocks);
 	if (blocks.length === 0) return undefined;
-	return { path, title: value.title, blocks };
+	const access = value.access === "authenticated" ? "authenticated" : undefined;
+	return { path, title: value.title, blocks, access };
 }
 
 function parsePages(value: unknown): SitePage[] {
@@ -193,6 +205,20 @@ function pagesFrom(value: Record<string, unknown>): SitePage[] {
 	return [{ path: "/", title, blocks }];
 }
 
+function parseAuth(value: unknown): SiteAuth | undefined {
+	if (!isRecord(value) || value.enabled !== true) return undefined;
+	const pathOr = (candidate: unknown, fallback: string) =>
+		isNonEmptyString(candidate) && candidate.startsWith("/") ? candidate : fallback;
+	return {
+		enabled: true,
+		userCollection: isNonEmptyString(value.userCollection) ? value.userCollection : "users",
+		allowSignup: value.allowSignup !== false,
+		loginPath: pathOr(value.loginPath, "/login"),
+		signupPath: pathOr(value.signupPath, "/signup"),
+		redirectAfterLogin: pathOr(value.redirectAfterLogin, "/"),
+	};
+}
+
 function parseSiteContent(value: unknown): SiteContent | undefined {
 	if (!isRecord(value)) return undefined;
 	if (!isNonEmptyString(value.siteName)) return undefined;
@@ -204,6 +230,7 @@ function parseSiteContent(value: unknown): SiteContent | undefined {
 		tagline: value.tagline,
 		pages,
 		navigationItems: parseNavigationItems(value.navigation),
+		auth: parseAuth(value.auth),
 	};
 }
 

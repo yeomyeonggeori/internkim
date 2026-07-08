@@ -1,12 +1,14 @@
 {
-  "scaffoldSourceSHA256": "445596cea114ec22bad6e475b7296fe9046cdbb5f7d32bf44ada203353e68f97",
-  "generatedAt": "2026-07-08T06:31:13.431568+00:00",
+  "scaffoldSourceSHA256": "dd9679c0f74c7adbeff433cddee1948924bbb16db38689816d4154837fd7903f",
+  "generatedAt": "2026-07-08T07:55:06.060337+00:00",
   "files": [
     "index.html",
     "package.json",
     "public/site-content.json",
     "scripts/build.ts",
     "src/App.tsx",
+    "src/auth/AuthPage.tsx",
+    "src/auth/session.ts",
     "src/blocks/BackdropCanvas.tsx",
     "src/blocks/CTA.tsx",
     "src/blocks/Contact.tsx",

@@ -26,7 +26,7 @@ Block copy must be realistic, specific prose for the requested business — real
 
 ## Stack
 
-- The scaffold is a React + Tailwind + shadcn black-on-white template composed from reusable blocks. Start from it and customize content; the build installs npm dependencies online.
+- The scaffold is a React + Tailwind + shadcn template of reusable blocks. Start from it and customize content; the build installs npm dependencies online.
 - Reuse the shadcn primitives in `app/src/components/ui/*` (Button, Card, Badge, Input, Tabs, Dialog, etc.) and the block components in `app/src/blocks/*`. Keep the black-on-white default unless the request asks otherwise.
 - Use PocketBase only when the prototype needs local data, auth, files, realtime, or migrations.
 - Do not add Next.js, SvelteKit, Node servers, cloud databases, hosted backends, or paid APIs unless the user explicitly asks and accepts the cost/reliability tradeoff.
@@ -44,7 +44,7 @@ Block copy must be realistic, specific prose for the requested business — real
 - `faq`: expandable question/answer `items`.
 - `contact`: titled block with body text, structured `items`, one action; emails, URLs, and @handles in text auto-link.
 
-Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots exist) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. A hero without an image should carry a matching backdrop.
+Membership: `"auth": {"enabled": true}` top-level + member pages `"access": "authenticated"` — login/signup/session/gate are built in (`references/blocks.md` § Auth). Fetch at least a hero image unless the request wants a text-only look. Items accept `icon`; hero/prose accept `image` + `imageAlt`; hero/cta accept `backdrop` (only mesh, aurora, grain, grid, dots exist) — `references/blocks.md` lists icons, image sourcing, and backdrop moods. 
 
 ## Create, Update, Publish
 
@@ -84,7 +84,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    ```
 
    If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
-6. Read `references/blocks.md` once to know the full expressive palette (icons, images, backdrops, links), then compose the site in `app/public/site-content.json` — page split and block order is the structure decision. Then run the content review with `terminal.run`:
+6. Read `references/blocks.md` once, then compose the site in `app/public/site-content.json` — page split and block order is the structure decision. Then run the content review with `terminal.run`:
 
    ```json
    {
@@ -93,7 +93,7 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
    }
    ```
 
-   Rerun after every `site-content.json` or `DESIGN.md` change. Treat the score as a revision loop: revise while it improves, stop when the gate passes or the score stalls twice, never call site.publish on an unreviewed final state.
+   Rerun after every content or design change: revise while the score improves, stop when the gate passes or stalls twice, never publish unreviewed.
 7. If `workspaceHealth` is `missing` or `permission_problem`, recheck site.status once; if still unhealthy, report honestly. If `stale_build`, edit or build.
 8. Read control files only when `sourceManifest` marks them present.
 9. Update `.internkim/idea.md` on positioning changes.
