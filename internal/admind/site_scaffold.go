@@ -102,8 +102,6 @@ func siteDesignMD(site *SiteRecord) string {
 version: alpha
 name: ` + quotedTitle + `
 description: Beautiful default prototype design system for a shadcn React site.
-# TODO(design): decide this site's palette, typefaces, and style preset from the request's mood before publishing.
-# TODO(design): replace the placeholder values below with your decisions and delete these markers.
 colors:
   primary: "#111111"
   primary-foreground: "#FFFFFF"
@@ -174,6 +172,8 @@ components:
 ---
 
 # ` + title + ` DESIGN.md
+
+> TODO(design): decide this site's palette, typefaces, and style preset from the request's mood, replace the placeholder front matter values with those decisions, and delete this marker — publish refuses to ship it.
 
 ## Overview
 
