@@ -321,6 +321,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)
+	service.startScheduledBackups(ctx)
 	service.warnWhenFontAssetsMissing()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,

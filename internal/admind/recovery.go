@@ -57,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
 		return true
 	default:
 		return false
@@ -102,6 +102,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "diagnose Blueclaw guest boot", "sh", "-lc", blueclawBootDiagnoseCommand()))
 	case "blueclaw-workspace-repair":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Blueclaw workspace image", "sh", "-lc", blueclawWorkspaceRepairCommand()))
+	case "blueclaw-postgres-salvage":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "salvage orphaned Blueclaw postgres cluster", "sh", "-lc", blueclawPostgresSalvageCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -162,14 +164,31 @@ printf '\n== boot input images ==\n'
 ls -la /var/lib/blueclaw/ 2>/dev/null || true
 df -h /var/lib/bc /var/lib/blueclaw 2>/dev/null || true
 printf '\n== rootfs guest-init lines 150-240 ==\n'
-debugfs -R 'cat /sbin/init' "$newestJailerRoot/rootfs.ext4" 2>&1 | awk 'NR>=150 && NR<=240 {print NR": "$0}'
+debugfs -c -R 'cat /sbin/init' "$newestJailerRoot/rootfs.ext4" 2>&1 | awk 'NR>=150 && NR<=240 {print NR": "$0}'
 printf '\n== guest postgres logs ==\n'
-debugfs -R 'cat /.blueclaw/logs/postgres.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -20
-debugfs -R 'cat /.blueclaw/logs/postgres-init.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -10
+debugfs -c -R 'cat /.blueclaw/logs/postgres.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -20
+debugfs -c -R 'cat /.blueclaw/logs/postgres-init.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -10
 printf '\n== guest blueclaw log ==\n'
-debugfs -R 'cat /.blueclaw/logs/blueclaw.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -40
+debugfs -c -R 'cat /.blueclaw/logs/blueclaw.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -40
 printf '\n== guest runtime current ==\n'
-debugfs -R 'stat /.blueclaw/runtime/current' /var/lib/blueclaw/workspace.ext4 2>&1 | head -8
+debugfs -c -R 'stat /.blueclaw/runtime/current' /var/lib/blueclaw/workspace.ext4 2>&1 | head -8
+printf '\n== workspace lost+found ==\n'
+debugfs -c -R 'ls -l /lost+found' /var/lib/blueclaw/workspace.ext4 2>/dev/null | head -30
+printf '\n== current postgres cluster age ==\n'
+debugfs -c -R 'stat /.blueclaw/postgres/data/PG_VERSION' /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -E 'ctime|crtime'
+printf '\n== memory tree ==\n'
+debugfs -c -R 'ls -l /.blueclaw/memory' /var/lib/blueclaw/workspace.ext4 2>&1 | head -8
+debugfs -c -R 'ls -l /.blueclaw/memory/people' /var/lib/blueclaw/workspace.ext4 2>&1 | head -20
+printf '\n== remaining lost+found orphan contents ==\n'
+for orphanInode in $(debugfs -c -R 'ls /lost+found' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tr -s ' ' '\n' | grep '^#'); do
+  printf -- '-- %s --\n' "$orphanInode"
+  debugfs -c -R "ls -l /lost+found/$orphanInode" /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -v 'debugfs 1' | head -10
+  firstChild=$(debugfs -c -R "ls /lost+found/$orphanInode" /var/lib/blueclaw/workspace.ext4 2>/dev/null | tr -s ' ' '\n' | grep -vE '^\.{1,2}$|^$' | head -1)
+  if [ -n "$firstChild" ]; then
+    printf -- '   depth2 %s:\n' "$firstChild"
+    debugfs -c -R "ls -l /lost+found/$orphanInode/$firstChild" /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -v 'debugfs 1' | head -8
+  fi
+done
 `)
 }
 
@@ -238,6 +257,91 @@ printf 'blueclaw health failed\n'
 
 func quoteRecoveryShellValue(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func blueclawPostgresSalvageCommand() string {
+	salvageScript := strings.TrimSpace(`
+set +e
+exec >/var/log/internkim-postgres-salvage.log 2>&1
+image=/var/lib/blueclaw/workspace.ext4
+systemctl stop blueclaw
+sleep 2
+for loopDevice in $(losetup -j "$image" 2>/dev/null | cut -d: -f1); do
+  for mountTarget in $(findmnt -rn -o TARGET -S "$loopDevice" 2>/dev/null); do umount "$mountTarget" || umount -l "$mountTarget"; done
+  losetup -d "$loopDevice" 2>/dev/null
+done
+workspaceMount=$(mktemp -d)
+mount -o loop "$image" "$workspaceMount" || { systemctl start blueclaw; exit 1; }
+lostFound="$workspaceMount/lost+found"
+dataPath="$workspaceMount/.blueclaw/postgres/data"
+recoveredPath="$workspaceMount/.blueclaw/postgres/data-recovered"
+finish() {
+  umount "$workspaceMount"; rmdir "$workspaceMount" 2>/dev/null
+  systemctl start blueclaw
+}
+rm -rf "$recoveredPath"
+cp -a "$dataPath" "$recoveredPath"
+rm -rf "$recoveredPath/base" "$recoveredPath/global" "$recoveredPath/pg_wal" "$recoveredPath/pg_xact" "$recoveredPath/pg_multixact" "$recoveredPath/pg_logical" "$recoveredPath/postmaster.pid"
+for orphan in "$lostFound"/\#*; do
+  [ -d "$orphan" ] || continue
+  if [ -e "$orphan/pg_control" ]; then echo "global <= $orphan"; mv "$orphan" "$recoveredPath/global"
+  elif [ -d "$orphan/members" ] && [ -d "$orphan/offsets" ]; then echo "pg_multixact <= $orphan"; mv "$orphan" "$recoveredPath/pg_multixact"
+  elif [ -d "$orphan/mappings" ] || [ -d "$orphan/snapshots" ]; then echo "pg_logical <= $orphan"; mv "$orphan" "$recoveredPath/pg_logical"
+  elif ls "$orphan" 2>/dev/null | grep -qE '^[0-9A-F]{24}$'; then echo "pg_wal <= $orphan"; mv "$orphan" "$recoveredPath/pg_wal"
+  else
+    firstEntry=$(ls "$orphan" 2>/dev/null | head -1)
+    if [ -n "$firstEntry" ] && [ -d "$orphan/$firstEntry" ] && echo "$firstEntry" | grep -qE '^[0-9]+$'; then
+      echo "base <= $orphan"; mv "$orphan" "$recoveredPath/base"
+    elif [ -n "$firstEntry" ] && [ -f "$orphan/$firstEntry" ] && echo "$firstEntry" | grep -qE '^[0-9A-F]{4}$' && [ ! -e "$recoveredPath/pg_xact" ]; then
+      echo "pg_xact <= $orphan"; mv "$orphan" "$recoveredPath/pg_xact"
+    fi
+  fi
+done
+for requiredPiece in global base pg_wal pg_xact; do
+  if [ ! -e "$recoveredPath/$requiredPiece" ]; then
+    echo "salvage aborted: $requiredPiece not identified in lost+found"
+    rm -rf "$recoveredPath"
+    finish
+    exit 2
+  fi
+done
+[ -e "$recoveredPath/pg_multixact" ] || mkdir -p "$recoveredPath/pg_multixact/members" "$recoveredPath/pg_multixact/offsets"
+[ -e "$recoveredPath/pg_logical" ] || mkdir -p "$recoveredPath/pg_logical/mappings" "$recoveredPath/pg_logical/snapshots"
+rm -rf "$recoveredPath/pg_stat" && mkdir -p "$recoveredPath/pg_stat"
+chown -R 100:102 "$recoveredPath"
+chmod 700 "$recoveredPath"
+freshBackup="$workspaceMount/.blueclaw/postgres/data-fresh-$(date +%s)"
+mv "$dataPath" "$freshBackup"
+mv "$recoveredPath" "$dataPath"
+echo "swapped in salvaged cluster; fresh cluster kept at $freshBackup"
+umount "$workspaceMount"; rmdir "$workspaceMount" 2>/dev/null
+systemctl start blueclaw
+for attempt in $(seq 1 120); do
+  if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/dev/null 2>&1; then
+    echo "blueclaw health ok on salvaged cluster"
+    exit 0
+  fi
+  sleep 2
+done
+echo "salvaged cluster failed health; reverting to fresh cluster"
+systemctl stop blueclaw
+sleep 2
+for loopDevice in $(losetup -j "$image" 2>/dev/null | cut -d: -f1); do
+  for mountTarget in $(findmnt -rn -o TARGET -S "$loopDevice" 2>/dev/null); do umount "$mountTarget" || umount -l "$mountTarget"; done
+  losetup -d "$loopDevice" 2>/dev/null
+done
+workspaceMount=$(mktemp -d)
+mount -o loop "$image" "$workspaceMount" || exit 1
+freshBackup=$(ls -dt "$workspaceMount/.blueclaw/postgres/data-fresh-"* 2>/dev/null | head -1)
+mv "$workspaceMount/.blueclaw/postgres/data" "$workspaceMount/.blueclaw/postgres/data-salvage-failed"
+mv "$freshBackup" "$workspaceMount/.blueclaw/postgres/data"
+umount "$workspaceMount"; rmdir "$workspaceMount" 2>/dev/null
+systemctl start blueclaw
+echo "reverted to fresh cluster"
+`)
+	return "systemd-run --unit=internkim-blueclaw-postgres-salvage --collect sh -c " +
+		quoteRecoveryShellValue(salvageScript) +
+		" && echo 'salvage started; tail /var/log/internkim-postgres-salvage.log for progress'"
 }
 
 func blueclawResourceLimitCommand() string {

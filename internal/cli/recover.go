@@ -150,7 +150,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
 		return true
 	default:
 		return false
