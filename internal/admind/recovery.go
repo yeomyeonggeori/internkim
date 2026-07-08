@@ -161,6 +161,15 @@ head -c 4000 "$newestJailerRoot/firecracker-config.json" 2>/dev/null || printf '
 printf '\n== boot input images ==\n'
 ls -la /var/lib/blueclaw/ 2>/dev/null || true
 df -h /var/lib/bc /var/lib/blueclaw 2>/dev/null || true
+printf '\n== rootfs guest-init lines 150-240 ==\n'
+debugfs -R 'cat /sbin/init' "$newestJailerRoot/rootfs.ext4" 2>&1 | awk 'NR>=150 && NR<=240 {print NR": "$0}'
+printf '\n== guest postgres logs ==\n'
+debugfs -R 'cat /.blueclaw/logs/postgres.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -20
+debugfs -R 'cat /.blueclaw/logs/postgres-init.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -10
+printf '\n== guest blueclaw log ==\n'
+debugfs -R 'cat /.blueclaw/logs/blueclaw.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -40
+printf '\n== guest runtime current ==\n'
+debugfs -R 'stat /.blueclaw/runtime/current' /var/lib/blueclaw/workspace.ext4 2>&1 | head -8
 `)
 }
 
@@ -192,6 +201,17 @@ if mount -o loop "$workspaceImage" "$inspectMount"; then
     if [ -e "$brokenCandidate" ] && [ ! -d "$brokenCandidate" ]; then
       printf 'quarantining %s\n' "$brokenCandidate"
       mv "$brokenCandidate" "$brokenCandidate.broken.$(date +%s)" || rm -f "$brokenCandidate"
+    fi
+  done
+  printf '\n== guest config and identity state ==\n'
+  ls -la "$inspectMount/.blueclaw/config/" "$inspectMount/.blueclaw/identity-map.json" 2>&1 | head -20
+  if [ -e "$inspectMount/.blueclaw/identity-map.json" ] && [ ! -s "$inspectMount/.blueclaw/identity-map.json" ]; then
+    printf 'removing truncated identity-map.json for regeneration\n'
+    rm -f "$inspectMount/.blueclaw/identity-map.json"
+  fi
+  for configDocument in "$inspectMount/.blueclaw/config/policy.json" "$inspectMount/.blueclaw/config/runtime.json"; do
+    if [ -e "$configDocument" ] && [ ! -s "$configDocument" ]; then
+      printf 'EMPTY config document: %s\n' "$configDocument"
     fi
   done
   umount "$inspectMount"
