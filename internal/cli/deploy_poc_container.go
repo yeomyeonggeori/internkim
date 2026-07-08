@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deployops"
 )
 
@@ -75,9 +76,27 @@ func deployPocContainerComponent(target deployops.Target, repositoryRootPath str
 		return syncPocContainerBlueclaw(target, repositoryRootPath, temporaryDirectoryPath)
 	case "web":
 		return syncBoardUI(target, repositoryRootPath, temporaryDirectoryPath)
+	case "skills":
+		return syncPocContainerSkills(target, repositoryRootPath, temporaryDirectoryPath)
 	default:
 		return fmt.Errorf("poc-container deploy does not support component %q", component)
 	}
+}
+
+func syncPocContainerSkills(target deployops.Target, repositoryRootPath string, temporaryDirectoryPath string) error {
+	archivePath := filepath.Join(temporaryDirectoryPath, "skills.tar")
+	if errorValue := runPocCommand(repositoryRootPath, nil, "tar", "-C", blueclawworkspace.AssetsPath(repositoryRootPath), "-cf", archivePath, "skills"); errorValue != nil {
+		return errorValue
+	}
+	remoteArchivePath := path.Join("/tmp", filepath.Base(archivePath))
+	if errorValue := scpToTarget(target, archivePath, remoteArchivePath); errorValue != nil {
+		return errorValue
+	}
+	return runRemote(target, fmt.Sprintf(
+		"for tenantWorkspace in workspace/tenant_*; do rm -rf \"$tenantWorkspace/skills\" && tar -C \"$tenantWorkspace\" -xf %s; done && rm -f %s",
+		quoteShellValue(remoteArchivePath),
+		quoteShellValue(remoteArchivePath),
+	))
 }
 
 func syncPocContainerBinary(target deployops.Target, repositoryRootPath string, temporaryDirectoryPath string, binaryName string, packagePath string, isStatic bool) error {
@@ -317,7 +336,7 @@ func normalizePocContainerComponent(componentName string) (string, error) {
 	switch strings.TrimSpace(componentName) {
 	case "":
 		return "", nil
-	case "admind", "capabilityd", "blueclaw", "web":
+	case "admind", "capabilityd", "blueclaw", "web", "skills":
 		return strings.TrimSpace(componentName), nil
 	case "adminWeb", "admin-web":
 		return "web", nil
