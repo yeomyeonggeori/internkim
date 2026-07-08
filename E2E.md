@@ -14,8 +14,10 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 재사용 플릿 | `./internkim dev fleet run --reuse --scenario <name>` | `internal/localfleet` shared VM/state/tunnel | 수동 디버깅용 공유 로컬 플릿 |
 
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
-스크립트 응답으로 결정성을 확보한다. CLI의 `--cassette`/`--record-cassette`
-플래그는 현재 blueclaw-lab 쪽에 배선되어 있지 않은 스텁이다(아래 백로그).
+스크립트 응답으로 결정성을 확보한다. 실 LLM 판단이 필요한 검증은
+`--live-llm --record-cassette <path>`로 녹화한 뒤 `--cassette <path>`로
+재생한다 (`.dependency/blueclaw/cmd/blueclaw-lab/main.go`에 배선,
+`--cassette`는 `--record-cassette`/`--live-llm`과 동시 사용 불가).
 
 ## 가상 세션 시나리오 인벤토리
 
@@ -95,6 +97,4 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 - 기존 한계: 가상 세션과 `--without-mattermost`는 실제 Mattermost ingress/API/DM
   수신을 증명하지 않는다. 공유 로컬 플릿은 고정 VM·고정 포트·공유 상태를 재사용하므로
   기본 게이트가 아니라 `--reuse` 디버깅 모드로만 사용한다.
-- `--cassette`/`--record-cassette`를 blueclaw-lab `virtual-session`에 실제
-  배선하거나 CLI에서 플래그를 제거해 문서·현실 불일치 해소.
 - 기본 `dev fleet run` 게이트에 가상 세션 시나리오 묶음 실행 추가 검토.
