@@ -1,4 +1,4 @@
 [submodule ".dependency/blueclaw"]
 	path = .dependency/blueclaw
-	url = git@github.com:Dawn-kim-official/blueclaw.git
+	url = https://github.com/Dawn-kim-official/blueclaw.git
 	branch = main
