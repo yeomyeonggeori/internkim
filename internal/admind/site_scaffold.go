@@ -177,7 +177,7 @@ components:
 
 ## Overview
 
-This file is a decision brief, not a template to keep: derive palette, typefaces, texture, and the style preset from what the request is for and who visits it, then record those decisions here. The interface should feel like a polished prototype made for immediate idea validation, refined without looking like a generic SaaS landing page. Black-on-white minimal utility is one valid choice among many — choose it deliberately, not by leaving defaults.
+This file is a decision brief, not a template to keep: derive palette, typefaces, texture, and the style preset from what the request is for and who visits it, then record those decisions here. The interface should feel like a polished prototype made for immediate idea validation, refined without looking like a generic SaaS landing page. A black-on-white minimal utility style is one valid choice among many — choose it deliberately, not by leaving defaults.
 
 ## Colors
 

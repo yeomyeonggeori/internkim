@@ -83,7 +83,24 @@ def main() -> int:
             print(f"  - {warning}")
     else:
         print("Content gate PASSED.")
+    for note in unused_palette_notes(blocks):
+        print(f"  ~ {note}")
     return 0
+
+
+def unused_palette_notes(blocks: list) -> list:
+    notes = []
+    has_items = any(block.get("items") for block in blocks)
+    has_icons = any(item.get("icon") for block in blocks for item in block.get("items") or [])
+    if has_items and not has_icons:
+        notes.append("palette: items accept icon (mail, instagram, map-pin, calendar, clock, flame, leaf, star, heart, users, sparkles, palette, hammer, coffee, sun, gift, award, compass, ... full list in references/blocks.md) when meaning calls for it")
+    has_images = any(block.get("image") for block in blocks)
+    if not has_images:
+        notes.append("palette: hero/prose accept image + imageAlt — fetch a license-free photo into app/public/images/<name>.jpg and reference /images/<name>.jpg when the mood calls for photography")
+    has_backdrops = any(str(block.get("backdrop") or "") for block in blocks)
+    if not has_backdrops:
+        notes.append("palette: hero/cta accept backdrop — mesh (blended color field), aurora (soft glow), grain (analog texture), grid (technical lines), dots (playful matrix)")
+    return notes
 
 
 def collect_visible_text(content: dict, blocks: list) -> str:
