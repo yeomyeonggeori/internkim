@@ -115,6 +115,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 func blueclawRestartDiagnosticCommand() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 set +e
+curl -fsS -m 10 -X POST http://127.0.0.1:8080/admin/api/runtime/prepare-shutdown >/dev/null 2>&1 || true
 systemctl restart %s
 restart_status=$?
 printf 'systemctl restart %s exit=%%s\n' "$restart_status"
