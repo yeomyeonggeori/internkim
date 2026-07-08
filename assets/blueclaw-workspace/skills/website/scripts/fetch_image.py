@@ -35,12 +35,33 @@ def download(url: str, output_path: pathlib.Path) -> int:
     return len(data)
 
 
+def parse_arguments(argv: list) -> tuple:
+    values = []
+    output_from_flag = None
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument in ("--output", "-o") and index + 1 < len(argv):
+            output_from_flag = argv[index + 1]
+            index += 2
+            continue
+        if argument.startswith("--output="):
+            output_from_flag = argument.split("=", 1)[1]
+            index += 1
+            continue
+        values.append(argument)
+        index += 1
+    query = values[0] if values else ""
+    output_value = output_from_flag or (values[1] if len(values) > 1 else "")
+    return query, output_value
+
+
 def main() -> int:
-    if len(sys.argv) < 3:
-        print("usage: fetch_image.py <search query> <output path under app/public/images/>")
+    query, output_value = parse_arguments(sys.argv[1:])
+    if not query or not output_value:
+        print("usage: fetch_image.py <search query> <output path>   (also accepts --output <path>)")
         return 2
-    query = sys.argv[1]
-    output_path = pathlib.Path(sys.argv[2])
+    output_path = pathlib.Path(output_value)
     try:
         results = search_openverse(query)
     except Exception as error:
