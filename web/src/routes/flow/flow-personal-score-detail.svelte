@@ -64,15 +64,15 @@
 			<div class="text-sm tabular-nums text-muted-foreground">{text.scoreTotal} {period.totalScore}</div>
 		</div>
 		<div class="overflow-x-auto">
-			<Table.Root class="min-w-[560px] table-fixed">
+			<Table.Root class="w-max table-auto">
 				<Table.Header class="bg-muted/20">
 					<Table.Row class="hover:bg-transparent">
-						<Table.Head class="h-9 w-24 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scorePeriod}</Table.Head>
-						<Table.Head class="h-9 w-24 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreCompletedDistance}</Table.Head>
-						<Table.Head class="h-9 w-24 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreCumulativeAverage}</Table.Head>
-						<Table.Head class="h-9 w-24 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreUnitScore}</Table.Head>
-						<Table.Head class="h-9 w-20 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreWeight}</Table.Head>
-						<Table.Head class="h-9 w-24 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreWeightedScore}</Table.Head>
+						<Table.Head class="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scorePeriod}</Table.Head>
+						<Table.Head class="h-9 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreCompletedDistance}</Table.Head>
+						<Table.Head class="h-9 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreCumulativeAverage}</Table.Head>
+						<Table.Head class="h-9 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreUnitScore}</Table.Head>
+						<Table.Head class="h-9 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreWeight}</Table.Head>
+						<Table.Head class="h-9 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scoreWeightedScore}</Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
