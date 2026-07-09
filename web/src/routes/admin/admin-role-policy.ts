@@ -1,6 +1,6 @@
 import type { AdminSection, AdminSession, UserRole } from './admin-types';
 
-const operationsAdminSections: AdminSection[] = ['users', 'orgchart', 'settings'];
+const operationsAdminSections: AdminSection[] = ['users', 'settings'];
 type LegacyAdminSession = Omit<AdminSession, 'isAdmin'> & { isAdmin?: boolean };
 
 export function adminSessionRole(session: LegacyAdminSession | null): UserRole {
@@ -13,6 +13,10 @@ export function canViewAdminSection(role: UserRole, section: AdminSection): bool
 	if (role === 'admin') return true;
 	if (role === 'operationsAdmin') return operationsAdminSections.includes(section);
 	return false;
+}
+
+export function canManageOrgchart(role: UserRole): boolean {
+	return role === 'admin' || role === 'operationsAdmin';
 }
 
 export function firstVisibleAdminSection(role: UserRole, sections: AdminSection[]): AdminSection | null {
