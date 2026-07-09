@@ -37,6 +37,7 @@
 	let isEditingPinnedMemory = $state(false);
 	let pinnedMemoryDraft = $state('');
 	let selectedNode = $state<MemoryGraphNode | null>(null);
+	let showAllNamespaces = $state(false);
 
 	const namespaces = () => memoryGraph?.namespaces ?? [];
 	const facts = () => memoryGraph?.facts ?? [];
@@ -79,6 +80,9 @@
 	function scopeDisplayName(scopeType: string, namespaceID: string): string {
 		return isPersonalScope(scopeType) ? text.myMemory : namespaceID;
 	}
+
+	const visibleNamespaces = () => (showAllNamespaces ? namespaces() : namespaces().slice(0, 10));
+	const namespacesShowAllText = () => text.namespacesShowAllTemplate.replace('{count}', String(namespaces().length));
 
 	function mergePersonalNamespaceNodes(
 		rawNodes: MemoryGraphNode[],
@@ -359,6 +363,9 @@
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
 							<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
 							<span class="truncate text-xs text-muted-foreground">{scopeDisplayName(fact.scopeType, fact.namespaceID)}</span>
+							{#if fact.validAt}
+								<span class="text-xs tabular-nums text-muted-foreground">{fact.validAt.slice(0, 10)}</span>
+							{/if}
 							<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
 						</div>
 						<div class="memory-markdown text-sm leading-5">
@@ -376,7 +383,7 @@
 
 {#if namespaces().length > 0}
 	<section class="overflow-hidden rounded-lg border">
-		{#each namespaces().slice(0, 10) as namespace}
+		{#each visibleNamespaces() as namespace}
 			<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
 				<div class="min-w-0">
 					<p class="truncate text-sm font-medium">{scopeDisplayName(namespace.scopeType, namespace.namespaceID)}</p>
@@ -387,6 +394,13 @@
 				{/if}
 			</div>
 		{/each}
+		{#if namespaces().length > 10}
+			<div class="flex justify-center border-t px-3 py-2">
+				<Button type="button" variant="ghost" size="sm" onclick={() => (showAllNamespaces = !showAllNamespaces)}>
+					{showAllNamespaces ? text.namespacesShowLess : namespacesShowAllText()}
+				</Button>
+			</div>
+		{/if}
 	</section>
 {/if}
 
