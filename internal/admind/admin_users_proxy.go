@@ -226,6 +226,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && usersResponse.Records != nil {
 			if metadataResponse, errorValue := service.orgchartMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
 				usersResponse = metadataResponse.response
+				usersResponse.Records = adminUserRecordsWithProfileImages(usersResponse.Records)
 				if enhancedBody, errorValue := json.Marshal(usersResponse); errorValue == nil {
 					responseBody = enhancedBody
 				} else {
@@ -240,6 +241,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				}
 			}
 		}
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		responseBody = usersResponseBodyWithProfileImages(responseBody)
 	}
 	responseWriter.WriteHeader(response.StatusCode)
 	_, _ = responseWriter.Write(responseBody)

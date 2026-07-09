@@ -2,6 +2,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import { sizeBadgeClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
@@ -71,12 +72,12 @@
 >
 	<div class="flex min-w-0 flex-wrap items-center gap-1">
 		<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs font-medium">
-			<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} class="size-4" />
+			<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} class="size-4" />
 			{display.ownerName}
 		</Badge>
 		{#each display.participantNames as name, index}
 			<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs">
-				<PersonAvatar name={name} seed={display.participantIDs[index] ?? name} class="size-3.5" />
+				<PersonAvatar name={name} seed={display.participantIDs[index] ?? name} image={personProfileImagePath(display.participantIDs[index])} class="size-3.5" />
 				{name}
 			</Badge>
 		{/each}

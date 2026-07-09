@@ -194,6 +194,7 @@ type companionReleaseResponse struct {
 
 type adminSessionResponse struct {
 	Email                  string `json:"email"`
+	Image                  string `json:"image,omitempty"`
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
 	Role                   string `json:"role"`
@@ -932,8 +933,10 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	if service.isProofOfConceptTenantMode() {
 		canViewTasks = isPoCSuperAdmin
 	}
+	sessionImageEmail := firstNonEmpty(consoleEmail, claimedAdminEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
+		Image:             profileImagePathForEmail(sessionImageEmail),
 		ClaimedAdminEmail: claimedAdminEmail,
 		IsAdmin:           role == adminUserRoleAdmin,
 		Role:              role,
@@ -1347,7 +1350,7 @@ func (service *Service) lookupUserRecords(ctx context.Context, fleetID string, f
 	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
 		return nil, errorValue
 	}
-	return usersResponse.Records, nil
+	return adminUserRecordsWithProfileImages(usersResponse.Records), nil
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {

@@ -33,6 +33,10 @@ func (service *Service) serveCalendarParticipantImage(responseWriter http.Respon
 		http.NotFound(responseWriter, request)
 		return
 	}
+	if !mattermostUserHasProfileImage(userRecord) {
+		http.NotFound(responseWriter, request)
+		return
+	}
 	service.serveMattermostUserImage(responseWriter, request, token, userRecord.ID)
 }
 
@@ -71,4 +75,8 @@ func (service *Service) calendarParticipantMattermostUser(request *http.Request,
 		return mattermostUserRecord{}, false, nil
 	}
 	return service.findMattermostUserByEmail(request.Context(), token, email)
+}
+
+func mattermostUserHasProfileImage(userRecord mattermostUserRecord) bool {
+	return userRecord.LastPictureUpdate > 0
 }

@@ -42,6 +42,7 @@ type flowMember struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
 	Email              string `json:"email"`
+	Image              string `json:"image,omitempty"`
 	MattermostUsername string `json:"mattermostUsername,omitempty"`
 	HireDate           string `json:"hireDate,omitempty"`
 	Role               string `json:"role"`

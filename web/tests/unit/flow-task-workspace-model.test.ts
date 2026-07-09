@@ -4,6 +4,7 @@ import {
 	EMPTY_FLOW_BUSINESS_VALUE,
 	buildBusinessFilterOptions,
 	buildFlowTaskTabs,
+	buildMemberFilterOptions,
 	canDeleteFlowTask,
 	canRemoveFlowTaskParticipant,
 	canManageFlowTaskAssignment,
@@ -65,6 +66,25 @@ describe('flow task workspace model', () => {
 			{ value: 'all', label: '전체' },
 			{ value: EMPTY_FLOW_BUSINESS_VALUE, label: '기타' },
 			{ value: '여명거리', label: '여명거리' }
+		]);
+	});
+
+	test('keeps member profile images in participant filter options', () => {
+		expect(buildMemberFilterOptions([
+			flowMember({
+				id: 'owner',
+				name: '담당자',
+				email: 'owner@example.com',
+				image: '/calendar/api/participants/owner/image'
+			})
+		], '전체')).toEqual([
+			{ value: 'all', label: '전체' },
+			{
+				value: 'owner',
+				label: '담당자',
+				email: 'owner@example.com',
+				image: '/calendar/api/participants/owner/image'
+			}
 		]);
 	});
 

@@ -95,6 +95,7 @@ export type AttendanceAbsence = {
 export type AttendanceMember = {
 	email: string;
 	displayName: string;
+	image?: string;
 	mattermostUsername: string;
 };
 
