@@ -16,7 +16,7 @@ Create a useful, visually strong deck and attach the requested files. HTML-first
 1. Decide the requested format and slide spine before writing files.
 2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
 3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
-4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks DESIGN.md substance and ledger coverage, but they must not delay the primary source file.
+4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks their substance; they must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`. HTML is the source of truth for every format: iterate with the default command, which builds and reviews the HTML each time.
 6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
 7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Keep revising while the score improves, and never deliver without a reviewed build of the final source; stop when the gate passes, the score stalls across two rebuilds, or a budget status observation says consolidate or finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
@@ -46,7 +46,7 @@ Do not call `terminal.run` with an `arguments` array alone.
 
 Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html` or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
-Give every slide a speaker script: `<aside class="notes">` with 2-4 spoken sentences in the request language that the presenter can read aloud verbatim. The presenter view shows them; they never render on the slide.
+Give every slide `<aside class="notes">` with 2-4 spoken sentences in the request language, readable aloud verbatim; they never render on the slide.
 
 There is no template to fill in; the content, layout, and HTML source are your responsibility.
 
@@ -74,7 +74,7 @@ Pick one deck archetype, such as pitch, executive briefing, or status report, an
 
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask.
 
-For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more design direction is needed, but do not spend tool turns on reference reading before `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
+For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more direction is needed, after `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
 
 Quarterly review decks usually follow the six-slide board spine in `composition-seeds.md`, which carries the board-floor composition set. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
 
@@ -84,7 +84,7 @@ Do not deliver a board deck made of plain white title slides, unstyled tables, b
 
 `slides.html` is the source of truth and the first file written: `<!-- design-source: DESIGN.md -->` included, chosen colors/typography mirrored in CSS, one main message per slide, `data-visual-system` on `<body>`, `data-slide-role` on every `<section class="slide">`, one top-level section per slide.
 
-`DESIGN.md` is useful for design-sensitive decks but not more important than the deck. If created, use Stitch-compatible YAML front matter with only `colors`, `typography`, `layout`, then headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, `Anti-default Check`.
+`DESIGN.md` matters less than the deck itself. If created, use Stitch-compatible YAML front matter with only `colors`, `typography`, `layout`, then headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, `Anti-default Check`.
 
 `deck-brief.md` is an optional planning note, not a deliverable: archetype, story spine, slide count, visual system, signature move, what would be too shallow.
 
@@ -115,7 +115,7 @@ Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, sans-serif`. 
 
 ## Review and Delivery
 
-The default build, `FORMATS=review`, PDF builds, and PPTX builds create PNGs, `slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and `fit-review-XX.md` when browser rendering or native preview rendering is available. Check each contact sheet with its matching fit review. Every expected visible text item must appear fully inside the slide frame. Missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision is revision input. If `visualEvidenceReliable=false`, the review came from fallback images rather than the browser and cannot prove visual quality.
+Every build creates PNGs, `slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and `fit-review-XX.md` when browser rendering or native preview rendering is available. Check each contact sheet with its matching fit review. Every expected visible text item must appear fully inside the slide frame. Missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision is revision input. If `visualEvidenceReliable=false`, the review came from fallback images rather than the browser and cannot prove visual quality.
 
 Review substance and surface: request fit, story flow, claim titles, credible examples, and readability. A clean export is not acceptance. The static source review always runs, even when browser rendering is unavailable, so `staticGatePassed` and the design warnings stay authoritative without render images. `qualityGatePassed=true` additionally requires browser render evidence and passing fit checks.
 
@@ -125,6 +125,8 @@ Before delivery, compare the deck against the user's source facts. Check that re
 
 Remaining visual review notes are not a delivery blocker after the required review and revision loop. If requested PPTX/PDF/HTML exists and is usable after the improvement budget, attach it and mention top remaining notes briefly, including when `visualEvidenceReliable=false` meant visual fit could not be verified. Do not spend delivery budget creating or attaching internal review-decision files unless the user asks.
 
+After delivering a below-gate build, judge your trajectory honestly: offer one more improvement round via `ask.confirm` only when the review score was still climbing and you can name the concrete next fix; if it stalled or regressed, say plainly this is your best result with the current approach rather than offering more.
+
 ## Revisions and Formats
 
 For revisions, edit the same `<deck-slug>`. If `tmp/<deck-slug>/slides.html` is gone, restore editable source from `artifacts/<deck-slug>/source/`, apply changes, rebuild, and deliver with `overwrite: true`.
@@ -133,6 +135,4 @@ If the user does not name a format, build with the default command, run the revi
 
 ## Validating an Existing PPTX
 
-To check an existing `.pptx` file for empty slides, missing titles, excessive shape count, or leftover default fonts, run `python3 /workspace/skills/presentation/scripts/skill_runtime.py python /workspace/skills/presentation/scripts/validate_pptx.py <path-to-file>.pptx`.
-
-`skill_runtime.py` bootstraps `python-pptx` from `scripts/requirements.txt` on first use.
+To check an existing `.pptx` for empty slides, missing titles, excessive shapes, or leftover default fonts: `python3 /workspace/skills/presentation/scripts/skill_runtime.py python /workspace/skills/presentation/scripts/validate_pptx.py <file>.pptx` (bootstraps `python-pptx` on first use).
