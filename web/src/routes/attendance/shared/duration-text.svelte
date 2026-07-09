@@ -13,15 +13,25 @@
 	const text = createPageText(attendanceText);
 	const hours = $derived(Math.floor(minutes / 60));
 	const remainderMinutes = $derived(minutes % 60);
-	const showsHours = $derived(hours > 0);
-	const showsMinutes = $derived(!showsHours || remainderMinutes > 0);
+
+	function paddingLength(value: number): number {
+		return Math.max(0, padDurationNumber(value).length - String(value).length);
+	}
 </script>
 
-<span class={`inline-flex items-baseline gap-1 font-mono tabular-nums ${className}`}>
-	{#if showsHours}
-		<span>{padDurationNumber(hours)}<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.hourUnit}</span></span>
-	{/if}
-	{#if showsMinutes}
-		<span>{padDurationNumber(remainderMinutes)}<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.minuteUnit}</span></span>
-	{/if}
-</span>
+{#if minutes > 0}
+	<span class={`inline-flex items-baseline gap-1 font-mono tabular-nums ${className}`}>
+		<span>
+			{#each Array.from(padDurationNumber(hours)) as character, index}
+				<span class={index < paddingLength(hours) ? 'text-muted-foreground/55' : undefined}>{character}</span>
+			{/each}
+			<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.hourUnit}</span>
+		</span>
+		<span>
+			{#each Array.from(padDurationNumber(remainderMinutes)) as character, index}
+				<span class={index < paddingLength(remainderMinutes) ? 'text-muted-foreground/55' : undefined}>{character}</span>
+			{/each}
+			<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.minuteUnit}</span>
+		</span>
+	</span>
+{/if}

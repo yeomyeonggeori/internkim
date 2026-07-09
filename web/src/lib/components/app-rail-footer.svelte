@@ -9,6 +9,7 @@
 		profileMenuOpen = $bindable(false),
 		displayUserName,
 		userEmail,
+		userImage,
 		labels,
 		openAPITokenSheet,
 		logOut
@@ -17,6 +18,7 @@
 		profileMenuOpen?: boolean;
 		displayUserName: string;
 		userEmail: string;
+		userImage?: string;
 		labels: AppRailProfileMenuLabels;
 		openAPITokenSheet: () => void;
 		logOut: () => void | Promise<void>;
@@ -32,6 +34,7 @@
 		bind:open={profileMenuOpen}
 		{displayUserName}
 		{userEmail}
+		{userImage}
 		{labels}
 		{openAPITokenSheet}
 		{logOut}

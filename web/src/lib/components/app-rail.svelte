@@ -26,6 +26,7 @@
 	import { onMount } from 'svelte';
 
 	let userEmail = $state('');
+	let userImage = $state('');
 	const text = createPageText(appShellText);
 	let isProfileMenuOpen = $state(false);
 	let isAPITokenSheetOpen = $state(false);
@@ -105,6 +106,7 @@
 				adminRole = 'member';
 				canViewTasks = false;
 				isPocSuperAdmin = false;
+				userImage = '';
 				return;
 			}
 		}
@@ -121,6 +123,7 @@
 				role?: UserRole;
 				canViewTasks?: boolean;
 				isPocSuperAdmin?: boolean;
+				image?: string;
 			};
 			adminRole = normalizeSessionRole(session);
 			canViewTasks = session.canViewTasks === true || adminRole === 'admin';
@@ -132,6 +135,7 @@
 			}
 			userEmail = adminEmail;
 			userName = userEmail.split('@')[0];
+			userImage = session.image || '';
 		} catch {
 			adminRole = 'member';
 		}
@@ -143,6 +147,7 @@
 			if (!response.ok) {
 				userEmail = '';
 				userName = '';
+				userImage = '';
 				canViewTasks = false;
 				isPocSuperAdmin = false;
 				return false;
@@ -150,24 +155,28 @@
 			const session = (await response.json()) as {
 				authenticated?: boolean;
 				email?: string;
+				image?: string;
 				canViewTasks?: boolean;
 				isPocSuperAdmin?: boolean;
 			};
 			if (!session.authenticated) {
 				userEmail = '';
 				userName = '';
+				userImage = '';
 				canViewTasks = false;
 				isPocSuperAdmin = false;
 				return false;
 			}
 			userEmail = session.email || '';
 			userName = userEmail ? userEmail.split('@')[0] : '';
+			userImage = session.image || '';
 			canViewTasks = session.canViewTasks === true;
 			isPocSuperAdmin = session.isPocSuperAdmin === true;
 			return true;
 		} catch {
 			userEmail = '';
 			userName = '';
+			userImage = '';
 			canViewTasks = false;
 			isPocSuperAdmin = false;
 			return false;
@@ -200,6 +209,7 @@
 		bind:profileMenuOpen={isProfileMenuOpen}
 		{displayUserName}
 		{userEmail}
+		{userImage}
 		labels={profileMenuLabels}
 		{openAPITokenSheet}
 		{logOut}
@@ -216,6 +226,7 @@
 	primaryItems={mobilePrimaryItems}
 	{text}
 	{userEmail}
+	{userImage}
 />
 
 <AccountAPITokenSheet bind:open={isAPITokenSheetOpen} />

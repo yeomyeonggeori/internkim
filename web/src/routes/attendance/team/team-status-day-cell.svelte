@@ -1,4 +1,6 @@
 <script lang="ts">
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import { mergeProps } from 'bits-ui';
 	import DurationText from '../shared/duration-text.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
@@ -7,10 +9,20 @@
 		columnIndex: number;
 		isLastColumn: boolean;
 		personEmail: string;
+		isWorkTooltipOpen: boolean;
+		onWorkTooltipOpenChange: (isOpen: boolean) => void;
 		onOpenDayDetail: (day: TeamStatusPersonDay) => void;
 	};
 
-	let { day, columnIndex, isLastColumn, personEmail, onOpenDayDetail }: Props = $props();
+	let {
+		day,
+		columnIndex,
+		isLastColumn,
+		personEmail,
+		isWorkTooltipOpen,
+		onWorkTooltipOpenChange,
+		onOpenDayDetail
+	}: Props = $props();
 
 	function cellDividerClass(): string {
 		if (columnIndex === 0) return isLastColumn ? 'border-r' : '';
@@ -51,16 +63,18 @@
 	}
 
 	const hasVisibleLabel = $derived(day.tone === 'absence' || day.label !== '-');
+	const hasWorkTooltip = $derived(day.segments.length > 0);
+	const buttonProps = $derived({
+		class: cellButtonClass(day),
+		'aria-label': hasVisibleLabel ? undefined : day.label,
+		'data-testid': `team-status-cell-${personEmail}-${day.date}`,
+		onclick: () => onOpenDayDetail(day),
+	});
 </script>
 
-<div class={`flex items-stretch justify-stretch text-center ${cellDividerClass()}`} role="cell">
-	<button
-		type="button"
-		class={cellButtonClass(day)}
-		aria-label={hasVisibleLabel ? undefined : day.label}
-		data-testid={`team-status-cell-${personEmail}-${day.date}`}
-		onclick={() => onOpenDayDetail(day)}
-	>
+{#snippet CellButton({ props }: { props?: Record<string, unknown> })}
+	{@const mergedProps = mergeProps(buttonProps, props ?? {})}
+	<button type="button" {...mergedProps}>
 		{#if day.tone === 'absence'}
 			<span class={`min-w-0 max-w-full whitespace-normal break-all leading-tight ${absenceLabelClass(day)}`}>{day.label}</span>
 		{:else if day.durationMinutes !== undefined}
@@ -91,4 +105,52 @@
 			</span>
 		{/if}
 	</button>
+{/snippet}
+
+{#snippet WorkSegmentTooltip()}
+	<div class="grid min-w-44 gap-2">
+		{#each day.segments as segment (segment.id)}
+			<div class="grid gap-0.5">
+				<div class="flex min-w-0 items-center justify-between gap-3">
+					<span class="flex min-w-0 items-center gap-1.5">
+						<span
+							class="h-3 w-1 shrink-0 rounded-full"
+							style:background-color={segmentBarColor(segment)}
+							aria-hidden="true"
+						></span>
+						<span class="min-w-0 truncate">{segment.locationName}</span>
+					</span>
+					{#if segment.durationMinutes !== undefined}
+						<DurationText
+							minutes={segment.durationMinutes}
+							class={`shrink-0 text-xs font-medium ${segment.isOpen ? 'text-success' : 'text-popover-foreground'}`}
+						/>
+					{/if}
+				</div>
+				<div class="text-[10px] tabular-nums text-muted-foreground">{segment.timeLabel}</div>
+			</div>
+		{/each}
+	</div>
+{/snippet}
+
+<div class={`flex items-stretch justify-stretch text-center ${cellDividerClass()}`} role="cell">
+	{#if hasWorkTooltip}
+		<Tooltip.Root bind:open={() => isWorkTooltipOpen, onWorkTooltipOpenChange}>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					{@render CellButton({ props })}
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content
+				side="top"
+				sideOffset={6}
+				class="mx-2 grid max-w-64 gap-2 bg-popover px-3 py-2 text-popover-foreground shadow-md ring-1 ring-border duration-150 ease-out data-[side=top]:slide-in-from-bottom-1"
+				arrowClasses="bg-popover fill-popover"
+			>
+				{@render WorkSegmentTooltip()}
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{:else}
+		{@render CellButton({})}
+	{/if}
 </div>

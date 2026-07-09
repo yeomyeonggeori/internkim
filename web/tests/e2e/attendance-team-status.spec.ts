@@ -102,7 +102,7 @@ test.describe('attendance team status', () => {
 		expect(otherRowText?.trim()).toContain('6/30');
 	});
 
-	test('shows location bars without a hover tooltip in a team status cell', async ({ page }) => {
+	test('shows work segment tooltip in a team status day cell', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
@@ -115,12 +115,40 @@ test.describe('attendance team status', () => {
 		await selectKorean(page);
 
 		const todayCell = page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`);
-		await expect(todayCell.getByText(/\d+시간/)).toBeVisible();
+		await expect(todayCell).toBeVisible();
 		await expect(todayCell.getByText('외부')).toHaveCount(0);
 		await expect(todayCell.getByText('근무 중')).toHaveCount(0);
 		await expect(todayCell.locator('span[style*="background-color"]')).toHaveCount(3);
 		await todayCell.hover();
-		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
+		const tooltip = page.locator('[data-slot="tooltip-content"]');
+		await expect(tooltip.getByText('재택')).toBeVisible();
+		await expect(tooltip.getByText('08:30-10:20')).toBeVisible();
+
+		await page.getByTestId(`team-status-cell-lee@example.com-${todayDate}`).hover();
+		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(1);
+	});
+
+	test('shows an employee work time chart in the employee header hover card', async ({ page }) => {
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
+			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId('team-status-person-header-kim@example.com').hover();
+
+		const hoverCard = page.locator('[data-slot="hover-card-content"]');
+		await expect(hoverCard.getByText('근무 시간', { exact: true })).toBeVisible();
+		await expect(hoverCard.getByText('내 근무 시간')).toHaveCount(0);
+		await expect(hoverCard.getByText('일일 평균')).toBeVisible();
+		await expect(hoverCard.getByText('일일 최고')).toBeVisible();
+		await expect(hoverCard.getByText('일일 최저')).toBeVisible();
+
+		await page.getByTestId('team-status-person-header-lee@example.com').hover();
+		await expect(page.locator('[data-slot="hover-card-content"]')).toHaveCount(1);
 	});
 
 	test('opens status day details from a team status cell', async ({ page }) => {
@@ -143,7 +171,7 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('근무 구간')).toHaveCount(0);
 		const workHeader = dialog.getByTestId('team-status-work-record-header');
 		await expect(workHeader.getByText('근무 기록', { exact: true })).toBeVisible();
-		await expect(workHeader.getByText(/\d+시간/)).toBeVisible();
+		await expect(workHeader.getByText(/\d{2}시간 \d{2}분/)).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();
@@ -363,7 +391,7 @@ test.describe('attendance team status', () => {
 		const segments = sheet.getByTestId('team-status-day-segment');
 		await expect(sheet).toBeVisible();
 		await expect(sheet.getByText(`김철수 · ${todayDate}`)).toBeVisible();
-		await expect(sheet.getByTestId('team-status-work-record-header').getByText(/\d+시간/)).toBeVisible();
+		await expect(sheet.getByTestId('team-status-work-record-header').getByText(/\d{2}시간 \d{2}분/)).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();

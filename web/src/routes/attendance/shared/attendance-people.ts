@@ -9,6 +9,7 @@ export type PersonStatus = 'working' | 'finished' | 'absence' | 'absent' | 'week
 export type PersonToday = {
 	email: string;
 	displayName: string;
+	image?: string;
 	mattermostUsername: string;
 	status: PersonStatus;
 	clockIn?: AttendanceEvent;
@@ -25,8 +26,8 @@ export type PersonToday = {
 export function uniquePeople(
 	events: AttendanceEvent[],
 	absences: AttendanceAbsence[] = []
-): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>[] {
-	const map = new Map<string, Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>>();
+): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>[] {
+	const map = new Map<string, Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>>();
 	for (const event of events) {
 		if (!map.has(event.email)) {
 			map.set(event.email, {

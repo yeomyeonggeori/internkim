@@ -32,6 +32,8 @@
 	let isFlowContextLoading = $state(false);
 	let hasCalendarContextLoadFailed = $state(false);
 	let hasFlowContextLoadFailed = $state(false);
+	let openPersonHeaderEmail = $state<string | null>(null);
+	let openDayTooltipKey = $state<string | null>(null);
 	let lastScrollKey = $state('');
 	let lastContextLoadKey = $state('');
 	let lastContextLoadedAt = $state(0);
@@ -148,6 +150,22 @@
 		return Math.min(maximumWidth, Math.max(minimumWidth, width));
 	}
 
+	function setPersonHeaderOpen(email: string, isOpen: boolean): void {
+		if (isOpen) {
+			openPersonHeaderEmail = email;
+			return;
+		}
+		if (openPersonHeaderEmail === email) openPersonHeaderEmail = null;
+	}
+
+	function setDayTooltipOpen(key: string, isOpen: boolean): void {
+		if (isOpen) {
+			openDayTooltipKey = key;
+			return;
+		}
+		if (openDayTooltipKey === key) openDayTooltipKey = null;
+	}
+
 	function dateRowClass(date: string): string {
 		if (date === today) return 'sticky z-[15] grid border-y bg-background shadow-md';
 		return 'grid border-b last:border-b-0';
@@ -210,7 +228,14 @@
 		<div bind:this={headerRow} class="sticky top-0 z-20 grid border-b bg-muted" style:grid-template-columns={gridTemplateColumns} role="row">
 			<div class="sticky left-0 z-30 border-r bg-muted" role="columnheader"></div>
 			{#each rows as row, employeeIndex (row.email)}
-				<TeamStatusPersonHeader {row} columnIndex={employeeIndex} isLastColumn={employeeIndex === rows.length - 1} />
+				<TeamStatusPersonHeader
+					{row}
+					columnIndex={employeeIndex}
+					isLastColumn={employeeIndex === rows.length - 1}
+					{text}
+					isWorkTimeOpen={openPersonHeaderEmail === row.email}
+					onWorkTimeOpenChange={(isOpen) => setPersonHeaderOpen(row.email, isOpen)}
+				/>
 			{/each}
 		</div>
 		<div role="rowgroup">
@@ -225,11 +250,14 @@
 					>
 						<TeamStatusDateHeader {date} {today} {text} />
 						{#each rows as row, employeeIndex (row.email)}
+							{@const dayTooltipKey = `${row.email}:${date}`}
 							<TeamStatusDayCell
 								day={row.days[dateIndex]}
 								columnIndex={employeeIndex}
 								isLastColumn={employeeIndex === rows.length - 1}
 								personEmail={row.email}
+								isWorkTooltipOpen={openDayTooltipKey === dayTooltipKey}
+								onWorkTooltipOpenChange={(isOpen) => setDayTooltipOpen(dayTooltipKey, isOpen)}
 								onOpenDayDetail={(selectedDay) => openDayDetail(row, selectedDay)}
 							/>
 						{/each}
