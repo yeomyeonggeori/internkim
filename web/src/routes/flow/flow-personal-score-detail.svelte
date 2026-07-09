@@ -29,6 +29,10 @@
 		return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value);
 	}
 
+	function formatScoreNumber(value: number): string {
+		return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+	}
+
 </script>
 
 <section class="rounded-lg border bg-card p-4 shadow-sm">
@@ -61,7 +65,7 @@
 	<div class="overflow-hidden rounded-md border">
 		<div class="flex items-center justify-between border-b bg-muted/30 px-3 py-2">
 			<div class="font-medium">{title}</div>
-			<div class="text-sm tabular-nums text-muted-foreground">{text.scoreTotal} {period.totalScore}</div>
+			<div class="font-mono text-sm tabular-nums text-muted-foreground">{text.scoreTotal} {period.totalScore}</div>
 		</div>
 		<div class="overflow-x-auto">
 			<Table.Root class="w-full min-w-max table-auto">
@@ -79,11 +83,11 @@
 					{#each period.rows as row}
 						<Table.Row>
 							<Table.Cell class="font-medium">{labelForRow(row)}</Table.Cell>
-							<Table.Cell class="text-right tabular-nums">{formatNumber(row.completedDistance)}</Table.Cell>
-							<Table.Cell class="text-right tabular-nums">{formatNumber(row.cumulativeAverage)}</Table.Cell>
-							<Table.Cell class="text-right tabular-nums">{formatNumber(row.unitScore)}</Table.Cell>
-							<Table.Cell class="text-right tabular-nums">{formatNumber(row.weight)}</Table.Cell>
-							<Table.Cell class="text-right tabular-nums">{formatNumber(row.weightedScore)}</Table.Cell>
+							<Table.Cell class="text-right font-mono tabular-nums">{formatNumber(row.completedDistance)}</Table.Cell>
+							<Table.Cell class="text-right font-mono tabular-nums">{formatScoreNumber(row.cumulativeAverage)}</Table.Cell>
+							<Table.Cell class="text-right font-mono tabular-nums">{formatScoreNumber(row.unitScore)}</Table.Cell>
+							<Table.Cell class="text-right font-mono tabular-nums">{formatNumber(row.weight)}</Table.Cell>
+							<Table.Cell class="text-right font-mono tabular-nums">{formatScoreNumber(row.weightedScore)}</Table.Cell>
 						</Table.Row>
 					{/each}
 				</Table.Body>

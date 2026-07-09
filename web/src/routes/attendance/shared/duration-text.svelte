@@ -17,19 +17,24 @@
 	function paddingLength(value: number): number {
 		return Math.max(0, padDurationNumber(value).length - String(value).length);
 	}
+
+	function durationDigitClass(value: number, index: number): string | undefined {
+		if (value === 0 || index < paddingLength(value)) return 'text-muted-foreground/55';
+		return undefined;
+	}
 </script>
 
 {#if minutes > 0}
-	<span class={`inline-flex items-baseline gap-1 font-mono tabular-nums ${className}`}>
-		<span>
+	<span class={`inline-flex items-baseline gap-[0.35em] font-mono tabular-nums ${className}`}>
+		<span class="inline-flex items-baseline">
 			{#each Array.from(padDurationNumber(hours)) as character, index}
-				<span class={index < paddingLength(hours) ? 'text-muted-foreground/55' : undefined}>{character}</span>
+				<span class={durationDigitClass(hours, index)}>{character}</span>
 			{/each}
 			<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.hourUnit}</span>
 		</span>
-		<span>
+		<span class="inline-flex items-baseline">
 			{#each Array.from(padDurationNumber(remainderMinutes)) as character, index}
-				<span class={index < paddingLength(remainderMinutes) ? 'text-muted-foreground/55' : undefined}>{character}</span>
+				<span class={durationDigitClass(remainderMinutes, index)}>{character}</span>
 			{/each}
 			<span class="font-sans text-[0.8em] font-normal text-muted-foreground">{text.minuteUnit}</span>
 		</span>
