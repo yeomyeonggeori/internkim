@@ -27,6 +27,7 @@ type platformEventContext struct {
 	ChannelID        string                    `json:"channelID,omitempty"`
 	ChannelName      string                    `json:"channelName,omitempty"`
 	Addressing       platformAddressing        `json:"addressing,omitempty"`
+	AttachmentsOnly  bool                      `json:"attachmentsOnly,omitempty"`
 	InputAttachments []platformInputAttachment `json:"inputAttachments,omitempty"`
 	Materials        []platformInputAttachment `json:"materials,omitempty"`
 }
