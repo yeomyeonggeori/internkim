@@ -125,9 +125,20 @@
 			{text.settings}
 		</button>
 	</div>
-	<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
+	<div class="calendar-toolbar-search-row">
+		<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
+		<button
+			type="button"
+			class="new-event-button mobile-new-event-button"
+			aria-label={text.new}
+			onclick={(event) => createQuickEvent(event)}
+		>
+			<PlusIcon class="size-4" />
+			<span>{text.new}</span>
+		</button>
+	</div>
 	<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
-	<button type="button" class="new-event-button" onclick={(event) => createQuickEvent(event)}>
+	<button type="button" class="new-event-button desktop-new-event-button" onclick={(event) => createQuickEvent(event)}>
 		<PlusIcon class="size-4" />
 		<span>{text.new}</span>
 	</button>
@@ -228,6 +239,14 @@
 		margin-left: auto;
 	}
 
+	.calendar-toolbar-search-row {
+		display: contents;
+	}
+
+	.mobile-new-event-button {
+		display: none;
+	}
+
 	.new-event-button {
 		height: 36px;
 		gap: 8px;
@@ -275,13 +294,40 @@
 		}
 
 		.calendar-toolbar-actions {
-			margin-left: 0;
+			margin-left: auto;
 			order: 2;
 		}
 
-		.new-event-button {
+		.calendar-toolbar-search-row {
+			display: flex;
+			width: 100%;
+			order: 4;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.calendar-toolbar-search-row :global(.calendar-search-shell) {
+			flex: 1 1 auto;
+			order: 0;
+			width: auto;
+			min-width: 0;
+			margin-left: 0;
+		}
+
+		.desktop-new-event-button {
+			display: none;
+		}
+
+		.mobile-new-event-button {
+			display: inline-flex;
+			width: 40px;
 			margin-left: auto;
-			order: 3;
+			gap: 0;
+			padding: 0;
+		}
+
+		.mobile-new-event-button span {
+			display: none;
 		}
 	}
 </style>
