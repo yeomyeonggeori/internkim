@@ -11,21 +11,22 @@ export function statusBadgeClass(status: string): string {
 }
 
 export function sizeBadgeClass(size: string): string {
+	const baseClass = 'rounded-md border border-transparent font-mono tabular-nums text-white shadow-none';
 	switch (size) {
 		case 'XS':
-			return 'bg-[#f1f3f4] text-[#3c4043] border-transparent';
+			return `${baseClass} bg-[#6b7280]`;
 		case 'S':
-			return 'bg-[#d4edbc] text-[#1f3826] border-transparent';
+			return `${baseClass} bg-[#16a34a]`;
 		case 'M':
-			return 'bg-[#bfe1f6] text-[#0b3d63] border-transparent';
+			return `${baseClass} bg-[#2563eb]`;
 		case 'L':
-			return 'bg-[#ffe5a0] text-[#473821] border-transparent';
+			return `${baseClass} bg-[#d97706]`;
 		case 'XL':
-			return 'bg-[#ffcfc9] text-[#5b1c14] border-transparent';
+			return `${baseClass} bg-[#dc2626]`;
 		case 'XXL':
-			return 'bg-[#f6c1bd] text-[#5b1c14] border-transparent';
+			return `${baseClass} bg-[#991b1b]`;
 		default:
-			return 'bg-muted text-muted-foreground border-transparent';
+			return `${baseClass} bg-muted-foreground`;
 	}
 }
 
