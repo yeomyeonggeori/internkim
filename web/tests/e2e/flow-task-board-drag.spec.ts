@@ -34,6 +34,16 @@ test.describe('flow task board drag interactions', () => {
 		await expect(page.getByRole('button', { name: '김철수', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '보드', exact: true })).toHaveAttribute('aria-selected', 'true');
 		await expect(taskColumn(page, '진행')).toBeVisible();
+		await expect(taskColumn(page, '진행').locator('[data-flow-board-task-count]')).toHaveText('3');
+		await expect(taskColumn(page, '진행').locator('[data-flow-board-footer-add-task="진행"]')).toHaveCSS('opacity', '0');
+		await taskColumn(page, '진행').hover();
+		await expect(taskColumn(page, '진행').locator('[data-flow-board-footer-add-task="진행"]')).toHaveCSS('opacity', '1');
+		const flowDashboardGoal = '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.';
+		await expect(taskColumn(page, '진행').getByText(flowDashboardGoal)).toHaveCount(0);
+		await taskCard(page, flowDashboardTaskID).click();
+		await expect(page.getByPlaceholder('완료 기준')).toHaveValue(flowDashboardGoal);
+		await page.keyboard.press('Escape');
+		await expect(page.getByPlaceholder('완료 기준')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /필터/ })).toBeVisible();
 		await expect(page.getByPlaceholder('내용, 목표, 참여자 검색')).toHaveCount(0);
 
@@ -89,6 +99,57 @@ test.describe('flow task board drag interactions', () => {
 			'26W23-roadmap-review',
 			requestedTaskID
 		]);
+	});
+
+	test('keeps dragged card surface visible without hover border accent', async ({ page }) => {
+		await page.goto('/flow/');
+		const card = page.locator('[data-flow-board-card]').first();
+		await expect(card).toBeVisible();
+
+		const restingBorderColor = await card.evaluate((element) => getComputedStyle(element).borderColor);
+		await card.hover();
+		const hoverStyle = await card.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				backgroundColor: style.backgroundColor,
+				borderColor: style.borderColor,
+				outlineStyle: style.outlineStyle
+			};
+		});
+		expect(hoverStyle.borderColor).toBe(restingBorderColor);
+		expect(hoverStyle.outlineStyle).toBe('none');
+
+		const dataTransfer = await card.evaluateHandle(() => new DataTransfer());
+		await card.dispatchEvent('dragstart', { dataTransfer });
+		await expect(card).toHaveAttribute('data-flow-board-dragging', 'true');
+		const dragBackgroundColor = await card.evaluate((element) => getComputedStyle(element).backgroundColor);
+		expect(dragBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+		await card.dispatchEvent('dragend', { dataTransfer });
+		await expect(card).toHaveAttribute('data-flow-board-dragging', 'false');
+
+		const dragImageOffset = await card.evaluate((element) => {
+			const dataTransfer = new DataTransfer();
+			let offset = { horizontal: 0, vertical: 0 };
+			dataTransfer.setDragImage = (_image: Element, horizontal: number, vertical: number) => {
+				offset = { horizontal, vertical };
+			};
+			const bounds = element.getBoundingClientRect();
+			element.dispatchEvent(new DragEvent('dragstart', {
+				bubbles: true,
+				cancelable: true,
+				clientX: bounds.left + bounds.width * 0.6,
+				clientY: bounds.top + bounds.height * 0.45,
+				dataTransfer
+			}));
+			element.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+			return offset;
+		});
+		const cardBox = await card.boundingBox();
+		if (!cardBox) throw new Error('card has no bounding box');
+		expect(dragImageOffset.horizontal).toBeGreaterThan(cardBox.width * 0.55);
+		expect(dragImageOffset.horizontal).toBeLessThan(cardBox.width * 0.65);
+		expect(dragImageOffset.vertical).toBeGreaterThan(cardBox.height * 0.4);
+		expect(dragImageOffset.vertical).toBeLessThan(cardBox.height * 0.5);
 	});
 
 	test('rolls back the card when drag save fails', async ({ page }) => {
@@ -223,6 +284,19 @@ test.describe('flow task board drag interactions', () => {
 		await expect.poll(async () => {
 			return page.locator('[data-flow-board-scroll]').evaluate((element) => element.scrollWidth > element.clientWidth);
 		}).toBe(true);
+		await expect.poll(async () => {
+			return page.locator('[data-flow-board-scroll]').evaluate((element) => getComputedStyle(element).scrollbarWidth);
+		}).toBe('none');
+	});
+
+	test('lets the board scroller span from the sidebar edge to the viewport edge', async ({ page }) => {
+		await page.setViewportSize({ width: 1002, height: 520 });
+		await page.goto('/flow/');
+		const board = page.locator('[data-flow-board-scroll]');
+		await expect(board).toBeVisible();
+		await board.scrollIntoViewIfNeeded();
+
+		await expectBoardScrollerToFillMainViewport(page);
 	});
 
 	test('resizes board columns with the viewport height', async ({ page }) => {
@@ -286,3 +360,38 @@ test.describe('flow task board drag interactions', () => {
 		await expect(page.getByText('저장됨')).toBeVisible();
 	});
 });
+
+async function expectBoardScrollerToFillMainViewport(page: import('@playwright/test').Page): Promise<void> {
+	const measurement = await page.evaluate(() => {
+		const mainElement = document.querySelector('main');
+		const scrollElement = document.querySelector('[data-flow-board-scroll]');
+		const firstColumnElement = document.querySelector('[data-flow-board-column="요청"]');
+		const fourthColumnElement = document.querySelector('[data-flow-board-column="완료"]');
+		if (!mainElement) throw new Error('main element was not found');
+		if (!scrollElement) throw new Error('flow board scroll element was not found');
+		if (!firstColumnElement) throw new Error('requested flow board column was not found');
+		if (!fourthColumnElement) throw new Error('completed flow board column was not found');
+		const mainBounds = mainElement.getBoundingClientRect();
+		const scrollBounds = scrollElement.getBoundingClientRect();
+		const firstColumnBounds = firstColumnElement.getBoundingClientRect();
+		const fourthColumnBounds = fourthColumnElement.getBoundingClientRect();
+		const fourthColumnVisibleWidth = Math.min(scrollBounds.right, fourthColumnBounds.right) - Math.max(scrollBounds.left, fourthColumnBounds.left);
+		return {
+			scrollLeft: scrollBounds.left,
+			scrollRight: scrollBounds.right,
+			mainLeft: mainBounds.left,
+			viewportRight: window.innerWidth,
+			firstColumnLeftGap: firstColumnBounds.left - scrollBounds.left,
+			fourthColumnVisibleRatio: fourthColumnVisibleWidth / fourthColumnBounds.width,
+			scrollWidth: scrollElement.scrollWidth,
+			clientWidth: scrollElement.clientWidth
+		};
+	});
+	expect(measurement.scrollLeft).toBeCloseTo(measurement.mainLeft, 0);
+	expect(measurement.scrollRight).toBeCloseTo(measurement.viewportRight, 0);
+	expect(measurement.firstColumnLeftGap).toBeGreaterThanOrEqual(30);
+	expect(measurement.firstColumnLeftGap).toBeLessThanOrEqual(34);
+	expect(measurement.fourthColumnVisibleRatio).toBeGreaterThan(0.4);
+	expect(measurement.fourthColumnVisibleRatio).toBeLessThan(0.65);
+	expect(measurement.scrollWidth).toBeGreaterThan(measurement.clientWidth);
+}

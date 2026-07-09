@@ -11,6 +11,7 @@ export type FlowTaskBoardColumn = {
 };
 
 export type FlowTaskBoardColumnTheme = {
+	accentColor: string;
 	dotClass: string;
 	titleClass: string;
 	headerClass: string;
@@ -23,26 +24,31 @@ export type FlowTaskBoardOptions = {
 
 const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
 	요청: {
+		accentColor: '#7c3aed',
 		dotClass: 'bg-[#7c3aed]',
 		titleClass: 'text-[#4c1d95]',
 		headerClass: 'bg-[#f3e8ff]/70'
 	},
 	예정: {
+		accentColor: '#d97706',
 		dotClass: 'bg-[#d97706]',
 		titleClass: 'text-[#78350f]',
 		headerClass: 'bg-[#fef3c7]/80'
 	},
 	진행: {
+		accentColor: '#0284c7',
 		dotClass: 'bg-[#0284c7]',
 		titleClass: 'text-[#075985]',
 		headerClass: 'bg-[#e0f2fe]/80'
 	},
 	완료: {
+		accentColor: '#16a34a',
 		dotClass: 'bg-[#16a34a]',
 		titleClass: 'text-[#166534]',
 		headerClass: 'bg-[#dcfce7]/80'
 	},
 	일시정지: {
+		accentColor: '#e11d48',
 		dotClass: 'bg-[#e11d48]',
 		titleClass: 'text-[#9f1239]',
 		headerClass: 'bg-[#ffe4e6]/80'
