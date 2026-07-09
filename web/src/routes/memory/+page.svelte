@@ -3,11 +3,12 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import MemoryFactList from './memory-fact-list.svelte';
 	import MemoryGraphPanel from './memory-graph-panel.svelte';
 	import MemoryScheduleList from './memory-schedule-list.svelte';
 	import { memoryText } from './text';
 
-	let activeTab = $state('graph');
+	let activeTab = $state('facts');
 	const text = createPageText(memoryText);
 </script>
 
@@ -28,9 +29,13 @@
 
 	<Tabs bind:value={activeTab} class="min-w-0 gap-6">
 		<TabsList variant="line" class="memory-tabs-list w-full justify-start gap-10 border-b p-0">
+			<TabsTrigger value="facts" class="memory-tab-trigger">{text.factListTab}</TabsTrigger>
 			<TabsTrigger value="graph" class="memory-tab-trigger">{text.graphTab}</TabsTrigger>
 			<TabsTrigger value="schedules" class="memory-tab-trigger">{text.scheduleTab}</TabsTrigger>
 		</TabsList>
+		<TabsContent value="facts" class="grid min-w-0 gap-5">
+			<MemoryFactList {text} />
+		</TabsContent>
 		<TabsContent value="graph" class="grid min-w-0 gap-5">
 			<MemoryGraphPanel {text} />
 		</TabsContent>
