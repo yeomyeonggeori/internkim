@@ -21,6 +21,9 @@ export async function mockAdminOrgchart(page: Page, handlers: OrgchartMockHandle
 	await page.route('**/admin/api/users?includePolicy=true', async (route) => {
 		await route.fulfill({ json: handlers.getUsersResponse() });
 	});
+	await page.route('**/orgchart/api/people', async (route) => {
+		await route.fulfill({ json: handlers.getUsersResponse() });
+	});
 	await page.route('**/admin/api/users/org-profiles?includePolicy=true', async (route) => {
 		const body = (await route.request().postDataJSON()) as { profiles: OrgProfileUpdate[] };
 		try {
@@ -42,24 +45,36 @@ export async function mockAdminOrgchart(page: Page, handlers: OrgchartMockHandle
 }
 
 export async function openOrgchartEditor(page: Page): Promise<void> {
-	await page.goto('/admin/?fleet_id=demo&section=orgchart');
-	await expect(page.getByRole('button', { name: '조직도' })).toBeVisible();
-	await page.getByRole('button', { name: '조직도' }).click();
-	await page.getByLabel('편집').click();
-	await expect(page.getByTestId('orgchart-profile-user-grace')).toBeVisible();
+	await page.goto('/orgchart/?edit=1');
+	await expect(page.getByRole('button', { name: '조직 추가' })).toBeVisible();
+	await expect(page.getByTestId('orgchart-person-edit-user-grace')).toHaveCount(0);
 }
 
 export async function enableOrgchartEditMode(page: Page): Promise<void> {
-	await expect(page.getByRole('button', { name: '조직도' })).toBeVisible();
-	await page.getByRole('button', { name: '조직도' }).click();
-	await page.getByLabel('편집').click();
+	await expect(page.getByRole('button', { name: '조직 추가' })).toBeVisible();
 }
 
-export async function openCardEditor(card: Locator): Promise<void> {
-	await card.getByRole('button', { name: '편집' }).click();
-	await expect(card.getByLabel('직책', { exact: true })).toBeVisible();
-	await expect(card.getByRole('button', { name: '취소' })).toBeVisible();
-	await expect(card.getByRole('button', { name: '저장' })).toBeVisible();
+export async function openCardEditor(page: Page, userID: string): Promise<Locator> {
+	await page.getByTestId(`orgchart-person-node-${userID}`).click();
+	await page.getByTestId('orgchart-person-detail-panel').getByRole('button', { name: '수정하기' }).click();
+	const editor = page.getByTestId(`orgchart-profile-${userID}`);
+	await expect(editor.getByLabel('직책', { exact: true })).toBeVisible();
+	await expect(editor.getByRole('button', { name: '취소' })).toBeVisible();
+	await expect(editor.getByRole('button', { name: '저장' })).toBeVisible();
+	return editor;
+}
+
+export async function openOrganizationForm(page: Page): Promise<void> {
+	const addOrganizationButton = page.getByRole('button', { name: '조직 추가' });
+	await addOrganizationButton.click();
+	const organizationForm = page.getByTestId('orgchart-add-organization-popover');
+	await expect(organizationForm).toBeVisible();
+	await expect(page.getByLabel('새 조직')).toBeVisible();
+	await expect(page.getByRole('button', { name: '추가', exact: true })).toBeVisible();
+	const buttonBox = await addOrganizationButton.boundingBox();
+	const formBox = await organizationForm.boundingBox();
+	if (!buttonBox || !formBox) throw new Error('조직 추가 popover 위치를 확인할 수 없습니다.');
+	expect(formBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height - 1);
 }
 
 export async function selectCardOption(page: Page, card: Locator, label: string, name: string): Promise<void> {
@@ -72,8 +87,12 @@ export function cloneUsersResponse(response: UsersResponse): UsersResponse {
 }
 
 export async function expectCardBefore(page: Page, firstTestID: string, secondTestID: string): Promise<void> {
-	const cardOrder = await page.locator('[data-testid^="orgchart-profile-"]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')));
-	expect(cardOrder.indexOf(firstTestID)).toBeLessThan(cardOrder.indexOf(secondTestID));
+	const cardOrder = await page.locator('[data-testid^="orgchart-person-node-"]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')));
+	expect(cardOrder.indexOf(profileTestIDToPersonNodeTestID(firstTestID))).toBeLessThan(cardOrder.indexOf(profileTestIDToPersonNodeTestID(secondTestID)));
+}
+
+function profileTestIDToPersonNodeTestID(testID: string): string {
+	return testID.replace('orgchart-profile-', 'orgchart-person-node-');
 }
 
 export function applySavedProfiles(response: UsersResponse, profiles: OrgProfileUpdate[]): UsersResponse {

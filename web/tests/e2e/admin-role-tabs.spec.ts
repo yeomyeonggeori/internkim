@@ -60,7 +60,8 @@ test.describe('admin role tabs', () => {
 		const main = page.locator('main');
 		await expect(main.getByRole('button', { name: '기기' })).toBeVisible();
 		await expect(main.getByRole('button', { name: '사용자' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '조직도' })).toBeVisible();
+		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
+		await expect(main.getByRole('button', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('button', { name: '인증 정보' })).toBeVisible();
 		await expect(main.getByRole('button', { name: '백업' })).toBeVisible();
 		await expect(main.getByRole('button', { name: '봇' })).toBeVisible();
@@ -71,14 +72,15 @@ test.describe('admin role tabs', () => {
 		await expect(page.getByRole('option', { name: '관리자', exact: true })).toBeVisible();
 	});
 
-	test('limits operations admins to user, org chart, and settings tabs', async ({ page }) => {
+	test('limits operations admins to user and settings tabs', async ({ page }) => {
 		await mockAdminPage(page, 'operationsAdmin');
 
 		await page.goto('/admin/?fleet_id=demo');
 
 		const main = page.locator('main');
 		await expect(main.getByRole('button', { name: '사용자' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '조직도' })).toBeVisible();
+		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
+		await expect(main.getByRole('button', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('button', { name: '설정' })).toBeVisible();
 		await expect(main.getByRole('button', { name: '기기' })).toHaveCount(0);
 		await expect(main.getByRole('button', { name: '인증 정보' })).toHaveCount(0);
