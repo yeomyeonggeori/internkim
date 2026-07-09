@@ -9,7 +9,6 @@
 	import type { FlowTask } from './flow-types';
 
 	type BoardText = {
-		emptyColumn: string;
 		addTask: string;
 	};
 
@@ -42,14 +41,13 @@
 	}: Props = $props();
 
 	const columnClass = [
-		'group flex h-full min-h-0',
-		'w-80 shrink-0 flex-col rounded-lg border bg-muted/30'
+		'flow-task-board-column group flex h-full min-h-0',
+		'shrink-0 snap-start flex-col overflow-hidden rounded-lg border bg-muted/30'
 	].join(' ');
-	const addTaskButtonClass = [
-		'h-8 w-full justify-center border border-dashed border-muted-foreground/30',
-		'text-muted-foreground opacity-0 transition-opacity',
-		'hover:border-primary/40 hover:text-primary focus-visible:opacity-100',
-		'group-hover:opacity-100'
+	const boardScrollClass = [
+		'h-[var(--flow-task-board-height,32rem)] min-h-80 min-w-0',
+		'overflow-x-auto overflow-y-hidden px-4 pb-2 scroll-px-4 md:px-8 md:scroll-px-8',
+		'snap-x snap-mandatory'
 	].join(' ');
 	const insertionLineWrapperClass = 'flex h-4 items-center px-1';
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
@@ -72,10 +70,19 @@
 	function insertionIndicatorID(status: string, beforeTaskID: string): string {
 		return `${status}:${beforeTaskID}`;
 	}
+
+	function taskCountLabel(count: number): string {
+		return `업무 ${count}개`;
+	}
+
+	function createTaskInColumn(status: string): void {
+		if (!isFlowTaskBoardStatus(status)) return;
+		createTask(status);
+	}
 </script>
 
-<div class="sticky top-0 bg-background">
-	<div class="h-[var(--flow-task-board-height,32rem)] min-h-80 overflow-x-auto pb-2" data-flow-board-scroll use:flowTaskBoardViewportHeight>
+<div class="sticky top-0 -mx-4 min-w-0 bg-background md:-mx-8">
+	<div class={boardScrollClass} data-flow-board-scroll use:flowTaskBoardViewportHeight>
 		<div class="flex h-full min-w-max gap-3">
 			{#each columns as column (column.status)}
 				<section
@@ -86,18 +93,36 @@
 					ondragover={(event) => boardDrag.handleColumnDragOver(event, column.status, column.tasks)}
 					ondrop={(event) => boardDrag.handleColumnDrop(event, column.status, column.tasks)}
 				>
-					<header class={`flex items-center justify-between gap-2 border-b px-3 py-2 ${column.theme.headerClass}`}>
+					<header class="flex h-11 items-center justify-between gap-3 border-b bg-card px-3">
 						<div class="flex min-w-0 items-center gap-2">
-							<span class={`size-2.5 shrink-0 rounded-full ${column.theme.dotClass}`}></span>
-							<h3 class={`truncate text-sm font-semibold ${column.theme.titleClass}`}>{statusLabel(column.status)}</h3>
+							<span
+								class="size-2.5 shrink-0 rounded-full border-2 bg-transparent"
+								style:border-color={column.theme.accentColor}
+							></span>
+							<h3 class="truncate text-sm font-semibold text-foreground">{statusLabel(column.status)}</h3>
+							<span
+								class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground"
+								aria-label={taskCountLabel(column.tasks.length)}
+								data-flow-board-task-count
+							>
+								{column.tasks.length}
+							</span>
 						</div>
-						<span class="rounded-full bg-background px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-							{column.tasks.length}
-						</span>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-xs"
+							class="shrink-0 text-muted-foreground hover:text-foreground"
+							aria-label={addTaskLabel(column.status)}
+							title={addTaskLabel(column.status)}
+							onclick={() => createTaskInColumn(column.status)}
+						>
+							<PlusIcon class="size-3.5" />
+						</Button>
 					</header>
 
 					<div
-						class="min-h-0 flex-1 overflow-y-auto p-2"
+						class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3"
 						role="list"
 						aria-label={statusLabel(column.status)}
 						ondragover={(event) => boardDrag.handleColumnDragOver(event, column.status, column.tasks)}
@@ -130,8 +155,8 @@
 							{/each}
 
 							<div
-								class="min-h-4"
-								role="presentation"
+								class="space-y-2"
+								role="listitem"
 								data-flow-board-drop-zone={column.status}
 								ondragover={(event) => boardDrag.handleColumnDragOver(event, column.status, column.tasks)}
 								ondrop={(event) => boardDrag.handleColumnDrop(event, column.status, column.tasks)}
@@ -144,26 +169,21 @@
 										<div class={insertionLineClass}></div>
 									</div>
 								{/if}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									class="h-8 w-full justify-center text-muted-foreground opacity-0 pointer-events-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+									aria-label={addTaskLabel(column.status)}
+									title={addTaskLabel(column.status)}
+									data-flow-board-footer-add-task={column.status}
+									onclick={() => createTaskInColumn(column.status)}
+								>
+									<PlusIcon class="size-4" />
+									<span>업무 추가</span>
+								</Button>
 							</div>
 
-							{#if column.tasks.length === 0}
-								<div class="rounded-md border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
-									{boardText.emptyColumn}
-								</div>
-							{/if}
-
-							<Button
-								type="button"
-								variant="ghost"
-								class={addTaskButtonClass}
-								aria-label={addTaskLabel(column.status)}
-								title={addTaskLabel(column.status)}
-								onclick={() => {
-									if (isFlowTaskBoardStatus(column.status)) createTask(column.status);
-								}}
-							>
-								<PlusIcon class="size-4" />
-							</Button>
 						</div>
 					</div>
 				</section>
@@ -171,3 +191,36 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	[data-flow-board-scroll] {
+		container-type: inline-size;
+		scrollbar-width: none;
+	}
+
+	[data-flow-board-scroll]::-webkit-scrollbar {
+		display: none;
+	}
+
+	.flow-task-board-column {
+		width: max(13.5rem, calc((100cqw + 1.25rem) / 1.5));
+	}
+
+	@container (min-width: 560px) {
+		.flow-task-board-column {
+			width: max(13.5rem, calc((100cqw + 0.5rem) / 2.5));
+		}
+	}
+
+	@container (min-width: 820px) {
+		.flow-task-board-column {
+			width: max(15rem, calc((100cqw - 0.25rem) / 3.5));
+		}
+	}
+
+	@container (min-width: 1180px) {
+		.flow-task-board-column {
+			width: max(15.5rem, calc((100cqw - 1rem) / 4.5));
+		}
+	}
+</style>
