@@ -417,37 +417,37 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 	}{
 		{
 			name:             "directMessage still requires approval",
-			input:            `{"deliveryTarget":{"type":"directMessage"}}`,
+			input:            `{"targetType":"directMessage"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: true,
 		},
 		{
 			name:             "currentThread in the originating conversation is pre-approved",
-			input:            `{"deliveryTarget":{"type":"currentThread"}}`,
+			input:            `{"targetType":"currentThread"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: false,
 		},
 		{
 			name:             "currentChannel in the originating conversation is pre-approved",
-			input:            `{"deliveryTarget":{"type":"currentChannel"}}`,
+			input:            `{"targetType":"currentChannel"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: false,
 		},
 		{
 			name:             "currentThread without a trusted originating conversation still requires approval",
-			input:            `{"deliveryTarget":{"type":"currentThread"}}`,
+			input:            `{"targetType":"currentThread"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: ""},
 			requiresApproval: true,
 		},
 		{
 			name:             "named channel still requires approval",
-			input:            `{"deliveryTarget":{"type":"channel","channelName":"general"}}`,
+			input:            `{"targetType":"channel","channelName":"general"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: true,
 		},
 		{
 			name:             "malformed input falls through to approval required",
-			input:            `{"deliveryTarget":`,
+			input:            `{"targetType":`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: true,
 		},
@@ -482,7 +482,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message.send",
-			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
 		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
@@ -495,7 +495,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message.send",
-			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
 		}
 		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
@@ -509,7 +509,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message.send",
-			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플","personHints":["샘플"]}}`),
+			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플","personHints":["샘플"]}`),
 			Context:  requesterContext,
 		}
 		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
@@ -525,7 +525,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message.send",
-			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
 		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
@@ -539,7 +539,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message.send",
-			Input:    json.RawMessage(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"}}`),
+			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-gamyeong", ConversationID: "conversation-1", IsScheduledRun: true},
 		}
 		if service.isPreApprovedSelfDirectMessageSend(context.Background(), request) {
@@ -551,7 +551,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 func TestMessageSendPreApprovalExcludesScheduledRuns(t *testing.T) {
 	request := capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    json.RawMessage(`{"deliveryTarget":{"type":"currentThread"}}`),
+		Input:    json.RawMessage(`{"targetType":"currentThread"}`),
 		Context:  capabilities.ToolInvokeContext{ConversationID: "conversation-1", IsScheduledRun: true},
 	}
 	if isPreApprovedCurrentConversationMessageSend(request) {
