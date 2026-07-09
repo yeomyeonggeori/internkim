@@ -31,21 +31,63 @@
 	}: Props = $props();
 
 	let canDrag = $derived(!isPending && !isReadOnly);
+	let isDragging = $state(false);
 	let cardClass = $derived([
-		'gap-1.5 rounded-md border bg-card p-2.5 shadow-xs transition',
+		'flow-task-board-card gap-0 rounded-md border border-border/80 bg-card p-0',
+		'outline-none ring-0 shadow-xs transition-[background-color,box-shadow,opacity]',
 		isPending
 			? 'cursor-progress opacity-60 ring-1 ring-primary/20'
 			: canDrag
-				? 'cursor-grab hover:border-primary/40 hover:shadow-sm active:cursor-grabbing'
-				: 'cursor-pointer hover:border-primary/40 hover:shadow-sm',
+				? 'cursor-grab hover:bg-muted/30 hover:shadow-sm active:cursor-grabbing active:bg-muted/40'
+				: 'cursor-pointer hover:bg-muted/30 hover:shadow-sm',
+		isDragging ? 'bg-card opacity-95 shadow-md' : '',
 		isReadOnly ? 'bg-muted/20' : ''
 	].join(' '));
 
 	let display = $derived(buildFlowTaskBoardCardDisplay(task, businessFallback));
+	let primaryParticipantName = $derived(display.participantNames[0] ?? '');
+	let primaryParticipantID = $derived(display.participantIDs[0] ?? '');
+	let additionalParticipantCount = $derived(Math.max(display.participantNames.length - 1, 0));
 
 	function openCurrentTask(): void {
 		if (isPending) return;
 		openTask(task);
+	}
+
+	function handleTaskDragStart(event: DragEvent): void {
+		onTaskDragStart?.(event, task);
+		if (event.defaultPrevented) return;
+		isDragging = true;
+		const currentTarget = event.currentTarget;
+		if (!(currentTarget instanceof HTMLElement)) return;
+		currentTarget.classList.add('flow-task-board-card-dragging');
+		const { horizontalOffset, verticalOffset } = dragImageOffset(event, currentTarget);
+		event.dataTransfer?.setDragImage(currentTarget, horizontalOffset, verticalOffset);
+	}
+
+	function handleTaskDragEnd(event: DragEvent): void {
+		isDragging = false;
+		const currentTarget = event.currentTarget;
+		if (currentTarget instanceof HTMLElement) currentTarget.classList.remove('flow-task-board-card-dragging');
+		onTaskDragEnd?.(event, task);
+	}
+
+	function dragImageOffset(event: DragEvent, element: HTMLElement): { horizontalOffset: number; verticalOffset: number } {
+		const bounds = element.getBoundingClientRect();
+		if (event.clientX > 0 || event.clientY > 0) {
+			return {
+				horizontalOffset: clampNumber(event.clientX - bounds.left, 0, bounds.width),
+				verticalOffset: clampNumber(event.clientY - bounds.top, 0, bounds.height)
+			};
+		}
+		return {
+			horizontalOffset: bounds.width / 2,
+			verticalOffset: Math.min(bounds.height / 2, 36)
+		};
+	}
+
+	function clampNumber(value: number, minimum: number, maximum: number): number {
+		return Math.min(Math.max(value, minimum), maximum);
 	}
 </script>
 
@@ -57,6 +99,7 @@
 		aria-disabled={isPending}
 		data-flow-board-card={task.id}
 		data-flow-board-pending={isPending ? 'true' : 'false'}
+		data-flow-board-dragging={isDragging ? 'true' : 'false'}
 	onclick={openCurrentTask}
 	onkeydown={(event) => {
 		if (event.key === 'Enter' || event.key === ' ') {
@@ -64,46 +107,55 @@
 			openCurrentTask();
 		}
 	}}
-	ondragstart={(event) => onTaskDragStart?.(event, task)}
-	ondragend={(event) => onTaskDragEnd?.(event, task)}
+	ondragstart={handleTaskDragStart}
+	ondragend={handleTaskDragEnd}
 	ondragover={(event) => onTaskDragOver?.(event, task)}
 	ondrop={(event) => onTaskDrop?.(event, task)}
 >
-	<div class="flex min-w-0 flex-wrap items-center gap-1">
-		<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs font-medium">
-			<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} class="size-4" />
-			{display.ownerName}
-		</Badge>
-		{#each display.participantNames as name, index}
-			<Badge variant="outline" class="max-w-24 gap-1 truncate pl-1 pr-1.5 py-0 text-xs">
-				<PersonAvatar name={name} seed={display.participantIDs[index] ?? name} class="size-3.5" />
-				{name}
-			</Badge>
-		{/each}
+	<div class="space-y-1 px-3 py-2">
+		<div class="flex min-w-0 items-center justify-between gap-2">
+			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+				<span class="inline-flex min-w-0 max-w-28 items-center gap-1.5">
+					<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} class="size-4 ring-1 ring-border/70" />
+					<span class="truncate">{display.ownerName}</span>
+				</span>
+				{#if primaryParticipantName}
+					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
+						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} class="size-3.5 ring-1 ring-border/60" />
+						<span class="truncate">{primaryParticipantName}</span>
+					</span>
+				{/if}
+				{#if additionalParticipantCount > 0}
+					<span class="shrink-0 rounded-full bg-muted px-1.5 text-[11px] leading-5 text-muted-foreground">
+						+{additionalParticipantCount}
+					</span>
+				{/if}
+			</div>
+			<Badge class={`h-[18px] min-w-7 shrink-0 justify-center px-1.5 text-[11px] font-semibold leading-none ${sizeBadgeClass(task.size)}`}>{task.size}</Badge>
+		</div>
+
+		<div class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">
+			{task.content}
+		</div>
+
+		{#if display.metadataLabels.length > 0 || display.dateLabel}
+			<div class="flex flex-wrap items-center gap-1.5">
+				{#each display.metadataLabels as label}
+					<Badge variant="outline" class="h-5 max-w-24 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">{label}</Badge>
+				{/each}
+				{#if display.dateLabel}
+					<Badge variant="secondary" class="h-5 max-w-full rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">{display.dateLabel}</Badge>
+				{/if}
+			</div>
+		{/if}
 	</div>
-
-	<div class="flex items-start justify-between gap-2">
-		<div class="min-w-0">
-			<div class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">{task.content}</div>
-		</div>
-		<Badge class={`h-6 shrink-0 px-2 text-xs ${sizeBadgeClass(task.size)}`}>{task.size}</Badge>
-	</div>
-
-	{#if task.goal}
-		<div class="line-clamp-1 text-xs leading-5 text-muted-foreground">{task.goal}</div>
-	{/if}
-
-	{#if display.metadataLabels.length > 0}
-		<div class="flex flex-wrap items-center gap-1 pt-0.5">
-			{#each display.metadataLabels as label}
-				<Badge variant="outline" class="max-w-24 truncate px-1.5 py-0 text-xs">{label}</Badge>
-			{/each}
-		</div>
-	{/if}
-
-	{#if display.dateLabel}
-		<div class="pt-0.5">
-			<Badge variant="secondary" class="max-w-full truncate px-1.5 py-0 text-xs">{display.dateLabel}</Badge>
-		</div>
-	{/if}
 </Card.Root>
+
+<style>
+	:global(.flow-task-board-card-dragging) {
+		background: hsl(var(--card)) !important;
+		border-color: hsl(var(--border)) !important;
+		box-shadow: 0 8px 16px hsl(var(--foreground) / 0.12) !important;
+		opacity: 0.96;
+	}
+</style>
