@@ -64,7 +64,7 @@
 			<div class="text-sm tabular-nums text-muted-foreground">{text.scoreTotal} {period.totalScore}</div>
 		</div>
 		<div class="overflow-x-auto">
-			<Table.Root class="w-max table-auto">
+			<Table.Root class="w-full min-w-max table-auto">
 				<Table.Header class="bg-muted/20">
 					<Table.Row class="hover:bg-transparent">
 						<Table.Head class="h-9 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.scorePeriod}</Table.Head>
