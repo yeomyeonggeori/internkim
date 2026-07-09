@@ -279,24 +279,16 @@ func imageGenerateInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func platformMessageDeliveryTargetSchema() jsonschema.Schema {
-	return jsonschema.Object(
-		jsonschema.Required("type", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel").WithDescription("Where to deliver the message. 'directMessage' sends a DM to personHint or personHints. 'currentThread' replies in the active thread. 'currentChannel' posts in the active channel. 'channel' posts in the channel identified by channelID or channelName.")),
-		jsonschema.Field("personHint", jsonschema.String().WithDescription("For type=directMessage: name or email of the single recipient, e.g. 'Alice' or 'alice@example.com'. Resolved to a workspace person. Use personHints for multiple recipients.")),
-		jsonschema.Field("personHints", jsonschema.Array(jsonschema.String()).WithDescription("Send the same directMessage to several people at once. When set, this takes precedence over personHint; the tool fans out with one approval and returns a per-recipient delivery rollup.")),
-		jsonschema.Field("channelID", jsonschema.String().WithDescription("For type=channel: the internal Mattermost channel ID from a prior context or search result. Provide either channelID or channelName.")),
-		jsonschema.Field("channelName", jsonschema.String().WithDescription("For type=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide either channelName or channelID.")),
-	)
-}
-
 func platformMessageContextInputSchema() json.RawMessage {
 	return jsonschema.Object().RawMessage()
 }
 
 func platformMessageSearchInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel").WithDescription("Where to search. 'currentThread' and 'currentChannel' use the active conversation context. 'directMessage' searches a DM with a person; set deliveryTarget.personHint. 'channel' searches a specific channel; set deliveryTarget.channelID or channelName.")),
-		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
+		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel").WithDescription("Where to search. 'currentThread' and 'currentChannel' use the active conversation context. 'directMessage' searches a DM with a person; set personHint. 'channel' searches a specific channel; set channelName or channelID.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("For scope=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide channelName or channelID.")),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("For scope=channel: the internal Mattermost channel ID from a prior context or search result. Provide channelName or channelID.")),
+		jsonschema.Field("personHint", jsonschema.String().WithDescription("For scope=directMessage: name or email of the DM counterpart, e.g. 'Alice' or 'alice@example.com'.")),
 		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone").WithDescription("Filter by author. 'assistant' returns only bot messages, 'requester' returns only the requesting user's messages, 'anyone' returns all. Defaults to 'anyone'.")),
 		jsonschema.Field("queries", jsonschema.Array(jsonschema.String()).WithDescription("One or more keyword search strings matched against message content. Each entry is a separate query; results are unioned. Do not put author names or dates here.")),
 		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of messages to return. Defaults to 20.")),
@@ -306,9 +298,12 @@ func platformMessageSearchInputSchema() json.RawMessage {
 
 func platformMessageSendInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
-		jsonschema.Field("recipientHint", jsonschema.String().WithDescription("Shorthand for a DM recipient when deliveryTarget is not set. Name or email of the person to DM, e.g. 'Alice'. Prefer using deliveryTarget for full control.")),
+		jsonschema.Required("targetType", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel").WithDescription("Where to deliver the message. 'directMessage' sends a DM to personHint or personHints. 'currentThread' replies in the active thread. 'currentChannel' posts in the active channel. 'channel' posts in the channel named by channelName or channelID.")),
 		jsonschema.Required("message", jsonschema.String().WithDescription("The message text to send. Supports Markdown formatting.")),
+		jsonschema.Field("channelName", jsonschema.String().WithDescription("For targetType=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general' or '광장'. Provide channelName or channelID.")),
+		jsonschema.Field("channelID", jsonschema.String().WithDescription("For targetType=channel: the internal Mattermost channel ID from a prior context or search result. Provide channelName or channelID.")),
+		jsonschema.Field("personHint", jsonschema.String().WithDescription("For targetType=directMessage: name or email of the single recipient, e.g. 'Alice' or 'alice@example.com'. Use personHints for multiple recipients.")),
+		jsonschema.Field("personHints", jsonschema.Array(jsonschema.String()).WithDescription("For targetType=directMessage: send the same DM to several people at once. Takes precedence over personHint; the tool fans out with one approval and returns a per-recipient delivery rollup.")),
 		jsonschema.Field("pin", jsonschema.Boolean().WithDescription("If true, pin the message in the channel after sending. Defaults to false.")),
 		jsonschema.Field("reason", jsonschema.String().WithDescription("Optional human-readable reason for this send shown in the approval prompt, e.g. 'weekly status update'. Helps the approver understand intent.")),
 	).RawMessage()
