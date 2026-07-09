@@ -65,6 +65,53 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		]);
 	});
 
+	test('places the mobile new event button next to search', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCalendarEmbed(page, '주');
+		await navigateEmbeddedCalendar(page, '2026-06-01');
+
+		const mobileSearchActionLayout = await page.evaluate(() => {
+			const searchRow = document.querySelector<HTMLElement>('.calendar-toolbar-search-row');
+			const searchShell = searchRow?.querySelector<HTMLElement>('.calendar-search-shell');
+			const newEventButton = searchRow?.querySelector<HTMLElement>('.new-event-button');
+			const newEventButtonText = newEventButton?.querySelector<HTMLElement>('span');
+			const toolbarActions = document.querySelector<HTMLElement>('.calendar-toolbar-actions');
+			if (!searchRow) throw new Error('Missing calendar toolbar search row');
+			if (!searchShell) throw new Error('Missing calendar search shell');
+			if (!newEventButton) throw new Error('Missing calendar search row new event button');
+			if (!newEventButtonText) throw new Error('Missing calendar search row new event button text');
+			if (!toolbarActions) throw new Error('Missing calendar toolbar actions');
+			const searchRowRectangle = searchRow.getBoundingClientRect();
+			const searchRectangle = searchShell.getBoundingClientRect();
+			const newEventButtonRectangle = newEventButton.getBoundingClientRect();
+			const toolbarActionsRectangle = toolbarActions.getBoundingClientRect();
+			return {
+				buttonAccessibleLabel: newEventButton.getAttribute('aria-label'),
+				buttonTextDisplay: window.getComputedStyle(newEventButtonText).display,
+				buttonWidth: Math.round(newEventButtonRectangle.width),
+				actionsRightDelta: Math.abs(Math.round(searchRowRectangle.right) - Math.round(toolbarActionsRectangle.right)),
+				rowCenterDelta: Math.abs(
+					Math.round(searchRectangle.top + searchRectangle.height / 2) -
+						Math.round(newEventButtonRectangle.top + newEventButtonRectangle.height / 2)
+				),
+				buttonGapFromSearch: Math.round(newEventButtonRectangle.left - searchRectangle.right),
+				buttonIsRightOfSearch: newEventButtonRectangle.left > searchRectangle.right
+			};
+		});
+
+		expect(mobileSearchActionLayout.buttonAccessibleLabel).toBe('새로 만들기');
+		expect(mobileSearchActionLayout.buttonTextDisplay).toBe('none');
+		expect(mobileSearchActionLayout.buttonWidth).toBe(40);
+		expect(mobileSearchActionLayout.actionsRightDelta).toBeLessThanOrEqual(1);
+		expect(mobileSearchActionLayout.rowCenterDelta).toBeLessThanOrEqual(1);
+		expect(mobileSearchActionLayout.buttonGapFromSearch).toBe(8);
+		expect(mobileSearchActionLayout.buttonIsRightOfSearch).toBe(true);
+
+		await page.getByRole('button', { name: '새로 만들기' }).click();
+		await expect(dayFlowMobileEditor(page)).toBeVisible();
+		await closeDayFlowMobileEditor(page);
+	});
+
 	test('shows two selected week columns on mobile while preserving seven desktop columns', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openCalendarEmbed(page, '주');
