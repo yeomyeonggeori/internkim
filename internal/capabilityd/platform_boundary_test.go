@@ -2682,3 +2682,33 @@ func TestHistoryFetchRejectsMissingCursor(t *testing.T) {
 		t.Fatalf("expected missing cursor to fail, got %d", responseRecorder.Code)
 	}
 }
+
+func TestEnrichMattermostEventPreservesAttachmentsOnly(t *testing.T) {
+	historyCursor, errorValue := encodePlatformHandle(platformHandle{
+		Platform: "mattermost", ConversationID: "thread:channel-1:post-1",
+		ChannelID: "channel-1", ChannelType: "O", MessageID: "post-1",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := mattermostRecoveryTestService(t, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"order":[],"posts":{}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+	event := platformInboundEvent{
+		ConversationID: "thread:channel-1:post-1",
+		Context: platformEventContext{
+			HistoryCursor:    historyCursor,
+			ConversationType: "O",
+			AttachmentsOnly:  true,
+			InputAttachments: []platformInputAttachment{{FileID: "file-1"}},
+		},
+	}
+	enriched := service.enrichMattermostEvent(context.Background(), event)
+	if !enriched.Context.AttachmentsOnly {
+		t.Fatal("enrichMattermostEvent must preserve AttachmentsOnly through the context rebuild")
+	}
+}

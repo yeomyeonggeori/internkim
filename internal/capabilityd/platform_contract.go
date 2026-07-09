@@ -99,6 +99,7 @@ type platformContextMessage struct {
 	SpeakerCallingName string                    `json:"speakerCallingName,omitempty"`
 	SpeakerHandle      string                    `json:"speakerHandle,omitempty"`
 	Text               string                    `json:"text"`
+	SentAt             string                    `json:"sentAt,omitempty"`
 	InputAttachments   []platformInputAttachment `json:"inputAttachments,omitempty"`
 }
 
