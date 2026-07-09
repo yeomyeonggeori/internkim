@@ -138,7 +138,7 @@ func TestCalendarParticipantImageServesMattermostImage(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/username/gamyeong":
 			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"gamyeong@example.com","username":"gamyeong","nickname":"이샘플"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"gamyeong@example.com","username":"gamyeong","nickname":"이샘플","last_picture_update":1710000000000}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/image":
 			assertMattermostBearerToken(t, request, "admin-token")
 			return &http.Response{
@@ -158,5 +158,39 @@ func TestCalendarParticipantImageServesMattermostImage(t *testing.T) {
 
 	if responseRecorder.Code != http.StatusOK || responseRecorder.Body.String() != "profile-image" || responseRecorder.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("image response = %d %q %q", responseRecorder.Code, responseRecorder.Body.String(), responseRecorder.Header().Get("Content-Type"))
+	}
+}
+
+func TestCalendarParticipantImageFallsBackWhenMattermostProfileImageIsMissing(t *testing.T) {
+	service := newCalendarTestService(t)
+	service.Configuration.APIBaseURL = "http://internkim.local"
+	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
+	service.Configuration.FleetSecretPath = writeTestFile(t, "fleet-secret")
+	service.Configuration.MattermostBaseURL = "http://mattermost.local"
+	service.Configuration.MattermostAdminPasswordPath = writeTestFile(t, "admin-password")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "http://internkim.local/api/users?fleet_id=fleet-1":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"gamyeong@example.com","name":"이샘플","handle":"gamyeong","role":"member"}]}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/username/gamyeong":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"gamyeong@example.com","username":"gamyeong","nickname":"이샘플","last_picture_update":0}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/image":
+			t.Fatalf("default Mattermost image should not be requested")
+			return nil, nil
+		}
+		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+	})}
+	personID := stableFlowID("gamyeong@example.com")
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/calendar/api/participants/"+url.PathEscape(personID)+"/image", nil)
+	request.RemoteAddr = "127.0.0.1:49152"
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("image response = %d %q", responseRecorder.Code, responseRecorder.Body.String())
 	}
 }

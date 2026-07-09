@@ -87,7 +87,7 @@
 			</div>
 
 			<div class="flex min-w-0 items-center gap-4">
-				<PersonAvatar name={record.name} email={record.email} seed={record.userID} class="size-14" />
+				<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-14" />
 				<div class="min-w-0">
 					<h3 class="truncate text-xl font-semibold">{personLabel(record)}</h3>
 					<p class="truncate text-sm text-muted-foreground">{record.jobTitle || text.noTitle}</p>

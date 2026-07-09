@@ -19,8 +19,9 @@ const (
 )
 
 type calendarActorProfile struct {
-	Name   string
-	UserID string
+	Name            string
+	UserID          string
+	HasProfileImage bool
 }
 
 type calendarActorProfileCacheEntry struct {
@@ -66,8 +67,9 @@ func (service *Service) calendarActorProfiles(ctx context.Context, events []cale
 			continue
 		}
 		profile := calendarActorProfile{
-			Name:   firstNonEmpty(mattermostDisplayName(userRecord), email),
-			UserID: strings.TrimSpace(userRecord.ID),
+			Name:            firstNonEmpty(mattermostDisplayName(userRecord), email),
+			UserID:          strings.TrimSpace(userRecord.ID),
+			HasProfileImage: mattermostUserHasProfileImage(userRecord),
 		}
 		profiles[email] = profile
 		service.storeCalendarActorProfile(email, profile, expiresAt)
@@ -135,7 +137,7 @@ func calendarActorDisplayName(name string, email string, profiles map[string]cal
 func calendarActorImagePath(eventID string, actorKind calendarActorKind, email string, profiles map[string]calendarActorProfile) string {
 	normalizedEmail := normalizedCalendarActorEmail(email)
 	profile, found := profiles[normalizedEmail]
-	if !found || strings.TrimSpace(eventID) == "" || strings.TrimSpace(profile.UserID) == "" {
+	if !found || strings.TrimSpace(eventID) == "" || strings.TrimSpace(profile.UserID) == "" || !profile.HasProfileImage {
 		return ""
 	}
 	return "/calendar/api/events/" + url.PathEscape(strings.TrimSpace(eventID)) + "/actor-image?actor=" + url.QueryEscape(string(actorKind))
@@ -167,7 +169,7 @@ func (service *Service) serveCalendarActorImage(responseWriter http.ResponseWrit
 		return
 	}
 	profile, found := service.calendarActorProfiles(request.Context(), []calendarEvent{event})[email]
-	if !found || strings.TrimSpace(profile.UserID) == "" {
+	if !found || strings.TrimSpace(profile.UserID) == "" || !profile.HasProfileImage {
 		http.NotFound(responseWriter, request)
 		return
 	}

@@ -57,6 +57,10 @@ func TestLocalListUsers(t *testing.T) {
 	if response.Records[1].Note != "Existing member note" {
 		t.Fatalf("member note = %q; want Existing member note", response.Records[1].Note)
 	}
+	expectedImage := calendarParticipantImagePath(stableFlowID("member@example.com"))
+	if response.Records[1].Image != expectedImage {
+		t.Fatalf("member image = %q; want %q", response.Records[1].Image, expectedImage)
+	}
 }
 
 func TestLocalUpsertUser(t *testing.T) {

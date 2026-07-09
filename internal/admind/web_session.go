@@ -38,6 +38,7 @@ type webSessionPayload struct {
 type webSessionResponse struct {
 	Authenticated      bool   `json:"authenticated"`
 	Email              string `json:"email,omitempty"`
+	Image              string `json:"image,omitempty"`
 	LoginURL           string `json:"loginURL,omitempty"`
 	MattermostLoginURL string `json:"mattermostLoginURL,omitempty"`
 	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
@@ -72,6 +73,7 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	service.writeJSON(responseWriter, webSessionResponse{
 		Authenticated:   true,
 		Email:           email,
+		Image:           profileImagePathForEmail(email),
 		IsAdmin:         isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
 		CanViewTasks:    service.canViewTaskRuns(request.Context(), email),
 		IsPoCSuperAdmin: isPoCSuperAdmin,

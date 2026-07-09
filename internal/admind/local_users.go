@@ -43,7 +43,7 @@ func (service *Service) buildLocalUsersResponse(ctx context.Context) (pagesUsers
 	if errorValue != nil {
 		return pagesUsersResponse{}, errorValue
 	}
-	return pagesUsersResponse{Records: localAdminUserRecords(users, roleByUserID)}, nil
+	return pagesUsersResponse{Records: adminUserRecordsWithProfileImages(localAdminUserRecords(users, roleByUserID))}, nil
 }
 
 func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, request *http.Request) {
@@ -385,6 +385,7 @@ func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWrit
 }
 
 func (service *Service) localUsersResponseBody(ctx context.Context, response pagesUsersResponse) ([]byte, error) {
+	response.Records = adminUserRecordsWithProfileImages(response.Records)
 	for index := range response.Records {
 		applyDefaultOrgchartMetadata(&response.Records[index])
 	}

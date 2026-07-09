@@ -11,10 +11,9 @@ const defaultDurationUnits: DurationUnitText = {
 };
 
 export function formatHoursMinutes(minutes: number, units: DurationUnitText = defaultDurationUnits): string {
+	if (minutes <= 0) return '';
 	const hours = Math.floor(minutes / MINUTES_PER_HOUR);
 	const remainder = minutes % MINUTES_PER_HOUR;
-	if (!hours) return `${padDurationNumber(remainder)}${units.minuteUnit}`;
-	if (!remainder) return `${padDurationNumber(hours)}${units.hourUnit}`;
 	return `${padDurationNumber(hours)}${units.hourUnit} ${padDurationNumber(remainder)}${units.minuteUnit}`;
 }
 

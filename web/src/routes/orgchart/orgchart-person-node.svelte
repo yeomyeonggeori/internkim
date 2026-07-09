@@ -40,7 +40,7 @@
 	aria-pressed={isSelected}
 	data-testid={`orgchart-person-node-${record.userID}`}
 >
-	<PersonAvatar name={record.name} email={record.email} seed={record.userID} class="size-10" />
+	<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
 	<span class="grid min-w-0 gap-1">
 		<span class="truncate text-sm font-semibold">{personName}</span>
 		<span class="truncate text-xs text-muted-foreground">{subtitle}</span>

@@ -254,28 +254,29 @@ describe('summarizeDailyValues', () => {
 		{ date: '2026-06-08', minutesByLocation: { remote: 600 } },
 	];
 
-	test('summarizes the whole month per day in day and month modes', () => {
-		const expected = { averageMinutes: 500, maximumMinutes: 600, minimumMinutes: 420 };
-
-		expect(summarizeDailyValues(dailyValues, 'day', '2026-06-10')).toEqual(expected);
-		expect(summarizeDailyValues(dailyValues, 'month', '2026-06-10')).toEqual(expected);
-	});
-
-	test('scopes week mode to the week containing today', () => {
-		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-03')).toEqual({
-			averageMinutes: 450,
-			maximumMinutes: 480,
+	test('summarizes the whole month by worked day', () => {
+		expect(summarizeDailyValues(dailyValues)).toEqual({
+			averageMinutes: 500,
+			maximumMinutes: 600,
 			minimumMinutes: 420,
 		});
-		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-10')).toEqual({
-			averageMinutes: 600,
+	});
+
+	test('excludes zero minute days through today', () => {
+		expect(summarizeDailyValues([
+			{ date: '2026-06-01', minutesByLocation: { office: 480 } },
+			{ date: '2026-06-02', minutesByLocation: {} },
+			{ date: '2026-06-03', minutesByLocation: { remote: 600 } },
+			{ date: '2026-06-04', minutesByLocation: { office: 120 } },
+		], { today: '2026-06-03' })).toEqual({
+			averageMinutes: 540,
 			maximumMinutes: 600,
-			minimumMinutes: 600,
+			minimumMinutes: 480,
 		});
 	});
 
 	test('returns null without worked days in scope', () => {
-		expect(summarizeDailyValues([], 'day', '2026-06-10')).toEqual(null);
-		expect(summarizeDailyValues(dailyValues, 'week', '2026-06-20')).toEqual(null);
+		expect(summarizeDailyValues([])).toEqual(null);
+		expect(summarizeDailyValues([{ date: '2026-06-20', minutesByLocation: {} }])).toEqual(null);
 	});
 });

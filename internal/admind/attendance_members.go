@@ -56,6 +56,7 @@ func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attend
 		result = append(result, attendanceMember{
 			Email:              email,
 			DisplayName:        displayName,
+			Image:              flowMember.Image,
 			MattermostUsername: strings.TrimSpace(flowMember.MattermostUsername),
 		})
 	}

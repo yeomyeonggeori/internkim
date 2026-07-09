@@ -88,10 +88,12 @@ func membersFromUserRecords(records []adminUserMutation) []flowMember {
 		if name == "" {
 			name = strings.TrimSuffix(email, "@"+emailDomain(email))
 		}
+		id := stableFlowID(email)
 		members = append(members, flowMember{
-			ID:                 stableFlowID(email),
+			ID:                 id,
 			Name:               name,
 			Email:              email,
+			Image:              calendarParticipantImagePath(id),
 			MattermostUsername: strings.TrimSpace(firstNonEmpty(record.MattermostUsername, record.Handle)),
 			HireDate:           strings.TrimSpace(record.HireDate),
 			Role:               normalizeAdminUserRole(record.Role),

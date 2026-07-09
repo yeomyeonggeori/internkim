@@ -148,10 +148,10 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/creator@example.com":
 			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자","last_picture_update":1710000000000}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/editor@example.com":
 			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"editor@example.com","username":"editor","display_name":"수정자"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"editor@example.com","username":"editor","display_name":"수정자","last_picture_update":1710000000000}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/image":
 			assertMattermostBearerToken(t, request, "admin-token")
 			return &http.Response{

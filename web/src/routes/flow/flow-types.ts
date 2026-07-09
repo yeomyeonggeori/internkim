@@ -13,6 +13,7 @@ export type FlowMember = {
 	id: string;
 	name: string;
 	email: string;
+	image?: string;
 	hireDate?: string;
 	role: string;
 	mattermostStatus: string;

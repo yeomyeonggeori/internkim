@@ -23,17 +23,18 @@ import (
 )
 
 type mattermostUserRecord struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Nickname    string `json:"nickname"`
-	Position    string `json:"position"`
-	Roles       string `json:"roles"`
-	DeleteAt    int64  `json:"delete_at"`
-	IsBot       bool   `json:"is_bot"`
+	ID                string `json:"id"`
+	Email             string `json:"email"`
+	Username          string `json:"username"`
+	DisplayName       string `json:"display_name"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	Nickname          string `json:"nickname"`
+	Position          string `json:"position"`
+	Roles             string `json:"roles"`
+	DeleteAt          int64  `json:"delete_at"`
+	IsBot             bool   `json:"is_bot"`
+	LastPictureUpdate int64  `json:"last_picture_update"`
 }
 
 type mattermostTeamRecord struct {
