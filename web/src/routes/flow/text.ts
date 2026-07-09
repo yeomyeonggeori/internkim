@@ -159,7 +159,6 @@ export const flowText = {
 				list: '목록'
 			},
 			board: {
-				emptyColumn: '업무 없음',
 				addTask: '{status} 업무 추가'
 			}
 		},
@@ -376,7 +375,6 @@ export const flowText = {
 				list: 'List'
 			},
 			board: {
-				emptyColumn: 'No tasks',
 				addTask: 'Add {status} task'
 			}
 		},
