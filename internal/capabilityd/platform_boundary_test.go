@@ -103,6 +103,28 @@ func TestMattermostNormalizePreservesInputAttachmentFileIDs(t *testing.T) {
 	}
 }
 
+func TestMattermostNormalizeMarksAttachmentsOnly(t *testing.T) {
+	attachmentEvent, _, errorValue := normalizeMattermostPost(mattermostPost{
+		ID: "post-1", UserID: "user-1", ChannelID: "channel-1", FileIDs: []string{"file-1"}, CreateAt: 1700000000000,
+	}, "bot-1", "O", "open", platformAddressing{})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !attachmentEvent.Context.AttachmentsOnly {
+		t.Fatal("text-less attachment post must be marked attachmentsOnly")
+	}
+
+	captionedEvent, _, errorValue := normalizeMattermostPost(mattermostPost{
+		ID: "post-2", UserID: "user-1", ChannelID: "channel-1", Message: "이거 봐줘", FileIDs: []string{"file-1"}, CreateAt: 1700000000000,
+	}, "bot-1", "O", "open", platformAddressing{})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if captionedEvent.Context.AttachmentsOnly {
+		t.Fatal("attachment post with caption text must not be attachmentsOnly")
+	}
+}
+
 func TestMattermostCompanionRecoverySendsChannelInstructionByDM(t *testing.T) {
 	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
 		Platform:       "mattermost",
