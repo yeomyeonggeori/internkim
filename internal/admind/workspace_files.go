@@ -5,11 +5,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 )
 
 const (
@@ -169,61 +168,55 @@ func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, 
 	service.writeJSON(responseWriter, map[string]any{"roots": roots})
 }
 
+// The workspace lives inside the Blueclaw guest image, unreadable from the host,
+// so listings and downloads proxy to Blueclaw's read-only workspace endpoints.
+// admind still authorizes the web actor against the requested agent path first.
 func (service *Service) writeWorkspaceList(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
-	agentPath, hostPath, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
+	agentPath, _, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
 	if errorValue != nil {
 		writeWorkspacePathError(responseWriter, errorValue)
 		return
 	}
-	directoryEntries, errorValue := os.ReadDir(hostPath)
-	if errorValue != nil {
-		if os.IsNotExist(errorValue) {
-			service.writeJSON(responseWriter, map[string]any{"path": agentPath, "entries": []workspaceEntry{}})
-			return
-		}
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	var blueclawResponse struct {
+		Entries []workspaceEntry `json:"entries"`
+	}
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/workspace/list?path="+url.QueryEscape(agentPath), nil, &blueclawResponse); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	entries := []workspaceEntry{}
-	for _, directoryEntry := range directoryEntries {
-		if directoryEntry.Name() == ".blueclaw" {
-			continue
-		}
-		information, errorValue := directoryEntry.Info()
-		if errorValue != nil {
-			continue
-		}
-		entries = append(entries, workspaceEntry{
-			Name:        directoryEntry.Name(),
-			AgentPath:   agentPath + "/" + directoryEntry.Name(),
-			IsDirectory: directoryEntry.IsDir(),
-			Size:        information.Size(),
-			ModifiedAt:  information.ModTime().UTC().Format(time.RFC3339),
-		})
+	for _, entry := range blueclawResponse.Entries {
+		entry.AgentPath = agentPath + "/" + entry.Name
+		entries = append(entries, entry)
 	}
-	sort.Slice(entries, func(first int, second int) bool {
-		if entries[first].IsDirectory != entries[second].IsDirectory {
-			return entries[first].IsDirectory
-		}
-		return strings.ToLower(entries[first].Name) < strings.ToLower(entries[second].Name)
-	})
 	service.writeJSON(responseWriter, map[string]any{"path": agentPath, "entries": entries})
 }
 
 func (service *Service) downloadWorkspaceFile(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
-	_, hostPath, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
+	agentPath, _, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
 	if errorValue != nil {
 		writeWorkspacePathError(responseWriter, errorValue)
 		return
 	}
-	information, errorValue := os.Stat(hostPath)
-	if errorValue != nil || information.IsDir() {
+	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/workspace/download?path=" + url.QueryEscape(agentPath)
+	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodGet, proxyURL, nil)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	proxyResponse, errorValue := service.httpClient().Do(proxyRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	defer proxyResponse.Body.Close()
+	if proxyResponse.StatusCode != http.StatusOK {
 		http.NotFound(responseWriter, request)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/octet-stream")
-	responseWriter.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeContentDispositionFilename(information.Name())+`"`)
-	http.ServeFile(responseWriter, request, hostPath)
+	responseWriter.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeContentDispositionFilename(filepath.Base(agentPath))+`"`)
+	_, _ = io.Copy(responseWriter, proxyResponse.Body)
 }
 
 func (service *Service) uploadWorkspaceFiles(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
