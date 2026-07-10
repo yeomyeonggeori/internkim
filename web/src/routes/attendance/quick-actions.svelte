@@ -130,7 +130,7 @@
 	<Card.Content class="space-y-2.5 pt-0">
 		{#if todayDay.clockIn}
 			<div class="flex items-center justify-between gap-2">
-				<DurationText minutes={elapsedMinutes} class="shrink-0 text-sm font-semibold" />
+				<DurationText minutes={elapsedMinutes} size="medium" />
 				{#if status === 'working'}
 					<LocationLabel name={activeLocationName} class="min-w-0" />
 				{/if}

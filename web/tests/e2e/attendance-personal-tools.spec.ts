@@ -25,19 +25,22 @@ test.describe('attendance personal tools', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 
 		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
+		await expect(detailDialog.getByTestId('team-status-work-record-header').getByTestId('section-count-badge')).toHaveText('3구간');
 		const segments = detailDialog.getByTestId('team-status-day-segment');
 		await expect(segments).toHaveCount(3);
-		await expect(segments.nth(0)).toContainText('08:30-10:20');
-		await expect(segments.nth(1)).toContainText('10:45-12:20');
-		await expect(segments.nth(2)).toContainText('12:45~');
-
-		const detailPanel = detailDialog.getByTestId('personal-day-detail-panel');
-		const eventLabels = detailPanel.getByTestId('personal-day-event-label');
-		await expect(eventLabels.nth(0)).toContainText('출근 08:30');
-		await expect(eventLabels.nth(1)).toContainText('퇴근 10:20');
-		await expect(eventLabels.nth(2)).toContainText('출근 10:45');
-		await expect(eventLabels.nth(3)).toContainText('퇴근 12:20');
-		await expect(eventLabels.nth(4)).toContainText('출근 12:45');
+		await expect(segments.nth(0).getByLabel('08:30-10:20')).toBeVisible();
+		await expect(segments.nth(1).getByLabel('10:45-12:20')).toBeVisible();
+		await expect(segments.nth(2).getByLabel(/^12:45-/)).toBeVisible();
+		await expect(segments.nth(2).locator('[data-slot="time-range-end"]')).toHaveClass(/text-info/);
+		await expect(detailDialog.getByTestId('personal-day-detail-panel')).toHaveCount(0);
+		await expect(detailDialog.getByText('이벤트', { exact: true })).toHaveCount(0);
+		await detailDialog.getByTestId('work-record-edit-button').click();
+		await expect(detailDialog.locator('[data-slot="work-segment-edit-fields"]')).toHaveCount(3);
+		await expect(detailDialog.getByTestId('work-record-edit-button')).toHaveAttribute('data-state', 'editing');
+		await expect(detailDialog.getByTestId('work-record-edit-button')).toHaveAccessibleName('취소');
+		await detailDialog.getByTestId('work-record-edit-button').click();
+		await expect(detailDialog.locator('[data-slot="work-segment-edit-fields"]')).toHaveCount(0);
+		await expect(detailDialog.getByTestId('work-record-edit-button')).toHaveAccessibleName('수정');
 	});
 
 	test('shows overnight work as split daily segments', async ({ page }) => {
@@ -51,13 +54,13 @@ test.describe('attendance personal tools', () => {
 
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-01').click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByText('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 
 		await page.keyboard.press('Escape');
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-02').click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByText('00:00:00-02:00:00')).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00:00-02:00:00')).toBeVisible();
 		await expect(secondDayDialog.getByText('진행 중')).toHaveCount(0);
 	});
 
@@ -76,14 +79,14 @@ test.describe('attendance personal tools', () => {
 		await expect(page.getByRole('button', { name: '퇴근' })).toBeVisible();
 		await page.getByTestId(`team-status-cell-kim@example.com-${previousDate}`).click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByText('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 		await page.keyboard.press('Escape');
 
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByText('00:00:00~')).toBeVisible();
-		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByText('01시간 00분', { exact: true })).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00:00-01:00')).toBeVisible();
+		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByLabel('01시간 00분')).toBeVisible();
 	});
 
 	test('registers own absence without sending an email override', async ({ page }) => {
@@ -165,28 +168,21 @@ test.describe('attendance personal tools', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 
 		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
-		const detailPanel = detailDialog.getByTestId('personal-day-detail-panel');
-		const eventRow = detailPanel
-			.getByTestId('personal-day-event-row')
-			.filter({ has: page.getByTestId('personal-day-event-label').filter({ hasText: '출근 08:30' }) });
-		await eventRow.getByTestId('personal-day-event-label').click();
-		await eventRow.getByRole('button', { name: '수정' }).click();
-		await eventRow.getByLabel('시간').fill('08:40');
-		await eventRow.getByLabel('장소').click();
+		await detailDialog.getByTestId('work-record-edit-button').click();
+		const firstSegment = detailDialog.getByTestId('team-status-day-segment').first();
+		await firstSegment.getByLabel('출근').fill('08:40');
+		await firstSegment.getByLabel('장소').click();
 		await page.getByRole('option', { name: '사무실', exact: true }).click();
-		await eventRow.getByLabel('수정 사유').fill('시간 보정');
-		await eventRow.getByRole('button', { name: '저장' }).click();
+		const editActions = detailDialog.getByTestId('work-record-edit-actions');
+		await expect(editActions.getByRole('button', { name: '저장' })).toBeDisabled();
+		await editActions.getByLabel('수정 사유').fill('시간 보정');
+		await editActions.getByRole('button', { name: '저장' }).click();
 
-		const updatedEventRow = detailPanel
-			.getByTestId('personal-day-event-row')
-			.filter({ has: page.getByTestId('personal-day-event-label').filter({ hasText: '출근 08:40' }) });
-		await expect(updatedEventRow.getByTestId('personal-day-event-label')).toContainText('사무실');
-		await expect(updatedEventRow.getByText('수정 전:')).toBeVisible();
-		await expect(updatedEventRow.getByText('08:30 · 재택')).toBeVisible();
-		await expect(updatedEventRow.getByText('수정 후:')).toBeVisible();
-		await expect(updatedEventRow.getByText('08:40 · 사무실', { exact: true })).toBeVisible();
-		await expect(updatedEventRow.getByText('수정 사유:')).toBeVisible();
-		await expect(updatedEventRow.getByText('시간 보정')).toBeVisible();
+		const updatedFirstSegment = detailDialog.getByTestId('team-status-day-segment').first();
+		await expect(updatedFirstSegment.getByLabel('08:40-10:20')).toBeVisible();
+		await expect(updatedFirstSegment.getByText('사무실', { exact: true })).toBeVisible();
+		await expect(detailDialog.getByText('원본 메시지', { exact: true })).toHaveCount(0);
+		await expect(detailDialog.getByTestId('personal-day-detail-panel')).toHaveCount(0);
 	});
 
 	test('cancels an own absence from the selected day panel', async ({ page }) => {

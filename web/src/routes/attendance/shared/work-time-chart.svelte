@@ -209,15 +209,15 @@
 			<div class={compact ? 'mt-2 grid gap-1 border-t pt-2 text-[11px]' : 'mt-3 flex items-center gap-6 text-xs'}>
 				<div class="flex items-baseline justify-between gap-2">
 					<span class="whitespace-nowrap text-muted-foreground">{text.dailyAverage}</span>
-					<DurationText minutes={pointsSummary.averageMinutes} class="font-medium" />
+					<DurationText minutes={pointsSummary.averageMinutes} size="inherit" />
 				</div>
 				<div class="flex items-baseline justify-between gap-2">
 					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMaximum}</span>
-					<DurationText minutes={pointsSummary.maximumMinutes} class="font-medium" />
+					<DurationText minutes={pointsSummary.maximumMinutes} size="inherit" />
 				</div>
 				<div class="flex items-baseline justify-between gap-2">
 					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMinimum}</span>
-					<DurationText minutes={pointsSummary.minimumMinutes} class="font-medium" />
+					<DurationText minutes={pointsSummary.minimumMinutes} size="inherit" />
 				</div>
 			</div>
 		{/if}

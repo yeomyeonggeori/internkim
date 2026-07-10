@@ -113,12 +113,10 @@ test.describe('attendance responsive view', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 
 		const detailSheet = page.getByTestId('team-status-day-detail-sheet');
-		const detailPanel = detailSheet.getByTestId('personal-day-detail-panel');
-		await expect(detailPanel).toBeVisible();
-		await expect(detailPanel.getByTestId('personal-day-event-label')).toHaveCount(5);
-		await expect(detailPanel.getByRole('button', { name: '수정' })).toHaveCount(0);
-		await detailPanel.getByTestId('personal-day-event-label').first().click();
-		await expect(detailPanel.getByRole('button', { name: '수정' })).toBeVisible();
+		await expect(detailSheet.getByTestId('personal-day-detail-panel')).toHaveCount(0);
+		await detailSheet.getByTestId('work-record-edit-button').click();
+		await expect(detailSheet.locator('[data-slot="work-segment-edit-fields"]')).toHaveCount(3);
+		await expect(detailSheet.getByTestId('work-record-edit-actions')).toBeVisible();
 	});
 
 	test('keeps the mobile monthly status table readable while scrolling through dates', async ({ page }) => {

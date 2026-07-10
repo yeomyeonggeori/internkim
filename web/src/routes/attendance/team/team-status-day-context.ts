@@ -14,6 +14,7 @@ export type TeamStatusCalendarEventDetail = {
 	title: string;
 	timeLabel: string;
 	location?: string;
+	calendarEvent: CalendarEvent;
 };
 
 export type TeamStatusCompletedTaskDetail = {
@@ -21,6 +22,7 @@ export type TeamStatusCompletedTaskDetail = {
 	title: string;
 	ownerName: string;
 	collaboratorNames: string[];
+	task: FlowState['tasks'][number];
 };
 
 export type TeamStatusDayContext = {

@@ -2,6 +2,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { mergeProps } from 'bits-ui';
 	import DurationText from '../shared/duration-text.svelte';
+	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
 	type Props = {
@@ -78,7 +79,7 @@
 		{#if day.tone === 'absence'}
 			<span class={`min-w-0 max-w-full whitespace-normal break-all leading-tight ${absenceLabelClass(day)}`}>{day.label}</span>
 		{:else if day.durationMinutes !== undefined}
-			<DurationText minutes={day.durationMinutes} class="max-w-full leading-tight text-foreground" />
+			<DurationText minutes={day.durationMinutes} size="extraSmall" tone="default" />
 		{:else if hasVisibleLabel}
 			<span class="min-w-0 max-w-full whitespace-normal break-all leading-tight text-foreground">{day.label}</span>
 		{/if}
@@ -107,28 +108,17 @@
 	</button>
 {/snippet}
 
-{#snippet WorkSegmentTooltip()}
+	{#snippet WorkSegmentTooltip()}
 	<div class="grid min-w-44 gap-2">
 		{#each day.segments as segment (segment.id)}
-			<div class="grid gap-0.5">
-				<div class="flex min-w-0 items-center justify-between gap-3">
-					<span class="flex min-w-0 items-center gap-1.5">
-						<span
-							class="h-3 w-1 shrink-0 rounded-full"
-							style:background-color={segmentBarColor(segment)}
-							aria-hidden="true"
-						></span>
-						<span class="min-w-0 truncate">{segment.locationName}</span>
-					</span>
-					{#if segment.durationMinutes !== undefined}
-						<DurationText
-							minutes={segment.durationMinutes}
-							class={`shrink-0 text-xs font-medium ${segment.isOpen ? 'text-success' : 'text-popover-foreground'}`}
-						/>
-					{/if}
-				</div>
-				<div class="text-[10px] tabular-nums text-muted-foreground">{segment.timeLabel}</div>
-			</div>
+			<WorkSegmentSummary
+				locationName={segment.locationName}
+				locationColor={segment.locationColor}
+				startTime={segment.startTime}
+				endTime={segment.endTime}
+				durationMinutes={segment.durationMinutes}
+				isOpen={segment.isOpen}
+			/>
 		{/each}
 	</div>
 {/snippet}
