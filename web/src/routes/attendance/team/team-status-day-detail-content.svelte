@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check-big';
@@ -381,25 +382,33 @@
 							start: new Date(event.calendarEvent.startISO),
 							allDay: event.calendarEvent.isAllDay
 						}}
-						<button
-							type="button"
-							class="team-status-calendar-event min-w-0 px-1 py-2.5 text-left text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							aria-label={event.title}
-							data-testid="team-status-calendar-event"
-							onclick={() => openCalendarEvent(event.id)}
+						<Card.Root
+							size="sm"
+							class="gap-0 rounded-md bg-info/10 py-0 text-info ring-info/20 transition-colors hover:bg-info/15"
+							data-testid="team-status-calendar-event-card"
 						>
-							<CalendarEventContent
-								event={calendarEvent}
-								isAllDay={event.calendarEvent.isAllDay}
-								timeLabel={event.timeLabel}
-							/>
-							{#if event.location}
-								<span class="mt-1 flex min-w-0 items-center gap-1 text-xs text-info/70">
-									<MapPinIcon class="size-3 shrink-0" aria-hidden="true" />
-									<span class="truncate">{event.location}</span>
-								</span>
-							{/if}
-						</button>
+							<Card.Content class="p-0">
+								<button
+									type="button"
+									class="team-status-calendar-event min-h-11 w-full min-w-0 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/40"
+									aria-label={event.title}
+									data-testid="team-status-calendar-event"
+									onclick={() => openCalendarEvent(event.id)}
+								>
+									<CalendarEventContent
+										event={calendarEvent}
+										isAllDay={event.calendarEvent.isAllDay}
+										timeLabel={event.timeLabel}
+									/>
+									{#if event.location}
+										<span class="mt-1 flex min-w-0 items-center gap-1 text-xs text-info/70">
+											<MapPinIcon class="size-3 shrink-0" aria-hidden="true" />
+											<span class="truncate">{event.location}</span>
+										</span>
+									{/if}
+								</button>
+							</Card.Content>
+						</Card.Root>
 					{/each}
 				</div>
 			{:else}

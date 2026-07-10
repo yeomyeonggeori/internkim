@@ -11,6 +11,7 @@
 		groups: OrgGroup[];
 		text: AdminPageText;
 		isSaving: boolean;
+		layout?: 'default' | 'stacked';
 	};
 
 	let {
@@ -18,7 +19,8 @@
 		userRecords,
 		groups,
 		text,
-		isSaving
+		isSaving,
+		layout = 'default'
 	}: OrgchartProfileFieldsProps = $props();
 
 	const noSelectionValue = '__none__';
@@ -62,7 +64,7 @@
 	}
 </script>
 
-<div class="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3">
+<div class={['mt-3 grid gap-3 border-t pt-3', layout === 'default' ? 'sm:grid-cols-3' : '']}>
 	<label class={fieldClass}>
 		<Label class="text-xs">{text.orgchart.jobTitle}</Label>
 		<Input class={controlClass} bind:value={record.jobTitle} placeholder={text.orgchart.jobTitlePlaceholder} autocomplete="off" disabled={isSaving} />
