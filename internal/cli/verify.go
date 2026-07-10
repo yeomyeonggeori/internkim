@@ -767,7 +767,7 @@ func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) 
 
 
 func runLocalBrowserVerification(target verifyTarget) error {
-	port, errorValue := reserveLocalPort()
+	port, errorValue := reserveMattermostSiteURLPort()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -784,13 +784,31 @@ func runLocalBrowserVerification(target verifyTarget) error {
 	}()
 	time.Sleep(1500 * time.Millisecond)
 
-	adminEmail := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null"))
-	adminPassword := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
+	adminEmail := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || sudo -n cat /root/.internkim/config/admin-email 2>/dev/null || sudo -n cat /root/.internkim/admin-email 2>/dev/null"))
+	if adminEmail == "" {
+		adminEmail = "admin"
+	}
+	adminPassword := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null || sudo -n cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
+	mattermostURLHost := "127.0.0.1"
+	if port == mattermostSiteURLPort {
+		mattermostURLHost = "localhost"
+	}
 	return runPlaywright("tests/e2e/mattermost.spec.ts", map[string]string{
-		"INTERNKIM_MATTERMOST_URL": fmt.Sprintf("http://127.0.0.1:%d", port),
+		"INTERNKIM_MATTERMOST_URL": fmt.Sprintf("http://%s:%d", mattermostURLHost, port),
 		"INTERNKIM_ADMIN_EMAIL":    adminEmail,
 		"INTERNKIM_ADMIN_PASSWORD": adminPassword,
 	})
+}
+
+const mattermostSiteURLPort = 8065
+
+func reserveMattermostSiteURLPort() (int, error) {
+	listener, errorValue := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", mattermostSiteURLPort))
+	if errorValue != nil {
+		return reserveLocalPort()
+	}
+	listener.Close()
+	return mattermostSiteURLPort, nil
 }
 
 func runPublicBrowserVerification(target verifyTarget) error {
@@ -801,6 +819,13 @@ func runPublicBrowserVerification(target verifyTarget) error {
 	return runPlaywright("tests/e2e/public-url.spec.ts", map[string]string{
 		"INTERNKIM_PUBLIC_URL": publicURL,
 	})
+}
+
+func mattermostTunnelTargetPort() string {
+	if targetPort := strings.TrimSpace(os.Getenv("INTERNKIM_VERIFY_TUNNEL_TARGET_PORT")); targetPort != "" {
+		return targetPort
+	}
+	return "8065"
 }
 
 func reserveLocalPort() (int, error) {
@@ -822,7 +847,7 @@ func buildMattermostTunnelCommand(target verifyTarget, port int) *exec.Cmd {
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "ExitOnForwardFailure=yes",
 		"-N",
-		"-L", fmt.Sprintf("%d:127.0.0.1:8065", port),
+		"-L", fmt.Sprintf("%d:127.0.0.1:%s", port, mattermostTunnelTargetPort()),
 		fmt.Sprintf("%s@%s", target.user, target.host),
 	}
 	if target.password != "" {

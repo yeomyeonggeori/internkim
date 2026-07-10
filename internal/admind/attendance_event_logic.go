@@ -211,7 +211,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	return service.insertAttendanceEventForKind(ctx, database, userRecord, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
+	return service.insertAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
 }
 
 func (service *Service) createAttendanceEventFromExistingResultPostForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
@@ -225,10 +225,10 @@ func (service *Service) createAttendanceEventFromExistingResultPostForKind(ctx c
 	if errorValue := service.patchMattermostAttendanceResultPost(ctx, userToken, resultPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation)); errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	return service.insertAttendanceEventForKind(ctx, database, userRecord, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
+	return service.insertAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, resultPostID)
 }
 
-func (service *Service) insertAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
+func (service *Service) insertAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
 	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
 	var errorValue error
 	if kind == attendanceKindClockOut {
@@ -237,7 +237,11 @@ func (service *Service) insertAttendanceEventForKind(ctx context.Context, databa
 			return attendanceActionResult{}, errorValue
 		}
 	}
-	return createdAttendanceActionResult(resultPostID), service.insertAttendanceEvent(ctx, database, event)
+	if errorValue := service.insertAttendanceEvent(ctx, database, event); errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	service.syncMattermostCustomStatusToAttendance(ctx, userToken, kind, eventLocation)
+	return createdAttendanceActionResult(resultPostID), nil
 }
 
 func (service *Service) attendanceClockOutLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, occurredAt time.Time, fallbackLocalDate string) (string, error) {

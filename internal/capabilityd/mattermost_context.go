@@ -38,6 +38,7 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 	nextContext.ChannelID = previousContext.ChannelID
 	nextContext.ChannelName = previousContext.ChannelName
 	nextContext.Addressing = previousContext.Addressing
+	nextContext.AttachmentsOnly = previousContext.AttachmentsOnly
 	nextContext.InputAttachments = append([]platformInputAttachment{}, previousContext.InputAttachments...)
 	nextContext.Materials = append(nextContext.Materials, previousContext.Materials...)
 	nextContext.Materials = append(nextContext.Materials, previousContext.InputAttachments...)
@@ -45,6 +46,13 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 	nextContext.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
 	event.Context = nextContext
 	return event
+}
+
+func mattermostContextTimestamp(createAt int64) string {
+	if createAt <= 0 {
+		return ""
+	}
+	return time.UnixMilli(createAt).UTC().Format(time.RFC3339)
 }
 
 func (service Service) mattermostContext(ctx context.Context, handle platformHandle, limit int) platformEventContext {
@@ -83,6 +91,7 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 			SpeakerCallingName: senderInfo.CallingName,
 			SpeakerHandle:      senderInfo.Handle,
 			Text:               text,
+			SentAt:             mattermostContextTimestamp(post.CreateAt),
 			InputAttachments:   inputAttachments,
 		})
 	}

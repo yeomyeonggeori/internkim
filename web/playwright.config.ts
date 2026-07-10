@@ -13,6 +13,7 @@ export default defineConfig({
 	...(webServer ? { webServer } : {}),
 	use: {
 		...devices['Desktop Chrome'],
+		...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 		baseURL,
 		trace: 'retain-on-failure'
 	},

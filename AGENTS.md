@@ -117,6 +117,19 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `cd web && bun test tests/unit`.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
+- When the user asks to run a local web page for them to inspect, start the dev
+  server with the relevant `VITE_MOCK_*` flag so the app is already past the
+  login gate. For attendance UI work, use `VITE_MOCK_ATTENDANCE=1` and an
+  explicit `VITE_DEV_USER_EMAIL`, then verify `/auth/session` returns
+  `authenticated: true` before giving the URL.
+
+## Web UI Components
+
+- When the user asks to use a shadcn-svelte component, install it with the
+  shadcn-svelte CLI, for example `cd web && bunx shadcn-svelte@latest add
+  <component> --yes`. Do not hand-roll the component wrapper unless the CLI
+  cannot install it; if installation fails because of sandbox tempdir or network
+  restrictions, rerun the same CLI command with approval.
 
 ## Deployment Hygiene
 

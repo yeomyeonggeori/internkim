@@ -69,6 +69,11 @@ type blueclawQuiesceResponse struct {
 	ActiveTaskCount int  `json:"activeTaskCount"`
 }
 
+type blueclawPrepareShutdownResponse struct {
+	Quiesced             bool `json:"quiesced"`
+	InterruptedTaskCount int  `json:"interruptedTaskCount"`
+}
+
 type BlueclawUpdateUpload struct {
 	UploadID       string
 	Token          string
@@ -380,6 +385,7 @@ func (service *Service) drainBlueclawTasksBeforeStopWithPollInterval(ctx context
 	if pollInterval <= 0 {
 		pollInterval = blueclawTaskDrainPollInterval
 	}
+	defer service.markBlueclawTasksForPlannedShutdown(ctx, target)
 	service.engageBlueclawQuiesce(ctx, target)
 	drainContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -405,6 +411,15 @@ func (service *Service) drainBlueclawTasksBeforeStopWithPollInterval(ctx context
 			return
 		}
 	}
+}
+
+func (service *Service) markBlueclawTasksForPlannedShutdown(ctx context.Context, target blueclawPayloadInstallTarget) {
+	response := blueclawPrepareShutdownResponse{}
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/runtime/prepare-shutdown", nil, &response); errorValue != nil {
+		log.Printf("Blueclaw pre-stop for %s: prepare-shutdown unavailable: %v", target.Name, errorValue)
+		return
+	}
+	log.Printf("Blueclaw pre-stop for %s: marked %d task(s) interrupted for planned shutdown", target.Name, response.InterruptedTaskCount)
 }
 
 func (service *Service) engageBlueclawQuiesce(ctx context.Context, target blueclawPayloadInstallTarget) {

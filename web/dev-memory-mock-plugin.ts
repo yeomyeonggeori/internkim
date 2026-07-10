@@ -144,7 +144,11 @@ function paginatedSchedules(schedules: MemorySchedule[], searchParams: URLSearch
 function createDevMemoryGraph(): MemoryGraphResponse {
 	return {
 		health: { configured: true, reachable: true },
-		namespaces: [{ namespaceID: 'dev-memory', scopeType: 'workspace', episodeCount: 3 }],
+		namespaces: [
+			{ namespaceID: 'user:dev-person', scopeType: 'user', scopePersonID: 'dev-person', episodeCount: 2 },
+			{ namespaceID: 'circle:default:staff', scopeType: 'circle', scopeCircleID: 'staff', episodeCount: 1 },
+			{ namespaceID: 'dev-memory', scopeType: 'workspace', episodeCount: 3 }
+		],
 		episodes: [
 			{
 				episodeID: 'dev-episode-1',
@@ -153,6 +157,22 @@ function createDevMemoryGraph(): MemoryGraphResponse {
 				namespaceIDs: ['dev-memory'],
 				ingestionStatus: 'succeeded',
 				occurredAt: '2026-06-17T12:00:00+09:00'
+			},
+			{
+				episodeID: 'dev-episode-2',
+				platform: 'mattermost',
+				prompt: '나는 릴리스 노트를 짧은 한국어 문장으로 받는 걸 선호해.',
+				namespaceIDs: ['user:dev-person'],
+				ingestionStatus: 'succeeded',
+				occurredAt: '2026-07-01T09:30:00+09:00'
+			},
+			{
+				episodeID: 'dev-episode-3',
+				platform: 'mattermost',
+				prompt: '급여 자료는 HR 서클에서만 다룬다.',
+				namespaceIDs: ['circle:default:staff'],
+				ingestionStatus: 'succeeded',
+				occurredAt: '2026-07-05T14:10:00+09:00'
 			}
 		],
 		facts: [
@@ -162,17 +182,67 @@ function createDevMemoryGraph(): MemoryGraphResponse {
 				namespaceID: 'dev-memory',
 				content: '개발 확인용 기억입니다.',
 				score: 0.92,
-				sourceEpisodeID: 'dev-episode-1'
+				sourceEpisodeID: 'dev-episode-1',
+				sourceKind: 'fact',
+				validAt: '2026-06-17T12:00:00+09:00'
+			},
+			{
+				factID: 'dev-fact-2',
+				scopeType: 'user',
+				namespaceID: 'user:dev-person',
+				content: '사용자는 릴리스 노트를 짧은 한국어 문장으로 받는 것을 선호한다.',
+				score: 0.88,
+				sourceEpisodeID: 'dev-episode-2',
+				sourceKind: 'fact',
+				validAt: '2026-07-01T09:30:00+09:00'
+			},
+			{
+				factID: 'dev-fact-3',
+				scopeType: 'user',
+				namespaceID: 'user:dev-person',
+				content: '# Memory\n- 발표자료 생성을 자주 요청한다.\n- 회의록은 요약본만 받는다.',
+				sourceKind: 'pinned'
+			},
+			{
+				factID: 'dev-fact-4',
+				scopeType: 'circle',
+				namespaceID: 'circle:default:staff',
+				content: '급여 자료는 HR 서클에서만 다룬다.',
+				score: 0.81,
+				sourceEpisodeID: 'dev-episode-3',
+				sourceKind: 'fact',
+				validAt: '2026-07-05T14:10:00+09:00'
+			},
+			{
+				factID: 'dev-fact-5',
+				scopeType: 'workspace',
+				namespaceID: 'dev-memory',
+				content: '분기 런치 리뷰는 매주 금요일에 진행된다.',
+				score: 0.77,
+				sourceKind: 'node',
+				validAt: '2026-06-20T10:00:00+09:00'
 			}
 		],
 		nodes: [
+			{ nodeID: 'namespace:user:dev-person', label: '내 기억', kind: 'namespace', scopeType: 'user' },
+			{ nodeID: 'namespace:circle:default:staff', label: 'staff', kind: 'namespace', scopeType: 'circle' },
 			{ nodeID: 'namespace:dev-memory', label: 'dev-memory', kind: 'namespace', scopeType: 'workspace' },
 			{ nodeID: 'episode:dev-episode-1', label: 'mattermost 06-17 12:00', kind: 'episode', status: 'succeeded' },
-			{ nodeID: 'fact:dev-memory:dev-fact-1', label: '개발 확인용 기억입니다.', kind: 'fact', scopeType: 'workspace' }
+			{ nodeID: 'episode:dev-episode-2', label: 'mattermost 07-01 09:30', kind: 'episode', status: 'succeeded' },
+			{ nodeID: 'episode:dev-episode-3', label: 'mattermost 07-05 14:10', kind: 'episode', status: 'succeeded' },
+			{ nodeID: 'fact:dev-memory:dev-fact-1', label: '개발 확인용 기억입니다.', kind: 'fact', scopeType: 'workspace' },
+			{ nodeID: 'fact:user:dev-person:dev-fact-2', label: '릴리스 노트 선호', kind: 'fact', scopeType: 'user' },
+			{ nodeID: 'fact:circle:default:staff:dev-fact-4', label: '급여 자료 서클 제한', kind: 'fact', scopeType: 'circle' },
+			{ nodeID: 'fact:dev-memory:dev-fact-5', label: '분기 런치 리뷰 일정', kind: 'fact', scopeType: 'workspace' }
 		],
 		edges: [
 			{ sourceID: 'namespace:dev-memory', targetID: 'episode:dev-episode-1', weight: 1 },
-			{ sourceID: 'namespace:dev-memory', targetID: 'fact:dev-memory:dev-fact-1', weight: 2 }
+			{ sourceID: 'namespace:user:dev-person', targetID: 'episode:dev-episode-2', weight: 1 },
+			{ sourceID: 'namespace:circle:default:staff', targetID: 'episode:dev-episode-3', weight: 1 },
+			{ sourceID: 'namespace:dev-memory', targetID: 'fact:dev-memory:dev-fact-1', weight: 2 },
+			{ sourceID: 'namespace:user:dev-person', targetID: 'fact:user:dev-person:dev-fact-2', weight: 2 },
+			{ sourceID: 'namespace:circle:default:staff', targetID: 'fact:circle:default:staff:dev-fact-4', weight: 2 },
+			{ sourceID: 'namespace:dev-memory', targetID: 'fact:dev-memory:dev-fact-5', weight: 2 }
 		]
 	};
 }

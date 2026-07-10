@@ -44,7 +44,7 @@
 
 <div class="rounded-lg border bg-card px-3.5 py-3 shadow-sm" data-testid={`orgchart-profile-${record.userID}`}>
 	<div class="flex min-w-0 items-center gap-3">
-		<PersonAvatar name={record.name} email={record.email} class="size-9" />
+		<PersonAvatar name={record.name} email={record.email} image={record.image ?? ''} class="size-9" />
 		<div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
 			<span class="truncate text-sm font-medium">{personLabel(record)}</span>
 			{#if record.jobTitle}

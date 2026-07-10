@@ -23,6 +23,7 @@ export type MemoryGraphFact = {
 	score?: number | null;
 	sourceEpisodeID?: string;
 	sourceKind?: string;
+	validAt?: string;
 };
 
 export type MemoryGraphNode = {
@@ -169,6 +170,7 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 	const score = readNullableNumber(record.score);
 	const sourceEpisodeID = readString(record.sourceEpisodeID);
 	const sourceKind = readString(record.sourceKind);
+	const validAt = readTimestamp(record.validAt);
 
 	return {
 		factID,
@@ -177,7 +179,8 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 		content,
 		...(typeof score === 'number' || score === null ? { score } : {}),
 		...(sourceEpisodeID ? { sourceEpisodeID } : {}),
-		...(sourceKind ? { sourceKind } : {})
+		...(sourceKind ? { sourceKind } : {}),
+		...(validAt ? { validAt } : {})
 	};
 }
 
@@ -262,6 +265,12 @@ function isRecord(document: unknown): document is Record<string, unknown> {
 
 function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
+}
+
+function readTimestamp(value: unknown): string | undefined {
+	const timestamp = readString(value);
+	if (!timestamp || timestamp.startsWith('0001-01-01')) return undefined;
+	return timestamp;
 }
 
 function readStringArray(value: unknown): string[] | undefined {
