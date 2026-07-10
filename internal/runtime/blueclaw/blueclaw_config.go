@@ -210,8 +210,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"enabled":       true,
 			"executionMode": "auto",
 		},
-		"defaultEffortLevel": "standard",
-		"skillEffortFloor":   "deep",
+		"defaultTaskLevel":    "low",
+		"skillTaskLevelFloor": "high",
 		"toolResultMaxBytes": 32768,
 		"failureRecovery": map[string]any{
 			"failureDebtFinalizationGate": true,
