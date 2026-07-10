@@ -61,7 +61,15 @@
 			}),
 		);
 
-		return function BoardPanel() {
+		const fullscreenIcon = React.createElement(
+			'svg',
+			{ width: 16, height: 16, viewBox: '0 0 24 24', fill: 'currentColor' },
+			React.createElement('path', {
+				d: 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z',
+			}),
+		);
+
+		return function BoardPanel(properties) {
 			const initialViewKey = boardViews[0].key;
 			const activeViewState = React.useState(initialViewKey);
 			const activeViewKey = activeViewState[0];
@@ -95,6 +103,18 @@
 				);
 			});
 
+			const fullscreenLink = React.createElement(
+				'a',
+				{
+					key: 'open-fullscreen',
+					href: boardsTeamRoutePath(),
+					style: openInBrowserStyle,
+					'aria-label': '전체 화면으로 열기',
+					title: '전체 화면으로 열기',
+				},
+				fullscreenIcon,
+			);
+
 			const openInBrowserLink = React.createElement(
 				'a',
 				{
@@ -108,6 +128,9 @@
 				},
 				openInBrowserIcon,
 			);
+			const tabBarActions = properties && properties.isFullscreen
+				? [openInBrowserLink]
+				: [fullscreenLink, openInBrowserLink];
 
 			const frames = boardViews
 				.filter(function isVisited(view) {
@@ -125,8 +148,24 @@
 			return React.createElement(
 				'div',
 				{ style: panelStyle },
-				React.createElement('div', { style: tabBarStyle }, tabs.concat(openInBrowserLink)),
+				React.createElement('div', { style: tabBarStyle }, tabs.concat(tabBarActions)),
 				React.createElement('div', { style: frameContainerStyle }, frames),
+			);
+		};
+	}
+
+	function boardsTeamRoutePath() {
+		const pathSegments = globalScope.location.pathname.split('/').filter(Boolean);
+		const teamName = pathSegments[0] || '';
+		return '/' + teamName + '/' + pluginID + '/boards';
+	}
+
+	function createFullscreenBoards(React, BoardPanel) {
+		return function FullscreenBoards() {
+			return React.createElement(
+				'div',
+				{ style: { gridArea: 'center', display: 'flex', flexDirection: 'column', minHeight: 0 } },
+				React.createElement(BoardPanel, { isFullscreen: true }),
 			);
 		};
 	}
@@ -145,10 +184,8 @@
 
 	InternKimBoardsPlugin.prototype.initialize = function initialize(registry, store) {
 		const React = globalScope.React;
-		const rhsRegistration = registry.registerRightHandSidebarComponent(
-			createBoardPanel(React),
-			'김인턴',
-		);
+		const BoardPanel = createBoardPanel(React);
+		const rhsRegistration = registry.registerRightHandSidebarComponent(BoardPanel, '김인턴');
 		registry.registerChannelHeaderButtonAction(
 			createChannelHeaderIcon(React),
 			function toggleBoardPanel() {
@@ -157,6 +194,9 @@
 			'김인턴',
 			'업무 · 일정 · 근태 보기',
 		);
+		if (typeof registry.registerNeedsTeamRoute === 'function') {
+			registry.registerNeedsTeamRoute('/boards', createFullscreenBoards(React, BoardPanel));
+		}
 	};
 
 	globalScope.registerPlugin(pluginID, new InternKimBoardsPlugin());
