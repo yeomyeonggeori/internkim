@@ -366,3 +366,11 @@
   }
 
 }
+
+html.internkim-embedded [data-app-chrome] {
+  display: none;
+}
+
+html.internkim-embedded [data-app-shell-scroll] {
+  padding-bottom: 0;
+}
