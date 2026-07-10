@@ -175,6 +175,7 @@
 </Sheet.Root>
 
 <nav
+	data-app-chrome
 	class="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[4.25rem] w-[min(calc(100vw-1.5rem),30rem)] -translate-x-1/2 grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] p-1.5 shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] md:hidden"
 	aria-label={text.apps}
 >
