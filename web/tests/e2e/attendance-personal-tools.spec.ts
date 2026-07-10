@@ -170,16 +170,25 @@ test.describe('attendance personal tools', () => {
 		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
 		await detailDialog.getByTestId('work-record-edit-button').click();
 		const firstSegment = detailDialog.getByTestId('team-status-day-segment').first();
+		const firstSegmentSummary = firstSegment.locator('[data-slot="work-segment-summary"]');
+		const firstSegmentMarker = firstSegmentSummary.locator('[data-slot="work-segment-marker"]');
+		await expect(firstSegmentSummary.getByText('재택', { exact: true })).toBeVisible();
+		await expect(firstSegmentMarker).toHaveCSS('background-color', 'rgb(59, 130, 246)');
 		await firstSegment.getByLabel('출근').fill('08:40');
+		await firstSegment.getByLabel('퇴근').fill('10:35');
+		await expect(firstSegmentSummary.getByLabel('08:40-10:35')).toBeVisible();
+		await expect(firstSegmentSummary.getByLabel('01시간 55분')).toBeVisible();
 		await firstSegment.getByLabel('장소').click();
 		await page.getByRole('option', { name: '사무실', exact: true }).click();
+		await expect(firstSegmentSummary.getByText('사무실', { exact: true })).toBeVisible();
+		await expect(firstSegmentMarker).toHaveCSS('background-color', 'rgb(34, 197, 94)');
 		const editActions = detailDialog.getByTestId('work-record-edit-actions');
 		await expect(editActions.getByRole('button', { name: '저장' })).toBeDisabled();
 		await editActions.getByLabel('수정 사유').fill('시간 보정');
 		await editActions.getByRole('button', { name: '저장' }).click();
 
 		const updatedFirstSegment = detailDialog.getByTestId('team-status-day-segment').first();
-		await expect(updatedFirstSegment.getByLabel('08:40-10:20')).toBeVisible();
+		await expect(updatedFirstSegment.getByLabel('08:40-10:35')).toBeVisible();
 		await expect(updatedFirstSegment.getByText('사무실', { exact: true })).toBeVisible();
 		await expect(detailDialog.getByText('원본 메시지', { exact: true })).toHaveCount(0);
 		await expect(detailDialog.getByTestId('personal-day-detail-panel')).toHaveCount(0);

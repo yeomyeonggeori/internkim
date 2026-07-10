@@ -381,17 +381,40 @@ test.describe('attendance team status', () => {
 		expect(segmentMarkerStyle.height).toBe('12px');
 		expect(segmentMarkerStyle.width).toBe('4px');
 
-		const eventRowStyle = await sheet.getByTestId('team-status-calendar-event').first().evaluate((element) => {
+		const calendarEventCard = sheet.getByTestId('team-status-calendar-event-card').first();
+		const eventCardStyle = await calendarEventCard.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				paddingBlockStart: style.paddingBlockStart,
+				paddingBlockEnd: style.paddingBlockEnd
+			};
+		});
+		const eventContentStyle = await calendarEventCard.locator('[data-slot="card-content"]').evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				paddingInlineStart: style.paddingInlineStart,
+				paddingInlineEnd: style.paddingInlineEnd
+			};
+		});
+		const eventRowStyle = await calendarEventCard.getByTestId('team-status-calendar-event').evaluate((element) => {
 			const style = getComputedStyle(element);
 			return {
 				backgroundColor: style.backgroundColor,
 				boxShadow: style.boxShadow,
-				borderRadius: style.borderRadius
+				borderRadius: style.borderRadius,
+				paddingBlockStart: style.paddingBlockStart,
+				paddingBlockEnd: style.paddingBlockEnd
 			};
 		});
+		expect(eventCardStyle.paddingBlockStart).toBe('0px');
+		expect(eventCardStyle.paddingBlockEnd).toBe('0px');
+		expect(eventContentStyle.paddingInlineStart).toBe('0px');
+		expect(eventContentStyle.paddingInlineEnd).toBe('0px');
 		expect(eventRowStyle.backgroundColor).toBe('rgba(0, 0, 0, 0)');
 		expect(eventRowStyle.boxShadow).toBe('none');
 		expect(eventRowStyle.borderRadius).toBe('0px');
+		expect(eventRowStyle.paddingBlockStart).toBe('8px');
+		expect(eventRowStyle.paddingBlockEnd).toBe('8px');
 	});
 
 	test('uses the bottom sheet as the only mobile scroll area for long status day details', async ({ page }) => {
