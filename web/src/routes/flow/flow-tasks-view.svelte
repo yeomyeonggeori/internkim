@@ -50,6 +50,16 @@
 	});
 
 	$effect(page.quickTask.clearStaleDuplicatePrompt);
+
+	let openedFocusedTaskID = '';
+
+	$effect(() => {
+		if (!focusedTaskID || focusedTaskID === openedFocusedTaskID) return;
+		const focusedTask = page.tasks().find((task) => task.id === focusedTaskID);
+		if (!focusedTask) return;
+		openedFocusedTaskID = focusedTaskID;
+		untrack(() => page.openTask(focusedTask));
+	});
 </script>
 
 <div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-36 md:pb-16'}>

@@ -1,3 +1,4 @@
+import { isEmbeddedFrame, openDetailWindow } from '$lib/embedded';
 import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import { FlowTaskBoardController } from './flow-task-board-controller.svelte';
 import { FlowTaskEditorController } from './flow-task-editor-controller.svelte';
@@ -123,6 +124,10 @@ class FlowTasksController {
 	statusLabel = (status: string): string => flowTaskStatusLabel(this.text, status);
 
 	openTask = (task: FlowTask): void => {
+		if (isEmbeddedFrame) {
+			openTaskInNewWindow(task.id);
+			return;
+		}
 		this.editor.openTask(task, this.isBoardTaskPending);
 	};
 
@@ -174,4 +179,10 @@ class FlowTasksController {
 	canManageTaskAssignment = this.editor.canManageTaskAssignment;
 	deleteTask = this.editor.deleteTask;
 
+}
+
+function openTaskInNewWindow(taskID: string): void {
+	const url = new URL(window.location.href);
+	url.searchParams.set('task', taskID);
+	openDetailWindow(url.toString());
 }
