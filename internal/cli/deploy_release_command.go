@@ -334,6 +334,7 @@ func createDirectReleaseBundle(repositoryRootPath string, temporaryDirectoryPath
 	if errorValue != nil {
 		return directReleaseBundle{}, errorValue
 	}
+	selectedComponentNames = coupleBlueclawWithSkills(selectedComponentNames)
 	blobs, errorValue := createReleaseBlobs(repositoryRootPath, temporaryDirectoryPath, selectedComponentNames)
 	if errorValue != nil {
 		return directReleaseBundle{}, errorValue
@@ -362,6 +363,19 @@ func createDirectReleaseBundle(repositoryRootPath string, temporaryDirectoryPath
 		return directReleaseBundle{}, errorValue
 	}
 	return directReleaseBundle{path: archivePath, sha256: sha256Value, size: size, manifest: manifest}, nil
+}
+
+// coupleBlueclawWithSkills keeps the Blueclaw agent binary and its skills in
+// lockstep. The payload and skills are one behavioral unit — the agent runs the
+// skills — but they are separate release components, so shipping the payload
+// alone silently leaves the device on stale skills. Whenever a deploy carries
+// the payload, carry the current skills with it. A nil set means "all
+// components", which already includes skills.
+func coupleBlueclawWithSkills(selectedComponentNames map[string]bool) map[string]bool {
+	if selectedComponentNames["blueclawPayload"] {
+		selectedComponentNames["skills"] = true
+	}
+	return selectedComponentNames
 }
 
 func selectedReleaseComponentNames(arguments []string) (map[string]bool, error) {
