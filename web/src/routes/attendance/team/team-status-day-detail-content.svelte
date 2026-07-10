@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import * as Empty from '$lib/components/ui/empty';
-	import { ViewType } from '@dayflow/svelte';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check-big';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
@@ -12,7 +11,6 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import CalendarEventContent from '../../calendar/embed/calendar-event-content.svelte';
-	import { dayFlowEventFromCalendarEvent } from '../../calendar/embed/calendar-event-mapping';
 	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
 	import { flowText } from '../../flow/text';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
@@ -378,7 +376,11 @@
 			{:else if detail.context.calendarEvents.length}
 				<div class="grid gap-2">
 					{#each detail.context.calendarEvents as event (event.id)}
-						{@const calendarEvent = dayFlowEventFromCalendarEvent(event.calendarEvent)}
+						{@const calendarEvent = {
+							title: event.calendarEvent.title,
+							start: new Date(event.calendarEvent.startISO),
+							allDay: event.calendarEvent.isAllDay
+						}}
 						<button
 							type="button"
 							class="team-status-calendar-event min-w-0 px-1 py-2.5 text-left text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -388,11 +390,7 @@
 						>
 							<CalendarEventContent
 								event={calendarEvent}
-								viewType={ViewType.DAY}
 								isAllDay={event.calendarEvent.isAllDay}
-								isMobile={false}
-								isSelected={false}
-								isDragging={false}
 								timeLabel={event.timeLabel}
 							/>
 							{#if event.location}

@@ -1,20 +1,38 @@
 <script lang="ts">
 	import TimeRangeText from '$lib/components/time-range-text.svelte';
-	import { temporalToDate, type EventContentSlotArgs } from '@dayflow/core';
+	import type { EventContentSlotArgs } from '@dayflow/core';
 
-	type Props = EventContentSlotArgs & {
-		timeLabel?: string;
-	};
+	type Props = Pick<EventContentSlotArgs, 'isAllDay'> &
+		Partial<Omit<EventContentSlotArgs, 'event' | 'isAllDay'>> & {
+			event: Pick<EventContentSlotArgs['event'], 'title' | 'allDay'> & {
+				start: EventContentSlotArgs['event']['start'] | Date;
+			};
+			timeLabel?: string;
+		};
 
 	let { event, isAllDay, timeLabel }: Props = $props();
 
 	const shouldShowTime = $derived(Boolean(timeLabel) || (!isAllDay && !event.allDay));
-	const startTime = $derived(formatEventTime(temporalToDate(event.start)));
+	const startTime = $derived(formatEventTime(calendarTemporalDate(event.start)));
 	const displayTime = $derived(timeLabel || startTime);
 	const timeRange = $derived(timeRangeFromLabel(timeLabel));
 
 	function formatEventTime(date: Date): string {
 		return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+	}
+
+	function calendarTemporalDate(value: EventContentSlotArgs['event']['start'] | Date): Date {
+		if (value instanceof Date) return value;
+		if ('epochMilliseconds' in value) return new Date(Number(value.epochMilliseconds));
+		return new Date(
+			value.year,
+			value.month - 1,
+			value.day,
+			'hour' in value ? value.hour : 0,
+			'minute' in value ? value.minute : 0,
+			'second' in value ? value.second : 0,
+			'millisecond' in value ? value.millisecond : 0
+		);
 	}
 
 	function timeRangeFromLabel(label: string | undefined): { startTime: string; endTime: string } | undefined {
