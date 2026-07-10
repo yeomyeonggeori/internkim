@@ -2,6 +2,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import { sizeBadgeClass } from './flow-style';
@@ -119,12 +120,12 @@
 		<div class="flex min-w-0 items-center justify-between gap-2">
 			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
 				<span class="inline-flex min-w-0 max-w-28 items-center gap-1.5">
-					<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} class="size-4 ring-1 ring-border/70" />
+					<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} class="size-4 ring-1 ring-border/70" />
 					<span class="truncate">{display.ownerName}</span>
 				</span>
 				{#if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
-						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} class="size-3.5 ring-1 ring-border/60" />
+						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
 						<span class="truncate">{primaryParticipantName}</span>
 					</span>
 				{/if}

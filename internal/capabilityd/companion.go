@@ -289,12 +289,18 @@ type messageSendDeliveryTarget struct {
 
 func decodeMessageSendDeliveryTarget(input json.RawMessage) messageSendDeliveryTarget {
 	var decodedInput struct {
-		DeliveryTarget messageSendDeliveryTarget `json:"deliveryTarget"`
+		TargetType  string   `json:"targetType"`
+		PersonHint  string   `json:"personHint"`
+		PersonHints []string `json:"personHints"`
 	}
 	if errorValue := json.Unmarshal(input, &decodedInput); errorValue != nil {
 		return messageSendDeliveryTarget{}
 	}
-	return decodedInput.DeliveryTarget
+	return messageSendDeliveryTarget{
+		Type:        decodedInput.TargetType,
+		PersonHint:  decodedInput.PersonHint,
+		PersonHints: decodedInput.PersonHints,
+	}
 }
 
 func companionRequiredBrowserErrorCode(errorValue error) string {

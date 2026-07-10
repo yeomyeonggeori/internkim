@@ -111,7 +111,8 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 
 	inputAttachments := mattermostInputAttachments(post.ID, post.FileIDs)
 	prompt := strings.TrimSpace(post.Message)
-	if prompt == "" && len(inputAttachments) > 0 {
+	attachmentsOnly := prompt == "" && len(inputAttachments) > 0
+	if attachmentsOnly {
 		prompt = "User attached file(s)."
 	}
 
@@ -127,6 +128,7 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 			ChannelID:        post.ChannelID,
 			ChannelName:      channelName,
 			Addressing:       addressing,
+			AttachmentsOnly:  attachmentsOnly,
 			InputAttachments: inputAttachments,
 			Materials:        inputAttachments,
 		},

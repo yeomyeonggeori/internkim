@@ -50,7 +50,7 @@
 						<Table.Row>
 							<Table.Cell class="font-medium">
 								<div class="flex items-center gap-2">
-									<PersonAvatar name={member.name} email={member.email} class="size-7" />
+									<PersonAvatar name={member.name} email={member.email} image={member.image ?? ''} class="size-7" />
 									{member.name}
 								</div>
 							</Table.Cell>

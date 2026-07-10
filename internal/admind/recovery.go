@@ -57,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
 		return true
 	default:
 		return false
@@ -100,6 +100,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart Blueclaw", "sh", "-lc", blueclawRestartDiagnosticCommand()))
 	case "blueclaw-boot-diagnose":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "diagnose Blueclaw guest boot", "sh", "-lc", blueclawBootDiagnoseCommand()))
+	case "blueclaw-journal":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Blueclaw supervisor journal", "sh", "-lc", blueclawJournalCommand()))
 	case "blueclaw-workspace-repair":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Blueclaw workspace image", "sh", "-lc", blueclawWorkspaceRepairCommand()))
 	case "blueclaw-postgres-salvage":
@@ -113,6 +115,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 func blueclawRestartDiagnosticCommand() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 set +e
+curl -fsS -m 10 -X POST http://127.0.0.1:8080/admin/api/runtime/prepare-shutdown >/dev/null 2>&1 || true
 systemctl restart %s
 restart_status=$?
 printf 'systemctl restart %s exit=%%s\n' "$restart_status"
@@ -135,6 +138,23 @@ printf '\n== blueclaw journal ==\n'
 journalctl -u %s -n 180 --no-pager 2>/dev/null || true
 [ "$health_status" = ok ]
 	`,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+		blueclaw.BlueclawServiceName,
+	))
+}
+
+func blueclawJournalCommand() string {
+	return strings.TrimSpace(fmt.Sprintf(`
+set +e
+printf '== %s journal (12h, last 500) ==\n'
+journalctl -u %s --since '12 hours ago' --no-pager -o short-iso 2>/dev/null | tail -n 500
+printf '\n== kernel oom (12h) ==\n'
+journalctl -k --since '12 hours ago' --no-pager 2>/dev/null | grep -i -E 'oom|out of memory|killed process' | tail -n 40
+printf '\n== %s unit state ==\n'
+systemctl status %s --no-pager -l 2>/dev/null | head -25
+`,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,

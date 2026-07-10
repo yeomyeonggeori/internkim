@@ -75,7 +75,7 @@ func (fakeCommandRunner *fakeCommandRunner) Output(ctx context.Context, executab
 }
 
 func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
-	commandRunner := &fakeCommandRunner{}
+	commandRunner := &fakeCommandRunner{outputValue: "--cap-add"}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
 	errorValue := service.ImageBuild(context.Background())
@@ -96,6 +96,9 @@ func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
 		"--cpus 6",
 		"--memory 8192M",
 		"--virtualization",
+		"--cap-add ALL",
+		"--tmpfs /run",
+		"--tmpfs /run/lock",
 		"--kernel /repo/.dependency/container-kernel/Image-6.1.68-kvm",
 		"--volume /repo:/mnt/shared/workspace",
 		"ubuntu:24.04",
@@ -113,6 +116,23 @@ func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
 		if !strings.Contains(bootstrapScript, expectedFragment) {
 			t.Fatalf("expected bootstrap script to contain %q, got %q", expectedFragment, bootstrapScript)
 		}
+	}
+}
+
+func TestImageBuildOmitsUnsupportedContainerCapabilityOption(t *testing.T) {
+	commandRunner := &fakeCommandRunner{outputValue: "--tmpfs"}
+	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
+
+	errorValue := service.ImageBuild(context.Background())
+	if errorValue != nil {
+		t.Fatalf("expected image build to succeed: %v", errorValue)
+	}
+	joinedArguments := strings.Join(commandRunner.runCommands[0].Arguments, " ")
+	if strings.Contains(joinedArguments, "--cap-add") {
+		t.Fatalf("unsupported capability option in create arguments: %v", commandRunner.runCommands[0].Arguments)
+	}
+	if !strings.Contains(joinedArguments, "--tmpfs /run --tmpfs /run/lock") {
+		t.Fatalf("expected tmpfs mounts in create arguments: %v", commandRunner.runCommands[0].Arguments)
 	}
 }
 

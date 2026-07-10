@@ -16,6 +16,7 @@ export type FlowTaskOption = {
 	value: string;
 	label: string;
 	email?: string;
+	image?: string;
 };
 
 const flowTaskListStatusOrder = ['요청', '예정', '진행', '일시정지', '중단', '기각', '완료'];
@@ -61,7 +62,8 @@ export function buildMemberFilterOptions(members: FlowMember[], allLabel: string
 		...members.map((member) => ({
 			value: member.id,
 			label: member.name,
-			email: member.email
+			email: member.email,
+			image: member.image
 		}))
 	];
 }

@@ -1,12 +1,16 @@
 {
   "id": "com.internkim.ephemeral",
-  "name": "InternKim Ephemeral",
-  "description": "Updates InternKim ephemeral posts.",
-  "version": "0.1.0",
+  "name": "InternKim",
+  "description": "InternKim boards inside Mattermost and ephemeral post updates.",
+  "version": "0.2.0",
+  "min_server_version": "7.0.0",
   "server": {
     "executables": {
       "linux-arm64": "server/dist/plugin-linux-arm64"
     }
+  },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
   },
   "settings_schema": {
     "settings": [

@@ -50,7 +50,7 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -75,7 +75,7 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"},"context":{"requesterPersonID":"person-other","requesterPlatformUserID":"user-other"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"테스트"},"context":{"requesterPersonID":"person-other","requesterPlatformUserID":"user-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -85,7 +85,7 @@ func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 func TestPlatformDMSendImmediateSelfRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"본인 확인"},"context":{"requesterPersonID":"person-dongha","requesterPlatformUserID":"user-dongha"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"본인 확인"},"context":{"requesterPersonID":"person-dongha","requesterPlatformUserID":"user-dongha"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -98,7 +98,7 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"@dongha"},"message":"승인 후 전송"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"@dongha","message":"승인 후 전송"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsApprovalContinuation: true,
 		},
@@ -117,7 +117,7 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -207,7 +207,7 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"lee"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"lee","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -226,7 +226,7 @@ func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -267,7 +267,7 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -303,7 +303,7 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -339,7 +339,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"lee"},"message":"테스트"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"lee","message":"테스트"}`),
 		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
 	if errorValue != nil {
@@ -461,7 +461,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHints":["샘플","정국","없는사람"]},"message":"완료 확인 부탁"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHints":["샘플","정국","없는사람"],"message":"완료 확인 부탁"}`),
 		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
 	})
 	if errorValue != nil {
@@ -498,7 +498,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 func TestPlatformMessageBroadcastImmediateRunRequiresApproval(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"deliveryTarget":{"type":"directMessage","personHints":["샘플","정국"]},"message":"확인"},"context":{"requesterPersonID":"person-other"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHints":["샘플","정국"],"message":"확인"},"context":{"requesterPersonID":"person-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

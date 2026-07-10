@@ -10,6 +10,7 @@ export type UserRecord = {
 	handle: string;
 	name?: string;
 	email: string;
+	image?: string;
 	hireDate?: string;
 	note?: string;
 	role: UserRole;
@@ -47,6 +48,7 @@ export type UsersResponse = {
 
 export type AdminSession = {
 	email: string;
+	image?: string;
 	claimedAdminEmail: string;
 	isAdmin: boolean;
 	role?: UserRole;

@@ -23,17 +23,20 @@ import (
 )
 
 type mattermostUserRecord struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Nickname    string `json:"nickname"`
-	Position    string `json:"position"`
-	Roles       string `json:"roles"`
-	DeleteAt    int64  `json:"delete_at"`
-	IsBot       bool   `json:"is_bot"`
+	ID                string `json:"id"`
+	Email             string `json:"email"`
+	Username          string `json:"username"`
+	DisplayName       string `json:"display_name"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	Nickname          string `json:"nickname"`
+	Position          string `json:"position"`
+	Roles             string `json:"roles"`
+	DeleteAt          int64  `json:"delete_at"`
+	IsBot             bool   `json:"is_bot"`
+	LastPictureUpdate int64  `json:"last_picture_update"`
+
+	Props map[string]json.RawMessage `json:"props,omitempty"`
 }
 
 type mattermostTeamRecord struct {
@@ -142,6 +145,12 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 
 	result := mattermostProvisionResult{Status: "active"}
 	if found {
+		wasDeactivated := userRecord.DeleteAt != 0
+		if wasDeactivated {
+			if errorValue := service.reactivateMattermostUser(ctx, adminToken, userRecord.ID); errorValue != nil {
+				return mattermostProvisionResult{}, errorValue
+			}
+		}
 		if userRecord.Username != normalizedHandle || displayName != "" {
 			userRecord, errorValue = service.updateMattermostUserIdentity(ctx, adminToken, userRecord.ID, normalizedHandle, displayName)
 			if errorValue != nil {
@@ -150,11 +159,18 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 		}
 		result.UserID = userRecord.ID
 		result.Username = userRecord.Username
-		if strings.TrimSpace(initialPassword) != "" {
-			if errorValue := service.updateMattermostUserPassword(ctx, adminToken, userRecord.ID, initialPassword); errorValue != nil {
+		temporaryPassword := strings.TrimSpace(initialPassword)
+		if temporaryPassword == "" && wasDeactivated {
+			temporaryPassword = generateTemporaryPassword()
+		}
+		if temporaryPassword != "" {
+			if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, temporaryPassword); errorValue != nil {
 				return mattermostProvisionResult{}, errorValue
 			}
-			result.TemporaryPassword = initialPassword
+			if errorValue := service.updateMattermostUserPassword(ctx, adminToken, userRecord.ID, temporaryPassword); errorValue != nil {
+				return mattermostProvisionResult{}, errorValue
+			}
+			result.TemporaryPassword = temporaryPassword
 		}
 	} else {
 		temporaryPassword := firstNonEmpty(strings.TrimSpace(initialPassword), generateTemporaryPassword())
@@ -481,6 +497,11 @@ func addMattermostNameFields(body map[string]string, name string) {
 func (service *Service) updateMattermostUserPassword(ctx context.Context, token string, userID string, password string) error {
 	body := map[string]string{"new_password": password}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/password", token, body, nil)
+}
+
+func (service *Service) reactivateMattermostUser(ctx context.Context, token string, userID string) error {
+	body := map[string]bool{"active": true}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/active", token, body, nil)
 }
 
 func (service *Service) resetMattermostUserPasswordAndHistory(ctx context.Context, record adminUserMutation) (mattermostPasswordResetResult, error) {

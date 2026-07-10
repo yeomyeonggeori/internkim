@@ -27,6 +27,7 @@ type platformEventContext struct {
 	ChannelID        string                    `json:"channelID,omitempty"`
 	ChannelName      string                    `json:"channelName,omitempty"`
 	Addressing       platformAddressing        `json:"addressing,omitempty"`
+	AttachmentsOnly  bool                      `json:"attachmentsOnly,omitempty"`
 	InputAttachments []platformInputAttachment `json:"inputAttachments,omitempty"`
 	Materials        []platformInputAttachment `json:"materials,omitempty"`
 }
@@ -98,6 +99,7 @@ type platformContextMessage struct {
 	SpeakerCallingName string                    `json:"speakerCallingName,omitempty"`
 	SpeakerHandle      string                    `json:"speakerHandle,omitempty"`
 	Text               string                    `json:"text"`
+	SentAt             string                    `json:"sentAt,omitempty"`
 	InputAttachments   []platformInputAttachment `json:"inputAttachments,omitempty"`
 }
 
