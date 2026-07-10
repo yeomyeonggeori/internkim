@@ -1,128 +1,36 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
-import type { UsersResponse } from './admin-orgchart-fixtures';
-
-const mobilePanelInset = 12;
-const mobilePanelBottomTolerance = 8;
-
-const usersResponse: UsersResponse = {
-	availableGroups: [
-		{ id: 'leadership', name: '경영' },
-		{ id: 'product', name: '제품팀' },
-		{ id: 'design', name: '디자인팀' },
-		{ id: 'field', name: '현장지원팀' }
-	],
-	records: [
-		{
-			userID: 'user-ceo',
-			handle: 'ceo',
-			name: '김도형',
-			email: 'ceo@example.com',
-			hireDate: '2026-01-03',
-			role: 'member',
-			jobTitle: '대표이사',
-			primaryGroupID: 'leadership',
-			groupIDs: ['leadership']
-		},
-		{
-			userID: 'user-junho',
-			handle: 'junho',
-			name: '이정훈',
-			email: 'junho@example.com',
-			hireDate: '2026-02-10',
-			role: 'member',
-			jobTitle: '제품팀 리드',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
-			supervisorID: 'user-ceo'
-		},
-		{
-			userID: 'user-dabin',
-			handle: 'dabin',
-			name: '김다빈',
-			email: 'dabin@example.com',
-			hireDate: '2026-03-11',
-			role: 'member',
-			jobTitle: '프론트엔드 개발자',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
-			supervisorID: 'user-junho'
-		},
-		{
-			userID: 'user-minjae',
-			handle: 'minjae',
-			name: '강민재',
-			email: 'minjae@example.com',
-			hireDate: '2026-03-13',
-			role: 'member',
-			jobTitle: '백엔드 개발자',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
-			supervisorID: 'user-junho'
-		},
-		{
-			userID: 'user-taehyun',
-			handle: 'taehyun',
-			name: '신태현',
-			email: 'taehyun@example.com',
-			hireDate: '2026-03-20',
-			role: 'member',
-			jobTitle: 'QA 엔지니어',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
-			supervisorID: 'user-dabin'
-		},
-		{
-			userID: 'user-jieun',
-			handle: 'jieun',
-			name: '박지은',
-			email: 'jieun@example.com',
-			hireDate: '2026-02-12',
-			role: 'member',
-			jobTitle: '디자인 리드',
-			primaryGroupID: 'design',
-			groupIDs: ['design'],
-			supervisorID: 'user-ceo'
-		},
-		{
-			userID: 'user-nam',
-			handle: 'nam',
-			name: '남지훈',
-			email: 'nam@example.com',
-			hireDate: '2026-04-01',
-			role: 'member',
-			jobTitle: '사업 개발',
-			groupIDs: [],
-			supervisorID: 'user-ceo'
-		}
-	]
-};
+import {
+	expectDetailPanelInRightColumn,
+	expectPersonDetailPanelContent,
+	mockOrgchartDirectory,
+	openFilterPopover,
+	orgchartDirectoryUsersResponse
+} from './orgchart-directory-helpers';
 
 test.describe('employee orgchart directory', () => {
-	test('opens from the app shell and filters read-only org chart profiles', async ({ page }) => {
+	test('opens from the app shell and filters read-only organization cards', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 1000 });
 		await mockOrgchartDirectory(page);
 
 		await page.goto('/orgchart/');
 
 		await expect(page.getByRole('link', { name: '조직도' }).first()).toBeVisible();
-		await expect(page.getByRole('button', { name: '조직도' })).toBeVisible();
-		await expect(page.getByTestId('orgchart-canvas')).toBeVisible();
-		await expect(page.getByTestId('orgchart-person-node-user-ceo')).toBeVisible();
+		await expect(page.getByRole('heading', { name: '직원' })).toBeVisible();
+		await expect(page.getByTestId('orgchart-board')).toBeVisible();
+		await expect(page.getByTestId('orgchart-organization-grid')).toBeVisible();
 		await expect(page.getByTestId('orgchart-team-column-product')).toBeVisible();
 		await expect(page.getByTestId('orgchart-team-column-__unassigned__')).toBeVisible();
 		await expect(page.getByTestId('orgchart-tree-node-user-taehyun')).toBeVisible();
-		await expectOrgchartZoomToFit(page);
-		await expect(page.getByTestId('orgchart-connector-layer')).toBeVisible();
-		await expect(page.getByRole('link', { name: '인사 정보 수정' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '편집' })).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-person-detail-panel')).toHaveCount(0);
-		await expectOrgchartTeamGridToAlignWithConnectors(page);
-		await expect(page.getByTestId('orgchart-canvas').getByText(/^팀 리드:/)).toHaveCount(0);
-		await expect(page.getByTestId('orgchart-canvas').getByText(/^구성원 1명$/)).toHaveCount(0);
+		await expect(page.getByTestId('orgchart-team-column-product').getByText('팀장')).toHaveCount(1);
+		await expect(page.getByTestId('orgchart-team-column-product').getByText('active')).toHaveCount(0);
+		await expect(page.getByTestId('orgchart-person-node-user-dabin').locator('img[alt="김다빈"]')).toHaveAttribute('src', orgchartDirectoryUsersResponse.records[2].image ?? '');
 
 		await page.getByTestId('orgchart-person-node-user-dabin').click();
 		await expectPersonDetailPanelContent(page.getByTestId('orgchart-person-detail-panel'));
-		await expect(page.getByTestId('orgchart-person-detail-panel').getByText('계정 권한 관리는 관리자 탭에서 관리해 주세요.')).toHaveCount(0);
-		await expect(page.getByTestId('orgchart-person-detail-panel').getByRole('link', { name: '인사 정보 수정' })).toHaveCount(0);
+		await expectDetailPanelInRightColumn(page);
+		await expect(page.getByTestId('orgchart-person-detail-panel').getByRole('button', { name: '수정하기' })).toHaveCount(0);
 		await page.getByRole('button', { name: '상세 닫기' }).click();
 		await expect(page.getByTestId('orgchart-person-detail-panel')).toHaveCount(0);
 
@@ -134,98 +42,10 @@ test.describe('employee orgchart directory', () => {
 		await expect(page.getByTestId('orgchart-person-node-user-ceo')).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-person-node-user-dabin')).toBeVisible();
 
-		await page.getByRole('button', { name: '필터' }).click();
+		await openFilterPopover(page);
 		await page.getByRole('button', { name: '조직', exact: true }).click();
 		await page.getByRole('option', { name: '제품팀' }).click();
+		await expect(page.getByTestId('orgchart-filter-popover')).toHaveCount(0);
 		await expect(page.getByTestId('orgchart-person-node-user-dabin')).toBeVisible();
-
-		await page.getByRole('button', { name: '직원 목록' }).click();
-		await expect(page.getByTestId('orgchart-people-list')).toBeVisible();
-		await expect(page.getByTestId('orgchart-list-row-user-dabin')).toBeVisible();
-	});
-
-	test('renders the person detail panel as a bounded mobile bottom panel', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await mockOrgchartDirectory(page);
-
-		await page.goto('/orgchart/');
-		await page.getByTestId('orgchart-person-node-user-dabin').click();
-
-		const detailPanel = page.getByTestId('orgchart-person-detail-panel');
-		await expectPersonDetailPanelContent(detailPanel);
-		await expectMobileDetailPanelLayout(page);
 	});
 });
-
-async function expectPersonDetailPanelContent(detailPanel: Locator): Promise<void> {
-	await expect(detailPanel).toBeVisible();
-	await expect(detailPanel).toContainText('직원 상세');
-	await expect(detailPanel).toContainText('김다빈');
-	await expect(detailPanel).toContainText('프론트엔드 개발자');
-	await expect(detailPanel).toContainText('dabin@example.com');
-	await expect(detailPanel).toContainText('제품팀');
-	await expect(detailPanel).toContainText('2026-03-11');
-	await expect(detailPanel.locator('[aria-hidden="true"] svg').first()).toBeVisible();
-}
-
-async function expectMobileDetailPanelLayout(page: Page): Promise<void> {
-	const layout = await page.getByTestId('orgchart-person-detail-panel').evaluate((element) => {
-		const rect = element.getBoundingClientRect();
-
-		return {
-			top: rect.top,
-			left: rect.left,
-			right: rect.right,
-			bottom: rect.bottom,
-			width: rect.width,
-			height: rect.height,
-			viewportWidth: window.innerWidth,
-			viewportHeight: window.innerHeight
-		};
-	});
-
-	expect(layout.left).toBeGreaterThanOrEqual(mobilePanelInset);
-	expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth - mobilePanelInset);
-	expect(layout.top).toBeGreaterThanOrEqual(mobilePanelInset);
-	expect(layout.bottom).toBeGreaterThanOrEqual(layout.viewportHeight - mobilePanelInset - mobilePanelBottomTolerance);
-	expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight - mobilePanelBottomTolerance);
-	expect(layout.width).toBeLessThanOrEqual(layout.viewportWidth - mobilePanelInset * 2);
-	expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight - mobilePanelInset * 2);
-}
-
-async function expectOrgchartTeamGridToAlignWithConnectors(page: Page): Promise<void> {
-	const [teamGridBox, connectorBox, canvasBox] = await Promise.all([
-		page.getByTestId('orgchart-team-grid').boundingBox(),
-		page.getByTestId('orgchart-connector-layer').boundingBox(),
-		page.getByTestId('orgchart-canvas').boundingBox()
-	]);
-	const teamGridWidth = teamGridBox?.width ?? 0;
-	const connectorWidth = connectorBox?.width ?? 0;
-	const canvasWidth = canvasBox?.width ?? 0;
-	expect(teamGridWidth).toBeGreaterThan(0);
-	expect(teamGridWidth).toBeLessThanOrEqual(canvasWidth);
-	expect(Math.abs(teamGridWidth - connectorWidth)).toBeLessThanOrEqual(1);
-	expect(Math.abs((teamGridBox?.x ?? 0) - (connectorBox?.x ?? 0))).toBeLessThanOrEqual(1);
-}
-
-async function expectOrgchartZoomToFit(page: Page): Promise<void> {
-	const zoomText = await page.getByText(/^\d+%$/).first().textContent();
-	const zoom = Number(zoomText?.replace('%', ''));
-	expect(zoom).toBeGreaterThanOrEqual(70);
-	expect(zoom).toBeLessThanOrEqual(100);
-}
-
-async function mockOrgchartDirectory(page: Page): Promise<void> {
-	await page.route('**/admin/api/locale', async (route) => {
-		await route.fulfill({ json: { locale: 'ko' } });
-	});
-	await page.route('**/auth/session**', async (route) => {
-		await route.fulfill({ json: { authenticated: true, email: 'dabin@example.com' } });
-	});
-	await page.route('**/admin/api/session', async (route) => {
-		await route.fulfill({ status: 403, body: 'admin access required' });
-	});
-	await page.route('**/orgchart/api/people', async (route) => {
-		await route.fulfill({ json: usersResponse });
-	});
-}

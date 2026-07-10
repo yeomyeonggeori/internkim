@@ -41,12 +41,16 @@ test.describe('admin org chart ordering', () => {
 			{
 				...usersResponse.records[0],
 				hireDate: '2026-03-10',
-				supervisorID: 'user-grace'
+				supervisorID: '',
+				primaryGroupID: '',
+				groupIDs: []
 			},
 			{
 				...usersResponse.records[1],
 				hireDate: '2026-02-01',
-				supervisorID: 'user-ada'
+				supervisorID: '',
+				primaryGroupID: '',
+				groupIDs: []
 			}
 		];
 		await mockAdminOrgchart(page, {
@@ -58,7 +62,7 @@ test.describe('admin org chart ordering', () => {
 		await expectCardBefore(page, 'orgchart-profile-user-grace', 'orgchart-profile-user-ada');
 	});
 
-	test('groups reports under their direct manager', async ({ page }) => {
+	test('keeps reports after their direct manager in the organization list', async ({ page }) => {
 		const usersResponse = cloneUsersResponse(initialUsersResponse);
 		usersResponse.records = [
 			{
@@ -71,7 +75,9 @@ test.describe('admin org chart ordering', () => {
 				...usersResponse.records[1],
 				userID: 'user-grace',
 				name: 'Grace Lee',
-				supervisorID: 'user-ada'
+				supervisorID: 'user-ada',
+				primaryGroupID: 'engineering',
+				groupIDs: ['engineering']
 			},
 			{
 				userID: 'user-linus',
@@ -104,10 +110,10 @@ test.describe('admin org chart ordering', () => {
 
 		await openOrgchartEditor(page);
 
-		const adaReports = page.getByTestId('orgchart-reports-user-ada');
-		await expect(adaReports.getByTestId('orgchart-profile-user-grace')).toBeVisible();
-		await expect(adaReports.getByTestId('orgchart-profile-user-linus')).toBeVisible();
-		await expect(adaReports.getByTestId('orgchart-profile-user-dan')).toHaveCount(0);
-		await expect(page.getByTestId('orgchart-reports-user-grace').getByTestId('orgchart-profile-user-linus')).toBeVisible();
+		const engineeringMembers = page.getByTestId('orgchart-organization-members-engineering');
+		await expect(engineeringMembers.getByTestId('orgchart-person-node-user-grace')).toBeVisible();
+		await expect(engineeringMembers.getByTestId('orgchart-person-node-user-linus')).toBeVisible();
+		await expect(engineeringMembers.getByTestId('orgchart-person-node-user-dan')).toHaveCount(0);
+		await expectCardBefore(page, 'orgchart-profile-user-grace', 'orgchart-profile-user-linus');
 	});
 });

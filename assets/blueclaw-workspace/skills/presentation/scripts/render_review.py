@@ -94,6 +94,11 @@ def main() -> int:
         f"needsDesignRevision={str(report['needsDesignRevision']).lower()}, "
         f"renderSource={report['renderSource']}"
     )
+    print("QUALITY_GATE " + json.dumps({
+        "source": "presentation-review",
+        "passed": bool(report["staticGatePassed"]) and not bool(report["needsDesignRevision"]),
+        "score": report["visualQualityScore"],
+    }))
     return 0
 
 
