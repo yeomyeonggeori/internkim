@@ -12,9 +12,29 @@ func TestSelectedPocContainerComponentsDefaultsToFullTenantSet(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedComponents := []string{"admind", "capabilityd", "blueclaw", "web"}
+	expectedComponents := []string{"admind", "capabilityd", "blueclaw", "web", "skills"}
 	if strings.Join(components, ",") != strings.Join(expectedComponents, ",") {
 		t.Fatalf("components = %v, want %v", components, expectedComponents)
+	}
+}
+
+func TestSelectedPocContainerComponentsCouplesSkillsWithBlueclaw(t *testing.T) {
+	components, errorValue := selectedPocContainerComponents([]string{"--components", "blueclaw"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Join(components, ",") != "blueclaw,skills" {
+		t.Fatalf("components = %v, want blueclaw with skills coupled", components)
+	}
+}
+
+func TestSelectedPocContainerComponentsLeavesNonBlueclawUntouched(t *testing.T) {
+	components, errorValue := selectedPocContainerComponents([]string{"--components", "web,admind"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Join(components, ",") != "web,admind" {
+		t.Fatalf("components = %v, want web,admind without skills", components)
 	}
 }
 

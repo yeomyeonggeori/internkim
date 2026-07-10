@@ -308,9 +308,33 @@ func redactPocCommandArguments(arguments []string) []string {
 func selectedPocContainerComponents(arguments []string) ([]string, error) {
 	value := strings.TrimSpace(commandArgumentValue(arguments, "--components", ""))
 	if value == "" {
-		return []string{"admind", "capabilityd", "blueclaw", "web"}, nil
+		return []string{"admind", "capabilityd", "blueclaw", "web", "skills"}, nil
 	}
-	return normalizePocContainerComponents(strings.Split(value, ","))
+	components, errorValue := normalizePocContainerComponents(strings.Split(value, ","))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return pocContainerComponentsWithSkills(components), nil
+}
+
+// pocContainerComponentsWithSkills keeps the Blueclaw binary and its skills in
+// lockstep, mirroring the release path: deploying the agent without its skills
+// silently leaves the tenant on stale skills.
+func pocContainerComponentsWithSkills(components []string) []string {
+	hasBlueclaw := false
+	hasSkills := false
+	for _, component := range components {
+		if component == "blueclaw" {
+			hasBlueclaw = true
+		}
+		if component == "skills" {
+			hasSkills = true
+		}
+	}
+	if hasBlueclaw && !hasSkills {
+		return append(components, "skills")
+	}
+	return components
 }
 
 func normalizePocContainerComponents(componentNames []string) ([]string, error) {
