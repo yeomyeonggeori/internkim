@@ -45,6 +45,7 @@ function collectElements(node, predicate, results = []) {
 const pluginRegistration = {};
 globalThis.window = {
 	React: { createElement, useState },
+	location: { pathname: '/internkim/channels/town-square' },
 	registerPlugin(id, plugin) {
 		pluginRegistration.id = id;
 		pluginRegistration.plugin = plugin;
@@ -61,6 +62,9 @@ function initializePlugin() {
 		},
 		registerChannelHeaderButtonAction(icon, action, dropdownText, tooltipText) {
 			registered.headerButton = { icon, action, dropdownText, tooltipText };
+		},
+		registerNeedsTeamRoute(route, component) {
+			registered.teamRoute = { route, component };
 		},
 	};
 	const dispatchedActions = [];
@@ -118,12 +122,31 @@ describe('internkim mattermost webapp plugin', () => {
 		expect(framesBySource).toEqual({ '/flow/': 'none', '/calendar/': 'block' });
 	});
 
-	test('links to open the active view in the browser', () => {
+	test('links to the fullscreen route and the browser view', () => {
 		resetHookStates();
 		const { registered } = initializePlugin();
 		const tree = renderComponent(registered.sidebar.component);
 		const links = collectElements(tree, (node) => node.type === 'a');
+		expect(links.map((link) => link.props.href)).toEqual([
+			'/internkim/com.internkim.ephemeral/boards',
+			'/flow/',
+		]);
+		expect(links[1].props.target).toBe('_blank');
+	});
+
+	test('registers a fullscreen team route that hides the fullscreen link', () => {
+		resetHookStates();
+		const { registered } = initializePlugin();
+		expect(registered.teamRoute.route).toBe('/boards');
+		const wrapperTree = registered.teamRoute.component();
+		const boardPanelElement = collectElements(
+			wrapperTree,
+			(node) => typeof node.type === 'function',
+		)[0];
+		expect(boardPanelElement.props.isFullscreen).toBe(true);
+		hookIndex = 0;
+		const fullscreenTree = boardPanelElement.type(boardPanelElement.props);
+		const links = collectElements(fullscreenTree, (node) => node.type === 'a');
 		expect(links.map((link) => link.props.href)).toEqual(['/flow/']);
-		expect(links[0].props.target).toBe('_blank');
 	});
 });
