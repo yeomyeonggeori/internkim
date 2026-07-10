@@ -108,7 +108,7 @@ func TestOrgchartDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 				{"user_id":"user-4","roles":"team_user"}
 			]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
-			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+			return jsonResponse(http.StatusOK, orgchartDirectoryPolicyDocument(), nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -136,4 +136,16 @@ func TestOrgchartDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	if len(response.AvailableGroups) != 2 {
 		t.Fatalf("available groups = %#v; want connected groups only", response.AvailableGroups)
 	}
+}
+
+func orgchartDirectoryPolicyDocument() string {
+	return `{
+		"people":[
+			{"personID":"user-ada","displayName":"Ada Kim","emails":["ada@example.com"],"circles":["staff"],"isAdmin":false},
+			{"personID":"user-grace","displayName":"Grace Lee","emails":["grace@example.com"],"circles":["staff"],"isAdmin":false},
+			{"personID":"user-hidden","displayName":"Hidden Lee","emails":["hidden@example.com"],"circles":["staff"],"isAdmin":false},
+			{"personID":"user-resigned","displayName":"Resigned Park","emails":["resigned@example.com"],"circles":["staff"],"isAdmin":false}
+		],
+		"circles":[{"circleID":"staff","displayName":"Staff"}]
+	}`
 }
