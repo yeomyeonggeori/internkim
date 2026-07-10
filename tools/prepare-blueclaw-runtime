@@ -147,7 +147,7 @@ rsync_ssh_command() {
     ssh_command="$ssh_command -o 'ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h'"
   fi
   if [ -n "$ssh_password" ]; then
-    echo "$repository_root/bin/sshpass -e $ssh_command"
+    echo "'$repository_root/bin/sshpass' -e $ssh_command"
     return
   fi
   echo "$ssh_command"
