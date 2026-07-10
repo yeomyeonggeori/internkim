@@ -48,6 +48,7 @@
 		{ value: 'month', label: text.month },
 	]);
 
+	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 	const series = $derived(
 		buildSeries(
 			attendance.summary?.month ?? '',
@@ -65,7 +66,7 @@
 				weekdayFriday: text.weekdayFriday,
 				weekdaySaturday: text.weekdaySaturday,
 			},
-			{ today: todayDateInTimeZone(attendance.summary?.timeZone) }
+			{ today }
 		)
 	);
 
@@ -97,9 +98,7 @@
 	const maxTotal = $derived(
 		isPercentMode ? 100 : Math.max(1, ...chartData.map((point) => point.totalMinutes))
 	);
-	const pointsSummary = $derived(
-		summarizeDailyValues(dailyValues, attendance.chartMode, todayDateInTimeZone(attendance.summary?.timeZone))
-	);
+	const pointsSummary = $derived(summarizeDailyValues(dailyValues, { today }));
 
 	function formatChartValue(value: number): string {
 		if (isPercentMode) return `${Math.round(value)}%`;
@@ -209,16 +208,16 @@
 		{#if pointsSummary}
 			<div class={compact ? 'mt-2 grid gap-1 border-t pt-2 text-[11px]' : 'mt-3 flex items-center gap-6 text-xs'}>
 				<div class="flex items-baseline justify-between gap-2">
-					<span class="whitespace-nowrap text-muted-foreground">{text.average}</span>
-					<DurationText minutes={pointsSummary.averageMinutes} class="font-medium" />
+					<span class="whitespace-nowrap text-muted-foreground">{text.dailyAverage}</span>
+					<DurationText minutes={pointsSummary.averageMinutes} size="inherit" tone="default" />
 				</div>
 				<div class="flex items-baseline justify-between gap-2">
-					<span class="whitespace-nowrap text-muted-foreground">{text.maximum}</span>
-					<DurationText minutes={pointsSummary.maximumMinutes} class="font-medium" />
+					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMaximum}</span>
+					<DurationText minutes={pointsSummary.maximumMinutes} size="inherit" tone="default" />
 				</div>
 				<div class="flex items-baseline justify-between gap-2">
-					<span class="whitespace-nowrap text-muted-foreground">{text.minimum}</span>
-					<DurationText minutes={pointsSummary.minimumMinutes} class="font-medium" />
+					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMinimum}</span>
+					<DurationText minutes={pointsSummary.minimumMinutes} size="inherit" tone="default" />
 				</div>
 			</div>
 		{/if}

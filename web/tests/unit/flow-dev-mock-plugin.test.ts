@@ -3,6 +3,17 @@ import { createDevFlowMockResponse, createDevFlowMockState } from '../../dev-flo
 import type { FlowState, FlowTask } from '../../src/routes/flow/flow-types';
 
 describe('dev flow mock plugin', () => {
+	test('provides completed attendance detail preview tasks for today', () => {
+		const state = createDevFlowMockState('kim@example.com');
+		const previewTasks = state.flowState.tasks.filter((task) => task.id.startsWith('attendance-preview-task-'));
+
+		expect(previewTasks.map((task) => task.content)).toEqual([
+			'근무 기록 카드 UI 정리',
+			'날짜별 근태 편집 흐름 검증'
+		]);
+		expect(previewTasks.every((task) => task.status === '완료')).toBe(true);
+	});
+
 	test('creates a task with a generated id when the draft sends a blank id', async () => {
 		const state = createDevFlowMockState('admin@example.com');
 		const member = state.flowState.members[0];

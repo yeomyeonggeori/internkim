@@ -6,7 +6,6 @@ export type FlowTaskBoardCardDisplay = {
 	participantNames: string[];
 	participantIDs: string[];
 	metadataLabels: string[];
-	dateLabel: string;
 };
 
 export function buildFlowTaskBoardCardDisplay(task: FlowTask, emptyBusinessLabel = '기타'): FlowTaskBoardCardDisplay {
@@ -14,8 +13,7 @@ export function buildFlowTaskBoardCardDisplay(task: FlowTask, emptyBusinessLabel
 		ownerName: task.ownerName,
 		participantNames: participantNamesWithoutOwner(task),
 		participantIDs: participantIDsWithoutOwner(task),
-		metadataLabels: buildMetadataLabels(task, emptyBusinessLabel),
-		dateLabel: [task.startDate, task.endDate].filter(Boolean).join(' - ')
+		metadataLabels: buildMetadataLabels(task, emptyBusinessLabel)
 	};
 }
 
