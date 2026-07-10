@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
+	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
 	return {
 		plugins: [
 			devAdminUsersMockPlugin({
@@ -41,11 +42,11 @@ export default defineConfig(({ mode }) => {
 				userRole: devUserRole
 			}),
 			devAttendanceMockPlugin({
-				isEnabled: env.VITE_MOCK_ATTENDANCE === '1',
+				isEnabled: isAttendanceMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devCalendarMockPlugin({
-				isEnabled: env.VITE_MOCK_CALENDAR === '1',
+				isEnabled: isAttendanceMockEnabled || env.VITE_MOCK_CALENDAR === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devFilesMockPlugin({
@@ -53,7 +54,7 @@ export default defineConfig(({ mode }) => {
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devFlowMockPlugin({
-				isEnabled: env.VITE_MOCK_FLOW === '1',
+				isEnabled: isAttendanceMockEnabled || env.VITE_MOCK_FLOW === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devTasksMockPlugin({
