@@ -3,6 +3,7 @@ export type UserRecord = {
 	handle: string;
 	name: string;
 	email: string;
+	image?: string;
 	hireDate: string;
 	role: 'admin' | 'operationsAdmin' | 'member';
 	jobTitle?: string;
