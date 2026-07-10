@@ -35,6 +35,8 @@ type mattermostUserRecord struct {
 	DeleteAt          int64  `json:"delete_at"`
 	IsBot             bool   `json:"is_bot"`
 	LastPictureUpdate int64  `json:"last_picture_update"`
+
+	Props map[string]json.RawMessage `json:"props,omitempty"`
 }
 
 type mattermostTeamRecord struct {
