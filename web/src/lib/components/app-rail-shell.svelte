@@ -23,6 +23,7 @@
 </script>
 
 <aside
+	data-app-chrome
 	class="group relative z-40 hidden h-svh w-[60px] shrink-0 md:block"
 	data-profile-open={isProfileMenuOpen}
 	onmouseenter={() => (isRailHovered = true)}
