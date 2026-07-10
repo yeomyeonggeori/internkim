@@ -4487,7 +4487,7 @@ func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target s
 	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
 	if s.pass != "" {
 		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
-		sshpassCommand := s.rsyncSSHCommand(s.sshpassBin + " -e ssh")
+		sshpassCommand := s.rsyncSSHCommand(quoteShellValue(s.sshpassBin) + " -e ssh")
 		command.Args = append([]string{"rsync"}, rsyncSparseArguments(sshpassCommand, localPath, target)...)
 	}
 	output, errorValue := runCommandWithLiveOutput(command)
