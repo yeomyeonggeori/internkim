@@ -89,53 +89,24 @@ type ElementBox = {
 };
 
 test.describe('employee orgchart visual layout geometry', () => {
-	test('keeps shared team roots over their direct report groups', async ({ page }) => {
+	test('renders organization members as full-width list rows', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 1000 });
 		await mockVisualOrgchartDirectory(page);
 
 		await page.goto('/orgchart/');
 
-		const kimRootBox = await visibleElementBox(page.getByTestId('orgchart-person-node-user-kim-first'), 'kim root');
-		const leeRootBox = await visibleElementBox(page.getByTestId('orgchart-person-node-user-lee-second'), 'lee root');
-		const pptxRootBox = await visibleElementBox(page.getByTestId('orgchart-person-node-user-pptx'), 'pptx root');
-		const sharedTeamBox = await visibleElementBox(page.getByTestId('orgchart-team-column-shared'), 'shared team');
-		const sharedTeamTitleBox = await visibleElementBox(page.getByTestId('orgchart-team-column-shared').getByRole('heading', { name: '공유팀' }), 'shared team title');
-		const parkStaffBox = await visibleElementBox(page.getByTestId('orgchart-tree-node-user-park-staff'), 'park staff');
-		const newStaffBox = await visibleElementBox(page.getByTestId('orgchart-tree-node-user-new-staff'), 'new staff');
-		const extraStaffBox = await visibleElementBox(page.getByTestId('orgchart-tree-node-user-extra-staff'), 'extra staff');
+		const sharedTeam = page.getByTestId('orgchart-team-column-shared');
+		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('orgchart-person-node-user-park-staff'), 'shared leader');
+		const newStaffBox = await visibleElementBox(sharedTeam.getByTestId('orgchart-person-node-user-new-staff'), 'new staff');
+		const memberList = sharedTeam.getByTestId('orgchart-organization-members-shared');
 
-		expect(Math.abs(horizontalCenter(kimRootBox) - horizontalCenter(parkStaffBox))).toBeLessThanOrEqual(4);
-		expect(Math.abs(horizontalCenter(leeRootBox) - horizontalGroupCenter([newStaffBox, extraStaffBox]))).toBeLessThanOrEqual(4);
-		expect(Math.abs(horizontalCenter(sharedTeamTitleBox) - horizontalCenter(sharedTeamBox))).toBeLessThanOrEqual(4);
-		expect(Math.abs(kimRootBox.y - leeRootBox.y)).toBeLessThanOrEqual(2);
-		expect(Math.abs(leeRootBox.y - pptxRootBox.y)).toBeLessThanOrEqual(2);
-		expect(pptxRootBox.x).toBeGreaterThan(sharedTeamBox.x + sharedTeamBox.width);
-		expect(sharedTeamBox.y).toBeGreaterThan(kimRootBox.y + kimRootBox.height);
-	});
-});
-
-test.describe('employee orgchart visual layout screenshot', () => {
-	test.skip(process.platform !== 'darwin', 'The checked-in orgchart visual baseline is captured for Darwin Chromium.');
-
-	test('matches the shared-team root block desktop baseline', async ({ page }) => {
-		await page.setViewportSize({ width: 1440, height: 1000 });
-		await mockVisualOrgchartDirectory(page);
-
-		await page.goto('/orgchart/');
-
-		const board = page.getByTestId('orgchart-board');
-		await expect(board).toBeVisible();
-		await expect(page.getByTestId('orgchart-person-node-user-kim-first')).toBeVisible();
-		await expect(page.getByTestId('orgchart-person-node-user-lee-second')).toBeVisible();
-		await expect(page.getByTestId('orgchart-person-node-user-pptx')).toBeVisible();
-		await expect(page.getByTestId('orgchart-team-column-shared')).toBeVisible();
-		await expect(page.getByTestId('orgchart-tree-node-user-park-staff')).toBeVisible();
-		await expect(page.getByTestId('orgchart-tree-node-user-new-staff')).toBeVisible();
-		await expect(board).toHaveScreenshot('orgchart-shared-team-root-block-desktop.png', {
-			animations: 'disabled',
-			caret: 'hide',
-			maxDiffPixelRatio: 0.01
-		});
+		await expect(sharedTeam.getByText('팀장')).toHaveCount(1);
+		await expect(memberList).toBeVisible();
+		await expect(page.getByTestId('orgchart-team-column-shared')).toContainText('공유팀');
+		expect(newStaffBox.y).toBeGreaterThan(sharedLeaderBox.y + sharedLeaderBox.height);
+		expect(Math.abs(newStaffBox.x - sharedLeaderBox.x)).toBeLessThanOrEqual(2);
+		expect(Math.abs(newStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
+		await expectRowDivider(memberList);
 	});
 });
 
@@ -146,14 +117,9 @@ async function visibleElementBox(locator: Locator, label: string): Promise<Eleme
 	return elementBox;
 }
 
-function horizontalCenter(elementBox: ElementBox): number {
-	return elementBox.x + elementBox.width / 2;
-}
-
-function horizontalGroupCenter(elementBoxes: ElementBox[]): number {
-	const left = Math.min(...elementBoxes.map((elementBox) => elementBox.x));
-	const right = Math.max(...elementBoxes.map((elementBox) => elementBox.x + elementBox.width));
-	return (left + right) / 2;
+async function expectRowDivider(locator: Locator): Promise<void> {
+	const firstRowBorderBottomWidth = await locator.locator(':scope > div').first().evaluate((element) => Number.parseFloat(getComputedStyle(element).borderBottomWidth));
+	expect(firstRowBorderBottomWidth).toBeGreaterThan(0);
 }
 
 async function mockVisualOrgchartDirectory(page: Page): Promise<void> {
