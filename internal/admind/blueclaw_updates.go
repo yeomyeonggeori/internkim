@@ -676,8 +676,7 @@ func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	migratedDocument := strings.ReplaceAll(string(document), legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
-	updatedDocument, errorValue := refreshBlueclawCapabilityContract(migratedDocument)
+	updatedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -687,25 +686,44 @@ func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
 	return os.WriteFile(configurationPath, []byte(updatedDocument), 0o640)
 }
 
+func refreshedBlueclawRuntimeConfiguration(document string) (string, error) {
+	migratedDocument := strings.ReplaceAll(document, legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
+	return refreshBlueclawCapabilityContract(migratedDocument)
+}
+
 func refreshBlueclawCapabilityContract(document string) (string, error) {
 	var runtimeDocument map[string]any
 	if errorValue := json.Unmarshal([]byte(document), &runtimeDocument); errorValue != nil {
 		return "", errorValue
 	}
-	capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any)
-	if !ok {
-		return document, nil
+	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
+		capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
+		capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
+		if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
+			routing["candidates"] = capabilities.RoutingCandidates()
+		}
 	}
-	capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
-	capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
-	if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
-		routing["candidates"] = capabilities.RoutingCandidates()
-	}
+	refreshBlueclawLanguageModelTiers(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return string(refreshedBytes) + "\n", nil
+}
+
+func refreshBlueclawLanguageModelTiers(runtimeDocument map[string]any) {
+	languageModelSection, ok := runtimeDocument["languageModel"].(map[string]any)
+	if !ok {
+		return
+	}
+	capabilitySection, ok := languageModelSection["capability"].(map[string]any)
+	if !ok {
+		return
+	}
+	if capabilitySection["model"] != blueclawruntime.BlueclawDefaultModelName {
+		return
+	}
+	capabilitySection["highModel"] = blueclawruntime.BlueclawHighModelName
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
@@ -728,8 +746,8 @@ func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string) bool {
 	if errorValue != nil {
 		return false
 	}
-	text := string(document)
-	return !strings.Contains(text, legacyBlueclawGuestMigrationPath) && strings.Contains(text, blueclawruntime.BlueclawGuestMigrationPath)
+	refreshedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document))
+	return errorValue == nil && refreshedDocument == string(document)
 }
 
 func blueclawRuntimeConfigurationPathsForTarget(target blueclawPayloadInstallTarget) []string {
