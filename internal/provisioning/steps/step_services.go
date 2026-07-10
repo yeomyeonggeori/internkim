@@ -356,8 +356,8 @@ if contains_forbidden_key(runtime_configuration):
     raise SystemExit
 
 agent = runtime_configuration.get("agent", {})
-if agent.get("defaultEffortLevel") != "standard":
-    print("runtime-effort-level")
+if agent.get("defaultTaskLevel") != "low":
+    print("runtime-task-level")
     raise SystemExit
 
 capabilities = runtime_configuration.get("capabilities", {})

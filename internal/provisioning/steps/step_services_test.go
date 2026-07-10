@@ -13,7 +13,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 	command := blueclawRuntimeContractCheckCommand()
 	for _, expectedFragment := range []string{
 		"defaultBudgetClass",
-		"defaultEffortLevel",
+		"defaultTaskLevel",
 		"firecrackerGuest",
 		"runtime-profile-google-tool",
 		"runtime-capability-google-tool",
