@@ -17,6 +17,7 @@
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
 	import { absenceDisplayClass } from '../shared/color-tokens';
+	import { localTimeMinutes } from '../shared/day-timeline';
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkSegmentEditFields from '../shared/work-segment-edit-fields.svelte';
 	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
@@ -132,6 +133,15 @@
 
 	function shortTime(localTime: string): string {
 		return localTime.slice(0, 5);
+	}
+
+	function displayTimeForDraft(draft: WorkEventDraft | undefined, segmentDate: string, fallbackTime: string): string {
+		if (draft?.localDate !== segmentDate) return fallbackTime;
+		return draft.localTime;
+	}
+
+	function durationMinutesBetween(startTime: string, endTime: string): number {
+		return Math.max(0, localTimeMinutes(endTime) - localTimeMinutes(startTime));
 	}
 
 	function updateEventTime(eventID: string | undefined, localTime: string): void {
@@ -251,17 +261,23 @@
 					{#each detail.day.segments as segment (segment.id)}
 						{@const startDraft = workEventDrafts[segment.startEventID]}
 						{@const endDraft = segment.endEventID ? workEventDrafts[segment.endEventID] : undefined}
+						{@const draftLocation = attendanceLocations.find((location) => location.id === startDraft?.locationID)}
+						{@const displayStartTime = displayTimeForDraft(startDraft, detail.day.date, segment.startTime)}
+						{@const displayEndTime = displayTimeForDraft(endDraft, detail.day.date, segment.endTime)}
+						{@const displayDurationMinutes = startDraft
+							? durationMinutesBetween(displayStartTime, displayEndTime)
+							: segment.durationMinutes}
 						<div
 							class="rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm"
 							data-testid="team-status-day-segment"
 							data-state={segment.isOpen ? 'open' : 'closed'}
 						>
 							<WorkSegmentSummary
-								locationName={segment.locationName}
-								locationColor={segment.locationColor}
-								startTime={segment.startTime}
-								endTime={segment.endTime}
-								durationMinutes={segment.durationMinutes}
+								locationName={draftLocation?.name ?? segment.locationName}
+								locationColor={draftLocation?.color ?? segment.locationColor}
+								startTime={displayStartTime}
+								endTime={displayEndTime}
+								durationMinutes={displayDurationMinutes}
 								isOpen={segment.isOpen}
 							/>
 							{#if isEditingWorkRecords && startDraft}
@@ -384,13 +400,13 @@
 						}}
 						<Card.Root
 							size="sm"
-							class="gap-0 rounded-md bg-info/10 py-0 text-info ring-info/20 transition-colors hover:bg-info/15"
+							class="gap-0 rounded-md bg-info/10 py-0 text-info ring-info/20 transition-colors hover:bg-info/15 data-[size=sm]:gap-0 data-[size=sm]:py-0"
 							data-testid="team-status-calendar-event-card"
 						>
-							<Card.Content class="p-0">
+							<Card.Content class="p-0 group-data-[size=sm]/card:px-0">
 								<button
 									type="button"
-									class="team-status-calendar-event min-h-11 w-full min-w-0 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/40"
+									class="team-status-calendar-event min-h-11 w-full min-w-0 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/40"
 									aria-label={event.title}
 									data-testid="team-status-calendar-event"
 									onclick={() => openCalendarEvent(event.id)}
