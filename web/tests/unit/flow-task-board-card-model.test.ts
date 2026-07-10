@@ -3,7 +3,7 @@ import { buildFlowTaskBoardCardDisplay } from '../../src/routes/flow/flow-task-b
 import type { FlowTask } from '../../src/routes/flow/flow-types';
 
 describe('flow task board card model', () => {
-	test('keeps participants next to the owner and the date in its own footer row', () => {
+	test('keeps participants next to the owner', () => {
 		const display = buildFlowTaskBoardCardDisplay(flowTask({
 			ownerName: '김철수',
 			participantIDs: ['member-1', 'member-2', 'member-3'],
@@ -18,7 +18,6 @@ describe('flow task board card model', () => {
 		expect(display.ownerName).toBe('김철수');
 		expect(display.participantNames).toEqual(['박민준', '최서연']);
 		expect(display.metadataLabels).toEqual(['여명거리', '기능']);
-		expect(display.dateLabel).toBe('2026-06-01 - 2026-06-03');
 	});
 
 	test('keeps a different participant who has the same display name as the owner', () => {

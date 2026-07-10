@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
+	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import { sizeBadgeClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
 
@@ -13,6 +14,7 @@
 		openTask: (task: FlowTask) => void;
 		isPending?: boolean;
 		isReadOnly?: boolean;
+		isDraggable?: boolean;
 		onTaskDragStart?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragEnd?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragOver?: (event: DragEvent, task: FlowTask) => void;
@@ -25,13 +27,14 @@
 		openTask,
 		isPending = false,
 		isReadOnly = false,
+		isDraggable = true,
 		onTaskDragStart,
 		onTaskDragEnd,
 		onTaskDragOver,
 		onTaskDrop
 	}: Props = $props();
 
-	let canDrag = $derived(!isPending && !isReadOnly);
+	let canDrag = $derived(isDraggable && !isPending && !isReadOnly);
 	let isDragging = $state(false);
 	let cardClass = $derived([
 		'flow-task-board-card gap-0 rounded-md border border-border/80 bg-card p-0',
@@ -139,13 +142,15 @@
 			{task.content}
 		</div>
 
-		{#if display.metadataLabels.length > 0 || display.dateLabel}
+		{#if display.metadataLabels.length > 0 || task.startDate || task.endDate}
 			<div class="flex flex-wrap items-center gap-1.5">
 				{#each display.metadataLabels as label}
 					<Badge variant="outline" class="h-5 max-w-24 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">{label}</Badge>
 				{/each}
-				{#if display.dateLabel}
-					<Badge variant="secondary" class="h-5 max-w-full rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">{display.dateLabel}</Badge>
+				{#if task.startDate || task.endDate}
+					<Badge variant="secondary" class="h-5 max-w-full rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
+						<FlowTaskDateRange startDate={task.startDate} endDate={task.endDate} />
+					</Badge>
 				{/if}
 			</div>
 		{/if}

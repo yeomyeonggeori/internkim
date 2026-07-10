@@ -52,14 +52,16 @@ describe('team status table model', () => {
 				{
 					locationName: 'Lab A',
 					locationColor: '#22c55e',
-					timeLabel: '09:00-10:00',
+					startTime: '09:00',
+					endTime: '10:00',
 					durationMinutes: 60,
 					widthPercent: labAWidthPercent,
 				},
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
-					timeLabel: '11:00-12:00',
+					startTime: '11:00',
+					endTime: '12:00',
 					durationMinutes: 60,
 					widthPercent: clientSiteWidthPercent,
 				},
@@ -77,7 +79,8 @@ describe('team status table model', () => {
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
-					timeLabel: '13:00~',
+					startTime: '13:00',
+					endTime: '15:00',
 					durationMinutes: 120,
 					widthPercent: openSegmentWidthPercent,
 					isOpen: true,

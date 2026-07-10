@@ -56,7 +56,8 @@ function completedTaskDetail(task: FlowTask): TeamStatusCompletedTaskDetail {
 		id: task.id,
 		title: task.content || task.goal || '-',
 		ownerName: task.ownerName,
-		collaboratorNames: collaboratorNames(task)
+		collaboratorNames: collaboratorNames(task),
+		task
 	};
 }
 

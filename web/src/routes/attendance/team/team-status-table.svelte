@@ -66,6 +66,7 @@
 		return {
 			displayName: selectedRow.displayName,
 			email: selectedRow.email,
+			image: selectedRow.image,
 			mattermostUsername: selectedRow.mattermostUsername,
 			day: selectedDay
 		};

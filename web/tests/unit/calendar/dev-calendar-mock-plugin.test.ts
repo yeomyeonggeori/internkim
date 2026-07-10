@@ -5,6 +5,7 @@ import {
 	devPopupOverflowDate,
 	devPopupOverflowMonth
 } from '../../../dev-popup-overflow-fixture';
+import { todayDateInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
 
 describe('dev calendar mock plugin', () => {
 	test('returns four June popup overflow events for 김철수', async () => {
@@ -40,5 +41,23 @@ describe('dev calendar mock plugin', () => {
 			name: '이영희',
 			email: 'lee@example.com'
 		});
+	});
+
+	test('provides attendance detail preview events for today', async () => {
+		const todayDate = todayDateInTimeZone('Asia/Seoul', new Date());
+		const response = await createDevCalendarMockResponse({
+			method: 'GET',
+			pathname: '/calendar/api/events',
+			searchParams: new URLSearchParams({
+				startISO: `${todayDate}T00:00:00+09:00`,
+				endISO: `${todayDate}T23:59:59+09:00`
+			})
+		});
+
+		expect(response?.body.events.map((event) => event.title)).toEqual([
+			'오늘의 우선순위 정렬',
+			'근태 상세 화면 UI 리뷰',
+			'팀 진행 상황 공유'
+		]);
 	});
 });
