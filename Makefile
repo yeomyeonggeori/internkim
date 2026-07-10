@@ -37,8 +37,11 @@ build-mattermost-ephemeral-plugin:
 	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist
 	cp mattermost-plugin/internkim-ephemeral/plugin.json build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/plugin.json
 	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-arm64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-arm64
+	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist
+	cp mattermost-plugin/internkim-ephemeral/webapp/main.js build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist/main.js
 	mkdir -p build/mattermost-plugins
-	COPYFILE_DISABLE=1 tar --no-xattrs -czf build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
+	COPYFILE_DISABLE=1 tar --no-xattrs -czf build/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
+	rm -f build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz
 	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
 
 check: build build-companion
@@ -46,6 +49,7 @@ check: build build-companion
 	cd companion && bun run test
 	cd web && bun run check
 	cd web && bun run test:unit
+	cd mattermost-plugin/internkim-ephemeral && bun test webapp
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
 
