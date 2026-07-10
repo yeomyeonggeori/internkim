@@ -11,10 +11,14 @@ export type TeamStatusAbsenceTone = 'leave' | 'other';
 
 export type TeamStatusPersonDaySegment = {
 	id: string;
+	startEventID: string;
+	endEventID?: string;
+	endReason?: AttendanceWorkSegment['endReason'];
 	locationName: string;
 	locationID?: string;
 	locationColor?: string;
-	timeLabel: string;
+	startTime: string;
+	endTime: string;
 	durationMinutes?: number;
 	widthPercent: number;
 	isOpen: boolean;
@@ -42,7 +46,7 @@ export type TeamStatusPersonDay = {
 	segments: TeamStatusPersonDaySegment[];
 };
 
-export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'> & {
+export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'> & {
 	currentLocationName?: string;
 	currentLocationColor?: string;
 	days: TeamStatusPersonDay[];
@@ -127,7 +131,7 @@ function buildTeamRowsForDates(
 function buildTeamPeopleForDates(
 	summary: AttendanceSummary,
 	dates: string[]
-): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>[] {
+): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>[] {
 	if ((summary.members?.length ?? 0) > 0) {
 		return summary.members.map(attendanceMemberToTeamPerson);
 	}
@@ -141,10 +145,11 @@ function buildTeamPeopleForDates(
 	return uniquePeople(events, absences);
 }
 
-function attendanceMemberToTeamPerson(member: AttendanceMember): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'> {
+function attendanceMemberToTeamPerson(member: AttendanceMember): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'> {
 	return {
 		email: member.email,
 		displayName: member.displayName || member.mattermostUsername || member.email,
+		image: member.image,
 		mattermostUsername: member.mattermostUsername,
 	};
 }
@@ -164,16 +169,18 @@ function buildTeamStatusPersonDay(
 			? Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(person.activeSegment.startTime))
 			: 0;
 		const durationMinutes = person.workedMinutes + openElapsedMinutes;
+		const visibleDurationMinutes = durationMinutes > 0 ? durationMinutes : undefined;
+		const totalDurationLabel = visibleDurationMinutes ? formatHoursMinutes(visibleDurationMinutes, text) : undefined;
 		return {
 			date,
-			label: formatHoursMinutes(durationMinutes, text),
+			label: totalDurationLabel ?? '-',
 			tone: 'working',
 			locationName,
 			locationID,
 			locationColor: findLocationColor(locationColors, locationID, locationName),
 			detailLabel: person.activeSegment?.startTime,
-			durationMinutes,
-			totalDurationLabel: formatHoursMinutes(durationMinutes, text),
+			durationMinutes: visibleDurationMinutes,
+			totalDurationLabel,
 			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
 		};
 	}
@@ -226,7 +233,7 @@ function buildTeamStatusPersonDaySegments(
 ): TeamStatusPersonDaySegment[] {
 	return segments.map((segment) => {
 		const locationName = segment.locationName || '-';
-		const timeLabel = segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`;
+		const endTime = segment.isOpen ? nowLocalTime : segment.endTime ?? '';
 		const openElapsedMinutes = Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(segment.startTime));
 		const durationMinutes = segment.isOpen ? openElapsedMinutes : segment.workedMinutes;
 		const widthPercent = dayWidthPercent(
@@ -235,10 +242,14 @@ function buildTeamStatusPersonDaySegments(
 		);
 		return {
 			id: segment.id,
+			startEventID: segment.clockIn.id,
+			endEventID: segment.endEvent?.id,
+			endReason: segment.endReason,
 			locationName,
 			locationID: segment.locationID,
 			locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
-			timeLabel,
+			startTime: segment.startTime,
+			endTime,
 			durationMinutes: durationMinutes > 0 ? durationMinutes : undefined,
 			widthPercent,
 			isOpen: segment.isOpen,

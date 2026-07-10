@@ -95,6 +95,7 @@ export type AttendanceAbsence = {
 export type AttendanceMember = {
 	email: string;
 	displayName: string;
+	image?: string;
 	mattermostUsername: string;
 };
 
@@ -190,6 +191,11 @@ export class AttendanceState {
 
 	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {
 		await updateAttendanceEvent(eventID, request);
+		await this.load();
+	}
+
+	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
+		await Promise.all(updates.map((update) => updateAttendanceEvent(update.eventID, update.request)));
 		await this.load();
 	}
 }

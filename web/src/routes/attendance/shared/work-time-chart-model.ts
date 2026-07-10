@@ -30,6 +30,7 @@ export type WorkTimeChartLabels = {
 };
 
 export type BuildSeriesOptions = { today?: string };
+export type SummarizeDailyValuesOptions = { today?: string };
 
 export function chartPointTotalMinutes(point: ChartPoint): number {
 	return Object.values(point.values).reduce((sum, minutes) => sum + minutes, 0);
@@ -37,13 +38,9 @@ export function chartPointTotalMinutes(point: ChartPoint): number {
 
 export function summarizeDailyValues(
 	dailyValues: DailyValue[],
-	mode: ChartMode,
-	today?: string
+	options: SummarizeDailyValuesOptions = {}
 ): ChartPointsSummary | null {
-	const scopedDailyValues =
-		mode === 'week' && today
-			? dailyValues.filter((dailyValue) => sundayWeekStart(dailyValue.date) === sundayWeekStart(today))
-			: dailyValues;
+	const scopedDailyValues = trimFuturePoints(dailyValues, options.today, (dailyValue) => dailyValue.date);
 	const dayTotals = scopedDailyValues
 		.map((dailyValue) => dayTotalMinutes(dailyValue.minutesByLocation))
 		.filter((totalMinutes) => totalMinutes > 0);

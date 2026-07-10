@@ -4,6 +4,7 @@ import type { TeamStatusDayContext } from './team-status-day-context';
 export type TeamStatusDayDetail = {
 	displayName: string;
 	email: string;
+	image?: string;
 	mattermostUsername?: string;
 	day: TeamStatusPersonDay;
 	context: TeamStatusDayContext;

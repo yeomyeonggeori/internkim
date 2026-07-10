@@ -7,6 +7,7 @@ import {
 	devPopupOverflowEmail,
 	type DevPopupOverflowCalendarEvent
 } from './dev-popup-overflow-fixture';
+import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import type { CalendarEvent } from './src/routes/calendar/embed/calendar-event-persistence';
 
 type DevCalendarMockPluginOptions = {
@@ -65,30 +66,54 @@ export function createDevCalendarMockResponse(
 }
 
 function createDevCalendarEvents(userEmail: string): CalendarEvent[] {
-	return devPopupOverflowCalendarEvents.map((event) => calendarEvent(event, userEmail));
+	return [
+		...devPopupOverflowCalendarEvents.map((event) => calendarEvent(event, userEmail)),
+		...createAttendancePreviewCalendarEvents(userEmail)
+	];
+}
+
+function createAttendancePreviewCalendarEvents(userEmail: string): CalendarEvent[] {
+	const date = todayDateInTimeZone('Asia/Seoul', new Date());
+	return [
+		previewCalendarEvent('attendance-preview-standup', '오늘의 우선순위 정렬', date, '09:30', '10:00', '회의실 A', userEmail),
+		previewCalendarEvent('attendance-preview-review', '근태 상세 화면 UI 리뷰', date, '14:00', '15:00', '디자인 룸', userEmail),
+		previewCalendarEvent('attendance-preview-sync', '팀 진행 상황 공유', date, '16:30', '17:00', '회의실 B', userEmail)
+	];
 }
 
 function calendarEvent(event: DevPopupOverflowCalendarEvent, userEmail: string): CalendarEvent {
+	return previewCalendarEvent(event.id, event.title, devPopupOverflowDate, event.startTime, event.endTime, event.location, userEmail);
+}
+
+function previewCalendarEvent(
+	id: string,
+	title: string,
+	date: string,
+	startTime: string,
+	endTime: string,
+	location: string,
+	userEmail: string
+): CalendarEvent {
 	const person = devAttendancePeople.find((candidate) => candidate.email === userEmail) ??
 		devAttendancePeople.find((candidate) => candidate.email === devPopupOverflowEmail) ??
 		devAttendancePeople[0];
 	const email = person?.email ?? userEmail;
 	const name = person?.name ?? email;
 	return {
-		id: event.id,
-		uid: event.id,
-		title: event.title,
+		id,
+		uid: id,
+		title,
 		description: '',
-		location: event.location,
-		startISO: `${devPopupOverflowDate}T${event.startTime}:00+09:00`,
-		endISO: `${devPopupOverflowDate}T${event.endTime}:00+09:00`,
+		location,
+		startISO: `${date}T${startTime}:00+09:00`,
+		endISO: `${date}T${endTime}:00+09:00`,
 		timeZone: 'Asia/Seoul',
 		isAllDay: false,
 		color: '#2563eb',
 		participants: [{ personID: person?.mattermostUsername ?? email, name, email }],
 		createdByEmail: email,
 		createdByName: name,
-		updatedAt: `${devPopupOverflowDate}T00:00:00+09:00`
+		updatedAt: `${date}T00:00:00+09:00`
 	};
 }
 
