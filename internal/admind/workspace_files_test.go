@@ -3,6 +3,7 @@ package admind
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -42,9 +43,43 @@ func newWorkspaceFilesTestService(t *testing.T) (*Service, string) {
 		if request.URL.Path == "/admin/api/policy" {
 			return jsonResponse(http.StatusOK, workspaceFilesTestPolicy, nil), nil
 		}
+		if request.URL.Path == "/admin/api/workspace/list" {
+			return workspaceFilesMockList(workspaceDirectory, request.URL.Query().Get("path")), nil
+		}
+		if request.URL.Path == "/admin/api/workspace/download" {
+			return workspaceFilesMockDownload(workspaceDirectory, request.URL.Query().Get("path")), nil
+		}
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
 	return service, workspaceDirectory
+}
+
+func workspaceFilesMockHostPath(workspaceDirectory string, agentPath string) string {
+	return filepath.Join(workspaceDirectory, strings.TrimPrefix(agentPath, "/workspace"))
+}
+
+func workspaceFilesMockList(workspaceDirectory string, agentPath string) *http.Response {
+	directoryEntries, errorValue := os.ReadDir(workspaceFilesMockHostPath(workspaceDirectory, agentPath))
+	if errorValue != nil {
+		return jsonResponse(http.StatusOK, `{"entries":[]}`, nil)
+	}
+	entries := []map[string]any{}
+	for _, directoryEntry := range directoryEntries {
+		if directoryEntry.Name() == ".blueclaw" {
+			continue
+		}
+		entries = append(entries, map[string]any{"name": directoryEntry.Name(), "isDirectory": directoryEntry.IsDir()})
+	}
+	document, _ := json.Marshal(map[string]any{"entries": entries})
+	return jsonResponse(http.StatusOK, string(document), nil)
+}
+
+func workspaceFilesMockDownload(workspaceDirectory string, agentPath string) *http.Response {
+	content, errorValue := os.ReadFile(workspaceFilesMockHostPath(workspaceDirectory, agentPath))
+	if errorValue != nil {
+		return jsonResponse(http.StatusNotFound, ``, nil)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(content))), Header: http.Header{}}
 }
 
 func seedWorkspaceFile(t *testing.T, workspaceDirectory string, relativePath string, content string) {
