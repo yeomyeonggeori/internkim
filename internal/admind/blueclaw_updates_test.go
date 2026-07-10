@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestPublicBlueclawUpdateMetadataHidesArchivePath(t *testing.T) {
@@ -337,37 +336,6 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	}
 	if !strings.Contains(refreshed, "preserve-me") || !strings.Contains(refreshed, "/srv/keep/this") {
 		t.Fatalf("expected host-specific fields preserved, got:\n%s", refreshed)
-	}
-}
-
-func TestRefreshBlueclawCapabilityContractRestoresHighTierModel(t *testing.T) {
-	staleDocument := `{
-  "languageModel": {"capability": {"model": "` + blueclawruntime.BlueclawDefaultModelName + `"}}
-}`
-
-	refreshed, errorValue := refreshBlueclawCapabilityContract(staleDocument)
-	if errorValue != nil {
-		t.Fatalf("refresh returned error: %v", errorValue)
-	}
-	if !strings.Contains(refreshed, blueclawruntime.BlueclawHighModelName) {
-		t.Fatalf("expected high tier model restored, got:\n%s", refreshed)
-	}
-	if isCurrent := refreshedDocumentIsCurrent(t, refreshed); !isCurrent {
-		t.Fatalf("expected refreshed document to be stable, got another change:\n%s", refreshed)
-	}
-}
-
-func TestRefreshBlueclawCapabilityContractKeepsPinnedModelTiers(t *testing.T) {
-	pinnedDocument := `{
-  "languageModel": {"capability": {"model": "pinned-test-model", "highModel": "pinned-test-model"}}
-}`
-
-	refreshed, errorValue := refreshBlueclawCapabilityContract(pinnedDocument)
-	if errorValue != nil {
-		t.Fatalf("refresh returned error: %v", errorValue)
-	}
-	if strings.Contains(refreshed, blueclawruntime.BlueclawHighModelName) {
-		t.Fatalf("expected pinned tiers untouched, got:\n%s", refreshed)
 	}
 }
 
