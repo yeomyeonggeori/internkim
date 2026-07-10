@@ -188,7 +188,7 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.send",
 		Input: mustJSON(t, map[string]any{
-			"deliveryTarget": map[string]any{"type": "channel", "channelName": "random"},
+			"targetType": "channel", "channelName": "random",
 			"message":        "hello",
 			"pin":            true,
 		}),
@@ -236,7 +236,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "channel",
-			"deliveryTarget": map[string]any{"type": "channel", "channelID": "channel-1"},
+			"targetType": "channel", "channelID": "channel-1",
 			"authoredBy":     "assistant",
 			"limit":          3,
 		}),
@@ -761,7 +761,7 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "currentChannel",
-			"deliveryTarget": map[string]any{"type": "currentChannel", "channelID": "circle-secret"},
+			"targetType": "currentChannel", "channelID": "circle-secret",
 			"authoredBy":     "assistant",
 			"queries":        []string{"비밀"},
 		}),
@@ -976,7 +976,7 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
-			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
+			"targetType": "directMessage", "personHint": "alice@example.com",
 			"authoredBy":     "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
@@ -1029,7 +1029,7 @@ func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) 
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
-			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
+			"targetType": "directMessage", "personHint": "alice@example.com",
 			"authoredBy":     "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
@@ -1073,7 +1073,7 @@ func TestMattermostPostSearchDirectMessageDeniedForAdmin(t *testing.T) {
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":          "directMessage",
-			"deliveryTarget": map[string]any{"type": "directMessage", "personHint": "alice@example.com"},
+			"targetType": "directMessage", "personHint": "alice@example.com",
 			"authoredBy":     "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{

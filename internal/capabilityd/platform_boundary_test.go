@@ -103,6 +103,28 @@ func TestMattermostNormalizePreservesInputAttachmentFileIDs(t *testing.T) {
 	}
 }
 
+func TestMattermostNormalizeMarksAttachmentsOnly(t *testing.T) {
+	attachmentEvent, _, errorValue := normalizeMattermostPost(mattermostPost{
+		ID: "post-1", UserID: "user-1", ChannelID: "channel-1", FileIDs: []string{"file-1"}, CreateAt: 1700000000000,
+	}, "bot-1", "O", "open", platformAddressing{})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !attachmentEvent.Context.AttachmentsOnly {
+		t.Fatal("text-less attachment post must be marked attachmentsOnly")
+	}
+
+	captionedEvent, _, errorValue := normalizeMattermostPost(mattermostPost{
+		ID: "post-2", UserID: "user-1", ChannelID: "channel-1", Message: "이거 봐줘", FileIDs: []string{"file-1"}, CreateAt: 1700000000000,
+	}, "bot-1", "O", "open", platformAddressing{})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if captionedEvent.Context.AttachmentsOnly {
+		t.Fatal("attachment post with caption text must not be attachmentsOnly")
+	}
+}
+
 func TestMattermostCompanionRecoverySendsChannelInstructionByDM(t *testing.T) {
 	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
 		Platform:       "mattermost",
@@ -2658,5 +2680,35 @@ func TestHistoryFetchRejectsMissingCursor(t *testing.T) {
 	service.router().ServeHTTP(responseRecorder, request)
 	if responseRecorder.Code != http.StatusBadGateway {
 		t.Fatalf("expected missing cursor to fail, got %d", responseRecorder.Code)
+	}
+}
+
+func TestEnrichMattermostEventPreservesAttachmentsOnly(t *testing.T) {
+	historyCursor, errorValue := encodePlatformHandle(platformHandle{
+		Platform: "mattermost", ConversationID: "thread:channel-1:post-1",
+		ChannelID: "channel-1", ChannelType: "O", MessageID: "post-1",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := mattermostRecoveryTestService(t, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"order":[],"posts":{}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+	event := platformInboundEvent{
+		ConversationID: "thread:channel-1:post-1",
+		Context: platformEventContext{
+			HistoryCursor:    historyCursor,
+			ConversationType: "O",
+			AttachmentsOnly:  true,
+			InputAttachments: []platformInputAttachment{{FileID: "file-1"}},
+		},
+	}
+	enriched := service.enrichMattermostEvent(context.Background(), event)
+	if !enriched.Context.AttachmentsOnly {
+		t.Fatal("enrichMattermostEvent must preserve AttachmentsOnly through the context rebuild")
 	}
 }

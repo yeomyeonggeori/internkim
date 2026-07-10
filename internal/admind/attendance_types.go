@@ -126,6 +126,7 @@ type attendanceSummaryResponse struct {
 type attendanceMember struct {
 	Email              string `json:"email"`
 	DisplayName        string `json:"displayName"`
+	Image              string `json:"image,omitempty"`
 	MattermostUsername string `json:"mattermostUsername"`
 }
 

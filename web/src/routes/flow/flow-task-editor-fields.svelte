@@ -47,6 +47,10 @@
 		return members.find((member) => member.id === memberID)?.email ?? '';
 	}
 
+	function memberOptionImage(memberID: string): string {
+		return members.find((member) => member.id === memberID)?.image ?? '';
+	}
+
 	function updateBusiness(value: string): void {
 		taskDraft.business = flowBusinessValueFromOption(value);
 	}
@@ -66,7 +70,7 @@
 		<Select.Root type="single" value={taskDraft.ownerID} onValueChange={setTaskOwnerID} disabled={!canEditTask || !canEditTaskAssignment}>
 			<Select.Trigger class="w-full">
 				<span class="flex min-w-0 items-center gap-2">
-					<PersonAvatar name={memberOptionLabel(taskDraft.ownerID)} email={memberOptionEmail(taskDraft.ownerID)} seed={taskDraft.ownerID} class="size-5" />
+					<PersonAvatar name={memberOptionLabel(taskDraft.ownerID)} email={memberOptionEmail(taskDraft.ownerID)} seed={taskDraft.ownerID} image={memberOptionImage(taskDraft.ownerID)} class="size-5" />
 					<span class="truncate">{memberOptionLabel(taskDraft.ownerID)}</span>
 				</span>
 			</Select.Trigger>
@@ -74,7 +78,7 @@
 				{#each memberOptions as option (option.value)}
 					<Select.Item value={option.value} label={option.label}>
 						<span class="flex min-w-0 items-center gap-2">
-							<PersonAvatar name={option.label} email={memberOptionEmail(option.value)} seed={option.value} class="size-5" />
+							<PersonAvatar name={option.label} email={memberOptionEmail(option.value)} seed={option.value} image={memberOptionImage(option.value)} class="size-5" />
 							<span class="truncate">{option.label}</span>
 						</span>
 					</Select.Item>

@@ -59,6 +59,10 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 	if record.JobTitle != "Design Lead" || record.PrimaryGroupID != "design" || record.SupervisorID != "user-admin" {
 		t.Fatalf("record orgchart metadata = %#v", record)
 	}
+	expectedImage := calendarParticipantImagePath(stableFlowID("member@example.com"))
+	if record.Image != expectedImage {
+		t.Fatalf("record image = %q; want %q", record.Image, expectedImage)
+	}
 }
 
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {

@@ -194,6 +194,7 @@ type companionReleaseResponse struct {
 
 type adminSessionResponse struct {
 	Email                  string `json:"email"`
+	Image                  string `json:"image,omitempty"`
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
 	Role                   string `json:"role"`
@@ -256,7 +257,7 @@ func DefaultConfiguration() Configuration {
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz",
+		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz",
 		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
@@ -317,6 +318,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
+	service.startMattermostAttendanceStatusSync(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
@@ -932,8 +934,10 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	if service.isProofOfConceptTenantMode() {
 		canViewTasks = isPoCSuperAdmin
 	}
+	sessionImageEmail := firstNonEmpty(consoleEmail, claimedAdminEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
+		Image:             profileImagePathForEmail(sessionImageEmail),
 		ClaimedAdminEmail: claimedAdminEmail,
 		IsAdmin:           role == adminUserRoleAdmin,
 		Role:              role,
@@ -1347,7 +1351,7 @@ func (service *Service) lookupUserRecords(ctx context.Context, fleetID string, f
 	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
 		return nil, errorValue
 	}
-	return usersResponse.Records, nil
+	return adminUserRecordsWithProfileImages(usersResponse.Records), nil
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {

@@ -23,20 +23,29 @@ type platformMessageDeliveryTarget struct {
 }
 
 type platformMessageSearchInput struct {
-	Scope          string                        `json:"scope"`
-	DeliveryTarget platformMessageDeliveryTarget `json:"deliveryTarget"`
-	AuthoredBy     string                        `json:"authoredBy"`
-	Queries        []string                      `json:"queries"`
-	Limit          int                           `json:"limit"`
-	Cursor         string                        `json:"cursor"`
+	Scope       string   `json:"scope"`
+	ChannelID   string   `json:"channelID"`
+	ChannelName string   `json:"channelName"`
+	PersonHint  string   `json:"personHint"`
+	AuthoredBy  string   `json:"authoredBy"`
+	Queries     []string `json:"queries"`
+	Limit       int      `json:"limit"`
+	Cursor      string   `json:"cursor"`
+
+	DeliveryTarget platformMessageDeliveryTarget `json:"-"`
 }
 
 type platformMessageSendInput struct {
-	DeliveryTarget platformMessageDeliveryTarget `json:"deliveryTarget"`
-	RecipientHint  string                        `json:"recipientHint"`
-	Message        string                        `json:"message"`
-	Pin            bool                          `json:"pin"`
-	Reason         string                        `json:"reason"`
+	TargetType  string   `json:"targetType"`
+	Message     string   `json:"message"`
+	ChannelID   string   `json:"channelID"`
+	ChannelName string   `json:"channelName"`
+	PersonHint  string   `json:"personHint"`
+	PersonHints []string `json:"personHints"`
+	Pin         bool     `json:"pin"`
+	Reason      string   `json:"reason"`
+
+	DeliveryTarget platformMessageDeliveryTarget `json:"-"`
 }
 
 type platformMessageUpdateInput struct {
@@ -264,7 +273,11 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
 	input.Queries = normalizePlatformMessageSearchQueries(input.Queries)
 	input.Cursor = strings.TrimSpace(input.Cursor)
-	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
+	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
+		ChannelID:   input.ChannelID,
+		ChannelName: input.ChannelName,
+		PersonHint:  input.PersonHint,
+	})
 	if !isValidPlatformMessageScope(input.Scope) {
 		return platformMessageSearchInput{}, fmt.Errorf("scope must be currentThread, currentChannel, directMessage, or channel")
 	}
@@ -302,9 +315,13 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 	}
 	input.Message = strings.TrimSpace(input.Message)
 	input.Reason = strings.TrimSpace(input.Reason)
-	input.RecipientHint = strings.TrimSpace(input.RecipientHint)
-	input.DeliveryTarget = defaultPlatformMessageDeliveryToDirectMessage(input.DeliveryTarget, input.RecipientHint)
-	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
+	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
+		Type:        input.TargetType,
+		PersonHint:  input.PersonHint,
+		PersonHints: input.PersonHints,
+		ChannelID:   input.ChannelID,
+		ChannelName: input.ChannelName,
+	})
 	if input.Message == "" {
 		return platformMessageSendInput{}, fmt.Errorf("message is required")
 	}
@@ -312,21 +329,6 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 		return platformMessageSendInput{}, errorValue
 	}
 	return input, nil
-}
-
-// Direct message is the default delivery for a named person: a recipientHint, or a
-// deliveryTarget that names a person without a channel, sends a DM without the model
-// having to set type=directMessage or choose between DM and mail.
-func defaultPlatformMessageDeliveryToDirectMessage(target platformMessageDeliveryTarget, recipientHint string) platformMessageDeliveryTarget {
-	if recipientHint != "" && target.PersonHint == "" && len(target.PersonHints) == 0 {
-		target.PersonHint = recipientHint
-	}
-	hasPerson := strings.TrimSpace(target.PersonHint) != "" || len(target.PersonHints) > 0
-	hasChannel := strings.TrimSpace(target.ChannelID) != "" || strings.TrimSpace(target.ChannelName) != ""
-	if strings.TrimSpace(target.Type) == "" && hasPerson && !hasChannel {
-		target.Type = "directMessage"
-	}
-	return target
 }
 
 func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessageUpdateInput, error) {
@@ -419,17 +421,19 @@ func validatePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget)
 	switch target.Type {
 	case "directMessage":
 		if target.PersonHint == "" && len(target.PersonHints) == 0 {
-			return fmt.Errorf("deliveryTarget.personHint or personHints is required for directMessage")
+			return fmt.Errorf("targetType=directMessage requires personHint or personHints")
 		}
 		if len(target.PersonHints) > platformMessageBroadcastRecipientLimit {
-			return fmt.Errorf("deliveryTarget.personHints accepts at most %d recipients per call; narrow the list", platformMessageBroadcastRecipientLimit)
+			return fmt.Errorf("personHints accepts at most %d recipients per call; narrow the list", platformMessageBroadcastRecipientLimit)
 		}
 	case "channel":
-		return validateMattermostChannelReference(target.ChannelID, target.ChannelName)
+		if target.ChannelID == "" && target.ChannelName == "" {
+			return fmt.Errorf("targetType=channel requires channelName or channelID")
+		}
 	case "currentThread", "currentChannel":
 		return nil
 	default:
-		return fmt.Errorf("deliveryTarget.type must be directMessage, currentThread, currentChannel, or channel")
+		return fmt.Errorf("targetType must be directMessage, currentThread, currentChannel, or channel")
 	}
 	return nil
 }
@@ -453,21 +457,7 @@ func isValidPlatformMessageAuthor(author string) bool {
 }
 
 func platformMessageSearchScope(input platformMessageSearchInput) string {
-	if input.Scope != "" {
-		return input.Scope
-	}
-	switch input.DeliveryTarget.Type {
-	case "directMessage":
-		return "directMessage"
-	case "channel":
-		return "channel"
-	case "currentThread":
-		return "currentThread"
-	case "currentChannel":
-		return "currentChannel"
-	default:
-		return ""
-	}
+	return input.Scope
 }
 
 func platformMessageSearchAuthor(author string) string {

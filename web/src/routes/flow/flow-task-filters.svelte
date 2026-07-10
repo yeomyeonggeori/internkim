@@ -16,6 +16,7 @@
 		value: string;
 		label: string;
 		email?: string;
+		image?: string;
 	};
 
 	type Props = {
@@ -111,7 +112,7 @@
 								checked={participantFilterIDs.includes(option.value)}
 								onchange={() => toggleParticipant(option.value)}
 							/>
-							<PersonAvatar name={option.label} email={option.email ?? ''} seed={option.value} class="size-6" />
+							<PersonAvatar name={option.label} email={option.email ?? ''} seed={option.value} image={option.image ?? ''} class="size-6" />
 							<span class="min-w-0 truncate">{option.label}</span>
 						</label>
 					{/each}
