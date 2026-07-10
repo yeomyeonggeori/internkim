@@ -18,6 +18,20 @@ func TestSelectedReleaseComponentNamesParsesCommaList(t *testing.T) {
 	}
 }
 
+func TestCoupleBlueclawWithSkillsAddsSkillsForPayload(t *testing.T) {
+	coupled := coupleBlueclawWithSkills(map[string]bool{"blueclawPayload": true})
+	if !coupled["blueclawPayload"] || !coupled["skills"] {
+		t.Fatalf("expected payload deploy to carry skills, got %+v", coupled)
+	}
+}
+
+func TestCoupleBlueclawWithSkillsLeavesOtherComponentsAlone(t *testing.T) {
+	coupled := coupleBlueclawWithSkills(map[string]bool{"admind": true, "web": true})
+	if coupled["skills"] {
+		t.Fatalf("expected no skills coupling without the payload, got %+v", coupled)
+	}
+}
+
 func TestSelectedReleaseComponentNamesNormalizesLegacyWebNames(t *testing.T) {
 	components, errorValue := selectedReleaseComponentNames([]string{"--components", "adminWeb,admin-web,web"})
 	if errorValue != nil {
