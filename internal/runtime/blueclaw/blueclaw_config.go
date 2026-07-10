@@ -162,7 +162,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		modelName := strings.TrimSpace(options.ModelName)
 		capabilityLanguageModel["model"] = modelName
 		if options.ShouldUseModelForAllTiers {
-			for _, tierModelField := range []string{"highModel", "lowModel", "xlowModel", "codingModel"} {
+			for _, tierModelField := range []string{"maxModel", "xhighModel", "highModel", "lowModel", "xlowModel", "codingModel"} {
 				capabilityLanguageModel[tierModelField] = modelName
 			}
 			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
