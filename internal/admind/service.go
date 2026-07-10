@@ -318,6 +318,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
+	service.startMattermostAttendanceStatusSync(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
