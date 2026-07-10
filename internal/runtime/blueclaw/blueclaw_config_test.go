@@ -159,11 +159,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if intake["executionMode"] != "auto" {
 		t.Fatalf("expected agent intake execution mode, got %v", intake["executionMode"])
 	}
-	if agent["defaultEffortLevel"] != "standard" {
-		t.Fatalf("expected default effort level, got %v", agent["defaultEffortLevel"])
+	if agent["defaultTaskLevel"] != "low" {
+		t.Fatalf("expected default task level, got %v", agent["defaultTaskLevel"])
 	}
-	if agent["skillEffortFloor"] != "deep" {
-		t.Fatalf("expected deep skill effort floor, got %v", agent["skillEffortFloor"])
+	if agent["skillTaskLevelFloor"] != "high" {
+		t.Fatalf("expected high skill task level floor, got %v", agent["skillTaskLevelFloor"])
 	}
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
