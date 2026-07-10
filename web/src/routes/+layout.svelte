@@ -12,6 +12,7 @@
 	import { currentLocale, initializeLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
+	import { isEmbeddedFrame } from '$lib/embedded';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 
@@ -65,47 +66,51 @@
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
 		<div class="flex h-svh w-full bg-background text-foreground">
-			<AppRail />
+			{#if !isEmbeddedFrame}
+				<AppRail />
+			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
-				<header class="internkim-app-header">
-					<a
-						href="/admin/"
-						aria-label="Blueclaw"
-						class="internkim-app-mobile-brand"
-						data-sveltekit-preload-data="off"
-						data-sveltekit-preload-code="off"
-					>
-						<img src="/logo.svg" alt="" />
-					</a>
-					<div class="internkim-app-crumbs flex-1">
-						<Breadcrumb.Root>
-							<Breadcrumb.List>
-								<Breadcrumb.Item class="hidden md:block">
-									<Breadcrumb.Link href="/admin/" data-sveltekit-preload-data="off" data-sveltekit-preload-code="off">Blueclaw</Breadcrumb.Link>
-								</Breadcrumb.Item>
-								<Breadcrumb.Separator class="hidden md:block" />
-								<Breadcrumb.Item>
-									<Breadcrumb.Page>
-										<span>{currentApp(page.url.pathname)}</span>
-										{#if breadcrumbMeta.value}
-											<span class="ml-1.5 font-normal text-muted-foreground">· {breadcrumbMeta.value}</span>
-										{/if}
-									</Breadcrumb.Page>
-								</Breadcrumb.Item>
-							</Breadcrumb.List>
-						</Breadcrumb.Root>
-					</div>
-					<div class="flex items-center gap-2">
-						<LanguageSwitcher
-							variant="ghost"
-							languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
-							value={currentLocale.value}
-							ariaLabel={text.changeLanguage}
-							onChange={selectLocale}
-						/>
-						<LightSwitch variant="ghost" />
-					</div>
-				</header>
+				{#if !isEmbeddedFrame}
+					<header data-app-chrome class="internkim-app-header">
+						<a
+							href="/admin/"
+							aria-label="Blueclaw"
+							class="internkim-app-mobile-brand"
+							data-sveltekit-preload-data="off"
+							data-sveltekit-preload-code="off"
+						>
+							<img src="/logo.svg" alt="" />
+						</a>
+						<div class="internkim-app-crumbs flex-1">
+							<Breadcrumb.Root>
+								<Breadcrumb.List>
+									<Breadcrumb.Item class="hidden md:block">
+										<Breadcrumb.Link href="/admin/" data-sveltekit-preload-data="off" data-sveltekit-preload-code="off">Blueclaw</Breadcrumb.Link>
+									</Breadcrumb.Item>
+									<Breadcrumb.Separator class="hidden md:block" />
+									<Breadcrumb.Item>
+										<Breadcrumb.Page>
+											<span>{currentApp(page.url.pathname)}</span>
+											{#if breadcrumbMeta.value}
+												<span class="ml-1.5 font-normal text-muted-foreground">· {breadcrumbMeta.value}</span>
+											{/if}
+										</Breadcrumb.Page>
+									</Breadcrumb.Item>
+								</Breadcrumb.List>
+							</Breadcrumb.Root>
+						</div>
+						<div class="flex items-center gap-2">
+							<LanguageSwitcher
+								variant="ghost"
+								languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
+								value={currentLocale.value}
+								ariaLabel={text.changeLanguage}
+								onChange={selectLocale}
+							/>
+							<LightSwitch variant="ghost" />
+						</div>
+					</header>
+				{/if}
 				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-md:pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate returnPath={currentReturnPath()}>

@@ -122,31 +122,17 @@ describe('internkim mattermost webapp plugin', () => {
 		expect(framesBySource).toEqual({ '/flow/': 'none', '/calendar/': 'block' });
 	});
 
-	test('links to the fullscreen route and the browser view', () => {
+	test('links only to the browser view for the active tab', () => {
 		resetHookStates();
 		const { registered } = initializePlugin();
 		const tree = renderComponent(registered.sidebar.component);
 		const links = collectElements(tree, (node) => node.type === 'a');
-		expect(links.map((link) => link.props.href)).toEqual([
-			'/internkim/com.internkim.ephemeral/boards',
-			'/flow/',
-		]);
-		expect(links[1].props.target).toBe('_blank');
+		expect(links.map((link) => link.props.href)).toEqual(['/flow/']);
+		expect(links[0].props.target).toBe('_blank');
 	});
 
-	test('registers a fullscreen team route that hides the fullscreen link', () => {
-		resetHookStates();
+	test('does not register a fullscreen team route', () => {
 		const { registered } = initializePlugin();
-		expect(registered.teamRoute.route).toBe('/boards');
-		const wrapperTree = registered.teamRoute.component();
-		const boardPanelElement = collectElements(
-			wrapperTree,
-			(node) => typeof node.type === 'function',
-		)[0];
-		expect(boardPanelElement.props.isFullscreen).toBe(true);
-		hookIndex = 0;
-		const fullscreenTree = boardPanelElement.type(boardPanelElement.props);
-		const links = collectElements(fullscreenTree, (node) => node.type === 'a');
-		expect(links.map((link) => link.props.href)).toEqual(['/flow/']);
+		expect(registered.teamRoute).toBeUndefined();
 	});
 });
