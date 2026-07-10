@@ -33,7 +33,7 @@ describe('dev admin orgchart mock plugin', () => {
 
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
-		expect(body.records?.length).toBe(30);
+		expect(body.records?.length).toBe(20);
 		expect(body.availableGroups?.some((group) => group.id === 'group-product')).toBe(true);
 	});
 
@@ -48,10 +48,10 @@ describe('dev admin orgchart mock plugin', () => {
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
 		const userIDs = body.records?.map((record) => record.userID);
-		expect(userIDs?.length).toBe(30);
+		expect(userIDs?.length).toBe(20);
 		expect(userIDs?.includes('dev-user-ceo')).toBe(true);
 		expect(userIDs?.includes('dev-user-dabin')).toBe(true);
-		expect(userIDs?.includes('dev-user-eunchae')).toBe(true);
+		expect(userIDs?.includes('dev-user-nam')).toBe(true);
 		expect(body.availableGroups?.map((group) => group.id)).toEqual(['group-leadership', 'group-operations', 'group-product', 'group-design', 'group-field']);
 	});
 

@@ -2,33 +2,56 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import XIcon from '@lucide/svelte/icons/x';
-	import type { OrgGroup, UserRecord } from '../admin/admin-types';
+	import type { AdminPageText, OrgGroup, UserRecord } from '../admin/admin-types';
+	import OrgchartProfileFields from '../admin/orgchart-profile-fields.svelte';
 	import type { orgchartDirectoryText } from './text';
 
-	type PopupAnchor = {
-		top: number;
-		right: number;
-		bottom: number;
-		left: number;
-		width: number;
-		height: number;
-	};
+	type OrgchartPersonDetailPanelVariant = 'side' | 'compact' | 'sheet';
 
 	type OrgchartPersonDetailPanelProps = {
 		record: UserRecord | undefined;
-		anchor: PopupAnchor | undefined;
 		groups: OrgGroup[];
 		text: typeof orgchartDirectoryText.ko;
 		clearSelection: () => void;
+		variant?: OrgchartPersonDetailPanelVariant;
+		canEdit?: boolean;
+		isEditing?: boolean;
+		editingRecord?: UserRecord;
+		userRecords?: UserRecord[];
+		adminText?: AdminPageText;
+		isSaving?: boolean;
+		hasInvalidSupervisor?: boolean;
+		onEdit?: () => void;
+		onSave?: () => void | Promise<void>;
+		onCancel?: () => void;
 	};
 
-	let { record, anchor, groups, text, clearSelection }: OrgchartPersonDetailPanelProps = $props();
+	let {
+		record,
+		groups,
+		text,
+		clearSelection,
+		variant = 'side',
+		canEdit = false,
+		isEditing = false,
+		editingRecord,
+		userRecords = [],
+		adminText,
+		isSaving = false,
+		hasInvalidSupervisor = false,
+		onEdit = () => {},
+		onSave = () => {},
+		onCancel = () => {}
+	}: OrgchartPersonDetailPanelProps = $props();
 
-	let popupElement = $state<HTMLElement>();
-	let innerWidth = $state(0);
-	let innerHeight = $state(0);
+	let localEditingRecord = $state<UserRecord | undefined>(undefined);
 
-	const popupStyle = $derived(createPopupStyle(anchor, innerWidth, innerHeight));
+	const isSheet = $derived(variant === 'sheet');
+	const isCompact = $derived(variant !== 'side');
+
+	$effect(() => {
+		localEditingRecord = editingRecord;
+	});
 
 	function groupName(groupID: string | undefined): string {
 		const normalizedGroupID = groupID?.trim() ?? '';
@@ -40,46 +63,29 @@
 		return person.name || person.email;
 	}
 
-	function createPopupStyle(nextAnchor: PopupAnchor | undefined, viewportWidth: number, viewportHeight: number): string {
-		if (!nextAnchor) return '';
-		if (viewportWidth < 768) return 'left: 12px; right: 12px; bottom: 12px; max-height: min(560px, calc(100vh - 24px));';
-
-		const gap = 12;
-		const margin = 16;
-		const width = 320;
-		const estimatedHeight = 520;
-		const rightSideLeft = nextAnchor.right + gap;
-		const leftSideLeft = nextAnchor.left - width - gap;
-		const hasRightSpace = rightSideLeft + width + margin <= viewportWidth;
-		const left = hasRightSpace ? rightSideLeft : Math.max(margin, leftSideLeft);
-		const top = Math.min(Math.max(margin, nextAnchor.top), Math.max(margin, viewportHeight - estimatedHeight));
-
-		return `left: ${left}px; top: ${top}px; width: ${width}px; max-height: calc(100vh - ${top + margin}px);`;
+	function personTitle(person: UserRecord): string {
+		return person.jobTitle || text.noTitle;
 	}
 
-	function handleKeydown(event: KeyboardEvent): void {
-		if (event.key === 'Escape') clearSelection();
-	}
-
-	function handleWindowClick(event: MouseEvent): void {
-		const target = event.target;
-		if (!(target instanceof Node)) return;
-		if (popupElement?.contains(target)) return;
-		clearSelection();
+	function directSupervisorLabel(person: UserRecord): string {
+		const supervisorID = person.supervisorID?.trim() ?? '';
+		if (!supervisorID) return text.noSupervisor;
+		const supervisor = userRecords.find((candidate) => candidate.userID === supervisorID);
+		if (!supervisor) return text.noSupervisor;
+		return `${personLabel(supervisor)} · ${personTitle(supervisor)}`;
 	}
 </script>
 
-<svelte:window bind:innerWidth bind:innerHeight onkeydown={handleKeydown} onclick={handleWindowClick} />
-
-{#if record && anchor}
+{#if record}
 	<aside
-		bind:this={popupElement}
-		class="fixed z-50 grid max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border bg-card shadow-xl"
-		style={popupStyle}
+		class={[
+			isSheet ? 'max-h-[85svh] min-h-0 overflow-y-auto overscroll-contain bg-transparent' : 'rounded-lg border bg-card shadow-sm',
+			!isSheet && (isCompact ? 'self-start overflow-hidden' : 'h-full min-h-0 overflow-y-auto')
+		]}
 		data-testid="orgchart-person-detail-panel"
 	>
-		<div class="grid max-h-[inherit] gap-5 overflow-auto p-5">
-			<div class="flex items-center justify-between gap-3">
+		<div class={['grid', isSheet ? 'gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]' : isCompact ? 'gap-4 p-4' : 'gap-5 p-5']}>
+			<div class={['flex items-center justify-between gap-3', isSheet ? 'sticky top-0 z-10 -mx-4 -mt-4 border-b bg-popover px-4 py-3' : '']}>
 				<h2 class="text-base font-semibold">{text.personDetail}</h2>
 				<Button variant="ghost" size="icon" aria-label={text.closeDetail} onclick={clearSelection}>
 					<XIcon class="size-4" />
@@ -87,34 +93,66 @@
 			</div>
 
 			<div class="flex min-w-0 items-center gap-4">
-				<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-14" />
+				<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class={isCompact ? 'size-11' : 'size-14'} />
 				<div class="min-w-0">
-					<h3 class="truncate text-xl font-semibold">{personLabel(record)}</h3>
+					<h3 class={['truncate font-semibold', isCompact ? 'text-lg' : 'text-xl']}>{personLabel(record)}</h3>
 					<p class="truncate text-sm text-muted-foreground">{record.jobTitle || text.noTitle}</p>
 				</div>
 			</div>
 
-			<section class="grid gap-4 border-t pt-5">
+			<section class={['grid border-t', isCompact ? 'gap-3 pt-4' : 'gap-4 pt-5']}>
 				<h3 class="text-sm font-semibold">{text.basicInformation}</h3>
 				<dl class="grid gap-0 text-sm">
-					<div class="grid grid-cols-[86px_minmax(0,1fr)] border-b py-3">
+					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.email}</dt>
 						<dd class="truncate">{record.email}</dd>
 					</div>
-					<div class="grid grid-cols-[86px_minmax(0,1fr)] border-b py-3">
+					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.primaryOrganization}</dt>
 						<dd>{groupName(record.primaryGroupID ?? record.group)}</dd>
 					</div>
-					<div class="grid grid-cols-[86px_minmax(0,1fr)] border-b py-3">
+					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.position}</dt>
 						<dd>{record.jobTitle || text.noTitle}</dd>
 					</div>
-					<div class="grid grid-cols-[86px_minmax(0,1fr)] py-3">
+					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
+						<dt class="text-muted-foreground">{text.directSupervisor}</dt>
+						<dd class="truncate">{directSupervisorLabel(record)}</dd>
+					</div>
+					<div class={['grid py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.hireDate}</dt>
 						<dd>{record.hireDate || text.notProvided}</dd>
 					</div>
-					</dl>
+				</dl>
+			</section>
+
+			{#if isEditing && localEditingRecord && adminText}
+				<section class="grid gap-3 border-t pt-4" data-testid={`orgchart-profile-${localEditingRecord.userID}`}>
+					<h3 class="text-sm font-semibold">{adminText.orgchart.editMode}</h3>
+					<OrgchartProfileFields
+						bind:record={localEditingRecord}
+						{userRecords}
+						{groups}
+						text={adminText}
+						{isSaving}
+						layout="stacked"
+					/>
+					<div class="flex justify-end gap-2">
+						<Button type="button" size="sm" variant="outline" disabled={isSaving} onclick={onCancel}>
+							{adminText.orgchart.cancel}
+						</Button>
+						<Button type="button" size="sm" disabled={isSaving || hasInvalidSupervisor} onclick={onSave}>
+							{adminText.orgchart.save}
+						</Button>
+					</div>
 				</section>
+			{:else if canEdit}
+				<div class="border-t pt-4">
+					<Button type="button" class="w-full" onclick={onEdit}>
+						{text.editPerson}
+					</Button>
+				</div>
+			{/if}
 		</div>
 	</aside>
 {/if}

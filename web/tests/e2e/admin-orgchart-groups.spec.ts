@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEditor, openOrgchartEditor, selectCardOption } from './admin-orgchart-helpers';
+import { applySavedProfiles, cloneUsersResponse, mockAdminOrgchart, openCardEditor, openOrgchartEditor, openOrganizationForm, selectCardOption } from './admin-orgchart-helpers';
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-orgchart-fixtures';
 
 test.describe('admin org chart groups', () => {
@@ -34,18 +34,18 @@ test.describe('admin org chart groups', () => {
 		});
 
 		await openOrgchartEditor(page);
-		const graceCard = page.getByTestId('orgchart-profile-user-grace');
-		await openCardEditor(graceCard);
+		const graceCard = await openCardEditor(page, 'user-grace');
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
+		await openOrganizationForm(page);
 		await page.getByLabel('새 조직').fill('Platform');
-		await page.getByRole('button', { name: '조직 추가' }).click();
+		await page.getByRole('button', { name: '추가', exact: true }).click();
 
 		await expect.poll(() => savedGroups).toEqual([
 			expect.arrayContaining([expect.objectContaining({ name: 'Platform' })])
 		]);
 		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
-		await expect(page.getByTestId('orgchart-profile-user-ada')).toContainText('Platform');
+		await expect(page.getByTestId('orgchart-organization-grid')).toContainText('Platform');
 		await expect(graceCard.getByLabel('소속 조직')).toContainText('Engineering');
 		await selectCardOption(page, graceCard, '소속 조직', 'Platform');
 		await expect(graceCard.getByLabel('소속 조직')).toContainText('Platform');
@@ -70,10 +70,10 @@ test.describe('admin org chart groups', () => {
 		});
 
 		await openOrgchartEditor(page);
+		await openOrganizationForm(page);
 		await page.getByLabel('새 조직').fill(' Engineering ');
-		await page.getByRole('button', { name: '조직 추가' }).click();
-		const graceCard = page.getByTestId('orgchart-profile-user-grace');
-		await openCardEditor(graceCard);
+		await page.getByRole('button', { name: '추가', exact: true }).click();
+		const graceCard = await openCardEditor(page, 'user-grace');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await graceCard.getByRole('button', { name: '저장' }).click();
 
@@ -85,7 +85,7 @@ test.describe('admin org chart groups', () => {
 				groupIDs: ['engineering']
 			})
 		]);
-		await expect(graceCard).toContainText('Engineering');
+		await expect(page.getByTestId('orgchart-person-node-user-grace')).toBeVisible();
 	});
 
 	test('keeps the organization name visible when organization creation fails', async ({ page }) => {
@@ -98,8 +98,9 @@ test.describe('admin org chart groups', () => {
 
 		await openOrgchartEditor(page);
 
+		await openOrganizationForm(page);
 		await page.getByLabel('새 조직').fill('Platform');
-		await page.getByRole('button', { name: '조직 추가' }).click();
+		await page.getByRole('button', { name: '추가', exact: true }).click();
 
 		await expect(page.getByText('사용자 저장에 실패했습니다.')).toBeVisible();
 		await expect(page.getByLabel('새 조직')).toHaveValue('Platform');
