@@ -38,11 +38,11 @@ export async function measureMobileTeamStatusTable(
 ): Promise<MobileTeamStatusTableLayout> {
 	return statusTable.evaluate((tableElement, date) => {
 		const table = tableElement as HTMLElement;
-		const employeeHeader = table.querySelector<HTMLElement>('[role="columnheader"]:not(:first-child)');
+		const employeeHeader = table.querySelector<HTMLElement>('[data-testid^="team-status-person-header-"]');
 		const dateRowHeader = table.querySelector<HTMLElement>(`[data-testid="team-status-day-${date}"]`);
 		const targetCell = table.querySelector<HTMLElement>(`[data-testid="team-status-cell-kim@example.com-${date}"]`);
 		if (!employeeHeader || !dateRowHeader || !targetCell) {
-			throw new Error('Missing monthly attendance table cells');
+			throw new Error(`Missing monthly attendance table cells: employeeHeader=${!!employeeHeader}, dateRowHeader=${!!dateRowHeader}, targetCell=${!!targetCell}`);
 		}
 
 		table.scrollTop = 0;

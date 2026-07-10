@@ -49,7 +49,8 @@ describe('team status day context', () => {
 			{
 				id: 'legacy',
 				title: '레거시 일정',
-				timeLabel: '종일'
+				timeLabel: '종일',
+				calendarEvent: legacyEvent
 			}
 		]);
 	});

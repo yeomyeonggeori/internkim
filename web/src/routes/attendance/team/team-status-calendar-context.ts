@@ -109,7 +109,8 @@ function calendarEventDetail(event: CalendarEvent, localeCode: string, allDayLab
 		id: event.id,
 		title: event.title || '-',
 		timeLabel: calendarEventTimeLabel(event, localeCode, allDayLabel),
-		location: event.location || undefined
+		location: event.location || undefined,
+		calendarEvent: event
 	};
 }
 

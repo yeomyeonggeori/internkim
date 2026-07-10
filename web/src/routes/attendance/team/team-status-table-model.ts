@@ -11,10 +11,14 @@ export type TeamStatusAbsenceTone = 'leave' | 'other';
 
 export type TeamStatusPersonDaySegment = {
 	id: string;
+	startEventID: string;
+	endEventID?: string;
+	endReason?: AttendanceWorkSegment['endReason'];
 	locationName: string;
 	locationID?: string;
 	locationColor?: string;
-	timeLabel: string;
+	startTime: string;
+	endTime: string;
 	durationMinutes?: number;
 	widthPercent: number;
 	isOpen: boolean;
@@ -229,7 +233,7 @@ function buildTeamStatusPersonDaySegments(
 ): TeamStatusPersonDaySegment[] {
 	return segments.map((segment) => {
 		const locationName = segment.locationName || '-';
-		const timeLabel = segment.isOpen ? `${segment.startTime}~` : `${segment.startTime}-${segment.endTime ?? ''}`;
+		const endTime = segment.isOpen ? nowLocalTime : segment.endTime ?? '';
 		const openElapsedMinutes = Math.max(0, localTimeMinutes(nowLocalTime) - localTimeMinutes(segment.startTime));
 		const durationMinutes = segment.isOpen ? openElapsedMinutes : segment.workedMinutes;
 		const widthPercent = dayWidthPercent(
@@ -238,10 +242,14 @@ function buildTeamStatusPersonDaySegments(
 		);
 		return {
 			id: segment.id,
+			startEventID: segment.clockIn.id,
+			endEventID: segment.endEvent?.id,
+			endReason: segment.endReason,
 			locationName,
 			locationID: segment.locationID,
 			locationColor: findLocationColor(locationColors, segment.locationID, segment.locationName),
-			timeLabel,
+			startTime: segment.startTime,
+			endTime,
 			durationMinutes: durationMinutes > 0 ? durationMinutes : undefined,
 			widthPercent,
 			isOpen: segment.isOpen,

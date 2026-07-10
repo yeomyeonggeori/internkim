@@ -193,6 +193,11 @@ export class AttendanceState {
 		await updateAttendanceEvent(eventID, request);
 		await this.load();
 	}
+
+	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
+		await Promise.all(updates.map((update) => updateAttendanceEvent(update.eventID, update.request)));
+		await this.load();
+	}
 }
 
 const KEY = Symbol('attendance-state');

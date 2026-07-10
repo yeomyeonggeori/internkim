@@ -15,6 +15,7 @@ import {
 	devPopupOverflowDate,
 	devPopupOverflowDisplayName
 } from '../../../dev-popup-overflow-fixture';
+import { todayDateInTimeZone } from '../attendance/shared/attendance-date';
 import type { FlowDefinitions, FlowMember, FlowState, FlowSummary, FlowTask, FlowWeek, FlowWeeklySummary } from './flow-types';
 import type { FlowReportSnapshot } from './report/flow-report-data';
 
@@ -105,7 +106,8 @@ function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
 	const weeks = [buildFlowWeek(currentWeek.previous), currentWeek, buildFlowWeek(currentWeek.next)];
 	return [
 		...weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({ ...task, id: `${week.code}-${task.id}` }))),
-		...createPopupOverflowTasks()
+		...createPopupOverflowTasks(),
+		...createAttendancePreviewTasks()
 	];
 }
 
@@ -117,6 +119,38 @@ function createPopupOverflowTasks(): FlowTask[] {
 	return devPopupOverflowCompletedTaskTitles.map((title, index) =>
 		popupOverflowTask(`dev-popup-overflow-task-${index + 1}`, title, (index + 1) * 1024)
 	);
+}
+
+function createAttendancePreviewTasks(): FlowTask[] {
+	const date = todayDateInTimeZone('Asia/Seoul', new Date());
+	return [
+		attendancePreviewTask('attendance-preview-task-1', '근무 기록 카드 UI 정리', date, 1024),
+		attendancePreviewTask('attendance-preview-task-2', '날짜별 근태 편집 흐름 검증', date, 2048)
+	];
+}
+
+function attendancePreviewTask(id: string, content: string, date: string, statusRank: number): FlowTask {
+	return {
+		id,
+		ownerID: 'kim-intern',
+		ownerName: devPopupOverflowDisplayName,
+		participantIDs: ['kim-intern', 'designer'],
+		participantNames: [devPopupOverflowDisplayName, '이영희'],
+		business: '김인턴',
+		type: '검증',
+		content,
+		goal: '근태 날짜 상세 화면을 빠르게 검증한다.',
+		size: 'S',
+		status: '완료',
+		statusRank,
+		startDate: date,
+		endDate: date,
+		createdAt: `${date}T09:00:00+09:00`,
+		weekCode: '',
+		flag: 0,
+		requestReason: '',
+		decisionReason: ''
+	};
 }
 
 function popupOverflowTask(id: string, content: string, statusRank: number): FlowTask {
