@@ -45,21 +45,23 @@ describe('team status table model', () => {
 		const labAWidthPercent = dayWidthPercent('09:00', '10:00');
 		const clientSiteWidthPercent = dayWidthPercent('11:00', '12:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '02시간',
+			label: '02시간 00분',
 			tone: 'finished',
-			totalDurationLabel: '02시간',
+			totalDurationLabel: '02시간 00분',
 			segments: [
 				{
 					locationName: 'Lab A',
 					locationColor: '#22c55e',
-					timeLabel: '09:00-10:00',
+					startTime: '09:00',
+					endTime: '10:00',
 					durationMinutes: 60,
 					widthPercent: labAWidthPercent,
 				},
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
-					timeLabel: '11:00-12:00',
+					startTime: '11:00',
+					endTime: '12:00',
 					durationMinutes: 60,
 					widthPercent: clientSiteWidthPercent,
 				},
@@ -67,17 +69,18 @@ describe('team status table model', () => {
 		});
 		const openSegmentWidthPercent = dayWidthPercent('13:00', '15:00');
 		expect(kim?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
-			label: '02시간',
+			label: '02시간 00분',
 			tone: 'working',
 			locationName: '고객사',
 			locationColor: '#f59e0b',
 			detailLabel: '13:00',
-			totalDurationLabel: '02시간',
+			totalDurationLabel: '02시간 00분',
 			segments: [
 				{
 					locationName: '고객사',
 					locationColor: '#f59e0b',
-					timeLabel: '13:00~',
+					startTime: '13:00',
+					endTime: '15:00',
 					durationMinutes: 120,
 					widthPercent: openSegmentWidthPercent,
 					isOpen: true,
@@ -125,13 +128,13 @@ describe('team status table model', () => {
 		const jungDay = rows.find((row) => row.email === 'jung@example.com')?.days.find((day) => day.date === '2026-06-16');
 
 		expect(choiDay).toMatchObject({
-			label: '45분',
+			label: '00시간 45분',
 			tone: 'working',
 			locationName: '회의실 A',
 			locationColor: '#a855f7',
 		});
 		expect(jungDay).toMatchObject({
-			label: '45분',
+			label: '00시간 45분',
 			tone: 'working',
 			locationName: 'remote',
 		});
@@ -166,7 +169,7 @@ describe('team status table model', () => {
 		expect(kim?.days[0]?.date).toBe('2026-06-01');
 		expect(kim?.days[29]?.date).toBe('2026-06-30');
 		expect(kim?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
-			label: '09시간',
+			label: '09시간 00분',
 			tone: 'finished',
 		});
 		expect(lee?.days.find((day) => day.date === '2026-06-01')).toMatchObject({
@@ -193,7 +196,10 @@ describe('team status table model', () => {
 			],
 			[
 				attendanceMember('kim@example.com', '김철수', 'kim'),
-				attendanceMember('park@example.com', '박지민', 'park'),
+				{
+					...attendanceMember('park@example.com', '박지민', 'park'),
+					image: '/calendar/api/participants/park/image',
+				},
 			]
 		);
 
@@ -201,6 +207,7 @@ describe('team status table model', () => {
 		const park = rows.find((row) => row.email === 'park@example.com');
 
 		expect(rows.map((row) => row.email)).toEqual(['kim@example.com', 'park@example.com']);
+		expect(park?.image).toBe('/calendar/api/participants/park/image');
 		expect(park?.days.find((day) => day.date === '2026-06-16')).toMatchObject({
 			label: '-',
 			tone: 'absent',
@@ -250,7 +257,7 @@ describe('team status table model', () => {
 			currentLocationColor: '#f59e0b',
 		});
 		expect(kim?.days.find((day) => day.date === '2026-05-20')).toMatchObject({
-			label: '09시간',
+			label: '09시간 00분',
 			tone: 'finished',
 		});
 	});
@@ -292,8 +299,8 @@ function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], abs
 	};
 }
 
-function attendanceMember(email: string, displayName: string, mattermostUsername: string): AttendanceMember {
-	return { email, displayName, mattermostUsername };
+function attendanceMember(email: string, displayName: string, mattermostUsername: string, image?: string): AttendanceMember {
+	return { email, displayName, image, mattermostUsername };
 }
 
 function attendanceMembersFromRecords(events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceMember[] {
