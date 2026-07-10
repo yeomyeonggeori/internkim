@@ -703,27 +703,11 @@ func refreshBlueclawCapabilityContract(document string) (string, error) {
 			routing["candidates"] = capabilities.RoutingCandidates()
 		}
 	}
-	refreshBlueclawLanguageModelTiers(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return string(refreshedBytes) + "\n", nil
-}
-
-func refreshBlueclawLanguageModelTiers(runtimeDocument map[string]any) {
-	languageModelSection, ok := runtimeDocument["languageModel"].(map[string]any)
-	if !ok {
-		return
-	}
-	capabilitySection, ok := languageModelSection["capability"].(map[string]any)
-	if !ok {
-		return
-	}
-	if capabilitySection["model"] != blueclawruntime.BlueclawDefaultModelName {
-		return
-	}
-	capabilitySection["highModel"] = blueclawruntime.BlueclawHighModelName
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {

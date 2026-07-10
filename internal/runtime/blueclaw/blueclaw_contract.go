@@ -66,7 +66,6 @@ const (
 	LiteRTModelRepository                 = "litert-community/gemma-4-E4B-it-litert-lm"
 	LiteRTModelFilename                   = "gemma-4-E4B-it.litertlm"
 	BlueclawDefaultModelName              = llmbackend.DefaultActionModelName
-	BlueclawHighModelName                 = "google/gemini-3-flash-preview"
 	BlueclawDefaultModelContextTokens     = 1048576
 	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"
