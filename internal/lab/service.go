@@ -81,13 +81,30 @@ func NewService(configuration Configuration, commandRunner CommandRunner, reposi
 }
 
 func (service Service) ImageBuild(ctx context.Context) error {
-	executableCommand := service.buildImageBuildCommand()
-	errorValue := service.commandRunner.Run(ctx, executableCommand)
+	isCapabilityOptionSupported, errorValue := service.containerCreateSupportsCapabilityOption(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	executableCommand := service.buildImageBuildCommand(isCapabilityOptionSupported)
+	errorValue = service.commandRunner.Run(ctx, executableCommand)
 	if errorValue != nil {
 		return fmt.Errorf("run %q: %w", executableCommand.String(), errorValue)
 	}
 
 	return nil
+}
+
+func (service Service) containerCreateSupportsCapabilityOption(ctx context.Context) (bool, error) {
+	helpCommand := ExecutableCommand{
+		ExecutableName:       service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments:            []string{"create", "--help"},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	}
+	helpOutput, errorValue := service.commandRunner.Output(ctx, helpCommand)
+	if errorValue != nil {
+		return false, fmt.Errorf("run %q: %w", helpCommand.String(), errorValue)
+	}
+	return strings.Contains(helpOutput, "--cap-add"), nil
 }
 
 func (service Service) VirtualMachineExists(ctx context.Context) (bool, error) {
@@ -522,33 +539,37 @@ func (service Service) buildContainerListCommand() ExecutableCommand {
 	}
 }
 
-func (service Service) buildImageBuildCommand() ExecutableCommand {
+func (service Service) buildImageBuildCommand(isCapabilityOptionSupported bool) ExecutableCommand {
+	arguments := []string{
+		"create",
+		"--name",
+		service.configuration.VirtualMachine.Container.Name,
+		"--cpus",
+		formatInteger(service.configuration.VirtualMachine.Container.CPUCount),
+		"--memory",
+		formatInteger(service.configuration.VirtualMachine.Container.MemoryMiB) + "M",
+		"--virtualization",
+	}
+	if isCapabilityOptionSupported {
+		arguments = append(arguments, "--cap-add", "ALL")
+	}
+	arguments = append(arguments,
+		"--tmpfs",
+		"/run",
+		"--tmpfs",
+		"/run/lock",
+		"--kernel",
+		service.configuration.VirtualMachine.Container.KernelImagePath,
+		"--volume",
+		service.sharedWorkspacePath()+":/mnt/shared/workspace",
+		service.configuration.VirtualMachine.Container.Image,
+		"sh",
+		"-c",
+		service.buildBootstrapScript(),
+	)
 	return ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
-		Arguments: []string{
-			"create",
-			"--name",
-			service.configuration.VirtualMachine.Container.Name,
-			"--cpus",
-			formatInteger(service.configuration.VirtualMachine.Container.CPUCount),
-			"--memory",
-			formatInteger(service.configuration.VirtualMachine.Container.MemoryMiB) + "M",
-			"--virtualization",
-			"--cap-add",
-			"ALL",
-			"--tmpfs",
-			"/run",
-			"--tmpfs",
-			"/run/lock",
-			"--kernel",
-			service.configuration.VirtualMachine.Container.KernelImagePath,
-			"--volume",
-			service.sharedWorkspacePath() + ":/mnt/shared/workspace",
-			service.configuration.VirtualMachine.Container.Image,
-			"sh",
-			"-c",
-			service.buildBootstrapScript(),
-		},
+		ExecutableName:       service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments:            arguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
 	}
 }
