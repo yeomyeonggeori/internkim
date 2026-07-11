@@ -240,8 +240,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   non-staff such as investors). Never put editable source, drafts, secrets, or
   staff-only files there. For all-employee internal sharing use a staff circle
   under `/workspace/circles/<circleID>`, not `shared/public`.
-- Preserve denied executable and denied path guardrails, especially OS package
-  managers and system modification commands.
+- There is no executable allow or deny list for the terminal: POSIX user, group,
+  and file permissions are the execution boundary, so a system-modification
+  command simply fails at execution for an unprivileged actor. Preserve the
+  denied path guardrails (system paths like /etc, /root).
 - Built-in tools that read through grants must not leave privileged source files
   in raw-terminal-visible paths.
 
