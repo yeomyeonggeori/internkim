@@ -151,9 +151,14 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
+	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if len(summary.Members) == 0 {
+		if members, membersError := service.fetchFlowMembers(ctx, request.Context.RequesterEmail); membersError == nil {
+			summary.Members = members
+		}
 	}
 	task, failure := resolveFlowTaskUpdateTarget(input, summary)
 	if failure != nil {
@@ -832,10 +837,10 @@ func resolveFlowTaskDeleteTarget(input flowTaskDeleteInput, summary flowSummaryF
 }
 
 func flowTaskUpdateCandidates(input flowTaskUpdateInput, summary flowSummaryForTool) []flowTaskForTool {
-	tasks := filterFlowTasksByPerson(summary.Tasks, input.TargetPersonHint, summary.Members)
 	if input.TaskID != "" {
-		return matchingFlowTasksByID(tasks, input.TaskID)
+		return matchingFlowTasksByID(summary.Tasks, input.TaskID)
 	}
+	tasks := filterFlowTasksByPerson(summary.Tasks, input.TargetPersonHint, summary.Members)
 	return matchingFlowTasksByQuery(tasks, input.Query)
 }
 
