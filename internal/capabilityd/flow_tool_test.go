@@ -328,13 +328,49 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	}
 }
 
+func TestFlowTaskUpdateResolvesByTaskIDAcrossAllTasks(t *testing.T) {
+	var updatedPayload map[string]any
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"이동하","email":"lee@dawn.kim"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이동하","participantIDs":["staff"],"business":"여명거리","type":"문서","content":"IR 덱","status":"진행","weekCode":"26W28"}]}`), nil
+			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/deck-1":
+				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				return flowToolJSONResponse(`{"id":"deck-1","status":"완료"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.update",
+		Input:    []byte(`{"taskID":"deck-1","status":"완료","targetPersonHint":"","weekCode":"2026-W28"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("expected taskID to resolve regardless of week/person hint, got error response %+v", response)
+	}
+	if updatedPayload["status"] != "완료" {
+		t.Fatalf("updated payload = %+v", updatedPayload)
+	}
+}
+
 func TestFlowTaskUpdateQueryOnlyDefaultsToComplete(t *testing.T) {
 	var updatedPayload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary?week=26W24":
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
