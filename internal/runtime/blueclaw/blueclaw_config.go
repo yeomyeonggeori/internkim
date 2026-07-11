@@ -325,8 +325,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"sandboxProvider":        "",
 			"workspaceRootPath":      terminalWorkspaceRootPath,
 			"posixHelperPath":        terminalPOSIXHelperPath,
-			"allowedExecutableNames": BlueclawAllowedExecutables,
-			"deniedExecutableNames":  BlueclawDeniedExecutables,
 			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,
 			"requesterWorkspace": map[string]any{
 				"requesterTemporaryEnvironmentVariable": "BLUECLAW_REQUESTER_TMP",
