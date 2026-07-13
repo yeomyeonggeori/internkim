@@ -45,6 +45,7 @@ if [ -x /usr/local/bin/internkim-admind ] && [ "${ENABLE_ADMIND:-0}" = "1" ]; th
     --mattermost-admin-password /root/.internkim/secrets/mm-admin-pass \
     --admin-email-path /root/.internkim/secrets/admin-email \
     --state-dir /workspace/.admind/state \
+    --flow-db /workspace/.admind/flow.sqlite \
     --calendar-db /workspace/.admind/calendar.db \
     --mail-db /workspace/.admind/mail.db \
     --attendance-db /workspace/.admind/attendance.db \
