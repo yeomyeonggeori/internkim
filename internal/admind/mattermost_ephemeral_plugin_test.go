@@ -78,6 +78,40 @@ func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testin
 	}
 }
 
+func TestEnableMattermostPluginUploadsUsesAPI(t *testing.T) {
+	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local"})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"PluginSettings":{"Enable":false,"EnableUploads":false}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
+			var payload struct {
+				PluginSettings struct {
+					Enable                 bool `json:"Enable"`
+					EnableUploads          bool `json:"EnableUploads"`
+					RequirePluginSignature bool `json:"RequirePluginSignature"`
+				} `json:"PluginSettings"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if !payload.PluginSettings.Enable || !payload.PluginSettings.EnableUploads || payload.PluginSettings.RequirePluginSignature {
+				t.Fatalf("plugin settings = %+v", payload.PluginSettings)
+			}
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.enableMattermostPluginUploads(context.Background(), "admin-token"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
 func TestDeleteMattermostAskEphemeralPostSendsPostIdentity(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{StateDirectory: stateDirectory, MattermostBaseURL: "http://mattermost.local"})
