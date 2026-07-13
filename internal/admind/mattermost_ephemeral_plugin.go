@@ -178,13 +178,14 @@ func (service *Service) enableMattermostPluginUploads(ctx context.Context, token
 	if errorValue != nil || enabled {
 		return errorValue
 	}
-	if errorValue := service.enableMattermostPluginUploadsInConfigFile(); errorValue != nil {
-		return errorValue
+	body := map[string]any{
+		"PluginSettings": map[string]any{
+			"Enable":                 true,
+			"EnableUploads":          true,
+			"RequirePluginSignature": false,
+		},
 	}
-	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", "mattermost"); errorValue != nil {
-		return fmt.Errorf("mattermost restart failed: %v: %s", errorValue, strings.TrimSpace(string(output)))
-	}
-	return service.waitForMattermostReady(ctx)
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
 }
 
 func (service *Service) mattermostPluginUploadsEnabled(ctx context.Context, token string) (bool, error) {
@@ -199,31 +200,6 @@ func (service *Service) mattermostPluginUploadsEnabled(ctx context.Context, toke
 	}
 	settings := configuration.PluginSettings
 	return settings.Enable != nil && *settings.Enable && settings.EnableUploads != nil && *settings.EnableUploads, nil
-}
-
-func (service *Service) enableMattermostPluginUploadsInConfigFile() error {
-	path := service.Configuration.MattermostConfigFilePath
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		return errorValue
-	}
-	var configuration map[string]any
-	if errorValue := json.Unmarshal(document, &configuration); errorValue != nil {
-		return errorValue
-	}
-	settings, isMap := configuration["PluginSettings"].(map[string]any)
-	if !isMap {
-		settings = map[string]any{}
-	}
-	settings["Enable"] = true
-	settings["EnableUploads"] = true
-	settings["RequirePluginSignature"] = false
-	configuration["PluginSettings"] = settings
-	updated, errorValue := json.MarshalIndent(configuration, "", "    ")
-	if errorValue != nil {
-		return errorValue
-	}
-	return os.WriteFile(path, append(updated, '\n'), 0o600)
 }
 
 func (service *Service) waitForMattermostReady(ctx context.Context) error {
