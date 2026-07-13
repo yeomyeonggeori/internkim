@@ -105,7 +105,9 @@ describe('internkim mattermost webapp plugin', () => {
 		);
 		expect(tabLabels).toEqual(['업무', '일정', '근태']);
 		const frames = collectElements(tree, (node) => node.type === 'iframe');
-		expect(frames.map((frame) => frame.props.src)).toEqual(['https://poc0-t01.example.test/flow/']);
+		expect(frames.map((frame) => frame.props.src)).toEqual([
+			'https://poc0-t01.example.test/auth/mattermost/start?return=%2Fflow%2F',
+		]);
 		expect(frames[0].props.style.display).toBe('block');
 	});
 
@@ -124,8 +126,8 @@ describe('internkim mattermost webapp plugin', () => {
 			framesBySource[frame.props.src] = frame.props.style.display;
 		}
 		expect(framesBySource).toEqual({
-			'https://poc0-t01.example.test/flow/': 'none',
-			'https://poc0-t01.example.test/calendar/': 'block',
+			'https://poc0-t01.example.test/auth/mattermost/start?return=%2Fflow%2F': 'none',
+			'https://poc0-t01.example.test/auth/mattermost/start?return=%2Fcalendar%2F': 'block',
 		});
 	});
 
