@@ -6,6 +6,18 @@
 		{ key: 'attendance', label: '근태', path: '/attendance/' },
 	];
 
+	function boardBaseURL(location) {
+		const hostMatch = location.hostname?.match(/^poc-(\d+)\.(.+)$/);
+		const teamMatch = location.pathname?.match(/^\/tenant(\d+)(?:\/|$)/);
+		if (!hostMatch || !teamMatch) return '';
+		const tenantNumber = teamMatch[1].padStart(2, '0');
+		return `${location.protocol}//poc${hostMatch[1]}-t${tenantNumber}.${hostMatch[2]}`;
+	}
+
+	function boardURL(view, location) {
+		return `${boardBaseURL(location)}${view.path}`;
+	}
+
 	function createBoardPanel(React) {
 		const panelStyle = {
 			display: 'flex',
@@ -99,7 +111,7 @@
 				'a',
 				{
 					key: 'open-in-browser',
-					href: activeView.path,
+					href: boardURL(activeView, globalScope.location),
 					target: '_blank',
 					rel: 'noopener noreferrer',
 					style: openInBrowserStyle,
@@ -115,7 +127,7 @@
 				.map(function renderFrame(view) {
 					return React.createElement('iframe', {
 						key: view.key,
-						src: view.path,
+						src: boardURL(view, globalScope.location),
 						title: view.label,
 						style: frameStyle(view.key === activeViewKey),
 					});

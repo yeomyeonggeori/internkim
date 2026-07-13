@@ -171,9 +171,15 @@ test.describe('attendance team status', () => {
 		const todayDate = todayDateInSeoul();
 		await page.goto('/attendance');
 		await selectKorean(page);
-		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
+		const targetCell = page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`);
+		await targetCell.hover();
+		await expect(page.locator('[data-slot="tooltip-content"]')).toBeVisible();
+		await targetCell.click();
 
 		const dialog = page.getByTestId('team-status-day-detail-dialog');
+		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
+		await expect(dialog).toBeVisible();
+		await expect(dialog).toHaveCSS('z-index', '51');
 		const segments = dialog.getByTestId('team-status-day-segment');
 		await expect(dialog.locator('[data-slot="sheet-header"]').getByText('김철수', { exact: true })).toBeVisible();
 		await expect(dialog.getByRole('heading', { name: /2026/ })).toBeVisible();
