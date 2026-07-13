@@ -192,14 +192,20 @@ func syncMigrations(target deployops.Target, repositoryRootPath string, temporar
 }
 
 func syncPocContainerRuntimeScripts(target deployops.Target, repositoryRootPath string) error {
-	for _, scriptName := range []string{"start-poc.py", "restart-tunnel.py"} {
-		localPath := filepath.Join(repositoryRootPath, "poc", scriptName)
-		remotePath := path.Join(target.Workdir, scriptName)
+	pathsToSync := map[string]string{
+		filepath.Join("poc", "start-poc.py"):            "start-poc.py",
+		filepath.Join("poc", "restart-tunnel.py"):       "restart-tunnel.py",
+		filepath.Join("poc", "tenant", "Dockerfile"):    filepath.Join("tenant", "Dockerfile"),
+		filepath.Join("poc", "tenant", "entrypoint.sh"): filepath.Join("tenant", "entrypoint.sh"),
+	}
+	for localRelativePath, remoteRelativePath := range pathsToSync {
+		localPath := filepath.Join(repositoryRootPath, localRelativePath)
+		remotePath := path.Join(target.Workdir, remoteRelativePath)
 		if errorValue := scpToTarget(target, localPath, remotePath); errorValue != nil {
 			return errorValue
 		}
 	}
-	return runRemote(target, "chmod +x start-poc.py restart-tunnel.py")
+	return runRemote(target, "chmod +x start-poc.py restart-tunnel.py tenant/entrypoint.sh")
 }
 
 func recreatePocContainer(target deployops.Target) error {
