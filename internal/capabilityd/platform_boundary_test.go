@@ -2178,7 +2178,7 @@ func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing
 	}
 }
 
-func TestMattermostImportAttachmentsReusesExistingFile(t *testing.T) {
+func TestMattermostImportAttachmentsVerifiesExistingFileContent(t *testing.T) {
 	workspacePath := t.TempDir()
 	downloadCount := 0
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -2219,8 +2219,8 @@ func TestMattermostImportAttachmentsReusesExistingFile(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected second import to succeed: %v", errorValue)
 	}
-	if downloadCount != 1 {
-		t.Fatalf("expected one download, got %d", downloadCount)
+	if downloadCount != 2 {
+		t.Fatalf("expected each import to verify downloaded content, got %d downloads", downloadCount)
 	}
 	if len(firstResponse.InputAttachments) != 1 || len(secondResponse.InputAttachments) != 1 {
 		t.Fatalf("expected imported attachments, got first=%+v second=%+v", firstResponse.InputAttachments, secondResponse.InputAttachments)
