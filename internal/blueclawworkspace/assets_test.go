@@ -443,6 +443,8 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	for _, expectedText := range []string{
 		"latest compatible artifact in recent same-conversation posts",
 		"older PDF or Markdown files are supporting material",
+		"work only in `artifacts/<deck-slug>/`",
+		"`slides.html` as the canonical controller-free source",
 		"restore_source.py",
 		"targeted `file.edit`",
 		"never reconstruct an existing deck with whole-file `file.write`",
@@ -454,6 +456,12 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	}
 	if strings.Contains(content, "rewrite the file with `file.write` instead of retrying") {
 		t.Fatal("presentation revision workflow must not replace an existing deck after a missed edit")
+	}
+	if strings.Contains(content, "verified wholesale replacement") {
+		t.Fatal("presentation workflow must not leave a whole-file replacement exception for existing decks")
+	}
+	if strings.Contains(content, "tmp/<deck-slug>") {
+		t.Fatal("presentation workflow must keep source and build output in one persistent artifact workspace")
 	}
 }
 
@@ -498,7 +506,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 	scriptPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "scripts", "restore_source.py")
 	temporaryPath := t.TempDir()
 	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
-	sourcePath := filepath.Join(temporaryPath, "slides.html")
+	sourcePath := filepath.Join(temporaryPath, "artifacts", "deck", "slides.html")
 	deliveredHTML := "<html><head><style data-internkim-slide-viewer>viewer</style></head><body><section>Editable</section><script data-internkim-slide-viewer>controller</script></body></html>"
 	if errorValue := os.WriteFile(deliveredPath, []byte(deliveredHTML), 0600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -732,7 +740,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.deliver", "tmp/<deck-slug>/build/<deck-slug>.html", "tmp/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file.deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}
