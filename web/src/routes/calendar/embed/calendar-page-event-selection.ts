@@ -1,5 +1,5 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
-import { isNestedEmbeddedFrame, openDetailWindow } from '$lib/embedded';
+import { isEmbeddedFrame, openDetailWindow } from '$lib/embedded';
 import { clearFocusedCalendarEventElements, focusCalendarEventElement } from './calendar-event-elements';
 
 type CalendarPageEventSelectionCalendar = {
@@ -32,7 +32,7 @@ export function createCalendarPageEventSelection(
 	context: CalendarPageEventSelectionContext
 ): CalendarPageEventSelectionActions {
 	function selectCalendarEvent(eventID: string): void {
-		if (isNestedEmbeddedFrame) {
+		if (isEmbeddedFrame()) {
 			const event = context.calendar.app.getAllEvents().find((candidate) => candidate.id === eventID);
 			if (event) {
 				openEventInNewWindow(event);
