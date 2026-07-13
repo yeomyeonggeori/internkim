@@ -15,6 +15,7 @@ BASE = os.path.expanduser('~/internkim-poc')
 NETWORK = 'internkim-poc'
 TENANT_IMAGE = os.environ.get('TENANT_IMAGE', 'internkim-poc-tenant:flow')
 FALLBACK_TENANT_COUNT = 10
+DEFAULT_WORKSPACE_SETTINGS = {'timeZone': 'Asia/Seoul', 'language': 'ko'}
 
 
 def run(cmd, check=True):
@@ -42,6 +43,31 @@ def patch_ips_in_configs(pg_ip, mm_ip):
             print(f'Patched IPs in {tenant}/runtime.json')
 
 
+def initialize_workspace_settings(workspace):
+    state_directory = os.path.join(workspace, '.admind', 'state')
+    settings_path = os.path.join(state_directory, 'workspace-settings.json')
+    os.makedirs(state_directory, exist_ok=True)
+    try:
+        descriptor = os.open(settings_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return
+    with os.fdopen(descriptor, 'w') as settings_file:
+        json.dump(DEFAULT_WORKSPACE_SETTINGS, settings_file, ensure_ascii=False, indent=2)
+        settings_file.write('\n')
+
+
+def migrate_flow_database(name, workspace):
+    source_path = '/root/.internkim/state/flow.sqlite'
+    destination_path = os.path.join(workspace, '.admind', 'flow.sqlite')
+    if os.path.exists(destination_path):
+        return
+    source_exists = subprocess.run([CONTAINER, 'exec', name, 'test', '-f', source_path]).returncode == 0
+    if not source_exists:
+        return
+    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+    subprocess.run([CONTAINER, 'cp', f'{name}:{source_path}', destination_path], check=True)
+
+
 def start_tenant(n, pg_ip, mm_ip):
     name = f'poc-tenant-{n:02d}'
     tenant_id = f'tenant_{n:02d}'
@@ -51,9 +77,11 @@ def start_tenant(n, pg_ip, mm_ip):
     workspace = os.path.join(BASE, 'workspace', tenant_id)
     openrouter = os.path.join(BASE, 'secrets', 'openrouter-key')
     os.makedirs(workspace, exist_ok=True)
+    initialize_workspace_settings(workspace)
 
     existing = run([CONTAINER, 'inspect', name], check=False)
     if existing:
+        migrate_flow_database(name, workspace)
         run([CONTAINER, 'stop', name], check=False)
         run([CONTAINER, 'rm', name], check=False)
 
