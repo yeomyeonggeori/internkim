@@ -47,7 +47,7 @@ export async function fetchCalendarEvents(startDate: Date, endDate: Date, errorF
 	const response = await fetch(`/calendar/api/events?${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 	const document = (await response.json()) as CalendarEventsResponse;
-	return document.events;
+	return document.events ?? [];
 }
 
 export async function writeCalendarEvent(
