@@ -66,11 +66,11 @@
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
 		<div class="flex h-svh w-full bg-background text-foreground">
-			{#if !isEmbeddedFrame}
+			{#if !isEmbeddedFrame()}
 				<AppRail />
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
-				{#if !isEmbeddedFrame}
+				{#if !isEmbeddedFrame()}
 					<header data-app-chrome class="internkim-app-header">
 						<a
 							href="/admin/"

@@ -15,6 +15,7 @@ RUN chmod 0755 /usr/local/bin/internkim-capabilityd /usr/local/bin/blueclaw /usr
 
 COPY migrations /opt/blueclaw/migrations
 COPY board-ui /opt/internkim/board-ui
+COPY mattermost-plugins /opt/internkim/mattermost-plugins
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh \
     && mkdir -p /run/internkim /workspace /etc/blueclaw /secrets /workspace/.admind/state \

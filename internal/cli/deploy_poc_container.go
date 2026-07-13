@@ -76,6 +76,8 @@ func deployPocContainerComponent(target deployops.Target, repositoryRootPath str
 		return syncPocContainerBlueclaw(target, repositoryRootPath, temporaryDirectoryPath)
 	case "web":
 		return syncBoardUI(target, repositoryRootPath, temporaryDirectoryPath)
+	case "mattermostPlugins":
+		return syncPocContainerMattermostPlugins(target, repositoryRootPath, temporaryDirectoryPath)
 	case "skills":
 		return syncPocContainerSkills(target, repositoryRootPath, temporaryDirectoryPath)
 	default:
@@ -154,6 +156,24 @@ func syncBoardUI(target deployops.Target, repositoryRootPath string, temporaryDi
 	))
 }
 
+func syncPocContainerMattermostPlugins(target deployops.Target, repositoryRootPath string, temporaryDirectoryPath string) error {
+	if errorValue := runPocCommand(repositoryRootPath, nil, "make", "build-mattermost-ephemeral-plugin"); errorValue != nil {
+		return errorValue
+	}
+	archivePath := filepath.Join(temporaryDirectoryPath, "mattermost-plugins.tar")
+	if errorValue := runPocCommand(repositoryRootPath, nil, "tar", "-C", filepath.Join(repositoryRootPath, "build"), "-cf", archivePath, "mattermost-plugins"); errorValue != nil {
+		return errorValue
+	}
+	remoteArchivePath := path.Join("/tmp", filepath.Base(archivePath))
+	if errorValue := scpToTarget(target, archivePath, remoteArchivePath); errorValue != nil {
+		return errorValue
+	}
+	return runRemote(target, fmt.Sprintf(
+		"rm -rf tenant/mattermost-plugins && tar -C tenant -xf %s && rm -f %s",
+		quoteShellValue(remoteArchivePath),
+		quoteShellValue(remoteArchivePath),
+	))
+}
 func syncMigrations(target deployops.Target, repositoryRootPath string, temporaryDirectoryPath string) error {
 	archivePath := filepath.Join(temporaryDirectoryPath, "migrations.tar")
 	blueclawRootPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
@@ -233,6 +253,7 @@ func pocContainerOverlayDockerfile(baseImageTag string) string {
 		"COPY --chmod=0755 bin/internkim-admind /usr/local/bin/internkim-admind\n" +
 		"COPY migrations /opt/blueclaw/migrations\n" +
 		"COPY board-ui /opt/internkim/board-ui\n" +
+		"COPY mattermost-plugins /opt/internkim/mattermost-plugins\n" +
 		"COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh\n"
 }
 
@@ -308,7 +329,7 @@ func redactPocCommandArguments(arguments []string) []string {
 func selectedPocContainerComponents(arguments []string) ([]string, error) {
 	value := strings.TrimSpace(commandArgumentValue(arguments, "--components", ""))
 	if value == "" {
-		return []string{"admind", "capabilityd", "blueclaw", "web", "skills"}, nil
+		return []string{"admind", "capabilityd", "blueclaw", "web", "mattermostPlugins", "skills"}, nil
 	}
 	components, errorValue := normalizePocContainerComponents(strings.Split(value, ","))
 	if errorValue != nil {
@@ -360,7 +381,7 @@ func normalizePocContainerComponent(componentName string) (string, error) {
 	switch strings.TrimSpace(componentName) {
 	case "":
 		return "", nil
-	case "admind", "capabilityd", "blueclaw", "web", "skills":
+	case "admind", "capabilityd", "blueclaw", "web", "mattermostPlugins", "skills":
 		return strings.TrimSpace(componentName), nil
 	case "adminWeb", "admin-web":
 		return "web", nil
