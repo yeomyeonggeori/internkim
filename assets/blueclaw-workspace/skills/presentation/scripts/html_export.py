@@ -26,6 +26,10 @@ DEFAULT_NATIVE_COLORS = {
     "accent": "0F766E",
     "line": "CBD5E1",
 }
+SLIDE_VIEWER_BLOCK_PATTERNS = (
+    r"\s*<style\b(?=[^>]*\bdata-internkim-slide-viewer\b)[^>]*>.*?</style>\s*",
+    r"\s*<script\b(?=[^>]*\bdata-internkim-slide-viewer\b)[^>]*>.*?</script>\s*",
+)
 
 
 @dataclass(frozen=True)
@@ -207,9 +211,15 @@ def vendored_paperlogy_fallback_style() -> str:
     return '<style data-internkim-vendored-fonts>' + "\n".join(rules) + "</style>"
 
 
+def strip_screen_slide_viewer(source_text: str) -> str:
+    stripped_text = source_text
+    for block_pattern in SLIDE_VIEWER_BLOCK_PATTERNS:
+        stripped_text = re.sub(block_pattern, "", stripped_text, flags=re.IGNORECASE | re.DOTALL)
+    return stripped_text
+
+
 def inject_screen_slide_viewer(source_text: str) -> str:
-    if "data-internkim-slide-viewer" in source_text:
-        return source_text
+    source_text = strip_screen_slide_viewer(source_text)
     viewer_style = """
 <style data-internkim-slide-viewer>
 section aside.notes, section aside[role="note"], section [data-speaker-notes] { display: none !important; }
@@ -659,9 +669,11 @@ section aside.notes, section aside[role="note"], section [data-speaker-notes] { 
 })();
 </script>
 """.strip()
-    if "</head>" in source_text.lower():
-        return re.sub(r"</head>", lambda _: viewer_style + "\n</head>", source_text, count=1, flags=re.IGNORECASE)
-    return viewer_style + "\n" + source_text
+    head_match = re.search(r"</head>", source_text, flags=re.IGNORECASE)
+    if head_match:
+        prefix = source_text[:head_match.start()].rstrip()
+        return prefix + "\n" + viewer_style + "\n" + source_text[head_match.start():]
+    return viewer_style + "\n" + source_text.lstrip()
 
 
 def inline_local_images(source_text: str, base_path: pathlib.Path) -> str:

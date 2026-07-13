@@ -2,6 +2,7 @@ package blueclawworkspace
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -428,6 +429,92 @@ func TestPresentationBundlesPackageManifest(t *testing.T) {
 	}
 	if strings.Contains(packageContent, "@marp-team/marp-cli") {
 		t.Fatal("presentation package manifest must not include Marp CLI")
+	}
+}
+
+func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md")
+	document, errorValue := os.ReadFile(documentPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"latest compatible artifact in recent same-conversation posts",
+		"older PDF or Markdown files are supporting material",
+		"restore_source.py",
+		"targeted `file.edit`",
+		"never reconstruct an existing deck with whole-file `file.write`",
+		"same slug",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("presentation revision workflow must document %q", expectedText)
+		}
+	}
+	if strings.Contains(content, "rewrite the file with `file.write` instead of retrying") {
+		t.Fatal("presentation revision workflow must not replace an existing deck after a missed edit")
+	}
+}
+
+func TestPresentationExporterNormalizesSlideViewer(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	scriptPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "scripts", "html_export.py")
+	testProgram := `
+import runpy
+import sys
+
+namespace = runpy.run_path(sys.argv[1])
+inject = namespace["inject_screen_slide_viewer"]
+strip = namespace["strip_screen_slide_viewer"]
+source = "<html><head><title>Deck</title></head><body><section>Keep me</section></body></html>"
+first = inject(source)
+assert first.count("<style data-internkim-slide-viewer>") == 1
+assert first.count("<script data-internkim-slide-viewer>") == 1
+assert inject(first) == first
+partial = source.replace("</head>", "<style data-internkim-slide-viewer>stale</style></head>")
+normalized = inject(partial)
+assert "stale" not in normalized
+assert normalized.count("<style data-internkim-slide-viewer>") == 1
+assert normalized.count("<script data-internkim-slide-viewer>") == 1
+duplicate = normalized.replace("</head>", "<script data-internkim-slide-viewer>duplicate</script></head>")
+deduplicated = inject(duplicate)
+assert "duplicate" not in deduplicated
+assert deduplicated.count("<style data-internkim-slide-viewer>") == 1
+assert deduplicated.count("<script data-internkim-slide-viewer>") == 1
+stripped = strip(normalized)
+assert "data-internkim-slide-viewer" not in stripped
+assert "<section>Keep me</section>" in stripped
+`
+	command := exec.Command("python3", "-c", testProgram, scriptPath)
+	commandOutput, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		t.Fatalf("presentation viewer normalization failed: %v\n%s", errorValue, commandOutput)
+	}
+}
+
+func TestPresentationRestoresControllerFreeSource(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	scriptPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "scripts", "restore_source.py")
+	temporaryPath := t.TempDir()
+	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
+	sourcePath := filepath.Join(temporaryPath, "slides.html")
+	deliveredHTML := "<html><head><style data-internkim-slide-viewer>viewer</style></head><body><section>Editable</section><script data-internkim-slide-viewer>controller</script></body></html>"
+	if errorValue := os.WriteFile(deliveredPath, []byte(deliveredHTML), 0600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	command := exec.Command("python3", scriptPath, deliveredPath, sourcePath)
+	commandOutput, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		t.Fatalf("presentation source restoration failed: %v\n%s", errorValue, commandOutput)
+	}
+	restoredDocument, errorValue := os.ReadFile(sourcePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	restoredContent := string(restoredDocument)
+	if strings.Contains(restoredContent, "data-internkim-slide-viewer") || !strings.Contains(restoredContent, "<section>Editable</section>") {
+		t.Fatalf("expected controller-free editable source, got %s", restoredContent)
 	}
 }
 
