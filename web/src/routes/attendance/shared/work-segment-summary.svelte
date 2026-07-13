@@ -1,5 +1,6 @@
 <script lang="ts">
 	import TimeRangeText from '$lib/components/time-range-text.svelte';
+	import { formatLocalTime } from './attendance-format';
 	import DurationText from './duration-text.svelte';
 
 	type Props = {
@@ -19,6 +20,9 @@
 		durationMinutes,
 		isOpen
 	}: Props = $props();
+
+	const displayStartTime = $derived(formatLocalTime(startTime));
+	const displayEndTime = $derived(formatLocalTime(endTime));
 </script>
 
 <div class="grid min-w-0 gap-0.5" data-slot="work-segment-summary">
@@ -40,8 +44,8 @@
 		/>
 	</div>
 	<TimeRangeText
-		{startTime}
-		{endTime}
+		startTime={displayStartTime}
+		endTime={displayEndTime}
 		size="extraSmall"
 		tone="muted"
 		endTone={isOpen ? 'info' : 'inherit'}

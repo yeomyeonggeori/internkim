@@ -21,6 +21,13 @@ export function padDurationNumber(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
+export function formatLocalTime(localTime: string): string {
+	const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(localTime);
+	if (!match) return localTime;
+	const [, hours, minutes] = match;
+	return `${hours}:${minutes}`;
+}
+
 export function formatTimeOfDay(minutesSinceMidnight: number): string {
 	const hh = Math.floor(minutesSinceMidnight / 60) % 24;
 	const mm = Math.round(minutesSinceMidnight % 60);

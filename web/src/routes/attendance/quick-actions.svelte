@@ -12,7 +12,7 @@
 	import { getAttendanceState, type AttendanceKind } from './attendance-context.svelte';
 	import { computeDayEvents, statusForDay, type AttendanceWorkSegment } from './shared/attendance-aggregation';
 	import { timeInTimeZone, todayDateInTimeZone } from './shared/attendance-date';
-	import { formatHoursMinutes } from './shared/attendance-format';
+	import { formatHoursMinutes, formatLocalTime } from './shared/attendance-format';
 	import { dayWidthPercent } from './shared/day-timeline';
 	import DurationText from './shared/duration-text.svelte';
 	import LocationLabel from './shared/location-label.svelte';
@@ -147,14 +147,14 @@
 		{/if}
 		{#if todayDay.clockIn}
 			<div class="flex min-w-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">
-				<span class="flex items-center gap-1">
+				<span class="flex items-center gap-1" data-testid="quick-actions-clock-in-time">
 					<LogInIcon class="size-3" />
-					{todayDay.clockIn.localTime}
+					{formatLocalTime(todayDay.clockIn.localTime)}
 				</span>
 				{#if todayDay.clockOut && status !== 'working'}
 					<span class="flex items-center gap-1">
 						<LogOutIcon class="size-3" />
-						{todayDay.clockOut.localTime}
+						{formatLocalTime(todayDay.clockOut.localTime)}
 					</span>
 				{/if}
 			</div>
