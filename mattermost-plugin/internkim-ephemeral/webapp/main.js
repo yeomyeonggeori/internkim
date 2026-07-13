@@ -18,6 +18,12 @@
 		return `${boardBaseURL(location)}${view.path}`;
 	}
 
+	function boardFrameURL(view, location) {
+		const baseURL = boardBaseURL(location);
+		if (!baseURL) return boardURL(view, location);
+		return `${baseURL}/auth/mattermost/start?return=${encodeURIComponent(view.path)}`;
+	}
+
 	function createBoardPanel(React) {
 		const panelStyle = {
 			display: 'flex',
@@ -127,7 +133,7 @@
 				.map(function renderFrame(view) {
 					return React.createElement('iframe', {
 						key: view.key,
-						src: boardURL(view, globalScope.location),
+						src: boardFrameURL(view, globalScope.location),
 						title: view.label,
 						style: frameStyle(view.key === activeViewKey),
 					});
