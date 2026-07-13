@@ -2,7 +2,6 @@
 name: presentation
 description: Generate HTML-first presentation slides and attach requested HTML, PDF, or PPTX files. Also validates existing .pptx files. Use for decks, presentations, pitch decks, research summaries, stakeholder reports, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
 when_to_use: Use for slides, decks, presentations, PPT/PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표자료, 프레젠테이션, 파워포인트, or 피피티 requests, including validation of empty slides, missing titles, or leftover default fonts.
-recommendedMinutes: 60
 completion:
   requiredEvidenceTools:
     - file.deliver
@@ -15,7 +14,7 @@ Create a useful, visually strong deck and attach the requested files. HTML-first
 ## Workflow
 
 1. Decide the requested format and slide spine before writing files.
-2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
+2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
 3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
 4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks their substance; they must not delay the primary source file.
 5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`. HTML is the source of truth for every format: iterate with the default command, which builds and reviews the HTML each time.

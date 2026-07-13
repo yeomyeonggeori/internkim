@@ -147,6 +147,9 @@ func (service Service) importMattermostAttachment(ctx context.Context, target ma
 	if errorValue != nil {
 		return unavailableMattermostAttachment(attachment, fallbackMessageID, "metadata_fetch_failed", errorValue.Error())
 	}
+	if importedAttachment, isFound := reusableMattermostImportedAttachment(target, usedFilenames, fallbackMessageID, attachment, metadata); isFound {
+		return importedAttachment
+	}
 	download, errorValue := service.downloadMattermostAttachment(ctx, fileID)
 	if errorValue != nil {
 		return unavailableMattermostAttachment(withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID), fallbackMessageID, "download_failed", errorValue.Error())
@@ -192,6 +195,21 @@ func existingAttachmentByContent(hostDirectoryPath string, content []byte) (stri
 		}
 	}
 	return "", false
+}
+
+func reusableMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata) (platformInputAttachment, bool) {
+	filename := mattermostImportFilename(attachment, metadata)
+	if usedFilenames[filename] || metadata.SizeBytes <= 0 {
+		return platformInputAttachment{}, false
+	}
+	hostPath := filepath.Join(target.HostDirectoryPath, filename)
+	fileInformation, errorValue := os.Stat(hostPath)
+	if errorValue != nil || !fileInformation.Mode().IsRegular() || fileInformation.Size() != metadata.SizeBytes {
+		return platformInputAttachment{}, false
+	}
+	usedFilenames[filename] = true
+	attachment = withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID)
+	return withMattermostImportedAttachmentPath(target, attachment, metadata.ContentType, metadata.SizeBytes, filename), true
 }
 
 func withMattermostImportedAttachmentPath(target mattermostAttachmentImportTarget, attachment platformInputAttachment, contentType string, sizeBytes int64, filename string) platformInputAttachment {
