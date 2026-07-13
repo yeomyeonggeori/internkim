@@ -425,12 +425,12 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 		return
 	}
 	go func() {
+		service.ensureMattermostEphemeralPluginWithRetry(ctx)
 		syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
 		}
-		service.ensureMattermostEphemeralPluginWithRetry(ctx)
 	}()
 }
 
