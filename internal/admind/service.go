@@ -560,6 +560,10 @@ func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler
 			}
 			return
 		}
+		if service.isMattermostFlowOrCalendarPostCreateRequest(request) {
+			http.Error(responseWriter, "managed channel is read-only", http.StatusBadRequest)
+			return
+		}
 		if !service.isMattermostManagedPostCreateRequest(request) {
 			next.ServeHTTP(responseWriter, request)
 			return
@@ -589,21 +593,32 @@ func (service *Service) deleteCreatedMattermostPost(ctx context.Context, respons
 	return service.deleteMattermostPost(ctx, adminToken, mattermostCreatedPostID(responseBody))
 }
 
+func (service *Service) isMattermostFlowOrCalendarPostCreateRequest(request *http.Request) bool {
+	return service.isMattermostPostCreateRequestForChannels(request, []string{
+		readTrimmedFile(service.mattermostFlowChannelIDPath()),
+		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
+	})
+}
+
 func (service *Service) isMattermostManagedPostCreateRequest(request *http.Request) bool {
-	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
-		return false
-	}
-	channelIDs := map[string]bool{}
-	for _, channelID := range []string{
+	return service.isMattermostPostCreateRequestForChannels(request, []string{
 		readTrimmedFile(service.mattermostFlowChannelIDPath()),
 		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
 		readTrimmedFile(service.mattermostAttendanceChannelIDPath()),
-	} {
+	})
+}
+
+func (service *Service) isMattermostPostCreateRequestForChannels(request *http.Request, channelIDs []string) bool {
+	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
+		return false
+	}
+	allowedChannelIDs := map[string]bool{}
+	for _, channelID := range channelIDs {
 		if trimmedChannelID := strings.TrimSpace(channelID); trimmedChannelID != "" {
-			channelIDs[trimmedChannelID] = true
+			allowedChannelIDs[trimmedChannelID] = true
 		}
 	}
-	if len(channelIDs) == 0 {
+	if len(allowedChannelIDs) == 0 {
 		return false
 	}
 	document, errorValue := io.ReadAll(request.Body)
@@ -617,7 +632,7 @@ func (service *Service) isMattermostManagedPostCreateRequest(request *http.Reque
 	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		return false
 	}
-	return channelIDs[strings.TrimSpace(payload.ChannelID)]
+	return allowedChannelIDs[strings.TrimSpace(payload.ChannelID)]
 }
 
 func (service *Service) attendancePostDeleteSync(next http.Handler) http.Handler {

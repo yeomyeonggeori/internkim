@@ -17,6 +17,7 @@ const pluginID = "com.internkim.ephemeral"
 const defaultRuntimeHealthURL = "http://127.0.0.1:8080/admin/api/health"
 const defaultBotUsername = "internkim"
 const unavailableNoticeProperty = "internkim_unavailable_notice"
+const managedChannelPostRejectionMessage = "This channel is managed by InternKim. Use Flow or Calendar to make changes."
 
 type configuration struct {
 	Secret           string `json:"secret"`
@@ -62,6 +63,13 @@ type deleteEphemeralRequest struct {
 
 func main() {
 	plugin.ClientMain(&Plugin{})
+}
+
+func (pluginValue *Plugin) MessageWillBePosted(_ *plugin.Context, post *model.Post) (*model.Post, string) {
+	if !pluginValue.shouldRejectManagedChannelPost(post) {
+		return nil, ""
+	}
+	return nil, managedChannelPostRejectionMessage
 }
 
 func (pluginValue *Plugin) MessageHasBeenPosted(_ *plugin.Context, post *model.Post) {
@@ -138,6 +146,30 @@ func (pluginValue *Plugin) runtimeHealthHTTPClient() runtimeHealthHTTPClient {
 		return pluginValue.healthClient
 	}
 	return http.DefaultClient
+}
+
+func (pluginValue *Plugin) shouldRejectManagedChannelPost(post *model.Post) bool {
+	if !pluginValue.shouldHandlePost(post) {
+		return false
+	}
+	botUser := pluginValue.botUser()
+	if botUser != nil && post.UserId == botUser.Id {
+		return false
+	}
+	channel, appError := pluginValue.API.GetChannel(post.ChannelId)
+	if appError != nil || channel == nil {
+		return false
+	}
+	return isManagedChannelName(channel.Name)
+}
+
+func isManagedChannelName(channelName string) bool {
+	switch strings.ToLower(strings.TrimSpace(channelName)) {
+	case "flow", "calendar":
+		return true
+	default:
+		return false
+	}
 }
 
 func (pluginValue *Plugin) shouldHandlePost(post *model.Post) bool {
