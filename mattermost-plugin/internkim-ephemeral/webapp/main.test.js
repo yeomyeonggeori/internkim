@@ -45,7 +45,11 @@ function collectElements(node, predicate, results = []) {
 const pluginRegistration = {};
 globalThis.window = {
 	React: { createElement, useState },
-	location: { pathname: '/internkim/channels/town-square' },
+	location: {
+		protocol: 'https:',
+		hostname: 'poc-0.intern.kim',
+		pathname: '/tenant01/channels/town-square',
+	},
 	registerPlugin(id, plugin) {
 		pluginRegistration.id = id;
 		pluginRegistration.plugin = plugin;
@@ -101,7 +105,7 @@ describe('internkim mattermost webapp plugin', () => {
 		);
 		expect(tabLabels).toEqual(['업무', '일정', '근태']);
 		const frames = collectElements(tree, (node) => node.type === 'iframe');
-		expect(frames.map((frame) => frame.props.src)).toEqual(['/flow/']);
+		expect(frames.map((frame) => frame.props.src)).toEqual(['https://poc0-t01.intern.kim/flow/']);
 		expect(frames[0].props.style.display).toBe('block');
 	});
 
@@ -119,7 +123,10 @@ describe('internkim mattermost webapp plugin', () => {
 		for (const frame of collectElements(secondTree, (node) => node.type === 'iframe')) {
 			framesBySource[frame.props.src] = frame.props.style.display;
 		}
-		expect(framesBySource).toEqual({ '/flow/': 'none', '/calendar/': 'block' });
+		expect(framesBySource).toEqual({
+			'https://poc0-t01.intern.kim/flow/': 'none',
+			'https://poc0-t01.intern.kim/calendar/': 'block',
+		});
 	});
 
 	test('links only to the browser view for the active tab', () => {
@@ -127,8 +134,18 @@ describe('internkim mattermost webapp plugin', () => {
 		const { registered } = initializePlugin();
 		const tree = renderComponent(registered.sidebar.component);
 		const links = collectElements(tree, (node) => node.type === 'a');
-		expect(links.map((link) => link.props.href)).toEqual(['/flow/']);
+		expect(links.map((link) => link.props.href)).toEqual(['https://poc0-t01.intern.kim/flow/']);
 		expect(links[0].props.target).toBe('_blank');
+	});
+
+	test('keeps relative board URLs outside the PoC tenant route', () => {
+		resetHookStates();
+		window.location.pathname = '/login';
+		const { registered } = initializePlugin();
+		const tree = renderComponent(registered.sidebar.component);
+		const frame = collectElements(tree, (node) => node.type === 'iframe')[0];
+		expect(frame.props.src).toBe('/flow/');
+		window.location.pathname = '/tenant01/channels/town-square';
 	});
 
 	test('does not register a fullscreen team route', () => {

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	_ "time/tzdata"
 
 	"gitlab.com/eastriver/internkim/internal/admind"
 )
