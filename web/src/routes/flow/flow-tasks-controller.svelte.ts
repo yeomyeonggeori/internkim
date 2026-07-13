@@ -124,7 +124,7 @@ class FlowTasksController {
 	statusLabel = (status: string): string => flowTaskStatusLabel(this.text, status);
 
 	openTask = (task: FlowTask): void => {
-		if (isEmbeddedFrame) {
+		if (isEmbeddedFrame()) {
 			openTaskInNewWindow(task.id);
 			return;
 		}

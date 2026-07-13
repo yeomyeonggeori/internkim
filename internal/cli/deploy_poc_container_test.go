@@ -12,7 +12,7 @@ func TestSelectedPocContainerComponentsDefaultsToFullTenantSet(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedComponents := []string{"admind", "capabilityd", "blueclaw", "web", "skills"}
+	expectedComponents := []string{"admind", "capabilityd", "blueclaw", "web", "mattermostPlugins", "skills"}
 	if strings.Join(components, ",") != strings.Join(expectedComponents, ",") {
 		t.Fatalf("components = %v, want %v", components, expectedComponents)
 	}
@@ -58,6 +58,22 @@ func TestNormalizePocContainerComponentAcceptsSkills(t *testing.T) {
 	}
 }
 
+func TestNormalizePocContainerComponentAcceptsMattermostPlugins(t *testing.T) {
+	component, errorValue := normalizePocContainerComponent("mattermostPlugins")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if component != "mattermostPlugins" {
+		t.Fatalf("component = %q, want mattermostPlugins", component)
+	}
+}
+
+func TestPocContainerOverlayDockerfileCopiesMattermostPlugins(t *testing.T) {
+	overlayDocument := pocContainerOverlayDockerfile("internkim-poc-tenant:base-before-deploy")
+	if !strings.Contains(overlayDocument, "COPY mattermost-plugins /opt/internkim/mattermost-plugins") {
+		t.Fatalf("overlay missing Mattermost plugin copy:\n%s", overlayDocument)
+	}
+}
 func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {
 	target := deployops.Target{ImageTag: "internkim-poc-tenant:flow"}
 	command := pocContainerRecreateCommand(target)
