@@ -173,6 +173,7 @@
 	}
 
 	function openDayDetail(row: TeamStatusPersonRow, day: TeamStatusPersonDay): void {
+		openDayTooltipKey = null;
 		selectedDetailKey = { email: row.email, date: day.date };
 		isDetailOpen = true;
 		const firstDate = statusDates[0];
