@@ -335,25 +335,25 @@ func selectedPocContainerComponents(arguments []string) ([]string, error) {
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return pocContainerComponentsWithSkills(components), nil
+	return pocContainerCoupledComponents(components), nil
 }
 
-// pocContainerComponentsWithSkills keeps the Blueclaw binary and its skills in
-// lockstep, mirroring the release path: deploying the agent without its skills
-// silently leaves the tenant on stale skills.
-func pocContainerComponentsWithSkills(components []string) []string {
+func pocContainerCoupledComponents(components []string) []string {
 	hasBlueclaw := false
 	hasSkills := false
+	hasWeb := false
+	hasMattermostPlugins := false
 	for _, component := range components {
-		if component == "blueclaw" {
-			hasBlueclaw = true
-		}
-		if component == "skills" {
-			hasSkills = true
-		}
+		hasBlueclaw = hasBlueclaw || component == "blueclaw"
+		hasSkills = hasSkills || component == "skills"
+		hasWeb = hasWeb || component == "web"
+		hasMattermostPlugins = hasMattermostPlugins || component == "mattermostPlugins"
 	}
 	if hasBlueclaw && !hasSkills {
-		return append(components, "skills")
+		components = append(components, "skills")
+	}
+	if hasWeb && !hasMattermostPlugins {
+		components = append(components, "mattermostPlugins")
 	}
 	return components
 }

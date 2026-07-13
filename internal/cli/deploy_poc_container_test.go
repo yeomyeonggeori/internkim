@@ -29,12 +29,22 @@ func TestSelectedPocContainerComponentsCouplesSkillsWithBlueclaw(t *testing.T) {
 }
 
 func TestSelectedPocContainerComponentsLeavesNonBlueclawUntouched(t *testing.T) {
-	components, errorValue := selectedPocContainerComponents([]string{"--components", "web,admind"})
+	components, errorValue := selectedPocContainerComponents([]string{"--components", "admind"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if strings.Join(components, ",") != "web,admind" {
-		t.Fatalf("components = %v, want web,admind without skills", components)
+	if strings.Join(components, ",") != "admind" {
+		t.Fatalf("components = %v, want admind", components)
+	}
+}
+
+func TestSelectedPocContainerComponentsCouplesMattermostPluginsWithWeb(t *testing.T) {
+	components, errorValue := selectedPocContainerComponents([]string{"--components", "web"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Join(components, ",") != "web,mattermostPlugins" {
+		t.Fatalf("components = %v, want web with Mattermost plugins coupled", components)
 	}
 }
 
