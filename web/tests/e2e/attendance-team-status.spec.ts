@@ -125,8 +125,8 @@ test.describe('attendance team status', () => {
 		await expect(tooltip.getByText('재택')).toBeVisible();
 		await expect(tooltip.getByLabel('08:30-10:20')).toBeVisible();
 
-		await page.getByTestId(`team-status-cell-lee@example.com-${todayDate}`).hover();
-		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(1);
+		await todayCell.click();
+		await expect(page.getByTestId('team-status-day-detail-dialog')).toBeVisible();
 	});
 
 	test('shows an employee work time chart in the employee header hover card', async ({ page }) => {
