@@ -1,6 +1,6 @@
 // 근태 시간 포맷의 언어별 단위 표시를 검증한다.
 import { describe, expect, test } from 'bun:test';
-import { formatHoursMinutes } from '../../../src/routes/attendance/shared/attendance-format';
+import { formatHoursMinutes, formatLocalTime } from '../../../src/routes/attendance/shared/attendance-format';
 
 describe('formatHoursMinutes', () => {
 	test('formats English duration units by default', () => {
@@ -17,5 +17,13 @@ describe('formatHoursMinutes', () => {
 		expect(formatHoursMinutes(30, units)).toBe('00시간 30분');
 		expect(formatHoursMinutes(360, units)).toBe('06시간 00분');
 		expect(formatHoursMinutes(390, units)).toBe('06시간 30분');
+	});
+});
+
+describe('formatLocalTime', () => {
+	test('keeps only hours and minutes for attendance display', () => {
+		expect(formatLocalTime('00:01:40')).toBe('00:01');
+		expect(formatLocalTime('02:41')).toBe('02:41');
+		expect(formatLocalTime('24:00:00')).toBe('24:00');
 	});
 });

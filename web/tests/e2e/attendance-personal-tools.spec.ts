@@ -54,13 +54,13 @@ test.describe('attendance personal tools', () => {
 
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-01').click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00-24:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 
 		await page.keyboard.press('Escape');
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-02').click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByLabel('00:00:00-02:00:00')).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00-02:00')).toBeVisible();
 		await expect(secondDayDialog.getByText('진행 중')).toHaveCount(0);
 	});
 
@@ -79,13 +79,13 @@ test.describe('attendance personal tools', () => {
 		await expect(page.getByRole('button', { name: '퇴근' })).toBeVisible();
 		await page.getByTestId(`team-status-cell-kim@example.com-${previousDate}`).click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00-24:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 		await page.keyboard.press('Escape');
 
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByLabel('00:00:00-01:00')).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00-01:00')).toBeVisible();
 		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByLabel('01시간 00분')).toBeVisible();
 	});
 

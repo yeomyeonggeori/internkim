@@ -106,8 +106,9 @@ test.describe('attendance team status', () => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
-			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
-			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+			const todayDate = todayDateInSeoul();
+			const month = requestURL.searchParams.get('month') ?? todayDate.slice(0, 7);
+			await route.fulfill({ json: buildWideTooltipSummary(month, todayDate) });
 		});
 
 		const todayDate = todayDateInSeoul();
@@ -122,8 +123,9 @@ test.describe('attendance team status', () => {
 		await expect(todayCell.locator('span[style*="background-color"]')).toHaveCount(3);
 		await todayCell.hover();
 		const tooltip = page.locator('[data-slot="tooltip-content"]');
-		await expect(tooltip.getByText('재택')).toBeVisible();
-		await expect(tooltip.getByLabel('08:30-10:20')).toBeVisible();
+		await expect(tooltip.getByText('사무실본관회의실A')).toHaveCount(3);
+		await expect(tooltip.getByLabel('09:46-10:46')).toBeVisible();
+		await expect(page.getByTestId('quick-actions-clock-in-time')).toHaveText('19:36');
 
 		await page.getByTestId(`team-status-cell-lee@example.com-${todayDate}`).hover();
 		await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(1);
