@@ -4,6 +4,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { formatDisplayTime } from '$lib/components/time-text';
 	import { cn } from '$lib/utils';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
@@ -149,12 +150,12 @@
 			<div class="flex min-w-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">
 				<span class="flex items-center gap-1">
 					<LogInIcon class="size-3" />
-					{todayDay.clockIn.localTime}
+					{formatDisplayTime(todayDay.clockIn.localTime)}
 				</span>
 				{#if todayDay.clockOut && status !== 'working'}
 					<span class="flex items-center gap-1">
 						<LogOutIcon class="size-3" />
-						{todayDay.clockOut.localTime}
+						{formatDisplayTime(todayDay.clockOut.localTime)}
 					</span>
 				{/if}
 			</div>

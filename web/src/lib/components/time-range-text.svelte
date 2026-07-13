@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDisplayTime } from './time-text';
 	import { timeTextClasses, type TimeTextSize, type TimeTextTone } from './time-text-variants';
 
 	type Props = {
@@ -17,9 +18,11 @@
 		endTone = 'inherit'
 	}: Props = $props();
 
-	const label = $derived(`${startTime}-${endTime}`);
-	const startTimeParts = $derived(splitTime(startTime));
-	const endTimeParts = $derived(splitTime(endTime));
+	const displayedStartTime = $derived(formatDisplayTime(startTime));
+	const displayedEndTime = $derived(formatDisplayTime(endTime));
+	const label = $derived(`${displayedStartTime}-${displayedEndTime}`);
+	const startTimeParts = $derived(splitTime(displayedStartTime));
+	const endTimeParts = $derived(splitTime(displayedEndTime));
 
 	function splitTime(value: string): { hours: string; minutes: string } | undefined {
 		const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -38,7 +41,7 @@
 		{#if startTimeParts}
 			<span>{startTimeParts.hours}</span><span class="opacity-40" aria-hidden="true" data-slot="time-value-separator">:</span><span>{startTimeParts.minutes}</span>
 		{:else}
-			{startTime}
+			{displayedStartTime}
 		{/if}
 	</span>
 	<span class="mx-0.5 opacity-40" aria-hidden="true" data-slot="time-range-separator">-</span>
@@ -46,7 +49,7 @@
 		{#if endTimeParts}
 			<span>{endTimeParts.hours}</span><span class="opacity-40" aria-hidden="true" data-slot="time-value-separator">:</span><span>{endTimeParts.minutes}</span>
 		{:else}
-			{endTime}
+			{displayedEndTime}
 		{/if}
 	</span>
 </span>
