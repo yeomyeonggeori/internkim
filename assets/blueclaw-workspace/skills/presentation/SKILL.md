@@ -15,20 +15,20 @@ Create a useful, visually strong deck and attach the requested files. HTML-first
 
 1. Classify the request as a new deck or a revision, then decide the format and slide spine.
 2. For a revision, choose the target in this order: an explicitly named/current attachment, the latest compatible artifact in recent same-conversation posts, the newest same-slug artifact manifest entry, then workspace source. A newer HTML deck is the edit target; older PDF or Markdown files are supporting material.
-3. Preview and read the selected HTML. Reuse its `<deck-slug>` and prefer controller-free `tmp/<deck-slug>/slides.html` or `artifacts/<deck-slug>/source/`. If only delivered HTML exists, run `python3 /workspace/skills/presentation/scripts/restore_source.py <delivered.html> slides.html` from `tmp/<deck-slug>`. Apply content and design changes with targeted `file.edit`; never reconstruct an existing deck with whole-file `file.write`.
-4. For a new deck only, use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html`. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` for deck source.
+3. Preview and read the selected HTML. Reuse its `<deck-slug>` and work only in `artifacts/<deck-slug>/`, with `slides.html` as the canonical controller-free source. If only delivered HTML exists, run `python3 /workspace/skills/presentation/scripts/restore_source.py <delivered.html> slides.html` from `artifacts/<deck-slug>`. Apply content and design changes with targeted `file.edit`; never reconstruct an existing deck with whole-file `file.write`.
+4. For a new deck only, use the `file.write` tool directly to create `artifacts/<deck-slug>/slides.html`. Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` for deck source.
 5. Make a new `slides.html` complete in its first write: full HTML, CSS, slide sections, source facts, `data-visual-system`, and `data-slide-role` on every slide. Then add compact `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`; they must not delay the primary source file.
-6. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`. The exporter replaces any `data-internkim-slide-viewer` blocks with exactly one canonical controller pair.
+6. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "artifacts/<deck-slug>"`. The exporter replaces any `data-internkim-slide-viewer` blocks with exactly one canonical controller pair.
 7. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
 8. If a gate or rendered image evidence shows problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Stop when the gate passes, the score stalls across two rebuilds, or budget says finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
-9. Convert once for requested PDF/PPTX, then deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested sources with `file.deliver`. Use one call and a `files` array for multiple files; revisions overwrite and re-deliver the same slug.
+9. Convert once for requested PDF/PPTX, then deliver accepted outputs from `artifacts/<deck-slug>/build/` plus requested sources with `file.deliver`. Use one call and a `files` array for multiple files; revisions overwrite and re-deliver the same slug.
 
 Use this build command shape:
 
 ```json
 {
   "command": "/workspace/skills/presentation/scripts/build.sh",
-  "workingDirectoryPath": "tmp/<deck-slug>"
+  "workingDirectoryPath": "artifacts/<deck-slug>"
 }
 ```
 
@@ -37,7 +37,7 @@ For PPTX requests, convert with one final build after the review loop:
 ```json
 {
   "command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh",
-  "workingDirectoryPath": "tmp/<deck-slug>"
+  "workingDirectoryPath": "artifacts/<deck-slug>"
 }
 ```
 
@@ -45,7 +45,7 @@ For PDF requests convert with `FORMATS=pdf`, and for all outputs `FORMATS=all`, 
 
 Do not call `terminal.run` with an `arguments` array alone.
 
-Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html` or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
+Deliver generated files such as `artifacts/<deck-slug>/build/<deck-slug>.html` or `artifacts/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
 
 Give every slide `<aside class="notes">` with 2-4 spoken sentences in the request language, readable aloud verbatim; they never render on the slide.
 
@@ -100,7 +100,7 @@ HTML is the layout surface; browser rendering feeds PDF, review images, and imag
 
 Avoid bullet-only decks; each slide needs visible structure. Read `assets/layouts.md` for structures, `assets/visual-styles.md` for identity, `assets/composition-seeds.md` against sparse decks, `assets/minimal-design.md` for a sober style.
 
-If `file.edit` misses, read the affected range again and retry with exact unique `oldText`. Use `file.write` only for a new file or a verified wholesale replacement. Preserve slide count, format, scope, and exact user wording.
+If `file.edit` misses, read the affected range again and retry with exact unique `oldText`. Use `file.write` only when creating the missing `slides.html` for a new deck; never replace an existing deck wholesale. Preserve slide count, format, scope, and exact user wording.
 
 Before building, scan `slides.html`. Revise slides that are only a raw `<table>` or bare `<ul>` into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two slides share the same `.grid`+`.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable — not colored side stripes, tiny rail labels, or border-plus-shadow white cards.
 
