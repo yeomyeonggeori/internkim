@@ -16,6 +16,7 @@
 	import { flowText } from '../../flow/text';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
+	import { formatLocalTime } from '../shared/attendance-format';
 	import { absenceDisplayClass } from '../shared/color-tokens';
 	import { localTimeMinutes } from '../shared/day-timeline';
 	import DurationText from '../shared/duration-text.svelte';
@@ -113,8 +114,8 @@
 			drafts[event.id] = {
 				eventID: event.id,
 				localDate: event.localDate,
-				originalLocalTime: shortTime(event.localTime),
-				localTime: shortTime(event.localTime),
+				originalLocalTime: formatLocalTime(event.localTime),
+				localTime: formatLocalTime(event.localTime),
 				originalLocationID: locationID,
 				locationID
 			};
@@ -129,10 +130,6 @@
 			if (segment.endEventID) eventIDs.add(segment.endEventID);
 		}
 		return eventIDs;
-	}
-
-	function shortTime(localTime: string): string {
-		return localTime.slice(0, 5);
 	}
 
 	function displayTimeForDraft(draft: WorkEventDraft | undefined, segmentDate: string, fallbackTime: string): string {

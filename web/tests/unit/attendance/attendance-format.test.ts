@@ -1,4 +1,3 @@
-// 근태 시간 포맷의 언어별 단위 표시를 검증한다.
 import { describe, expect, test } from 'bun:test';
 import { formatHoursMinutes, formatLocalTime } from '../../../src/routes/attendance/shared/attendance-format';
 
@@ -25,5 +24,9 @@ describe('formatLocalTime', () => {
 		expect(formatLocalTime('00:01:40')).toBe('00:01');
 		expect(formatLocalTime('02:41')).toBe('02:41');
 		expect(formatLocalTime('24:00:00')).toBe('24:00');
+	});
+
+	test('returns non-matching input unchanged', () => {
+		expect(formatLocalTime('not-a-time')).toBe('not-a-time');
 	});
 });
