@@ -32,10 +32,12 @@ package-companion-beta: build-companion
 	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
 
 build-mattermost-ephemeral-plugin:
+	cd mattermost-plugin/internkim-ephemeral && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) GOOS=linux GOARCH=amd64 go build -o dist/plugin-linux-amd64 ./
 	cd mattermost-plugin/internkim-ephemeral && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) GOOS=linux GOARCH=arm64 go build -o dist/plugin-linux-arm64 ./
 	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
 	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist
 	cp mattermost-plugin/internkim-ephemeral/plugin.json build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/plugin.json
+	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-amd64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-amd64
 	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-arm64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-arm64
 	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist
 	cp mattermost-plugin/internkim-ephemeral/webapp/main.js build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist/main.js
