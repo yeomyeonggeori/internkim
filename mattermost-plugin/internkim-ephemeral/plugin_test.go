@@ -63,6 +63,48 @@ func TestServeHTTPRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestMessageWillBePostedRejectsHumanPostInManagedChannels(t *testing.T) {
+	for _, channel := range []*model.Channel{
+		{Id: "flow-channel", Name: "flow"},
+		{Id: "calendar-channel", Name: "calendar"},
+	} {
+		api := &testPluginAPI{
+			channel: channel,
+			botUser: &model.User{Id: "bot-1", Username: "internkim"},
+		}
+		pluginValue := &Plugin{activeConfiguration: &configuration{BotUsername: "internkim"}}
+		pluginValue.API = api
+
+		replacementPost, rejectionMessage := pluginValue.MessageWillBePosted(nil, &model.Post{UserId: "user-1", ChannelId: channel.Id, Message: "blocked"})
+
+		if replacementPost != nil {
+			t.Fatalf("replacement post = %+v", replacementPost)
+		}
+		if rejectionMessage != managedChannelPostRejectionMessage {
+			t.Fatalf("rejection message = %q", rejectionMessage)
+		}
+	}
+}
+
+func TestMessageWillBePostedAllowsConfiguredBotAndSystemPosts(t *testing.T) {
+	api := &testPluginAPI{
+		channel: &model.Channel{Id: "calendar-channel", Name: "calendar"},
+		botUser: &model.User{Id: "bot-1", Username: "internkim"},
+	}
+	pluginValue := &Plugin{activeConfiguration: &configuration{BotUsername: "internkim"}}
+	pluginValue.API = api
+
+	for _, post := range []*model.Post{
+		{UserId: "bot-1", ChannelId: "calendar-channel", Message: "allowed"},
+		{UserId: "user-1", ChannelId: "calendar-channel", Type: "system_join_channel", Message: "allowed"},
+	} {
+		replacementPost, rejectionMessage := pluginValue.MessageWillBePosted(nil, post)
+		if replacementPost != nil || rejectionMessage != "" {
+			t.Fatalf("post %+v was rejected: replacement=%+v rejection=%q", post, replacementPost, rejectionMessage)
+		}
+	}
+}
+
 func TestMessageHasBeenPostedSendsKoreanRuntimeUnavailableNoticeForBotDM(t *testing.T) {
 	api := &testPluginAPI{
 		channel:      &model.Channel{Id: "channel-1", Type: model.ChannelTypeDirect},

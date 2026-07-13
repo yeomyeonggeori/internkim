@@ -282,10 +282,29 @@ func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
 	}
 }
 
-func TestGatewayDeletesFlowChannelPostCreation(t *testing.T) {
-	deletedPostIDs := testManagedChannelPostCreation(t, "flow-channel", (*Service).saveMattermostFlowChannelID)
-	if len(deletedPostIDs) != 1 || deletedPostIDs[0] != "managed-post-1" {
-		t.Fatalf("deleted post IDs = %+v", deletedPostIDs)
+func TestGatewayRejectsFlowChannelPostCreation(t *testing.T) {
+	testFlowOrCalendarChannelPostRejection(t, "flow-channel", (*Service).saveMattermostFlowChannelID)
+}
+
+func TestGatewayRejectsCalendarChannelPostCreation(t *testing.T) {
+	testFlowOrCalendarChannelPostRejection(t, "calendar-channel", (*Service).saveMattermostCalendarChannelID)
+}
+
+func testFlowOrCalendarChannelPostRejection(t *testing.T, channelID string, saveChannelID func(*Service, string)) {
+	t.Helper()
+	service := NewService(Configuration{StateDirectory: t.TempDir()})
+	saveChannelID(service, channelID)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		t.Fatalf("managed post reached Mattermost: %s %s", request.Method, request.URL)
+		return nil, nil
+	})}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"`+channelID+`","message":"blocked"}`))
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("managed channel post status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 
