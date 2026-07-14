@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -103,8 +104,8 @@ func TestCompanyMetricUpsertAndGranularityRejection(t *testing.T) {
 		return performCompanyRequest(t, service.recordCompanyMetric, http.MethodPost, "/admin/api/company-metrics", payload)
 	}
 	var recorded companyMetric
-	decodeCompanyResponse(t, record(map[string]any{"metric": "annualRevenue", "year": 2025, "value": 1000000000, "unit": "KRW"}), &recorded)
-	decodeCompanyResponse(t, record(map[string]any{"metric": "annualRevenue", "year": 2025, "value": 1200000000, "unit": "KRW"}), &recorded)
+	decodeCompanyResponse(t, record(map[string]any{"metric": "annualRevenue", "year": 2025, "value": 1000000000, "currency": "KRW", "valueUSD": 720000}), &recorded)
+	decodeCompanyResponse(t, record(map[string]any{"metric": "annualRevenue", "year": 2025, "value": 1200000000, "currency": "KRW", "valueUSD": 870000}), &recorded)
 
 	rejected := record(map[string]any{"metric": "mau", "year": 2025, "quarter": 2, "month": 6, "value": 10})
 	if rejected.Code != http.StatusBadRequest {
@@ -115,8 +116,81 @@ func TestCompanyMetricUpsertAndGranularityRejection(t *testing.T) {
 		Metrics []companyMetric `json:"metrics"`
 	}
 	decodeCompanyResponse(t, performCompanyRequest(t, service.listCompanyMetrics, http.MethodGet, "/admin/api/company-metrics?metric=annualRevenue", nil), &listing)
-	if len(listing.Metrics) != 1 || listing.Metrics[0].Value != 1200000000 {
+	if len(listing.Metrics) != 1 || listing.Metrics[0].Value != 1200000000 || listing.Metrics[0].Currency != companyMetricCurrencyKRW {
 		t.Fatalf("metrics = %+v, want single upserted row", listing.Metrics)
+	}
+	if listing.Metrics[0].ValueUSD == nil || *listing.Metrics[0].ValueUSD != 870000 {
+		t.Fatalf("valueUSD = %v, want 870000", listing.Metrics[0].ValueUSD)
+	}
+}
+
+func TestCompanyMetricMoneyValidation(t *testing.T) {
+	service := newCompanyTestService(t)
+	record := func(payload map[string]any) *httptest.ResponseRecorder {
+		return performCompanyRequest(t, service.recordCompanyMetric, http.MethodPost, "/admin/api/company-metrics", payload)
+	}
+
+	for name, payload := range map[string]map[string]any{
+		"missing USD value":    {"metric": "revenue", "year": 2025, "value": 1, "currency": "KRW"},
+		"unsupported currency": {"metric": "revenue", "year": 2025, "value": 1, "currency": "BTC", "valueUSD": 1},
+		"currency and unit":    {"metric": "revenue", "year": 2025, "value": 1, "currency": "USD", "unit": "dollars"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := record(payload)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+			}
+		})
+	}
+
+	var recorded companyMetric
+	decodeCompanyResponse(t, record(map[string]any{"metric": "revenue", "year": 2025, "value": 42, "currency": "usd"}), &recorded)
+	if recorded.Currency != companyMetricCurrencyUSD || recorded.ValueUSD == nil || *recorded.ValueUSD != 42 {
+		t.Fatalf("USD normalization = %+v", recorded)
+	}
+}
+
+func TestCompanyMetricSchemaMigratesLegacyDatabase(t *testing.T) {
+	service := newCompanyTestService(t)
+	legacyDatabase, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(service.companyDatabasePath()))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = legacyDatabase.Exec(`
+CREATE TABLE company_metrics (
+	metric TEXT NOT NULL,
+	year INTEGER NOT NULL,
+	quarter INTEGER NOT NULL DEFAULT 0,
+	month INTEGER NOT NULL DEFAULT 0,
+	value REAL NOT NULL,
+	unit TEXT NOT NULL DEFAULT '',
+	note TEXT NOT NULL DEFAULT '',
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (metric, year, quarter, month)
+);
+INSERT INTO company_metrics (metric, year, value, unit, updated_at)
+VALUES ('sites', 2025, 63, '곳', '2026-01-01T00:00:00Z')`)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := legacyDatabase.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	database, errorValue := service.openCompanyDatabase(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var metric companyMetric
+	errorValue = database.QueryRowContext(t.Context(), `SELECT metric, year, value, currency, value_usd, unit FROM company_metrics`).Scan(
+		&metric.Metric, &metric.Year, &metric.Value, &metric.Currency, &metric.ValueUSD, &metric.Unit,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if metric.Metric != "sites" || metric.Value != 63 || metric.Currency != "" || metric.ValueUSD != nil || metric.Unit != "곳" {
+		t.Fatalf("migrated metric = %+v", metric)
 	}
 }
 

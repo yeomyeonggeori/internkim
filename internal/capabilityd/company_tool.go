@@ -39,13 +39,15 @@ type companyInfoSetInput struct {
 }
 
 type companyMetricRecordInput struct {
-	Metric  string  `json:"metric"`
-	Year    int     `json:"year"`
-	Quarter int     `json:"quarter"`
-	Month   int     `json:"month"`
-	Value   float64 `json:"value"`
-	Unit    string  `json:"unit"`
-	Note    string  `json:"note"`
+	Metric   string   `json:"metric"`
+	Year     int      `json:"year"`
+	Quarter  int      `json:"quarter"`
+	Month    int      `json:"month"`
+	Value    float64  `json:"value"`
+	Currency string   `json:"currency"`
+	ValueUSD *float64 `json:"valueUSD"`
+	Unit     string   `json:"unit"`
+	Note     string   `json:"note"`
 }
 
 type companyRecordInput struct {
