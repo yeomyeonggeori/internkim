@@ -1,15 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	companyActivityIntensity,
-	companyActivityPulsePoints,
 	companyLocalCurrency,
-	companyMetricBarWidth,
 	companyMetricChangeAssessment,
 	companyMetricChangePercentage,
 	companyMetricDisplayValue,
 	companyMetricLabel,
 	companyMetricPeriodLabel,
-	companyMetricTrendPoints,
 	companyRecordDescription,
 	companyRecordTitle,
 	formatCompanyMetricValue,
@@ -37,18 +34,12 @@ describe('company page model', () => {
 		expect(companyMetricPeriodLabel({ metric: 'revenue', year: 2026, quarter: 3, value: 1 }, 'ko')).toBe('2026년 3분기');
 	});
 
-	test('scales bars against the largest absolute value', () => {
-		expect(companyMetricBarWidth(25, [25, 100])).toBe(25);
-		expect(companyMetricBarWidth(0, [0, 0])).toBe(0);
-	});
-
-	test('derives metric change and trend geometry from published periods', () => {
+	test('derives metric change from published periods', () => {
 		const series: CompanyShareMetric[] = [
 			{ metric: 'annualRevenue', year: 2025, quarter: 4, value: 100 },
 			{ metric: 'annualRevenue', year: 2026, quarter: 1, value: 125 }
 		];
 		expect(companyMetricChangePercentage(series, 'USD')).toBe(25);
-		expect(companyMetricTrendPoints(series, 'USD', 100, 40)).toBe('12.0,28.0 88.0,12.0');
 		expect(companyMetricLabel('annualRevenue')).toBe('Annual Revenue');
 		expect(companyMetricChangeAssessment(25, 'increase')).toBe('favorable');
 		expect(companyMetricChangeAssessment(25, 'decrease')).toBe('unfavorable');
@@ -90,7 +81,7 @@ describe('company page model', () => {
 		expect(companyRecordDescription(record, 'ko')).toBe('');
 	});
 
-	test('derives activity intensity and pulse geometry from daily counts', () => {
+	test('derives activity intensity from daily counts', () => {
 		const days = [
 			{ date: '2026-07-12', attendanceCount: 0, workCount: 0 },
 			{ date: '2026-07-13', attendanceCount: 2, workCount: 1 },
@@ -99,7 +90,6 @@ describe('company page model', () => {
 		expect(companyActivityIntensity(days[0], days)).toBe(0);
 		expect(companyActivityIntensity(days[1], days)).toBe(2);
 		expect(companyActivityIntensity(days[2], days)).toBe(4);
-		expect(companyActivityPulsePoints(days, 100, 40)).toBe('12.0,28.0 50.0,20.0 88.0,12.0');
 	});
 
 	test('calculates work distribution from actual status counts', () => {
