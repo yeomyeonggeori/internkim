@@ -51,9 +51,18 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	if !isValid {
 		return
 	}
+	identities := []orgchartPersonIdentity{{UserID: payload.UserID, Email: payload.Email}}
+	if errorValue := service.beginOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
+		return
+	}
+	if errorValue := service.completeOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	service.triggerUsersSync(request.Context())
@@ -82,15 +91,29 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 		http.Error(responseWriter, "users required", http.StatusBadRequest)
 		return
 	}
-	temporaryPassword := ""
-	temporaryPasswordEmail := ""
+	type normalizedBatchUser struct {
+		payload                   adminUserMutation
+		hasExplicitCircleMutation bool
+	}
+	normalizedUsers := make([]normalizedBatchUser, 0, len(batchRequest.Users))
+	identities := make([]orgchartPersonIdentity, 0, len(batchRequest.Users))
 	for _, rawPayload := range batchRequest.Users {
 		payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
-		payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
+		normalizedUsers = append(normalizedUsers, normalizedBatchUser{payload: payload, hasExplicitCircleMutation: hasExplicitCircleMutation})
+		identities = append(identities, orgchartPersonIdentity{UserID: payload.UserID, Email: payload.Email})
+	}
+	if errorValue := service.beginOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	temporaryPassword := ""
+	temporaryPasswordEmail := ""
+	for _, normalizedUser := range normalizedUsers {
+		payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), normalizedUser.payload, normalizedUser.hasExplicitCircleMutation)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
 			return
@@ -99,6 +122,10 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 			temporaryPassword = provisionResult.TemporaryPassword
 			temporaryPasswordEmail = payload.Email
 		}
+	}
+	if errorValue := service.completeOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
 	}
 	service.triggerUsersSync(request.Context())
 	response, errorValue := service.buildLocalUsersResponse(request.Context())
@@ -191,6 +218,11 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "cannot remove the last admin user", http.StatusConflict)
 		return
 	}
+	identities := []orgchartPersonIdentity{{UserID: userRecord.ID, Email: userRecord.Email}}
+	if errorValue := service.beginOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	if errorValue := service.deactivateMattermostUserByID(request.Context(), userRecord.ID); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -201,6 +233,10 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 	}
 	if errorValue := service.removeBlueclawPerson(request.Context(), userRecord.Email); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	if errorValue := service.completeOrgchartUserMutation(request.Context(), identities); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	service.triggerUsersSync(request.Context())

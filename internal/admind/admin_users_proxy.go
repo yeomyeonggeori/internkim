@@ -28,6 +28,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	var removedUser *adminUserMutation
 	var upsertedEmail string
+	var orgchartMutationIdentities []orgchartPersonIdentity
 	if request.Method == http.MethodDelete {
 		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
@@ -35,6 +36,13 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		removedUser = userRecord
+		if removedUser != nil {
+			orgchartMutationIdentities = []orgchartPersonIdentity{{UserID: removedUser.UserID, Email: removedUser.Email}}
+			if errorValue := service.beginOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
 		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
 			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -103,6 +111,11 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		if isLastAdminDemotion {
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
+			return
+		}
+		orgchartMutationIdentities = []orgchartPersonIdentity{{UserID: payload.UserID, Email: payload.Email}}
+		if errorValue := service.beginOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 			return
 		}
 		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
@@ -205,6 +218,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				return
 			}
 			service.triggerUsersSync(request.Context())
+		}
+		if len(orgchartMutationIdentities) > 0 {
+			if errorValue := service.completeOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
