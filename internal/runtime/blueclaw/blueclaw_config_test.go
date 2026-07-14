@@ -44,6 +44,9 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	if _, hasSDKD := languageModel["sdkd"]; hasSDKD {
+		t.Fatalf("expected direct execution to omit host SDKD bridge configuration, got %+v", languageModel)
+	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "remote" {
 		t.Fatalf("expected remote inference for direct execution, got %q", capabilityLanguageModel["executionMode"])
@@ -60,7 +63,30 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 }
 
+func TestBlueclawRuntimeConfigIncludesCredentiallessSDKDBridge(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{SDKDMode: "shadow"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	sdkd := languageModel["sdkd"].(map[string]any)
+	if sdkd["endpoint"] != "http://127.0.0.1:18081/_internkim/sdkd" || sdkd["shadowEnabled"] != true {
+		t.Fatalf("unexpected SDKD bridge configuration: %+v", sdkd)
+	}
+	if sdkd["authKeyPath"] != "" || sdkd["unixSocketPath"] != "" {
+		t.Fatalf("expected no host SDKD paths in guest configuration: %+v", sdkd)
+	}
+	if strings.Contains(document, SDKDSocketPath) || strings.Contains(document, SDKDAuthKeyPath) {
+		t.Fatal("expected host SDKD secrets and socket to stay out of guest configuration")
+	}
+}
+
 func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
+	t.Setenv(LocalOnlyEnvironment, "")
 	document, errorValue := BlueclawRuntimeConfigDocument("")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -302,6 +328,7 @@ func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *
 	t.Setenv(BlueclawTestModelTierEnvironment, "xlow")
 	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
 	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
+	t.Setenv(BlueclawAdminTaskDiagnosticEnvironment, "true")
 
 	options, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
 	if errorValue != nil {
@@ -321,6 +348,89 @@ func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *
 	}
 	if options.GenerationTemperature == nil || *options.GenerationTemperature != 0 {
 		t.Fatalf("expected temperature from environment, got %+v", options)
+	}
+	if !options.AllowAdminTaskDiagnostic {
+		t.Fatalf("expected admin task diagnostic from environment, got %+v", options)
+	}
+}
+
+func TestBlueclawRuntimeConfigRejectsInvalidAdminTaskDiagnosticEnvironment(t *testing.T) {
+	t.Setenv(BlueclawAdminTaskDiagnosticEnvironment, "invalid")
+
+	_, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue == nil || !strings.Contains(errorValue.Error(), BlueclawAdminTaskDiagnosticEnvironment) {
+		t.Fatalf("expected diagnostic environment error, got %v", errorValue)
+	}
+}
+
+func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{AllowAdminTaskDiagnostic: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
+	if agentConfiguration["allowAdminTaskDiagnostic"] != true {
+		t.Fatalf("expected admin task diagnostic gate, got %+v", agentConfiguration)
+	}
+	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
+	if len(agentProfiles) != 2 {
+		t.Fatalf("expected diagnostic profile, got %+v", agentProfiles)
+	}
+	diagnosticProfile := agentProfiles[1].(map[string]any)
+	if diagnosticProfile["name"] != BlueclawSDKDTopologyDiagnosticProfileName {
+		t.Fatalf("expected SDKD diagnostic profile, got %+v", diagnosticProfile)
+	}
+	allowedToolNames := diagnosticProfile["allowedToolNames"].([]any)
+	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawSDKDTopologyDiagnosticToolSentinel {
+		t.Fatalf("expected diagnostic deny-all sentinel, got %+v", diagnosticProfile)
+	}
+}
+
+func TestInvalidLocalOnlyEnvironmentFailsClosed(t *testing.T) {
+	t.Setenv(LocalOnlyEnvironment, "invalid")
+
+	if !LocalOnlyEnabled() {
+		t.Fatal("expected invalid local-only environment to disable remote routing")
+	}
+	if serviceDocument := CapabilitydServiceUnit(); !strings.Contains(serviceDocument, "--local-only") {
+		t.Fatalf("expected invalid local-only environment to fail closed, got %s", serviceDocument)
+	}
+}
+
+func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
+	t.Setenv(LocalOnlyEnvironment, "true")
+
+	options, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(options)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
+	routing := capabilityConfiguration["routing"].(map[string]any)
+	if routing["localOnly"] != true {
+		t.Fatalf("expected local-only capability routing, got %+v", routing)
+	}
+	languageModelConfiguration := runtimeConfiguration["languageModel"].(map[string]any)
+	sdkdConfiguration := languageModelConfiguration["sdkd"].(map[string]any)
+	if sdkdConfiguration["localOnly"] != true {
+		t.Fatalf("expected local-only SDKD fallback policy, got %+v", sdkdConfiguration)
+	}
+	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
+		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
+	}
+	if !strings.Contains(SDKDServiceUnit(), "Environment=BLUECLAW_SDKD_LOCAL_ONLY=1") {
+		t.Fatalf("expected SDKD local-only environment, got %s", SDKDServiceUnit())
 	}
 }
 
@@ -475,9 +585,12 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 	assertNestedValue(t, runtimeConfiguration, []string{"baseURL"}, "http://127.0.0.1:18100")
 	assertNestedValue(t, runtimeConfiguration, []string{"capabilities", "vsockPort"}, float64(17100))
 	guestListenerProxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+	if len(guestListenerProxies) != 1 {
+		t.Fatalf("expected tenant capability vsock listener proxy, got %+v", guestListenerProxies)
+	}
 	firstGuestListenerProxy := guestListenerProxies[0].(map[string]any)
-	if firstGuestListenerProxy["targetUnixSocketPath"] != "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock" {
-		t.Fatalf("unexpected tenant capability socket proxy: %+v", firstGuestListenerProxy)
+	if firstGuestListenerProxy["guestPort"] != float64(17100) || firstGuestListenerProxy["targetUnixSocketPath"] != "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock" {
+		t.Fatalf("unexpected tenant capability listener proxy: %+v", firstGuestListenerProxy)
 	}
 	assertNestedValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
 	assertNestedValue(t, runtimeConfiguration, []string{"memory", "graphitiEndpoint"}, "http://127.0.0.1:18791")
@@ -692,6 +805,93 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
 		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
+	}
+}
+
+func TestSDKDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
+	t.Setenv(LocalOnlyEnvironment, "")
+	serviceDocument := SDKDServiceUnit()
+	for _, expectedValue := range []string{
+		"DynamicUser=yes",
+		"RuntimeDirectory=blueclaw-sdkd",
+		"RuntimeDirectoryMode=0700",
+		"UMask=0077",
+		"Environment=BLUECLAW_SDKD_AUTH_KEY_PATH=" + SDKDRuntimeAuthKeyPath,
+		"Environment=OPENROUTER_API_KEY_PATH=" + SDKDRuntimeOpenRouterKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + SDKDServiceAuthKeyPath + " " + SDKDRuntimeAuthKeyPath,
+		"chown --reference=" + SDKDRuntimeDirectoryPath + " " + SDKDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; if [ -s " + SDKDServiceOpenRouterKeyPath + " ]; then install -m 0400 " + SDKDServiceOpenRouterKeyPath + " " + SDKDRuntimeOpenRouterKeyPath,
+		"chown --reference=" + SDKDRuntimeDirectoryPath + " " + SDKDRuntimeOpenRouterKeyPath,
+		"Environment=BLUECLAW_SDKD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
+		"Environment=BLUECLAW_SDKD_LOCAL_ONLY=0",
+		"NoNewPrivileges=yes",
+		"PrivateTmp=yes",
+		"ProtectSystem=strict",
+		"ProtectHome=read-only",
+		"CapabilityBoundingSet=",
+	} {
+		if !strings.Contains(serviceDocument, expectedValue) {
+			t.Fatalf("expected SDKD service unit to contain %q, got %s", expectedValue, serviceDocument)
+		}
+	}
+	if strings.Contains(serviceDocument, "EnvironmentFile=") {
+		t.Fatal("expected SDKD credentials to stay out of environment files")
+	}
+	if strings.Contains(serviceDocument, "LoadCredential=") || strings.Contains(serviceDocument, "CREDENTIALS_DIRECTORY") {
+		t.Fatal("expected SDKD service to avoid unsupported systemd credential transport")
+	}
+	if strings.Contains(serviceDocument, "IPAddressDeny=") {
+		t.Fatal("expected remote-capable SDKD service to retain provider network access")
+	}
+	runtimeDirectoryIndex := strings.Index(serviceDocument, "RuntimeDirectory=blueclaw-sdkd")
+	authStageIndex := strings.Index(serviceDocument, "install -m 0400 "+SDKDServiceAuthKeyPath+" "+SDKDRuntimeAuthKeyPath)
+	openRouterStageIndex := strings.Index(serviceDocument, "install -m 0400 "+SDKDServiceOpenRouterKeyPath+" "+SDKDRuntimeOpenRouterKeyPath)
+	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+SDKDBinaryPath)
+	if runtimeDirectoryIndex < 0 || authStageIndex < runtimeDirectoryIndex || openRouterStageIndex < authStageIndex || serviceStartIndex < openRouterStageIndex {
+		t.Fatalf("expected runtime directory and private credential copies before SDKD activation, got %s", serviceDocument)
+	}
+}
+
+func TestSDKDLocalOnlyServiceWithholdsRemoteCredentialAndNetwork(t *testing.T) {
+	serviceDocument := SDKDServiceUnitForLocalOnly(true)
+	for _, expectedValue := range []string{
+		"Environment=BLUECLAW_SDKD_LOCAL_ONLY=1",
+		"Environment=BLUECLAW_SDKD_AUTH_KEY_PATH=" + SDKDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + SDKDServiceAuthKeyPath + " " + SDKDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'rm -f " + SDKDRuntimeOpenRouterKeyPath + "'",
+		"IPAddressDeny=any",
+		"IPAddressAllow=localhost",
+	} {
+		if !strings.Contains(serviceDocument, expectedValue) {
+			t.Fatalf("expected local-only SDKD service to contain %q, got %s", expectedValue, serviceDocument)
+		}
+	}
+	if strings.Contains(serviceDocument, "OPENROUTER_API_KEY_PATH=") || strings.Contains(serviceDocument, SDKDServiceOpenRouterKeyPath) {
+		t.Fatalf("expected local-only SDKD service to withhold the staged OpenRouter credential, got %s", serviceDocument)
+	}
+	remoteRemovalIndex := strings.Index(serviceDocument, "rm -f "+SDKDRuntimeOpenRouterKeyPath)
+	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+SDKDBinaryPath)
+	if remoteRemovalIndex < 0 || serviceStartIndex < remoteRemovalIndex {
+		t.Fatalf("expected local-only SDKD service to remove the remote credential before activation, got %s", serviceDocument)
+	}
+}
+
+func TestSDKDServiceCredentialInstallCommandStagesRequiredCredentials(t *testing.T) {
+	remoteCommand := SDKDServiceCredentialInstallCommand(false)
+	for _, expectedValue := range []string{
+		SDKDAuthKeyPath,
+		SDKDServiceCredentialDirectoryPath,
+		SDKDServiceAuthKeyPath,
+		OpenRouterKeyPath,
+		SDKDServiceOpenRouterKeyPath,
+	} {
+		if !strings.Contains(remoteCommand, expectedValue) {
+			t.Fatalf("expected SDKD credential command to contain %q, got %s", expectedValue, remoteCommand)
+		}
+	}
+	localCommand := SDKDServiceCredentialInstallCommand(true)
+	if !strings.Contains(localCommand, "rm -f "+SDKDServiceOpenRouterKeyPath) || strings.Contains(localCommand, "install -o root -g root -m 600 "+OpenRouterKeyPath) {
+		t.Fatalf("expected local-only credential command to remove remote credential, got %s", localCommand)
 	}
 }
 

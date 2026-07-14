@@ -84,8 +84,8 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "release-download-token"), "release-token")
 	assertFileDoesNotContain(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--vsock-port")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-blueclaw-pilot-01.service"), filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"))
-	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"), runtimeDirectoryBasePath)
-	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/runtime.json"), runtimeDirectoryBasePath)
+	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"), runtimeDirectoryBasePath, filepath.Join(paths.InternKimPath, "run", "capability.sock"))
+	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/runtime.json"), runtimeDirectoryBasePath, filepath.Join(paths.InternKimPath, "run", "capability.sock"))
 	assertFileContains(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/policy.json"), "admin@pilot-01.local")
 	assertHostRuntimeCommands(t, commandRunner.commands)
 }
@@ -104,7 +104,7 @@ func TestInstallHostRuntimeRequiresGatewayURL(t *testing.T) {
 	}
 }
 
-func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirectoryBasePath string) {
+func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirectoryBasePath string, capabilitySocketPath string) {
 	t.Helper()
 	documentBytes, errorValue := os.ReadFile(path)
 	if errorValue != nil {
@@ -124,9 +124,12 @@ func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirector
 	assertRuntimeConfigurationValue(t, runtimeConfiguration, []string{"firecracker", "runtimeDirectoryPath"}, filepath.Join(runtimeDirectoryBasePath, "pilot-01"))
 	assertRuntimeConfigurationValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
 	guestListenerProxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+	if len(guestListenerProxies) != 1 {
+		t.Fatalf("expected tenant capability listener proxy, got %+v", guestListenerProxies)
+	}
 	firstGuestListenerProxy := guestListenerProxies[0].(map[string]any)
-	if !strings.HasSuffix(firstGuestListenerProxy["targetUnixSocketPath"].(string), "/internkim/run/capability.sock") {
-		t.Fatalf("expected tenant capability socket path, got %+v", firstGuestListenerProxy)
+	if firstGuestListenerProxy["guestPort"] != float64(7000) || firstGuestListenerProxy["targetUnixSocketPath"] != capabilitySocketPath {
+		t.Fatalf("unexpected tenant capability listener proxy: %+v", firstGuestListenerProxy)
 	}
 }
 
