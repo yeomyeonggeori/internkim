@@ -40,23 +40,22 @@ func (service *Service) readApplicableOrgchartPeopleCacheSnapshots(ctx context.C
 			return map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}, orgchartPeopleCacheBypassed, nil
 		}
 	}
-	snapshotKeys := keys
 	listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
-	if cachePolicy.HasExpectedListRevision {
-		snapshotKeys = append(append([]orgchartPeopleCacheKey{}, keys...), listKey)
-	}
+	snapshotKeys := append(append([]orgchartPeopleCacheKey{}, keys...), listKey)
 	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, snapshotKeys)
 	if errorValue != nil {
 		return nil, orgchartPeopleCacheBypassed, errorValue
 	}
-	if cachePolicy.HasExpectedListRevision && !isExpectedOrgchartPeopleListSnapshot(snapshots[listKey], cachePolicy.ExpectedListRevision) {
+	listSnapshot := snapshots[listKey]
+	if listSnapshot.IsDirty || listSnapshot.ActiveMutations != 0 {
 		return map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}, orgchartPeopleCacheBypassed, nil
 	}
+	if cachePolicy.HasExpectedListRevision && listSnapshot.Revision != cachePolicy.ExpectedListRevision {
+		return map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}, orgchartPeopleCacheBypassed, nil
+	}
+	cachePolicy.HasExpectedListRevision = true
+	cachePolicy.ExpectedListRevision = listSnapshot.Revision
 	return snapshots, cachePolicy, nil
-}
-
-func isExpectedOrgchartPeopleListSnapshot(snapshot orgchartPeopleCacheSnapshot, expectedRevision int64) bool {
-	return snapshot.Revision == expectedRevision && !snapshot.IsDirty && snapshot.ActiveMutations == 0
 }
 
 func isReusableOrgchartPeopleCacheSnapshot(snapshot orgchartPeopleCacheSnapshot) bool {
