@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,6 +55,43 @@ func TestOrgchartPeopleCacheRefreshesUserListWhenSourceRevisionChanges(t *testin
 
 	if first.Records[0].UserID == second.Records[0].UserID || loadCount != 2 {
 		t.Fatalf("first = %#v second = %#v load count = %d", first, second, loadCount)
+	}
+}
+
+func TestOrgchartPeopleCacheInvalidatesPersonWhenPreviousListIsCorrupt(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	statePath := filepath.Join(service.Configuration.StateDirectory, "users-sync.json")
+	if errorValue := os.WriteFile(statePath, []byte(`{"revision":"1"}`), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+	if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, listKey, 0, "1", []byte(`{`)); errorValue != nil || !written {
+		t.Fatalf("write corrupt list cache: written = %t error = %v", written, errorValue)
+	}
+	personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Before", Role: "member"}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, personKey, 0, "", personPayload); errorValue != nil || !written {
+		t.Fatalf("write person cache: written = %t error = %v", written, errorValue)
+	}
+	if errorValue := os.WriteFile(statePath, []byte(`{"revision":"2"}`), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users, errorValue := service.readCachedOrgchartUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
+		return pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "After", Role: "member"}}}, nil
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response, errorValue := service.applyCachedOrgchartPeople(ctx, users)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.response.Records[0].Name != "After" {
+		t.Fatalf("name = %q; want After", response.response.Records[0].Name)
 	}
 }
 

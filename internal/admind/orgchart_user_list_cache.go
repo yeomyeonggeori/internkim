@@ -43,7 +43,10 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 	if currentSourceRevision != sourceRevision || snapshot.IsDirty {
 		return response, nil
 	}
-	if hasPreviousResponse && snapshot.SourceRevision != sourceRevision {
+	if snapshot.SourceRevision != sourceRevision {
+		if !hasPreviousResponse {
+			previousResponse = pagesUsersResponse{}
+		}
 		if errorValue := service.invalidateChangedOrgchartUsers(ctx, previousResponse, response); errorValue != nil {
 			return pagesUsersResponse{}, errorValue
 		}
