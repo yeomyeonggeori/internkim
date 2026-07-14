@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -147,44 +148,90 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 }
 
 func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
-	service := newOrgchartProxyMutationTestService(t)
-	canonicalUserID := "blueclaw-existing"
-	remoteUserID := "remote-existing"
-	email := "existing@example.com"
-	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
-	mattermostLoginCount := 0
-	checkedCanonicalMutation := false
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			mattermostLoginCount++
-			if mattermostLoginCount == 1 {
-				return nil, errors.New("skip provisioner sync")
+	for _, testCase := range []struct {
+		name              string
+		circlesDocument   string
+		expectsPolicySave bool
+	}{
+		{name: "invite"},
+		{name: "upsert", circlesDocument: `,"circles":[]`, expectsPolicySave: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newOrgchartProxyMutationTestService(t)
+			canonicalUserID := "blueclaw-existing"
+			remoteUserID := "remote-existing"
+			email := "existing@example.com"
+			preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
+			pagesUserID := ""
+			blueclawPersonID := ""
+			policySaved := false
+			service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+					return response, nil
+				}
+				switch {
+				case request.Method == http.MethodGet && request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e":
+					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
+				case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
+					return jsonResponse(http.StatusOK, localUsersPolicyWithPersonAndCircleSync(canonicalUserID, email), nil), nil
+				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
+					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"existing@example.com","username":"existing-user","roles":"system_user"}`, nil), nil
+				case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch":
+					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"existing@example.com","username":"existing-user","roles":"system_user"}`, nil), nil
+				case request.Method == http.MethodPost && request.URL.String() == "https://api.intern.kim/api/users":
+					var payload adminUserMutation
+					if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+						t.Fatal(errorValue)
+					}
+					pagesUserID = payload.UserID
+					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
+				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
+					assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
+					var payload map[string]string
+					if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+						t.Fatal(errorValue)
+					}
+					blueclawPersonID = payload["personID"]
+					if blueclawPersonID != canonicalUserID {
+						t.Fatalf("Blueclaw personID = %q; want %q", blueclawPersonID, canonicalUserID)
+					}
+					return jsonResponse(http.StatusOK, `{}`, nil), nil
+				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
+					policySaved = true
+					return jsonResponse(http.StatusOK, `{}`, nil), nil
+				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-staff":
+					return jsonResponse(http.StatusOK, `{"id":"circle-staff-channel"}`, nil), nil
+				case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/patch":
+					return jsonResponse(http.StatusOK, `{}`, nil), nil
+				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/posts?per_page=100":
+					return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+				case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members":
+					return jsonResponse(http.StatusCreated, `{}`, nil), nil
+				default:
+					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+					return nil, nil
+				}
+			})}
+
+			requestBody := strings.NewReader(`{"email":" Existing@Example.COM ","handle":"existing-user","name":"","role":"admin","mattermostUserID":"user-1"` + testCase.circlesDocument + `}`)
+			responseRecorder := httptest.NewRecorder()
+			service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+
+			if responseRecorder.Code != http.StatusOK {
+				t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 			}
-			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
-			checkedCanonicalMutation = true
-			return nil, errors.New("stop after proxy mutation check")
-		case request.Method == http.MethodGet && request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
-			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, email), nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-
-	requestBody := strings.NewReader(`{"email":" Existing@Example.COM ","handle":"existing-user","name":"Existing User","role":"admin"}`)
-	responseRecorder := httptest.NewRecorder()
-	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
-
-	if responseRecorder.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+			if pagesUserID != remoteUserID {
+				t.Fatalf("Pages userID = %q; want %q", pagesUserID, remoteUserID)
+			}
+			if blueclawPersonID != canonicalUserID {
+				t.Fatalf("Blueclaw personID = %q; want %q", blueclawPersonID, canonicalUserID)
+			}
+			if policySaved != testCase.expectsPolicySave {
+				t.Fatalf("policy saved = %t; want %t", policySaved, testCase.expectsPolicySave)
+			}
+			assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
+		})
 	}
-	if !checkedCanonicalMutation {
-		t.Fatal("canonical proxy mutation was not checked")
-	}
-	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
 }
 
 func TestOrgchartPeopleCacheInvalidatesCanonicalProxyDeletedUser(t *testing.T) {
@@ -549,6 +596,10 @@ func activeOrgchartPersonMutationKeys(t *testing.T, service *Service) []string {
 
 func localUsersPolicyWithPerson(userID string, email string) string {
 	return `{"people":[{"personID":"` + userID + `","emails":["` + email + `"]}],"circles":[]}`
+}
+
+func localUsersPolicyWithPersonAndCircleSync(userID string, email string) string {
+	return `{"people":[{"personID":"` + userID + `","emails":["` + email + `"]}],"circles":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]}}`
 }
 
 func newOrgchartProxyMutationTestService(t *testing.T) *Service {
