@@ -85,10 +85,10 @@ type companyInfoView struct {
 }
 
 func defaultRepresentativeTitle(language string) string {
-	if strings.EqualFold(language, "en") {
-		return "CEO"
+	if strings.EqualFold(language, "ko") {
+		return "대표이사"
 	}
-	return "대표이사"
+	return "CEO"
 }
 
 func (service *Service) writeCompanyInfo(responseWriter http.ResponseWriter, request *http.Request) {
@@ -130,7 +130,7 @@ func (service *Service) updateCompanyInfo(responseWriter http.ResponseWriter, re
 }
 
 func companyPolicySnapshot(info companyInfo) map[string]string {
-	primaryLanguage := "ko"
+	primaryLanguage := "en"
 	return map[string]string{
 		"name":           resolveAnyLocalized(info.Name, primaryLanguage),
 		"brandName":      resolveAnyLocalized(info.BrandName, primaryLanguage),
@@ -268,7 +268,7 @@ func resolveAnyLocalized(text localizedText, language string) string {
 	if value := strings.TrimSpace(text[language]); value != "" {
 		return value
 	}
-	if value := strings.TrimSpace(text["ko"]); value != "" {
+	if value := strings.TrimSpace(text["en"]); value != "" {
 		return value
 	}
 	for _, value := range text {
@@ -283,7 +283,7 @@ func resolveLegalAttributes(attributes map[string]map[string]string, language st
 	if resolved := attributes[language]; len(resolved) > 0 {
 		return resolved
 	}
-	if resolved := attributes["ko"]; len(resolved) > 0 {
+	if resolved := attributes["en"]; len(resolved) > 0 {
 		return resolved
 	}
 	for _, resolved := range attributes {
@@ -297,7 +297,7 @@ func resolveLegalAttributes(attributes map[string]map[string]string, language st
 func normalizeCompanyLanguage(language string) string {
 	language = strings.ToLower(strings.TrimSpace(language))
 	if language == "" {
-		return "ko"
+		return "en"
 	}
 	return language
 }

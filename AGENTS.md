@@ -234,6 +234,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   users. Treat `/workspace/private/people/<personID>`,
   `/workspace/circles/<circleID>`, and `/workspace/shared/*` permissions as the
   final workspace access boundary.
+- Keep workspace `.protected/` directories service-owned and non-writable by
+  task users. Agents may read files there, but all changes must go through the
+  owning service API; do not provide delete operations for protected sources of truth.
 - Use `/workspace/shared/cache/dependencies` only for package caches. Never
   place private/source files there.
 - `/workspace/shared/public` is for externally-shareable content (safe to show

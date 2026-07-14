@@ -28,6 +28,7 @@ Avoid ornamental activity, generic dashboard theater, surveillance-like employee
 - Keep internal workflows familiar and efficient.
 - Let the shared company page tell a concise, human story.
 - Make freshness and publication timing visible.
+- Use English as the default publication language and add only the locales a company needs.
 
 ## Accessibility & Inclusion
 
