@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,8 @@ type companyShareSettings struct {
 	PrimaryMetric       string                               `json:"primaryMetric,omitempty"`
 	MetricContexts      map[string]companyShareMetricContext `json:"metricContexts"`
 	RecordIDs           []string                             `json:"recordIDs"`
+	RecordContexts      map[string]companyShareRecordContext `json:"recordContexts"`
+	DocumentIDs         []string                             `json:"documentIDs"`
 	ContactEmail        string                               `json:"contactEmail,omitempty"`
 	ShowTeamActivity    bool                                 `json:"showTeamActivity"`
 	Narratives          map[string]companyShareNarrative     `json:"narratives"`
@@ -76,6 +79,8 @@ type companyShareSettingsResponse struct {
 	PrimaryMetric       string                               `json:"primaryMetric,omitempty"`
 	MetricContexts      map[string]companyShareMetricContext `json:"metricContexts"`
 	RecordIDs           []string                             `json:"recordIDs"`
+	RecordContexts      map[string]companyShareRecordContext `json:"recordContexts"`
+	DocumentIDs         []string                             `json:"documentIDs"`
 	ContactEmail        string                               `json:"contactEmail,omitempty"`
 	ShowTeamActivity    bool                                 `json:"showTeamActivity"`
 	Narratives          map[string]companyShareNarrative     `json:"narratives"`
@@ -92,6 +97,8 @@ type companyShareSettingsUpdate struct {
 	PrimaryMetric    string                               `json:"primaryMetric"`
 	MetricContexts   map[string]companyShareMetricContext `json:"metricContexts"`
 	RecordIDs        []string                             `json:"recordIDs"`
+	RecordContexts   map[string]companyShareRecordContext `json:"recordContexts"`
+	DocumentIDs      []string                             `json:"documentIDs"`
 	ContactEmail     string                               `json:"contactEmail"`
 	ShowTeamActivity bool                                 `json:"showTeamActivity"`
 	Narratives       map[string]companyShareNarrative     `json:"narratives"`
@@ -101,6 +108,14 @@ type companyShareMetricContext struct {
 	Labels             map[string]string `json:"labels"`
 	Descriptions       map[string]string `json:"descriptions"`
 	FavorableDirection string            `json:"favorableDirection"`
+	EvidenceRole       string            `json:"evidenceRole"`
+	ShowSource         bool              `json:"showSource"`
+}
+
+type companyShareRecordContext struct {
+	Titles        map[string]string `json:"titles"`
+	Descriptions  map[string]string `json:"descriptions"`
+	AttributeKeys []string          `json:"attributeKeys"`
 }
 
 type companyShareNarrative struct {
@@ -140,13 +155,24 @@ type companyShareMetric struct {
 	Currency companyMetricCurrency `json:"currency,omitempty"`
 	ValueUSD *float64              `json:"valueUSD,omitempty"`
 	Unit     string                `json:"unit,omitempty"`
+	Source   string                `json:"source,omitempty"`
 }
 
 type companyShareRecord struct {
-	Category string `json:"category"`
-	Date     string `json:"date,omitempty"`
-	Title    string `json:"title"`
-	Detail   string `json:"detail,omitempty"`
+	Category     string            `json:"category"`
+	Date         string            `json:"date,omitempty"`
+	Title        string            `json:"title"`
+	Titles       map[string]string `json:"titles,omitempty"`
+	Descriptions map[string]string `json:"descriptions,omitempty"`
+	Attributes   map[string]string `json:"attributes,omitempty"`
+}
+
+type companyShareDocument struct {
+	DocumentType string `json:"documentType"`
+	Title        string `json:"title"`
+	Language     string `json:"language,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+	IssuedAt     string `json:"issuedAt,omitempty"`
 }
 
 type companyShareSnapshot struct {
@@ -157,6 +183,7 @@ type companyShareSnapshot struct {
 	PrimaryMetric  string                               `json:"primaryMetric,omitempty"`
 	MetricContexts map[string]companyShareMetricContext `json:"metricContexts"`
 	Records        []companyShareRecord                 `json:"records"`
+	Documents      []companyShareDocument               `json:"documents"`
 	ContactEmail   string                               `json:"contactEmail,omitempty"`
 	TeamActivity   *companyShareTeamActivity            `json:"teamActivity,omitempty"`
 	Narratives     map[string]companyShareNarrative     `json:"narratives"`
@@ -246,6 +273,16 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 	settings.PrimaryMetric = primaryMetric
 	settings.MetricContexts = normalizedMetricContexts
 	settings.RecordIDs = uniqueTrimmedValues(update.RecordIDs)
+	recordContexts := update.RecordContexts
+	if recordContexts == nil {
+		recordContexts = settings.RecordContexts
+	}
+	normalizedRecordContexts, errorValue := normalizeCompanyShareRecordContexts(recordContexts, settings.RecordIDs)
+	if errorValue != nil {
+		return settings, errorValue
+	}
+	settings.RecordContexts = normalizedRecordContexts
+	settings.DocumentIDs = uniqueTrimmedValues(update.DocumentIDs)
 	contactEmail := strings.TrimSpace(update.ContactEmail)
 	if contactEmail != "" && validCompanyShareEmail(contactEmail) == "" {
 		return settings, errors.New("문의 이메일 주소를 확인해 주세요.")
@@ -295,11 +332,15 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 	if errorValue != nil {
 		return companyShareSnapshot{}, errorValue
 	}
-	metrics, errorValue := service.readCompanyShareMetrics(ctx, settings.MetricNames)
+	metrics, errorValue := service.readCompanyShareMetrics(ctx, settings.MetricNames, settings.MetricContexts)
 	if errorValue != nil {
 		return companyShareSnapshot{}, errorValue
 	}
-	records, errorValue := service.readCompanyShareRecords(ctx, settings.RecordIDs)
+	records, errorValue := service.readCompanyShareRecords(ctx, settings.RecordIDs, settings.RecordContexts)
+	if errorValue != nil {
+		return companyShareSnapshot{}, errorValue
+	}
+	documents, errorValue := service.readCompanyShareDocuments(ctx, settings.DocumentIDs)
 	if errorValue != nil {
 		return companyShareSnapshot{}, errorValue
 	}
@@ -319,6 +360,7 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 		PrimaryMetric:  settings.PrimaryMetric,
 		MetricContexts: settings.MetricContexts,
 		Records:        records,
+		Documents:      documents,
 		ContactEmail:   settings.ContactEmail,
 		TeamActivity:   teamActivity,
 		Narratives:     settings.Narratives,
@@ -371,7 +413,7 @@ func buildCompanyShareProfiles(info companyInfo, fields []string) map[string]com
 	return profiles
 }
 
-func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames []string) ([]companyShareMetric, error) {
+func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames []string, contexts map[string]companyShareMetricContext) ([]companyShareMetric, error) {
 	if len(metricNames) == 0 {
 		return []companyShareMetric{}, nil
 	}
@@ -380,7 +422,7 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `SELECT metric, year, quarter, month, value, currency, value_usd, unit FROM company_metrics ORDER BY metric, year, quarter, month`)
+	rows, errorValue := database.QueryContext(ctx, `SELECT metric, year, quarter, month, value, currency, value_usd, unit, note FROM company_metrics ORDER BY metric, year, quarter, month`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -389,17 +431,21 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 	metrics := []companyShareMetric{}
 	for rows.Next() {
 		var metric companyShareMetric
-		if errorValue := rows.Scan(&metric.Metric, &metric.Year, &metric.Quarter, &metric.Month, &metric.Value, &metric.Currency, &metric.ValueUSD, &metric.Unit); errorValue != nil {
+		var source string
+		if errorValue := rows.Scan(&metric.Metric, &metric.Year, &metric.Quarter, &metric.Month, &metric.Value, &metric.Currency, &metric.ValueUSD, &metric.Unit, &source); errorValue != nil {
 			return nil, errorValue
 		}
 		if included[metric.Metric] {
+			if contexts[metric.Metric].ShowSource {
+				metric.Source = strings.TrimSpace(source)
+			}
 			metrics = append(metrics, metric)
 		}
 	}
 	return metrics, rows.Err()
 }
 
-func (service *Service) readCompanyShareRecords(ctx context.Context, recordIDs []string) ([]companyShareRecord, error) {
+func (service *Service) readCompanyShareRecords(ctx context.Context, recordIDs []string, contexts map[string]companyShareRecordContext) ([]companyShareRecord, error) {
 	if len(recordIDs) == 0 {
 		return []companyShareRecord{}, nil
 	}
@@ -408,7 +454,7 @@ func (service *Service) readCompanyShareRecords(ctx context.Context, recordIDs [
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `SELECT id, category, record_date, title, detail FROM company_records ORDER BY record_date DESC, updated_at DESC`)
+	rows, errorValue := database.QueryContext(ctx, `SELECT id, category, record_date, title, attributes FROM company_records ORDER BY record_date DESC, updated_at DESC`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -418,14 +464,48 @@ func (service *Service) readCompanyShareRecords(ctx context.Context, recordIDs [
 	for rows.Next() {
 		var recordID string
 		var record companyShareRecord
-		if errorValue := rows.Scan(&recordID, &record.Category, &record.Date, &record.Title, &record.Detail); errorValue != nil {
+		var attributesJSON string
+		if errorValue := rows.Scan(&recordID, &record.Category, &record.Date, &record.Title, &attributesJSON); errorValue != nil {
 			return nil, errorValue
 		}
 		if included[recordID] {
+			recordContext := contexts[recordID]
+			record.Titles = recordContext.Titles
+			record.Descriptions = recordContext.Descriptions
+			record.Attributes = publicCompanyShareAttributes(attributesJSON, recordContext.AttributeKeys)
 			records = append(records, record)
 		}
 	}
 	return records, rows.Err()
+}
+
+func (service *Service) readCompanyShareDocuments(ctx context.Context, documentIDs []string) ([]companyShareDocument, error) {
+	if len(documentIDs) == 0 {
+		return []companyShareDocument{}, nil
+	}
+	database, errorValue := service.openCompanyDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `SELECT id, document_type, title, language, summary, issued_at FROM company_documents ORDER BY issued_at DESC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	included := stringSet(documentIDs)
+	documents := []companyShareDocument{}
+	for rows.Next() {
+		var documentID string
+		var document companyShareDocument
+		if errorValue := rows.Scan(&documentID, &document.DocumentType, &document.Title, &document.Language, &document.Summary, &document.IssuedAt); errorValue != nil {
+			return nil, errorValue
+		}
+		if included[documentID] {
+			documents = append(documents, document)
+		}
+	}
+	return documents, rows.Err()
 }
 
 func (service *Service) handleCompanyShare(responseWriter http.ResponseWriter, request *http.Request) {
@@ -642,6 +722,9 @@ func (service *Service) readCompanyShareSettings() (companyShareSettings, error)
 	if settings.MetricContexts == nil {
 		settings.MetricContexts = map[string]companyShareMetricContext{}
 	}
+	if settings.RecordContexts == nil {
+		settings.RecordContexts = map[string]companyShareRecordContext{}
+	}
 	return settings, nil
 }
 
@@ -653,6 +736,8 @@ func defaultCompanyShareSettings() companyShareSettings {
 		MetricNames:    []string{},
 		MetricContexts: map[string]companyShareMetricContext{},
 		RecordIDs:      []string{},
+		RecordContexts: map[string]companyShareRecordContext{},
+		DocumentIDs:    []string{},
 		Narratives:     defaultCompanyShareNarratives(),
 	}
 }
@@ -712,6 +797,8 @@ func companyShareSettingsView(settings companyShareSettings) companyShareSetting
 		PrimaryMetric:       settings.PrimaryMetric,
 		MetricContexts:      settings.MetricContexts,
 		RecordIDs:           settings.RecordIDs,
+		RecordContexts:      settings.RecordContexts,
+		DocumentIDs:         settings.DocumentIDs,
 		ContactEmail:        settings.ContactEmail,
 		ShowTeamActivity:    settings.ShowTeamActivity,
 		Narratives:          settings.Narratives,
@@ -745,7 +832,76 @@ func normalizeCompanyShareMetricContext(value companyShareMetricContext) (compan
 	if direction != "increase" && direction != "decrease" {
 		direction = "neutral"
 	}
-	return companyShareMetricContext{Labels: labels, Descriptions: descriptions, FavorableDirection: direction}, nil
+	role := strings.TrimSpace(value.EvidenceRole)
+	if !companyShareEvidenceRoles[role] {
+		role = ""
+	}
+	return companyShareMetricContext{
+		Labels: labels, Descriptions: descriptions, FavorableDirection: direction,
+		EvidenceRole: role, ShowSource: value.ShowSource,
+	}, nil
+}
+
+var companyShareEvidenceRoles = map[string]bool{
+	"growth": true, "efficiency": true, "scale": true, "quality": true, "reach": true, "capital": true,
+}
+
+func normalizeCompanyShareRecordContexts(values map[string]companyShareRecordContext, recordIDs []string) (map[string]companyShareRecordContext, error) {
+	contexts := map[string]companyShareRecordContext{}
+	for _, recordID := range recordIDs {
+		contextValue, errorValue := normalizeCompanyShareRecordContext(values[recordID])
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		contexts[recordID] = contextValue
+	}
+	return contexts, nil
+}
+
+func normalizeCompanyShareRecordContext(value companyShareRecordContext) (companyShareRecordContext, error) {
+	titles, errorValue := normalizeCompanyShareLocalizedValues(value.Titles, 160)
+	if errorValue != nil {
+		return companyShareRecordContext{}, errorValue
+	}
+	descriptions, errorValue := normalizeCompanyShareLocalizedValues(value.Descriptions, 800)
+	if errorValue != nil {
+		return companyShareRecordContext{}, errorValue
+	}
+	attributeKeys := uniqueTrimmedValues(value.AttributeKeys)
+	if len(attributeKeys) > 8 {
+		return companyShareRecordContext{}, errors.New("이력마다 공개 속성은 8개 이하로 선택해 주세요.")
+	}
+	return companyShareRecordContext{Titles: titles, Descriptions: descriptions, AttributeKeys: attributeKeys}, nil
+}
+
+func publicCompanyShareAttributes(document string, attributeKeys []string) map[string]string {
+	if len(attributeKeys) == 0 {
+		return nil
+	}
+	var values map[string]any
+	if json.Unmarshal([]byte(document), &values) != nil {
+		return nil
+	}
+	attributes := map[string]string{}
+	for _, key := range attributeKeys {
+		if value, isPublic := publicCompanyShareAttributeValue(values[key]); isPublic {
+			attributes[key] = value
+		}
+	}
+	return attributes
+}
+
+func publicCompanyShareAttributeValue(value any) (string, bool) {
+	switch typedValue := value.(type) {
+	case string:
+		return strings.TrimSpace(typedValue), strings.TrimSpace(typedValue) != ""
+	case float64:
+		return strconv.FormatFloat(typedValue, 'f', -1, 64), true
+	case bool:
+		return strconv.FormatBool(typedValue), true
+	default:
+		return "", false
+	}
 }
 
 func normalizeCompanyShareLocalizedValues(values map[string]string, maximumLength int) (map[string]string, error) {
