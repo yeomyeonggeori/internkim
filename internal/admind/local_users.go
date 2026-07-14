@@ -100,19 +100,28 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 		hasExplicitCircleMutation bool
 	}
 	normalizedUsers := make([]normalizedBatchUser, 0, len(batchRequest.Users))
-	identities := make([]orgchartPersonIdentity, 0, len(batchRequest.Users))
+	normalizedEmails := make([]string, 0, len(batchRequest.Users))
 	for _, rawPayload := range batchRequest.Users {
 		payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
-		payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+		normalizedUsers = append(normalizedUsers, normalizedBatchUser{payload: payload, hasExplicitCircleMutation: hasExplicitCircleMutation})
+		normalizedEmails = append(normalizedEmails, payload.Email)
+	}
+	if errorValue := validateUniqueAdminUserEmails(normalizedEmails); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	identities := make([]orgchartPersonIdentity, 0, len(normalizedUsers))
+	for index, normalizedUser := range normalizedUsers {
+		payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), normalizedUser.payload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
-		normalizedUsers = append(normalizedUsers, normalizedBatchUser{payload: payload, hasExplicitCircleMutation: hasExplicitCircleMutation})
+		normalizedUsers[index].payload = payload
 		identities = append(identities, identity)
 	}
 	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
