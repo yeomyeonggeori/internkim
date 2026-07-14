@@ -4,7 +4,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { AdminPageText } from '../admin/admin-types';
 	import OrgchartProfileFields from '../admin/orgchart-profile-fields.svelte';
-	import type { OrgGroup, UserRecord } from './orgchart-types';
+	import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 	import type { orgchartDirectoryText } from './text';
 
 	type OrgchartPersonDetailPanelVariant = 'side' | 'compact' | 'sheet';

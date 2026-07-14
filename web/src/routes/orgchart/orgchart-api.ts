@@ -1,5 +1,5 @@
 import { AdminApiError, apiErrorMessage } from '../admin/admin-api';
-import type { UsersResponse } from './orgchart-types';
+import type { UsersResponse } from '../../lib/orgchart/types';
 
 export async function fetchOrgchartDirectory(fallbackMessage: string): Promise<UsersResponse> {
 	const response = await fetch('/orgchart/api/people', { credentials: 'include' });
