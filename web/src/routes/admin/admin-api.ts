@@ -6,6 +6,7 @@ import type {
 	BlueclawUpdateStatus,
 	BotProfile,
 	CircleRecord,
+	CompanyDocumentsResponse,
 	CompanyMetricsResponse,
 	CompanyRecordsResponse,
 	CompanyShareSettings,
@@ -126,6 +127,11 @@ export async function fetchCompanyMetrics(adminBaseURL: string, fallbackMessage:
 export async function fetchCompanyRecords(adminBaseURL: string, fallbackMessage: string): Promise<CompanyRecordsResponse> {
 	const response = await fetch(`${adminBaseURL}/company-records`, { credentials: 'include' });
 	return readJSON<CompanyRecordsResponse>(response, fallbackMessage);
+}
+
+export async function fetchCompanyDocuments(adminBaseURL: string, fallbackMessage: string): Promise<CompanyDocumentsResponse> {
+	const response = await fetch(`${adminBaseURL}/company-documents`, { credentials: 'include' });
+	return readJSON<CompanyDocumentsResponse>(response, fallbackMessage);
 }
 
 export async function fetchAttendanceLocations(adminBaseURL: string, fallbackMessage: string): Promise<AttendanceLocationsResponse> {

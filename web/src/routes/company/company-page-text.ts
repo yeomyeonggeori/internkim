@@ -33,6 +33,10 @@ export const companyPageText = {
 			highlights: '핵심 하이라이트', traction: '축적된 성과 지표', latestPeriod: '최근 기간',
 			increase: '직전 기간 대비', businessModel: '비즈니스 모델', customerEvidence: '고객 근거',
 			marketOpportunity: '시장 기회', competitiveAdvantage: '경쟁력', milestones: '달성한 성과',
+			source: '출처', documents: '검증 가능한 근거', documentDescription: '관리자가 회사 기록에서 선별한 문서 요약입니다.',
+			documentTypes: { 'funding-summary': '투자 요약', 'grant-certificate': '선정 확인', 'award-certificate': '수상 확인', 'validation-report': '검증 보고서', 'security-assessment': '보안 평가' },
+			evidenceRoles: { growth: '성장', efficiency: '효율', scale: '규모', quality: '품질', reach: '도달 범위', capital: '재무' },
+			recordCategories: { funding: '투자', award: '수상', product: '제품', partnership: '파트너십', certification: '인증', ip: '지식재산', reference: '고객 근거', grant: '지원 사업', milestone: '주요 성과', growth: '성장' },
 			roadmap: '향후 12개월', funding: '다음 단계', fundingTarget: '모집 목표', useOfFunds: '자금 사용 계획',
 			contact: '자세한 이야기 나누기', noNarrative: '게시된 사업 정보가 없습니다.'
 		},
@@ -79,6 +83,10 @@ export const companyPageText = {
 			highlights: 'Highlights', traction: 'Evidence over time', latestPeriod: 'Latest period',
 			increase: 'from the previous period', businessModel: 'Business model', customerEvidence: 'Customer evidence',
 			marketOpportunity: 'Market opportunity', competitiveAdvantage: 'Competitive advantage', milestones: 'What we have achieved',
+			source: 'Source', documents: 'Verifiable evidence', documentDescription: 'Document summaries selected from the company record by an administrator.',
+			documentTypes: { 'funding-summary': 'Funding summary', 'grant-certificate': 'Grant certificate', 'award-certificate': 'Award certificate', 'validation-report': 'Validation report', 'security-assessment': 'Security assessment' },
+			evidenceRoles: { growth: 'Growth', efficiency: 'Efficiency', scale: 'Scale', quality: 'Quality', reach: 'Reach', capital: 'Financial' },
+			recordCategories: { funding: 'Funding', award: 'Award', product: 'Product', partnership: 'Partnership', certification: 'Certification', ip: 'Intellectual property', reference: 'Customer evidence', grant: 'Grant', milestone: 'Milestone', growth: 'Growth' },
 			roadmap: 'The next 12 months', funding: 'The next stage', fundingTarget: 'Target raise', useOfFunds: 'Use of funds',
 			contact: 'Continue the conversation', noNarrative: 'No business narrative is shared.'
 		},

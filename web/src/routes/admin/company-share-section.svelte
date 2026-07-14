@@ -15,13 +15,14 @@
 	import { onMount } from 'svelte';
 	import {
 		apiErrorMessage,
+		fetchCompanyDocuments,
 		fetchCompanyMetrics,
 		fetchCompanyRecords,
 		fetchCompanyShareSettings,
 		publishCompanyShare,
 		updateCompanyShareSettings
 	} from './admin-api';
-	import type { AdminPageText, CompanyRecord, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareSettings, CompanyShareSettingsUpdate, WorkspaceLanguage } from './admin-types';
+	import type { AdminPageText, CompanyDocument, CompanyRecord, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareRecordContext, CompanyShareSettings, CompanyShareSettingsUpdate, WorkspaceLanguage } from './admin-types';
 
 	type CompanyShareSectionProps = {
 		adminBaseURL: string;
@@ -41,6 +42,7 @@
 	let draft = $state<CompanyShareSettingsUpdate>(emptyDraft());
 	let metricNames = $state<string[]>([]);
 	let records = $state<CompanyRecord[]>([]);
+	let documents = $state<CompanyDocument[]>([]);
 	let message = $state('');
 	let isLoading = $state(true);
 	let isSaving = $state(false);
@@ -49,11 +51,23 @@
 	onMount(loadSettings);
 
 	function emptyDraft(): CompanyShareSettingsUpdate {
-		return { enabled: false, password: '', sessionHours: 24, profileFields: [], metricNames: [], primaryMetric: '', metricContexts: {}, recordIDs: [], contactEmail: '', showTeamActivity: false, narratives: emptyNarratives() };
+		return { enabled: false, password: '', sessionHours: 24, profileFields: [], metricNames: [], primaryMetric: '', metricContexts: {}, recordIDs: [], recordContexts: {}, documentIDs: [], contactEmail: '', showTeamActivity: false, narratives: emptyNarratives() };
 	}
 
 	function emptyMetricContext(): CompanyShareMetricContext {
-		return { labels: { ko: '', en: '' }, descriptions: { ko: '', en: '' }, favorableDirection: 'neutral' };
+		return { labels: { ko: '', en: '' }, descriptions: { ko: '', en: '' }, favorableDirection: 'neutral', evidenceRole: '', showSource: false };
+	}
+
+	function emptyRecordContext(): CompanyShareRecordContext {
+		return { titles: { ko: '', en: '' }, descriptions: { ko: '', en: '' }, attributeKeys: [] };
+	}
+
+	function cloneRecordContexts(recordContexts: CompanyShareSettings['recordContexts'] | undefined): Record<string, CompanyShareRecordContext> {
+		return Object.fromEntries(Object.entries(recordContexts ?? {}).map(([recordID, context]) => [recordID, {
+			titles: { ko: context.titles?.ko ?? '', en: context.titles?.en ?? '' },
+			descriptions: { ko: context.descriptions?.ko ?? '', en: context.descriptions?.en ?? '' },
+			attributeKeys: [...(context.attributeKeys ?? [])]
+		}]));
 	}
 
 	function cloneMetricContexts(metricContexts: CompanyShareSettings['metricContexts'] | undefined): Record<string, CompanyShareMetricContext> {
@@ -85,16 +99,19 @@
 		isLoading = true;
 		message = '';
 		try {
-			const [loadedSettings, metricsResponse, recordsResponse] = await Promise.all([
+			const [loadedSettings, metricsResponse, recordsResponse, documentsResponse] = await Promise.all([
 				fetchCompanyShareSettings(adminBaseURL, text.companyShare.loadError),
 				fetchCompanyMetrics(adminBaseURL, text.companyShare.loadError),
-				fetchCompanyRecords(adminBaseURL, text.companyShare.loadError)
+				fetchCompanyRecords(adminBaseURL, text.companyShare.loadError),
+				fetchCompanyDocuments(adminBaseURL, text.companyShare.loadError)
 			]);
 			settings = loadedSettings;
-			draft = { ...loadedSettings, password: '', profileFields: [...loadedSettings.profileFields], metricNames: [...loadedSettings.metricNames], primaryMetric: loadedSettings.primaryMetric ?? '', metricContexts: cloneMetricContexts(loadedSettings.metricContexts), recordIDs: [...loadedSettings.recordIDs], narratives: cloneNarratives(loadedSettings.narratives) };
+			draft = { ...loadedSettings, password: '', profileFields: [...loadedSettings.profileFields], metricNames: [...loadedSettings.metricNames], primaryMetric: loadedSettings.primaryMetric ?? '', metricContexts: cloneMetricContexts(loadedSettings.metricContexts), recordIDs: [...loadedSettings.recordIDs], recordContexts: cloneRecordContexts(loadedSettings.recordContexts), documentIDs: [...(loadedSettings.documentIDs ?? [])], narratives: cloneNarratives(loadedSettings.narratives) };
 			for (const metricName of draft.metricNames) draft.metricContexts[metricName] ??= emptyMetricContext();
+			for (const recordID of draft.recordIDs) draft.recordContexts[recordID] ??= emptyRecordContext();
 			metricNames = [...new Set((metricsResponse.metrics ?? []).map((metric) => metric.metric))].sort();
 			records = recordsResponse.records ?? [];
+			documents = documentsResponse.documents ?? [];
 		} catch (error) {
 			message = apiErrorMessage(error, text.companyShare.loadError);
 		} finally {
@@ -133,8 +150,41 @@
 		context.favorableDirection = value;
 	}
 
+	function updateMetricRole(metricName: string, value: string) {
+		const context = draft.metricContexts[metricName];
+		if (!context) return;
+		if (value === '' || value === 'growth' || value === 'efficiency' || value === 'scale' || value === 'quality' || value === 'reach' || value === 'capital') {
+			context.evidenceRole = value;
+		}
+	}
+
 	function toggleRecord(recordID: string) {
+		const isRemoving = draft.recordIDs.includes(recordID);
 		draft.recordIDs = toggleValue(draft.recordIDs, recordID);
+		if (!isRemoving) draft.recordContexts[recordID] = emptyRecordContext();
+		if (isRemoving) {
+			const remainingContexts = { ...draft.recordContexts };
+			delete remainingContexts[recordID];
+			draft.recordContexts = remainingContexts;
+		}
+	}
+
+	function toggleRecordAttribute(recordID: string, attributeKey: string) {
+		const context = draft.recordContexts[recordID];
+		if (!context) return;
+		context.attributeKeys = toggleValue(context.attributeKeys, attributeKey);
+	}
+
+	function toggleDocument(documentID: string) {
+		draft.documentIDs = toggleValue(draft.documentIDs, documentID);
+	}
+
+	function recordAttributeEntries(record: CompanyRecord): Array<[string, string]> {
+		return Object.entries(record.attributes ?? {}).flatMap(([key, value]) => {
+			if (typeof value === 'string') return value.trim() ? [[key, value.trim()]] : [];
+			if (typeof value === 'number' || typeof value === 'boolean') return [[key, String(value)]];
+			return [];
+		});
 	}
 
 	function updateHighlights(language: WorkspaceLanguage, value: string) {
@@ -326,6 +376,71 @@
 		</Card.Root>
 	</div>
 
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>{text.companyShare.documents}</Card.Title>
+			<Card.Description>{text.companyShare.documentsDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content class="grid max-h-80 gap-3 overflow-y-auto sm:grid-cols-2">
+			{#if documents.length === 0}
+				<p class="text-muted-foreground text-sm">{text.companyShare.emptyDocuments}</p>
+			{:else}
+				{#each documents as document (document.id)}
+					<Field.Field orientation="horizontal" class="items-start">
+						<Checkbox checked={draft.documentIDs.includes(document.id)} onclick={() => toggleDocument(document.id)} disabled={isLoading || isSaving} id={`company-share-document-${document.id}`} />
+						<Field.Content>
+							<Field.Label for={`company-share-document-${document.id}`}>{document.title}</Field.Label>
+							<Field.Description>{[document.documentType, document.language, document.issuedAt?.slice(0, 10)].filter(Boolean).join(' · ')}</Field.Description>
+							{#if document.summary}<p class="text-muted-foreground mt-1 line-clamp-2 text-xs leading-5">{document.summary}</p>{/if}
+						</Field.Content>
+					</Field.Field>
+				{/each}
+			{/if}
+		</Card.Content>
+	</Card.Root>
+
+	{#if draft.recordIDs.length > 0}
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>{text.companyShare.recordPresentation}</Card.Title>
+				<Card.Description>{text.companyShare.recordPresentationDescription}</Card.Description>
+			</Card.Header>
+			<Card.Content class="grid gap-4">
+				{#each draft.recordIDs as recordID}
+					{@const record = records.find((candidate) => candidate.id === recordID)}
+					{@const context = draft.recordContexts[recordID]}
+					{#if record && context}
+						{@const attributeEntries = recordAttributeEntries(record)}
+						<section class="grid gap-5 rounded-lg border p-4">
+							<div><h3 class="font-semibold">{record.title}</h3><p class="text-muted-foreground mt-1 text-xs">{[record.date, record.category].filter(Boolean).join(' · ')}</p></div>
+							<div class="grid gap-5 md:grid-cols-2">
+								<Field.Field><Field.Label for={`company-share-record-title-ko-${recordID}`}>{text.companyShare.recordTitleKorean}</Field.Label><Input id={`company-share-record-title-ko-${recordID}`} bind:value={context.titles.ko} placeholder={record.title} disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-record-title-en-${recordID}`}>{text.companyShare.recordTitleEnglish}</Field.Label><Input id={`company-share-record-title-en-${recordID}`} bind:value={context.titles.en} placeholder={record.title} disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-record-description-ko-${recordID}`}>{text.companyShare.recordDescriptionKorean}</Field.Label><Textarea id={`company-share-record-description-ko-${recordID}`} bind:value={context.descriptions.ko} placeholder={record.detail ?? ''} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-record-description-en-${recordID}`}>{text.companyShare.recordDescriptionEnglish}</Field.Label><Textarea id={`company-share-record-description-en-${recordID}`} bind:value={context.descriptions.en} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+							</div>
+							<div>
+								<p class="text-sm font-medium">{text.companyShare.recordAttributes}</p>
+								{#if attributeEntries.length === 0}
+									<p class="text-muted-foreground mt-2 text-sm">{text.companyShare.noRecordAttributes}</p>
+								{:else}
+									<div class="mt-3 flex flex-wrap gap-2">
+										{#each attributeEntries as [attributeKey, attributeValue]}
+											<label class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+												<Checkbox checked={context.attributeKeys.includes(attributeKey)} onclick={() => toggleRecordAttribute(recordID, attributeKey)} disabled={isLoading || isSaving} />
+												<span><span class="font-medium">{attributeKey}</span> <span class="text-muted-foreground">{attributeValue}</span></span>
+											</label>
+										{/each}
+									</div>
+								{/if}
+							</div>
+						</section>
+					{/if}
+				{/each}
+			</Card.Content>
+		</Card.Root>
+	{/if}
+
 	{#if draft.metricNames.length > 0}
 		<Card.Root>
 			<Card.Header>
@@ -350,19 +465,30 @@
 						{@const context = draft.metricContexts[metricName]}
 						{#if context}
 							<div class="grid gap-5 rounded-lg border p-4">
-								<div class="flex flex-wrap items-center justify-between gap-3">
+								<div class="flex flex-wrap items-end justify-between gap-4">
 									<p class="font-semibold">{metricName}</p>
-									<Field.Field class="w-full sm:w-56">
-										<Field.Label for={`company-share-direction-${metricName}`}>{text.companyShare.favorableDirection}</Field.Label>
-										<Select.Root type="single" value={context.favorableDirection} onValueChange={(value) => updateMetricDirection(metricName, value)} disabled={isLoading || isSaving}>
-											<Select.Trigger id={`company-share-direction-${metricName}`} class="w-full">{text.companyShare.directionLabels[context.favorableDirection]}</Select.Trigger>
-											<Select.Content>
-												<Select.Item value="neutral" label={text.companyShare.directionLabels.neutral}>{text.companyShare.directionLabels.neutral}</Select.Item>
-												<Select.Item value="increase" label={text.companyShare.directionLabels.increase}>{text.companyShare.directionLabels.increase}</Select.Item>
-												<Select.Item value="decrease" label={text.companyShare.directionLabels.decrease}>{text.companyShare.directionLabels.decrease}</Select.Item>
-											</Select.Content>
-										</Select.Root>
-									</Field.Field>
+									<div class="grid w-full gap-4 sm:w-auto sm:grid-cols-2">
+										<Field.Field class="sm:w-48">
+											<Field.Label for={`company-share-role-${metricName}`}>{text.companyShare.metricRole}</Field.Label>
+											<Select.Root type="single" value={context.evidenceRole || 'none'} onValueChange={(value) => updateMetricRole(metricName, value === 'none' ? '' : value)} disabled={isLoading || isSaving}>
+												<Select.Trigger id={`company-share-role-${metricName}`} class="w-full">{text.companyShare.roleLabels[context.evidenceRole || 'none']}</Select.Trigger>
+												<Select.Content>
+													{#each Object.entries(text.companyShare.roleLabels) as [value, label]}<Select.Item {value} {label}>{label}</Select.Item>{/each}
+												</Select.Content>
+											</Select.Root>
+										</Field.Field>
+										<Field.Field class="sm:w-56">
+											<Field.Label for={`company-share-direction-${metricName}`}>{text.companyShare.favorableDirection}</Field.Label>
+											<Select.Root type="single" value={context.favorableDirection} onValueChange={(value) => updateMetricDirection(metricName, value)} disabled={isLoading || isSaving}>
+												<Select.Trigger id={`company-share-direction-${metricName}`} class="w-full">{text.companyShare.directionLabels[context.favorableDirection]}</Select.Trigger>
+												<Select.Content>
+													<Select.Item value="neutral" label={text.companyShare.directionLabels.neutral}>{text.companyShare.directionLabels.neutral}</Select.Item>
+													<Select.Item value="increase" label={text.companyShare.directionLabels.increase}>{text.companyShare.directionLabels.increase}</Select.Item>
+													<Select.Item value="decrease" label={text.companyShare.directionLabels.decrease}>{text.companyShare.directionLabels.decrease}</Select.Item>
+												</Select.Content>
+											</Select.Root>
+										</Field.Field>
+									</div>
 								</div>
 								<div class="grid gap-5 md:grid-cols-2">
 									<Field.Field><Field.Label for={`company-share-metric-label-ko-${metricName}`}>{text.companyShare.metricLabelKorean}</Field.Label><Input id={`company-share-metric-label-ko-${metricName}`} bind:value={context.labels.ko} placeholder={metricName} disabled={isLoading || isSaving} /></Field.Field>
@@ -370,6 +496,10 @@
 									<Field.Field><Field.Label for={`company-share-metric-description-ko-${metricName}`}>{text.companyShare.metricDescriptionKorean}</Field.Label><Textarea id={`company-share-metric-description-ko-${metricName}`} bind:value={context.descriptions.ko} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
 									<Field.Field><Field.Label for={`company-share-metric-description-en-${metricName}`}>{text.companyShare.metricDescriptionEnglish}</Field.Label><Textarea id={`company-share-metric-description-en-${metricName}`} bind:value={context.descriptions.en} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
 								</div>
+								<Field.Field orientation="horizontal">
+									<Checkbox bind:checked={context.showSource} disabled={isLoading || isSaving} id={`company-share-metric-source-${metricName}`} />
+									<Field.Content><Field.Label for={`company-share-metric-source-${metricName}`}>{text.companyShare.showMetricSource}</Field.Label><Field.Description>{text.companyShare.showMetricSourceDescription}</Field.Description></Field.Content>
+								</Field.Field>
 							</div>
 						{/if}
 					{/each}
