@@ -1274,6 +1274,58 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
+func TestMattermostEphemeralReplyUsesBotAsPostAuthor(t *testing.T) {
+	ephemeralRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/posts/ephemeral":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
+			}
+			ephemeralRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1", RootID: "root-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+		ReplyTargetID:   replyTargetID,
+		Message:         "Checking current tasks",
+		RawEventID:      "raw-event-1",
+		OutboxID:        "outbox-1",
+		EphemeralUserID: "requester-1",
+	}))
+	if errorValue != nil {
+		t.Fatalf("expected ephemeral reply to succeed: %v", errorValue)
+	}
+
+	payload := <-ephemeralRequests
+	if payload["user_id"] != "requester-1" {
+		t.Fatalf("ephemeral target = %+v", payload)
+	}
+	post, isMap := payload["post"].(map[string]any)
+	if !isMap || post["user_id"] != "bot-1" || post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
+		t.Fatalf("ephemeral post = %+v", payload["post"])
+	}
+}
+
 func TestMattermostEphemeralReplyRejectsNativeAttachments(t *testing.T) {
 	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", RootID: "root-1"})
 	if errorValue != nil {
@@ -1362,6 +1414,8 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "user-1", "username": "user-one"}), nil
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1434,6 +1488,9 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
 		}
+		if post["user_id"] != "bot-1" {
+			t.Fatalf("expected ephemeral control authored by bot-1, got %+v", post)
+		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 1 {
@@ -1482,6 +1539,8 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
 		case "/api/v4/users/requester-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "requester-1", "username": "requester-one"}), nil
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1545,6 +1604,9 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 		post, isMap := payload["post"].(map[string]any)
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
+		}
+		if post["user_id"] != "bot-1" {
+			t.Fatalf("expected ephemeral attachment authored by bot-1, got %+v", post)
 		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
