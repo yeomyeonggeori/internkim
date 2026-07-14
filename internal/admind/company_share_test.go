@@ -80,6 +80,48 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 	}
 }
 
+func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir()})
+	if errorValue := service.writeCompanyInfoFile(companyInfo{Name: localizedText{"ko": "테스트 회사", "en": "Test Company"}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	insertCompanyShareTestData(t, service)
+	settings := defaultCompanyShareSettings()
+	settings.MetricNames = []string{"annualRevenue"}
+	settings.MetricContexts = map[string]companyShareMetricContext{
+		"annualRevenue": {ShowSource: true, EvidenceRole: "growth"},
+	}
+	settings.RecordIDs = []string{"public-record"}
+	settings.RecordContexts = map[string]companyShareRecordContext{
+		"public-record": {
+			Titles:        map[string]string{"ko": "프리시드 투자 유치", "en": "Pre-seed funding"},
+			Descriptions:  map[string]string{"ko": "제품 검증을 위한 자금을 확보했습니다.", "en": "Capital secured for product validation."},
+			AttributeKeys: []string{"round"},
+		},
+	}
+	settings.DocumentIDs = []string{"public-document"}
+
+	snapshot, errorValue := service.buildCompanyShareSnapshot(t.Context(), settings, time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := json.Marshal(snapshot)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	serialized := string(document)
+	for _, publicValue := range []string{"internal note", "Pre-seed funding", "Seed", "수상 확인서", "선정 근거 요약"} {
+		if !strings.Contains(serialized, publicValue) {
+			t.Fatalf("snapshot omitted approved evidence %q: %s", publicValue, serialized)
+		}
+	}
+	for _, privateValue := range []string{"secret-attribute", "공개 상세", "private/path", "Private Counterpart", "requester@example.com"} {
+		if strings.Contains(serialized, privateValue) {
+			t.Fatalf("snapshot exposed private evidence %q: %s", privateValue, serialized)
+		}
+	}
+}
+
 func TestCompanyShareNarrativesAreNormalizedAndPublished(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir()})
 	if errorValue := service.writeCompanyInfoFile(companyInfo{Name: localizedText{"ko": "테스트 회사", "en": "Test Company"}}); errorValue != nil {
@@ -131,6 +173,8 @@ func TestCompanyShareMetricContextsPreserveMeaningWithoutAssumingDirection(t *te
 				Labels:             map[string]string{"ko": "월 소진액", "en": "Monthly burn"},
 				Descriptions:       map[string]string{"ko": "월별 순현금 지출"},
 				FavorableDirection: "decrease",
+				EvidenceRole:       "efficiency",
+				ShowSource:         true,
 			},
 			"retention": {FavorableDirection: "increase"},
 			"unused":    {FavorableDirection: "increase"},
@@ -144,6 +188,9 @@ func TestCompanyShareMetricContextsPreserveMeaningWithoutAssumingDirection(t *te
 	}
 	if settings.MetricContexts["burnRate"].FavorableDirection != "decrease" {
 		t.Fatalf("unexpected burn direction: %#v", settings.MetricContexts["burnRate"])
+	}
+	if settings.MetricContexts["burnRate"].EvidenceRole != "efficiency" || !settings.MetricContexts["burnRate"].ShowSource {
+		t.Fatalf("unexpected burn evidence context: %#v", settings.MetricContexts["burnRate"])
 	}
 
 	_, errorValue = applyCompanyShareSettingsUpdate(defaultCompanyShareSettings(), companyShareSettingsUpdate{
@@ -310,8 +357,10 @@ INSERT INTO company_metrics (metric, year, quarter, month, value, currency, valu
 ('annualRevenue', 2025, 0, 0, 1200000000, 'KRW', 870000, '', 'internal note', '2026-01-01T00:00:00Z'),
 ('mau', 2025, 0, 12, 9000, '', NULL, '명', 'do not publish', '2026-01-01T00:00:00Z');
 INSERT INTO company_records (id, category, record_date, title, detail, attributes, updated_at) VALUES
-('public-record', 'milestone', '2025-12-01', '공개 이력', '공개 상세', '{"secret":"secret-attribute"}', '2026-01-01T00:00:00Z'),
-('private-record', 'funding', '2025-11-01', '비공개 이력', 'private-record', '{}', '2026-01-01T00:00:00Z')`)
+('public-record', 'milestone', '2025-12-01', '공개 이력', '공개 상세', '{"round":"Seed","secret":"secret-attribute"}', '2026-01-01T00:00:00Z'),
+('private-record', 'funding', '2025-11-01', '비공개 이력', 'private-record', '{}', '2026-01-01T00:00:00Z');
+INSERT INTO company_documents (id, document_number, kind, document_type, title, counterpart, language, file_path, summary, summary_embedding, requester_email, issued_at, updated_at) VALUES
+('public-document', 'AWD-2025-001', 'received', 'award-certificate', '수상 확인서', 'Private Counterpart', 'ko', 'private/path', '선정 근거 요약', '', 'requester@example.com', '2025-12-02T00:00:00Z', '2025-12-02T00:00:00Z')`)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
