@@ -14,6 +14,14 @@ func (service *Service) withAttendanceEventMutation(
 	database *sql.DB,
 	mutate func(*sql.Tx) ([]string, error),
 ) error {
+	return withAttendanceEventMutationOnDatabase(ctx, database, mutate)
+}
+
+func withAttendanceEventMutationOnDatabase(
+	ctx context.Context,
+	database *sql.DB,
+	mutate func(*sql.Tx) ([]string, error),
+) error {
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return fmt.Errorf("begin attendance event mutation: %w", errorValue)

@@ -118,8 +118,7 @@ func (service *Service) readAttendanceEvents(ctx context.Context, month string, 
 		return nil, errorValue
 	}
 	defer database.Close()
-	startDate := month + "-01"
-	endDate := attendanceNextMonth(month) + "-01"
+	startDate, endDate := attendanceEventContextDateRange(month)
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	hasEmail := normalizedEmail != ""
 	query := attendanceMonthlyEventsQuery(hasEmail)
@@ -157,6 +156,14 @@ func (service *Service) readAttendanceEvents(ctx context.Context, month string, 
 		return filteredEvents[firstIndex].OccurredAt > filteredEvents[secondIndex].OccurredAt
 	})
 	return filteredEvents, nil
+}
+
+func attendanceEventContextDateRange(month string) (string, string) {
+	monthStart, errorValue := time.Parse("2006-01", month)
+	if errorValue != nil {
+		return month + "-01", attendanceNextMonth(month) + "-01"
+	}
+	return monthStart.AddDate(0, 0, -1).Format("2006-01-02"), monthStart.AddDate(0, 1, 1).Format("2006-01-02")
 }
 
 type attendanceEventScanner interface {

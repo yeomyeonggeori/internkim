@@ -90,6 +90,40 @@ describe('attendance work segments', () => {
 		});
 	});
 
+	test('restores an overnight remote segment whose legacy clock-out kept the clock-in date', () => {
+		const events = [
+			attendanceEvent('office-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('office-out', 'clock_out', '2026-06-01T18:00:00+09:00', '18:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('remote-in', 'clock_in', '2026-06-01T21:00:00+09:00', '21:00:00', 'remote', '재택', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('remote-out', 'clock_out', '2026-06-02T02:00:00+09:00', '02:00:00', 'remote', '재택', {
+				localDate: '2026-06-01',
+			}),
+		];
+
+		const firstDay = computeDayEvents('2026-06-01', events);
+		const secondDay = computeDayEvents('2026-06-02', events);
+
+		expect(firstDay.segments.map((segment) => segment.locationID)).toEqual(['office', 'remote']);
+		expect(firstDay.segments[1]).toMatchObject({
+			startTime: '21:00:00',
+			endTime: '24:00:00',
+			workedMinutes: 180,
+		});
+		expect(secondDay.segments.length).toBe(1);
+		expect(secondDay.segments[0]).toMatchObject({
+			locationID: 'remote',
+			startTime: '00:00:00',
+			endTime: '02:00:00',
+			workedMinutes: 120,
+		});
+	});
+
 	test('keeps an open overnight segment active on the current display date', () => {
 		const events = [
 			attendanceEvent('night-in', 'clock_in', '2026-06-01T22:00:00+09:00', '22:00:00', 'office', '사무실', {

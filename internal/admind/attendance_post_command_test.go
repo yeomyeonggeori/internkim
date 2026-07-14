@@ -306,12 +306,13 @@ func TestAttendanceEntryCommentSameLocationResumeCancelsAccidentalClockOut(t *te
 	}
 }
 
-func TestAttendanceEntryCommentOvernightClockOutUsesClockInWorkDate(t *testing.T) {
+func TestAttendanceEntryCommentOvernightClockOutUsesActualEventDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
 	service.saveMattermostAttendanceEntryPostID("entry-post")
 	location, _ := service.workspaceTimeLocation()
 	expectedWorkDate := time.Now().In(location).AddDate(0, 0, -1).Format("2006-01-02")
+	expectedClockOutDate := time.Now().In(location).Format("2006-01-02")
 
 	postAttendanceEntryCommentForTest(t, service, "출근")
 	moveLatestAttendanceEventToYesterday(t, service)
@@ -322,7 +323,7 @@ func TestAttendanceEntryCommentOvernightClockOutUsesClockInWorkDate(t *testing.T
 		t.Fatal(errorValue)
 	}
 	clockOutEvent, found := findAttendanceEventByKind(events, attendanceKindClockOut)
-	if !found || clockOutEvent.LocalDate != expectedWorkDate {
+	if !found || clockOutEvent.LocalDate != expectedClockOutDate {
 		t.Fatalf("clock out event = %+v all events = %+v", clockOutEvent, events)
 	}
 }

@@ -316,6 +316,11 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
 		log.Printf("attendance future event repair failed: %v", errorValue)
 	}
+	if repairedCount, errorValue := service.repairAttendanceClockOutDates(ctx); errorValue != nil {
+		log.Printf("attendance clock-out date repair failed: %v", errorValue)
+	} else if repairedCount > 0 {
+		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
+	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
