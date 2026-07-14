@@ -4,12 +4,35 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestLocalUsersRequiresResolvedMutationIdentity(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	externalRequestMade := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		externalRequestMade = true
+		return nil, errors.New("unexpected external request")
+	})}
+
+	_, _, errorValue := service.applyLocalUserMutation(context.Background(), adminUserMutation{
+		Email:  "member@example.com",
+		Handle: "member-user",
+		Role:   "admin",
+	}, false)
+
+	if errorValue == nil || errorValue.Error() != "resolved userID required for local user mutation" {
+		t.Fatalf("error = %v", errorValue)
+	}
+	if externalRequestMade {
+		t.Fatal("external request was made before mutation identity resolution")
+	}
+}
 
 func TestLocalListUsers(t *testing.T) {
 	service := newLocalUsersTestService(t)
