@@ -52,6 +52,12 @@ check: build build-companion
 	cd web && bun run check
 	cd web && bun run test:unit
 	cd mattermost-plugin/internkim-ephemeral && bun test webapp
+	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
+	cd .dependency/blueclaw/protocol && bun run build
+	cd .dependency/blueclaw/protocol && bun test
+	cd .dependency/blueclaw/sdkd && bun install --frozen-lockfile
+	cd .dependency/blueclaw/sdkd && bun run build
+	cd .dependency/blueclaw/sdkd && bun test
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
 
