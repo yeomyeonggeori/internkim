@@ -1,0 +1,262 @@
+<script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+	import * as ToggleGroup from '$lib/components/ui/toggle-group';
+	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
+	import MailIcon from '@lucide/svelte/icons/mail';
+	import {
+		companyMetricChangeAssessment,
+		companyMetricChangePercentage,
+		companyMetricLabel,
+		companyMetricPeriodLabel,
+		companyMetricSeries,
+		companyMetricTrendPoints,
+		formatCompanyMetricValue,
+		latestCompanyMetrics,
+		type CompanyMetricCurrency,
+		type CompanyMetricDisplayCurrency,
+		type CompanyShareMetricContext,
+		type CompanyShareMetric,
+		type CompanyShareNarrative,
+		type CompanyShareRecord
+	} from './company-page-model';
+
+	type CompanyStoryText = {
+		highlights: string;
+		traction: string;
+		latestPeriod: string;
+		increase: string;
+		businessModel: string;
+		customerEvidence: string;
+		marketOpportunity: string;
+		competitiveAdvantage: string;
+		milestones: string;
+		roadmap: string;
+		funding: string;
+		fundingTarget: string;
+		useOfFunds: string;
+		contact: string;
+		noNarrative: string;
+	};
+
+	type CompanyStoryProps = {
+		metrics: CompanyShareMetric[];
+		primaryMetric?: string;
+		metricContexts: Record<string, CompanyShareMetricContext>;
+		records: CompanyShareRecord[];
+		narrative: CompanyShareNarrative;
+		displayCurrency: CompanyMetricDisplayCurrency;
+		localCurrency?: CompanyMetricCurrency;
+		language: 'ko' | 'en';
+		text: CompanyStoryText;
+		displayCurrencyLabel: string;
+		contactEmail?: string;
+		onDisplayCurrencyChange: (value: string) => void;
+	};
+
+	let {
+		metrics, primaryMetric, metricContexts, records, narrative, displayCurrency, localCurrency, language, text,
+		displayCurrencyLabel, contactEmail, onDisplayCurrencyChange
+	}: CompanyStoryProps = $props();
+	const metricGroups = $derived(latestCompanyMetrics(metrics).map((latest) => ({ latest, series: companyMetricSeries(metrics, latest.metric) })));
+	const primaryMetricGroup = $derived(primaryMetric ? metricGroups.find((group) => group.latest.metric === primaryMetric) : undefined);
+	const secondaryMetricGroups = $derived(primaryMetricGroup ? metricGroups.filter((group) => group.latest.metric !== primaryMetricGroup.latest.metric) : metricGroups);
+	const hasBusinessStory = $derived(!!narrative.businessModel || !!narrative.customerEvidence);
+	const hasMarketStory = $derived(!!narrative.marketOpportunity || !!narrative.competitiveAdvantage);
+	const hasFundingStory = $derived(!!narrative.fundingStage || !!narrative.fundingTarget || !!narrative.useOfFunds);
+
+	function formatChange(series: CompanyShareMetric[]): string | undefined {
+		const change = companyMetricChangePercentage(series, displayCurrency);
+		if (change === undefined) return undefined;
+		const sign = change > 0 ? '+' : '';
+		return `${sign}${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(change)}%`;
+	}
+
+	function changeClass(series: CompanyShareMetric[]): string {
+		const change = companyMetricChangePercentage(series, displayCurrency);
+		const assessment = companyMetricChangeAssessment(change, metricContext(series[0]?.metric ?? '').favorableDirection);
+		if (assessment === 'favorable') return 'text-blue-600';
+		if (assessment === 'unfavorable') return 'text-destructive';
+		return 'text-foreground';
+	}
+
+	function metricContext(metricName: string): CompanyShareMetricContext {
+		return metricContexts[metricName] ?? { labels: {}, descriptions: {}, favorableDirection: 'neutral' };
+	}
+
+	function displayMetricLabel(metricName: string): string {
+		return metricContext(metricName).labels[language] || companyMetricLabel(metricName);
+	}
+
+	function displayMetricDescription(metricName: string): string {
+		return metricContext(metricName).descriptions[language] || '';
+	}
+
+	function formatDate(value: string): string {
+		const date = new Date(`${value}T00:00:00`);
+		if (Number.isNaN(date.getTime())) return value;
+		return new Intl.DateTimeFormat(language, { year: 'numeric', month: 'short' }).format(date);
+	}
+</script>
+
+{#if metricGroups.length > 0}
+	<section class="py-14 sm:py-20">
+		<div class="flex flex-wrap items-center justify-between gap-4">
+			<h2 class="text-2xl font-semibold text-balance">{text.traction}</h2>
+			{#if localCurrency}
+				<ToggleGroup.Root type="single" value={displayCurrency} onValueChange={onDisplayCurrencyChange} variant="outline" size="sm" aria-label={displayCurrencyLabel}>
+					<ToggleGroup.Item value="USD">USD</ToggleGroup.Item>
+					<ToggleGroup.Item value="local">{localCurrency}</ToggleGroup.Item>
+				</ToggleGroup.Root>
+			{/if}
+		</div>
+
+		{#if primaryMetricGroup}
+		<div class="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(17rem,0.7fr)]">
+			<div class="border-y py-7">
+				<div class="flex flex-wrap items-end justify-between gap-4">
+					<div>
+						<p class="text-muted-foreground text-sm font-medium">{displayMetricLabel(primaryMetricGroup.latest.metric)}</p>
+						<p class="mt-2 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{formatCompanyMetricValue(primaryMetricGroup.latest, displayCurrency, language)}</p>
+						{#if displayMetricDescription(primaryMetricGroup.latest.metric)}<p class="text-muted-foreground mt-3 max-w-[55ch] text-sm leading-6">{displayMetricDescription(primaryMetricGroup.latest.metric)}</p>{/if}
+					</div>
+					<div class="text-right text-sm">
+						{#if formatChange(primaryMetricGroup.series)}
+							<p class={`font-semibold tabular-nums ${changeClass(primaryMetricGroup.series)}`}>{formatChange(primaryMetricGroup.series)}</p>
+							<p class="text-muted-foreground mt-1">{text.increase}</p>
+						{:else}
+							<p class="text-muted-foreground">{text.latestPeriod}</p>
+						{/if}
+						<p class="mt-1 font-medium">{companyMetricPeriodLabel(primaryMetricGroup.latest, language)}</p>
+					</div>
+				</div>
+
+				{#if primaryMetricGroup.series.length > 1}
+					<div class="mt-9" role="img" aria-label={`${displayMetricLabel(primaryMetricGroup.latest.metric)} ${text.traction}`}>
+						<svg viewBox="0 0 640 180" preserveAspectRatio="none" class="h-52 w-full" aria-hidden="true">
+							<defs>
+								<linearGradient id="company-metric-area" x1="0" y1="0" x2="0" y2="1">
+									<stop offset="0" stop-color="var(--color-blue-600)" stop-opacity="0.22" />
+									<stop offset="1" stop-color="var(--color-blue-600)" stop-opacity="0" />
+								</linearGradient>
+							</defs>
+							<path d="M12 168H628" stroke="currentColor" stroke-opacity="0.12" vector-effect="non-scaling-stroke" />
+							<polyline points={`12,168 ${companyMetricTrendPoints(primaryMetricGroup.series, displayCurrency)} 628,168`} fill="url(#company-metric-area)" stroke="none" />
+							<polyline points={companyMetricTrendPoints(primaryMetricGroup.series, displayCurrency)} fill="none" stroke="var(--color-blue-600)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
+						<div class="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums">
+							<span>{companyMetricPeriodLabel(primaryMetricGroup.series[0], language)}</span>
+							<span>{companyMetricPeriodLabel(primaryMetricGroup.latest, language)}</span>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<dl class="border-y">
+				{#each secondaryMetricGroups as group}
+					<div class="grid gap-2 border-b py-5 last:border-b-0">
+						<dt class="text-muted-foreground text-sm font-medium">{displayMetricLabel(group.latest.metric)}</dt>
+						<dd class="flex items-end justify-between gap-4">
+							<span class="text-2xl font-semibold tabular-nums">{formatCompanyMetricValue(group.latest, displayCurrency, language)}</span>
+							<span class="text-right text-xs">
+								{#if formatChange(group.series)}<span class={`block font-semibold tabular-nums ${changeClass(group.series)}`}>{formatChange(group.series)}</span>{/if}
+								<span class="text-muted-foreground">{companyMetricPeriodLabel(group.latest, language)}</span>
+							</span>
+						</dd>
+						{#if displayMetricDescription(group.latest.metric)}<dd class="text-muted-foreground text-xs leading-5">{displayMetricDescription(group.latest.metric)}</dd>{/if}
+					</div>
+				{/each}
+			</dl>
+		</div>
+		{:else}
+			<div class="mt-8 grid border-y md:grid-cols-2">
+				{#each secondaryMetricGroups as group}
+					<article class="grid content-between gap-7 border-b py-7 md:px-7 md:odd:border-r md:odd:pl-0 md:even:pr-0">
+						<div>
+							<div class="flex items-start justify-between gap-4">
+								<div>
+									<h3 class="text-muted-foreground text-sm font-medium">{displayMetricLabel(group.latest.metric)}</h3>
+									<p class="mt-2 text-3xl font-semibold tabular-nums">{formatCompanyMetricValue(group.latest, displayCurrency, language)}</p>
+								</div>
+								<div class="text-right text-xs">
+									{#if formatChange(group.series)}<p class={`font-semibold tabular-nums ${changeClass(group.series)}`}>{formatChange(group.series)}</p>{/if}
+									<p class="text-muted-foreground mt-1">{companyMetricPeriodLabel(group.latest, language)}</p>
+								</div>
+							</div>
+							{#if displayMetricDescription(group.latest.metric)}<p class="text-muted-foreground mt-4 max-w-[55ch] text-sm leading-6">{displayMetricDescription(group.latest.metric)}</p>{/if}
+						</div>
+						{#if group.series.length > 1}
+							<div role="img" aria-label={`${displayMetricLabel(group.latest.metric)} ${text.traction}`}>
+								<svg viewBox="0 0 320 96" preserveAspectRatio="none" class="h-24 w-full" aria-hidden="true">
+									<path d="M12 84H308" stroke="currentColor" stroke-opacity="0.12" vector-effect="non-scaling-stroke" />
+									<polyline points={companyMetricTrendPoints(group.series, displayCurrency, 320, 96)} fill="none" stroke="var(--color-blue-600)" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+								<div class="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums"><span>{companyMetricPeriodLabel(group.series[0], language)}</span><span>{companyMetricPeriodLabel(group.latest, language)}</span></div>
+							</div>
+						{/if}
+					</article>
+				{/each}
+			</div>
+		{/if}
+	</section>
+{/if}
+
+{#if narrative.highlights.length > 0}
+	<section class="py-14 sm:py-20">
+		<h2 class="text-2xl font-semibold text-balance">{text.highlights}</h2>
+		<ol class="mt-7 grid border-y md:grid-cols-3 md:divide-x">
+			{#each narrative.highlights as highlight, index}
+				<li class="grid grid-cols-[2rem_1fr] gap-3 border-b py-6 last:border-b-0 md:block md:border-b-0 md:px-7 md:first:pl-0 md:last:pr-0">
+					<span class="text-muted-foreground text-sm tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+					<p class="font-medium leading-7 text-pretty md:mt-5">{highlight}</p>
+				</li>
+			{/each}
+		</ol>
+	</section>
+{/if}
+
+{#if hasBusinessStory}
+	<section class="grid gap-10 border-y py-14 sm:py-20 lg:grid-cols-2 lg:gap-16">
+		{#if narrative.businessModel}<div><h2 class="text-xl font-semibold">{text.businessModel}</h2><p class="text-muted-foreground mt-5 max-w-[65ch] whitespace-pre-line leading-8 text-pretty">{narrative.businessModel}</p></div>{/if}
+		{#if narrative.customerEvidence}<div><h2 class="text-xl font-semibold">{text.customerEvidence}</h2><p class="text-muted-foreground mt-5 max-w-[65ch] whitespace-pre-line leading-8 text-pretty">{narrative.customerEvidence}</p></div>{/if}
+	</section>
+{/if}
+
+{#if hasMarketStory}
+	<section class="grid gap-10 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,0.6fr)] lg:gap-16">
+		{#if narrative.marketOpportunity}<div><h2 class="text-2xl font-semibold text-balance">{text.marketOpportunity}</h2><p class="text-muted-foreground mt-6 max-w-[68ch] whitespace-pre-line text-lg leading-8 text-pretty">{narrative.marketOpportunity}</p></div>{/if}
+		{#if narrative.competitiveAdvantage}<div class="border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"><h3 class="font-semibold">{text.competitiveAdvantage}</h3><p class="text-muted-foreground mt-4 whitespace-pre-line leading-7 text-pretty">{narrative.competitiveAdvantage}</p></div>{/if}
+	</section>
+{/if}
+
+{#if records.length > 0 || narrative.roadmap}
+	<section class="grid gap-12 border-t py-14 sm:py-20 lg:grid-cols-[minmax(0,1.25fr)_minmax(17rem,0.75fr)] lg:gap-16">
+		{#if records.length > 0}
+			<div>
+				<h2 class="text-2xl font-semibold">{text.milestones}</h2>
+				<ol class="mt-7 grid gap-7">
+					{#each records as record}
+						<li class="grid grid-cols-[5.5rem_1fr] gap-5">
+							<time class="text-muted-foreground text-sm tabular-nums">{record.date ? formatDate(record.date) : record.category}</time>
+							<div><h3 class="font-semibold">{record.title}</h3>{#if record.detail}<p class="text-muted-foreground mt-2 leading-7 text-pretty">{record.detail}</p>{/if}</div>
+						</li>
+					{/each}
+				</ol>
+			</div>
+		{/if}
+		{#if narrative.roadmap}<div class="border-t pt-7 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"><h2 class="text-xl font-semibold">{text.roadmap}</h2><p class="text-muted-foreground mt-5 whitespace-pre-line leading-8 text-pretty">{narrative.roadmap}</p></div>{/if}
+	</section>
+{/if}
+
+{#if hasFundingStory}
+	<section class="bg-primary text-primary-foreground my-6 grid gap-10 rounded-xl px-6 py-8 sm:px-10 sm:py-11 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+		<div>
+			<p class="text-primary-foreground/65 text-sm font-medium">{text.funding}</p>
+			{#if narrative.fundingStage}<h2 class="mt-3 text-3xl font-semibold text-balance">{narrative.fundingStage}</h2>{/if}
+			{#if narrative.fundingTarget}<div class="mt-7"><p class="text-primary-foreground/65 text-sm">{text.fundingTarget}</p><p class="mt-1 text-2xl font-semibold tabular-nums">{narrative.fundingTarget}</p></div>{/if}
+		</div>
+		<div class="flex flex-col justify-between gap-8 border-t border-primary-foreground/20 pt-7 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-9">
+			{#if narrative.useOfFunds}<div><h3 class="font-semibold">{text.useOfFunds}</h3><p class="text-primary-foreground/75 mt-4 whitespace-pre-line leading-7 text-pretty">{narrative.useOfFunds}</p></div>{/if}
+			{#if contactEmail}<Button variant="secondary" href={`mailto:${contactEmail}`} class="w-fit"><MailIcon data-icon="inline-start" />{text.contact}<ArrowUpRightIcon data-icon="inline-end" /></Button>{/if}
+		</div>
+	</section>
+{/if}
