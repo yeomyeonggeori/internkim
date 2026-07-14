@@ -381,6 +381,8 @@ func deviceAssetSourcePath(assetName string, repositoryRootPath string) string {
 	return asset.SourcePath(repositoryRootPath)
 }
 
+var buildBlueclawSDKDArtifact = buildBlueclawSDKDReleaseArtifact
+
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
 	gitRevision := gitRevision(repositoryRootPath)
 	blobInputs := []struct {
@@ -395,6 +397,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "admind", revision: gitRevision, restartGroup: "admind", healthCheck: "admind", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.AdmindName), builder: buildReleaseBinary("./cmd/" + blueclaw.AdmindName)},
 		{name: "capabilityd", revision: gitRevision, restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
 		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
+		{name: "blueclawSDKD", restartGroup: "blueclaw", healthCheck: "blueclawSDKD", sourcePath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw-sdkd"), builder: buildBlueclawSDKDArtifact},
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
@@ -411,8 +414,16 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 				return nil, errorValue
 			}
 		}
+		if input.name == "blueclawSDKD" {
+			input.revision = blueclawSDKDRevision(repositoryRootPath)
+		}
 		if errorValue := validateReleaseSource(input.name, input.sourcePath); errorValue != nil {
 			return nil, errorValue
+		}
+		if input.name == "blueclawSDKD" {
+			if errorValue := validateBlueclawSDKDFreshness(repositoryRootPath, input.sourcePath); errorValue != nil {
+				return nil, errorValue
+			}
 		}
 		if input.name == "blueclawPayload" {
 			if errorValue := validateBlueclawPayloadFreshness(repositoryRootPath, input.sourcePath); errorValue != nil {
@@ -459,8 +470,61 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 	}
 }
 
+func buildBlueclawSDKDReleaseArtifact(repositoryRootPath string, outputPath string) error {
+	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-sdkd"))
+	command.Dir = repositoryRootPath
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("build blueclaw SDKD: %s", strings.TrimSpace(string(output)))
+	}
+	return validateReleaseSource("blueclawSDKD", outputPath)
+}
+
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
 	return blueclaw.EnsureBlueclawSupervisorBinary(outputPath, repositoryRootPath)
+}
+
+func validateBlueclawSDKDFreshness(repositoryRootPath string, artifactDirectoryPath string) error {
+	document, errorValue := os.ReadFile(filepath.Join(artifactDirectoryPath, "manifest.json"))
+	if errorValue != nil {
+		return fmt.Errorf("read blueclaw SDKD manifest: %w", errorValue)
+	}
+	var manifest struct {
+		BlueclawRevision string `json:"blueclawRevision"`
+		SHA256           string `json:"sha256"`
+	}
+	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
+		return fmt.Errorf("parse blueclaw SDKD manifest: %w", errorValue)
+	}
+	expectedRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(manifest.BlueclawRevision) != expectedRevision {
+		return fmt.Errorf("blueclaw SDKD artifact revision %q does not match current protocol and SDKD source %q; run `make prepare-blueclaw-sdkd`", manifest.BlueclawRevision, expectedRevision)
+	}
+	binarySHA256, _, errorValue := releaseFileSHA256AndSize(filepath.Join(artifactDirectoryPath, blueclaw.SDKDName))
+	if errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(manifest.SHA256) != binarySHA256 {
+		return errors.New("blueclaw SDKD artifact checksum does not match its manifest")
+	}
+	return nil
+}
+
+func blueclawSDKDSourceRevision(repositoryRootPath string) (string, error) {
+	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-sdkd"), "--print-source-revision")
+	command.Dir = repositoryRootPath
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return "", fmt.Errorf("resolve blueclaw SDKD source revision: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	revision := strings.TrimSpace(string(output))
+	if revision == "" {
+		return "", errors.New("resolve blueclaw SDKD source revision: empty revision")
+	}
+	return revision, nil
 }
 
 func validateBlueclawPayloadFreshness(repositoryRootPath string, artifactDirectoryPath string) error {
@@ -757,6 +821,20 @@ func webRevision(repositoryRootPath string) string {
 		return strings.TrimSpace(version)
 	}
 	return gitRevision(repositoryRootPath)
+}
+
+func blueclawSDKDRevision(repositoryRootPath string) string {
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "blueclaw-sdkd", "manifest.json"))
+	if errorValue != nil {
+		return blueclawPayloadRevision(repositoryRootPath)
+	}
+	var manifest struct {
+		BlueclawRevision string `json:"blueclawRevision"`
+	}
+	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
+		return blueclawPayloadRevision(repositoryRootPath)
+	}
+	return firstNonEmptyString(manifest.BlueclawRevision, blueclawPayloadRevision(repositoryRootPath))
 }
 
 func blueclawPayloadRevision(repositoryRootPath string) string {

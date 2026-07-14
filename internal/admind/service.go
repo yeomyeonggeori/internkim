@@ -308,6 +308,9 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	if errorValue := service.reconcileReleaseSDKDBootstrap(ctx); errorValue != nil {
+		return fmt.Errorf("reconcile SDKD release bootstrap: %w", errorValue)
+	}
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
