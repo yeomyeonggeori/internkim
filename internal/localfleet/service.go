@@ -157,6 +157,9 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return errors.New("scenario is required")
 	}
 	if withoutMattermost {
+		if normalizedScenario == "sdkd-host-topology" {
+			return service.runPlans(contextValue, logger, service.sdkdHostTopologyScenarioPlans())
+		}
 		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
 	}
 	switch normalizedScenario {
