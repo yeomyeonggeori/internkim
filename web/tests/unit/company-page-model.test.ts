@@ -10,6 +10,8 @@ import {
 	companyMetricLabel,
 	companyMetricPeriodLabel,
 	companyMetricTrendPoints,
+	companyRecordDescription,
+	companyRecordTitle,
 	formatCompanyMetricValue,
 	companyWorkStatusPercentage,
 	latestCompanyMetrics,
@@ -75,6 +77,17 @@ describe('company page model', () => {
 		const metric = { metric: 'sites', year: 2025, value: 63, unit: '곳' };
 		expect(companyMetricDisplayValue(metric, 'USD')).toBe(63);
 		expect(formatCompanyMetricValue(metric, 'USD', 'ko')).toBe('63 곳');
+	});
+
+	test('uses localized milestone copy without exposing an original detail', () => {
+		const record = {
+			category: 'funding', title: '프리시드 투자 유치',
+			titles: { en: 'Pre-seed funding' }, descriptions: { en: 'Capital secured for product validation.' }
+		};
+		expect(companyRecordTitle(record, 'en')).toBe('Pre-seed funding');
+		expect(companyRecordTitle(record, 'ko')).toBe('프리시드 투자 유치');
+		expect(companyRecordDescription(record, 'en')).toBe('Capital secured for product validation.');
+		expect(companyRecordDescription(record, 'ko')).toBe('');
 	});
 
 	test('derives activity intensity and pulse geometry from daily counts', () => {
