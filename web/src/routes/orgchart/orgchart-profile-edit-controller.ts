@@ -8,7 +8,7 @@ import {
 	type OrgProfileSnapshot
 } from '../admin/orgchart-profile-model';
 import { isSupervisorCandidateForRecord } from '../admin/orgchart-tree';
-import type { OrgGroup, UserRecord } from './orgchart-types';
+import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type { OrgProfileSnapshot };
 

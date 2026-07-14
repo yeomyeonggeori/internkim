@@ -20,7 +20,7 @@ import {
 	type OrgProfileSnapshot
 } from './orgchart-profile-edit-controller';
 import { orgchartOrganizationSections, type OrgchartOrganizationSection } from './orgchart-organization-model';
-import type { OrgGroup, UserRecord, UsersResponse } from './orgchart-types';
+import type { OrgGroup, UserRecord, UsersResponse } from '../../lib/orgchart/types';
 import type { orgchartDirectoryText } from './text';
 
 type OrgchartDirectoryPageText = typeof orgchartDirectoryText.ko;
