@@ -197,25 +197,42 @@ func (service *Service) updateOrgchartPeopleCacheMutation(ctx context.Context, k
 		return fmt.Errorf("begin orgchart people cache mutation: %w", errorValue)
 	}
 	defer transaction.Rollback()
-	for _, key := range uniqueKeys {
+	if isBeginning {
+		if errorValue := invalidateOrgchartPeopleCacheKeys(ctx, transaction, uniqueKeys, true); errorValue != nil {
+			return errorValue
+		}
+	} else if errorValue := clearOrgchartPeopleCacheDirtyState(ctx, transaction, uniqueKeys); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return fmt.Errorf("commit orgchart people cache mutation: %w", errorValue)
+	}
+	return nil
+}
+
+func invalidateOrgchartPeopleCacheKeys(ctx context.Context, transaction *sql.Tx, keys []orgchartPeopleCacheKey, isDirty bool) error {
+	for _, key := range uniqueOrgchartPeopleCacheKeys(keys) {
 		if errorValue := ensureOrgchartPeopleCacheState(ctx, transaction, key); errorValue != nil {
 			return errorValue
 		}
-		if isBeginning {
-			if _, errorValue := transaction.ExecContext(ctx, `UPDATE orgchart_people_cache_states SET revision = revision + 1, is_dirty = 1 WHERE cache_kind = ? AND cache_key = ?`, string(key.Kind), key.Key); errorValue != nil {
-				return fmt.Errorf("mark orgchart people cache dirty: %w", errorValue)
-			}
-			if _, errorValue := transaction.ExecContext(ctx, `DELETE FROM orgchart_people_cache_entries WHERE cache_kind = ? AND cache_key = ?`, string(key.Kind), key.Key); errorValue != nil {
-				return fmt.Errorf("delete orgchart people cache entry: %w", errorValue)
-			}
-			continue
+		if _, errorValue := transaction.ExecContext(ctx, `UPDATE orgchart_people_cache_states SET revision = revision + 1, is_dirty = ? WHERE cache_kind = ? AND cache_key = ?`, isDirty, string(key.Kind), key.Key); errorValue != nil {
+			return fmt.Errorf("invalidate orgchart people cache state: %w", errorValue)
+		}
+		if _, errorValue := transaction.ExecContext(ctx, `DELETE FROM orgchart_people_cache_entries WHERE cache_kind = ? AND cache_key = ?`, string(key.Kind), key.Key); errorValue != nil {
+			return fmt.Errorf("delete orgchart people cache entry: %w", errorValue)
+		}
+	}
+	return nil
+}
+
+func clearOrgchartPeopleCacheDirtyState(ctx context.Context, transaction *sql.Tx, keys []orgchartPeopleCacheKey) error {
+	for _, key := range uniqueOrgchartPeopleCacheKeys(keys) {
+		if errorValue := ensureOrgchartPeopleCacheState(ctx, transaction, key); errorValue != nil {
+			return errorValue
 		}
 		if _, errorValue := transaction.ExecContext(ctx, `UPDATE orgchart_people_cache_states SET is_dirty = 0 WHERE cache_kind = ? AND cache_key = ?`, string(key.Kind), key.Key); errorValue != nil {
 			return fmt.Errorf("clear orgchart people cache dirty state: %w", errorValue)
 		}
-	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return fmt.Errorf("commit orgchart people cache mutation: %w", errorValue)
 	}
 	return nil
 }
