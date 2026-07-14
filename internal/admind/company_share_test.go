@@ -5,10 +5,97 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCompanyShareConfigurationUsesProtectedReadableJSON(t *testing.T) {
+	stateDirectory := t.TempDir()
+	workspaceDirectory := filepath.Join(t.TempDir(), "workspace")
+	service := NewService(Configuration{StateDirectory: stateDirectory, BlueclawWorkspacePath: workspaceDirectory})
+	settings := saveCompanyShareTestSettings(t, service, "share-secret")
+	settings.Languages = []string{"en", "ja"}
+	if errorValue := service.writeCompanyShareSettingsFile(settings); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	configurationPath := filepath.Join(workspaceDirectory, ".protected", "company-share.json")
+	document, errorValue := os.ReadFile(configurationPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Contains(string(document), "passwordHash") || strings.Contains(string(document), "share-secret") {
+		t.Fatalf("protected configuration exposed password material: %s", document)
+	}
+	configurationInfo, errorValue := os.Stat(configurationPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	directoryInfo, errorValue := os.Stat(filepath.Dir(configurationPath))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configurationInfo.Mode().Perm() != 0o644 || directoryInfo.Mode().Perm() != 0o755 {
+		t.Fatalf("protected modes = file %o, directory %o", configurationInfo.Mode().Perm(), directoryInfo.Mode().Perm())
+	}
+	accessInfo, errorValue := os.Stat(filepath.Join(stateDirectory, companyShareAccessFileName))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if accessInfo.Mode().Perm() != 0o600 {
+		t.Fatalf("access state mode = %o", accessInfo.Mode().Perm())
+	}
+}
+
+func TestCompanyShareSettingsAPIRejectsUnknownJSONFields(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir()})
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/company-share", strings.NewReader(`{
+		"enabled": false,
+		"sessionHours": 24,
+		"languages": ["en"],
+		"unknownField": true
+	}`))
+	response := httptest.NewRecorder()
+
+	service.updateCompanyShareSettings(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("update status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestCompanyShareSettingsMigrateFromPrivateState(t *testing.T) {
+	stateDirectory := t.TempDir()
+	workspaceDirectory := filepath.Join(t.TempDir(), "workspace")
+	legacyDocument := `{
+		"enabled": true,
+		"passwordHash": "legacy-hash",
+		"accessVersion": 7,
+		"sessionHours": 24,
+		"profileFields": ["description"],
+		"metricNames": [],
+		"recordIDs": [],
+		"documentIDs": []
+	}`
+	if errorValue := os.WriteFile(filepath.Join(stateDirectory, companyShareLegacySettingsName), []byte(legacyDocument), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := NewService(Configuration{StateDirectory: stateDirectory, BlueclawWorkspacePath: workspaceDirectory})
+
+	settings, errorValue := service.readCompanyShareSettings()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if settings.PasswordHash != "legacy-hash" || settings.AccessVersion != 7 {
+		t.Fatalf("legacy access state was not migrated: %#v", settings)
+	}
+	if _, errorValue := os.Stat(filepath.Join(workspaceDirectory, ".protected", companyShareConfigurationFileName)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
 
 func TestCompanyShareSettingsNeverExposePasswordHash(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir()})
@@ -56,6 +143,7 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 	}
 	insertCompanyShareTestData(t, service)
 	settings := defaultCompanyShareSettings()
+	settings.Languages = []string{"en", "ko"}
 	settings.ProfileFields = []string{"description", "email"}
 	settings.MetricNames = []string{"annualRevenue"}
 	settings.RecordIDs = []string{"public-record"}
@@ -129,6 +217,7 @@ func TestCompanyShareNarrativesAreNormalizedAndPublished(t *testing.T) {
 	}
 	settings, errorValue := applyCompanyShareSettingsUpdate(defaultCompanyShareSettings(), companyShareSettingsUpdate{
 		SessionHours: 24,
+		Languages:    []string{"en", "ko"},
 		Narratives: map[string]companyShareNarrative{
 			"ko": {
 				Highlights:        []string{"  전년 대비 매출 42% 성장  ", ""},
@@ -157,7 +246,7 @@ func TestCompanyShareNarrativesAreNormalizedAndPublished(t *testing.T) {
 func TestCompanyShareNarrativesRejectMoreThanThreeHighlights(t *testing.T) {
 	_, errorValue := normalizeCompanyShareNarratives(map[string]companyShareNarrative{
 		"ko": {Highlights: []string{"1", "2", "3", "4"}},
-	})
+	}, []string{"en", "ko"})
 	if errorValue == nil {
 		t.Fatal("expected highlight limit error")
 	}
