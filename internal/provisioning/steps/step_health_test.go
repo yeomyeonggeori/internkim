@@ -35,6 +35,62 @@ func TestBlueclawFirecrackerHealthRunsRootfsMountCheckWhenServiceIsInactive(t *t
 	}
 }
 
+func TestBlueclawUsersPolicyHealthUsesAuthoritativeAPI(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{output: "ok"}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	checkBlueclawUsersPolicy(context, &failedChecks)
+
+	if len(failedChecks) != 0 {
+		t.Fatalf("expected authoritative API policy to pass, got %+v", failedChecks)
+	}
+	if !strings.Contains(connection.command, "http://127.0.0.1:8080/admin/api/policy") {
+		t.Fatalf("expected health to read live policy API, got %s", connection.command)
+	}
+	if strings.Contains(connection.command, "/root/.blueclaw/config/policy.json") {
+		t.Fatalf("expected health to avoid the stale host policy seed, got %s", connection.command)
+	}
+}
+
+func TestBlueclawUsersPolicyHealthReportsMissingAPIUser(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{output: "admin@localhost"}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	checkBlueclawUsersPolicy(context, &failedChecks)
+
+	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-users-policy" {
+		t.Fatalf("expected missing API user to fail policy health, got %+v", failedChecks)
+	}
+}
+
+func TestBlueclawUsersPolicyHealthReportsUnavailableAPI(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{output: "policy-api-unavailable"}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	checkBlueclawUsersPolicy(context, &failedChecks)
+
+	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-users-policy" {
+		t.Fatalf("expected unavailable API to fail policy health, got %+v", failedChecks)
+	}
+}
+
+type blueclawUsersPolicyHealthBoardConnection struct {
+	output  string
+	command string
+}
+
+func (connection *blueclawUsersPolicyHealthBoardConnection) Run(command string) string {
+	connection.command = command
+	return connection.output
+}
+
+func (connection *blueclawUsersPolicyHealthBoardConnection) SCP(localPath string, remotePath string) error {
+	return nil
+}
+
 type blueclawFirecrackerHealthBoardConnection struct {
 	blueclawServiceStatus string
 	rootfsContractOutput  string

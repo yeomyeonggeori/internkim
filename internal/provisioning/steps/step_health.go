@@ -173,12 +173,27 @@ func checkCapabilityHealth(context *Context, failedChecks *[]string) {
 }
 
 func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
+	check := strings.TrimSpace(context.SSH.Run(blueclawUsersPolicyCheckCommand()))
+	if check == "ok" {
+		fmt.Println("  blueclaw users policy: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "blueclaw-users-policy")
+	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
+}
+
+func blueclawUsersPolicyCheckCommand() string {
+	return fmt.Sprintf(`policy_response_path="$(mktemp)"
+trap 'rm -f "$policy_response_path"' EXIT
+if ! curl --silent --show-error --fail %s/admin/api/policy > "$policy_response_path" 2>/dev/null; then
+  echo policy-api-unavailable
+  exit 0
+fi
+python3 - "$policy_response_path" <<'PY'
 import json
 import sys
 
 state_path = "/root/.internkim/state/users-sync.json"
-policy_path = "/root/.blueclaw/config/policy.json"
 try:
     with open(state_path) as file:
         desired = set(json.load(file).get("users", []))
@@ -191,10 +206,10 @@ if not desired:
     raise SystemExit
 
 try:
-    with open(policy_path) as file:
+    with open(sys.argv[1]) as file:
         policy = json.load(file)
 except Exception:
-    print("policy-missing")
+    print("policy-api-invalid")
     raise SystemExit(1)
 
 emails = set()
@@ -207,13 +222,7 @@ if missing:
     print(",".join(missing))
     sys.exit(1)
 print("ok")
-PY`))
-	if check == "ok" {
-		fmt.Println("  blueclaw users policy: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "blueclaw-users-policy")
-	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
+PY`, blueclaw.BlueclawBaseURL)
 }
 
 func checkBlueclawBackupManifest(context *Context, failedChecks *[]string) {
