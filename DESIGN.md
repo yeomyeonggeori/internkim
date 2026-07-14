@@ -23,7 +23,8 @@ InternKim uses a restrained, neutral interface built from the shared shadcn-svel
 - Monetary metrics default to USD. A local-currency toggle appears only when the published data includes one non-USD currency with a stored USD equivalent.
 - Only an administrator-published snapshot appears. Empty sections remain quiet or are omitted so the page never resembles an internal dashboard.
 - Team activity uses only administrator-approved aggregates. Reuse the existing avatar component with published surname and job title, and derive pulse, activity-grid, and work-distribution shapes from actual snapshot counts.
-- After the team signal, present recorded metrics and records as the primary evidence, with bilingual highlights, business model, customer evidence, market opportunity, competitive advantage, roadmap, and funding context providing interpretation.
+- Present recorded metrics, selected milestones, and evidence documents before the team signal. Team activity confirms that the organization is operating but never leads the evaluation hierarchy.
 - Do not assume a universal company metric or that an increase is favorable. Administrators may feature one metric or use a balanced layout, localize its label and explanation, and declare increase, decrease, or neutral direction.
 - Render each published metric from its available history: a current value for one period and a time series with explicit period change for repeated observations. Keep company facts as a secondary reference near the end.
+- Metric notes, record attributes, and document summaries enter a snapshot only through explicit administrator approval. Original record details, document paths, counterparties, and requester identities remain private.
 - Activity motion may emphasize changing data but never invent it. Reduced-motion mode presents the same data as a static visualization.

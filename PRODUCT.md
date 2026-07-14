@@ -24,6 +24,7 @@ Avoid ornamental activity, generic dashboard theater, surveillance-like employee
 
 - Show real signals instead of decorative claims.
 - Preserve privacy through aggregation and deliberate publication.
+- Turn existing company records into verifiable evidence without exposing their private operational context.
 - Keep internal workflows familiar and efficient.
 - Let the shared company page tell a concise, human story.
 - Make freshness and publication timing visible.
