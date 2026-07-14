@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+type orgchartCachedUsersResponse struct {
+	Records         []orgchartCachedUserRecord `json:"records"`
+	AvailableGroups []orgGroupRecord           `json:"availableGroups,omitempty"`
+}
+
 func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSource func(context.Context) (pagesUsersResponse, error)) (pagesUsersResponse, orgchartPeopleCachePolicy, error) {
 	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
 	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
@@ -17,15 +22,14 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	snapshot := snapshots[key]
-	var previousResponse pagesUsersResponse
-	hasPreviousResponse := snapshot.Found && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && json.Unmarshal(snapshot.PayloadJSON, &previousResponse) == nil
+	previousResponse, hasPreviousResponse := cachedOrgchartUsersResponse(snapshot.PayloadJSON)
+	hasPreviousResponse = snapshot.Found && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && hasPreviousResponse
 	sourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	if snapshot.Found && !snapshot.IsDirty && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && snapshot.SourceRevision == sourceRevision {
-		var response pagesUsersResponse
-		if json.Unmarshal(snapshot.PayloadJSON, &response) == nil {
+		if response, found := cachedOrgchartUsersResponse(snapshot.PayloadJSON); found {
 			return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 		}
 		if errorValue := service.deleteOrgchartPeopleCacheEntries(ctx, []orgchartPeopleCacheKey{key}); errorValue != nil {
@@ -47,11 +51,12 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 		if !hasPreviousResponse {
 			previousResponse = pagesUsersResponse{}
 		}
-		if errorValue := service.invalidateChangedOrgchartUsers(ctx, previousResponse, response); errorValue != nil {
+		currentCacheResponse, _ := orgchartUsersResponseFromCache(newOrgchartCachedUsersResponse(response))
+		if errorValue := service.invalidateChangedOrgchartUsers(ctx, previousResponse, currentCacheResponse); errorValue != nil {
 			return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 		}
 	}
-	payloadJSON, errorValue := json.Marshal(sanitizedOrgchartUsersResponse(response))
+	payloadJSON, errorValue := json.Marshal(newOrgchartCachedUsersResponse(response))
 	if errorValue != nil {
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, fmt.Errorf("encode orgchart user list cache payload: %w", errorValue)
 	}
@@ -65,14 +70,37 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 	return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 }
 
-func sanitizedOrgchartUsersResponse(response pagesUsersResponse) pagesUsersResponse {
-	result := response
-	result.Records = append([]adminUserMutation(nil), response.Records...)
-	for index := range result.Records {
-		result.Records[index].TemporaryPassword = ""
-		result.Records[index].TemporaryPasswordEmail = ""
+func newOrgchartCachedUsersResponse(response pagesUsersResponse) orgchartCachedUsersResponse {
+	records := make([]orgchartCachedUserRecord, 0, len(response.Records))
+	for _, record := range response.Records {
+		records = append(records, newOrgchartCachedUserRecord(record))
 	}
-	return result
+	return orgchartCachedUsersResponse{
+		Records:         records,
+		AvailableGroups: append([]orgGroupRecord(nil), response.AvailableGroups...),
+	}
+}
+
+func cachedOrgchartUsersResponse(payloadJSON []byte) (pagesUsersResponse, bool) {
+	var cachedResponse orgchartCachedUsersResponse
+	if json.Unmarshal(payloadJSON, &cachedResponse) != nil {
+		return pagesUsersResponse{}, false
+	}
+	return orgchartUsersResponseFromCache(cachedResponse)
+}
+
+func orgchartUsersResponseFromCache(cachedResponse orgchartCachedUsersResponse) (pagesUsersResponse, bool) {
+	response := pagesUsersResponse{
+		Records:         make([]adminUserMutation, 0, len(cachedResponse.Records)),
+		AvailableGroups: append([]orgGroupRecord(nil), cachedResponse.AvailableGroups...),
+	}
+	for _, cachedRecord := range cachedResponse.Records {
+		if !isValidOrgchartCachedUserRecord(cachedRecord) {
+			return pagesUsersResponse{}, false
+		}
+		response.Records = append(response.Records, applyOrgchartCachedUserRecord(adminUserMutation{}, cachedRecord))
+	}
+	return response, true
 }
 
 func (service *Service) orgchartUserSourceRevision() (string, error) {
