@@ -120,19 +120,13 @@ func (service *Service) readAttendanceEvents(ctx context.Context, month string, 
 	defer database.Close()
 	startDate := month + "-01"
 	endDate := attendanceNextMonth(month) + "-01"
-	query := `SELECT ` + attendanceEventSelectColumns + `
-FROM attendance_events
-WHERE (local_date >= ? AND local_date < ? OR id IN (
-	SELECT event_id
-	FROM attendance_event_overrides
-	WHERE override_local_date >= ? AND override_local_date < ?
-))`
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	hasEmail := normalizedEmail != ""
+	query := attendanceMonthlyEventsQuery(hasEmail)
 	arguments := []any{startDate, endDate, startDate, endDate}
-	if strings.TrimSpace(email) != "" {
-		query += " AND email = ?"
-		arguments = append(arguments, strings.ToLower(strings.TrimSpace(email)))
+	if hasEmail {
+		arguments = append(arguments, normalizedEmail)
 	}
-	query += " ORDER BY occurred_at DESC"
 	rows, errorValue := database.QueryContext(ctx, query, arguments...)
 	if errorValue != nil {
 		return nil, errorValue
