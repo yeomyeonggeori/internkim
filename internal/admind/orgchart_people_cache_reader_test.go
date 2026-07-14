@@ -524,6 +524,59 @@ func TestOrgchartPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 			}
 		})
 	}
+
+	profileCases := []struct {
+		name        string
+		profileJSON string
+	}{
+		{name: "mismatched profile identity", profileJSON: `{"userID":"user-2","email":"two@example.com","jobTitle":"Corrupt","employmentStatus":"active","isOrgchartVisible":true}`},
+		{name: "invalid profile employment status", profileJSON: `{"userID":"user-1","email":"one@example.com","jobTitle":"Corrupt","employmentStatus":"unknown","isOrgchartVisible":true}`},
+	}
+	for _, testCase := range profileCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newLocalUsersTestService(t)
+			ctx := context.Background()
+			if errorValue := service.writeOrgchartProfiles(ctx, []orgchartProfile{{
+				UserID:            "user-1",
+				Email:             "one@example.com",
+				JobTitle:          "Authoritative",
+				EmploymentStatus:  orgchartEmploymentStatusActive,
+				IsOrgchartVisible: true,
+			}}); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}
+			payloadJSON := `{"record":{"userID":"user-1","email":"one@example.com","name":"Cached"},"profile":` + testCase.profileJSON + `}`
+			snapshotsBeforeWrite, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshotsBeforeWrite[key].Revision, "", []byte(payloadJSON)); errorValue != nil || !written {
+				t.Fatalf("write corrupt person cache: written = %t error = %v", written, errorValue)
+			}
+
+			users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "Fresh"}}}
+			response, errorValue := service.applyCachedOrgchartPeople(ctx, users)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if record := response.response.Records[0]; record.Name != "Fresh" || record.JobTitle != "Authoritative" {
+				t.Fatalf("response record = %#v", record)
+			}
+
+			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			var rebuiltPerson orgchartCachedPerson
+			if errorValue := json.Unmarshal(snapshots[key].PayloadJSON, &rebuiltPerson); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if rebuiltPerson.Profile == nil || rebuiltPerson.Profile.UserID != "user-1" || rebuiltPerson.Profile.Email != "one@example.com" || rebuiltPerson.Profile.JobTitle != "Authoritative" || rebuiltPerson.Profile.EmploymentStatus != orgchartEmploymentStatusActive {
+				t.Fatalf("rebuilt person = %#v", rebuiltPerson)
+			}
+		})
+	}
 }
 
 func TestOrgchartPeopleCacheAcceptsUserIDOnlyPersonPayload(t *testing.T) {
