@@ -2,6 +2,8 @@ package localfleet
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -309,6 +311,101 @@ func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
 	if strings.Contains(joinedPlans, "setup --board lab") || strings.Contains(joinedPlans, "verify mattermost") {
 		t.Fatalf("without-mattermost scenario should not run setup or Mattermost verify:\n%s", joinedPlans)
 	}
+}
+
+func TestSDKDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		RunID:              "sdkd-host-topology",
+		IsEphemeral:        true,
+		AdminHostPort:      19080,
+		MattermostHostPort: 19065,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.sdkdHostTopologyScenarioPlans()
+	joinedPlans := joinedPlanArguments(plans)
+	for _, expectedFragment := range []string{
+		"vm-up --config",
+		"make build",
+		"setup --board lab",
+		"--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web",
+		"sudo bash '/mnt/shared/workspace/lab/scripts/scenario-sdkd-host-topology.sh'",
+	} {
+		if !strings.Contains(joinedPlans, expectedFragment) {
+			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
+		}
+	}
+	if strings.Contains(joinedPlans, "virtual-session") || strings.Contains(joinedPlans, "verify mattermost") {
+		t.Fatalf("SDKD topology should run against provisioned host services:\n%s", joinedPlans)
+	}
+	for _, plan := range plans {
+		if strings.Contains(strings.Join(plan.Arguments, " "), "setup --board lab") {
+			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawSDKDModeEnvironment+"=authoritative") {
+				t.Fatalf("expected authoritative SDKD setup environment, got %v", plan.Environment)
+			}
+			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestModelTierEnvironment) {
+				t.Fatalf("expected SDKD scenario to preserve production task level, got %v", plan.Environment)
+			}
+			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true") {
+				t.Fatalf("expected SDKD diagnostic preset environment, got %v", plan.Environment)
+			}
+		}
+	}
+}
+
+func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
+	scriptPath := filepath.Join("..", "..", "lab", "scripts", "scenario-sdkd-host-topology.sh")
+	if output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput(); errorValue != nil {
+		t.Fatalf("invalid SDKD topology script: %v: %s", errorValue, output)
+	}
+	document, errorValue := os.ReadFile(scriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := string(document)
+	for _, expectedFragment := range []string{
+		`.languageModel.defaultProvider == "sdkd"`,
+		`exec sudo bash "$0" "$@"`,
+		`conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
+		`conversationID:$conversationID`,
+		`taskDecisionPreset:"sdkd_topology"`,
+		`.taskRun.taskRunID`,
+		`/admin/api/task/detail?taskRunID=`,
+		`select(.schemaName == "blueclaw_agent_turn_action")`,
+		`select(.isIntakePrecomputed == true)`,
+		`assert_task_fallback "$authoritative_task_run_id" false`,
+		`systemctl stop "$service_name"`,
+		`assert_task_fallback "$fallback_task_run_id" true`,
+		`systemctl restart "$service_name"`,
+		`assert_task_fallback "$recovered_task_run_id" false`,
+		`trap restore_sdkd EXIT`,
+	} {
+		if !strings.Contains(script, expectedFragment) {
+			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
+		}
+	}
+}
+
+func containsEnvironmentValue(environment []string, expectedValue string) bool {
+	for _, value := range environment {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEnvironmentName(environment []string, name string) bool {
+	prefix := name + "="
+	for _, value := range environment {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestEphemeralCleanupRemovesVirtualMachineAndKeepsEvidenceState(t *testing.T) {
