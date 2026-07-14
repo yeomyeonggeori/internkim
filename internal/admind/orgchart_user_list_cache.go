@@ -10,55 +10,59 @@ import (
 	"strings"
 )
 
-func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSource func(context.Context) (pagesUsersResponse, error)) (pagesUsersResponse, error) {
+func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSource func(context.Context) (pagesUsersResponse, error)) (pagesUsersResponse, orgchartPeopleCachePolicy, error) {
 	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
 	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
 	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	snapshot := snapshots[key]
 	var previousResponse pagesUsersResponse
 	hasPreviousResponse := snapshot.Found && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && json.Unmarshal(snapshot.PayloadJSON, &previousResponse) == nil
 	sourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	if snapshot.Found && !snapshot.IsDirty && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && snapshot.SourceRevision == sourceRevision {
 		var response pagesUsersResponse
 		if json.Unmarshal(snapshot.PayloadJSON, &response) == nil {
-			return response, nil
+			return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 		}
 		if errorValue := service.deleteOrgchartPeopleCacheEntries(ctx, []orgchartPeopleCacheKey{key}); errorValue != nil {
-			return pagesUsersResponse{}, errorValue
+			return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 		}
 	}
 	response, errorValue := loadSource(ctx)
 	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	currentSourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	if currentSourceRevision != sourceRevision || snapshot.IsDirty {
-		return response, nil
+		return response, orgchartPeopleCacheBypassed, nil
 	}
 	if snapshot.SourceRevision != sourceRevision {
 		if !hasPreviousResponse {
 			previousResponse = pagesUsersResponse{}
 		}
 		if errorValue := service.invalidateChangedOrgchartUsers(ctx, previousResponse, response); errorValue != nil {
-			return pagesUsersResponse{}, errorValue
+			return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 		}
 	}
 	payloadJSON, errorValue := json.Marshal(sanitizedOrgchartUsersResponse(response))
 	if errorValue != nil {
-		return pagesUsersResponse{}, fmt.Errorf("encode orgchart user list cache payload: %w", errorValue)
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, fmt.Errorf("encode orgchart user list cache payload: %w", errorValue)
 	}
-	if _, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshot.Revision, sourceRevision, payloadJSON); errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+	written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshot.Revision, sourceRevision, payloadJSON)
+	if errorValue != nil {
+		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
-	return response, nil
+	if !written {
+		return response, orgchartPeopleCacheBypassed, nil
+	}
+	return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 }
 
 func sanitizedOrgchartUsersResponse(response pagesUsersResponse) pagesUsersResponse {

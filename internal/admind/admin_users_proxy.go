@@ -29,6 +29,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var removedUser *adminUserMutation
 	var upsertedEmail string
 	var orgchartMutationIdentities []orgchartPersonIdentity
+	var orgchartMutation *orgchartUserMutation
 	if request.Method == http.MethodDelete {
 		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
@@ -38,10 +39,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		removedUser = userRecord
 		if removedUser != nil {
 			orgchartMutationIdentities = []orgchartPersonIdentity{{UserID: removedUser.UserID, Email: removedUser.Email}}
-			if errorValue := service.beginOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+			orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 				return
 			}
+			defer orgchartMutation.completeAfterRequest(request.Context())
 		}
 		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
 			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
@@ -114,10 +117,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		orgchartMutationIdentities = []orgchartPersonIdentity{{UserID: payload.UserID, Email: payload.Email}}
-		if errorValue := service.beginOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+		orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 			return
 		}
+		defer orgchartMutation.completeAfterRequest(request.Context())
 		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -220,7 +225,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			service.triggerUsersSync(request.Context())
 		}
 		if len(orgchartMutationIdentities) > 0 {
-			if errorValue := service.completeOrgchartUserMutation(request.Context(), orgchartMutationIdentities); errorValue != nil {
+			if errorValue := orgchartMutation.complete(request.Context()); errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 				return
 			}
