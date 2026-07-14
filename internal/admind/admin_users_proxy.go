@@ -72,6 +72,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var upsertedCircles []string
 	var upsertedMattermostUserID string
 	var upsertedUserID string
+	var upsertedBlueclawUserID string
 	var hasExplicitCircleMutation bool
 	if request.Method == http.MethodPost {
 		var rawPayload adminUserMutation
@@ -97,6 +98,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
+		upsertedBlueclawUserID = identity.UserID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		upsertedNote = payload.Note
@@ -206,9 +208,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		if upsertedEmail != "" {
 			var errorValue error
 			if hasExplicitCircleMutation {
-				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
+				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
 			} else {
-				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName)
+				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName)
 			}
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
