@@ -146,32 +146,6 @@ func (service *Service) readAttendanceEventByID(ctx context.Context, database *s
 	return event, true, nil
 }
 
-func (service *Service) insertAttendanceEventOverride(ctx context.Context, database *sql.DB, override attendanceEventOverride) error {
-	_, errorValue := database.ExecContext(ctx, `
-INSERT INTO attendance_event_overrides (
-	id, event_id, edited_by, edited_at, reason,
-	original_occurred_at, original_local_date, original_local_time, original_location_id, original_location_name,
-	override_occurred_at, override_local_date, override_local_time, override_location_id, override_location_name
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		override.ID,
-		override.EventID,
-		override.EditedBy,
-		override.EditedAt,
-		override.Reason,
-		override.OriginalOccurredAt,
-		override.OriginalLocalDate,
-		override.OriginalLocalTime,
-		override.OriginalLocationID,
-		override.OriginalLocationName,
-		override.OverrideOccurredAt,
-		override.OverrideLocalDate,
-		override.OverrideLocalTime,
-		override.OverrideLocationID,
-		override.OverrideLocationName,
-	)
-	return errorValue
-}
-
 func (service *Service) applyAttendanceEventOverrides(ctx context.Context, database *sql.DB, events []attendanceEvent) ([]attendanceEvent, error) {
 	if len(events) == 0 {
 		return events, nil
