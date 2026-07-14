@@ -5,7 +5,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import type { OrgchartOrganizationMemberNode, OrgchartOrganizationSection } from './orgchart-organization-model';
-	import type { UserRecord } from './orgchart-types';
+	import type { UserRecord } from '../../lib/orgchart/types';
 	import type { orgchartDirectoryText } from './text';
 
 	type OrgchartOrganizationCardProps = {

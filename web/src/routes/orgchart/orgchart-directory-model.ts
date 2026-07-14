@@ -1,4 +1,4 @@
-import type { OrgGroup, UserRecord } from './orgchart-types';
+import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type OrgchartDirectoryFilters = {
 	query: string;

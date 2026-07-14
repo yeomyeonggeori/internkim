@@ -1,6 +1,6 @@
 import { compareOrgchartPeople } from '$lib/orgchart/person-order';
 import { unassignedGroupID } from './orgchart-directory-model';
-import type { OrgGroup, UserRecord } from './orgchart-types';
+import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type OrgchartOrganizationMemberNode = {
 	record: UserRecord;
