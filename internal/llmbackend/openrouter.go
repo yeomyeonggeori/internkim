@@ -27,6 +27,7 @@ type OpenRouterBackend struct {
 // DefaultActionModelName is the single source of truth for the model the agent
 // runs on. Every default-model reference across the codebase points here.
 const DefaultActionModelName = "google/gemini-3.1-flash-lite"
+const defaultXLowModelName = "deepseek/deepseek-v4-flash"
 
 // Action turns try the primary model first, then these degraded fallbacks.
 var DefaultOpenRouterActionFallbackModels = []string{
@@ -512,6 +513,9 @@ func addGenerationOptions(document map[string]any, options *GenerationOptions) {
 	}
 	if options.Temperature != nil {
 		document["temperature"] = *options.Temperature
+	}
+	if options.MaxTokens != nil {
+		document["max_tokens"] = *options.MaxTokens
 	}
 }
 

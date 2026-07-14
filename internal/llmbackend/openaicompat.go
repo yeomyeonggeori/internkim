@@ -28,6 +28,7 @@ type openAIRequest struct {
 	ParallelTools        *bool                  `json:"parallel_tool_calls,omitempty"`
 	Seed                 *int64                 `json:"seed,omitempty"`
 	Temperature          *float64               `json:"temperature,omitempty"`
+	MaxTokens            *int                   `json:"max_tokens,omitempty"`
 	NativeToolSchemaLint NativeSchemaLintResult `json:"-"`
 }
 
@@ -262,6 +263,7 @@ func openAIChatRequest(modelName string, messages []Message, schema *StructuredO
 		Stream:      false,
 		Seed:        options.Seed,
 		Temperature: options.Temperature,
+		MaxTokens:   options.MaxTokens,
 	}
 	if schema != nil {
 		request.ResponseFormat = &openAIJSONSchema{
@@ -291,6 +293,7 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 		ParallelTools:        &parallelTools,
 		Seed:                 options.Seed,
 		Temperature:          options.Temperature,
+		MaxTokens:            options.MaxTokens,
 		NativeToolSchemaLint: lintResult,
 	}
 }

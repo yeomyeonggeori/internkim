@@ -148,8 +148,8 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
 		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
 	}
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment+"='"+blueclaw.BlueclawTestModelName+"'") {
-		t.Fatalf("expected test up plan to use the cheap test model:\n%s", joinedPlans)
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment+"='xlow'") {
+		t.Fatalf("expected test up plan to use the xlow model tier:\n%s", joinedPlans)
 	}
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
@@ -180,8 +180,8 @@ func TestUpPlanCanUseRealModels(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
-		t.Fatalf("expected real model setup to omit test model override:\n%s", joinedPlans)
+	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) || strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment) {
+		t.Fatalf("expected real model setup to omit test model selection:\n%s", joinedPlans)
 	}
 }
 

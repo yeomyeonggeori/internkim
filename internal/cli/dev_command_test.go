@@ -2,6 +2,7 @@ package cli
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -224,6 +225,24 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	}
 	if !reflect.DeepEqual(arguments, expectedArguments) {
 		t.Fatalf("unexpected command arguments:\n got: %#v\nwant: %#v", arguments, expectedArguments)
+	}
+}
+
+func TestDevVirtualSessionCommandArgumentsForwardsSDKDProvider(t *testing.T) {
+	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
+		ScenarioName:             "plain_question_acceptance",
+		ArtifactDirectoryPath:    "artifacts",
+		LanguageModelEndpoint:    "http://sdkd",
+		LanguageModelSocket:      "/tmp/sdkd.sock",
+		LanguageModelProvider:    "sdkd",
+		LanguageModelAuthKeyPath: "/tmp/sdkd.key",
+		IsLiveLanguageModel:      true,
+	})
+
+	for _, expectedArgument := range []string{"--llm-provider", "sdkd", "--llm-auth-key-path", "/tmp/sdkd.key"} {
+		if !slices.Contains(arguments, expectedArgument) {
+			t.Fatalf("expected %q in %#v", expectedArgument, arguments)
+		}
 	}
 }
 
