@@ -1,12 +1,14 @@
 import type { AttendanceEvent, AttendanceLocation } from '../attendance-context.svelte';
-import { eachDayOfMonth } from './attendance-date';
+import { eachDayOfMonth, timeInTimeZone } from './attendance-date';
 import { computeDayEvents } from './attendance-day-events';
 import type { AttendanceWorkSegment } from './attendance-work-segments';
+import { localTimeMinutes } from './day-timeline';
 import type { DailyValue, WorkTimeChartLocation } from './work-time-chart-model';
 
 type DailyWorkTimeValuesOptions = {
 	currentDate?: string;
 	fallbackLocationName: string;
+	now?: Date;
 };
 
 export function buildDailyWorkTimeValues(
@@ -19,7 +21,7 @@ export function buildDailyWorkTimeValues(
 		const day = computeDayEvents(date, events, { currentDate: options.currentDate });
 		return {
 			date,
-			minutesByLocation: sumSegmentMinutesByLocation(day.segments, options.fallbackLocationName),
+			minutesByLocation: sumSegmentMinutesByLocation(day.segments, options.fallbackLocationName, options.now),
 		};
 	});
 }
@@ -51,20 +53,21 @@ export function buildWorkTimeChartLocations(
 
 function sumSegmentMinutesByLocation(
 	segments: AttendanceWorkSegment[],
-	fallbackLocationName: string
+	fallbackLocationName: string,
+	now?: Date
 ): Record<string, number> {
 	const minutesByLocation: Record<string, number> = {};
 	for (const segment of segments) {
 		const locationKey = segment.locationName ?? segment.locationID ?? fallbackLocationName;
-		const minutes = segmentMinutes(segment);
+		const minutes = segmentMinutes(segment, now);
 		if (minutes <= 0) continue;
 		minutesByLocation[locationKey] = (minutesByLocation[locationKey] ?? 0) + minutes;
 	}
 	return minutesByLocation;
 }
 
-function segmentMinutes(segment: AttendanceWorkSegment): number {
+function segmentMinutes(segment: AttendanceWorkSegment, now: Date = new Date()): number {
 	if (!segment.isOpen) return segment.workedMinutes;
-	const elapsed = (Date.now() - new Date(segment.clockIn.occurredAt).getTime()) / 60000;
-	return Math.max(0, Math.round(elapsed));
+	const currentTime = timeInTimeZone(segment.clockIn.timeZoneAtEvent, now);
+	return Math.max(0, localTimeMinutes(currentTime) - localTimeMinutes(segment.startTime));
 }
