@@ -22,15 +22,16 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
 	snapshot := snapshots[key]
+	isReusableSnapshot := isReusableOrgchartPeopleCacheSnapshot(snapshot)
 	previousResponse, hasPreviousResponse := cachedOrgchartUsersResponse(snapshot.PayloadJSON)
-	hasPreviousResponse = isReusableOrgchartPeopleCacheSnapshot(snapshot) && hasPreviousResponse
+	hasPreviousResponse = isReusableSnapshot && hasPreviousResponse
 	sourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
-	if isReusableOrgchartPeopleCacheSnapshot(snapshot) && snapshot.SourceRevision == sourceRevision {
-		if response, found := cachedOrgchartUsersResponse(snapshot.PayloadJSON); found {
-			return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
+	if isReusableSnapshot && snapshot.SourceRevision == sourceRevision {
+		if hasPreviousResponse {
+			return previousResponse, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 		}
 		if errorValue := service.deleteOrgchartPeopleCacheEntries(ctx, []orgchartPeopleCacheKey{key}); errorValue != nil {
 			return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
@@ -89,15 +90,38 @@ func cachedOrgchartUsersResponse(payloadJSON []byte) (pagesUsersResponse, bool) 
 	if cachedResponse.Records == nil {
 		return pagesUsersResponse{}, false
 	}
-	for _, cachedRecord := range cachedResponse.Records {
-		if !isValidOrgchartCachedUserRecord(cachedRecord) {
-			return pagesUsersResponse{}, false
-		}
+	if !hasUniqueOrgchartCachedUserIdentities(cachedResponse.Records) {
+		return pagesUsersResponse{}, false
 	}
 	if cachedResponse.AvailableGroups != nil && !isValidOrgchartGroups(cachedResponse.AvailableGroups) {
 		return pagesUsersResponse{}, false
 	}
 	return orgchartUsersResponseFromCache(cachedResponse), true
+}
+
+func hasUniqueOrgchartCachedUserIdentities(records []orgchartCachedUserRecord) bool {
+	seenUserIDs := map[string]bool{}
+	seenEmails := map[string]bool{}
+	for _, record := range records {
+		if !isValidOrgchartCachedUserRecord(record) {
+			return false
+		}
+		userID := strings.TrimSpace(record.UserID)
+		if userID != "" {
+			if seenUserIDs[userID] {
+				return false
+			}
+			seenUserIDs[userID] = true
+		}
+		email := strings.ToLower(strings.TrimSpace(record.Email))
+		if email != "" {
+			if seenEmails[email] {
+				return false
+			}
+			seenEmails[email] = true
+		}
+	}
+	return true
 }
 
 func orgchartUsersResponseFromCache(cachedResponse orgchartCachedUsersResponse) pagesUsersResponse {

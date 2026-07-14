@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 type orgchartCachedPerson struct {
@@ -32,9 +31,10 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
 	}
+	cachedPeopleByKey, needsProfiles := cachedOrgchartPeopleForRecords(usersResponse.Records, snapshots)
 	profilesByUserID := map[string]orgchartProfile{}
 	profilesByEmail := map[string]orgchartProfile{}
-	if orgchartPeopleCacheNeedsProfiles(usersResponse.Records, snapshots) {
+	if needsProfiles {
 		profiles, errorValue := service.readOrgchartProfiles(ctx)
 		if errorValue != nil {
 			return orgchartMetadataResponse{}, errorValue
@@ -48,7 +48,7 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 		record := usersResponse.Records[index]
 		key, hasKey := orgchartPersonCacheKey(record.UserID, record.Email)
 		if hasKey && cachePolicy.CanUsePersonCache {
-			if cachedPerson, found := cachedOrgchartPerson(snapshots[key], key); found {
+			if cachedPerson, found := cachedPeopleByKey[key]; found {
 				usersResponse.Records[index] = applyOrgchartCachedUserRecord(record, cachedPerson.Record)
 				indexCachedOrgchartProfile(cachedPerson.Profile, responseProfilesByUserID, responseProfilesByEmail)
 				continue
@@ -75,7 +75,13 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 			if errorValue != nil {
 				return orgchartMetadataResponse{}, fmt.Errorf("encode orgchart person cache payload: %w", errorValue)
 			}
-			writes = append(writes, orgchartPeopleCacheWrite{Key: key, Revision: snapshots[key].Revision, PayloadJSON: payloadJSON})
+			writes = append(writes, orgchartPeopleCacheWrite{
+				Key:                     key,
+				Revision:                snapshots[key].Revision,
+				HasExpectedListRevision: cachePolicy.HasExpectedListRevision,
+				ExpectedListRevision:    cachePolicy.ExpectedListRevision,
+				PayloadJSON:             payloadJSON,
+			})
 		}
 	}
 	if _, errorValue := service.writeOrgchartPeopleCachePayloadsIfCurrent(ctx, writes); errorValue != nil {
@@ -84,17 +90,23 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 	return orgchartMetadataResponse{response: usersResponse, profilesByUserID: responseProfilesByUserID, profilesByEmail: responseProfilesByEmail}, nil
 }
 
-func orgchartPeopleCacheNeedsProfiles(records []adminUserMutation, snapshots map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot) bool {
+func cachedOrgchartPeopleForRecords(records []adminUserMutation, snapshots map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot) (map[orgchartPeopleCacheKey]orgchartCachedPerson, bool) {
+	cachedPeopleByKey := make(map[orgchartPeopleCacheKey]orgchartCachedPerson, len(records))
+	needsProfiles := false
 	for _, record := range records {
 		key, found := orgchartPersonCacheKey(record.UserID, record.Email)
 		if !found {
-			return true
+			needsProfiles = true
+			continue
 		}
-		if _, found := cachedOrgchartPerson(snapshots[key], key); !found {
-			return true
+		cachedPerson, found := cachedOrgchartPerson(snapshots[key], key)
+		if !found {
+			needsProfiles = true
+			continue
 		}
+		cachedPeopleByKey[key] = cachedPerson
 	}
-	return false
+	return cachedPeopleByKey, needsProfiles
 }
 
 func indexCachedOrgchartProfile(profile *orgchartProfile, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) {
@@ -107,16 +119,4 @@ func indexCachedOrgchartProfile(profile *orgchartProfile, profilesByUserID map[s
 	if profile.Email != "" {
 		profilesByEmail[profile.Email] = *profile
 	}
-}
-
-func orgchartPersonCacheKey(userID string, email string) (orgchartPeopleCacheKey, bool) {
-	normalizedUserID := strings.TrimSpace(userID)
-	if normalizedUserID != "" {
-		return orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: normalizedUserID}, true
-	}
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return orgchartPeopleCacheKey{}, false
-	}
-	return orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "email:" + normalizedEmail}, true
 }
