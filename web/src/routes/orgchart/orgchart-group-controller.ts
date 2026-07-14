@@ -1,4 +1,4 @@
-import type { OrgGroup } from '../admin/admin-types';
+import type { OrgGroup } from '../../lib/orgchart/types';
 
 export type OrgchartGroupSavePlan = {
 	groupID: string;

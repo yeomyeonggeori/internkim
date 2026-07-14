@@ -1,5 +1,5 @@
 import { compareOrgchartPeople } from '$lib/orgchart/person-order';
-import type { UserRecord } from './admin-types';
+import type { UserRecord } from '../../lib/orgchart/types';
 
 export type OrgNode = {
 	record: UserRecord;

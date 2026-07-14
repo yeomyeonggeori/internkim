@@ -1,6 +1,8 @@
 package admind
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -8,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestAdminSessionReportsOperationsAdminRole(t *testing.T) {
+func TestAdminSessionReportsOperationsAdminRoleDespiteOrgchartCache(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
 	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
@@ -31,6 +33,14 @@ func TestAdminSessionReportsOperationsAdminRole(t *testing.T) {
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{Email: "operator@example.com", Role: "admin"})})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "email:operator@example.com"}
+	if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", personPayload); errorValue != nil || !written {
+		t.Fatalf("write orgchart person cache: written = %t error = %v", written, errorValue)
+	}
 
 	responseDocument := requestAdminSession(t, service, "operator@example.com")
 	if responseDocument["role"] != "operationsAdmin" || responseDocument["isAdmin"] != false {
