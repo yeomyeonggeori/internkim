@@ -103,6 +103,19 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 	}
 }
 
+func (service Service) sdkdHostTopologyScenarioPlans() []CommandPlan {
+	service.options.ShouldUseRealModels = true
+	plans := service.upPlans(true)
+	for index := range plans {
+		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawSDKDModeEnvironment+"=authoritative")
+		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")
+	}
+	return append(
+		plans,
+		service.labCommand("vm-ssh", "sudo bash "+quoteShell("/mnt/shared/workspace/lab/scripts/scenario-sdkd-host-topology.sh")),
+	)
+}
+
 func (service Service) prepareContainerKernelPlan() CommandPlan {
 	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-container-kernel"))
 }
