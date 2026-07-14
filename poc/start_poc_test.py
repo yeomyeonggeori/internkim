@@ -13,6 +13,39 @@ SPECIFICATION.loader.exec_module(START_POC)
 
 
 class WorkspaceSettingsTest(unittest.TestCase):
+    def test_refreshes_capability_contract_before_resolving_container_ips(self):
+        with mock.patch.object(START_POC, 'refresh_capability_contract') as refresh_contract:
+            def inspect_container(name):
+                self.assertTrue(refresh_contract.called)
+                return {'poc-postgres': 'postgres-ip', 'poc-mattermost': 'mattermost-ip'}[name]
+
+            with mock.patch.object(START_POC, 'container_ip', side_effect=inspect_container):
+                with mock.patch.object(START_POC, 'patch_ips_in_configs'):
+                    with mock.patch.object(START_POC, 'start_tenant'):
+                        with mock.patch('builtins.print'):
+                            START_POC.start_all_tenants(1)
+
+    def test_runs_capability_contract_refresh_script_when_contract_exists(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            contract_path = os.path.join(temporary_directory, START_POC.CAPABILITY_CONTRACT_FILENAME)
+            script_path = os.path.join(temporary_directory, START_POC.CAPABILITY_CONTRACT_REFRESH_SCRIPT)
+            with open(contract_path, 'w'):
+                pass
+            with open(script_path, 'w'):
+                pass
+            with mock.patch.object(START_POC, 'BASE', temporary_directory):
+                with mock.patch.object(START_POC.subprocess, 'run') as run:
+                    START_POC.refresh_capability_contract()
+
+            run.assert_called_once_with([
+                START_POC.sys.executable,
+                script_path,
+                '--contract',
+                contract_path,
+                '--config-root',
+                os.path.join(temporary_directory, 'config'),
+            ], check=True)
+
     def test_initializes_korean_time_zone_once(self):
         with tempfile.TemporaryDirectory() as workspace:
             START_POC.initialize_workspace_settings(workspace)
