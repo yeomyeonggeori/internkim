@@ -13,6 +13,10 @@ type orgchartCachedPerson struct {
 }
 
 func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResponse pagesUsersResponse) (orgchartMetadataResponse, error) {
+	return service.applyOrgchartPeople(ctx, usersResponse, orgchartPeopleCacheEnabled)
+}
+
+func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse pagesUsersResponse, cachePolicy orgchartPeopleCachePolicy) (orgchartMetadataResponse, error) {
 	groups, errorValue := service.readCachedOrgchartGroups(ctx, usersResponse.AvailableGroups)
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
@@ -24,9 +28,34 @@ func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResp
 			keys = append(keys, key)
 		}
 	}
-	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, keys)
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
+	if cachePolicy.CanUsePersonCache && cachePolicy.HasExpectedSourceRevision {
+		currentSourceRevision, errorValue := service.orgchartUserSourceRevision()
+		if errorValue != nil {
+			return orgchartMetadataResponse{}, errorValue
+		}
+		if currentSourceRevision != cachePolicy.ExpectedSourceRevision {
+			cachePolicy = orgchartPeopleCacheBypassed
+		}
+	}
+	snapshots := map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}
+	if cachePolicy.CanUsePersonCache {
+		snapshotKeys := keys
+		listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+		if cachePolicy.HasExpectedListRevision {
+			snapshotKeys = append(append([]orgchartPeopleCacheKey{}, keys...), listKey)
+		}
+		var errorValue error
+		snapshots, errorValue = service.readOrgchartPeopleCacheSnapshots(ctx, snapshotKeys)
+		if errorValue != nil {
+			return orgchartMetadataResponse{}, errorValue
+		}
+		if cachePolicy.HasExpectedListRevision {
+			listSnapshot := snapshots[listKey]
+			if listSnapshot.Revision != cachePolicy.ExpectedListRevision || listSnapshot.IsDirty || listSnapshot.ActiveMutations != 0 {
+				cachePolicy = orgchartPeopleCacheBypassed
+				snapshots = map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}
+			}
+		}
 	}
 	profilesByUserID := map[string]orgchartProfile{}
 	profilesByEmail := map[string]orgchartProfile{}
@@ -42,7 +71,7 @@ func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResp
 	for index := range usersResponse.Records {
 		record := usersResponse.Records[index]
 		key, hasKey := orgchartPersonCacheKey(record.UserID, record.Email)
-		if hasKey {
+		if hasKey && cachePolicy.CanUsePersonCache {
 			if cachedPerson, found := cachedOrgchartPerson(snapshots[key]); found {
 				usersResponse.Records[index] = cachedPerson.Record
 				indexCachedOrgchartProfile(cachedPerson.Profile, responseProfilesByUserID, responseProfilesByEmail)
@@ -65,7 +94,7 @@ func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResp
 		record.TemporaryPassword = ""
 		record.TemporaryPasswordEmail = ""
 		usersResponse.Records[index] = record
-		if hasKey && !snapshots[key].IsDirty {
+		if hasKey && cachePolicy.CanUsePersonCache && !snapshots[key].IsDirty {
 			payloadJSON, errorValue := json.Marshal(orgchartCachedPerson{Record: record, Profile: cachedProfile})
 			if errorValue != nil {
 				return orgchartMetadataResponse{}, fmt.Errorf("encode orgchart person cache payload: %w", errorValue)
