@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup } from '../../../src/routes/admin/admin-types';
+import type { OrgGroup } from '../../../src/routes/orgchart/orgchart-types';
 import { orgchartGroupSavePlan } from '../../../src/routes/orgchart/orgchart-group-controller';
 
 describe('orgchart group controller', () => {

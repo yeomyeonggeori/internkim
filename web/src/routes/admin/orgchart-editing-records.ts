@@ -1,4 +1,4 @@
-import type { OrgGroup, UserRecord } from './admin-types';
+import type { OrgGroup, UserRecord } from '../orgchart/orgchart-types';
 
 export function copyUserRecord(record: UserRecord): UserRecord {
 	return {
