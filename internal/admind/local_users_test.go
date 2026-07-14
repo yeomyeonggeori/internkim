@@ -112,6 +112,29 @@ func TestLocalUpsertUser(t *testing.T) {
 	}
 }
 
+func TestLocalUpsertUsersBatchRejectsDuplicateNormalizedEmailsBeforeExternalRequests(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	externalRequestMade := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		externalRequestMade = true
+		return nil, errors.New("unexpected external request")
+	})}
+
+	requestBody := strings.NewReader(`{"users":[
+		{"email":"Member@Example.com","handle":"member-one","name":"Member One","role":"member"},
+		{"email":" member@example.COM ","handle":"member-two","name":"Member Two","role":"member"}
+	]}`)
+	responseRecorder := httptest.NewRecorder()
+	service.localUpsertUsersBatch(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", requestBody))
+
+	if responseRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; want %d; body = %s", responseRecorder.Code, http.StatusBadRequest, responseRecorder.Body.String())
+	}
+	if externalRequestMade {
+		t.Fatal("external request was made before duplicate email validation")
+	}
+}
+
 func TestNormalizeAdminUserPayloadPreservesOperationsAdminRole(t *testing.T) {
 	payload, _, errorValue := normalizeAdminUserPayload(adminUserMutation{
 		Email: "operator@example.com",
