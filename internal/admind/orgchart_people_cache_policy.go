@@ -71,7 +71,35 @@ func cachedOrgchartPerson(snapshot orgchartPeopleCacheSnapshot, key orgchartPeop
 	if json.Unmarshal(snapshot.PayloadJSON, &person) != nil || !doesOrgchartCachedUserRecordMatchKey(person.Record, key) {
 		return orgchartCachedPerson{}, false
 	}
+	profile, isValid := validCachedOrgchartProfile(person.Profile, person.Record)
+	if !isValid {
+		return orgchartCachedPerson{}, false
+	}
+	person.Profile = profile
 	return person, true
+}
+
+func validCachedOrgchartProfile(profile *orgchartProfile, record orgchartCachedUserRecord) (*orgchartProfile, bool) {
+	if profile == nil {
+		return nil, true
+	}
+	if !isValidOrgchartEmploymentStatus(profile.EmploymentStatus) {
+		return nil, false
+	}
+	normalizedProfile := normalizeOrgchartProfile(*profile)
+	if !doesOrgchartCachedProfileMatchRecord(normalizedProfile, record) {
+		return nil, false
+	}
+	return &normalizedProfile, true
+}
+
+func doesOrgchartCachedProfileMatchRecord(profile orgchartProfile, record orgchartCachedUserRecord) bool {
+	userID := strings.TrimSpace(record.UserID)
+	if userID != "" && profile.UserID == userID {
+		return true
+	}
+	email := strings.ToLower(strings.TrimSpace(record.Email))
+	return email != "" && profile.Email == email
 }
 
 func isValidOrgchartCachedUserRecord(record orgchartCachedUserRecord) bool {
