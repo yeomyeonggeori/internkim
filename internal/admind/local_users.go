@@ -51,7 +51,12 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	if !isValid {
 		return
 	}
-	identities := []orgchartPersonIdentity{{UserID: payload.UserID, Email: payload.Email}}
+	payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	identities := []orgchartPersonIdentity{identity}
 	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -105,8 +110,13 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
+		payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
 		normalizedUsers = append(normalizedUsers, normalizedBatchUser{payload: payload, hasExplicitCircleMutation: hasExplicitCircleMutation})
-		identities = append(identities, orgchartPersonIdentity{UserID: payload.UserID, Email: payload.Email})
+		identities = append(identities, identity)
 	}
 	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
 	if errorValue != nil {
@@ -150,12 +160,8 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 }
 
 func (service *Service) applyLocalUserMutation(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) (adminUserMutation, mattermostProvisionResult, error) {
-	userID, errorValue := service.localBlueclawPersonIDByEmail(ctx, payload.Email)
-	if errorValue != nil {
-		return payload, mattermostProvisionResult{}, errorValue
-	}
 	if strings.TrimSpace(payload.UserID) == "" {
-		payload.UserID = firstNonEmpty(userID, newInternKimUserID())
+		return payload, mattermostProvisionResult{}, errors.New("resolved userID required for local user mutation")
 	}
 	payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
 	if payload.Role != "admin" {
@@ -222,7 +228,12 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "cannot remove the last admin user", http.StatusConflict)
 		return
 	}
-	identities := []orgchartPersonIdentity{{UserID: userRecord.ID, Email: userRecord.Email}}
+	identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), userRecord.Email)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	identities := []orgchartPersonIdentity{identity}
 	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
