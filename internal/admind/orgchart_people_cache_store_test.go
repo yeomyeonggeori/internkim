@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -278,5 +279,50 @@ func TestOrgchartPeopleCacheBatchWriteKeepsPerKeyGuards(t *testing.T) {
 		if writtenByKey[key] != expected {
 			t.Fatalf("written[%#v] = %t; want %t", key, writtenByKey[key], expected)
 		}
+	}
+}
+
+func TestOrgchartPeopleCacheWritesMissesInSingleTransaction(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `
+		CREATE TRIGGER fail_orgchart_people_cache_batch
+		BEFORE INSERT ON orgchart_people_cache_entries
+		WHEN NEW.cache_kind = 'person' AND NEW.cache_key = 'user-25'
+		BEGIN
+			SELECT RAISE(ABORT, 'forced person batch failure');
+		END
+	`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users := pagesUsersResponse{Records: make([]adminUserMutation, 0, 50)}
+	for index := range 50 {
+		users.Records = append(users.Records, adminUserMutation{
+			UserID: fmt.Sprintf("user-%02d", index),
+			Email:  fmt.Sprintf("user-%02d@example.com", index),
+		})
+	}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue == nil {
+		t.Fatal("expected forced batch write failure")
+	}
+	database, errorValue = service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var entryCount int
+	if errorValue := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM orgchart_people_cache_entries WHERE cache_kind = 'person'`).Scan(&entryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if entryCount != 0 {
+		t.Fatalf("person cache entries = %d; want atomic rollback", entryCount)
 	}
 }
