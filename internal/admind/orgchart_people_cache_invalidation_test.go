@@ -148,7 +148,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	assertOrgchartPersonCacheFound(t, service, canonicalUserID, false)
 }
 
-func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
+func TestOrgchartPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testing.T) {
 	for _, testCase := range []struct {
 		name              string
 		circlesDocument   string
@@ -163,6 +163,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
 			remoteUserID := "remote-existing"
 			email := "existing@example.com"
 			preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
+			preloadOrgchartIdentityCache(t, service, remoteUserID, email)
 			pagesUserID := ""
 			blueclawPersonID := ""
 			policySaved := false
@@ -188,6 +189,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
 					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
 				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
 					assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
+					assertOrgchartIdentityMutationActive(t, service, remoteUserID, email)
 					var payload map[string]string
 					if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 						t.Fatal(errorValue)
@@ -231,19 +233,21 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
 				t.Fatalf("policy saved = %t; want %t", policySaved, testCase.expectsPolicySave)
 			}
 			assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
+			assertOrgchartIdentityCacheFound(t, service, remoteUserID, email, false)
 		})
 	}
 }
 
-func TestOrgchartPeopleCacheInvalidatesCanonicalProxyDeletedUser(t *testing.T) {
+func TestOrgchartPeopleCacheInvalidatesSourceAndCanonicalProxyDeletedUser(t *testing.T) {
 	service := newOrgchartProxyMutationTestService(t)
 	canonicalUserID := "blueclaw-deleted"
 	remoteUserID := "remote-deleted"
 	mattermostUserID := "mattermost-deleted"
 	email := "deleted@example.com"
 	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
+	preloadOrgchartIdentityCache(t, service, remoteUserID, email)
 	mattermostLoginCount := 0
-	checkedCanonicalMutation := false
+	checkedMutationIdentities := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
@@ -263,7 +267,8 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalProxyDeletedUser(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-deleted","email":"deleted@example.com","username":"deleted-user","roles":"system_user","delete_at":0}`, nil), nil
 		case request.Method == http.MethodDelete && request.URL.String() == "http://mattermost.local/api/v4/users/"+mattermostUserID:
 			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
-			checkedCanonicalMutation = true
+			assertOrgchartIdentityMutationActive(t, service, remoteUserID, email)
+			checkedMutationIdentities = true
 			return nil, errors.New("stop after proxy deletion check")
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -277,10 +282,11 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalProxyDeletedUser(t *testing.T) {
 	if responseRecorder.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	if !checkedCanonicalMutation {
-		t.Fatal("canonical proxy deletion mutation was not checked")
+	if !checkedMutationIdentities {
+		t.Fatal("source and canonical proxy deletion mutations were not checked")
 	}
 	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
+	assertOrgchartIdentityCacheFound(t, service, remoteUserID, email, false)
 }
 
 func TestOrgchartPeopleCacheInvalidatesChangedUserFromSourceRevision(t *testing.T) {

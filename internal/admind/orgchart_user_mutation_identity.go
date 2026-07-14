@@ -34,3 +34,12 @@ func (service *Service) resolveLocalOrgchartRemovalIdentity(ctx context.Context,
 	}
 	return orgchartPersonIdentity{UserID: userID, Email: normalizedEmail}, nil
 }
+
+func orgchartProxyMutationIdentities(sourceUserID string, canonicalIdentity orgchartPersonIdentity) []orgchartPersonIdentity {
+	identities := []orgchartPersonIdentity{canonicalIdentity}
+	normalizedSourceUserID := strings.TrimSpace(sourceUserID)
+	if normalizedSourceUserID == "" || normalizedSourceUserID == strings.TrimSpace(canonicalIdentity.UserID) {
+		return identities
+	}
+	return append(identities, orgchartPersonIdentity{UserID: normalizedSourceUserID, Email: canonicalIdentity.Email})
+}

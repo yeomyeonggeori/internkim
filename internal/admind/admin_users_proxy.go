@@ -43,7 +43,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
-			orgchartMutationIdentities = []orgchartPersonIdentity{identity}
+			orgchartMutationIdentities = orgchartProxyMutationIdentities(removedUser.UserID, identity)
 			orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -128,7 +128,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
-		orgchartMutationIdentities = []orgchartPersonIdentity{identity}
+		orgchartMutationIdentities = orgchartProxyMutationIdentities(payload.UserID, identity)
 		orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
