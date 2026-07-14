@@ -33,13 +33,14 @@ func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUs
 			continue
 		}
 		name := strings.TrimSpace(mattermostPolicyString(person["displayName"]))
+		jobTitle := strings.TrimSpace(mattermostPolicyString(person["jobTitle"]))
 		emailValues, _ := person["emails"].([]any)
 		for _, emailValue := range emailValues {
 			email := strings.ToLower(strings.TrimSpace(mattermostPolicyString(emailValue)))
 			if email == "" {
 				continue
 			}
-			records = append(records, adminUserMutation{Email: email, Name: name, Status: "active"})
+			records = append(records, adminUserMutation{Email: email, Name: name, JobTitle: jobTitle, Status: "active"})
 		}
 	}
 	return records
