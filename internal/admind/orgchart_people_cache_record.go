@@ -1,7 +1,5 @@
 package admind
 
-import "strings"
-
 type orgchartCachedUserRecord struct {
 	UserID            string   `json:"userID,omitempty"`
 	Handle            string   `json:"handle,omitempty"`
@@ -60,8 +58,4 @@ func applyOrgchartCachedUserRecord(record adminUserMutation, cachedRecord orgcha
 	record.EmploymentStatus = cachedRecord.EmploymentStatus
 	record.IsOrgchartVisible = cachedRecord.IsOrgchartVisible
 	return record
-}
-
-func isValidOrgchartCachedUserRecord(record orgchartCachedUserRecord) bool {
-	return strings.TrimSpace(record.Email) != ""
 }

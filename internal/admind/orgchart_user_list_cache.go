@@ -23,12 +23,12 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 	}
 	snapshot := snapshots[key]
 	previousResponse, hasPreviousResponse := cachedOrgchartUsersResponse(snapshot.PayloadJSON)
-	hasPreviousResponse = snapshot.Found && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && hasPreviousResponse
+	hasPreviousResponse = isReusableOrgchartPeopleCacheSnapshot(snapshot) && hasPreviousResponse
 	sourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
 		return pagesUsersResponse{}, orgchartPeopleCacheBypassed, errorValue
 	}
-	if snapshot.Found && !snapshot.IsDirty && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && snapshot.SourceRevision == sourceRevision {
+	if isReusableOrgchartPeopleCacheSnapshot(snapshot) && snapshot.SourceRevision == sourceRevision {
 		if response, found := cachedOrgchartUsersResponse(snapshot.PayloadJSON); found {
 			return response, orgchartPeopleCachePolicyForListRevision(snapshot.Revision, sourceRevision), nil
 		}
@@ -86,10 +86,16 @@ func cachedOrgchartUsersResponse(payloadJSON []byte) (pagesUsersResponse, bool) 
 	if json.Unmarshal(payloadJSON, &cachedResponse) != nil {
 		return pagesUsersResponse{}, false
 	}
+	if cachedResponse.Records == nil {
+		return pagesUsersResponse{}, false
+	}
 	for _, cachedRecord := range cachedResponse.Records {
 		if !isValidOrgchartCachedUserRecord(cachedRecord) {
 			return pagesUsersResponse{}, false
 		}
+	}
+	if cachedResponse.AvailableGroups != nil && !isValidOrgchartGroups(cachedResponse.AvailableGroups) {
+		return pagesUsersResponse{}, false
 	}
 	return orgchartUsersResponseFromCache(cachedResponse), true
 }

@@ -13,9 +13,8 @@ func (service *Service) readCachedOrgchartGroups(ctx context.Context, fallbackGr
 		return nil, errorValue
 	}
 	snapshot := snapshots[key]
-	if snapshot.Found && !snapshot.IsDirty && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion {
-		var groups []orgGroupRecord
-		if json.Unmarshal(snapshot.PayloadJSON, &groups) == nil {
+	if isReusableOrgchartPeopleCacheSnapshot(snapshot) {
+		if groups, found := cachedOrgchartGroups(snapshot.PayloadJSON); found {
 			return groups, nil
 		}
 		if errorValue := service.deleteOrgchartPeopleCacheEntries(ctx, []orgchartPeopleCacheKey{key}); errorValue != nil {

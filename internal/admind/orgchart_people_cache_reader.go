@@ -28,34 +28,9 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 			keys = append(keys, key)
 		}
 	}
-	if cachePolicy.CanUsePersonCache && cachePolicy.HasExpectedSourceRevision {
-		currentSourceRevision, errorValue := service.orgchartUserSourceRevision()
-		if errorValue != nil {
-			return orgchartMetadataResponse{}, errorValue
-		}
-		if currentSourceRevision != cachePolicy.ExpectedSourceRevision {
-			cachePolicy = orgchartPeopleCacheBypassed
-		}
-	}
-	snapshots := map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}
-	if cachePolicy.CanUsePersonCache {
-		snapshotKeys := keys
-		listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
-		if cachePolicy.HasExpectedListRevision {
-			snapshotKeys = append(append([]orgchartPeopleCacheKey{}, keys...), listKey)
-		}
-		var errorValue error
-		snapshots, errorValue = service.readOrgchartPeopleCacheSnapshots(ctx, snapshotKeys)
-		if errorValue != nil {
-			return orgchartMetadataResponse{}, errorValue
-		}
-		if cachePolicy.HasExpectedListRevision {
-			listSnapshot := snapshots[listKey]
-			if listSnapshot.Revision != cachePolicy.ExpectedListRevision || listSnapshot.IsDirty || listSnapshot.ActiveMutations != 0 {
-				cachePolicy = orgchartPeopleCacheBypassed
-				snapshots = map[orgchartPeopleCacheKey]orgchartPeopleCacheSnapshot{}
-			}
-		}
+	snapshots, cachePolicy, errorValue := service.readApplicableOrgchartPeopleCacheSnapshots(ctx, keys, cachePolicy)
+	if errorValue != nil {
+		return orgchartMetadataResponse{}, errorValue
 	}
 	profilesByUserID := map[string]orgchartProfile{}
 	profilesByEmail := map[string]orgchartProfile{}
@@ -68,11 +43,12 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 	}
 	responseProfilesByUserID := map[string]orgchartProfile{}
 	responseProfilesByEmail := map[string]orgchartProfile{}
+	writes := make([]orgchartPeopleCacheWrite, 0, len(usersResponse.Records))
 	for index := range usersResponse.Records {
 		record := usersResponse.Records[index]
 		key, hasKey := orgchartPersonCacheKey(record.UserID, record.Email)
 		if hasKey && cachePolicy.CanUsePersonCache {
-			if cachedPerson, found := cachedOrgchartPerson(snapshots[key]); found {
+			if cachedPerson, found := cachedOrgchartPerson(snapshots[key], key); found {
 				usersResponse.Records[index] = applyOrgchartCachedUserRecord(record, cachedPerson.Record)
 				indexCachedOrgchartProfile(cachedPerson.Profile, responseProfilesByUserID, responseProfilesByEmail)
 				continue
@@ -99,10 +75,11 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 			if errorValue != nil {
 				return orgchartMetadataResponse{}, fmt.Errorf("encode orgchart person cache payload: %w", errorValue)
 			}
-			if _, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", payloadJSON); errorValue != nil {
-				return orgchartMetadataResponse{}, errorValue
-			}
+			writes = append(writes, orgchartPeopleCacheWrite{Key: key, Revision: snapshots[key].Revision, PayloadJSON: payloadJSON})
 		}
+	}
+	if _, errorValue := service.writeOrgchartPeopleCachePayloadsIfCurrent(ctx, writes); errorValue != nil {
+		return orgchartMetadataResponse{}, errorValue
 	}
 	return orgchartMetadataResponse{response: usersResponse, profilesByUserID: responseProfilesByUserID, profilesByEmail: responseProfilesByEmail}, nil
 }
@@ -113,25 +90,11 @@ func orgchartPeopleCacheNeedsProfiles(records []adminUserMutation, snapshots map
 		if !found {
 			return true
 		}
-		if _, found := cachedOrgchartPerson(snapshots[key]); !found {
+		if _, found := cachedOrgchartPerson(snapshots[key], key); !found {
 			return true
 		}
 	}
 	return false
-}
-
-func cachedOrgchartPerson(snapshot orgchartPeopleCacheSnapshot) (orgchartCachedPerson, bool) {
-	if !snapshot.Found || snapshot.IsDirty || snapshot.SchemaVersion != orgchartPeopleCacheSchemaVersion {
-		return orgchartCachedPerson{}, false
-	}
-	var person orgchartCachedPerson
-	if json.Unmarshal(snapshot.PayloadJSON, &person) != nil {
-		return orgchartCachedPerson{}, false
-	}
-	if !isValidOrgchartCachedUserRecord(person.Record) {
-		return orgchartCachedPerson{}, false
-	}
-	return person, true
 }
 
 func indexCachedOrgchartProfile(profile *orgchartProfile, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) {
