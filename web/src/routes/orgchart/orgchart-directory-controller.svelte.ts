@@ -1,4 +1,4 @@
-import type { AdminPageText, OrgGroup, UserRecord, UsersResponse } from '../admin/admin-types';
+import type { AdminPageText } from '../admin/admin-types';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrgchart } from '../admin/admin-role-policy';
 import { fetchOrgchartDirectory, orgchartApiErrorMessage } from './orgchart-api';
@@ -20,6 +20,7 @@ import {
 	type OrgProfileSnapshot
 } from './orgchart-profile-edit-controller';
 import { orgchartOrganizationSections, type OrgchartOrganizationSection } from './orgchart-organization-model';
+import type { OrgGroup, UserRecord, UsersResponse } from './orgchart-types';
 import type { orgchartDirectoryText } from './text';
 
 type OrgchartDirectoryPageText = typeof orgchartDirectoryText.ko;

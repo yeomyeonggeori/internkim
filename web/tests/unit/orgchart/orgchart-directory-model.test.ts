@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup, UserRecord } from '../../../src/routes/admin/admin-types';
+import type { OrgGroup, UserRecord } from '../../../src/routes/orgchart/orgchart-types';
 import {
 	filterOrgchartRecords,
 	orgchartFilterOptions,
@@ -12,7 +12,6 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 		handle: '',
 		name: '',
 		email: '',
-		role: 'member',
 		...overrides
 	};
 }

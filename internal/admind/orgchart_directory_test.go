@@ -123,7 +123,8 @@ func TestOrgchartDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	if responseRecorder.Code != http.StatusOK {
 		t.Fatalf("status = %d; body = %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	var response pagesUsersResponse
+	assertOrgchartDirectoryContract(t, responseRecorder.Body.Bytes())
+	var response orgchartDirectoryResponse
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -135,6 +136,36 @@ func TestOrgchartDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	}
 	if len(response.AvailableGroups) != 2 {
 		t.Fatalf("available groups = %#v; want connected groups only", response.AvailableGroups)
+	}
+}
+
+func assertOrgchartDirectoryContract(t *testing.T, responseBody []byte) {
+	t.Helper()
+	var response map[string]json.RawMessage
+	if errorValue := json.Unmarshal(responseBody, &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertJSONKeysAllowed(t, response, map[string]bool{"records": true, "availableGroups": true})
+	var records []map[string]json.RawMessage
+	if errorValue := json.Unmarshal(response["records"], &records); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	allowedRecordKeys := map[string]bool{
+		"userID": true, "handle": true, "name": true, "email": true, "image": true,
+		"hireDate": true, "jobTitle": true, "group": true, "primaryGroupID": true,
+		"groupIDs": true, "supervisorID": true,
+	}
+	for _, record := range records {
+		assertJSONKeysAllowed(t, record, allowedRecordKeys)
+	}
+}
+
+func assertJSONKeysAllowed(t *testing.T, value map[string]json.RawMessage, allowedKeys map[string]bool) {
+	t.Helper()
+	for key := range value {
+		if !allowedKeys[key] {
+			t.Errorf("unexpected JSON field %q", key)
+		}
 	}
 }
 
