@@ -9,6 +9,18 @@ import (
 	"time"
 )
 
+func TestMattermostInteractiveActionURLUsesConfiguredPublicBaseURL(t *testing.T) {
+	configuration := DefaultConfiguration()
+	configuration.ListenAddress = "0.0.0.0:18080"
+	configuration.MattermostInteractiveBaseURL = " https://poc0-t15.example.test/ "
+	service := &Service{Configuration: configuration}
+
+	actualURL := service.mattermostInteractiveActionURL()
+	if actualURL != "https://poc0-t15.example.test/_internkim/mattermost/actions" {
+		t.Fatalf("interactive action URL = %q", actualURL)
+	}
+}
+
 func TestMattermostAskActionAcknowledgesWithResolvedUpdateAndForwardsEvent(t *testing.T) {
 	forwardedRequests := make(chan map[string]any, 1)
 	deletedPosts := make(chan string, 1)

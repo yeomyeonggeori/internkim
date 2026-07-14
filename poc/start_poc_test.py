@@ -13,6 +13,14 @@ SPECIFICATION.loader.exec_module(START_POC)
 
 
 class WorkspaceSettingsTest(unittest.TestCase):
+    def test_tenant_entrypoint_routes_mattermost_actions_through_public_url(self):
+        entrypoint_path = os.path.join(os.path.dirname(__file__), 'tenant', 'entrypoint.sh')
+        with open(entrypoint_path) as entrypoint_file:
+            entrypoint = entrypoint_file.read()
+
+        self.assertIn('flowPublicURL="$(cat /root/.internkim/env/flow-public-url', entrypoint)
+        self.assertEqual(entrypoint.count('--mattermost-interactive-base-url "${flowPublicURL:-}"'), 2)
+
     def test_refreshes_capability_contract_before_resolving_container_ips(self):
         with mock.patch.object(START_POC, 'refresh_capability_contract') as refresh_contract:
             def inspect_container(name):

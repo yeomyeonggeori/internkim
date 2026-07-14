@@ -257,6 +257,10 @@ func isMattermostAskActionTarget(payload mattermostInteractivePayload) bool {
 }
 
 func (service *Service) mattermostInteractiveActionURL() string {
+	baseURL := strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostInteractiveBaseURL), "/")
+	if baseURL != "" {
+		return baseURL + "/_internkim/mattermost/actions"
+	}
 	address := strings.TrimSpace(service.Configuration.ListenAddress)
 	_, port, errorValue := net.SplitHostPort(address)
 	if errorValue == nil && port != "" {

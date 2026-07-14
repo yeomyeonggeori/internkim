@@ -131,6 +131,9 @@ func TestMessageHasBeenPostedSendsKoreanRuntimeUnavailableNoticeForBotDM(t *test
 	if api.ephemeralPost.ChannelId != "channel-1" {
 		t.Fatalf("ephemeral channel = %q", api.ephemeralPost.ChannelId)
 	}
+	if api.ephemeralPost.UserId != "bot-1" {
+		t.Fatalf("ephemeral author = %q", api.ephemeralPost.UserId)
+	}
 	if !strings.Contains(api.ephemeralPost.Message, "잠시 후 다시 시도") {
 		t.Fatalf("expected Korean unavailable copy, got %q", api.ephemeralPost.Message)
 	}
