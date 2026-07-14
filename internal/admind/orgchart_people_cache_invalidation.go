@@ -6,20 +6,14 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 )
 
-type orgchartPersonIdentity struct {
-	UserID string
-	Email  string
+func (service *Service) beginOrgchartUserMutation(ctx context.Context, identities []orgchartPersonIdentity) ([]orgchartPeopleCacheKey, error) {
+	return service.beginOrgchartUserCacheMutation(ctx, orgchartUserMutationCacheKeys(identities))
 }
 
-func (service *Service) beginOrgchartUserMutation(ctx context.Context, identities []orgchartPersonIdentity) error {
-	return service.beginOrgchartPeopleCacheMutation(ctx, orgchartUserMutationCacheKeys(identities))
-}
-
-func (service *Service) completeOrgchartUserMutation(ctx context.Context, identities []orgchartPersonIdentity) error {
-	return service.completeOrgchartPeopleCacheMutation(ctx, orgchartUserMutationCacheKeys(identities))
+func (service *Service) completeOrgchartUserMutation(ctx context.Context, keys []orgchartPeopleCacheKey) error {
+	return service.completeOrgchartPeopleCacheMutation(ctx, keys)
 }
 
 func (service *Service) invalidateChangedOrgchartUsers(ctx context.Context, previous pagesUsersResponse, current pagesUsersResponse) error {
@@ -87,17 +81,6 @@ func orgchartUserMutationCacheKeys(identities []orgchartPersonIdentity) []orgcha
 		keys = append(keys, orgchartPersonCacheKeys(identity)...)
 	}
 	return uniqueOrgchartPeopleCacheKeys(keys)
-}
-
-func orgchartPersonCacheKeys(identity orgchartPersonIdentity) []orgchartPeopleCacheKey {
-	keys := []orgchartPeopleCacheKey{}
-	if userID := strings.TrimSpace(identity.UserID); userID != "" {
-		keys = append(keys, orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: userID})
-	}
-	if email := strings.ToLower(strings.TrimSpace(identity.Email)); email != "" {
-		keys = append(keys, orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "email:" + email})
-	}
-	return keys
 }
 
 func invalidateOrgchartProfiles(ctx context.Context, transaction *sql.Tx, profiles []orgchartProfile) error {
