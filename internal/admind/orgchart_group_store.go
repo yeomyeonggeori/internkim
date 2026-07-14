@@ -55,21 +55,32 @@ func (service *Service) readOrgchartGroups(ctx context.Context) ([]orgGroupRecor
 }
 
 func (service *Service) readOrgchartGroupsOrInitialize(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, error) {
+	groups, _, errorValue := service.readOrgchartGroupsOrInitializeWithState(ctx, fallbackGroups)
+	return groups, errorValue
+}
+
+func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, bool, error) {
 	groups, isInitialized, errorValue := service.readOrgchartGroupsWithInitialization(ctx)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, false, errorValue
 	}
 	if isInitialized {
-		return groups, nil
+		return groups, true, nil
 	}
 	if len(groups) > 0 {
-		return groups, service.markOrgchartGroupsInitialized(ctx)
+		if errorValue := service.markOrgchartGroupsInitialized(ctx); errorValue != nil {
+			return nil, false, errorValue
+		}
+		return groups, true, nil
 	}
 	if len(normalizeOrgchartGroups(fallbackGroups)) == 0 {
-		return groups, nil
+		return groups, false, nil
 	}
 	importedGroups, _, errorValue := service.importOrgchartGroupsIfUninitialized(ctx, fallbackGroups)
-	return importedGroups, errorValue
+	if errorValue != nil {
+		return nil, false, errorValue
+	}
+	return importedGroups, true, nil
 }
 
 func (service *Service) readOrgchartGroupsWithInitialization(ctx context.Context) ([]orgGroupRecord, bool, error) {

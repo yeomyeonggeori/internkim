@@ -21,9 +21,12 @@ func (service *Service) readCachedOrgchartGroups(ctx context.Context, fallbackGr
 			return nil, errorValue
 		}
 	}
-	groups, errorValue := service.readOrgchartGroupsOrInitialize(ctx, fallbackGroups)
+	groups, isInitialized, errorValue := service.readOrgchartGroupsOrInitializeWithState(ctx, fallbackGroups)
 	if errorValue != nil {
 		return nil, errorValue
+	}
+	if !isInitialized {
+		return groups, nil
 	}
 	payloadJSON, errorValue := json.Marshal(groups)
 	if errorValue != nil {
