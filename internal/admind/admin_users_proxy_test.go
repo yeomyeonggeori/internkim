@@ -68,7 +68,9 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	var pagesPayload map[string]any
 	var mattermostPatch map[string]string
-	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+	var service *Service
+	checkedDirty := false
+	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
 		}
@@ -78,6 +80,20 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
+			keys := []orgchartPeopleCacheKey{
+				{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey},
+				{Kind: orgchartPeopleCachePerson, Key: "user-member"},
+			}
+			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(request.Context(), keys)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			for _, key := range keys {
+				if !snapshots[key].IsDirty || snapshots[key].ActiveMutations != 1 {
+					t.Fatalf("cache state before remote write = %#v", snapshots[key])
+				}
+			}
+			checkedDirty = true
 			if errorValue := json.NewDecoder(request.Body).Decode(&mattermostPatch); errorValue != nil {
 				t.Fatal(errorValue)
 			}
@@ -101,6 +117,9 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("user save status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !checkedDirty {
+		t.Fatal("expected dirty cache check before remote write")
 	}
 	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
 		t.Fatalf("mattermost patch = %#v", mattermostPatch)

@@ -73,11 +73,11 @@ func (service *Service) buildOrgchartDirectoryResponse(request *http.Request) (p
 }
 
 func (service *Service) orgchartUsersMetadataResponse(request *http.Request) (orgchartMetadataResponse, error) {
-	response, errorValue := service.readCachedOrgchartUserList(request.Context(), service.loadOrgchartUserListSource)
+	response, cachePolicy, errorValue := service.readCachedOrgchartUserList(request.Context(), service.loadOrgchartUserListSource)
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
 	}
-	return service.orgchartMetadataUsersResponse(request.Context(), response)
+	return service.applyOrgchartPeople(request.Context(), response, cachePolicy)
 }
 
 func visibleOrgchartUsersResponse(response pagesUsersResponse, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) pagesUsersResponse {
