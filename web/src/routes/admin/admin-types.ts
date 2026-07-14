@@ -169,6 +169,7 @@ export type CompanyMetric = {
 	currency?: CompanyMetricCurrency;
 	valueUSD?: number;
 	unit?: string;
+	note?: string;
 };
 
 export type CompanyMetricCurrency = 'USD' | 'KRW' | 'EUR' | 'JPY' | 'GBP' | 'CNY' | 'HKD' | 'SGD' | 'AUD' | 'CAD' | 'CHF' | 'INR';
@@ -179,6 +180,16 @@ export type CompanyRecord = {
 	date?: string;
 	title: string;
 	detail?: string;
+	attributes?: Record<string, unknown>;
+};
+
+export type CompanyDocument = {
+	id: string;
+	documentType: string;
+	title: string;
+	language?: string;
+	summary?: string;
+	issuedAt?: string;
 };
 
 export type CompanyShareNarrative = {
@@ -197,6 +208,14 @@ export type CompanyShareMetricContext = {
 	labels: Record<WorkspaceLanguage, string>;
 	descriptions: Record<WorkspaceLanguage, string>;
 	favorableDirection: 'increase' | 'decrease' | 'neutral';
+	evidenceRole: '' | 'growth' | 'efficiency' | 'scale' | 'quality' | 'reach' | 'capital';
+	showSource: boolean;
+};
+
+export type CompanyShareRecordContext = {
+	titles: Record<WorkspaceLanguage, string>;
+	descriptions: Record<WorkspaceLanguage, string>;
+	attributeKeys: string[];
 };
 
 export type CompanyShareSettings = {
@@ -208,6 +227,8 @@ export type CompanyShareSettings = {
 	primaryMetric?: string;
 	metricContexts: Record<string, CompanyShareMetricContext>;
 	recordIDs: string[];
+	recordContexts: Record<string, CompanyShareRecordContext>;
+	documentIDs: string[];
 	contactEmail?: string;
 	showTeamActivity: boolean;
 	narratives: Record<WorkspaceLanguage, CompanyShareNarrative>;
@@ -225,4 +246,8 @@ export type CompanyMetricsResponse = {
 
 export type CompanyRecordsResponse = {
 	records?: CompanyRecord[];
+};
+
+export type CompanyDocumentsResponse = {
+	documents?: CompanyDocument[];
 };

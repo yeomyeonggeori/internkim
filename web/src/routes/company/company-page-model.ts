@@ -23,6 +23,7 @@ export type CompanyShareMetric = {
 	currency?: CompanyMetricCurrency;
 	valueUSD?: number;
 	unit?: string;
+	source?: string;
 };
 
 export type CompanyMetricCurrency = 'USD' | 'KRW' | 'EUR' | 'JPY' | 'GBP' | 'CNY' | 'HKD' | 'SGD' | 'AUD' | 'CAD' | 'CHF' | 'INR';
@@ -33,7 +34,17 @@ export type CompanyShareRecord = {
 	category: string;
 	date?: string;
 	title: string;
-	detail?: string;
+	titles?: Record<string, string>;
+	descriptions?: Record<string, string>;
+	attributes?: Record<string, string>;
+};
+
+export type CompanyShareDocument = {
+	documentType: string;
+	title: string;
+	language?: string;
+	summary?: string;
+	issuedAt?: string;
 };
 
 export type CompanyShareNarrative = {
@@ -52,6 +63,8 @@ export type CompanyShareMetricContext = {
 	labels: Record<string, string>;
 	descriptions: Record<string, string>;
 	favorableDirection: 'increase' | 'decrease' | 'neutral';
+	evidenceRole?: '' | 'growth' | 'efficiency' | 'scale' | 'quality' | 'reach' | 'capital';
+	showSource?: boolean;
 };
 
 export type CompanyShareActivityDay = {
@@ -102,6 +115,7 @@ export type CompanyShareSnapshot = {
 	primaryMetric?: string;
 	metricContexts?: Record<string, CompanyShareMetricContext>;
 	records: CompanyShareRecord[];
+	documents?: CompanyShareDocument[];
 	contactEmail?: string;
 	teamActivity?: CompanyShareTeamActivity;
 	narratives?: Record<string, CompanyShareNarrative>;
@@ -167,6 +181,14 @@ export function companyMetricLabel(metricName: string): string {
 		.replace(/[_-]+/g, ' ')
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
 		.replace(/^\w/, (character) => character.toUpperCase());
+}
+
+export function companyRecordTitle(record: CompanyShareRecord, language: string): string {
+	return record.titles?.[language] || record.title;
+}
+
+export function companyRecordDescription(record: CompanyShareRecord, language: string): string {
+	return record.descriptions?.[language] || '';
 }
 
 export function companyMetricChangeAssessment(change: number | undefined, favorableDirection: CompanyShareMetricContext['favorableDirection']): 'favorable' | 'unfavorable' | 'neutral' {

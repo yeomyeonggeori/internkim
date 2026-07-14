@@ -221,18 +221,12 @@
 
 			<Separator />
 
-			{#if snapshot.teamActivity}
-				<div class="py-12 sm:py-16">
-					<TeamActivitySection activity={snapshot.teamActivity} text={text.teamActivity} {language} />
-				</div>
-				<Separator />
-			{/if}
-
 			<CompanyStorySections
 				metrics={snapshot.metrics}
 				primaryMetric={snapshot.primaryMetric}
 				metricContexts={snapshot.metricContexts ?? {}}
 				records={snapshot.records}
+				documents={snapshot.documents ?? []}
 				{narrative}
 				{displayCurrency}
 				{localCurrency}
@@ -242,6 +236,13 @@
 				contactEmail={snapshot.contactEmail || profile.email}
 				onDisplayCurrencyChange={selectDisplayCurrency}
 			/>
+
+			{#if snapshot.teamActivity}
+				<Separator />
+				<div class="py-12 sm:py-16">
+					<TeamActivitySection activity={snapshot.teamActivity} text={text.teamActivity} {language} />
+				</div>
+			{/if}
 
 			{#if companyFacts(profile).length > 0}
 				<section class="py-14 sm:py-20">
