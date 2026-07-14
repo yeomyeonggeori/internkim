@@ -16,21 +16,23 @@ import (
 )
 
 type devVirtualSessionArguments struct {
-	ScenarioName          string
-	ArtifactDirectoryPath string
-	CassettePath          string
-	RecordCassettePath    string
-	SkillDirectoryPath    string
-	LanguageModelEndpoint string
-	LanguageModelSocket   string
-	LanguageModelName     string
-	ExecutionMode         string
-	TargetName            string
-	Seed                  string
-	Temperature           string
-	RequiredExecutables   []string
-	IsLiveLanguageModel   bool
-	ShouldSkipPreflight   bool
+	ScenarioName             string
+	ArtifactDirectoryPath    string
+	CassettePath             string
+	RecordCassettePath       string
+	SkillDirectoryPath       string
+	LanguageModelEndpoint    string
+	LanguageModelSocket      string
+	LanguageModelProvider    string
+	LanguageModelAuthKeyPath string
+	LanguageModelName        string
+	ExecutionMode            string
+	TargetName               string
+	Seed                     string
+	Temperature              string
+	RequiredExecutables      []string
+	IsLiveLanguageModel      bool
+	ShouldSkipPreflight      bool
 }
 
 type devCommandInvocation struct {
@@ -171,7 +173,7 @@ func runDevFleetReprovision() error {
 	command.Env = append(os.Environ(),
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5",
+		"INTERNKIM_TEST_MODEL_TIER=xlow",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
 		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
@@ -392,7 +394,9 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelName := flagSet.String("llm-model", "xiaomi/mimo-v2.5", "Live LLM model name")
+	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter, capability, or sdkd")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "SDKD installation auth key path")
+	languageModelName := flagSet.String("llm-model", "", "Live LLM model override")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	targetName := flagSet.String("target", "local", "Replay target: local or container")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
@@ -406,21 +410,23 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 	}
 
 	return devVirtualSessionArguments{
-		ScenarioName:          strings.TrimSpace(*scenarioName),
-		ArtifactDirectoryPath: strings.TrimSpace(*artifactDirectoryPath),
-		CassettePath:          strings.TrimSpace(*cassettePath),
-		RecordCassettePath:    strings.TrimSpace(*recordCassettePath),
-		SkillDirectoryPath:    strings.TrimSpace(*skillDirectoryPath),
-		LanguageModelEndpoint: strings.TrimSpace(*languageModelEndpoint),
-		LanguageModelSocket:   strings.TrimSpace(*languageModelSocket),
-		LanguageModelName:     strings.TrimSpace(*languageModelName),
-		ExecutionMode:         strings.TrimSpace(*executionMode),
-		TargetName:            strings.TrimSpace(*targetName),
-		Seed:                  strconv.FormatInt(*seedValue, 10),
-		Temperature:           optionalFloatArgument(flagSet, "temperature", *temperatureValue),
-		RequiredExecutables:   devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
-		IsLiveLanguageModel:   *liveLanguageModel,
-		ShouldSkipPreflight:   *skipPreflight,
+		ScenarioName:             strings.TrimSpace(*scenarioName),
+		ArtifactDirectoryPath:    strings.TrimSpace(*artifactDirectoryPath),
+		CassettePath:             strings.TrimSpace(*cassettePath),
+		RecordCassettePath:       strings.TrimSpace(*recordCassettePath),
+		SkillDirectoryPath:       strings.TrimSpace(*skillDirectoryPath),
+		LanguageModelEndpoint:    strings.TrimSpace(*languageModelEndpoint),
+		LanguageModelSocket:      strings.TrimSpace(*languageModelSocket),
+		LanguageModelProvider:    strings.TrimSpace(*languageModelProvider),
+		LanguageModelAuthKeyPath: strings.TrimSpace(*languageModelAuthKeyPath),
+		LanguageModelName:        strings.TrimSpace(*languageModelName),
+		ExecutionMode:            strings.TrimSpace(*executionMode),
+		TargetName:               strings.TrimSpace(*targetName),
+		Seed:                     strconv.FormatInt(*seedValue, 10),
+		Temperature:              optionalFloatArgument(flagSet, "temperature", *temperatureValue),
+		RequiredExecutables:      devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
+		IsLiveLanguageModel:      *liveLanguageModel,
+		ShouldSkipPreflight:      *skipPreflight,
 	}, nil
 }
 
@@ -499,6 +505,8 @@ func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArgumen
 	commandArguments = appendOptionalDevFlag(commandArguments, "--skill-dir", sessionArguments.SkillDirectoryPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-endpoint", sessionArguments.LanguageModelEndpoint)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-unix-socket", sessionArguments.LanguageModelSocket)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-provider", sessionArguments.LanguageModelProvider)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-auth-key-path", sessionArguments.LanguageModelAuthKeyPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-model", sessionArguments.LanguageModelName)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-execution-mode", sessionArguments.ExecutionMode)
 	if sessionArguments.IsLiveLanguageModel {

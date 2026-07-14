@@ -249,7 +249,7 @@ func (service Service) setupEnvironmentAssignments() []string {
 	if pinnedModelName := strings.TrimSpace(os.Getenv(blueclaw.BlueclawTestModelEnvironment)); pinnedModelName != "" {
 		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(pinnedModelName))
 	} else if !service.options.ShouldUseRealModels {
-		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(blueclaw.BlueclawTestModelName))
+		assignments = append(assignments, blueclaw.BlueclawTestModelTierEnvironment+"='xlow'")
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))

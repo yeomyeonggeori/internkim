@@ -148,6 +148,56 @@ func TestOpenRouterLiveLargePerToolActionSchemaFromEnv(t *testing.T) {
 	}
 }
 
+func TestOpenRouterLiveLowTierDiscriminatedUnionFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	response, errorValue := backend.CompleteStructured(ctx, StructuredRequest{
+		Model: backend.ModelName,
+		Messages: []Message{{
+			Role:    "user",
+			Content: "Choose the tool decision and set toolName to browser.open.",
+		}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name: "low_tier_discriminated_union_probe",
+			Document: json.RawMessage(`{
+				"oneOf":[
+					{
+						"type":"object",
+						"properties":{"kind":{"type":"string","enum":["reply"]},"message":{"type":"string"}},
+						"required":["kind","message"],
+						"additionalProperties":false
+					},
+					{
+						"type":"object",
+						"properties":{"kind":{"type":"string","enum":["tool"]},"toolName":{"type":"string","enum":["browser.open"]}},
+						"required":["kind","toolName"],
+						"additionalProperties":false
+					}
+				]
+			}`),
+			IsStrictlyEnforced: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected low-tier discriminated union response: %v", errorValue)
+	}
+	if response.ConstraintMode != ConstraintModeOpenAIJSONSchema {
+		t.Fatalf("expected openai_json_schema mode, got %q (content=%s)", response.ConstraintMode, response.Content)
+	}
+	var decision struct {
+		Kind     string `json:"kind"`
+		ToolName string `json:"toolName"`
+	}
+	if errorValue := json.Unmarshal([]byte(response.Content), &decision); errorValue != nil {
+		t.Fatalf("expected discriminated union JSON, got %q: %v", response.Content, errorValue)
+	}
+	if decision.Kind != "tool" || decision.ToolName != "browser.open" {
+		t.Fatalf("expected tool branch with browser.open, got %+v", decision)
+	}
+}
+
 func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -215,7 +265,7 @@ func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	backend := OpenRouterBackend{
 		KeyPath:    keyPath,
 		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
+		ModelName:  testEnvValue("OPENROUTER_MODEL", defaultXLowModelName),
 		HTTPClient: httpClientWithTimeout(45 * time.Second),
 	}
 	return backend, apiKey
