@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -696,11 +695,12 @@ func refreshBlueclawCapabilityContract(document string) (string, error) {
 	if errorValue := json.Unmarshal([]byte(document), &runtimeDocument); errorValue != nil {
 		return "", errorValue
 	}
+	contract := blueclawruntime.CurrentCapabilityContract()
 	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
-		capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
-		capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
+		capabilitiesSection["toolNames"] = contract.ToolNames
+		capabilitiesSection["toolDescriptors"] = contract.ToolDescriptors
 		if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
-			routing["candidates"] = capabilities.RoutingCandidates()
+			routing["candidates"] = contract.RoutingCandidates
 		}
 	}
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")

@@ -16,6 +16,8 @@ NETWORK = 'internkim-poc'
 TENANT_IMAGE = os.environ.get('TENANT_IMAGE', 'internkim-poc-tenant:flow')
 FALLBACK_TENANT_COUNT = 10
 DEFAULT_WORKSPACE_SETTINGS = {'timeZone': 'Asia/Seoul', 'language': 'ko'}
+CAPABILITY_CONTRACT_FILENAME = 'capability-contract.json'
+CAPABILITY_CONTRACT_REFRESH_SCRIPT = 'refresh_capability_contract.py'
 
 
 def run(cmd, check=True):
@@ -41,6 +43,23 @@ def patch_ips_in_configs(pg_ip, mm_ip):
             open(config_path, 'w').write(patched)
             tenant = os.path.basename(os.path.dirname(config_path))
             print(f'Patched IPs in {tenant}/runtime.json')
+
+
+def refresh_capability_contract():
+    contract_path = os.path.join(BASE, CAPABILITY_CONTRACT_FILENAME)
+    if not os.path.isfile(contract_path):
+        return
+    script_path = os.path.join(BASE, CAPABILITY_CONTRACT_REFRESH_SCRIPT)
+    if not os.path.isfile(script_path):
+        raise FileNotFoundError(f'capability contract refresh script is missing: {script_path}')
+    subprocess.run([
+        sys.executable,
+        script_path,
+        '--contract',
+        contract_path,
+        '--config-root',
+        os.path.join(BASE, 'config'),
+    ], check=True)
 
 
 def initialize_workspace_settings(workspace):
@@ -116,8 +135,8 @@ def default_tenant_count():
     return FALLBACK_TENANT_COUNT
 
 
-if __name__ == '__main__':
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else default_tenant_count()
+def start_all_tenants(count):
+    refresh_capability_contract()
     pg_ip = container_ip('poc-postgres')
     mm_ip = container_ip('poc-mattermost')
     print(f'Postgres: {pg_ip}, Mattermost: {mm_ip}')
@@ -125,3 +144,8 @@ if __name__ == '__main__':
     for n in range(1, count + 1):
         start_tenant(n, pg_ip, mm_ip)
     print(f'All {count} tenants started')
+
+
+if __name__ == '__main__':
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else default_tenant_count()
+    start_all_tenants(count)
