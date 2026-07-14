@@ -1,9 +1,6 @@
 package admind
 
 import (
-	"context"
-	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -76,46 +73,11 @@ func (service *Service) buildOrgchartDirectoryResponse(request *http.Request) (p
 }
 
 func (service *Service) orgchartUsersMetadataResponse(request *http.Request) (orgchartMetadataResponse, error) {
-	if !service.hasDeviceAuth() {
-		response, errorValue := service.buildLocalUsersResponse(request.Context())
-		if errorValue != nil {
-			return orgchartMetadataResponse{}, errorValue
-		}
-		metadataResponse, errorValue := service.orgchartLocalUsersMetadataResponse(request.Context(), response)
-		if errorValue != nil {
-			return orgchartMetadataResponse{}, errorValue
-		}
-		return metadataResponse, nil
-	}
-	records, errorValue := service.currentUserRecords(request.Context())
+	response, errorValue := service.readCachedOrgchartUserList(request.Context(), service.loadOrgchartUserListSource)
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
 	}
-	responseBody, errorValue := json.Marshal(pagesUsersResponse{Records: records})
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
-	}
-	metadataResponse, errorValue := service.orgchartMetadataResponse(request.Context(), responseBody)
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
-	}
-	return metadataResponse, nil
-}
-
-func (service *Service) orgchartLocalUsersMetadataResponse(ctx context.Context, response pagesUsersResponse) (orgchartMetadataResponse, error) {
-	for index := range response.Records {
-		applyDefaultOrgchartMetadata(&response.Records[index])
-	}
-	responseBody, errorValue := json.Marshal(response)
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
-	}
-	enhancedBody, errorValue := service.withBlueclawCircles(ctx, responseBody)
-	if errorValue != nil {
-		log.Printf("Blueclaw circle merge failed: %v", errorValue)
-		enhancedBody = responseBody
-	}
-	return service.orgchartMetadataResponse(ctx, enhancedBody)
+	return service.orgchartMetadataUsersResponse(request.Context(), response)
 }
 
 func visibleOrgchartUsersResponse(response pagesUsersResponse, profilesByUserID map[string]orgchartProfile, profilesByEmail map[string]orgchartProfile) pagesUsersResponse {
