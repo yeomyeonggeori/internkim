@@ -110,6 +110,7 @@ export type CompanyShareTeamActivity = {
 export type CompanyShareSnapshot = {
 	revision: number;
 	publishedAt: string;
+	languages?: string[];
 	profiles: Record<string, CompanyShareProfile>;
 	metrics: CompanyShareMetric[];
 	primaryMetric?: string;

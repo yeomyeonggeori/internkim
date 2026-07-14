@@ -57,7 +57,7 @@
 		narrative: CompanyShareNarrative;
 		displayCurrency: CompanyMetricDisplayCurrency;
 		localCurrency?: CompanyMetricCurrency;
-		language: 'ko' | 'en';
+		language: string;
 		text: CompanyStoryText;
 		displayCurrencyLabel: string;
 		contactEmail?: string;

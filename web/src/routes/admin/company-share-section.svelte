@@ -22,7 +22,7 @@
 		publishCompanyShare,
 		updateCompanyShareSettings
 	} from './admin-api';
-	import type { AdminPageText, CompanyDocument, CompanyRecord, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareRecordContext, CompanyShareSettings, CompanyShareSettingsUpdate, WorkspaceLanguage } from './admin-types';
+	import type { AdminPageText, CompanyDocument, CompanyRecord, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareRecordContext, CompanyShareSettings, CompanyShareSettingsUpdate } from './admin-types';
 
 	type CompanyShareSectionProps = {
 		adminBaseURL: string;
@@ -35,7 +35,7 @@
 		'jurisdiction', 'representative', 'representativeTitle', 'capital', 'fiscalYearEnd', 'email'
 	] as const;
 	const sessionHourOptions = [12, 24, 72, 168];
-	const narrativeLanguages = ['ko', 'en'] as const;
+	const localizationOptions = ['es', 'fr', 'de', 'it', 'nl', 'pt-BR', 'ja', 'ko', 'zh-CN', 'zh-TW', 'ar', 'hi', 'id', 'vi', 'th', 'tr'];
 
 	let { adminBaseURL, isDeviceReachable, text }: CompanyShareSectionProps = $props();
 	let settings = $state<CompanyShareSettings | null>(null);
@@ -47,34 +47,44 @@
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isPublishing = $state(false);
+	let editingLanguage = $state('en');
+	let languageToAdd = $state('');
 
 	onMount(loadSettings);
 
 	function emptyDraft(): CompanyShareSettingsUpdate {
-		return { enabled: false, password: '', sessionHours: 24, profileFields: [], metricNames: [], primaryMetric: '', metricContexts: {}, recordIDs: [], recordContexts: {}, documentIDs: [], contactEmail: '', showTeamActivity: false, narratives: emptyNarratives() };
+		return { enabled: false, password: '', sessionHours: 24, languages: ['en'], profileFields: [], metricNames: [], primaryMetric: '', metricContexts: {}, recordIDs: [], recordContexts: {}, documentIDs: [], contactEmail: '', showTeamActivity: false, narratives: emptyNarratives(['en']) };
 	}
 
-	function emptyMetricContext(): CompanyShareMetricContext {
-		return { labels: { ko: '', en: '' }, descriptions: { ko: '', en: '' }, favorableDirection: 'neutral', evidenceRole: '', showSource: false };
+	function emptyMetricContext(languages = draft.languages): CompanyShareMetricContext {
+		return { labels: emptyLocalizedValues(languages), descriptions: emptyLocalizedValues(languages), favorableDirection: 'neutral', evidenceRole: '', showSource: false };
 	}
 
-	function emptyRecordContext(): CompanyShareRecordContext {
-		return { titles: { ko: '', en: '' }, descriptions: { ko: '', en: '' }, attributeKeys: [] };
+	function emptyRecordContext(languages = draft.languages): CompanyShareRecordContext {
+		return { titles: emptyLocalizedValues(languages), descriptions: emptyLocalizedValues(languages), attributeKeys: [] };
 	}
 
-	function cloneRecordContexts(recordContexts: CompanyShareSettings['recordContexts'] | undefined): Record<string, CompanyShareRecordContext> {
+	function emptyLocalizedValues(languages: string[]): Record<string, string> {
+		return Object.fromEntries(languages.map((language) => [language, '']));
+	}
+
+	function cloneLocalizedValues(values: Record<string, string> | undefined, languages: string[]): Record<string, string> {
+		return Object.fromEntries(languages.map((language) => [language, values?.[language] ?? '']));
+	}
+
+	function cloneRecordContexts(recordContexts: CompanyShareSettings['recordContexts'] | undefined, languages: string[]): Record<string, CompanyShareRecordContext> {
 		return Object.fromEntries(Object.entries(recordContexts ?? {}).map(([recordID, context]) => [recordID, {
-			titles: { ko: context.titles?.ko ?? '', en: context.titles?.en ?? '' },
-			descriptions: { ko: context.descriptions?.ko ?? '', en: context.descriptions?.en ?? '' },
+			titles: cloneLocalizedValues(context.titles, languages),
+			descriptions: cloneLocalizedValues(context.descriptions, languages),
 			attributeKeys: [...(context.attributeKeys ?? [])]
 		}]));
 	}
 
-	function cloneMetricContexts(metricContexts: CompanyShareSettings['metricContexts'] | undefined): Record<string, CompanyShareMetricContext> {
+	function cloneMetricContexts(metricContexts: CompanyShareSettings['metricContexts'] | undefined, languages: string[]): Record<string, CompanyShareMetricContext> {
 		return Object.fromEntries(Object.entries(metricContexts ?? {}).map(([metricName, context]) => [metricName, {
-			...emptyMetricContext(), ...context,
-			labels: { ko: context.labels?.ko ?? '', en: context.labels?.en ?? '' },
-			descriptions: { ko: context.descriptions?.ko ?? '', en: context.descriptions?.en ?? '' }
+			...emptyMetricContext(languages), ...context,
+			labels: cloneLocalizedValues(context.labels, languages),
+			descriptions: cloneLocalizedValues(context.descriptions, languages)
 		}]));
 	}
 
@@ -82,16 +92,14 @@
 		return { highlights: [], businessModel: '', customerEvidence: '', marketOpportunity: '', competitiveAdvantage: '', roadmap: '', fundingStage: '', fundingTarget: '', useOfFunds: '' };
 	}
 
-	function emptyNarratives(): Record<WorkspaceLanguage, CompanyShareNarrative> {
-		return { ko: emptyNarrative(), en: emptyNarrative() };
+	function emptyNarratives(languages: string[]): Record<string, CompanyShareNarrative> {
+		return Object.fromEntries(languages.map((language) => [language, emptyNarrative()]));
 	}
 
-	function cloneNarratives(narratives: CompanyShareSettings['narratives'] | undefined): Record<WorkspaceLanguage, CompanyShareNarrative> {
-		const fallback = emptyNarratives();
-		return {
-			ko: { ...fallback.ko, ...narratives?.ko, highlights: [...(narratives?.ko?.highlights ?? [])] },
-			en: { ...fallback.en, ...narratives?.en, highlights: [...(narratives?.en?.highlights ?? [])] }
-		};
+	function cloneNarratives(narratives: CompanyShareSettings['narratives'] | undefined, languages: string[]): Record<string, CompanyShareNarrative> {
+		return Object.fromEntries(languages.map((language) => [language, {
+			...emptyNarrative(), ...narratives?.[language], highlights: [...(narratives?.[language]?.highlights ?? [])]
+		}]));
 	}
 
 	async function loadSettings() {
@@ -106,7 +114,9 @@
 				fetchCompanyDocuments(adminBaseURL, text.companyShare.loadError)
 			]);
 			settings = loadedSettings;
-			draft = { ...loadedSettings, password: '', profileFields: [...loadedSettings.profileFields], metricNames: [...loadedSettings.metricNames], primaryMetric: loadedSettings.primaryMetric ?? '', metricContexts: cloneMetricContexts(loadedSettings.metricContexts), recordIDs: [...loadedSettings.recordIDs], recordContexts: cloneRecordContexts(loadedSettings.recordContexts), documentIDs: [...(loadedSettings.documentIDs ?? [])], narratives: cloneNarratives(loadedSettings.narratives) };
+			const languages = loadedSettings.languages?.length ? [...loadedSettings.languages] : ['en'];
+			draft = { ...loadedSettings, password: '', languages, profileFields: [...loadedSettings.profileFields], metricNames: [...loadedSettings.metricNames], primaryMetric: loadedSettings.primaryMetric ?? '', metricContexts: cloneMetricContexts(loadedSettings.metricContexts, languages), recordIDs: [...loadedSettings.recordIDs], recordContexts: cloneRecordContexts(loadedSettings.recordContexts, languages), documentIDs: [...(loadedSettings.documentIDs ?? [])], narratives: cloneNarratives(loadedSettings.narratives, languages) };
+			editingLanguage = languages.includes(editingLanguage) ? editingLanguage : 'en';
 			for (const metricName of draft.metricNames) draft.metricContexts[metricName] ??= emptyMetricContext();
 			for (const recordID of draft.recordIDs) draft.recordContexts[recordID] ??= emptyRecordContext();
 			metricNames = [...new Set((metricsResponse.metrics ?? []).map((metric) => metric.metric))].sort();
@@ -187,8 +197,61 @@
 		});
 	}
 
-	function updateHighlights(language: WorkspaceLanguage, value: string) {
+	function updateHighlights(language: string, value: string) {
 		draft.narratives[language].highlights = value.split('\n');
+	}
+
+	function addLocalization(language: string) {
+		if (!language || draft.languages.includes(language)) return;
+		draft.languages = [...draft.languages, language];
+		draft.narratives[language] = emptyNarrative();
+		for (const context of Object.values(draft.metricContexts)) {
+			context.labels[language] = '';
+			context.descriptions[language] = '';
+		}
+		for (const context of Object.values(draft.recordContexts)) {
+			context.titles[language] = '';
+			context.descriptions[language] = '';
+		}
+		editingLanguage = language;
+		languageToAdd = '';
+	}
+
+	function removeLocalization(language: string) {
+		if (language === 'en') return;
+		draft.languages = draft.languages.filter((candidate) => candidate !== language);
+		delete draft.narratives[language];
+		for (const context of Object.values(draft.metricContexts)) {
+			delete context.labels[language];
+			delete context.descriptions[language];
+		}
+		for (const context of Object.values(draft.recordContexts)) {
+			delete context.titles[language];
+			delete context.descriptions[language];
+		}
+		editingLanguage = 'en';
+	}
+
+	function copyEnglishLocalization() {
+		if (editingLanguage === 'en') return;
+		const englishNarrative = draft.narratives.en;
+		draft.narratives[editingLanguage] = { ...englishNarrative, highlights: [...englishNarrative.highlights] };
+		for (const context of Object.values(draft.metricContexts)) {
+			context.labels[editingLanguage] = context.labels.en ?? '';
+			context.descriptions[editingLanguage] = context.descriptions.en ?? '';
+		}
+		for (const context of Object.values(draft.recordContexts)) {
+			context.titles[editingLanguage] = context.titles.en ?? '';
+			context.descriptions[editingLanguage] = context.descriptions.en ?? '';
+		}
+	}
+
+	function languageLabel(language: string): string {
+		try {
+			return new Intl.DisplayNames(['en'], { type: 'language' }).of(language) ?? language;
+		} catch {
+			return language;
+		}
 	}
 
 	async function saveSettings() {
@@ -295,41 +358,70 @@
 
 	<Card.Root>
 		<Card.Header>
+			<Card.Title>{text.companyShare.localization}</Card.Title>
+			<Card.Description>{text.companyShare.localizationDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content class="grid gap-5">
+			<Tabs.Root value={editingLanguage} onValueChange={(value) => editingLanguage = value}>
+				<Tabs.List class="h-auto flex-wrap justify-start">
+					{#each draft.languages as language}
+						<Tabs.Trigger value={language}>{languageLabel(language)}{#if language === 'en'} <span class="text-muted-foreground ml-1 text-xs">{text.companyShare.defaultLanguage}</span>{/if}</Tabs.Trigger>
+					{/each}
+				</Tabs.List>
+			</Tabs.Root>
+			<div class="flex flex-wrap items-end gap-3">
+				<Field.Field class="min-w-56 flex-1 sm:max-w-xs">
+					<Field.Label for="company-share-add-language">{text.companyShare.addLocalization}</Field.Label>
+					<Select.Root type="single" value={languageToAdd || 'none'} onValueChange={(value) => languageToAdd = value === 'none' ? '' : value} disabled={isLoading || isSaving}>
+						<Select.Trigger id="company-share-add-language" class="w-full">{languageToAdd ? languageLabel(languageToAdd) : text.companyShare.chooseLanguage}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="none" label={text.companyShare.chooseLanguage}>{text.companyShare.chooseLanguage}</Select.Item>
+							{#each localizationOptions.filter((language) => !draft.languages.includes(language)) as language}
+								<Select.Item value={language} label={languageLabel(language)}>{languageLabel(language)}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</Field.Field>
+				<Button variant="outline" onclick={() => addLocalization(languageToAdd)} disabled={!languageToAdd || isLoading || isSaving}>{text.companyShare.add}</Button>
+				{#if editingLanguage !== 'en'}
+					<Button variant="outline" onclick={copyEnglishLocalization} disabled={isLoading || isSaving}>{text.companyShare.copyEnglish}</Button>
+					<Button variant="ghost" onclick={() => removeLocalization(editingLanguage)} disabled={isLoading || isSaving}>{text.companyShare.removeLocalization}</Button>
+				{/if}
+			</div>
+			<p class="text-muted-foreground text-sm">{text.companyShare.editingLanguage.replace('{language}', languageLabel(editingLanguage))}</p>
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
 			<Card.Title>{text.companyShare.narrative}</Card.Title>
 			<Card.Description>{text.companyShare.narrativeDescription}</Card.Description>
 		</Card.Header>
 		<Card.Content>
-			<Tabs.Root value="ko">
-				<Tabs.List>
-					<Tabs.Trigger value="ko">한국어</Tabs.Trigger>
-					<Tabs.Trigger value="en">English</Tabs.Trigger>
-				</Tabs.List>
-				{#each narrativeLanguages as language}
-					<Tabs.Content value={language} class="mt-5">
-						<Field.Group>
-							<Field.Field>
-								<Field.Label for={`company-share-highlights-${language}`}>{text.companyShare.narrativeFields.highlights}</Field.Label>
-								<Textarea id={`company-share-highlights-${language}`} value={draft.narratives[language].highlights.join('\n')} oninput={(event) => updateHighlights(language, event.currentTarget.value)} class="min-h-28 resize-y" placeholder={text.companyShare.highlightsPlaceholder} disabled={isLoading || isSaving} />
-								<Field.Description>{text.companyShare.highlightsDescription}</Field.Description>
-							</Field.Field>
-							<div class="grid gap-5 lg:grid-cols-2">
-								<Field.Field><Field.Label for={`company-share-business-${language}`}>{text.companyShare.narrativeFields.businessModel}</Field.Label><Textarea id={`company-share-business-${language}`} bind:value={draft.narratives[language].businessModel} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-customers-${language}`}>{text.companyShare.narrativeFields.customerEvidence}</Field.Label><Textarea id={`company-share-customers-${language}`} bind:value={draft.narratives[language].customerEvidence} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-market-${language}`}>{text.companyShare.narrativeFields.marketOpportunity}</Field.Label><Textarea id={`company-share-market-${language}`} bind:value={draft.narratives[language].marketOpportunity} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-advantage-${language}`}>{text.companyShare.narrativeFields.competitiveAdvantage}</Field.Label><Textarea id={`company-share-advantage-${language}`} bind:value={draft.narratives[language].competitiveAdvantage} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-roadmap-${language}`}>{text.companyShare.narrativeFields.roadmap}</Field.Label><Textarea id={`company-share-roadmap-${language}`} bind:value={draft.narratives[language].roadmap} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<div class="grid gap-5">
-									<div class="grid gap-5 sm:grid-cols-2">
-										<Field.Field><Field.Label for={`company-share-stage-${language}`}>{text.companyShare.narrativeFields.fundingStage}</Field.Label><Input id={`company-share-stage-${language}`} bind:value={draft.narratives[language].fundingStage} disabled={isLoading || isSaving} /></Field.Field>
-										<Field.Field><Field.Label for={`company-share-target-${language}`}>{text.companyShare.narrativeFields.fundingTarget}</Field.Label><Input id={`company-share-target-${language}`} bind:value={draft.narratives[language].fundingTarget} disabled={isLoading || isSaving} /></Field.Field>
-									</div>
-									<Field.Field><Field.Label for={`company-share-use-${language}`}>{text.companyShare.narrativeFields.useOfFunds}</Field.Label><Textarea id={`company-share-use-${language}`} bind:value={draft.narratives[language].useOfFunds} class="min-h-24 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								</div>
+			{@const narrative = draft.narratives[editingLanguage]}
+			{#if narrative}
+				<Field.Group>
+					<Field.Field>
+						<Field.Label for={`company-share-highlights-${editingLanguage}`}>{text.companyShare.narrativeFields.highlights}</Field.Label>
+						<Textarea id={`company-share-highlights-${editingLanguage}`} value={narrative.highlights.join('\n')} oninput={(event) => updateHighlights(editingLanguage, event.currentTarget.value)} class="min-h-28 resize-y" placeholder={text.companyShare.highlightsPlaceholder} disabled={isLoading || isSaving} />
+						<Field.Description>{text.companyShare.highlightsDescription}</Field.Description>
+					</Field.Field>
+					<div class="grid gap-5 lg:grid-cols-2">
+						<Field.Field><Field.Label for={`company-share-business-${editingLanguage}`}>{text.companyShare.narrativeFields.businessModel}</Field.Label><Textarea id={`company-share-business-${editingLanguage}`} bind:value={narrative.businessModel} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						<Field.Field><Field.Label for={`company-share-customers-${editingLanguage}`}>{text.companyShare.narrativeFields.customerEvidence}</Field.Label><Textarea id={`company-share-customers-${editingLanguage}`} bind:value={narrative.customerEvidence} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						<Field.Field><Field.Label for={`company-share-market-${editingLanguage}`}>{text.companyShare.narrativeFields.marketOpportunity}</Field.Label><Textarea id={`company-share-market-${editingLanguage}`} bind:value={narrative.marketOpportunity} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						<Field.Field><Field.Label for={`company-share-advantage-${editingLanguage}`}>{text.companyShare.narrativeFields.competitiveAdvantage}</Field.Label><Textarea id={`company-share-advantage-${editingLanguage}`} bind:value={narrative.competitiveAdvantage} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						<Field.Field><Field.Label for={`company-share-roadmap-${editingLanguage}`}>{text.companyShare.narrativeFields.roadmap}</Field.Label><Textarea id={`company-share-roadmap-${editingLanguage}`} bind:value={narrative.roadmap} class="min-h-32 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						<div class="grid gap-5">
+							<div class="grid gap-5 sm:grid-cols-2">
+								<Field.Field><Field.Label for={`company-share-stage-${editingLanguage}`}>{text.companyShare.narrativeFields.fundingStage}</Field.Label><Input id={`company-share-stage-${editingLanguage}`} bind:value={narrative.fundingStage} disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-target-${editingLanguage}`}>{text.companyShare.narrativeFields.fundingTarget}</Field.Label><Input id={`company-share-target-${editingLanguage}`} bind:value={narrative.fundingTarget} disabled={isLoading || isSaving} /></Field.Field>
 							</div>
-						</Field.Group>
-					</Tabs.Content>
-				{/each}
-			</Tabs.Root>
+							<Field.Field><Field.Label for={`company-share-use-${editingLanguage}`}>{text.companyShare.narrativeFields.useOfFunds}</Field.Label><Textarea id={`company-share-use-${editingLanguage}`} bind:value={narrative.useOfFunds} class="min-h-24 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+						</div>
+					</div>
+				</Field.Group>
+			{/if}
 		</Card.Content>
 	</Card.Root>
 
@@ -414,10 +506,8 @@
 						<section class="grid gap-5 rounded-lg border p-4">
 							<div><h3 class="font-semibold">{record.title}</h3><p class="text-muted-foreground mt-1 text-xs">{[record.date, record.category].filter(Boolean).join(' · ')}</p></div>
 							<div class="grid gap-5 md:grid-cols-2">
-								<Field.Field><Field.Label for={`company-share-record-title-ko-${recordID}`}>{text.companyShare.recordTitleKorean}</Field.Label><Input id={`company-share-record-title-ko-${recordID}`} bind:value={context.titles.ko} placeholder={record.title} disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-record-title-en-${recordID}`}>{text.companyShare.recordTitleEnglish}</Field.Label><Input id={`company-share-record-title-en-${recordID}`} bind:value={context.titles.en} placeholder={record.title} disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-record-description-ko-${recordID}`}>{text.companyShare.recordDescriptionKorean}</Field.Label><Textarea id={`company-share-record-description-ko-${recordID}`} bind:value={context.descriptions.ko} placeholder={record.detail ?? ''} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-								<Field.Field><Field.Label for={`company-share-record-description-en-${recordID}`}>{text.companyShare.recordDescriptionEnglish}</Field.Label><Textarea id={`company-share-record-description-en-${recordID}`} bind:value={context.descriptions.en} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-record-title-${editingLanguage}-${recordID}`}>{text.companyShare.recordTitle}</Field.Label><Input id={`company-share-record-title-${editingLanguage}-${recordID}`} bind:value={context.titles[editingLanguage]} placeholder={record.title} disabled={isLoading || isSaving} /></Field.Field>
+								<Field.Field><Field.Label for={`company-share-record-description-${editingLanguage}-${recordID}`}>{text.companyShare.recordDescription}</Field.Label><Textarea id={`company-share-record-description-${editingLanguage}-${recordID}`} bind:value={context.descriptions[editingLanguage]} placeholder={record.detail ?? ''} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
 							</div>
 							<div>
 								<p class="text-sm font-medium">{text.companyShare.recordAttributes}</p>
@@ -491,10 +581,8 @@
 									</div>
 								</div>
 								<div class="grid gap-5 md:grid-cols-2">
-									<Field.Field><Field.Label for={`company-share-metric-label-ko-${metricName}`}>{text.companyShare.metricLabelKorean}</Field.Label><Input id={`company-share-metric-label-ko-${metricName}`} bind:value={context.labels.ko} placeholder={metricName} disabled={isLoading || isSaving} /></Field.Field>
-									<Field.Field><Field.Label for={`company-share-metric-label-en-${metricName}`}>{text.companyShare.metricLabelEnglish}</Field.Label><Input id={`company-share-metric-label-en-${metricName}`} bind:value={context.labels.en} placeholder={metricName} disabled={isLoading || isSaving} /></Field.Field>
-									<Field.Field><Field.Label for={`company-share-metric-description-ko-${metricName}`}>{text.companyShare.metricDescriptionKorean}</Field.Label><Textarea id={`company-share-metric-description-ko-${metricName}`} bind:value={context.descriptions.ko} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
-									<Field.Field><Field.Label for={`company-share-metric-description-en-${metricName}`}>{text.companyShare.metricDescriptionEnglish}</Field.Label><Textarea id={`company-share-metric-description-en-${metricName}`} bind:value={context.descriptions.en} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
+									<Field.Field><Field.Label for={`company-share-metric-label-${editingLanguage}-${metricName}`}>{text.companyShare.metricLabel}</Field.Label><Input id={`company-share-metric-label-${editingLanguage}-${metricName}`} bind:value={context.labels[editingLanguage]} placeholder={metricName} disabled={isLoading || isSaving} /></Field.Field>
+									<Field.Field><Field.Label for={`company-share-metric-description-${editingLanguage}-${metricName}`}>{text.companyShare.metricDescription}</Field.Label><Textarea id={`company-share-metric-description-${editingLanguage}-${metricName}`} bind:value={context.descriptions[editingLanguage]} class="min-h-20 resize-y" disabled={isLoading || isSaving} /></Field.Field>
 								</div>
 								<Field.Field orientation="horizontal">
 									<Checkbox bind:checked={context.showSource} disabled={isLoading || isSaving} id={`company-share-metric-source-${metricName}`} />

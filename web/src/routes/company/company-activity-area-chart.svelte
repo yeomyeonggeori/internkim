@@ -8,7 +8,7 @@
 		workSignals: string;
 	};
 
-	let { days, language, text }: { days: CompanyShareActivityDay[]; language: 'ko' | 'en'; text: ActivityChartText } = $props();
+	let { days, language, text }: { days: CompanyShareActivityDay[]; language: string; text: ActivityChartText } = $props();
 	const chartData = $derived(days.map((day, index) => ({ ...day, index })));
 	const chartConfig = $derived<Chart.ChartConfig>({
 		attendanceCount: { label: text.attendanceSignals, color: 'var(--color-blue-400)' },
