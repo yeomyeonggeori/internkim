@@ -68,10 +68,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
 		return
 	}
-	if errorValue := mutation.complete(request.Context()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
+	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
@@ -137,10 +134,7 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 			temporaryPasswordEmail = payload.Email
 		}
 	}
-	if errorValue := mutation.complete(request.Context()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
+	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	response, errorValue := service.buildLocalUsersResponse(request.Context())
 	if errorValue != nil {
@@ -252,10 +246,7 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	if errorValue := mutation.complete(request.Context()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
+	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }
