@@ -28,7 +28,7 @@ export const companyPageText = {
 		lock: '다시 잠그기',
 		noMetrics: '공개된 지표가 없습니다.',
 		noRecords: '공개된 주요 이력이 없습니다.',
-		changeLanguage: 'Change language to English',
+		changeLanguage: '페이지 언어 변경',
 		story: {
 			highlights: '핵심 하이라이트', traction: '축적된 성과 지표', latestPeriod: '최근 기간',
 			increase: '직전 기간 대비', businessModel: '비즈니스 모델', customerEvidence: '고객 근거',
@@ -78,7 +78,7 @@ export const companyPageText = {
 		lock: 'Lock again',
 		noMetrics: 'No metrics are shared.',
 		noRecords: 'No milestones are shared.',
-		changeLanguage: '언어를 한국어로 변경',
+		changeLanguage: 'Change page language',
 		story: {
 			highlights: 'Highlights', traction: 'Evidence over time', latestPeriod: 'Latest period',
 			increase: 'from the previous period', businessModel: 'Business model', customerEvidence: 'Customer evidence',

@@ -32,7 +32,7 @@
 		statusLabels: Record<CompanyShareWorkStatus['status'], string>;
 	};
 
-	let { activity, text, language }: { activity: CompanyShareTeamActivity; text: TeamActivityText; language: 'ko' | 'en' } = $props();
+	let { activity, text, language }: { activity: CompanyShareTeamActivity; text: TeamActivityText; language: string } = $props();
 	const activityRhythmDays = 30;
 	const recentDays = $derived(activity.days.slice(-activityRhythmDays));
 	const recentAttendanceTotal = $derived(recentDays.reduce((total, day) => total + day.attendanceCount, 0));

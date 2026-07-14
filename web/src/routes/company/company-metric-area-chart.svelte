@@ -19,7 +19,7 @@
 		metrics: CompanyShareMetric[];
 		label: string;
 		displayCurrency: CompanyMetricDisplayCurrency;
-		language: 'ko' | 'en';
+		language: string;
 		compact?: boolean;
 	} = $props();
 

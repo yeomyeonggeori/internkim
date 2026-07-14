@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import BuildingIcon from '@lucide/svelte/icons/building-2';
@@ -23,38 +24,47 @@
 	import CompanyStorySections from './company-story-sections.svelte';
 	import TeamActivitySection from './team-activity-section.svelte';
 
-	type Language = keyof typeof companyPageText;
 	type PageState = 'loading' | 'locked' | 'unavailable' | 'ready' | 'error';
 
-	let language = $state<Language>('ko');
+	let language = $state('en');
 	let pageState = $state<PageState>('loading');
 	let password = $state('');
 	let errorMessage = $state('');
 	let snapshot = $state<CompanyShareSnapshot | null>(null);
 	let isUnlocking = $state(false);
 	let displayCurrency = $state<CompanyMetricDisplayCurrency>('USD');
-	const text = $derived(companyPageText[language]);
+	const text = $derived(language === 'ko' ? companyPageText.ko : companyPageText.en);
 	const profile = $derived(resolveProfile(snapshot, language));
 	const narrative = $derived(resolveNarrative(snapshot, language));
 	const localCurrency = $derived(snapshot ? companyLocalCurrency(snapshot.metrics) : undefined);
+	const availableLanguages = $derived(snapshot?.languages?.length ? snapshot.languages : ['en']);
 
 	onMount(() => {
-		selectLanguage(navigator.language.toLowerCase().startsWith('en') ? 'en' : 'ko');
+		selectLanguage('en');
 		loadSession();
 	});
 
-	function selectLanguage(selectedLanguage: Language): void {
+	function selectLanguage(selectedLanguage: string): void {
+		if (!selectedLanguage) return;
 		language = selectedLanguage;
 		document.documentElement.lang = selectedLanguage;
 	}
 
-	function resolveProfile(currentSnapshot: CompanyShareSnapshot | null, currentLanguage: Language): CompanyShareProfile | null {
+	function resolveProfile(currentSnapshot: CompanyShareSnapshot | null, currentLanguage: string): CompanyShareProfile | null {
 		if (!currentSnapshot) return null;
-		return currentSnapshot.profiles[currentLanguage] ?? currentSnapshot.profiles.ko ?? Object.values(currentSnapshot.profiles)[0] ?? null;
+		return currentSnapshot.profiles[currentLanguage] ?? currentSnapshot.profiles.en ?? Object.values(currentSnapshot.profiles)[0] ?? null;
 	}
 
-	function resolveNarrative(currentSnapshot: CompanyShareSnapshot | null, currentLanguage: Language): CompanyShareNarrative {
-		return currentSnapshot?.narratives?.[currentLanguage] ?? currentSnapshot?.narratives?.ko ?? { highlights: [] };
+	function resolveNarrative(currentSnapshot: CompanyShareSnapshot | null, currentLanguage: string): CompanyShareNarrative {
+		return currentSnapshot?.narratives?.[currentLanguage] ?? currentSnapshot?.narratives?.en ?? { highlights: [] };
+	}
+
+	function languageLabel(value: string): string {
+		try {
+			return new Intl.DisplayNames([language], { type: 'language' }).of(value) ?? value;
+		} catch {
+			return value;
+		}
 	}
 
 	async function loadSession() {
@@ -162,7 +172,7 @@
 </script>
 
 <svelte:head>
-	<title>{profile?.brandName || profile?.name || (language === 'ko' ? '회사 페이지' : 'Company page')}</title>
+	<title>{profile?.brandName || profile?.name || 'Company page'}</title>
 	<meta name="robots" content="noindex,nofollow" />
 </svelte:head>
 
@@ -171,10 +181,19 @@
 		<header class="flex items-center justify-between gap-4">
 			<div class="flex items-center gap-3">
 				<div class="bg-primary text-primary-foreground grid size-9 place-items-center rounded-lg"><BuildingIcon class="size-4" /></div>
-				<span class="text-sm font-semibold">{profile?.brandName || profile?.name || (language === 'ko' ? '회사 페이지' : 'Company page')}</span>
+				<span class="text-sm font-semibold">{profile?.brandName || profile?.name || 'Company page'}</span>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button variant="ghost" size="sm" aria-label={text.changeLanguage} onclick={() => selectLanguage(language === 'ko' ? 'en' : 'ko')}>{language === 'ko' ? 'EN' : '한국어'}</Button>
+				{#if availableLanguages.length > 1}
+					<Select.Root type="single" value={language} onValueChange={selectLanguage}>
+						<Select.Trigger class="h-8 w-auto min-w-28" aria-label={text.changeLanguage}>{languageLabel(language)}</Select.Trigger>
+						<Select.Content>
+							{#each availableLanguages as availableLanguage}
+								<Select.Item value={availableLanguage} label={languageLabel(availableLanguage)}>{languageLabel(availableLanguage)}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				{/if}
 				{#if pageState === 'ready'}<Button variant="ghost" size="sm" onclick={lockPage}><LockIcon data-icon="inline-start" />{text.lock}</Button>{/if}
 			</div>
 		</header>
