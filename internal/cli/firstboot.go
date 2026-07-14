@@ -368,6 +368,12 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
+if [ ! -s /root/.internkim/secrets/sdkd-auth-key ]; then
+  umask 077
+  head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /root/.internkim/secrets/sdkd-auth-key
+fi
+chown root:root /root/.internkim/secrets/sdkd-auth-key
+chmod 600 /root/.internkim/secrets/sdkd-auth-key
 if [ -f /root/.internkim/secrets/google-sa.json ]; then
   chown root:root /root/.internkim/secrets/google-sa.json
   chmod 600 /root/.internkim/secrets/google-sa.json
@@ -865,10 +871,13 @@ else
   systemctl disable zeroclaw 2>/dev/null || true
   rm -f /etc/systemd/system/zeroclaw.service
   rm -rf /etc/systemd/system/zeroclaw.service.d
+%s
   cat > %s <<'SVCEOF'
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+  cat > %s <<'SDKDEOF'
+%sSDKDEOF
   cat > %s <<'GRAPHITIEOF'
 %sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
@@ -944,6 +953,8 @@ CLOUDFLARED_NODE_EOF
   systemctl start %s
   systemctl enable %s
   systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
   systemctl enable --now internkim-blueclaw-tmp-clean.timer
   systemctl enable cloudflared-node-ssh
@@ -961,7 +972,7 @@ CLOUDFLARED_NODE_EOF
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s $cloudflaredServiceNames postgresql; do
+    for serviceName in mattermost %s %s %s %s %s %s $cloudflaredServiceNames postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -978,10 +989,13 @@ CLOUDFLARED_NODE_EOF
 
   mark_phase_done services
 fi`,
+		blueclaw.SDKDServiceCredentialInstallCommand(blueclaw.LocalOnlyEnabled()),
 		blueclaw.BlueclawServicePath,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
+		blueclaw.SDKDServicePath,
+		blueclaw.SDKDServiceUnit(),
 		blueclaw.GraphitiMemorydServicePath,
 		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
@@ -1006,6 +1020,8 @@ fi`,
 		blueclaw.InternKimBlueclawTemporaryCleanupTimerUnit(),
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
+		blueclaw.SDKDServiceName,
+		blueclaw.SDKDServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
@@ -1019,6 +1035,7 @@ fi`,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
+		blueclaw.SDKDServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.GraphitiMemorydServiceName,
