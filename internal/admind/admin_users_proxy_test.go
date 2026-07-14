@@ -148,18 +148,18 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
-			keys := []orgchartPeopleCacheKey{
-				{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey},
-				{Kind: orgchartPeopleCachePerson, Key: "user-member"},
-			}
+			listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+			personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-member"}
+			keys := []orgchartPeopleCacheKey{listKey, personKey}
 			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(request.Context(), keys)
 			if errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			for _, key := range keys {
-				if !snapshots[key].IsDirty || snapshots[key].ActiveMutations != 1 {
-					t.Fatalf("cache state before remote write = %#v", snapshots[key])
-				}
+			if !snapshots[listKey].IsDirty || snapshots[listKey].ActiveMutations != 1 {
+				t.Fatalf("list cache state before remote write = %#v", snapshots[listKey])
+			}
+			if snapshots[personKey].IsDirty || snapshots[personKey].ActiveMutations != 0 || snapshots[personKey].Found {
+				t.Fatalf("unknown person cache state before remote write = %#v", snapshots[personKey])
 			}
 			checkedDirty = true
 			if errorValue := json.NewDecoder(request.Body).Decode(&mattermostPatch); errorValue != nil {

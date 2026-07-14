@@ -103,12 +103,20 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	newEmail := "new-batch@example.com"
 	preloadOrgchartIdentityCache(t, service, canonicalUserID, existingEmail)
 	activePersonKeys := []string{}
+	listMutationActive := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, existingEmail), nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			activePersonKeys = activeOrgchartPersonMutationKeys(t, service)
+			listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(context.Background(), []orgchartPeopleCacheKey{listKey})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			listSnapshot := snapshots[listKey]
+			listMutationActive = listSnapshot.IsDirty && listSnapshot.ActiveMutations == 1
 			return nil, errors.New("stop after batch mutation check")
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -129,20 +137,20 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	if !containsString(activePersonKeys, canonicalUserID) {
 		t.Fatalf("active person keys = %#v; missing %q", activePersonKeys, canonicalUserID)
 	}
-	for _, email := range []string{existingEmail, newEmail} {
-		emailKey := "email:" + email
-		if !containsString(activePersonKeys, emailKey) {
-			t.Fatalf("active person keys = %#v; missing %q", activePersonKeys, emailKey)
-		}
+	existingEmailKey := "email:" + existingEmail
+	if !containsString(activePersonKeys, existingEmailKey) {
+		t.Fatalf("active person keys = %#v; missing %q", activePersonKeys, existingEmailKey)
 	}
-	generatedUserIDFound := false
+	if containsString(activePersonKeys, "email:"+newEmail) {
+		t.Fatalf("active person keys = %#v; contains unknown email key", activePersonKeys)
+	}
 	for _, key := range activePersonKeys {
 		if strings.HasPrefix(key, "user-") {
-			generatedUserIDFound = true
+			t.Fatalf("active person keys = %#v; contains generated user ID", activePersonKeys)
 		}
 	}
-	if !generatedUserIDFound {
-		t.Fatalf("active person keys = %#v; missing generated user ID", activePersonKeys)
+	if !listMutationActive {
+		t.Fatal("list cache mutation was not active before external write")
 	}
 	assertOrgchartPersonCacheFound(t, service, canonicalUserID, false)
 }
