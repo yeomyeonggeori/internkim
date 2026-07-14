@@ -18,6 +18,16 @@ func (service *Service) writeOrgchartGroups(ctx context.Context, groups []orgGro
 	if errorValue != nil {
 		return errorValue
 	}
+	previousGroups, errorValue := readOrgchartGroupsFromQueryRunner(ctx, transaction)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	changedGroupIDs := changedOrgchartGroupIDs(previousGroups, normalizedGroups, groupAliases)
+	if errorValue := invalidateOrgchartGroups(ctx, transaction, changedGroupIDs); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM orgchart_groups"); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue

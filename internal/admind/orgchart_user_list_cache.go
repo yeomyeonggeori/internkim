@@ -17,6 +17,8 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 		return pagesUsersResponse{}, errorValue
 	}
 	snapshot := snapshots[key]
+	var previousResponse pagesUsersResponse
+	hasPreviousResponse := snapshot.Found && snapshot.SchemaVersion == orgchartPeopleCacheSchemaVersion && json.Unmarshal(snapshot.PayloadJSON, &previousResponse) == nil
 	sourceRevision, errorValue := service.orgchartUserSourceRevision()
 	if errorValue != nil {
 		return pagesUsersResponse{}, errorValue
@@ -40,6 +42,11 @@ func (service *Service) readCachedOrgchartUserList(ctx context.Context, loadSour
 	}
 	if currentSourceRevision != sourceRevision || snapshot.IsDirty {
 		return response, nil
+	}
+	if hasPreviousResponse && snapshot.SourceRevision != sourceRevision {
+		if errorValue := service.invalidateChangedOrgchartUsers(ctx, previousResponse, response); errorValue != nil {
+			return pagesUsersResponse{}, errorValue
+		}
 	}
 	payloadJSON, errorValue := json.Marshal(sanitizedOrgchartUsersResponse(response))
 	if errorValue != nil {
