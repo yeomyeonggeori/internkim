@@ -5,8 +5,72 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestOrgchartPeopleCacheExcludesForbiddenFields(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	record := adminUserMutation{
+		UserID:                 "user-1",
+		Handle:                 "user-one",
+		Name:                   "User One",
+		Email:                  "one@example.com",
+		Image:                  "/images/user-1.png",
+		HireDate:               "2026-01-01",
+		Note:                   "private note",
+		Role:                   "admin",
+		Circles:                []string{"staff", "admin"},
+		JobTitle:               "Engineer",
+		Group:                  "engineering",
+		PositionLevel:          3,
+		PrimaryGroupID:         "engineering",
+		GroupIDs:               []string{"engineering"},
+		SupervisorID:           "user-2",
+		ProjectIDs:             []string{"project-1"},
+		TeamRole:               "Backend",
+		EmploymentStatus:       orgchartEmploymentStatusActive,
+		IsOrgchartVisible:      true,
+		MattermostUserID:       "mattermost-user-1",
+		MattermostUsername:     "user-one",
+		Status:                 "active",
+		TemporaryPassword:      "temporary-secret",
+		TemporaryPasswordEmail: "temporary@example.com",
+	}
+	users, cachePolicy, errorValue := service.readCachedOrgchartUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
+		return pagesUsersResponse{Records: []adminUserMutation{record}}, nil
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.applyOrgchartPeople(ctx, users, cachePolicy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	keys := []orgchartPeopleCacheKey{
+		{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey},
+		{Kind: orgchartPeopleCachePerson, Key: "user-1"},
+	}
+	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, keys)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, key := range keys {
+		payloadJSON := snapshots[key].PayloadJSON
+		if !snapshots[key].Found {
+			t.Fatalf("cache entry not found for %#v", key)
+		}
+		for _, forbiddenKey := range []string{
+			"role", "circles", "note", "mattermostUserID", "mattermostUsername",
+			"status", "temporaryPassword", "temporaryPasswordEmail",
+		} {
+			if strings.Contains(string(payloadJSON), `"`+forbiddenKey+`"`) {
+				t.Fatalf("cache payload contains %s: %s", forbiddenKey, payloadJSON)
+			}
+		}
+	}
+}
 
 func TestOrgchartPeopleCacheReusesUserList(t *testing.T) {
 	service := newLocalUsersTestService(t)
@@ -70,7 +134,7 @@ func TestOrgchartPeopleCacheInvalidatesPersonWhenPreviousListIsCorrupt(t *testin
 		t.Fatalf("write corrupt list cache: written = %t error = %v", written, errorValue)
 	}
 	personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}
-	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Before", Role: "member"}})
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Before", Role: "member"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -103,7 +167,7 @@ func TestOrgchartPeopleCacheDoesNotApplyPersonEntryWhenSourceChangesDuringLoad(t
 		t.Fatal(errorValue)
 	}
 	personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}
-	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Before", Role: "member"}})
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Before", Role: "member"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -193,7 +257,7 @@ func TestOrgchartPeopleCacheDoesNotApplyPersonAfterSourceChangesFollowingListRea
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Cached", Role: "member"}})
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{UserID: "user-1", Email: "one@example.com", Name: "Cached", Role: "member"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

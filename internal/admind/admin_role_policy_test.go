@@ -33,7 +33,7 @@ func TestAdminSessionReportsOperationsAdminRoleDespiteOrgchartCache(t *testing.T
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
-	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: adminUserMutation{Email: "operator@example.com", Role: "admin"}})
+	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{Email: "operator@example.com", Role: "admin"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
