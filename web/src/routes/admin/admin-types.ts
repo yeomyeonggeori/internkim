@@ -205,16 +205,16 @@ export type CompanyShareNarrative = {
 };
 
 export type CompanyShareMetricContext = {
-	labels: Record<WorkspaceLanguage, string>;
-	descriptions: Record<WorkspaceLanguage, string>;
+	labels: Record<string, string>;
+	descriptions: Record<string, string>;
 	favorableDirection: 'increase' | 'decrease' | 'neutral';
 	evidenceRole: '' | 'growth' | 'efficiency' | 'scale' | 'quality' | 'reach' | 'capital';
 	showSource: boolean;
 };
 
 export type CompanyShareRecordContext = {
-	titles: Record<WorkspaceLanguage, string>;
-	descriptions: Record<WorkspaceLanguage, string>;
+	titles: Record<string, string>;
+	descriptions: Record<string, string>;
 	attributeKeys: string[];
 };
 
@@ -222,6 +222,7 @@ export type CompanyShareSettings = {
 	enabled: boolean;
 	hasPassword: boolean;
 	sessionHours: number;
+	languages: string[];
 	profileFields: string[];
 	metricNames: string[];
 	primaryMetric?: string;
@@ -231,7 +232,7 @@ export type CompanyShareSettings = {
 	documentIDs: string[];
 	contactEmail?: string;
 	showTeamActivity: boolean;
-	narratives: Record<WorkspaceLanguage, CompanyShareNarrative>;
+	narratives: Record<string, CompanyShareNarrative>;
 	publishedAt?: string;
 	publicationRevision: number;
 };
