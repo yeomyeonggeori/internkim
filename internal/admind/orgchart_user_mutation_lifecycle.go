@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"log"
+	"log/slog"
 	"time"
 )
 
@@ -30,6 +31,16 @@ func (mutation *orgchartUserMutation) complete(ctx context.Context) error {
 	}
 	mutation.isComplete = true
 	return nil
+}
+
+func (mutation *orgchartUserMutation) completeAfterSourceMutation(ctx context.Context) {
+	if errorValue := mutation.complete(ctx); errorValue != nil {
+		slog.Warn(
+			"orgchart user cache mutation completion failed",
+			"identity_count", len(mutation.identities),
+			"error", errorValue.Error(),
+		)
+	}
 }
 
 func (mutation *orgchartUserMutation) completeAfterRequest(ctx context.Context) {
