@@ -92,6 +92,12 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)"); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_local_date ON attendance_events(local_date)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_result_post ON attendance_events(result_post_id)"); errorValue != nil {
+		return errorValue
+	}
 	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_event_overrides_event_edited ON attendance_event_overrides(event_id, edited_at)"); errorValue != nil {
 		return errorValue
 	}
