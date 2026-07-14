@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"time"
 )
@@ -50,6 +49,11 @@ func (mutation *orgchartUserMutation) completeAfterRequest(ctx context.Context) 
 	completionContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), orgchartUserMutationCompletionTimeout)
 	defer cancel()
 	if errorValue := mutation.complete(completionContext); errorValue != nil {
-		log.Printf("Orgchart user cache mutation completion failed: %v", errorValue)
+		slog.WarnContext(
+			completionContext,
+			"orgchart user cache mutation completion failed",
+			"identity_count", len(mutation.identities),
+			"error", errorValue.Error(),
+		)
 	}
 }
