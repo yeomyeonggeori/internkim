@@ -10,7 +10,6 @@
 		companyMetricLabel,
 		companyMetricPeriodLabel,
 		companyMetricSeries,
-		companyMetricTrendPoints,
 		companyRecordDescription,
 		companyRecordTitle,
 		formatCompanyMetricValue,
@@ -23,6 +22,7 @@
 		type CompanyShareDocument,
 		type CompanyShareRecord
 	} from './company-page-model';
+	import CompanyMetricAreaChart from './company-metric-area-chart.svelte';
 
 	type CompanyStoryText = {
 		highlights: string;
@@ -163,22 +163,13 @@
 					</div>
 
 					{#if primaryMetricGroup.series.length > 1}
-						<div class="mt-9" role="img" aria-label={`${displayMetricLabel(primaryMetricGroup.latest.metric)} ${text.traction}`}>
-							<svg viewBox="0 0 640 180" preserveAspectRatio="none" class="h-52 w-full" aria-hidden="true">
-								<defs>
-									<linearGradient id="company-metric-area" x1="0" y1="0" x2="0" y2="1">
-										<stop offset="0" stop-color="var(--color-blue-600)" stop-opacity="0.22" />
-										<stop offset="1" stop-color="var(--color-blue-600)" stop-opacity="0" />
-									</linearGradient>
-								</defs>
-								<path d="M12 168H628" stroke="currentColor" stroke-opacity="0.12" vector-effect="non-scaling-stroke" />
-								<polyline points={`12,168 ${companyMetricTrendPoints(primaryMetricGroup.series, displayCurrency)} 628,168`} fill="url(#company-metric-area)" stroke="none" />
-								<polyline points={companyMetricTrendPoints(primaryMetricGroup.series, displayCurrency)} fill="none" stroke="var(--color-blue-600)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
-							</svg>
-							<div class="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums">
-								<span>{companyMetricPeriodLabel(primaryMetricGroup.series[0], language)}</span>
-								<span>{companyMetricPeriodLabel(primaryMetricGroup.latest, language)}</span>
-							</div>
+						<div class="mt-9">
+							<CompanyMetricAreaChart
+								metrics={primaryMetricGroup.series}
+								label={displayMetricLabel(primaryMetricGroup.latest.metric)}
+								{displayCurrency}
+								{language}
+							/>
 						</div>
 					{/if}
 				</div>
@@ -221,12 +212,14 @@
 							{#if group.latest.source}<p class="text-muted-foreground mt-3 text-xs">{text.source} · {group.latest.source}</p>{/if}
 						</div>
 						{#if group.series.length > 1}
-							<div role="img" aria-label={`${displayMetricLabel(group.latest.metric)} ${text.traction}`}>
-								<svg viewBox="0 0 320 96" preserveAspectRatio="none" class="h-24 w-full" aria-hidden="true">
-									<path d="M12 84H308" stroke="currentColor" stroke-opacity="0.12" vector-effect="non-scaling-stroke" />
-									<polyline points={companyMetricTrendPoints(group.series, displayCurrency, 320, 96)} fill="none" stroke="var(--color-blue-600)" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
-								</svg>
-								<div class="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums"><span>{companyMetricPeriodLabel(group.series[0], language)}</span><span>{companyMetricPeriodLabel(group.latest, language)}</span></div>
+							<div>
+								<CompanyMetricAreaChart
+									metrics={group.series}
+									label={displayMetricLabel(group.latest.metric)}
+									{displayCurrency}
+									{language}
+									compact
+								/>
 							</div>
 						{/if}
 					</article>

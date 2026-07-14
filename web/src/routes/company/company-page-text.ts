@@ -41,10 +41,10 @@ export const companyPageText = {
 			contact: '자세한 이야기 나누기', noNarrative: '게시된 사업 정보가 없습니다.'
 		},
 		teamActivity: {
-			title: '팀의 움직임이 쌓이고 있습니다.',
-			description: '최근 출근과 업무 활동에서 만든 공개용 신호입니다. 선과 셀의 높이·농도, 업무 목록은 실제 데이터를 반영합니다.',
-			activeTeam: '최근 활동한 팀', people: '활동 인원', activityRhythm: '최근 30일 활동 리듬', activityGrid: '날짜별 활동',
-			attendanceSignals: '출근 신호', workSignals: '업무 신호', workDistribution: '업무 상태 분포', recentWork: '최근 업무 흐름',
+			title: '최근 30일, 팀은 꾸준히 실행했습니다.',
+			description: '출근과 업무 업데이트를 날짜별로 집계한 익명 운영 신호입니다. 개인별 출퇴근 시각과 이메일은 공개하지 않습니다.',
+			activeTeam: '최근 활동한 팀', people: '활동 인원', activeDays: '활동한 날', checkIns: '출근 인원', workUpdates: '업무 업데이트', activityRhythm: '최근 30일 활동 리듬', activityGrid: '날짜별 활동',
+			attendanceSignals: '출근 인원', workSignals: '업무 업데이트', workDistribution: '업무 상태 분포', recentWork: '최근 업무 흐름',
 			teamMember: '팀원', defaultJobTitle: '사원', otherBusiness: '기타',
 			statusLabels: { planned: '준비', inProgress: '진행 중', completed: '완료', paused: '잠시 멈춤', closed: '종료' }
 		}
@@ -91,10 +91,10 @@ export const companyPageText = {
 			contact: 'Continue the conversation', noNarrative: 'No business narrative is shared.'
 		},
 		teamActivity: {
-			title: 'The team keeps moving.',
-			description: 'A public signal built from recent attendance and work. Line height, cell intensity, and the work list come directly from real activity.',
-			activeTeam: 'Recently active team', people: 'active people', activityRhythm: '30-day activity rhythm', activityGrid: 'Daily activity',
-			attendanceSignals: 'attendance signals', workSignals: 'work signals', workDistribution: 'Work status distribution', recentWork: 'Recent work flow',
+			title: 'Thirty days of steady execution.',
+			description: 'An anonymized operating signal aggregated from daily attendance and work updates. Individual times and email addresses remain private.',
+			activeTeam: 'Recently active team', people: 'active people', activeDays: 'active days', checkIns: 'check-ins', workUpdates: 'work updates', activityRhythm: '30-day activity rhythm', activityGrid: 'Daily activity',
+			attendanceSignals: 'people checked in', workSignals: 'work updates', workDistribution: 'Work status distribution', recentWork: 'Recent work flow',
 			teamMember: 'Member', defaultJobTitle: 'Staff', otherBusiness: 'Other',
 			statusLabels: { planned: 'Planned', inProgress: 'In progress', completed: 'Completed', paused: 'Paused', closed: 'Closed' }
 		}

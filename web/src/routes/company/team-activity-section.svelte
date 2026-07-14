@@ -2,10 +2,10 @@
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import FlowTaskBoardCard from '../flow/flow-task-board-card.svelte';
 	import type { FlowTask } from '../flow/flow-types';
+	import CompanyActivityAreaChart from './company-activity-area-chart.svelte';
 	import CompanyStaffChip from './company-staff-chip.svelte';
 	import {
 		companyActivityIntensity,
-		companyActivityPulsePoints,
 		companyWorkStatusPercentage,
 		type CompanyShareMember,
 		type CompanyShareTeamActivity,
@@ -17,6 +17,9 @@
 		description: string;
 		activeTeam: string;
 		people: string;
+		activeDays: string;
+		checkIns: string;
+		workUpdates: string;
 		activityRhythm: string;
 		activityGrid: string;
 		attendanceSignals: string;
@@ -31,7 +34,10 @@
 
 	let { activity, text, language }: { activity: CompanyShareTeamActivity; text: TeamActivityText; language: 'ko' | 'en' } = $props();
 	const activityRhythmDays = 30;
-	const pulsePoints = $derived(companyActivityPulsePoints(activity.days.slice(-activityRhythmDays)));
+	const recentDays = $derived(activity.days.slice(-activityRhythmDays));
+	const recentAttendanceTotal = $derived(recentDays.reduce((total, day) => total + day.attendanceCount, 0));
+	const recentWorkTotal = $derived(recentDays.reduce((total, day) => total + day.workCount, 0));
+	const recentActiveDays = $derived(recentDays.filter((day) => day.attendanceCount > 0 || day.workCount > 0).length);
 
 	function formatDay(date: string): string {
 		return new Intl.DateTimeFormat(language, { month: 'short', day: 'numeric' }).format(new Date(`${date}T00:00:00`));
@@ -44,7 +50,7 @@
 	function statusClass(status: CompanyShareWorkStatus['status']): string {
 		switch (status) {
 			case 'inProgress': return 'bg-blue-600';
-			case 'completed': return 'bg-black';
+			case 'completed': return 'bg-foreground';
 			case 'paused': return 'bg-warning';
 			case 'closed': return 'bg-destructive';
 			default: return 'bg-muted-foreground/35';
@@ -74,21 +80,30 @@
 <section class="team-activity overflow-hidden rounded-xl border bg-card">
 	<div class="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.75fr)]">
 		<div class="min-w-0 p-5 sm:p-8 lg:border-r">
-			<div class="flex flex-wrap items-start justify-between gap-5">
-				<div class="max-w-2xl">
-					<div class="flex items-center gap-2">
-						<ActivityIcon class="text-primary size-5" />
-						<h2 class="text-2xl font-semibold text-balance">{text.title}</h2>
-					</div>
-					<p class="text-muted-foreground mt-3 max-w-[68ch] leading-7 text-pretty">{text.description}</p>
+			<div class="max-w-2xl">
+				<div class="flex items-center gap-2">
+					<ActivityIcon class="text-primary size-5" />
+					<h2 class="text-2xl font-semibold text-balance">{text.title}</h2>
 				</div>
-				<div class="text-right">
-					<p class="text-3xl font-semibold tabular-nums">{activity.members.length}</p>
-					<p class="text-muted-foreground text-sm">{text.people}</p>
-				</div>
+				<p class="text-muted-foreground mt-3 max-w-[68ch] leading-7 text-pretty">{text.description}</p>
 			</div>
 
-			<div class="mt-8 flex items-end justify-between gap-5">
+			<dl class="mt-7 grid grid-cols-3 divide-x border-y">
+				<div class="py-4 pr-4">
+					<dd class="text-2xl font-semibold tabular-nums">{activity.members.length}</dd>
+					<dt class="text-muted-foreground mt-1 text-xs sm:text-sm">{text.people}</dt>
+				</div>
+				<div class="px-4 py-4">
+					<dd class="text-2xl font-semibold tabular-nums">{recentActiveDays}</dd>
+					<dt class="text-muted-foreground mt-1 text-xs sm:text-sm">{text.activeDays}</dt>
+				</div>
+				<div class="py-4 pl-4">
+					<dd class="text-2xl font-semibold tabular-nums">{recentWorkTotal}</dd>
+					<dt class="text-muted-foreground mt-1 text-xs sm:text-sm">{text.workUpdates}</dt>
+				</div>
+			</dl>
+
+			<div class="mt-8">
 				<div>
 					<p class="text-sm font-medium">{text.activeTeam}</p>
 					<div class="mt-3 flex flex-wrap gap-3" aria-label={`${text.activeTeam} ${activity.members.length}`}>
@@ -100,28 +115,19 @@
 						{/if}
 					</div>
 				</div>
-				<div class="flex gap-5 text-right text-sm">
-					<div><p class="font-semibold tabular-nums">{activity.attendanceTotal}</p><p class="text-muted-foreground">{text.attendanceSignals}</p></div>
-					<div><p class="font-semibold tabular-nums">{activity.workTotal}</p><p class="text-muted-foreground">{text.workSignals}</p></div>
-				</div>
 			</div>
 
 			<div class="mt-9">
 				<div class="mb-3 flex items-center justify-between gap-4">
 					<h3 class="text-sm font-medium">{text.activityRhythm}</h3>
-					<span class="text-muted-foreground text-xs">{formatActivityWindow(activityRhythmDays)}</span>
+					<div class="text-muted-foreground flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
+						<span>{text.checkIns} {recentAttendanceTotal}</span>
+						<span>{text.workSignals} {recentWorkTotal}</span>
+						<span>{formatActivityWindow(activityRhythmDays)}</span>
+					</div>
 				</div>
-				<div class="bg-muted/30 relative h-40 overflow-hidden rounded-lg" role="img" aria-label={text.activityRhythm}>
-					<svg viewBox="0 0 720 160" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
-						<defs>
-							<linearGradient id="activity-area" x1="0" y1="0" x2="0" y2="1">
-								<stop offset="0" stop-color="var(--color-blue-600)" stop-opacity="0.24" />
-								<stop offset="1" stop-color="var(--color-blue-600)" stop-opacity="0" />
-							</linearGradient>
-						</defs>
-						<polyline points={`12,148 ${pulsePoints} 708,148`} fill="url(#activity-area)" stroke="none" />
-						<polyline points={pulsePoints} fill="none" stroke="var(--color-blue-600)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
-					</svg>
+				<div class="bg-muted/30 overflow-hidden rounded-lg px-2 pt-3">
+					<CompanyActivityAreaChart days={recentDays} {language} {text} />
 				</div>
 			</div>
 

@@ -190,7 +190,7 @@
 						<Card.Description>{text.unlockDescription}</Card.Description>
 					</Card.Header>
 					<form onsubmit={unlockPage}>
-						<Card.Content>
+						<Card.Content class="pb-6">
 							<Field.Field data-invalid={!!errorMessage}>
 								<Field.Label for="company-page-password">{text.password}</Field.Label>
 								<Input id="company-page-password" type="password" bind:value={password} placeholder={text.passwordPlaceholder} autocomplete="current-password" aria-invalid={!!errorMessage} autofocus />
