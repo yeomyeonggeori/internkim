@@ -68,14 +68,6 @@ write_removable_policy_emails() {
     sort -u > "$policy_removable_path"
 }
 
-sync_posix_policy() {
-  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$POLICY_PATH" ]; then
-    /usr/local/bin/blueclaw-posix-helper sync \
-      --policy "$POLICY_PATH" \
-      --workspace "$WORKSPACE_PATH" >/root/.blueclaw/workspace/.blueclaw/logs/posix-sync.log 2>&1
-  fi
-}
-
 ensure_person_workspace_directories() {
   [ -s "$POLICY_PATH" ] || return 0
   install -d -m 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles"
@@ -102,7 +94,16 @@ curl -fsS \
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
 admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || true)"
-jq -r 'if (.records | type) == "array" then .records[]? | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))] | @tsv else .users[]? | ["", ., "", "", ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
+jq -r '
+  if (.records | type) == "array" then
+    .records[]?
+    | select((.userID // "") != "" and (.email // "") != "")
+    | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))]
+    | @tsv
+  else
+    empty
+  end
+' "$response_path" | sort -u > "$desired_records_path"
 cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
 curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path" 2>/dev/null || true
@@ -113,7 +114,6 @@ if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
   extra_policy_count="$(comm -23 "$policy_removable_path" "$desired_path" | wc -l | tr -d ' ')"
   if [ "$missing_policy_count" = "0" ] && [ "$extra_policy_count" = "0" ]; then
-    sync_posix_policy
     ensure_person_workspace_directories
     echo "users-sync: unchanged"
     exit 0
@@ -158,7 +158,6 @@ jq -cn \
   --argjson users "$jusers" \
   '{revision:$revision, users:$users}' > "$next_state_path"
 install -m 600 "$next_state_path" "$STATE_PATH"
-sync_posix_policy
 ensure_person_workspace_directories
 echo "users-sync: applied $(wc -l < "$desired_path" | tr -d ' ') users"
 `
