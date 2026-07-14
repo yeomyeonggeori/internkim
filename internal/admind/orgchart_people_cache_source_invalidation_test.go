@@ -72,3 +72,97 @@ func TestOrgchartPeopleCacheInvalidatesAddedAndRemovedUsersFromSourceRevision(t 
 	assertOrgchartPersonCacheFound(t, service, "user-retained", true)
 	assertOrgchartPersonCacheFound(t, service, "user-added", false)
 }
+
+func TestOrgchartPeopleCacheInvalidatesOnlyUpdatedProfile(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	users := pagesUsersResponse{Records: []adminUserMutation{
+		{UserID: "user-1", Email: "one@example.com", Role: "member"},
+		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+	}}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeOrgchartProfiles(ctx, []orgchartProfile{{
+		UserID:            "user-1",
+		Email:             "one@example.com",
+		JobTitle:          "Engineer",
+		EmploymentStatus:  orgchartEmploymentStatusActive,
+		IsOrgchartVisible: true,
+	}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertOrgchartPersonCacheFound(t, service, "user-1", false)
+	assertOrgchartPersonCacheFound(t, service, "user-2", true)
+}
+
+func TestOrgchartPeopleCacheInvalidatesChangedGroupAndAffectedProfile(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "design", Name: "Design"}, {ID: "engineering", Name: "Engineering"}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeOrgchartProfiles(ctx, []orgchartProfile{
+		{UserID: "user-1", Email: "one@example.com", PrimaryGroupID: "design", EmploymentStatus: orgchartEmploymentStatusActive, IsOrgchartVisible: true},
+		{UserID: "user-2", Email: "two@example.com", PrimaryGroupID: "engineering", EmploymentStatus: orgchartEmploymentStatusActive, IsOrgchartVisible: true},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users := pagesUsersResponse{Records: []adminUserMutation{
+		{UserID: "user-1", Email: "one@example.com", Role: "member"},
+		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+	}}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "design", Name: "Product Design"}, {ID: "engineering", Name: "Engineering"}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertOrgchartCacheFound(t, service, orgchartPeopleCacheKey{Kind: orgchartPeopleCacheGroups, Key: orgchartPeopleCacheSingletonKey}, false)
+	assertOrgchartPersonCacheFound(t, service, "user-1", false)
+	assertOrgchartPersonCacheFound(t, service, "user-2", true)
+}
+
+func TestOrgchartPeopleCacheInvalidatesMergedDeletedGroupsAndRewrittenProfiles(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{
+		{ID: "engineering", Name: "Engineering"},
+		{ID: "engineering-duplicate", Name: "Platform"},
+		{ID: "operations", Name: "Operations"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeOrgchartProfiles(ctx, []orgchartProfile{
+		{UserID: "user-1", Email: "one@example.com", PrimaryGroupID: "engineering-duplicate", GroupIDs: []string{"engineering-duplicate"}, EmploymentStatus: orgchartEmploymentStatusActive, IsOrgchartVisible: true},
+		{UserID: "user-2", Email: "two@example.com", PrimaryGroupID: "operations", GroupIDs: []string{"operations"}, EmploymentStatus: orgchartEmploymentStatusActive, IsOrgchartVisible: true},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users := pagesUsersResponse{Records: []adminUserMutation{
+		{UserID: "user-1", Email: "one@example.com", Role: "member"},
+		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+	}}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{
+		{ID: "engineering", Name: "Engineering"},
+		{ID: "engineering-duplicate", Name: "engineering"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertOrgchartCacheFound(t, service, orgchartPeopleCacheKey{Kind: orgchartPeopleCacheGroups, Key: orgchartPeopleCacheSingletonKey}, false)
+	assertOrgchartPersonCacheFound(t, service, "user-1", false)
+	assertOrgchartPersonCacheFound(t, service, "user-2", false)
+	profilesByEmail, errorValue := service.readOrgchartProfilesByEmail(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if profilesByEmail["one@example.com"].PrimaryGroupID != "engineering" {
+		t.Fatalf("rewritten profile = %#v", profilesByEmail["one@example.com"])
+	}
+}
