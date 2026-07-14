@@ -854,9 +854,10 @@ func (service Service) mattermostAskAttachment(request replyRequest, handle plat
 	switch strings.TrimSpace(request.Interaction.Kind) {
 	case "ask_confirm":
 		return service.mattermostConfirmAttachment(request, handle)
-	case "ask_choice_single":
-		return service.mattermostChoiceAttachment(request, handle)
-	case "ask_choice_multiple":
+	case "ask_input", "ask_choice_single", "ask_choice_multiple":
+		if len(trimNonEmptyPlatformAskOptions(request.Interaction.Options)) == 0 {
+			return nil
+		}
 		return service.mattermostChoiceAttachment(request, handle)
 	default:
 		return nil
@@ -875,7 +876,7 @@ func (service Service) mattermostConfirmAttachment(request replyRequest, handle 
 
 func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
 	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
-	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
+	if len(options) <= 3 && request.Interaction.SelectionMode != "multiple" {
 		actions := []mattermostinteractive.Action{}
 		for _, option := range options {
 			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask.choice", option.Key, mattermostChoiceResolvedLabel(option)))
