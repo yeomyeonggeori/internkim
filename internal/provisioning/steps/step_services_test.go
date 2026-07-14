@@ -283,10 +283,12 @@ func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
+				"sdkd=active",
 				"admind=active",
 				"graphiti=inactive",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
+				"sdkdHealth=ok",
 				"graphitiHealth=no",
 			}, "\n"),
 		},
@@ -304,9 +306,11 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
+				"sdkd=active",
 				"admind=active",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
+				"sdkdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -355,6 +359,10 @@ func (connection serviceSatisfiedWithoutGraphitiBoardConnection) Run(command str
 	case strings.Contains(command, "runtime_path ="):
 		return "ok"
 	case strings.Contains(command, "rootfs_path="):
+		return "ok"
+	case strings.Contains(command, "systemctl is-active "+blueclaw.SDKDServiceName):
+		return "active"
+	case strings.Contains(command, blueclaw.SDKDHealthCheckCommand()):
 		return "ok"
 	case strings.Contains(command, "systemctl is-active graphiti-memoryd"):
 		return "inactive"

@@ -23,6 +23,11 @@ const (
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
+	BlueclawSDKDModeEnvironment                         = "INTERNKIM_BLUECLAW_SDKD_MODE"
+	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
+	BlueclawSDKDTopologyDiagnosticProfileName           = "sdkd-diagnostic"
+	BlueclawSDKDTopologyDiagnosticToolSentinel          = "sdkd.diagnostic.no_tools"
+	LocalOnlyEnvironment                                = "INTERNKIM_LOCAL_ONLY"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
 
@@ -65,6 +70,9 @@ type RuntimeConfigOptions struct {
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualCPUCount           int
+	SDKDMode                  string
+	AllowAdminTaskDiagnostic  bool
+	LocalOnly                 bool
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -92,6 +100,22 @@ var blueclawNativeToolNames = []string{
 
 func BlueclawDefaultAllowedToolNames() []string {
 	return uniqueStringList(blueclawNativeToolNames)
+}
+
+func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
+	agentProfiles := []map[string]any{
+		{
+			"name":             "default",
+			"allowedToolNames": BlueclawDefaultAllowedToolNames(),
+		},
+	}
+	if !allowAdminTaskDiagnostic {
+		return agentProfiles
+	}
+	return append(agentProfiles, map[string]any{
+		"name":             BlueclawSDKDTopologyDiagnosticProfileName,
+		"allowedToolNames": []string{BlueclawSDKDTopologyDiagnosticToolSentinel},
+	})
 }
 
 func removeDefaultSkillScopedToolNames(toolNames []string) []string {
@@ -126,12 +150,19 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
 	}
+	allowAdminTaskDiagnostic, errorValue := optionalBooleanEnvironment(BlueclawAdminTaskDiagnosticEnvironment)
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
 	options := RuntimeConfigOptions{
 		ModelName:                 modelName,
 		ShouldUseModelForAllTiers: modelName != "",
 		DefaultTaskLevel:          modelTier,
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
+		SDKDMode:                  optionalStringEnvironment(BlueclawSDKDModeEnvironment),
+		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
+		LocalOnly:                 LocalOnlyEnabled(),
 	}
 	if virtualCPUCount != nil {
 		options.VirtualCPUCount = int(*virtualCPUCount)
@@ -205,7 +236,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	outboundGuestGateway := firstNonEmptyString(options.OutboundGuestGateway, "172.31.0.1")
 	bridgeListenAddress := firstNonEmptyString(options.BridgeListenAddress, BlueclawBridgeListenAddress)
 	agentConfiguration := map[string]any{
-		"adminTaskLinkBaseURL": strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
+		"adminTaskLinkBaseURL":     strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
+		"allowAdminTaskDiagnostic": options.AllowAdminTaskDiagnostic,
 		"intake": map[string]any{
 			"enabled":       true,
 			"executionMode": "auto",
@@ -234,6 +266,26 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if len(generationOptions) > 0 {
 		agentConfiguration["generationOptions"] = generationOptions
 	}
+	languageModelConfiguration := map[string]any{
+		"defaultProvider":  "capabilityLLM",
+		"fallbackProvider": "",
+		"capability":       capabilityLanguageModel,
+	}
+	if !options.DirectExecution {
+		languageModelConfiguration["sdkd"] = map[string]any{
+			"endpoint":              "http://127.0.0.1:18081/_internkim/sdkd",
+			"unixSocketPath":        "",
+			"authKeyPath":           "",
+			"executionMode":         languageModelExecutionMode,
+			"localOnly":             options.LocalOnly,
+			"timeoutSecond":         60,
+			"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
+			"structuredSchemaNames": []string{"blueclaw_agent_turn_action"},
+		}
+		if strings.EqualFold(options.SDKDMode, "authoritative") {
+			languageModelConfiguration["defaultProvider"] = "sdkd"
+		}
+	}
 
 	document := map[string]any{
 		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
@@ -248,14 +300,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"toolDescriptors": capabilities.DefaultToolDescriptors(),
 			"routing": map[string]any{
 				"candidates": capabilities.RoutingCandidates(),
-				"localOnly":  false,
+				"localOnly":  options.LocalOnly,
 			},
 		},
-		"languageModel": map[string]any{
-			"defaultProvider":  "capabilityLLM",
-			"fallbackProvider": "",
-			"capability":       capabilityLanguageModel,
-		},
+		"languageModel": languageModelConfiguration,
 		"firecracker": map[string]any{
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
@@ -316,13 +364,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				"baseURL": BlueclawSlackAPIBaseURL,
 			},
 		},
-		"agentProfiles": []map[string]any{
-			{
-				"name":             "default",
-				"allowedToolNames": BlueclawDefaultAllowedToolNames(),
-			},
-		},
-		"mcpServers": []map[string]any{},
+		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
+		"mcpServers":    []map[string]any{},
 		"terminal": map[string]any{
 			"mode":               terminalMode,
 			"sandboxProvider":    "",
@@ -378,6 +421,27 @@ func firstPositiveInt(values ...int) int {
 
 func optionalStringEnvironment(name string) string {
 	return strings.TrimSpace(os.Getenv(name))
+}
+
+func optionalBooleanEnvironment(name string) (bool, error) {
+	value := optionalStringEnvironment(name)
+	if value == "" {
+		return false, nil
+	}
+	parsedValue, errorValue := strconv.ParseBool(value)
+	if errorValue != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, errorValue)
+	}
+	return parsedValue, nil
+}
+
+func LocalOnlyEnabled() bool {
+	value := optionalStringEnvironment(LocalOnlyEnvironment)
+	if value == "" {
+		return false
+	}
+	localOnly, errorValue := strconv.ParseBool(value)
+	return errorValue != nil || localOnly
 }
 
 func optionalInt64Environment(name string) (*int64, error) {

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+blueclaw_root="$repository_root/.dependency/blueclaw"
+artifact_directory="$repository_root/.dependency/blueclaw-sdkd"
+binary_path="$artifact_directory/blueclaw-sdkd"
+bun_version="1.3.10"
+
+calculate_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    cat "$@" | sha256sum | awk '{print $1}'
+    return
+  fi
+  cat "$@" | shasum -a 256 | awk '{print $1}'
+}
+
+dirty_suffix() {
+  local tracked_diff_file untracked_files_file untracked_hashes_file hash_value
+  tracked_diff_file="$(mktemp)"
+  untracked_files_file="$(mktemp)"
+  untracked_hashes_file="$(mktemp)"
+  git -C "$blueclaw_root" diff --binary HEAD -- protocol sdkd > "$tracked_diff_file"
+  git -C "$blueclaw_root" ls-files --others --exclude-standard -- protocol sdkd > "$untracked_files_file"
+  if [ ! -s "$tracked_diff_file" ] && [ ! -s "$untracked_files_file" ]; then
+    rm -f "$tracked_diff_file" "$untracked_files_file" "$untracked_hashes_file"
+    return
+  fi
+  if [ -s "$untracked_files_file" ]; then
+    git -C "$blueclaw_root" hash-object --stdin-paths < "$untracked_files_file" > "$untracked_hashes_file"
+  fi
+  hash_value="$(calculate_sha256 "$tracked_diff_file" "$untracked_files_file" "$untracked_hashes_file")"
+  rm -f "$tracked_diff_file" "$untracked_files_file" "$untracked_hashes_file"
+  printf 'dirty-%s' "${hash_value:0:12}"
+}
+
+blueclaw_revision="$(git -C "$blueclaw_root" rev-parse HEAD)"
+blueclaw_dirty_suffix="$(dirty_suffix)"
+if [ -n "$blueclaw_dirty_suffix" ]; then
+  blueclaw_revision="$blueclaw_revision-$blueclaw_dirty_suffix"
+fi
+
+if [ "${1:-}" = "--print-source-revision" ]; then
+  printf '%s\n' "$blueclaw_revision"
+  exit 0
+fi
+
+actual_bun_version="$(bun --version)"
+if [ "$actual_bun_version" != "$bun_version" ]; then
+  printf 'blueclaw-sdkd requires Bun %s, got %s\n' "$bun_version" "$actual_bun_version" >&2
+  exit 1
+fi
+
+mkdir -p "$artifact_directory"
+cd "$blueclaw_root/protocol"
+bun install --frozen-lockfile
+cd "$blueclaw_root/sdkd"
+bun install --frozen-lockfile
+bun build src/main.ts --compile --target=bun-linux-arm64 --outfile "$binary_path"
+
+binary_sha256="$(shasum -a 256 "$binary_path" | cut -d' ' -f1)"
+printf '{\n  "blueclawRevision": "%s",\n  "bunVersion": "%s",\n  "platform": "linux-arm64",\n  "sha256": "%s"\n}\n' \
+  "$blueclaw_revision" "$bun_version" "$binary_sha256" > "$artifact_directory/manifest.json"
