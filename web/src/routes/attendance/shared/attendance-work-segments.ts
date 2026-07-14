@@ -1,4 +1,5 @@
 import type { AttendanceEvent } from '../attendance-context.svelte';
+import { todayDateInTimeZone } from './attendance-date';
 
 export type AttendanceWorkSegment = {
 	id: string;
@@ -83,7 +84,7 @@ function splitAttendanceWorkSegmentForDate(
 ): AttendanceWorkSegment | undefined {
 	if (!segment.endEvent) return splitOpenAttendanceWorkSegmentForDate(date, segment, currentDate);
 	const startDate = segment.clockIn.localDate;
-	const endDate = segment.endEvent.localDate;
+	const endDate = attendanceSegmentEndDate(segment);
 	if (date < startDate || date > endDate) return undefined;
 	const startTime = date === startDate ? segment.clockIn.localTime : '00:00:00';
 	const endTime = date === endDate ? segment.endEvent.localTime : '24:00:00';
@@ -98,6 +99,17 @@ function splitAttendanceWorkSegmentForDate(
 		workedMinutes,
 		isOpen: false,
 	};
+}
+
+function attendanceSegmentEndDate(segment: AttendanceWorkSegment): string {
+	const endEvent = segment.endEvent;
+	if (!endEvent || endEvent.localDate > segment.clockIn.localDate) return endEvent?.localDate ?? segment.date;
+	const timeZone = endEvent.timeZoneAtEvent.trim();
+	if (!timeZone || timeZone === 'Local') return endEvent.localDate;
+	const occurredAt = new Date(endEvent.occurredAt);
+	if (Number.isNaN(occurredAt.getTime())) return endEvent.localDate;
+	const actualDate = todayDateInTimeZone(timeZone, occurredAt);
+	return actualDate > endEvent.localDate ? actualDate : endEvent.localDate;
 }
 
 function splitOpenAttendanceWorkSegmentForDate(

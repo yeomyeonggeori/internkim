@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -15,6 +16,40 @@ import (
 	"strings"
 	"time"
 )
+
+type companyMetricCurrency string
+
+const (
+	companyMetricCurrencyUSD companyMetricCurrency = "USD"
+	companyMetricCurrencyKRW companyMetricCurrency = "KRW"
+	companyMetricCurrencyEUR companyMetricCurrency = "EUR"
+	companyMetricCurrencyJPY companyMetricCurrency = "JPY"
+	companyMetricCurrencyGBP companyMetricCurrency = "GBP"
+	companyMetricCurrencyCNY companyMetricCurrency = "CNY"
+	companyMetricCurrencyHKD companyMetricCurrency = "HKD"
+	companyMetricCurrencySGD companyMetricCurrency = "SGD"
+	companyMetricCurrencyAUD companyMetricCurrency = "AUD"
+	companyMetricCurrencyCAD companyMetricCurrency = "CAD"
+	companyMetricCurrencyCHF companyMetricCurrency = "CHF"
+	companyMetricCurrencyINR companyMetricCurrency = "INR"
+)
+
+var supportedCompanyMetricCurrencies = map[companyMetricCurrency]bool{
+	companyMetricCurrencyUSD: true,
+	companyMetricCurrencyKRW: true,
+	companyMetricCurrencyEUR: true,
+	companyMetricCurrencyJPY: true,
+	companyMetricCurrencyGBP: true,
+	companyMetricCurrencyCNY: true,
+	companyMetricCurrencyHKD: true,
+	companyMetricCurrencySGD: true,
+	companyMetricCurrencyAUD: true,
+	companyMetricCurrencyCAD: true,
+	companyMetricCurrencyCHF: true,
+	companyMetricCurrencyINR: true,
+}
+
+const companyMetricCurrencyColumnDefinition = "TEXT NOT NULL DEFAULT '' CHECK(currency IN ('', 'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR'))"
 
 func (service *Service) openCompanyDatabase(ctx context.Context) (*sql.DB, error) {
 	return service.openSQLiteDatabase(ctx, service.companyDatabasePath(), ensureCompanySchema)
@@ -26,12 +61,14 @@ func (service *Service) companyDatabasePath() string {
 
 func ensureCompanySchema(ctx context.Context, database *sql.DB) error {
 	statements := []string{`
-CREATE TABLE IF NOT EXISTS company_metrics (
+	CREATE TABLE IF NOT EXISTS company_metrics (
 	metric TEXT NOT NULL,
 	year INTEGER NOT NULL CHECK(year >= 1900),
 	quarter INTEGER NOT NULL DEFAULT 0 CHECK(quarter BETWEEN 0 AND 4),
 	month INTEGER NOT NULL DEFAULT 0 CHECK(month BETWEEN 0 AND 12),
 	value REAL NOT NULL,
+	currency TEXT NOT NULL DEFAULT '' CHECK(currency IN ('', 'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR')),
+	value_usd REAL,
 	unit TEXT NOT NULL DEFAULT '',
 	note TEXT NOT NULL DEFAULT '',
 	updated_at TEXT NOT NULL,
@@ -67,18 +104,48 @@ CREATE TABLE IF NOT EXISTS company_documents (
 			return errorValue
 		}
 	}
-	return nil
+	if errorValue := ensureCompanyMetricColumn(ctx, database, "currency", companyMetricCurrencyColumnDefinition); errorValue != nil {
+		return errorValue
+	}
+	return ensureCompanyMetricColumn(ctx, database, "value_usd", "REAL")
+}
+
+func ensureCompanyMetricColumn(ctx context.Context, database *sql.DB, columnName string, definition string) error {
+	rows, errorValue := database.QueryContext(ctx, "PRAGMA table_info(company_metrics)")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var columnIndex int
+		var name, columnType string
+		var isNotNull, primaryKey int
+		var defaultValue any
+		if errorValue := rows.Scan(&columnIndex, &name, &columnType, &isNotNull, &defaultValue, &primaryKey); errorValue != nil {
+			return errorValue
+		}
+		if name == columnName {
+			return rows.Err()
+		}
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, "ALTER TABLE company_metrics ADD COLUMN "+columnName+" "+definition)
+	return errorValue
 }
 
 type companyMetric struct {
-	Metric    string  `json:"metric"`
-	Year      int     `json:"year"`
-	Quarter   int     `json:"quarter,omitempty"`
-	Month     int     `json:"month,omitempty"`
-	Value     float64 `json:"value"`
-	Unit      string  `json:"unit,omitempty"`
-	Note      string  `json:"note,omitempty"`
-	UpdatedAt string  `json:"updatedAt,omitempty"`
+	Metric    string                `json:"metric"`
+	Year      int                   `json:"year"`
+	Quarter   int                   `json:"quarter,omitempty"`
+	Month     int                   `json:"month,omitempty"`
+	Value     float64               `json:"value"`
+	Currency  companyMetricCurrency `json:"currency,omitempty"`
+	ValueUSD  *float64              `json:"valueUSD,omitempty"`
+	Unit      string                `json:"unit,omitempty"`
+	Note      string                `json:"note,omitempty"`
+	UpdatedAt string                `json:"updatedAt,omitempty"`
 }
 
 func (service *Service) recordCompanyMetric(responseWriter http.ResponseWriter, request *http.Request) {
@@ -100,6 +167,10 @@ func (service *Service) recordCompanyMetric(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, "quarter must be 1-4 and month must be 1-12", http.StatusBadRequest)
 		return
 	}
+	if errorValue := normalizeCompanyMetricMoney(&metric); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
 	database, errorValue := service.openCompanyDatabase(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -108,16 +179,42 @@ func (service *Service) recordCompanyMetric(responseWriter http.ResponseWriter, 
 	defer database.Close()
 	metric.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	_, errorValue = database.ExecContext(request.Context(), `
-INSERT INTO company_metrics (metric, year, quarter, month, value, unit, note, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (metric, year, quarter, month)
-DO UPDATE SET value = excluded.value, unit = excluded.unit, note = excluded.note, updated_at = excluded.updated_at`,
-		metric.Metric, metric.Year, metric.Quarter, metric.Month, metric.Value, strings.TrimSpace(metric.Unit), strings.TrimSpace(metric.Note), metric.UpdatedAt)
+	INSERT INTO company_metrics (metric, year, quarter, month, value, currency, value_usd, unit, note, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT (metric, year, quarter, month)
+	DO UPDATE SET value = excluded.value, currency = excluded.currency, value_usd = excluded.value_usd, unit = excluded.unit, note = excluded.note, updated_at = excluded.updated_at`,
+		metric.Metric, metric.Year, metric.Quarter, metric.Month, metric.Value, metric.Currency, metric.ValueUSD, strings.TrimSpace(metric.Unit), strings.TrimSpace(metric.Note), metric.UpdatedAt)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	service.writeJSON(responseWriter, metric)
+}
+
+func normalizeCompanyMetricMoney(metric *companyMetric) error {
+	metric.Currency = companyMetricCurrency(strings.ToUpper(strings.TrimSpace(string(metric.Currency))))
+	metric.Unit = strings.TrimSpace(metric.Unit)
+	if metric.Currency == "" {
+		if metric.ValueUSD != nil {
+			return errors.New("currency is required when valueUSD is provided")
+		}
+		return nil
+	}
+	if !supportedCompanyMetricCurrencies[metric.Currency] {
+		return fmt.Errorf("unsupported currency: %s", metric.Currency)
+	}
+	if metric.Unit != "" {
+		return errors.New("provide currency for money or unit for non-monetary values, not both")
+	}
+	if metric.Currency == companyMetricCurrencyUSD {
+		valueUSD := metric.Value
+		metric.ValueUSD = &valueUSD
+		return nil
+	}
+	if metric.ValueUSD == nil {
+		return errors.New("valueUSD is required when currency is not USD")
+	}
+	return nil
 }
 
 func (service *Service) listCompanyMetrics(responseWriter http.ResponseWriter, request *http.Request) {
@@ -127,7 +224,7 @@ func (service *Service) listCompanyMetrics(responseWriter http.ResponseWriter, r
 		return
 	}
 	defer database.Close()
-	query := `SELECT metric, year, quarter, month, value, unit, note, updated_at FROM company_metrics WHERE 1=1`
+	query := `SELECT metric, year, quarter, month, value, currency, value_usd, unit, note, updated_at FROM company_metrics WHERE 1=1`
 	arguments := []any{}
 	if metricName := strings.TrimSpace(request.URL.Query().Get("metric")); metricName != "" {
 		query += " AND metric = ?"
@@ -151,7 +248,7 @@ func (service *Service) listCompanyMetrics(responseWriter http.ResponseWriter, r
 	metrics := []companyMetric{}
 	for rows.Next() {
 		var metric companyMetric
-		if errorValue := rows.Scan(&metric.Metric, &metric.Year, &metric.Quarter, &metric.Month, &metric.Value, &metric.Unit, &metric.Note, &metric.UpdatedAt); errorValue != nil {
+		if errorValue := rows.Scan(&metric.Metric, &metric.Year, &metric.Quarter, &metric.Month, &metric.Value, &metric.Currency, &metric.ValueUSD, &metric.Unit, &metric.Note, &metric.UpdatedAt); errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 			return
 		}
