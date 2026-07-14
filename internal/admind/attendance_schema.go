@@ -107,8 +107,10 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_absence_occurrences_range ON attendance_absence_occurrences(range_id, canceled_at)"); errorValue != nil {
 		return errorValue
 	}
-	_, errorValue = database.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS attendance_absence_occurrences_active_user_date ON attendance_absence_occurrences(email, date) WHERE canceled_at = ''")
-	return errorValue
+	if _, errorValue = database.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS attendance_absence_occurrences_active_user_date ON attendance_absence_occurrences(email, date) WHERE canceled_at = ''"); errorValue != nil {
+		return errorValue
+	}
+	return ensureAttendanceSummaryCacheSchema(ctx, database)
 }
 
 func ensureAttendanceColumn(ctx context.Context, database *sql.DB, columnName string, columnDefinition string) error {
