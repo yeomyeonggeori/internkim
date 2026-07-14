@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,71 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 	if record.Image != expectedImage {
 		t.Fatalf("record image = %q; want %q", record.Image, expectedImage)
 	}
+}
+
+func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		order []bool
+	}{
+		{name: "included then excluded", order: []bool{true, false}},
+		{name: "excluded then included", order: []bool{false, true}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+				if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+					return response, nil
+				}
+				switch {
+				case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+					return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+				case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+				case isBlueclawPolicyGet(request):
+					return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+				default:
+					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+					return nil, nil
+				}
+			})
+
+			for _, includePolicy := range testCase.order {
+				usersResponse := requestAdminUsersForPolicyScope(t, service, includePolicy)
+				record := usersResponse.Records[0]
+				if record.Role != "member" || record.MattermostUserID != "user-1" || record.MattermostUsername != "member" {
+					t.Fatalf("authoritative record fields = %#v", record)
+				}
+				if includePolicy {
+					if len(record.Circles) != 1 || record.Circles[0] != "staff" || record.Note != "Existing member note" {
+						t.Fatalf("included policy record = %#v", record)
+					}
+					continue
+				}
+				if len(record.Circles) != 0 || record.Note != "" {
+					t.Fatalf("excluded policy record = %#v", record)
+				}
+			}
+		})
+	}
+}
+
+func requestAdminUsersForPolicyScope(t *testing.T, service *Service, includePolicy bool) pagesUsersResponse {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/users?includePolicy="+strconv.FormatBool(includePolicy), nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("user list status = %d body = %s", response.Code, response.Body.String())
+	}
+	var usersResponse pagesUsersResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &usersResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(usersResponse.Records) != 1 {
+		t.Fatalf("records = %d; want 1", len(usersResponse.Records))
+	}
+	return usersResponse
 }
 
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {

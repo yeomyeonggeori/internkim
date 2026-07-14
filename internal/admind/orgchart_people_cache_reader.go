@@ -8,8 +8,8 @@ import (
 )
 
 type orgchartCachedPerson struct {
-	Record  adminUserMutation `json:"record"`
-	Profile *orgchartProfile  `json:"profile,omitempty"`
+	Record  orgchartCachedUserRecord `json:"record"`
+	Profile *orgchartProfile         `json:"profile,omitempty"`
 }
 
 func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResponse pagesUsersResponse) (orgchartMetadataResponse, error) {
@@ -73,7 +73,7 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 		key, hasKey := orgchartPersonCacheKey(record.UserID, record.Email)
 		if hasKey && cachePolicy.CanUsePersonCache {
 			if cachedPerson, found := cachedOrgchartPerson(snapshots[key]); found {
-				usersResponse.Records[index] = cachedPerson.Record
+				usersResponse.Records[index] = applyOrgchartCachedUserRecord(record, cachedPerson.Record)
 				indexCachedOrgchartProfile(cachedPerson.Profile, responseProfilesByUserID, responseProfilesByEmail)
 				continue
 			}
@@ -95,7 +95,7 @@ func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse p
 		record.TemporaryPasswordEmail = ""
 		usersResponse.Records[index] = record
 		if hasKey && cachePolicy.CanUsePersonCache && !snapshots[key].IsDirty {
-			payloadJSON, errorValue := json.Marshal(orgchartCachedPerson{Record: record, Profile: cachedProfile})
+			payloadJSON, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(record), Profile: cachedProfile})
 			if errorValue != nil {
 				return orgchartMetadataResponse{}, fmt.Errorf("encode orgchart person cache payload: %w", errorValue)
 			}
@@ -126,6 +126,9 @@ func cachedOrgchartPerson(snapshot orgchartPeopleCacheSnapshot) (orgchartCachedP
 	}
 	var person orgchartCachedPerson
 	if json.Unmarshal(snapshot.PayloadJSON, &person) != nil {
+		return orgchartCachedPerson{}, false
+	}
+	if !isValidOrgchartCachedUserRecord(person.Record) {
 		return orgchartCachedPerson{}, false
 	}
 	return person, true
