@@ -28,76 +28,27 @@ func (service *Service) insertAttendanceAbsenceRange(ctx context.Context, email 
 		return nil, errorValue
 	}
 	defer transaction.Rollback()
-
-	now := time.Now().UTC().Format(time.RFC3339)
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	normalizedReason := strings.TrimSpace(reason)
-	requestedDates := attendanceDateSet(dates)
-	alreadyCoveredDates := map[string]struct{}{}
-	mergeDates := map[string]struct{}{}
-	mergeRangeIDs := map[string]struct{}{}
-	existingRanges, errorValue := readAttendanceAbsenceRangesForUpdate(ctx, transaction, normalizedEmail, previousAttendanceBusinessDate(normalizedStartDate), nextAttendanceBusinessDate(normalizedEndDate))
+	rewriteResult, errorValue := rewriteAttendanceAbsenceRanges(ctx, transaction, attendanceAbsenceRangeRewriteRequest{
+		Email:      strings.ToLower(strings.TrimSpace(email)),
+		Kind:       kind,
+		Reason:     strings.TrimSpace(reason),
+		ActorEmail: strings.ToLower(strings.TrimSpace(actorEmail)),
+		StartDate:  normalizedStartDate,
+		EndDate:    normalizedEndDate,
+		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		Dates:      dates,
+	})
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	for _, existingRange := range existingRanges {
-		existingDates, errorValue := attendanceAbsenceDates(existingRange.StartDate, existingRange.EndDate)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		overlapDates := attendanceDateRangeOverlapDates(existingRange.StartDate, existingRange.EndDate, requestedDates)
-		if len(overlapDates) == 0 {
-			if existingRange.Kind != kind || existingRange.Reason != normalizedReason {
-				continue
-			}
-		}
-		if existingRange.Kind == kind && existingRange.Reason == normalizedReason {
-			for _, date := range overlapDates {
-				alreadyCoveredDates[date] = struct{}{}
-			}
-			for _, date := range existingDates {
-				mergeDates[date] = struct{}{}
-			}
-			mergeRangeIDs[existingRange.ID] = struct{}{}
-			continue
-		}
-		replacementID := "absence-range-replace-" + randomHex(12)
-		if errorValue := cancelAttendanceAbsenceRangeInTransaction(ctx, transaction, existingRange.ID, now, replacementID); errorValue != nil {
-			return nil, errorValue
-		}
-		remainingDates := subtractAttendanceDates(existingDates, requestedDates)
-		if _, errorValue := insertAttendanceAbsenceRangesForDates(ctx, transaction, existingRange.Email, existingRange.Kind, existingRange.Reason, existingRange.CreatedBy, existingRange.CreatedAt, now, remainingDates); errorValue != nil {
-			return nil, errorValue
-		}
-	}
-	createdDates := subtractAttendanceDates(dates, alreadyCoveredDates)
-	if len(createdDates) > 0 && len(mergeRangeIDs) > 0 {
-		for _, date := range dates {
-			mergeDates[date] = struct{}{}
-		}
-		for rangeID := range mergeRangeIDs {
-			if errorValue := cancelAttendanceAbsenceRangeInTransaction(ctx, transaction, rangeID, now, ""); errorValue != nil {
-				return nil, errorValue
-			}
-		}
-		createdRanges, errorValue := insertAttendanceAbsenceRangesForDates(ctx, transaction, normalizedEmail, kind, normalizedReason, strings.ToLower(strings.TrimSpace(actorEmail)), now, now, sortedAttendanceDatesFromSet(mergeDates))
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		if errorValue := transaction.Commit(); errorValue != nil {
-			return nil, errorValue
-		}
-		createdDateSet := attendanceDateSet(createdDates)
-		return filterAttendanceAbsencesByDates(expandAttendanceAbsenceRanges(createdRanges, normalizedStartDate, attendanceDateAfter(normalizedEndDate)), createdDateSet), nil
-	}
-	createdRanges, errorValue := insertAttendanceAbsenceRangesForDates(ctx, transaction, normalizedEmail, kind, normalizedReason, strings.ToLower(strings.TrimSpace(actorEmail)), now, now, createdDates)
-	if errorValue != nil {
+	if errorValue := invalidateAttendanceAbsenceCacheDates(ctx, transaction, rewriteResult.AffectedDates); errorValue != nil {
 		return nil, errorValue
 	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return nil, errorValue
 	}
-	return expandAttendanceAbsenceRanges(createdRanges, normalizedStartDate, attendanceDateAfter(normalizedEndDate)), nil
+	expandedRanges := expandAttendanceAbsenceRanges(rewriteResult.CreatedRanges, normalizedStartDate, attendanceDateAfter(normalizedEndDate))
+	return filterAttendanceAbsencesByDates(expandedRanges, attendanceDateSet(rewriteResult.CreatedDates)), nil
 }
 
 func (service *Service) readAttendanceAbsenceOccurrences(ctx context.Context, startDate string, endDate string, email string) ([]attendanceAbsence, error) {
@@ -169,8 +120,19 @@ func (service *Service) cancelAttendanceAbsenceRange(ctx context.Context, rangeI
 		return errorValue
 	}
 	defer transaction.Rollback()
+	absenceRange, exists, errorValue := readAttendanceAbsenceRangeByIDInTransaction(ctx, transaction, rangeID)
+	if errorValue != nil || !exists {
+		return errorValue
+	}
+	dates, errorValue := attendanceAbsenceDates(absenceRange.StartDate, absenceRange.EndDate)
+	if errorValue != nil {
+		return errorValue
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	if errorValue := cancelAttendanceAbsenceRangeInTransaction(ctx, transaction, rangeID, now, ""); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := invalidateAttendanceAbsenceCacheDates(ctx, transaction, dates); errorValue != nil {
 		return errorValue
 	}
 	return transaction.Commit()
@@ -205,6 +167,9 @@ func (service *Service) cancelAttendanceAbsenceOccurrence(ctx context.Context, r
 	}
 	remainingDates := subtractAttendanceDates(existingDates, removedDates)
 	if _, errorValue := insertAttendanceAbsenceRangesForDates(ctx, transaction, absenceRange.Email, absenceRange.Kind, absenceRange.Reason, absenceRange.CreatedBy, absenceRange.CreatedAt, now, remainingDates); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := invalidateAttendanceAbsenceCacheDates(ctx, transaction, existingDates); errorValue != nil {
 		return errorValue
 	}
 	return transaction.Commit()
