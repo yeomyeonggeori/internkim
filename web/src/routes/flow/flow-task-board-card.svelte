@@ -5,6 +5,7 @@
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
+	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
 	import type { Snippet } from 'svelte';
@@ -129,10 +130,7 @@
 				{#if ownerChip}
 					{@render ownerChip()}
 				{:else}
-					<span class="inline-flex min-w-0 max-w-28 items-center gap-1.5">
-						<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} class="size-4 ring-1 ring-border/70" />
-						<span class="truncate">{display.ownerName}</span>
-					</span>
+					<FlowTaskPersonChip name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
 				{/if}
 				{#if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
