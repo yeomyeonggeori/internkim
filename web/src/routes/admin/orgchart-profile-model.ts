@@ -1,4 +1,4 @@
-import type { UserRecord } from '../orgchart/orgchart-types';
+import type { UserRecord } from '../../lib/orgchart/types';
 import type { OrgProfileUpdate } from './admin-api';
 
 export type OrgProfileSnapshot = {
