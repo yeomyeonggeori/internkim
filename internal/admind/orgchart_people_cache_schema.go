@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const orgchartPeopleCacheSchemaVersion = 1
+const orgchartPeopleCacheSchemaVersion = 2
 
 func ensureOrgchartPeopleCacheSchema(ctx context.Context, database *sql.DB) error {
 	statements := []string{
