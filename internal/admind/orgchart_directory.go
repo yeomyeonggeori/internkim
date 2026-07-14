@@ -64,12 +64,13 @@ func (service *Service) writeOrgchartDirectory(responseWriter http.ResponseWrite
 	service.writeJSON(responseWriter, response)
 }
 
-func (service *Service) buildOrgchartDirectoryResponse(request *http.Request) (pagesUsersResponse, error) {
+func (service *Service) buildOrgchartDirectoryResponse(request *http.Request) (orgchartDirectoryResponse, error) {
 	metadataResponse, errorValue := service.orgchartUsersMetadataResponse(request)
 	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
+		return orgchartDirectoryResponse{}, errorValue
 	}
-	return visibleOrgchartUsersResponse(metadataResponse.response, metadataResponse.profilesByUserID, metadataResponse.profilesByEmail), nil
+	visibleResponse := visibleOrgchartUsersResponse(metadataResponse.response, metadataResponse.profilesByUserID, metadataResponse.profilesByEmail)
+	return newOrgchartDirectoryResponse(visibleResponse), nil
 }
 
 func (service *Service) orgchartUsersMetadataResponse(request *http.Request) (orgchartMetadataResponse, error) {

@@ -2,7 +2,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
-	import type { AdminPageText, OrgGroup, UserRecord } from './admin-types';
+	import type { OrgGroup, UserRecord } from '../orgchart/orgchart-types';
+	import type { AdminPageText } from './admin-types';
 	import { supervisorCandidatesForRecord } from './orgchart-tree';
 
 	type OrgchartProfileFieldsProps = {
