@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup, UserRecord } from '../../../src/routes/orgchart/orgchart-types';
+import type { OrgGroup, UserRecord } from '../../../src/lib/orgchart/types';
 import { orgchartOrganizationSections, type OrgchartOrganizationMemberNode } from '../../../src/routes/orgchart/orgchart-organization-model';
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
