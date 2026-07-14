@@ -1,12 +1,31 @@
 package admind
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 )
 
+type attendanceEventsReader func(context.Context, string, string) ([]attendanceEvent, error)
+
+type attendanceAbsencesReader func(context.Context, string, string) ([]attendanceAbsence, error)
+
 func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWriter, request *http.Request) {
+	service.writeAttendanceSummaryWithReaders(
+		responseWriter,
+		request,
+		service.readCachedAttendanceEvents,
+		service.readCachedAttendanceAbsences,
+	)
+}
+
+func (service *Service) writeAttendanceSummaryWithReaders(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	eventsReader attendanceEventsReader,
+	absencesReader attendanceAbsencesReader,
+) {
 	location, timeZoneName := service.workspaceTimeLocation()
 	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), time.Now().In(location))
 	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
@@ -21,7 +40,7 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		targetEmail = actorEmail
 	}
 	members := service.attendanceMembersForSummary(request, actorEmail, isAdmin, teamVisible)
-	events, errorValue := service.readAttendanceEvents(request.Context(), month, targetEmail)
+	events, errorValue := eventsReader(request.Context(), month, targetEmail)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -31,14 +50,14 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	absences, errorValue := service.readAttendanceAbsences(request.Context(), month, targetEmail)
+	absences, errorValue := absencesReader(request.Context(), month, targetEmail)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	statusEvents := events
 	if actorEmail != "" && targetEmail != actorEmail {
-		if actorEvents, actorError := service.readAttendanceEvents(request.Context(), month, actorEmail); actorError == nil {
+		if actorEvents, actorError := eventsReader(request.Context(), month, actorEmail); actorError == nil {
 			statusEvents = actorEvents
 		}
 	}

@@ -265,19 +265,11 @@ func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql
 }
 
 func (service *Service) cancelAttendanceEventWithReason(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time, reason string, repeatedClickAt string) error {
-	message := service.attendanceCancelMessage(event.Kind, attendanceLocation{ID: event.LocationID, Name: event.LocationName})
-	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
+	if errorValue := service.cancelAttendanceEventRecord(ctx, database, event, canceledAt, reason, repeatedClickAt); errorValue != nil {
 		return errorValue
 	}
-	_, errorValue := database.ExecContext(ctx, `
-UPDATE attendance_events
-SET canceled_at = ?, cancel_reason = ?, repeated_click_at = ?
-WHERE id = ?`,
-		canceledAt.Format(time.RFC3339),
-		reason,
-		repeatedClickAt,
-		event.ID,
-	)
+	message := service.attendanceCancelMessage(event.Kind, attendanceLocation{ID: event.LocationID, Name: event.LocationName})
+	_, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message)
 	return errorValue
 }
 
