@@ -24,6 +24,35 @@ func TestOrgchartPeopleCacheSchemaCreatesEntriesAndStates(t *testing.T) {
 	}
 }
 
+func TestOrgchartPeopleCacheSchemaRemovesCachedAtIndex(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS orgchart_people_cache_entries_cached_at_idx ON orgchart_people_cache_entries(cached_at)`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.databaseSchemas = newAdminDatabaseSchemas()
+	database, errorValue = service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var indexCount int
+	if errorValue := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'orgchart_people_cache_entries_cached_at_idx'`).Scan(&indexCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if indexCount != 0 {
+		t.Fatalf("cached_at index count = %d", indexCount)
+	}
+}
+
 func TestOrgchartPeopleCacheSchemaMigratesActiveMutations(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
@@ -202,5 +231,52 @@ func TestOrgchartPeopleCacheStoreKeepsOverlappingMutationDirty(t *testing.T) {
 	}
 	if completed[key].IsDirty || completed[key].ActiveMutations != 0 {
 		t.Fatalf("completed cache state = %#v", completed[key])
+	}
+}
+
+func TestOrgchartPeopleCacheBatchWriteKeepsPerKeyGuards(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	currentKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "current"}
+	staleKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "stale"}
+	dirtyKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "dirty"}
+	activeKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "active"}
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, state := range []struct {
+		key             orgchartPeopleCacheKey
+		revision        int
+		isDirty         int
+		activeMutations int
+	}{
+		{key: staleKey, revision: 1},
+		{key: dirtyKey, isDirty: 1},
+		{key: activeKey, activeMutations: 1},
+	} {
+		if _, errorValue := database.ExecContext(ctx, `INSERT INTO orgchart_people_cache_states(cache_kind, cache_key, revision, is_dirty, active_mutations) VALUES(?, ?, ?, ?, ?)`, string(state.key.Kind), state.key.Key, state.revision, state.isDirty, state.activeMutations); errorValue != nil {
+			database.Close()
+			t.Fatal(errorValue)
+		}
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writes := []orgchartPeopleCacheWrite{
+		{Key: currentKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"current"}}`)},
+		{Key: staleKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"stale"}}`)},
+		{Key: dirtyKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"dirty"}}`)},
+		{Key: activeKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"active"}}`)},
+	}
+	writtenByKey, errorValue := service.writeOrgchartPeopleCachePayloadsIfCurrent(ctx, writes)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, key := range []orgchartPeopleCacheKey{currentKey, staleKey, dirtyKey, activeKey} {
+		expected := key == currentKey
+		if writtenByKey[key] != expected {
+			t.Fatalf("written[%#v] = %t; want %t", key, writtenByKey[key], expected)
+		}
 	}
 }

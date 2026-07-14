@@ -2,22 +2,62 @@ package admind
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 )
 
+type orgchartPeopleCacheWrite struct {
+	Key            orgchartPeopleCacheKey
+	Revision       int64
+	SourceRevision string
+	PayloadJSON    []byte
+}
+
 func (service *Service) writeOrgchartPeopleCachePayloadIfCurrent(ctx context.Context, key orgchartPeopleCacheKey, revision int64, sourceRevision string, payloadJSON []byte) (bool, error) {
-	database, errorValue := service.openOrgchartDatabase(ctx)
+	writtenByKey, errorValue := service.writeOrgchartPeopleCachePayloadsIfCurrent(ctx, []orgchartPeopleCacheWrite{{
+		Key:            key,
+		Revision:       revision,
+		SourceRevision: sourceRevision,
+		PayloadJSON:    payloadJSON,
+	}})
 	if errorValue != nil {
 		return false, errorValue
+	}
+	return writtenByKey[key], nil
+}
+
+func (service *Service) writeOrgchartPeopleCachePayloadsIfCurrent(ctx context.Context, writes []orgchartPeopleCacheWrite) (map[orgchartPeopleCacheKey]bool, error) {
+	writtenByKey := make(map[orgchartPeopleCacheKey]bool, len(writes))
+	if len(writes) == 0 {
+		return writtenByKey, nil
+	}
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
 	}
 	defer database.Close()
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
-		return false, fmt.Errorf("begin orgchart people cache write: %w", errorValue)
+		return nil, fmt.Errorf("begin orgchart people cache writes: %w", errorValue)
 	}
 	defer transaction.Rollback()
-	if errorValue := ensureOrgchartPeopleCacheState(ctx, transaction, key); errorValue != nil {
+	cachedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, write := range writes {
+		written, errorValue := writeOrgchartPeopleCachePayloadIfCurrentTransaction(ctx, transaction, write, cachedAt)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		writtenByKey[write.Key] = written
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return nil, fmt.Errorf("commit orgchart people cache writes: %w", errorValue)
+	}
+	return writtenByKey, nil
+}
+
+func writeOrgchartPeopleCachePayloadIfCurrentTransaction(ctx context.Context, transaction *sql.Tx, write orgchartPeopleCacheWrite, cachedAt string) (bool, error) {
+	if errorValue := ensureOrgchartPeopleCacheState(ctx, transaction, write.Key); errorValue != nil {
 		return false, errorValue
 	}
 	result, errorValue := transaction.ExecContext(ctx, `
@@ -32,23 +72,20 @@ func (service *Service) writeOrgchartPeopleCachePayloadIfCurrent(ctx context.Con
 			schema_version = excluded.schema_version,
 			payload_json = excluded.payload_json,
 			cached_at = excluded.cached_at`,
-		sourceRevision,
+		write.SourceRevision,
 		orgchartPeopleCacheSchemaVersion,
-		payloadJSON,
-		time.Now().UTC().Format(time.RFC3339Nano),
-		string(key.Kind),
-		key.Key,
-		revision,
+		write.PayloadJSON,
+		cachedAt,
+		string(write.Key.Kind),
+		write.Key.Key,
+		write.Revision,
 	)
 	if errorValue != nil {
-		return false, fmt.Errorf("write orgchart people cache payload: %w", errorValue)
+		return false, fmt.Errorf("write orgchart people cache payload for %s/%s: %w", write.Key.Kind, write.Key.Key, errorValue)
 	}
 	rowsAffected, errorValue := result.RowsAffected()
 	if errorValue != nil {
 		return false, fmt.Errorf("read orgchart people cache write result: %w", errorValue)
-	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return false, fmt.Errorf("commit orgchart people cache write: %w", errorValue)
 	}
 	return rowsAffected == 1, nil
 }

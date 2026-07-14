@@ -24,27 +24,6 @@ type orgchartPeopleCacheSnapshot struct {
 	Found           bool
 }
 
-type orgchartPeopleCachePolicy struct {
-	CanUsePersonCache         bool
-	HasExpectedListRevision   bool
-	ExpectedListRevision      int64
-	HasExpectedSourceRevision bool
-	ExpectedSourceRevision    string
-}
-
-var orgchartPeopleCacheEnabled = orgchartPeopleCachePolicy{CanUsePersonCache: true}
-var orgchartPeopleCacheBypassed = orgchartPeopleCachePolicy{}
-
-func orgchartPeopleCachePolicyForListRevision(revision int64, sourceRevision string) orgchartPeopleCachePolicy {
-	return orgchartPeopleCachePolicy{
-		CanUsePersonCache:         true,
-		HasExpectedListRevision:   true,
-		ExpectedListRevision:      revision,
-		HasExpectedSourceRevision: true,
-		ExpectedSourceRevision:    sourceRevision,
-	}
-}
-
 func uniqueOrgchartPeopleCacheKeys(keys []orgchartPeopleCacheKey) []orgchartPeopleCacheKey {
 	seen := make(map[orgchartPeopleCacheKey]struct{}, len(keys))
 	result := make([]orgchartPeopleCacheKey, 0, len(keys))

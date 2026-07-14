@@ -28,8 +28,7 @@ func ensureOrgchartPeopleCacheSchema(ctx context.Context, database *sql.DB) erro
 			cached_at TEXT NOT NULL,
 			PRIMARY KEY(cache_kind, cache_key)
 		)`,
-		`CREATE INDEX IF NOT EXISTS orgchart_people_cache_entries_cached_at_idx
-		ON orgchart_people_cache_entries(cached_at)`,
+		`DROP INDEX IF EXISTS orgchart_people_cache_entries_cached_at_idx`,
 	}
 	for _, statement := range statements {
 		if _, errorValue := database.ExecContext(ctx, statement); errorValue != nil {

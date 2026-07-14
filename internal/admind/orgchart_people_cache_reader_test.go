@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -461,5 +462,225 @@ func TestOrgchartPeopleCacheRebuildsCorruptPersonPayload(t *testing.T) {
 	}
 	if len(response.response.Records) != 1 || response.response.Records[0].UserID != "user-1" {
 		t.Fatalf("response = %#v", response.response)
+	}
+}
+
+func TestOrgchartPeopleCacheRejectsSemanticCorruption(t *testing.T) {
+	t.Run("missing list records", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		ctx := context.Background()
+		key := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+		if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, 0, "", []byte(`{}`)); errorValue != nil || !written {
+			t.Fatalf("write corrupt list cache: written = %t error = %v", written, errorValue)
+		}
+		loadCount := 0
+		response, _, errorValue := service.readCachedOrgchartUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
+			loadCount++
+			return pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "Fresh"}}}, nil
+		})
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if loadCount != 1 || len(response.Records) != 1 || response.Records[0].Name != "Fresh" {
+			t.Fatalf("load count = %d response = %#v", loadCount, response)
+		}
+	})
+
+	personCases := []struct {
+		name        string
+		key         orgchartPeopleCacheKey
+		payloadJSON string
+	}{
+		{name: "empty person", key: orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}, payloadJSON: `{}`},
+		{name: "missing identity", key: orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}, payloadJSON: `{"record":{"name":"Corrupt"}}`},
+		{name: "mismatched user ID", key: orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}, payloadJSON: `{"record":{"userID":"user-2","email":"two@example.com","name":"Corrupt"}}`},
+		{name: "mismatched email", key: orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "email:one@example.com"}, payloadJSON: `{"record":{"email":"two@example.com","name":"Corrupt"}}`},
+	}
+	for _, testCase := range personCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newLocalUsersTestService(t)
+			ctx := context.Background()
+			if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, testCase.key, 0, "", []byte(testCase.payloadJSON)); errorValue != nil || !written {
+				t.Fatalf("write corrupt person cache: written = %t error = %v", written, errorValue)
+			}
+			userID := "user-1"
+			if strings.HasPrefix(testCase.key.Key, "email:") {
+				userID = ""
+			}
+			users := pagesUsersResponse{Records: []adminUserMutation{{UserID: userID, Email: "one@example.com", Name: "Fresh"}}}
+			response, errorValue := service.applyCachedOrgchartPeople(ctx, users)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if response.response.Records[0].Name != "Fresh" {
+				t.Fatalf("response = %#v", response.response)
+			}
+			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{testCase.key})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if !snapshots[testCase.key].Found || string(snapshots[testCase.key].PayloadJSON) == testCase.payloadJSON {
+				t.Fatalf("rebuilt snapshot = %#v", snapshots[testCase.key])
+			}
+		})
+	}
+}
+
+func TestOrgchartPeopleCacheAcceptsUserIDOnlyPersonPayload(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-1"}
+	payloadJSON := []byte(`{"record":{"userID":"user-1","name":"Cached"}}`)
+	if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, 0, "", payloadJSON); errorValue != nil || !written {
+		t.Fatalf("write person cache: written = %t error = %v", written, errorValue)
+	}
+	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Name: "Fresh"}}}
+	response, errorValue := service.applyCachedOrgchartPeople(ctx, users)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.response.Records[0].Name != "Cached" {
+		t.Fatalf("response = %#v", response.response)
+	}
+}
+
+func TestOrgchartGroupCacheHitAndCorruptRebuild(t *testing.T) {
+	t.Run("hit", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		ctx := context.Background()
+		if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "engineering", Name: "Engineering"}}); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		first, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		database, errorValue := service.openOrgchartDatabase(ctx)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, errorValue := database.ExecContext(ctx, `UPDATE orgchart_groups SET name = 'Changed' WHERE id = 'engineering'`); errorValue != nil {
+			database.Close()
+			t.Fatal(errorValue)
+		}
+		if errorValue := database.Close(); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		second, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if !reflect.DeepEqual(first, second) || second[0].Name != "Engineering" {
+			t.Fatalf("first = %#v second = %#v", first, second)
+		}
+	})
+
+	t.Run("corrupt", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		ctx := context.Background()
+		if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "engineering", Name: "Engineering"}}); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		key := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheGroups, Key: orgchartPeopleCacheSingletonKey}
+		snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		corruptPayload := []byte(`[{"id":"","name":"Corrupt"}]`)
+		if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", corruptPayload); errorValue != nil || !written {
+			t.Fatalf("write corrupt group cache: written = %t error = %v", written, errorValue)
+		}
+		groups, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if len(groups) != 1 || groups[0].ID != "engineering" || groups[0].Name != "Engineering" {
+			t.Fatalf("groups = %#v", groups)
+		}
+	})
+}
+
+func TestOrgchartPeopleCacheHasNoTTL(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	if errorValue := service.writeOrgchartProfiles(ctx, []orgchartProfile{{
+		UserID:            "user-1",
+		Email:             "one@example.com",
+		JobTitle:          "Designer",
+		EmploymentStatus:  orgchartEmploymentStatusActive,
+		IsOrgchartVisible: true,
+	}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com"}}}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE orgchart_people_cache_entries SET cached_at = '2000-01-01T00:00:00Z' WHERE cache_kind = 'person' AND cache_key = 'user-1'`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE orgchart_profiles SET job_title = 'Engineer' WHERE user_id = 'user-1'`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response, errorValue := service.applyCachedOrgchartPeople(ctx, users)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.response.Records[0].JobTitle != "Designer" {
+		t.Fatalf("response = %#v", response.response)
+	}
+}
+
+func TestOrgchartPeopleCacheWritesMissesInSingleTransaction(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `
+		CREATE TRIGGER fail_orgchart_people_cache_batch
+		BEFORE INSERT ON orgchart_people_cache_entries
+		WHEN NEW.cache_kind = 'person' AND NEW.cache_key = 'user-25'
+		BEGIN
+			SELECT RAISE(ABORT, 'forced person batch failure');
+		END
+	`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	users := pagesUsersResponse{Records: make([]adminUserMutation, 0, 50)}
+	for index := range 50 {
+		users.Records = append(users.Records, adminUserMutation{
+			UserID: fmt.Sprintf("user-%02d", index),
+			Email:  fmt.Sprintf("user-%02d@example.com", index),
+		})
+	}
+	if _, errorValue := service.applyCachedOrgchartPeople(ctx, users); errorValue == nil {
+		t.Fatal("expected forced batch write failure")
+	}
+	database, errorValue = service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var entryCount int
+	if errorValue := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM orgchart_people_cache_entries WHERE cache_kind = 'person'`).Scan(&entryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if entryCount != 0 {
+		t.Fatalf("person cache entries = %d; want atomic rollback", entryCount)
 	}
 }
