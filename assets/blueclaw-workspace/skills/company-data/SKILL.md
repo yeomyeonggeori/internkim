@@ -18,11 +18,13 @@ The company has one persistent master table set: profile (`company.info.*`), num
 4. Nothing overlaps? Add the new row:
 
 ```json
-{ "operation": "company.metric.record", "input": "{\"metric\": \"annualRevenue\", \"year\": 2025, \"value\": 1200000000, \"unit\": \"KRW\"}" }
+{ "operation": "company.metric.record", "input": "{\"metric\": \"annualRevenue\", \"year\": 2025, \"value\": 1200000000, \"currency\": \"KRW\", \"valueUSD\": 870000}" }
 ```
 
 - Period granularity: year only = annual, add `quarter` (1-4) OR `month` (1-12) — never both.
 - Reuse the same metric key across periods: `annualRevenue`, `operatingProfit`, `mau`, `employees`, `gmv`.
+- Money uses `currency`: `USD`, `KRW`, `EUR`, `JPY`, `GBP`, `CNY`, `HKD`, `SGD`, `AUD`, `CAD`, `CHF`, or `INR`. `value` is the stated local amount; non-USD money also requires the stated USD equivalent in `valueUSD`. Never estimate an exchange rate.
+- Non-monetary metrics use `unit` instead of `currency`. Do not combine them.
 - `company.metric.record` upserts on (metric, year, quarter, month) — a correction is the same call with the same period.
 
 ## Records — 연혁·투자·제품·인증
@@ -46,7 +48,7 @@ The company has one persistent master table set: profile (`company.info.*`), num
 
 ## Table schema
 
-- `company_metrics` — key `(metric, year, quarter, month)`, columns `value`, `unit`, `note`, `updatedAt`. quarter/month are 0 when unset; quarter AND month together is rejected.
+- `company_metrics` — key `(metric, year, quarter, month)`, columns `value`, `currency`, `valueUSD`, `unit`, `note`, `updatedAt`. Money uses `currency` and a stable `valueUSD`; other metrics use `unit`. quarter/month are 0 when unset; quarter AND month together is rejected.
 - `company_records` — `id`, `category`, `date` (YYYY-MM[-DD]), `title`, `detail`, `attributes` (free JSON object per category), `updatedAt`.
 - `company_documents` — `id`, `documentNumber` (server-assigned, issued only), `kind` (issued/received/internal), `documentType`, `title`, `counterpart`, `language`, `filePath`, `summary`, `updatedAt`.
 - Profile (`company.info.*`) — localized: `name`, `brandName`, `slogan`, `description`, `representative`, `representativeTitle`, `address`, `officeAddress`, `jurisdiction`, `bankAccount`, `legalAttributes` (label→value map); neutral: `foundedDate`, `capital`, `fiscalYearEnd`, `employeeCount`, `phone`, `fax`, `email`, `website`.
