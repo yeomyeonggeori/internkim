@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -523,27 +524,32 @@ func TestOrgchartPeopleCacheCompletesLocalUserMutationAfterExternalFailure(t *te
 
 func TestOrgchartUserMutationCleanupFailurePreservesSuccessLocal(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
-		service := newLocalUsersTestService(t)
-		service.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
-		failOrgchartUserMutationCompletion(t, service)
+		expectedService := newLocalUsersTestService(t)
+		expectedService.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		expectedResponse := performOrgchartCleanupFailureLocalUpsert(t, expectedService, false)
 
-		responseRecorder := httptest.NewRecorder()
-		requestBody := strings.NewReader(`{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}`)
-		service.localUpsertUser(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+		actualService := newLocalUsersTestService(t)
+		actualService.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		identity := orgchartPersonIdentity{UserID: "user-new", Email: "new@example.com"}
+		preloadOrgchartUserMutationCache(t, actualService, identity)
+		failOrgchartUserMutationCompletion(t, actualService)
+		actualResponse := performOrgchartCleanupFailureLocalUpsert(t, actualService, false)
 
-		assertOrgchartCleanupFailureUserResponse(t, responseRecorder)
+		assertOrgchartCleanupFailureUserResponse(t, expectedResponse, actualResponse, "Local note")
+		assertOrgchartUserMutationCacheIncomplete(t, actualService, identity)
 	})
 
 	t.Run("batch", func(t *testing.T) {
-		service := newLocalUsersTestService(t)
-		service.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
-		failOrgchartUserMutationCompletion(t, service)
+		expectedService := newLocalUsersTestService(t)
+		expectedService.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		expectedResponse := performOrgchartCleanupFailureLocalUpsert(t, expectedService, true)
 
-		responseRecorder := httptest.NewRecorder()
-		requestBody := strings.NewReader(`{"users":[{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}]}`)
-		service.localUpsertUsersBatch(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", requestBody))
+		actualService := newLocalUsersTestService(t)
+		actualService.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		failOrgchartUserMutationCompletion(t, actualService)
+		actualResponse := performOrgchartCleanupFailureLocalUpsert(t, actualService, true)
 
-		assertOrgchartCleanupFailureUserResponse(t, responseRecorder)
+		assertOrgchartCleanupFailureUserResponse(t, expectedResponse, actualResponse, "")
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -558,6 +564,46 @@ func TestOrgchartUserMutationCleanupFailurePreservesSuccessLocal(t *testing.T) {
 			t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 		}
 	})
+}
+
+func TestOrgchartUserMutationCleanupFailureDeferredRetryClearsCacheState(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	ctx := context.Background()
+	identity := orgchartPersonIdentity{UserID: "user-new", Email: "new@example.com"}
+	preloadOrgchartUserMutationCache(t, service, identity)
+	mutation, errorValue := service.startOrgchartUserMutation(ctx, []orgchartPersonIdentity{identity})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	failOrgchartUserMutationCompletion(t, service)
+
+	func() {
+		defer mutation.completeAfterRequest(ctx)
+		mutation.completeAfterSourceMutation(ctx)
+		if mutation.isComplete {
+			t.Fatal("mutation completed after failed cache cleanup")
+		}
+		assertOrgchartUserMutationCacheIncomplete(t, service, identity)
+		dropOrgchartUserMutationCompletionFailure(t, service)
+	}()
+
+	if !mutation.isComplete {
+		t.Fatal("deferred cache cleanup did not complete mutation")
+	}
+	assertOrgchartUserMutationCacheComplete(t, service, identity)
+}
+
+func performOrgchartCleanupFailureLocalUpsert(t *testing.T, service *Service, isBatch bool) *httptest.ResponseRecorder {
+	t.Helper()
+	responseRecorder := httptest.NewRecorder()
+	if isBatch {
+		requestBody := strings.NewReader(`{"users":[{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}]}`)
+		service.localUpsertUsersBatch(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", requestBody))
+		return responseRecorder
+	}
+	requestBody := strings.NewReader(`{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}`)
+	service.localUpsertUser(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+	return responseRecorder
 }
 
 func failOrgchartUserMutationCompletion(t *testing.T, service *Service) {
@@ -576,6 +622,18 @@ func failOrgchartUserMutationCompletion(t *testing.T, service *Service) {
 		END
 	`)
 	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func dropOrgchartUserMutationCompletionFailure(t *testing.T, service *Service) {
+	t.Helper()
+	database, errorValue := service.openOrgchartDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	if _, errorValue := database.Exec(`DROP TRIGGER fail_orgchart_user_mutation_completion`); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 }
@@ -631,17 +689,88 @@ func newOrgchartCleanupFailureLocalDeleteClient(t *testing.T) *http.Client {
 	})}
 }
 
-func assertOrgchartCleanupFailureUserResponse(t *testing.T, responseRecorder *httptest.ResponseRecorder) {
+func assertOrgchartCleanupFailureUserResponse(t *testing.T, expectedResponse *httptest.ResponseRecorder, actualResponse *httptest.ResponseRecorder, expectedNote string) {
 	t.Helper()
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	if expectedResponse.Code != http.StatusOK || actualResponse.Code != expectedResponse.Code {
+		t.Fatalf("status = %d body = %s; want status = %d body = %s", actualResponse.Code, actualResponse.Body.String(), expectedResponse.Code, expectedResponse.Body.String())
+	}
+	expectedDocument := normalizedOrgchartCleanupFailureResponse(t, expectedResponse)
+	actualDocument := normalizedOrgchartCleanupFailureResponse(t, actualResponse)
+	if !reflect.DeepEqual(actualDocument, expectedDocument) {
+		t.Fatalf("response = %#v; want %#v", actualDocument, expectedDocument)
 	}
 	var response pagesUsersResponse
-	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
+	if errorValue := json.Unmarshal(actualResponse.Body.Bytes(), &response); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(response.Records) != 1 || response.Records[0].Email != "new@example.com" {
-		t.Fatalf("response = %#v", response)
+	expectedRecord := adminUserMutation{
+		UserID:             "user-new",
+		Handle:             "new-user",
+		Name:               "New User",
+		Email:              "new@example.com",
+		Image:              profileImagePathForEmail("new@example.com"),
+		Note:               expectedNote,
+		Role:               "admin",
+		Circles:            []string{"staff", "admin"},
+		MattermostUserID:   "user-new",
+		MattermostUsername: "new-user",
+		Status:             "active",
+	}
+	if len(response.Records) != 1 || !reflect.DeepEqual(response.Records[0], expectedRecord) {
+		t.Fatalf("record = %#v; want %#v", response.Records, expectedRecord)
+	}
+}
+
+func normalizedOrgchartCleanupFailureResponse(t *testing.T, responseRecorder *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var document map[string]any
+	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	temporaryPassword, found := document["temporaryPassword"].(string)
+	if !found || strings.TrimSpace(temporaryPassword) == "" {
+		t.Fatalf("temporary password missing from response = %#v", document)
+	}
+	delete(document, "temporaryPassword")
+	return document
+}
+
+func preloadOrgchartUserMutationCache(t *testing.T, service *Service, identity orgchartPersonIdentity) {
+	t.Helper()
+	for _, key := range orgchartUserMutationCacheKeys([]orgchartPersonIdentity{identity}) {
+		if _, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", []byte(`{}`)); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+}
+
+func assertOrgchartUserMutationCacheIncomplete(t *testing.T, service *Service, identity orgchartPersonIdentity) {
+	t.Helper()
+	keys := orgchartUserMutationCacheKeys([]orgchartPersonIdentity{identity})
+	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(context.Background(), keys)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, key := range keys {
+		snapshot := snapshots[key]
+		if (!snapshot.IsDirty && snapshot.ActiveMutations == 0) || snapshot.Found {
+			t.Fatalf("incomplete mutation cache state for %v = %#v", key, snapshot)
+		}
+	}
+}
+
+func assertOrgchartUserMutationCacheComplete(t *testing.T, service *Service, identity orgchartPersonIdentity) {
+	t.Helper()
+	keys := orgchartUserMutationCacheKeys([]orgchartPersonIdentity{identity})
+	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(context.Background(), keys)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, key := range keys {
+		snapshot := snapshots[key]
+		if snapshot.IsDirty || snapshot.ActiveMutations != 0 || snapshot.Found {
+			t.Fatalf("completed mutation cache state for %v = %#v", key, snapshot)
+		}
 	}
 }
 
