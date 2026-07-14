@@ -6,6 +6,10 @@ import type {
 	BlueclawUpdateStatus,
 	BotProfile,
 	CircleRecord,
+	CompanyMetricsResponse,
+	CompanyRecordsResponse,
+	CompanyShareSettings,
+	CompanyShareSettingsUpdate,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
 	OrgGroup,
@@ -88,6 +92,40 @@ export async function updateWorkspaceSettings(adminBaseURL: string, settings: Wo
 		body: JSON.stringify(settings)
 	});
 	return readJSON<WorkspaceSettings>(response, fallbackMessage);
+}
+
+export async function fetchCompanyShareSettings(adminBaseURL: string, fallbackMessage: string): Promise<CompanyShareSettings> {
+	const response = await fetch(`${adminBaseURL}/company-share`, { credentials: 'include' });
+	return readJSON<CompanyShareSettings>(response, fallbackMessage);
+}
+
+export async function updateCompanyShareSettings(
+	adminBaseURL: string,
+	settings: CompanyShareSettingsUpdate,
+	fallbackMessage: string
+): Promise<CompanyShareSettings> {
+	const response = await fetch(`${adminBaseURL}/company-share`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(settings)
+	});
+	return readJSON<CompanyShareSettings>(response, fallbackMessage);
+}
+
+export async function publishCompanyShare(adminBaseURL: string, fallbackMessage: string): Promise<CompanyShareSettings> {
+	const response = await fetch(`${adminBaseURL}/company-share/publish`, { method: 'POST', credentials: 'include' });
+	return readJSON<CompanyShareSettings>(response, fallbackMessage);
+}
+
+export async function fetchCompanyMetrics(adminBaseURL: string, fallbackMessage: string): Promise<CompanyMetricsResponse> {
+	const response = await fetch(`${adminBaseURL}/company-metrics`, { credentials: 'include' });
+	return readJSON<CompanyMetricsResponse>(response, fallbackMessage);
+}
+
+export async function fetchCompanyRecords(adminBaseURL: string, fallbackMessage: string): Promise<CompanyRecordsResponse> {
+	const response = await fetch(`${adminBaseURL}/company-records`, { credentials: 'include' });
+	return readJSON<CompanyRecordsResponse>(response, fallbackMessage);
 }
 
 export async function fetchAttendanceLocations(adminBaseURL: string, fallbackMessage: string): Promise<AttendanceLocationsResponse> {

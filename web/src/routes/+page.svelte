@@ -15,6 +15,7 @@
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
+	import CompanyShareSection from './admin/company-share-section.svelte';
 	import DeviceSection from './admin/device-section.svelte';
 	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
@@ -33,6 +34,7 @@
 		{ value: 'backup', isDeviceManagedOnly: false },
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
+		{ value: 'sharing', isDeviceManagedOnly: false },
 		{ value: 'network', isDeviceManagedOnly: true }
 	];
 
@@ -244,6 +246,8 @@
 					/>
 				{:else if activeAdminSection === 'settings'}
 					<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'sharing'}
+					<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{:else if activeAdminSection === 'network'}
 					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{/if}
