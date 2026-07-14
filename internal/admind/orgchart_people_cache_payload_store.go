@@ -8,10 +8,12 @@ import (
 )
 
 type orgchartPeopleCacheWrite struct {
-	Key            orgchartPeopleCacheKey
-	Revision       int64
-	SourceRevision string
-	PayloadJSON    []byte
+	Key                     orgchartPeopleCacheKey
+	Revision                int64
+	SourceRevision          string
+	HasExpectedListRevision bool
+	ExpectedListRevision    int64
+	PayloadJSON             []byte
 }
 
 func (service *Service) writeOrgchartPeopleCachePayloadIfCurrent(ctx context.Context, key orgchartPeopleCacheKey, revision int64, sourceRevision string, payloadJSON []byte) (bool, error) {
@@ -43,7 +45,22 @@ func (service *Service) writeOrgchartPeopleCachePayloadsIfCurrent(ctx context.Co
 	}
 	defer transaction.Rollback()
 	cachedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	currentListRevisions := map[int64]bool{}
 	for _, write := range writes {
+		if write.HasExpectedListRevision {
+			isCurrent, found := currentListRevisions[write.ExpectedListRevision]
+			if !found {
+				isCurrent, errorValue = isExpectedOrgchartPeopleListRevisionForWrite(ctx, transaction, write.ExpectedListRevision)
+				if errorValue != nil {
+					return nil, errorValue
+				}
+				currentListRevisions[write.ExpectedListRevision] = isCurrent
+			}
+			if !isCurrent {
+				writtenByKey[write.Key] = false
+				continue
+			}
+		}
 		written, errorValue := writeOrgchartPeopleCachePayloadIfCurrentTransaction(ctx, transaction, write, cachedAt)
 		if errorValue != nil {
 			return nil, errorValue
@@ -88,6 +105,22 @@ func writeOrgchartPeopleCachePayloadIfCurrentTransaction(ctx context.Context, tr
 		return false, fmt.Errorf("read orgchart people cache write result: %w", errorValue)
 	}
 	return rowsAffected == 1, nil
+}
+
+func isExpectedOrgchartPeopleListRevisionForWrite(ctx context.Context, transaction *sql.Tx, expectedRevision int64) (bool, error) {
+	listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+	if errorValue := ensureOrgchartPeopleCacheState(ctx, transaction, listKey); errorValue != nil {
+		return false, errorValue
+	}
+	var isCurrent bool
+	errorValue := transaction.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM orgchart_people_cache_states
+		WHERE cache_kind = ? AND cache_key = ? AND revision = ? AND is_dirty = 0 AND active_mutations = 0
+	)`, string(listKey.Kind), listKey.Key, expectedRevision).Scan(&isCurrent)
+	if errorValue != nil {
+		return false, fmt.Errorf("validate orgchart people list revision for cache write: %w", errorValue)
+	}
+	return isCurrent, nil
 }
 
 func (service *Service) deleteOrgchartPeopleCacheEntries(ctx context.Context, keys []orgchartPeopleCacheKey) error {

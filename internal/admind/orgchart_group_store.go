@@ -54,11 +54,6 @@ func (service *Service) readOrgchartGroups(ctx context.Context) ([]orgGroupRecor
 	return groups, errorValue
 }
 
-func (service *Service) readOrgchartGroupsOrInitialize(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, error) {
-	groups, _, errorValue := service.readOrgchartGroupsOrInitializeWithState(ctx, fallbackGroups)
-	return groups, errorValue
-}
-
 func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, bool, error) {
 	groups, isInitialized, errorValue := service.readOrgchartGroupsWithInitialization(ctx)
 	if errorValue != nil {
