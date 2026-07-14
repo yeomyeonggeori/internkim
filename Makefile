@@ -52,6 +52,7 @@ check: build build-companion
 	cd web && bun run check
 	cd web && bun run test:unit
 	cd mattermost-plugin/internkim-ephemeral && bun test webapp
+	python3 -m unittest discover -s poc -p '*_test.py'
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
 

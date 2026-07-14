@@ -28,6 +28,40 @@ func TestSelectedPocContainerComponentsCouplesSkillsWithBlueclaw(t *testing.T) {
 	}
 }
 
+func TestPocContainerCapabilityContractRequiresEveryRuntimeComponent(t *testing.T) {
+	completeComponents := []string{"admind", "capabilityd", "blueclaw", "skills"}
+	if !pocContainerCapabilityContractComponentsIncluded(completeComponents) {
+		t.Fatal("expected complete runtime component set to allow a contract update")
+	}
+	for _, missingComponent := range completeComponents {
+		components := []string{}
+		for _, component := range completeComponents {
+			if component != missingComponent {
+				components = append(components, component)
+			}
+		}
+		if pocContainerCapabilityContractComponentsIncluded(components) {
+			t.Fatalf("expected missing %s to reject a contract update", missingComponent)
+		}
+	}
+}
+
+func TestPocContainerCapabilityContractCheckBlocksChangedPartialDeployment(t *testing.T) {
+	command := pocContainerCapabilityContractCheckCommand(
+		"/tmp/capability-contract.json",
+		[]string{"capabilityd"},
+	)
+	for _, expectedFragment := range []string{
+		"cmp -s",
+		"capability-contract.json",
+		"admind,capabilityd,blueclaw,skills",
+	} {
+		if !strings.Contains(command, expectedFragment) {
+			t.Fatalf("contract check command is missing %q:\n%s", expectedFragment, command)
+		}
+	}
+}
+
 func TestSelectedPocContainerComponentsLeavesNonBlueclawUntouched(t *testing.T) {
 	components, errorValue := selectedPocContainerComponents([]string{"--components", "admind"})
 	if errorValue != nil {
@@ -121,15 +155,25 @@ func TestPocContainerBaseImageTagReplacesOnlyTrailingTag(t *testing.T) {
 	}
 }
 
-func TestPocContainerSSHArgumentsIncludeProxyCommand(t *testing.T) {
+func TestPocContainerSSHUsesAskpassWithoutPasswordArguments(t *testing.T) {
 	t.Setenv("INTERNKIM_POC_SSH_PASSWORD", "secret-password")
 	target := deployops.Target{SSHProxyCommand: "cloudflared access ssh --hostname %h"}
-	arguments := pocContainerSSHBaseArguments(target, "ssh")
+	arguments := pocContainerSSHBaseArguments(target)
 	joinedArguments := strings.Join(arguments, "\n")
 	if !strings.Contains(joinedArguments, "ProxyCommand=cloudflared access ssh --hostname %h") {
 		t.Fatalf("arguments missing proxy command: %v", arguments)
 	}
-	if strings.Contains(strings.Join(redactPocCommandArguments(arguments), " "), "secret-password") {
-		t.Fatalf("redacted arguments leaked password: %v", redactPocCommandArguments(arguments))
+	if strings.Contains(joinedArguments, "secret-password") || strings.Contains(joinedArguments, "-p") {
+		t.Fatalf("ssh arguments must not contain the password: %v", arguments)
+	}
+	environment := strings.Join(pocContainerSSHEnvironment(), "\n")
+	for _, expectedValue := range []string{
+		"SSH_ASKPASS_REQUIRE=force",
+		"SSH_ASKPASS=",
+		"DISPLAY=internkim-poc-ssh",
+	} {
+		if !strings.Contains(environment, expectedValue) {
+			t.Fatalf("ssh environment is missing %q: %v", expectedValue, environment)
+		}
 	}
 }

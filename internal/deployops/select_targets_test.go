@@ -81,3 +81,27 @@ func TestNormalizeRegistryKeepsPocContainerWithSSHHost(t *testing.T) {
 		t.Fatalf("ssh proxy command = %q", target.SSHProxyCommand)
 	}
 }
+
+func TestNormalizeRegistryDefaultsCloudflareProxyForInternKimPocHost(t *testing.T) {
+	registry := normalizeRegistry(TargetRegistry{Targets: []Target{{
+		ID:      "poc",
+		Kind:    "poc-container",
+		SSHHost: "ssh-poc.example.test",
+	}}})
+
+	if registry.Targets[0].SSHProxyCommand != "cloudflared access ssh --hostname %h" {
+		t.Fatalf("ssh proxy command = %q", registry.Targets[0].SSHProxyCommand)
+	}
+}
+
+func TestNormalizeRegistryDoesNotProxyLocalPocHost(t *testing.T) {
+	registry := normalizeRegistry(TargetRegistry{Targets: []Target{{
+		ID:      "poc",
+		Kind:    "poc-container",
+		SSHHost: "studio.local",
+	}}})
+
+	if registry.Targets[0].SSHProxyCommand != "" {
+		t.Fatalf("ssh proxy command = %q, want direct SSH", registry.Targets[0].SSHProxyCommand)
+	}
+}
