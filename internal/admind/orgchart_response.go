@@ -29,29 +29,7 @@ func (service *Service) orgchartMetadataResponse(ctx context.Context, responseBo
 }
 
 func (service *Service) orgchartMetadataUsersResponse(ctx context.Context, usersResponse pagesUsersResponse) (orgchartMetadataResponse, error) {
-	groups, errorValue := service.readOrgchartGroupsOrInitialize(ctx, usersResponse.AvailableGroups)
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
-	}
-	profiles, errorValue := service.readOrgchartProfiles(ctx)
-	if errorValue != nil {
-		return orgchartMetadataResponse{}, errorValue
-	}
-	profilesByUserID, profilesByEmail := orgchartProfileIndexes(profiles)
-	usersResponse.AvailableGroups = groups
-	for index := range usersResponse.Records {
-		applyDefaultOrgchartMetadata(&usersResponse.Records[index])
-		profile, found := orgchartProfileForUser(usersResponse.Records[index], profilesByUserID, profilesByEmail)
-		if !found {
-			continue
-		}
-		applyOrgchartProfile(&usersResponse.Records[index], profile)
-	}
-	return orgchartMetadataResponse{
-		response:         usersResponse,
-		profilesByUserID: profilesByUserID,
-		profilesByEmail:  profilesByEmail,
-	}, nil
+	return service.applyCachedOrgchartPeople(ctx, usersResponse)
 }
 
 func orgchartProfileIndexes(profiles []orgchartProfile) (map[string]orgchartProfile, map[string]orgchartProfile) {

@@ -11,9 +11,10 @@ import (
 type orgchartPeopleCacheKind string
 
 const (
-	orgchartPeopleCacheList   orgchartPeopleCacheKind = "list"
-	orgchartPeopleCachePerson orgchartPeopleCacheKind = "person"
-	orgchartPeopleCacheGroups orgchartPeopleCacheKind = "groups"
+	orgchartPeopleCacheList         orgchartPeopleCacheKind = "list"
+	orgchartPeopleCachePerson       orgchartPeopleCacheKind = "person"
+	orgchartPeopleCacheGroups       orgchartPeopleCacheKind = "groups"
+	orgchartPeopleCacheSingletonKey                         = "all"
 )
 
 type orgchartPeopleCacheKey struct {
@@ -153,6 +154,32 @@ func (service *Service) beginOrgchartPeopleCacheMutation(ctx context.Context, ke
 
 func (service *Service) completeOrgchartPeopleCacheMutation(ctx context.Context, keys []orgchartPeopleCacheKey) error {
 	return service.updateOrgchartPeopleCacheMutation(ctx, keys, false)
+}
+
+func (service *Service) deleteOrgchartPeopleCacheEntries(ctx context.Context, keys []orgchartPeopleCacheKey) error {
+	uniqueKeys := uniqueOrgchartPeopleCacheKeys(keys)
+	if len(uniqueKeys) == 0 {
+		return nil
+	}
+	database, errorValue := service.openOrgchartDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return fmt.Errorf("begin orgchart people cache delete: %w", errorValue)
+	}
+	defer transaction.Rollback()
+	for _, key := range uniqueKeys {
+		if _, errorValue := transaction.ExecContext(ctx, `DELETE FROM orgchart_people_cache_entries WHERE cache_kind = ? AND cache_key = ?`, string(key.Kind), key.Key); errorValue != nil {
+			return fmt.Errorf("delete orgchart people cache entry: %w", errorValue)
+		}
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return fmt.Errorf("commit orgchart people cache delete: %w", errorValue)
+	}
+	return nil
 }
 
 func (service *Service) updateOrgchartPeopleCacheMutation(ctx context.Context, keys []orgchartPeopleCacheKey, isBeginning bool) error {
