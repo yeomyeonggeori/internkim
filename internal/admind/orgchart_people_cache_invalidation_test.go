@@ -15,14 +15,14 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalLocalUser(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	canonicalUserID := "blueclaw-existing"
 	email := "existing@example.com"
-	preloadOrgchartPersonCache(t, service, canonicalUserID)
+	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
 	checkedCanonicalMutation := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, email), nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			assertOrgchartPersonMutationActive(t, service, canonicalUserID)
+			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
 			checkedCanonicalMutation = true
 			return nil, errors.New("stop after canonical mutation check")
 		default:
@@ -31,7 +31,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalLocalUser(t *testing.T) {
 		}
 	})}
 
-	requestBody := strings.NewReader(`{"email":"existing@example.com","handle":"existing-user","name":"Existing User","role":"admin"}`)
+	requestBody := strings.NewReader(`{"email":" Existing@Example.COM ","handle":"existing-user","name":"Existing User","role":"admin"}`)
 	responseRecorder := httptest.NewRecorder()
 	service.localUpsertUser(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
 
@@ -41,7 +41,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalLocalUser(t *testing.T) {
 	if !checkedCanonicalMutation {
 		t.Fatal("canonical mutation was not checked")
 	}
-	assertOrgchartPersonCacheFound(t, service, canonicalUserID, false)
+	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
 }
 
 func TestOrgchartPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
@@ -49,7 +49,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
 	canonicalUserID := "blueclaw-deleted"
 	mattermostUserID := "mattermost-deleted"
 	email := "deleted@example.com"
-	preloadOrgchartPersonCache(t, service, canonicalUserID)
+	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
 	checkedCanonicalMutation := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -74,7 +74,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/"+mattermostUserID:
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-deleted","email":"deleted@example.com","username":"deleted-user","roles":"system_user","delete_at":0}`, nil), nil
 		case request.Method == http.MethodDelete && request.URL.String() == "http://mattermost.local/api/v4/users/"+mattermostUserID:
-			assertOrgchartPersonMutationActive(t, service, canonicalUserID)
+			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
 			checkedCanonicalMutation = true
 			return nil, errors.New("stop after canonical deletion check")
 		default:
@@ -84,7 +84,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
 	})}
 
 	responseRecorder := httptest.NewRecorder()
-	service.localRemoveUser(responseRecorder, httptest.NewRequest(http.MethodDelete, "/admin/api/users/deleted@example.com", nil), email)
+	service.localRemoveUser(responseRecorder, httptest.NewRequest(http.MethodDelete, "/admin/api/users/deleted@example.com", nil), " Deleted@Example.COM ")
 
 	if responseRecorder.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
@@ -92,7 +92,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
 	if !checkedCanonicalMutation {
 		t.Fatal("canonical deletion mutation was not checked")
 	}
-	assertOrgchartPersonCacheFound(t, service, canonicalUserID, false)
+	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
 }
 
 func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
@@ -100,7 +100,7 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	canonicalUserID := "blueclaw-existing"
 	existingEmail := "existing@example.com"
 	newEmail := "new-batch@example.com"
-	preloadOrgchartPersonCache(t, service, canonicalUserID)
+	preloadOrgchartIdentityCache(t, service, canonicalUserID, existingEmail)
 	activePersonKeys := []string{}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -144,6 +144,95 @@ func TestOrgchartPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 		t.Fatalf("active person keys = %#v; missing generated user ID", activePersonKeys)
 	}
 	assertOrgchartPersonCacheFound(t, service, canonicalUserID, false)
+}
+
+func TestOrgchartPeopleCacheInvalidatesCanonicalProxyUser(t *testing.T) {
+	service := newOrgchartProxyMutationTestService(t)
+	canonicalUserID := "blueclaw-existing"
+	remoteUserID := "remote-existing"
+	email := "existing@example.com"
+	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
+	mattermostLoginCount := 0
+	checkedCanonicalMutation := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			mattermostLoginCount++
+			if mattermostLoginCount == 1 {
+				return nil, errors.New("skip provisioner sync")
+			}
+			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
+			checkedCanonicalMutation = true
+			return nil, errors.New("stop after proxy mutation check")
+		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
+			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, email), nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	requestBody := strings.NewReader(`{"email":" Existing@Example.COM ","handle":"existing-user","name":"Existing User","role":"admin"}`)
+	responseRecorder := httptest.NewRecorder()
+	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+
+	if responseRecorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if !checkedCanonicalMutation {
+		t.Fatal("canonical proxy mutation was not checked")
+	}
+	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
+}
+
+func TestOrgchartPeopleCacheInvalidatesCanonicalProxyDeletedUser(t *testing.T) {
+	service := newOrgchartProxyMutationTestService(t)
+	canonicalUserID := "blueclaw-deleted"
+	remoteUserID := "remote-deleted"
+	mattermostUserID := "mattermost-deleted"
+	email := "deleted@example.com"
+	preloadOrgchartIdentityCache(t, service, canonicalUserID, email)
+	mattermostLoginCount := 0
+	checkedCanonicalMutation := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			mattermostLoginCount++
+			if mattermostLoginCount == 1 {
+				return nil, errors.New("skip provisioner sync")
+			}
+			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"userID":"admin-source","email":"admin@example.com","role":"admin"},
+				{"userID":"`+remoteUserID+`","email":"deleted@example.com","role":"member","mattermostUserID":"`+mattermostUserID+`"}
+			]}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
+			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, email), nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/"+mattermostUserID:
+			return jsonResponse(http.StatusOK, `{"id":"mattermost-deleted","email":"deleted@example.com","username":"deleted-user","roles":"system_user","delete_at":0}`, nil), nil
+		case request.Method == http.MethodDelete && request.URL.String() == "http://mattermost.local/api/v4/users/"+mattermostUserID:
+			assertOrgchartIdentityMutationActive(t, service, canonicalUserID, email)
+			checkedCanonicalMutation = true
+			return nil, errors.New("stop after proxy deletion check")
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	responseRecorder := httptest.NewRecorder()
+	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodDelete, "/admin/api/users/deleted@example.com", nil))
+
+	if responseRecorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if !checkedCanonicalMutation {
+		t.Fatal("canonical proxy deletion mutation was not checked")
+	}
+	assertOrgchartIdentityCacheFound(t, service, canonicalUserID, email, false)
 }
 
 func TestOrgchartPeopleCacheInvalidatesChangedUserFromSourceRevision(t *testing.T) {
@@ -401,24 +490,34 @@ func assertOrgchartCacheFound(t *testing.T, service *Service, key orgchartPeople
 	}
 }
 
-func preloadOrgchartPersonCache(t *testing.T, service *Service, userID string) {
+func preloadOrgchartIdentityCache(t *testing.T, service *Service, userID string, email string) {
 	t.Helper()
-	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: userID}
-	if _, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", []byte(`{}`)); errorValue != nil {
-		t.Fatal(errorValue)
+	for _, key := range orgchartPersonCacheKeys(orgchartPersonIdentity{UserID: userID, Email: email}) {
+		if _, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", []byte(`{}`)); errorValue != nil {
+			t.Fatal(errorValue)
+		}
 	}
 }
 
-func assertOrgchartPersonMutationActive(t *testing.T, service *Service, userID string) {
+func assertOrgchartIdentityMutationActive(t *testing.T, service *Service, userID string, email string) {
 	t.Helper()
-	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: userID}
-	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(context.Background(), []orgchartPeopleCacheKey{key})
+	keys := orgchartPersonCacheKeys(orgchartPersonIdentity{UserID: userID, Email: email})
+	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(context.Background(), keys)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	snapshot := snapshots[key]
-	if !snapshot.IsDirty || snapshot.ActiveMutations != 1 || snapshot.Found {
-		t.Fatalf("canonical person mutation state = %#v", snapshot)
+	for _, key := range keys {
+		snapshot := snapshots[key]
+		if !snapshot.IsDirty || snapshot.ActiveMutations != 1 || snapshot.Found {
+			t.Fatalf("identity mutation state for %v = %#v", key, snapshot)
+		}
+	}
+}
+
+func assertOrgchartIdentityCacheFound(t *testing.T, service *Service, userID string, email string, expected bool) {
+	t.Helper()
+	for _, key := range orgchartPersonCacheKeys(orgchartPersonIdentity{UserID: userID, Email: email}) {
+		assertOrgchartCacheFound(t, service, key, expected)
 	}
 }
 
@@ -450,4 +549,13 @@ func activeOrgchartPersonMutationKeys(t *testing.T, service *Service) []string {
 
 func localUsersPolicyWithPerson(userID string, email string) string {
 	return `{"people":[{"personID":"` + userID + `","emails":["` + email + `"]}],"circles":[]}`
+}
+
+func newOrgchartProxyMutationTestService(t *testing.T) *Service {
+	t.Helper()
+	service := newLocalUsersTestService(t)
+	service.Configuration.APIBaseURL = "https://api.example.test"
+	service.Configuration.FleetIDPath = writeTestFile(t, "dc719d8e")
+	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-value")
+	return service
 }
