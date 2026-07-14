@@ -14,6 +14,12 @@ func attendanceEventCacheMonthsForDates(dates []string) ([]string, error) {
 			return nil, fmt.Errorf("parse attendance event cache date %q: %w", date, errorValue)
 		}
 		monthSet[parsedDate.Format("2006-01")] = struct{}{}
+		if parsedDate.Day() == 1 {
+			monthSet[parsedDate.AddDate(0, -1, 0).Format("2006-01")] = struct{}{}
+		}
+		if parsedDate.AddDate(0, 0, 1).Day() == 1 {
+			monthSet[parsedDate.AddDate(0, 1, 0).Format("2006-01")] = struct{}{}
+		}
 	}
 	return sortedAttendanceSummaryCacheMonths(monthSet), nil
 }

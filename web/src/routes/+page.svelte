@@ -15,6 +15,7 @@
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
+	import CompanyShareSection from './admin/company-share-section.svelte';
 	import DeviceSection from './admin/device-section.svelte';
 	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
@@ -25,6 +26,7 @@
 	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
 	const isMockAdminAPI = import.meta.env.VITE_MOCK_ADMIN === '1';
+	const mockAdminEmail = import.meta.env.VITE_DEV_USER_EMAIL?.trim() || 'preview-admin@example.com';
 	const text = createPageText(adminText);
 	const adminSectionConfigurations: { value: AdminSection; isDeviceManagedOnly: boolean }[] = [
 		{ value: 'device', isDeviceManagedOnly: true },
@@ -33,12 +35,13 @@
 		{ value: 'backup', isDeviceManagedOnly: false },
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
+		{ value: 'sharing', isDeviceManagedOnly: false },
 		{ value: 'network', isDeviceManagedOnly: true }
 	];
 
 	let fleetIdInput = $state('');
 	let adminSession = $state<AdminSession | null>(null);
-	let isDeviceReachable = $state(false);
+	let isDeviceReachable = $state(isMockAdminAPI);
 	let activeAdminSection = $state<AdminSection>('device');
 
 	function fleetID() {
@@ -132,7 +135,8 @@
 	async function loadAdminSession() {
 		if (!adminBaseURL()) return;
 		try {
-			adminSession = await fetchAdminSession(adminBaseURL(), '');
+			const loadedSession = await fetchAdminSession(adminBaseURL(), '');
+			adminSession = isMockAdminAPI ? { ...loadedSession, email: mockAdminEmail, isAdmin: true, role: 'admin' } : loadedSession;
 		} catch {
 			adminSession = null;
 		}
@@ -244,6 +248,8 @@
 					/>
 				{:else if activeAdminSection === 'settings'}
 					<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'sharing'}
+					<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{:else if activeAdminSection === 'network'}
 					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{/if}
