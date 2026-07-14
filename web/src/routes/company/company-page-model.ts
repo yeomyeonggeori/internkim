@@ -144,12 +144,6 @@ export function companyMetricPeriodLabel(metric: CompanyShareMetric, language = 
 	return String(metric.year);
 }
 
-export function companyMetricBarWidth(value: number, values: number[]): number {
-	const maximum = Math.max(...values.map(Math.abs), 0);
-	if (maximum === 0) return 0;
-	return Math.max(4, Math.abs(value) / maximum * 100);
-}
-
 export function companyMetricChangePercentage(series: CompanyShareMetric[], displayCurrency: CompanyMetricDisplayCurrency): number | undefined {
 	if (series.length < 2) return undefined;
 	const previousMetric = series.at(-2);
@@ -159,21 +153,6 @@ export function companyMetricChangePercentage(series: CompanyShareMetric[], disp
 	if (previousValue === 0) return undefined;
 	const currentValue = companyMetricDisplayValue(currentMetric, displayCurrency);
 	return (currentValue - previousValue) / Math.abs(previousValue) * 100;
-}
-
-export function companyMetricTrendPoints(series: CompanyShareMetric[], displayCurrency: CompanyMetricDisplayCurrency, width = 640, height = 180): string {
-	if (series.length === 0) return '';
-	const padding = 12;
-	const values = series.map((metric) => companyMetricDisplayValue(metric, displayCurrency));
-	const minimum = Math.min(...values);
-	const maximum = Math.max(...values);
-	const range = maximum - minimum;
-	const horizontalStep = (width - padding * 2) / Math.max(values.length - 1, 1);
-	return values.map((value, index) => {
-		const x = padding + horizontalStep * index;
-		const y = range === 0 ? height / 2 : height - padding - (value - minimum) / range * (height - padding * 2);
-		return `${x.toFixed(1)},${y.toFixed(1)}`;
-	}).join(' ');
 }
 
 export function companyMetricLabel(metricName: string): string {
@@ -202,19 +181,6 @@ export function companyActivityIntensity(day: CompanyShareActivityDay, days: Com
 	const maximum = Math.max(...days.map((candidate) => candidate.attendanceCount + candidate.workCount), 0);
 	if (value === 0 || maximum === 0) return 0;
 	return Math.max(1, Math.ceil(value / maximum * 4));
-}
-
-export function companyActivityPulsePoints(days: CompanyShareActivityDay[], width = 720, height = 160): string {
-	if (days.length === 0) return '';
-	const padding = 12;
-	const values = days.map((day) => day.attendanceCount + day.workCount);
-	const maximum = Math.max(...values, 1);
-	const horizontalStep = (width - padding * 2) / Math.max(days.length - 1, 1);
-	return values.map((value, index) => {
-		const x = padding + horizontalStep * index;
-		const y = height - padding - value / maximum * (height - padding * 2);
-		return `${x.toFixed(1)},${y.toFixed(1)}`;
-	}).join(' ');
 }
 
 export function companyWorkStatusPercentage(count: number, statuses: CompanyShareWorkStatus[]): number {
