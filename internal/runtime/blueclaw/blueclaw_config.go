@@ -18,9 +18,9 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
-	BlueclawTestModelName                               = "google/gemini-3.1-flash-lite"
 	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
+	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
@@ -63,6 +63,7 @@ type RuntimeConfigOptions struct {
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
 	ShouldUseModelForAllTiers bool
+	DefaultTaskLevel          string
 	VirtualCPUCount           int
 }
 
@@ -120,6 +121,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		return RuntimeConfigOptions{}, errorValue
 	}
 	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
+	modelTier := optionalStringEnvironment(BlueclawTestModelTierEnvironment)
 	virtualCPUCount, errorValue := optionalInt64Environment(BlueclawVirtualCPUCountEnvironment)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
@@ -127,6 +129,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	options := RuntimeConfigOptions{
 		ModelName:                 modelName,
 		ShouldUseModelForAllTiers: modelName != "",
+		DefaultTaskLevel:          modelTier,
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
 	}
@@ -207,9 +210,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"enabled":       true,
 			"executionMode": "auto",
 		},
-		"defaultTaskLevel":    "low",
+		"defaultTaskLevel":    firstNonEmptyString(options.DefaultTaskLevel, "low"),
 		"skillTaskLevelFloor": "high",
-		"toolResultMaxBytes": 32768,
+		"toolResultMaxBytes":  32768,
 		"failureRecovery": map[string]any{
 			"failureDebtFinalizationGate": true,
 			"attemptFingerprint":          "tool_input_error_code",
@@ -321,11 +324,11 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"mcpServers": []map[string]any{},
 		"terminal": map[string]any{
-			"mode":                   terminalMode,
-			"sandboxProvider":        "",
-			"workspaceRootPath":      terminalWorkspaceRootPath,
-			"posixHelperPath":        terminalPOSIXHelperPath,
-			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,
+			"mode":               terminalMode,
+			"sandboxProvider":    "",
+			"workspaceRootPath":  terminalWorkspaceRootPath,
+			"posixHelperPath":    terminalPOSIXHelperPath,
+			"deniedPathPrefixes": BlueclawDeniedPathPrefixes,
 			"requesterWorkspace": map[string]any{
 				"requesterTemporaryEnvironmentVariable": "BLUECLAW_REQUESTER_TMP",
 				"taskTemporaryEnvironmentVariable":      "BLUECLAW_TASK_TMP",

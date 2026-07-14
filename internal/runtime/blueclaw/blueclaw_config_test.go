@@ -299,6 +299,7 @@ func TestBlueclawRuntimeConfigCanIncludeGenerationOptions(t *testing.T) {
 
 func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *testing.T) {
 	t.Setenv(BlueclawTestModelEnvironment, "google/test-model")
+	t.Setenv(BlueclawTestModelTierEnvironment, "xlow")
 	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
 	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
 
@@ -312,11 +313,29 @@ func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *
 	if !options.ShouldUseModelForAllTiers {
 		t.Fatalf("expected environment model to apply to all model tiers, got %+v", options)
 	}
+	if options.DefaultTaskLevel != "xlow" {
+		t.Fatalf("expected task level from environment, got %+v", options)
+	}
 	if options.GenerationSeed == nil || *options.GenerationSeed != 41 {
 		t.Fatalf("expected seed from environment, got %+v", options)
 	}
 	if options.GenerationTemperature == nil || *options.GenerationTemperature != 0 {
 		t.Fatalf("expected temperature from environment, got %+v", options)
+	}
+}
+
+func TestBlueclawRuntimeConfigUsesRequestedDefaultTaskLevel(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{DefaultTaskLevel: "xlow"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
+	if agentConfiguration["defaultTaskLevel"] != "xlow" {
+		t.Fatalf("expected xlow default task level, got %+v", agentConfiguration)
 	}
 }
 
@@ -698,10 +717,11 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 }
 
 func TestCapabilitydServiceCanUseTestModelFromEnvironment(t *testing.T) {
-	t.Setenv(BlueclawTestModelEnvironment, BlueclawTestModelName)
+	const testModelName = "google/test-model"
+	t.Setenv(BlueclawTestModelEnvironment, testModelName)
 
 	serviceDocument := CapabilitydServiceUnit()
-	if !strings.Contains(serviceDocument, "--openrouter-model "+BlueclawTestModelName) {
+	if !strings.Contains(serviceDocument, "--openrouter-model "+testModelName) {
 		t.Fatalf("expected capabilityd service to use test model, got %s", serviceDocument)
 	}
 	if strings.Contains(serviceDocument, "--force-openrouter-model") {
