@@ -28,6 +28,7 @@ var StepServices = Step{
 		rootfsBaseCheck := trimmedRun(context, blueclawRootfsBaseContractCheckCommand())
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+			sdkdServiceIsReady(context) &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
@@ -61,6 +62,21 @@ chown root:root /root/.internkim/secrets /root/.internkim/secrets/mattermost-bot
 chmod 700 /root/.internkim/secrets 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
 rm -f /root/.internkim/env/bot-token`)
+
+		connection.Run(`mkdir -p /root/.internkim/secrets
+if [ ! -s /root/.internkim/secrets/sdkd-auth-key ]; then
+  umask 077
+  head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /root/.internkim/secrets/sdkd-auth-key
+fi
+chown root:root /root/.internkim/secrets/sdkd-auth-key
+chmod 600 /root/.internkim/secrets/sdkd-auth-key
+install -d -o root -g root -m 700 ` + blueclaw.SDKDServiceCredentialDirectoryPath + `
+install -o root -g root -m 600 /root/.internkim/secrets/sdkd-auth-key ` + blueclaw.SDKDServiceAuthKeyPath + `
+if [ -s /root/.internkim/secrets/openrouter-api-key ]; then
+  install -o root -g root -m 600 /root/.internkim/secrets/openrouter-api-key ` + blueclaw.SDKDServiceOpenRouterKeyPath + `
+else
+  rm -f ` + blueclaw.SDKDServiceOpenRouterKeyPath + `
+fi`)
 
 		connection.Run(`cd /root/.blueclaw/workspace/skills 2>/dev/null && \
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
@@ -146,6 +162,14 @@ if [ -f "$configuration_path" ]; then
 fi`
 }
 
+func sdkdServiceIsReady(context *Context) bool {
+	if context.BoardType == BoardSimulation {
+		return true
+	}
+	return trimmedRun(context, "systemctl is-active "+blueclaw.SDKDServiceName) == "active" &&
+		trimmedRun(context, blueclaw.SDKDHealthCheckCommand()) == "ok"
+}
+
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {
 	if context.BoardType == BoardSimulation {
 		return true
@@ -190,9 +214,10 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: capabilitydServiceUnitForContext(context)},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
+		{path: blueclaw.SDKDServicePath, document: blueclaw.SDKDServiceUnit()},
 	}
 	if context.BoardType == BoardSimulation {
-		return services
+		return services[:3]
 	}
 	if !shouldManageLocalLLMServices(context) {
 		return services
@@ -213,12 +238,13 @@ func capabilitydServiceUnitForContext(context *Context) string {
 
 func enabledServiceNames(context *Context) []string {
 	serviceNames := []string{
+		blueclaw.SDKDServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	}
 	if context.BoardType == BoardSimulation {
-		return serviceNames
+		return serviceNames[1:]
 	}
 	if !shouldManageLocalLLMServices(context) {
 		return serviceNames
@@ -242,6 +268,9 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["capabilityd"] != "active" {
 		return false
 	}
+	if context.BoardType != BoardSimulation && report["sdkd"] != "active" {
+		return false
+	}
 	if report["admind"] != "active" {
 		return false
 	}
@@ -249,6 +278,9 @@ func blueclawServicesAreHealthy(context *Context) bool {
 		return false
 	}
 	if report["capabilitydHealth"] != "ok" {
+		return false
+	}
+	if context.BoardType != BoardSimulation && report["sdkdHealth"] != "ok" {
 		return false
 	}
 	if context.BoardType == BoardSimulation {
@@ -290,6 +322,12 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
 		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+	}
+	if context.BoardType != BoardSimulation {
+		checks = append(checks,
+			serviceHealthCheck{name: "sdkd", command: "systemctl is-active " + blueclaw.SDKDServiceName + " 2>/dev/null"},
+			serviceHealthCheck{name: "sdkdHealth", command: blueclaw.SDKDHealthCheckCommand()},
+		)
 	}
 	if shouldManageLocalLLMServices(context) {
 		checks = append(checks,
