@@ -1390,7 +1390,7 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 		"interaction": map[string]any{
 			"interactionID":        "interaction-1",
 			"taskRunID":            "task-1",
-			"kind":                 "ask_choice_single",
+			"kind":                 "ask_input",
 			"question":             "구현은 어떻게 하는 게 좋을까요?",
 			"recommendedOptionKey": "A",
 			"selectionMode":        "single",
