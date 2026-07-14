@@ -521,6 +521,130 @@ func TestOrgchartPeopleCacheCompletesLocalUserMutationAfterExternalFailure(t *te
 	}
 }
 
+func TestOrgchartUserMutationCleanupFailurePreservesSuccessLocal(t *testing.T) {
+	t.Run("single", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		service.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		failOrgchartUserMutationCompletion(t, service)
+
+		responseRecorder := httptest.NewRecorder()
+		requestBody := strings.NewReader(`{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}`)
+		service.localUpsertUser(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+
+		assertOrgchartCleanupFailureUserResponse(t, responseRecorder)
+	})
+
+	t.Run("batch", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		service.HTTPClient = newOrgchartCleanupFailureLocalUpsertClient(t)
+		failOrgchartUserMutationCompletion(t, service)
+
+		responseRecorder := httptest.NewRecorder()
+		requestBody := strings.NewReader(`{"users":[{"email":"new@example.com","handle":"new-user","name":"New User","role":"admin","circles":[],"note":"Local note"}]}`)
+		service.localUpsertUsersBatch(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", requestBody))
+
+		assertOrgchartCleanupFailureUserResponse(t, responseRecorder)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		service := newLocalUsersTestService(t)
+		service.HTTPClient = newOrgchartCleanupFailureLocalDeleteClient(t)
+		failOrgchartUserMutationCompletion(t, service)
+
+		responseRecorder := httptest.NewRecorder()
+		service.localRemoveUser(responseRecorder, httptest.NewRequest(http.MethodDelete, "/admin/api/users/member@example.com", nil), "member@example.com")
+
+		if responseRecorder.Code != http.StatusOK || responseRecorder.Body.String() != "{\"ok\":true}\n" {
+			t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+		}
+	})
+}
+
+func failOrgchartUserMutationCompletion(t *testing.T, service *Service) {
+	t.Helper()
+	database, errorValue := service.openOrgchartDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	_, errorValue = database.Exec(`
+		CREATE TRIGGER fail_orgchart_user_mutation_completion
+		BEFORE UPDATE OF active_mutations ON orgchart_people_cache_states
+		WHEN NEW.active_mutations < OLD.active_mutations
+		BEGIN
+			SELECT RAISE(FAIL, 'forced orgchart user mutation completion failure');
+		END
+	`)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func newOrgchartCleanupFailureLocalUpsertClient(t *testing.T) *http.Client {
+	t.Helper()
+	mattermostCreated := false
+	blueclawSaved := false
+	return &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200" {
+			return jsonResponse(http.StatusOK, `[{"id":"user-new","email":"new@example.com","username":"new-user","nickname":"New User","roles":"system_user","delete_at":0}]`, nil), nil
+		}
+		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members" {
+			return jsonResponse(http.StatusOK, `[{"user_id":"user-new","roles":"team_user team_admin"}]`, nil), nil
+		}
+		if request.URL.Host == "blueclaw.local" {
+			return localUsersBlueclawUpsertResponse(t, request, &blueclawSaved)
+		}
+		return localUsersMattermostUpsertResponse(t, request, &mattermostCreated)
+	})}
+}
+
+func newOrgchartCleanupFailureLocalDeleteClient(t *testing.T) *http.Client {
+	t.Helper()
+	return &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
+			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"member@example.com","username":"member-user","roles":"system_user","delete_at":0}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
+			return jsonResponse(http.StatusOK, `[{"id":"user-1","email":"admin@example.com","username":"admin-user","roles":"system_admin system_user","delete_at":0},{"id":"user-2","email":"member@example.com","username":"member-user","roles":"system_user","delete_at":0}]`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
+			return jsonResponse(http.StatusOK, `[{"user_id":"user-1","roles":"team_user team_admin"},{"user_id":"user-2","roles":"team_user"}]`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-2":
+			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"member@example.com","username":"member-user","roles":"system_user","delete_at":0}`, nil), nil
+		case request.Method == http.MethodDelete && request.URL.String() == "http://mattermost.local/api/v4/users/user-2":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
+			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodDelete && request.URL.String() == "http://blueclaw.local/admin/api/people?email=member%40example.com":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+}
+
+func assertOrgchartCleanupFailureUserResponse(t *testing.T, responseRecorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	var response pagesUsersResponse
+	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(response.Records) != 1 || response.Records[0].Email != "new@example.com" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func assertOrgchartPersonCacheFound(t *testing.T, service *Service, userID string, expected bool) {
 	t.Helper()
 	assertOrgchartCacheFound(t, service, orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: userID}, expected)

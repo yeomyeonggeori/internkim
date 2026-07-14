@@ -237,10 +237,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			service.triggerUsersSync(request.Context())
 		}
 		if len(orgchartMutationIdentities) > 0 {
-			if errorValue := orgchartMutation.complete(request.Context()); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-				return
-			}
+			orgchartMutation.completeAfterSourceMutation(request.Context())
 		}
 		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {

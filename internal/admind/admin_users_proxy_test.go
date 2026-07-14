@@ -257,6 +257,42 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 	}
 }
 
+func TestOrgchartUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
+	sourceResponseBody := `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
+	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+			return response, nil
+		}
+		switch {
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
+		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusAccepted, sourceResponseBody, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		case isBlueclawInviteRequest(t, request, "member@example.com"):
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})
+	failOrgchartUserMutationCompletion(t, service)
+
+	requestBody := strings.NewReader(`{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}`)
+	responseRecorder := httptest.NewRecorder()
+	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+
+	expectedBody := string(usersResponseBodyWithProfileImages([]byte(sourceResponseBody)))
+	if responseRecorder.Code != http.StatusAccepted || responseRecorder.Body.String() != expectedBody {
+		t.Fatalf("status = %d body = %s; want status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String(), http.StatusAccepted, expectedBody)
+	}
+}
+
 func newAdminUsersProxyTestService(t *testing.T, transport roundTripFunc) *Service {
 	t.Helper()
 	deviceDirectory := t.TempDir()
