@@ -9,12 +9,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,12 +26,14 @@ import (
 )
 
 const (
-	companyShareCookieName       = "internkim_company_share"
-	companyShareSecretName       = "company-share-session-secret"
-	companyShareSettingsFileName = "company-share-settings.json"
-	companyShareSnapshotFileName = "company-share-snapshot.json"
-	companyShareAttemptWindow    = 15 * time.Minute
-	companyShareAttemptLimit     = 5
+	companyShareCookieName            = "internkim_company_share"
+	companyShareSecretName            = "company-share-session-secret"
+	companyShareConfigurationFileName = "company-share.json"
+	companyShareAccessFileName        = "company-share-access.json"
+	companyShareLegacySettingsName    = "company-share-settings.json"
+	companyShareSnapshotFileName      = "company-share-snapshot.json"
+	companyShareAttemptWindow         = 15 * time.Minute
+	companyShareAttemptLimit          = 5
 )
 
 var allowedCompanyShareFields = map[string]bool{
@@ -51,11 +55,14 @@ var defaultCompanyShareFields = []string{
 	"brandName", "slogan", "description", "website", "foundedDate", "employeeCount", "jurisdiction",
 }
 
+var companyShareLanguagePattern = regexp.MustCompile(`(?i)^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$`)
+
 type companyShareSettings struct {
 	Enabled             bool                                 `json:"enabled"`
-	PasswordHash        string                               `json:"passwordHash,omitempty"`
-	AccessVersion       int                                  `json:"accessVersion"`
+	PasswordHash        string                               `json:"-"`
+	AccessVersion       int                                  `json:"-"`
 	SessionHours        int                                  `json:"sessionHours"`
+	Languages           []string                             `json:"languages"`
 	ProfileFields       []string                             `json:"profileFields"`
 	MetricNames         []string                             `json:"metricNames"`
 	PrimaryMetric       string                               `json:"primaryMetric,omitempty"`
@@ -70,10 +77,22 @@ type companyShareSettings struct {
 	PublicationRevision int                                  `json:"publicationRevision"`
 }
 
+type companyShareAccessState struct {
+	PasswordHash  string `json:"passwordHash,omitempty"`
+	AccessVersion int    `json:"accessVersion"`
+}
+
+type legacyCompanyShareSettings struct {
+	companyShareSettings
+	PasswordHash  string `json:"passwordHash,omitempty"`
+	AccessVersion int    `json:"accessVersion"`
+}
+
 type companyShareSettingsResponse struct {
 	Enabled             bool                                 `json:"enabled"`
 	HasPassword         bool                                 `json:"hasPassword"`
 	SessionHours        int                                  `json:"sessionHours"`
+	Languages           []string                             `json:"languages"`
 	ProfileFields       []string                             `json:"profileFields"`
 	MetricNames         []string                             `json:"metricNames"`
 	PrimaryMetric       string                               `json:"primaryMetric,omitempty"`
@@ -89,19 +108,23 @@ type companyShareSettingsResponse struct {
 }
 
 type companyShareSettingsUpdate struct {
-	Enabled          bool                                 `json:"enabled"`
-	Password         string                               `json:"password"`
-	SessionHours     int                                  `json:"sessionHours"`
-	ProfileFields    []string                             `json:"profileFields"`
-	MetricNames      []string                             `json:"metricNames"`
-	PrimaryMetric    string                               `json:"primaryMetric"`
-	MetricContexts   map[string]companyShareMetricContext `json:"metricContexts"`
-	RecordIDs        []string                             `json:"recordIDs"`
-	RecordContexts   map[string]companyShareRecordContext `json:"recordContexts"`
-	DocumentIDs      []string                             `json:"documentIDs"`
-	ContactEmail     string                               `json:"contactEmail"`
-	ShowTeamActivity bool                                 `json:"showTeamActivity"`
-	Narratives       map[string]companyShareNarrative     `json:"narratives"`
+	Enabled             bool                                 `json:"enabled"`
+	Password            string                               `json:"password"`
+	HasPassword         bool                                 `json:"hasPassword,omitempty"`
+	SessionHours        int                                  `json:"sessionHours"`
+	Languages           []string                             `json:"languages"`
+	ProfileFields       []string                             `json:"profileFields"`
+	MetricNames         []string                             `json:"metricNames"`
+	PrimaryMetric       string                               `json:"primaryMetric"`
+	MetricContexts      map[string]companyShareMetricContext `json:"metricContexts"`
+	RecordIDs           []string                             `json:"recordIDs"`
+	RecordContexts      map[string]companyShareRecordContext `json:"recordContexts"`
+	DocumentIDs         []string                             `json:"documentIDs"`
+	ContactEmail        string                               `json:"contactEmail"`
+	ShowTeamActivity    bool                                 `json:"showTeamActivity"`
+	Narratives          map[string]companyShareNarrative     `json:"narratives"`
+	PublishedAt         string                               `json:"publishedAt,omitempty"`
+	PublicationRevision int                                  `json:"publicationRevision,omitempty"`
 }
 
 type companyShareMetricContext struct {
@@ -178,6 +201,7 @@ type companyShareDocument struct {
 type companyShareSnapshot struct {
 	Revision       int                                  `json:"revision"`
 	PublishedAt    string                               `json:"publishedAt"`
+	Languages      []string                             `json:"languages"`
 	Profiles       map[string]companyShareProfile       `json:"profiles"`
 	Metrics        []companyShareMetric                 `json:"metrics"`
 	PrimaryMetric  string                               `json:"primaryMetric,omitempty"`
@@ -210,8 +234,8 @@ func (service *Service) writeCompanyShareSettings(responseWriter http.ResponseWr
 }
 
 func (service *Service) updateCompanyShareSettings(responseWriter http.ResponseWriter, request *http.Request) {
-	var update companyShareSettingsUpdate
-	if errorValue := json.NewDecoder(request.Body).Decode(&update); errorValue != nil {
+	update, errorValue := decodeCompanyShareSettingsUpdate(responseWriter, request)
+	if errorValue != nil {
 		http.Error(responseWriter, "설정 내용을 확인해 주세요.", http.StatusBadRequest)
 		return
 	}
@@ -230,6 +254,19 @@ func (service *Service) updateCompanyShareSettings(responseWriter http.ResponseW
 		return
 	}
 	service.writeJSON(responseWriter, companyShareSettingsView(updated))
+}
+
+func decodeCompanyShareSettingsUpdate(responseWriter http.ResponseWriter, request *http.Request) (companyShareSettingsUpdate, error) {
+	var update companyShareSettingsUpdate
+	decoder := json.NewDecoder(http.MaxBytesReader(responseWriter, request.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(&update); errorValue != nil {
+		return companyShareSettingsUpdate{}, errorValue
+	}
+	if errorValue := decoder.Decode(&struct{}{}); !errors.Is(errorValue, io.EOF) {
+		return companyShareSettingsUpdate{}, errors.New("company share settings must contain one JSON object")
+	}
+	return update, nil
 }
 
 func applyCompanyShareSettingsUpdate(settings companyShareSettings, update companyShareSettingsUpdate) (companyShareSettings, error) {
@@ -256,6 +293,15 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 	}
 	settings.Enabled = update.Enabled
 	settings.SessionHours = update.SessionHours
+	languageValues := update.Languages
+	if languageValues == nil {
+		languageValues = settings.Languages
+	}
+	languages, errorValue := normalizeCompanyShareLanguages(languageValues)
+	if errorValue != nil {
+		return settings, errorValue
+	}
+	settings.Languages = languages
 	settings.ProfileFields = filterCompanyShareFields(update.ProfileFields)
 	settings.MetricNames = uniqueTrimmedValues(update.MetricNames)
 	primaryMetric := strings.TrimSpace(update.PrimaryMetric)
@@ -266,7 +312,7 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 	if metricContexts == nil {
 		metricContexts = settings.MetricContexts
 	}
-	normalizedMetricContexts, errorValue := normalizeCompanyShareMetricContexts(metricContexts, settings.MetricNames)
+	normalizedMetricContexts, errorValue := normalizeCompanyShareMetricContexts(metricContexts, settings.MetricNames, settings.Languages)
 	if errorValue != nil {
 		return settings, errorValue
 	}
@@ -277,7 +323,7 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 	if recordContexts == nil {
 		recordContexts = settings.RecordContexts
 	}
-	normalizedRecordContexts, errorValue := normalizeCompanyShareRecordContexts(recordContexts, settings.RecordIDs)
+	normalizedRecordContexts, errorValue := normalizeCompanyShareRecordContexts(recordContexts, settings.RecordIDs, settings.Languages)
 	if errorValue != nil {
 		return settings, errorValue
 	}
@@ -290,7 +336,7 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 	settings.ContactEmail = contactEmail
 	settings.ShowTeamActivity = update.ShowTeamActivity
 	if update.Narratives != nil {
-		narratives, errorValue := normalizeCompanyShareNarratives(update.Narratives)
+		narratives, errorValue := normalizeCompanyShareNarratives(update.Narratives, settings.Languages)
 		if errorValue != nil {
 			return settings, errorValue
 		}
@@ -355,7 +401,8 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 	return companyShareSnapshot{
 		Revision:       settings.PublicationRevision + 1,
 		PublishedAt:    now.Format(time.RFC3339),
-		Profiles:       buildCompanyShareProfiles(info, settings.ProfileFields),
+		Languages:      append([]string{}, settings.Languages...),
+		Profiles:       buildCompanyShareProfiles(info, settings.ProfileFields, settings.Languages),
 		Metrics:        metrics,
 		PrimaryMetric:  settings.PrimaryMetric,
 		MetricContexts: settings.MetricContexts,
@@ -367,10 +414,10 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 	}, nil
 }
 
-func buildCompanyShareProfiles(info companyInfo, fields []string) map[string]companyShareProfile {
+func buildCompanyShareProfiles(info companyInfo, fields []string, languages []string) map[string]companyShareProfile {
 	included := stringSet(fields)
 	profiles := map[string]companyShareProfile{}
-	for _, language := range []string{"ko", "en"} {
+	for _, language := range languages {
 		profile := companyShareProfile{Name: resolveAnyLocalized(info.Name, language)}
 		if included["brandName"] {
 			profile.BrandName = resolveAnyLocalized(info.BrandName, language)
@@ -701,7 +748,7 @@ func (service *Service) companyShareSigningKey() ([]byte, error) {
 func (service *Service) readCompanyShareSettings() (companyShareSettings, error) {
 	document, errorValue := os.ReadFile(service.companyShareSettingsPath())
 	if errors.Is(errorValue, os.ErrNotExist) {
-		return defaultCompanyShareSettings(), nil
+		return service.readLegacyCompanyShareSettings()
 	}
 	if errorValue != nil {
 		return companyShareSettings{}, errorValue
@@ -710,14 +757,67 @@ func (service *Service) readCompanyShareSettings() (companyShareSettings, error)
 	if errorValue := json.Unmarshal(document, &settings); errorValue != nil {
 		return companyShareSettings{}, errorValue
 	}
+	accessState, errorValue := service.readCompanyShareAccessState()
+	if errorValue != nil {
+		return companyShareSettings{}, errorValue
+	}
+	settings.PasswordHash = accessState.PasswordHash
+	settings.AccessVersion = accessState.AccessVersion
+	return normalizeStoredCompanyShareSettings(settings), nil
+}
+
+func (service *Service) readLegacyCompanyShareSettings() (companyShareSettings, error) {
+	document, errorValue := os.ReadFile(service.companyShareLegacySettingsPath())
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return defaultCompanyShareSettings(), nil
+	}
+	if errorValue != nil {
+		return companyShareSettings{}, errorValue
+	}
+	var legacySettings legacyCompanyShareSettings
+	if errorValue := json.Unmarshal(document, &legacySettings); errorValue != nil {
+		return companyShareSettings{}, errorValue
+	}
+	settings := legacySettings.companyShareSettings
+	settings.PasswordHash = legacySettings.PasswordHash
+	settings.AccessVersion = legacySettings.AccessVersion
+	settings = normalizeStoredCompanyShareSettings(settings)
+	if errorValue := service.writeCompanyShareSettingsFile(settings); errorValue != nil {
+		return companyShareSettings{}, errorValue
+	}
+	return settings, nil
+}
+
+func (service *Service) readCompanyShareAccessState() (companyShareAccessState, error) {
+	document, errorValue := os.ReadFile(service.companyShareAccessPath())
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return companyShareAccessState{AccessVersion: 1}, nil
+	}
+	if errorValue != nil {
+		return companyShareAccessState{}, errorValue
+	}
+	var accessState companyShareAccessState
+	if errorValue := json.Unmarshal(document, &accessState); errorValue != nil {
+		return companyShareAccessState{}, errorValue
+	}
+	if accessState.AccessVersion == 0 {
+		accessState.AccessVersion = 1
+	}
+	return accessState, nil
+}
+
+func normalizeStoredCompanyShareSettings(settings companyShareSettings) companyShareSettings {
 	if settings.SessionHours == 0 {
 		settings.SessionHours = 24
 	}
 	if settings.AccessVersion == 0 {
 		settings.AccessVersion = 1
 	}
+	if len(settings.Languages) == 0 {
+		settings.Languages = inferCompanyShareLanguages(settings)
+	}
 	if settings.Narratives == nil {
-		settings.Narratives = defaultCompanyShareNarratives()
+		settings.Narratives = defaultCompanyShareNarratives(settings.Languages)
 	}
 	if settings.MetricContexts == nil {
 		settings.MetricContexts = map[string]companyShareMetricContext{}
@@ -725,32 +825,38 @@ func (service *Service) readCompanyShareSettings() (companyShareSettings, error)
 	if settings.RecordContexts == nil {
 		settings.RecordContexts = map[string]companyShareRecordContext{}
 	}
-	return settings, nil
+	return settings
 }
 
 func defaultCompanyShareSettings() companyShareSettings {
 	return companyShareSettings{
 		AccessVersion:  1,
 		SessionHours:   24,
+		Languages:      []string{"en"},
 		ProfileFields:  append([]string{}, defaultCompanyShareFields...),
 		MetricNames:    []string{},
 		MetricContexts: map[string]companyShareMetricContext{},
 		RecordIDs:      []string{},
 		RecordContexts: map[string]companyShareRecordContext{},
 		DocumentIDs:    []string{},
-		Narratives:     defaultCompanyShareNarratives(),
+		Narratives:     defaultCompanyShareNarratives([]string{"en"}),
 	}
 }
 
-func defaultCompanyShareNarratives() map[string]companyShareNarrative {
-	return map[string]companyShareNarrative{
-		"ko": {Highlights: []string{}},
-		"en": {Highlights: []string{}},
+func defaultCompanyShareNarratives(languages []string) map[string]companyShareNarrative {
+	narratives := make(map[string]companyShareNarrative, len(languages))
+	for _, language := range languages {
+		narratives[language] = companyShareNarrative{Highlights: []string{}}
 	}
+	return narratives
 }
 
 func (service *Service) writeCompanyShareSettingsFile(settings companyShareSettings) error {
-	return writeCompanyShareJSON(service.companyShareSettingsPath(), settings)
+	if errorValue := writeCompanyShareJSON(service.companyShareSettingsPath(), settings, 0o755, 0o644); errorValue != nil {
+		return errorValue
+	}
+	accessState := companyShareAccessState{PasswordHash: settings.PasswordHash, AccessVersion: settings.AccessVersion}
+	return writeCompanyShareJSON(service.companyShareAccessPath(), accessState, 0o700, 0o600)
 }
 
 func (service *Service) readCompanyShareSnapshot() (companyShareSnapshot, error) {
@@ -762,26 +868,49 @@ func (service *Service) readCompanyShareSnapshot() (companyShareSnapshot, error)
 	if errorValue := json.Unmarshal(document, &snapshot); errorValue != nil {
 		return companyShareSnapshot{}, errorValue
 	}
+	if len(snapshot.Languages) == 0 {
+		snapshot.Languages = inferCompanyShareSnapshotLanguages(snapshot)
+	}
 	return snapshot, nil
 }
 
 func (service *Service) writeCompanyShareSnapshotFile(snapshot companyShareSnapshot) error {
-	return writeCompanyShareJSON(service.companyShareSnapshotPath(), snapshot)
+	return writeCompanyShareJSON(service.companyShareSnapshotPath(), snapshot, 0o700, 0o600)
 }
 
-func writeCompanyShareJSON(path string, value any) error {
+func writeCompanyShareJSON(path string, value any, directoryMode os.FileMode, fileMode os.FileMode) error {
 	document, errorValue := json.MarshalIndent(value, "", "  ")
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+	directoryPath := filepath.Dir(path)
+	if errorValue := os.MkdirAll(directoryPath, directoryMode); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, append(document, '\n'), 0o600)
+	if errorValue := os.Chmod(directoryPath, directoryMode); errorValue != nil {
+		return errorValue
+	}
+	return writeFileAtomically(path, append(document, '\n'), fileMode)
 }
 
 func (service *Service) companyShareSettingsPath() string {
-	return filepath.Join(service.Configuration.StateDirectory, companyShareSettingsFileName)
+	return filepath.Join(service.companyShareWorkspacePath(), ".protected", companyShareConfigurationFileName)
+}
+
+func (service *Service) companyShareWorkspacePath() string {
+	defaultConfiguration := DefaultConfiguration()
+	if service.Configuration.BlueclawWorkspacePath == defaultConfiguration.BlueclawWorkspacePath && service.Configuration.StateDirectory != defaultConfiguration.StateDirectory {
+		return filepath.Join(service.Configuration.StateDirectory, "workspace")
+	}
+	return service.Configuration.BlueclawWorkspacePath
+}
+
+func (service *Service) companyShareAccessPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, companyShareAccessFileName)
+}
+
+func (service *Service) companyShareLegacySettingsPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, companyShareLegacySettingsName)
 }
 func (service *Service) companyShareSnapshotPath() string {
 	return filepath.Join(service.Configuration.StateDirectory, companyShareSnapshotFileName)
@@ -792,6 +921,7 @@ func companyShareSettingsView(settings companyShareSettings) companyShareSetting
 		Enabled:             settings.Enabled,
 		HasPassword:         settings.PasswordHash != "",
 		SessionHours:        settings.SessionHours,
+		Languages:           settings.Languages,
 		ProfileFields:       settings.ProfileFields,
 		MetricNames:         settings.MetricNames,
 		PrimaryMetric:       settings.PrimaryMetric,
@@ -807,10 +937,10 @@ func companyShareSettingsView(settings companyShareSettings) companyShareSetting
 	}
 }
 
-func normalizeCompanyShareMetricContexts(values map[string]companyShareMetricContext, metricNames []string) (map[string]companyShareMetricContext, error) {
+func normalizeCompanyShareMetricContexts(values map[string]companyShareMetricContext, metricNames []string, languages []string) (map[string]companyShareMetricContext, error) {
 	contexts := map[string]companyShareMetricContext{}
 	for _, metricName := range metricNames {
-		contextValue, errorValue := normalizeCompanyShareMetricContext(values[metricName])
+		contextValue, errorValue := normalizeCompanyShareMetricContext(values[metricName], languages)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -819,12 +949,12 @@ func normalizeCompanyShareMetricContexts(values map[string]companyShareMetricCon
 	return contexts, nil
 }
 
-func normalizeCompanyShareMetricContext(value companyShareMetricContext) (companyShareMetricContext, error) {
-	labels, errorValue := normalizeCompanyShareLocalizedValues(value.Labels, 120)
+func normalizeCompanyShareMetricContext(value companyShareMetricContext, languages []string) (companyShareMetricContext, error) {
+	labels, errorValue := normalizeCompanyShareLocalizedValues(value.Labels, languages, 120)
 	if errorValue != nil {
 		return companyShareMetricContext{}, errorValue
 	}
-	descriptions, errorValue := normalizeCompanyShareLocalizedValues(value.Descriptions, 500)
+	descriptions, errorValue := normalizeCompanyShareLocalizedValues(value.Descriptions, languages, 500)
 	if errorValue != nil {
 		return companyShareMetricContext{}, errorValue
 	}
@@ -846,10 +976,10 @@ var companyShareEvidenceRoles = map[string]bool{
 	"growth": true, "efficiency": true, "scale": true, "quality": true, "reach": true, "capital": true,
 }
 
-func normalizeCompanyShareRecordContexts(values map[string]companyShareRecordContext, recordIDs []string) (map[string]companyShareRecordContext, error) {
+func normalizeCompanyShareRecordContexts(values map[string]companyShareRecordContext, recordIDs []string, languages []string) (map[string]companyShareRecordContext, error) {
 	contexts := map[string]companyShareRecordContext{}
 	for _, recordID := range recordIDs {
-		contextValue, errorValue := normalizeCompanyShareRecordContext(values[recordID])
+		contextValue, errorValue := normalizeCompanyShareRecordContext(values[recordID], languages)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -858,12 +988,12 @@ func normalizeCompanyShareRecordContexts(values map[string]companyShareRecordCon
 	return contexts, nil
 }
 
-func normalizeCompanyShareRecordContext(value companyShareRecordContext) (companyShareRecordContext, error) {
-	titles, errorValue := normalizeCompanyShareLocalizedValues(value.Titles, 160)
+func normalizeCompanyShareRecordContext(value companyShareRecordContext, languages []string) (companyShareRecordContext, error) {
+	titles, errorValue := normalizeCompanyShareLocalizedValues(value.Titles, languages, 160)
 	if errorValue != nil {
 		return companyShareRecordContext{}, errorValue
 	}
-	descriptions, errorValue := normalizeCompanyShareLocalizedValues(value.Descriptions, 800)
+	descriptions, errorValue := normalizeCompanyShareLocalizedValues(value.Descriptions, languages, 800)
 	if errorValue != nil {
 		return companyShareRecordContext{}, errorValue
 	}
@@ -904,9 +1034,9 @@ func publicCompanyShareAttributeValue(value any) (string, bool) {
 	}
 }
 
-func normalizeCompanyShareLocalizedValues(values map[string]string, maximumLength int) (map[string]string, error) {
+func normalizeCompanyShareLocalizedValues(values map[string]string, languages []string, maximumLength int) (map[string]string, error) {
 	result := map[string]string{}
-	for _, language := range []string{"ko", "en"} {
+	for _, language := range languages {
 		value := strings.TrimSpace(values[language])
 		if len([]rune(value)) > maximumLength {
 			return nil, errors.New("지표 설명 길이를 확인해 주세요.")
@@ -916,9 +1046,9 @@ func normalizeCompanyShareLocalizedValues(values map[string]string, maximumLengt
 	return result, nil
 }
 
-func normalizeCompanyShareNarratives(values map[string]companyShareNarrative) (map[string]companyShareNarrative, error) {
-	narratives := defaultCompanyShareNarratives()
-	for _, language := range []string{"ko", "en"} {
+func normalizeCompanyShareNarratives(values map[string]companyShareNarrative, languages []string) (map[string]companyShareNarrative, error) {
+	narratives := defaultCompanyShareNarratives(languages)
+	for _, language := range languages {
 		narrative, errorValue := normalizeCompanyShareNarrative(values[language])
 		if errorValue != nil {
 			return nil, errorValue
@@ -926,6 +1056,90 @@ func normalizeCompanyShareNarratives(values map[string]companyShareNarrative) (m
 		narratives[language] = narrative
 	}
 	return narratives, nil
+}
+
+func normalizeCompanyShareLanguages(values []string) ([]string, error) {
+	languages := []string{"en"}
+	seen := map[string]bool{"en": true}
+	for _, value := range values {
+		language := normalizeCompanyShareLanguage(value)
+		if language == "" {
+			return nil, errors.New("언어 코드는 en, ja, pt-BR 같은 형식으로 입력해 주세요.")
+		}
+		if seen[language] {
+			continue
+		}
+		seen[language] = true
+		languages = append(languages, language)
+	}
+	if len(languages) > 8 {
+		return nil, errors.New("공개 페이지 언어는 영어를 포함해 8개 이하로 선택해 주세요.")
+	}
+	return languages, nil
+}
+
+func normalizeCompanyShareLanguage(value string) string {
+	trimmedValue := strings.ReplaceAll(strings.TrimSpace(value), "_", "-")
+	if !companyShareLanguagePattern.MatchString(trimmedValue) {
+		return ""
+	}
+	parts := strings.Split(trimmedValue, "-")
+	for index, part := range parts {
+		switch {
+		case index == 0:
+			parts[index] = strings.ToLower(part)
+		case len(part) == 2:
+			parts[index] = strings.ToUpper(part)
+		case len(part) == 4:
+			parts[index] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		default:
+			parts[index] = strings.ToLower(part)
+		}
+	}
+	return strings.Join(parts, "-")
+}
+
+func inferCompanyShareLanguages(settings companyShareSettings) []string {
+	candidates := []string{"en"}
+	for language := range settings.Narratives {
+		candidates = append(candidates, language)
+	}
+	for _, context := range settings.MetricContexts {
+		candidates = appendCompanyShareLocalizedLanguages(candidates, context.Labels, context.Descriptions)
+	}
+	for _, context := range settings.RecordContexts {
+		candidates = appendCompanyShareLocalizedLanguages(candidates, context.Titles, context.Descriptions)
+	}
+	sort.Strings(candidates[1:])
+	languages, errorValue := normalizeCompanyShareLanguages(candidates)
+	if errorValue != nil {
+		return []string{"en"}
+	}
+	return languages
+}
+
+func appendCompanyShareLocalizedLanguages(languages []string, values ...map[string]string) []string {
+	for _, localizedValues := range values {
+		for language := range localizedValues {
+			languages = append(languages, language)
+		}
+	}
+	return languages
+}
+
+func inferCompanyShareSnapshotLanguages(snapshot companyShareSnapshot) []string {
+	candidates := []string{"en"}
+	for language := range snapshot.Profiles {
+		candidates = append(candidates, language)
+	}
+	for language := range snapshot.Narratives {
+		candidates = append(candidates, language)
+	}
+	languages, errorValue := normalizeCompanyShareLanguages(candidates)
+	if errorValue != nil {
+		return []string{"en"}
+	}
+	return languages
 }
 
 func normalizeCompanyShareNarrative(value companyShareNarrative) (companyShareNarrative, error) {
