@@ -2,7 +2,7 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'network';
+export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'sharing' | 'network';
 export type AdminPageText = typeof adminText.ko;
 
 export type UserRecord = {
@@ -158,4 +158,71 @@ export type WifiProfile = {
 
 export type WifiProfilesResponse = {
 	profiles?: WifiProfile[];
+};
+
+export type CompanyMetric = {
+	metric: string;
+	year: number;
+	quarter?: number;
+	month?: number;
+	value: number;
+	currency?: CompanyMetricCurrency;
+	valueUSD?: number;
+	unit?: string;
+};
+
+export type CompanyMetricCurrency = 'USD' | 'KRW' | 'EUR' | 'JPY' | 'GBP' | 'CNY' | 'HKD' | 'SGD' | 'AUD' | 'CAD' | 'CHF' | 'INR';
+
+export type CompanyRecord = {
+	id: string;
+	category: string;
+	date?: string;
+	title: string;
+	detail?: string;
+};
+
+export type CompanyShareNarrative = {
+	highlights: string[];
+	businessModel: string;
+	customerEvidence: string;
+	marketOpportunity: string;
+	competitiveAdvantage: string;
+	roadmap: string;
+	fundingStage: string;
+	fundingTarget: string;
+	useOfFunds: string;
+};
+
+export type CompanyShareMetricContext = {
+	labels: Record<WorkspaceLanguage, string>;
+	descriptions: Record<WorkspaceLanguage, string>;
+	favorableDirection: 'increase' | 'decrease' | 'neutral';
+};
+
+export type CompanyShareSettings = {
+	enabled: boolean;
+	hasPassword: boolean;
+	sessionHours: number;
+	profileFields: string[];
+	metricNames: string[];
+	primaryMetric?: string;
+	metricContexts: Record<string, CompanyShareMetricContext>;
+	recordIDs: string[];
+	contactEmail?: string;
+	showTeamActivity: boolean;
+	narratives: Record<WorkspaceLanguage, CompanyShareNarrative>;
+	publishedAt?: string;
+	publicationRevision: number;
+};
+
+export type CompanyShareSettingsUpdate = Omit<CompanyShareSettings, 'hasPassword' | 'publishedAt' | 'publicationRevision'> & {
+	password: string;
+};
+
+export type CompanyMetricsResponse = {
+	metrics?: CompanyMetric[];
+};
+
+export type CompanyRecordsResponse = {
+	records?: CompanyRecord[];
 };
