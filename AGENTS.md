@@ -177,6 +177,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   the `blueclaw`+`blueclaw-posix-helper` linux/arm64 binaries from
   `.dependency/blueclaw` and syncs migrations (it does not use the Firecracker
   payload). Do not hand-run the build/scp/container steps; use this command.
+- PoC Mattermost runs separately from tenant containers. Interactive action
+  URLs for attendance, approvals, and choices must use each tenant's public
+  Flow URL; `127.0.0.1:18080` reaches Mattermost itself and silently breaks the
+  buttons.
 - The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
   generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output

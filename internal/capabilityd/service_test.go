@@ -24,6 +24,19 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 	}
 }
 
+func TestMattermostAskActionURLUsesConfiguredPublicBaseURL(t *testing.T) {
+	configuration := Configuration{
+		AdmindBaseURL:                "http://127.0.0.1:18080",
+		MattermostInteractiveBaseURL: " https://poc0-t15.intern.kim/ ",
+	}
+	service := Service{Configuration: configuration}
+
+	actualURL := service.mattermostAskActionURL()
+	if actualURL != "https://poc0-t15.intern.kim/_internkim/mattermost/actions" {
+		t.Fatalf("ask action URL = %q", actualURL)
+	}
+}
+
 func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
 	configuration := DefaultConfiguration()
 

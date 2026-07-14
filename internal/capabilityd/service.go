@@ -41,6 +41,7 @@ type Configuration struct {
 	MattermostBaseURL              string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
+	MattermostInteractiveBaseURL   string
 	SlackTokenPath                 string
 	SlackAppTokenPath              string
 	SignalJSONRPCURL               string
@@ -800,41 +801,52 @@ func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context,
 	if attachment == nil {
 		return nil
 	}
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"props": map[string]any{
-			"internkim_raw_event_id": request.RawEventID,
-			"internkim_outbox_id":    request.OutboxID,
-			"attachments":            []any{attachment},
-		},
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return errorValue
 	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
+	post["props"] = map[string]any{
+		"internkim_raw_event_id": request.RawEventID,
+		"internkim_outbox_id":    request.OutboxID,
+		"attachments":            []any{attachment},
 	}
 	body := map[string]any{"user_id": targetUserID, "post": post}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil)
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"message":    strings.TrimSpace(message),
-		"props": map[string]any{
-			"internkim_raw_event_id": request.RawEventID,
-			"internkim_outbox_id":    request.OutboxID,
-		},
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
+	post["message"] = strings.TrimSpace(message)
+	post["props"] = map[string]any{
+		"internkim_raw_event_id": request.RawEventID,
+		"internkim_outbox_id":    request.OutboxID,
 	}
 	body := map[string]any{
 		"user_id": strings.TrimSpace(request.EphemeralUserID),
 		"post":    post,
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
+	if errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
 		return nil, errorValue
 	}
 	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
+}
+
+func (service Service) mattermostEphemeralPost(ctx context.Context, handle platformHandle) (map[string]any, error) {
+	botUserID, errorValue := service.mattermostBotUserID(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	post := map[string]any{
+		"user_id":    botUserID,
+		"channel_id": handle.ChannelID,
+	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		post["root_id"] = handle.RootID
+	}
+	return post, nil
 }
 
 func (request replyRequest) mattermostAskTargetUserID() string {
@@ -1021,7 +1033,11 @@ func trimNonEmptyPlatformStrings(values []string) []string {
 }
 
 func (service Service) mattermostAskActionURL() string {
-	return strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + "/_internkim/mattermost/actions"
+	baseURL := strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostInteractiveBaseURL), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(strings.TrimSpace(service.Configuration.AdmindBaseURL), "/")
+	}
+	return baseURL + "/_internkim/mattermost/actions"
 }
 
 func (service Service) ensureMattermostInteractiveActionToken() string {
