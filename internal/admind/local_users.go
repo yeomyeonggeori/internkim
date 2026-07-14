@@ -228,7 +228,7 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "cannot remove the last admin user", http.StatusConflict)
 		return
 	}
-	identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), userRecord.Email)
+	identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), userRecord.Email, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return

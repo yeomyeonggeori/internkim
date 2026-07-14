@@ -38,7 +38,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		removedUser = userRecord
 		if removedUser != nil {
-			orgchartMutationIdentities = []orgchartPersonIdentity{{UserID: removedUser.UserID, Email: removedUser.Email}}
+			identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), removedUser.Email, removedUser.UserID)
+			if errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+				return
+			}
+			orgchartMutationIdentities = []orgchartPersonIdentity{identity}
 			orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -87,7 +92,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		payload.UserID = userID
-		payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+		_, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
