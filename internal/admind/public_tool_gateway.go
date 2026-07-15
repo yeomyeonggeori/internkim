@@ -245,7 +245,6 @@ func (service *Service) capabilitySocketClient() http.Client {
 				return dialer.DialContext(ctx, "unix", service.Configuration.CapabilitySocketPath)
 			},
 		},
-		Timeout: 90 * time.Second,
 	}
 }
 

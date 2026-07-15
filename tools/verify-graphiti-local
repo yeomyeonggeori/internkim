@@ -85,7 +85,7 @@ echo "starting capabilityd"
   -socket "$socket_path" \
   -openrouter-key "$key_path" \
   -llamacpp-embedding-url "${LLAMACPP_EMBEDDING_URL:-http://127.0.0.1:18082}" \
-  -llamacpp-embedding-model "${LLAMACPP_EMBEDDING_MODEL:-embeddinggemma}" &
+  -llamacpp-embedding-model "${LLAMACPP_EMBEDDING_MODEL:-baai/bge-m3}" &
 capability_pid="$!"
 
 for _ in $(seq 1 80); do

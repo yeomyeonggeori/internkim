@@ -86,7 +86,7 @@ func (pluginValue *Plugin) MessageHasBeenPosted(_ *plugin.Context, post *model.P
 	if pluginValue.isRuntimeHealthy() {
 		return
 	}
-	pluginValue.sendRuntimeUnavailableNotice(post)
+	pluginValue.sendRuntimeUnavailableNotice(post, botUser.Id)
 }
 
 func (pluginValue *Plugin) ServeHTTP(_ *plugin.Context, responseWriter http.ResponseWriter, request *http.Request) {
@@ -188,7 +188,7 @@ func (pluginValue *Plugin) shouldHandlePost(post *model.Post) bool {
 
 func (pluginValue *Plugin) botUser() *model.User {
 	botUser, appError := pluginValue.API.GetUserByUsername(pluginValue.botUsername())
-	if appError != nil || botUser == nil {
+	if appError != nil || botUser == nil || !botUser.IsBot {
 		pluginValue.API.LogWarn("runtime fallback skipped: bot user lookup failed", "botUsername", pluginValue.botUsername())
 		return nil
 	}
@@ -238,8 +238,9 @@ func (pluginValue *Plugin) isRuntimeHealthy() bool {
 	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
 }
 
-func (pluginValue *Plugin) sendRuntimeUnavailableNotice(post *model.Post) {
+func (pluginValue *Plugin) sendRuntimeUnavailableNotice(post *model.Post, botUserID string) {
 	pluginValue.API.SendEphemeralPost(post.UserId, &model.Post{
+		UserId:    botUserID,
 		ChannelId: post.ChannelId,
 		RootId:    post.RootId,
 		Message:   localizedRuntimeUnavailableMessage(pluginValue.userLocale(post.UserId)),

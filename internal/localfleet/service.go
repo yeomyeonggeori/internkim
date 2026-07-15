@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type Service struct {
@@ -169,6 +171,13 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
 	case "mattermost-direct-message-send":
 		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans(keepArtifacts))
+	case "mattermost-manual":
+		if !keepArtifacts {
+			return errors.New("mattermost-manual requires --keep so the browser test session remains available")
+		}
+		return service.runPlans(contextValue, logger, service.mattermostManualScenarioPlans())
+	case "mattermost-ask-ephemeral":
+		return service.runPlans(contextValue, logger, service.mattermostAskEphemeralScenarioPlans())
 	case "mattermost-docx-attachment":
 		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
 	case "restart-policy-survival":
@@ -246,6 +255,17 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.MattermostHostPort = mattermostHostPort
 	}
+	maximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(options.MaximumModelTier)
+	if errorValue != nil {
+		return options, errorValue
+	}
+	if options.ShouldUseRealModels && maximumModelTier != "" {
+		return options, errors.New("maximum model tier cannot be combined with real models")
+	}
+	if !options.ShouldUseRealModels && maximumModelTier == "" {
+		maximumModelTier = "xlow"
+	}
+	options.MaximumModelTier = maximumModelTier
 	return options, nil
 }
 

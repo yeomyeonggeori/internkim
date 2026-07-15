@@ -1,0 +1,47 @@
+{
+  "name": "calendar-lifecycle",
+  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/calendar"],
+  "allowedTools": ["conversation.history", "memory.search", "capability.invoke"],
+  "capabilityToolNames": ["calendar.add", "calendar.list", "calendar.update", "calendar.delete"],
+  "capabilityToolDescriptors": [
+    {"name": "calendar.delete", "requiresApproval": true}
+  ],
+  "initialToolNames": ["capability.invoke"],
+  "steps": [
+    {
+      "prompt": "내일 오전 10시부터 11시까지 '비용 테스트 일정'을 캘린더에 추가해줘.",
+      "expectedToolCalls": ["calendar.add"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 일정", "count": 1}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "방금 만든 '비용 테스트 일정'을 내일 오후 2시부터 3시로 수정해줘.",
+      "expectedToolCalls": ["calendar.update"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.requested", "bodyFragment": "T14:00:00+09:00", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "T14:00:00+09:00", "count": 1}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "방금 수정한 '비용 테스트 일정'을 삭제해줘.",
+      "expectedToolCalls": ["calendar.delete"],
+      "expectedEvents": ["confirmation.requested"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
+      ],
+      "expectedTaskStatus": "waiting_approval"
+    },
+    {
+      "prompt": "일정 삭제 승인할게.",
+      "expectedToolCalls": ["calendar.delete"],
+      "expectedEvents": ["approval.executed"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
+      ],
+      "expectedTaskStatus": "completed"
+    }
+  ]
+}

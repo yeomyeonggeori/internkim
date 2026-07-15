@@ -3,6 +3,7 @@ import { test, type APIRequestContext, type Page } from '@playwright/test';
 type MattermostPostBody = {
 	channel_id: string;
 	message: string;
+	user_id?: string;
 	props?: {
 		attachments: unknown;
 	};
@@ -36,11 +37,12 @@ test('matrix of four message kinds', async ({ page, request }) => {
 	const teamID = await apiJson(request, `/api/v4/teams/name/${teamName}`, 'id');
 	const channelID = await apiJson(request, `/api/v4/teams/${teamID}/channels/name/${channelName}`, 'id');
 	const userID = await apiJson(request, `/api/v4/users/username/${targetUsername}`, 'id');
+	const botUserID = await apiJson(request, '/api/v4/users/me', 'id');
 
 	const s1 = await postNormal(request, channelID, 'MATRIX-1 일반 메시지 (텍스트만)', undefined);
 	const s2 = await postNormal(request, channelID, 'MATRIX-2 일반 메시지 + 버튼', buttons);
-	const s3 = await postEphemeral(request, userID, channelID, 'MATRIX-3 ephemeral (텍스트만)', undefined);
-	const s4 = await postEphemeral(request, userID, channelID, 'MATRIX-4 ephemeral + 버튼', buttons);
+	const s3 = await postEphemeral(request, userID, botUserID, channelID, 'MATRIX-3 ephemeral (텍스트만)', undefined);
+	const s4 = await postEphemeral(request, userID, botUserID, channelID, 'MATRIX-4 ephemeral + 버튼', buttons);
 	console.log(`POST_STATUS normal=${s1} normalButtons=${s2} ephemeral=${s3} ephemeralButtons=${s4}`);
 
 	await page.waitForTimeout(6000);
@@ -57,11 +59,12 @@ async function postNormal(request: APIRequestContext, channelID: string, message
 async function postEphemeral(
 	request: APIRequestContext,
 	userID: string,
+	botUserID: string,
 	channelID: string,
 	message: string,
 	attachments: unknown
 ): Promise<number> {
-	const post: MattermostPostBody = { channel_id: channelID, message };
+	const post: MattermostPostBody = { channel_id: channelID, message, user_id: botUserID };
 	if (attachments) post.props = { attachments };
 	const response = await request.post(mattermostPath('/api/v4/posts/ephemeral'), { headers: { Authorization: `Bearer ${botToken}` }, data: { user_id: userID, post } });
 	return response.status();

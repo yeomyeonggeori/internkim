@@ -176,8 +176,5 @@ func localProviderModel(backend Backend, configuration LocalProviderConfig) stri
 }
 
 func localProviderAttemptTimeout(configuration LocalProviderConfig) time.Duration {
-	if configuration.AttemptTimeout > 0 {
-		return configuration.AttemptTimeout
-	}
-	return DefaultAttemptTimeout
+	return configuration.AttemptTimeout
 }

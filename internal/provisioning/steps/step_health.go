@@ -192,6 +192,7 @@ fi
 python3 - "$policy_response_path" <<'PY'
 import json
 import sys
+import urllib.request
 
 state_path = "/root/.internkim/state/users-sync.json"
 try:

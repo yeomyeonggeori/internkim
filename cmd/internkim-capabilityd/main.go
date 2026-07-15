@@ -17,6 +17,7 @@ func main() {
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", defaultConfiguration.MattermostBaseURL, "Mattermost base URL")
 	flag.StringVar(&configuration.MattermostTokenPath, "mattermost-token", defaultConfiguration.MattermostTokenPath, "Mattermost bot token path")
 	flag.StringVar(&configuration.MattermostInteractiveTokenPath, "mattermost-interactive-token", defaultConfiguration.MattermostInteractiveTokenPath, "Mattermost interactive action token path")
+	flag.StringVar(&configuration.MattermostInteractiveBaseURL, "mattermost-interactive-base-url", defaultConfiguration.MattermostInteractiveBaseURL, "public base URL for Mattermost interactive actions")
 	flag.StringVar(&configuration.SlackTokenPath, "slack-token", defaultConfiguration.SlackTokenPath, "Slack bot token path")
 	flag.StringVar(&configuration.SlackAppTokenPath, "slack-app-token", defaultConfiguration.SlackAppTokenPath, "Slack app token path")
 	flag.StringVar(&configuration.SignalJSONRPCURL, "signal-jsonrpc-url", defaultConfiguration.SignalJSONRPCURL, "Signal JSON-RPC URL")

@@ -55,6 +55,7 @@ type Configuration struct {
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
+	MattermostInteractiveBaseURL   string
 	MattermostOAuthClientPath      string
 	OpenRouterKeyPath              string
 	OpenRouterModelsURL            string
@@ -257,7 +258,7 @@ func DefaultConfiguration() Configuration {
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz",
+		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.1.tar.gz",
 		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",

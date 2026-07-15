@@ -41,8 +41,8 @@ func (backend LlamaCppEmbeddingBackend) Ping(ctx context.Context) error {
 
 func (backend LlamaCppEmbeddingBackend) CreateEmbedding(ctx context.Context, request EmbeddingRequest) (EmbeddingResponse, error) {
 	inputs, isBatch := normalizeEmbeddingInputs(request.Input)
-	modelName := firstNonEmpty(request.Model, backend.ModelName, DefaultEmbeddingGemmaModel)
-	response, errorValue := backend.create(ctx, modelName, applyEmbeddingGemmaPrompts(inputs, request, isBatch))
+	modelName := firstNonEmpty(request.Model, backend.ModelName, DefaultEmbeddingModelName)
+	response, errorValue := backend.create(ctx, modelName, prepareEmbeddingInputs(inputs, request, modelName, isBatch))
 	if errorValue != nil {
 		return EmbeddingResponse{}, errorValue
 	}
