@@ -493,7 +493,7 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`enable_router_schema`,
 		`http://127.0.0.1:8080/admin/api/policy`,
 		`.people[0].personID | select(length > 0)`,
-		`router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')`,
+		`router_task_run_id=$(run_task 'Use terminal.run to execute printf "SDKD topology router ok" and return the output.' '')`,
 		`assert_guest_sdkd_router_transport "$router_task_run_id"`,
 		`response_path=$(mktemp)`,
 		`--connect-timeout 10 --max-time 300`,
