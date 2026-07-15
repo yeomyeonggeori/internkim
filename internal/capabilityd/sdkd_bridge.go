@@ -17,6 +17,19 @@ const sdkdMaximumBodyBytes = 8 * 1024 * 1024
 var errSDKDRequestTooLarge = errors.New("SDKD request exceeds 8 MiB")
 
 func (service Service) handleSDKDStructured(responseWriter http.ResponseWriter, request *http.Request) {
+	service.handleSDKDBridge(responseWriter, request)
+}
+
+func (service Service) handleSDKDChat(responseWriter http.ResponseWriter, request *http.Request) {
+	service.handleSDKDBridge(responseWriter, request)
+}
+
+func (service Service) handleSDKDBridge(responseWriter http.ResponseWriter, request *http.Request) {
+	upstreamPath, isAllowed := sdkdBridgeUpstreamPath(request.URL.Path)
+	if !isAllowed {
+		http.NotFound(responseWriter, request)
+		return
+	}
 	requestBody, errorValue := readSDKDRequestBody(request)
 	if errorValue != nil {
 		if errors.Is(errorValue, errSDKDRequestTooLarge) {
@@ -26,7 +39,7 @@ func (service Service) handleSDKDStructured(responseWriter http.ResponseWriter, 
 		writeSDKDBridgeUnavailable(responseWriter)
 		return
 	}
-	proxyRequest, errorValue := service.newSDKDRequest(request, requestBody)
+	proxyRequest, errorValue := service.newSDKDRequest(request, requestBody, upstreamPath)
 	if errorValue != nil {
 		writeSDKDBridgeConfigurationError(responseWriter)
 		return
@@ -54,7 +67,25 @@ func readSDKDRequestBody(request *http.Request) ([]byte, error) {
 	return requestBody, nil
 }
 
-func (service Service) newSDKDRequest(request *http.Request, requestBody []byte) (*http.Request, error) {
+func sdkdBridgeUpstreamPath(ingressPath string) (string, bool) {
+	switch ingressPath {
+	case "/_internkim/sdkd/v1/llm/structured":
+		return "/v1/llm/structured", true
+	case "/_internkim/sdkd/v1/llm/chat":
+		return "/v1/llm/chat", true
+	default:
+		return "", false
+	}
+}
+
+func isSDKDBridgeUpstreamPath(upstreamPath string) bool {
+	return upstreamPath == "/v1/llm/structured" || upstreamPath == "/v1/llm/chat"
+}
+
+func (service Service) newSDKDRequest(request *http.Request, requestBody []byte, upstreamPath string) (*http.Request, error) {
+	if !isSDKDBridgeUpstreamPath(upstreamPath) {
+		return nil, errors.New("SDKD upstream path is not allowed")
+	}
 	authKey := service.SDKDAuthKey
 	if authKey == "" {
 		authKey = readSecretValue(service.Configuration.SDKDAuthKeyPath)
@@ -65,7 +96,7 @@ func (service Service) newSDKDRequest(request *http.Request, requestBody []byte)
 	proxyRequest, errorValue := http.NewRequestWithContext(
 		request.Context(),
 		http.MethodPost,
-		"http://blueclaw-sdkd/v1/llm/structured",
+		"http://blueclaw-sdkd"+upstreamPath,
 		bytes.NewReader(requestBody),
 	)
 	if errorValue != nil {
