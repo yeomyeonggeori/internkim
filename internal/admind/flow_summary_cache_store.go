@@ -24,8 +24,7 @@ SELECT
 	entries.definitions_revision,
 	entries.member_fingerprint,
 	entries.schema_version,
-	entries.payload_json,
-	entries.cached_at
+	entries.payload_json
 FROM (SELECT 1) AS cache_lookup
 LEFT JOIN flow_summary_cache_entries AS entries ON entries.week_code = ?`
 
@@ -74,7 +73,6 @@ func (service *Service) readFlowSummaryCacheSnapshot(ctx context.Context, weekCo
 	var storedMemberFingerprint sql.NullString
 	var schemaVersion sql.NullInt64
 	var payload sql.NullString
-	var cachedAt sql.NullString
 	errorValue = database.QueryRowContext(
 		ctx,
 		flowSummarySnapshotSQL,
@@ -98,7 +96,6 @@ func (service *Service) readFlowSummaryCacheSnapshot(ctx context.Context, weekCo
 		&storedMemberFingerprint,
 		&schemaVersion,
 		&payload,
-		&cachedAt,
 	)
 	if errorValue != nil {
 		return flowSummaryCacheEntry{}, flowSummaryDependencySnapshot{}, false, fmt.Errorf("read flow summary cache snapshot: %w", errorValue)
@@ -119,7 +116,6 @@ func (service *Service) readFlowSummaryCacheSnapshot(ctx context.Context, weekCo
 		},
 		SchemaVersion: int(schemaVersion.Int64),
 		Payload:       payload.String,
-		CachedAt:      cachedAt.String,
 	}
 	return entry, current, flowSummaryCacheEntryMatches(entry, current), nil
 }
@@ -168,9 +164,6 @@ func (service *Service) writeFlowSummaryCacheEntryIfCurrent(ctx context.Context,
 	}
 	if rowsAffected == 0 {
 		return false, nil
-	}
-	if errorValue := cleanupFlowSummaryCacheEntriesInDatabase(ctx, database, now); errorValue != nil {
-		return true, errorValue
 	}
 	return true, nil
 }
