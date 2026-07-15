@@ -116,7 +116,7 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 	}
 }
 
-func TestFlowTaskAddPropagatesExplicitContentAndDuplicateConfirmation(t *testing.T) {
+func TestFlowTaskAddPropagatesExplicitTitleEndDateAndDuplicateConfirmation(t *testing.T) {
 	var payload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
@@ -138,7 +138,7 @@ func TestFlowTaskAddPropagatesExplicitContentAndDuplicateConfirmation(t *testing
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무","content":" 고객지원 분기 결산 누락 항목 확인 ","allowDuplicate":true}`),
+		Input:    []byte(`{"prompt":"고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무","title":" 고객지원 분기 결산 누락 항목 확인 ","endDate":" 2026-07-17 ","allowDuplicate":true}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -149,8 +149,28 @@ func TestFlowTaskAddPropagatesExplicitContentAndDuplicateConfirmation(t *testing
 	if payload["allowDuplicate"] != true {
 		t.Fatalf("allowDuplicate = %#v", payload["allowDuplicate"])
 	}
-	if payload["content"] != "고객지원 분기 결산 누락 항목 확인" {
-		t.Fatalf("content = %#v", payload["content"])
+	if payload["title"] != "고객지원 분기 결산 누락 항목 확인" {
+		t.Fatalf("title = %#v", payload["title"])
+	}
+	if payload["endDate"] != "2026-07-17" {
+		t.Fatalf("endDate = %#v", payload["endDate"])
+	}
+}
+
+func TestDecodeFlowTaskAddInputRejectsRemovedContentField(t *testing.T) {
+	_, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":"업무 추가","content":"무시되면 안 되는 제목"}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
+		t.Fatalf("error = %v", errorValue)
+	}
+}
+
+func TestDecodeFlowTaskAddInputTrimsCanonicalFields(t *testing.T) {
+	input, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":" 업무 추가 ","title":" 정확한 제목 ","endDate":" 2026-07-17 "}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if input.Prompt != "업무 추가" || input.Title != "정확한 제목" || input.EndDate != "2026-07-17" {
+		t.Fatalf("input = %+v", input)
 	}
 }
 
@@ -312,7 +332,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.update",
-		Input:    []byte(`{"taskID":"task-1","content":"15분 회의"}`),
+		Input:    []byte(`{"taskID":"task-1","title":"15분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -328,6 +348,23 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	}
 	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "진행" || updatedPayload["goal"] != "정리" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
+	}
+}
+
+func TestDecodeFlowTaskUpdateInputRejectsRemovedContentField(t *testing.T) {
+	_, errorValue := decodeFlowTaskUpdateInput([]byte(`{"taskID":"task-1","content":"무시되면 안 되는 제목"}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
+		t.Fatalf("error = %v", errorValue)
+	}
+}
+
+func TestDecodeFlowTaskUpdateInputTrimsTitle(t *testing.T) {
+	input, errorValue := decodeFlowTaskUpdateInput([]byte(`{"taskID":" task-1 ","title":" 정확한 제목 "}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if input.TaskID != "task-1" || input.Title == nil || *input.Title != "정확한 제목" {
+		t.Fatalf("input = %+v", input)
 	}
 }
 

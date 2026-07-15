@@ -156,12 +156,12 @@ func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.add")
 
-	assertSchemaHasProperties(t, schema, "prompt", "content", "targetPersonHint", "weekCode", "allowDuplicate")
+	assertSchemaHasProperties(t, schema, "prompt", "title", "endDate", "targetPersonHint", "weekCode", "allowDuplicate")
 	assertSchemaRequires(t, schema, "prompt")
-	if stringSliceContains(schema.Required, "content") {
-		t.Fatalf("expected content to be optional in %+v", schema.Required)
+	if stringSliceContains(schema.Required, "title") || stringSliceContains(schema.Required, "endDate") {
+		t.Fatalf("expected title and endDate to be optional in %+v", schema.Required)
 	}
-	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
+	assertSchemaOmitsProperties(t, schema, "content", "description", "assignee", "dueDate")
 }
 
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
@@ -174,8 +174,8 @@ func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.update")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "content", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
-	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate")
+	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
+	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate", "content")
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.update", "success", "write_task", "task")
 }
 

@@ -16,7 +16,8 @@ import (
 
 type flowTaskAddInput struct {
 	Prompt           string `json:"prompt"`
-	Content          string `json:"content"`
+	Title            string `json:"title"`
+	EndDate          string `json:"endDate"`
 	TargetPersonHint string `json:"targetPersonHint"`
 	WeekCode         string `json:"weekCode"`
 	AllowDuplicate   bool   `json:"allowDuplicate"`
@@ -36,7 +37,7 @@ type flowTaskUpdateInput struct {
 	Query            string  `json:"query"`
 	TargetPersonHint string  `json:"targetPersonHint"`
 	WeekCode         string  `json:"weekCode"`
-	Content          *string `json:"content"`
+	Title            *string `json:"title"`
 	Goal             *string `json:"goal"`
 	Status           *string `json:"status"`
 	Size             *string `json:"size"`
@@ -128,7 +129,8 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	}
 	payload := map[string]any{
 		"prompt":         input.Prompt,
-		"content":        input.Content,
+		"title":          input.Title,
+		"endDate":        input.EndDate,
 		"ownerID":        ownerResolution.OwnerID,
 		"weekCode":       input.WeekCode,
 		"requesterEmail": request.Context.RequesterEmail,
@@ -310,11 +312,12 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 		return flowTaskAddInput{}, fmt.Errorf("task.add input is required")
 	}
 	var input flowTaskAddInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskAddInput{}, errorValue
 	}
 	input.Prompt = strings.TrimSpace(input.Prompt)
-	input.Content = strings.TrimSpace(input.Content)
+	input.Title = strings.TrimSpace(input.Title)
+	input.EndDate = strings.TrimSpace(input.EndDate)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
 	input.WeekCode = strings.TrimSpace(input.WeekCode)
 	if input.Prompt == "" {
@@ -344,14 +347,14 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 		return flowTaskUpdateInput{}, fmt.Errorf("task.update input is required")
 	}
 	var input flowTaskUpdateInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskUpdateInput{}, errorValue
 	}
 	input.TaskID = strings.TrimSpace(input.TaskID)
 	input.Query = strings.TrimSpace(input.Query)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
 	input.WeekCode = strings.TrimSpace(input.WeekCode)
-	trimStringPointer(&input.Content)
+	trimStringPointer(&input.Title)
 	trimStringPointer(&input.Goal)
 	trimStringPointer(&input.Status)
 	trimStringPointer(&input.Size)
@@ -391,6 +394,18 @@ func trimStringPointer(value **string) {
 	}
 	trimmedValue := strings.TrimSpace(**value)
 	*value = &trimmedValue
+}
+
+func decodeStrictFlowTaskInput(document json.RawMessage, value any) error {
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(value); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		return fmt.Errorf("task input contains trailing data")
+	}
+	return nil
 }
 
 func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail string) ([]flowMemberForTool, error) {
@@ -943,8 +958,8 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput) f
 		task.Status = "완료"
 		return task
 	}
-	if input.Content != nil {
-		task.Content = *input.Content
+	if input.Title != nil {
+		task.Content = *input.Title
 	}
 	if input.Goal != nil {
 		task.Goal = *input.Goal
@@ -980,7 +995,7 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput) f
 }
 
 func hasFlowTaskUpdatePatch(input flowTaskUpdateInput) bool {
-	return input.Content != nil ||
+	return input.Title != nil ||
 		input.Goal != nil ||
 		input.Status != nil ||
 		input.Size != nil ||
