@@ -17,7 +17,7 @@
         {"name": "agent.ambient_duty_launch", "bodyFragment": "calendar", "count": 1},
         {"name": "tool.capability.invoke.requested", "bodyFragment": "\"people\":[\"박세은\"]", "count": 1},
         {"name": "tool.capability.invoke.requested", "bodyFragment": "\"includeRequester\":false", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "\"people\":[\"박세은\"]", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "박세은", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }

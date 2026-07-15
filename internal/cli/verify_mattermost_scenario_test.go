@@ -164,6 +164,25 @@ func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioOutputFragmentExcludesCapabilityRequestEcho(t *testing.T) {
+	expectation := mattermostScenarioEventCount{
+		Name:           "tool.capability.invoke.result",
+		OutputFragment: "고객지원 분기 결산 검토 완료",
+		Count:          1,
+	}
+	events := []mattermostScenarioTaskEvent{{
+		Name: "tool.capability.invoke.result",
+		Body: `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"toolInputKey":"task.update request 고객지원 분기 결산 검토 완료"}`,
+	}}
+	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 0 {
+		t.Fatalf("expected request echo to be excluded, got %d", count)
+	}
+	events[0].Body = `{"output":{"data":{"content":"고객지원 분기 결산 검토 완료"}},"toolInputKey":"task.update"}`
+	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 1 {
+		t.Fatalf("expected output data to match, got %d", count)
+	}
+}
+
 func TestMattermostScenarioAnyToolExpectationNeedsOneCandidate(t *testing.T) {
 	scenario := mattermostScenario{Name: "any", Steps: []mattermostScenarioStep{{Prompt: "any", ExpectedAnyToolCalls: []string{"file.edit", "file.write"}}}}
 	result := mattermostScenarioResult{

@@ -16,7 +16,7 @@
       "expectedEventCounts": [
         {"name": "agent.ambient_duty_launch", "bodyFragment": "team_flow", "count": 1},
         {"name": "tool.capability.invoke.requested", "bodyFragment": "\"targetPersonHint\":\"박세은\"", "count": 2},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "\"targetPersonHint\":\"박세은\"", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "박세은", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }

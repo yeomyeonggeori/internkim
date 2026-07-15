@@ -15,7 +15,7 @@
       "expectedEventCounts": [
         {"name": "tool.capability.invoke.requested", "bodyFragment": "\"personHint\":\"우경\"", "count": 1},
         {"name": "tool.capability.invoke.requested", "bodyFragment": "\"message\":\"비용 테스트 메시지\"", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1}
       ],
       "expectedTaskStatus": "waiting_approval"
     },
@@ -24,7 +24,7 @@
       "expectedToolCalls": ["message.send"],
       "expectedEvents": ["approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "virtual-platform-message-001", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "virtual-platform-message-001", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }
