@@ -401,6 +401,24 @@ func TestVirtualMachineSSHUsesConfiguredPasswordAuthentication(t *testing.T) {
 	}
 }
 
+func TestSSHControlPathIsStableAndIsolatedByContainer(t *testing.T) {
+	configuration := buildTestConfiguration()
+	firstService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+	secondService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+	configuration.VirtualMachine.Container.Name = "another-fleet"
+	otherService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+
+	if firstService.sshControlPath() != secondService.sshControlPath() {
+		t.Fatal("same container must reuse one SSH control path")
+	}
+	if firstService.sshControlPath() == otherService.sshControlPath() {
+		t.Fatal("different containers must not share an SSH control path")
+	}
+	if len(firstService.sshControlPath()) >= 100 {
+		t.Fatalf("SSH control path is too long: %s", firstService.sshControlPath())
+	}
+}
+
 func TestVirtualMachineDiagnosticsIncludesRecoveryCommands(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValues: []string{stoppedContainerListJSON, "apt-get update failed\nnetwork unreachable"},
