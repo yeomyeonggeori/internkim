@@ -7,7 +7,8 @@ import (
 )
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema)
+	options := sqliteDatabaseOptions{dataSourceParameters: []string{"_txlock=immediate"}}
+	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema, options)
 }
 
 func ensureFlowSchema(ctx context.Context, database *sql.DB) error {
