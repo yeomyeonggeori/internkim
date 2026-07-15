@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 )
 
 func TestPublicBlueclawUpdateMetadataHidesArchivePath(t *testing.T) {
@@ -237,6 +236,19 @@ func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	}
 	if strings.Contains(command, "/root/.blueclaw/workspace") {
 		t.Fatalf("tenant sync command must not use canonical workspace, got:\n%s", command)
+	}
+}
+
+func TestBlueclawPayloadWorkspaceSyncCommandPreservesGuestState(t *testing.T) {
+	target := canonicalBlueclawPayloadInstallTarget()
+	command := blueclawPayloadWorkspaceSyncCommand(target)
+	for _, expectedText := range []string{
+		"sync-workspace --atomic --preserve-guest-state",
+		"--source '/root/.blueclaw/workspace'",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected %q in %s", expectedText, command)
+		}
 	}
 }
 
