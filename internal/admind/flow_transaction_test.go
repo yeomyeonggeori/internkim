@@ -4,15 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
-
-type flowTransactionBeginResult struct {
-	transaction *sql.Tx
-	errorValue  error
-}
 
 func TestFlowWriteTransactionReservesWriterAtBegin(t *testing.T) {
 	ctx := context.Background()
@@ -36,18 +33,23 @@ func TestFlowWriteTransactionReservesWriterAtBegin(t *testing.T) {
 	if errorValue := firstTransaction.QueryRowContext(ctx, "SELECT COUNT(*) FROM flow_tasks").Scan(&taskCount); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	beginResultChannel := make(chan flowTransactionBeginResult, 1)
-	go func() {
-		transaction, beginError := secondDatabase.BeginTx(ctx, nil)
-		beginResultChannel <- flowTransactionBeginResult{transaction: transaction, errorValue: beginError}
-	}()
-	select {
-	case result := <-beginResultChannel:
-		if result.transaction != nil {
-			_ = result.transaction.Rollback()
-		}
-		t.Fatalf("second BeginTx returned before first commit: %v", result.errorValue)
-	case <-time.After(100 * time.Millisecond):
+	if _, errorValue := secondDatabase.ExecContext(ctx, "PRAGMA busy_timeout=100"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	blockedContext, cancelBlocked := context.WithTimeout(ctx, 500*time.Millisecond)
+	blockedAt := time.Now()
+	secondTransaction, errorValue := secondDatabase.BeginTx(blockedContext, nil)
+	blockedFor := time.Since(blockedAt)
+	cancelBlocked()
+	if secondTransaction != nil {
+		_ = secondTransaction.Rollback()
+		t.Fatal("second BeginTx succeeded before first commit")
+	}
+	if errorValue == nil {
+		t.Fatal("second BeginTx returned no transaction and no error")
+	}
+	if blockedFor < 75*time.Millisecond {
+		t.Fatalf("second BeginTx blocked for %s, want at least 75ms", blockedFor)
 	}
 	if errorValue := incrementFlowSummarySourceRevisions(ctx, firstTransaction, []flowSummarySourceKey{{Kind: flowSummarySourceWeek, Key: "26W28"}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -55,16 +57,109 @@ func TestFlowWriteTransactionReservesWriterAtBegin(t *testing.T) {
 	if errorValue := firstTransaction.Commit(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	select {
-	case result := <-beginResultChannel:
-		if result.errorValue != nil {
-			t.Fatal(result.errorValue)
-		}
-		if errorValue := result.transaction.Rollback(); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("second BeginTx did not proceed after first commit")
+	successContext, cancelSuccess := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelSuccess()
+	secondTransaction, errorValue = secondDatabase.BeginTx(successContext, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := secondTransaction.Rollback(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestFlowDatabasePreservesQuestionMarkInDatabasePath(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "state?tenant=one", "flow?cache.sqlite")
+	service := NewService(Configuration{FlowDatabasePath: databasePath})
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var journalMode string
+	var busyTimeout int
+	var foreignKeys int
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&journalMode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&busyTimeout); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.EqualFold(journalMode, "wal") || busyTimeout != 5000 || foreignKeys != 1 {
+		t.Fatalf("SQLite pragmas = journal_mode %q, busy_timeout %d, foreign_keys %d", journalMode, busyTimeout, foreignKeys)
+	}
+	if _, errorValue := os.Stat(databasePath); errorValue != nil {
+		t.Fatalf("intended database path was not created: %v", errorValue)
+	}
+	truncatedPath := strings.SplitN(databasePath, "?", 2)[0]
+	if _, errorValue := os.Stat(truncatedPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("truncated database path exists: %s, error: %v", truncatedPath, errorValue)
+	}
+}
+
+func TestSQLiteDatabaseDSNConfiguresDriverConnection(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "driver?cache.sqlite")
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSNWithOptions(databasePath, sqliteDatabaseOptions{transactionLock: "immediate"}))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var journalMode string
+	var busyTimeout int
+	var foreignKeys int
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&journalMode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&busyTimeout); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.EqualFold(journalMode, "wal") || busyTimeout != 5000 || foreignKeys != 1 {
+		t.Fatalf("SQLite pragmas = journal_mode %q, busy_timeout %d, foreign_keys %d", journalMode, busyTimeout, foreignKeys)
+	}
+	if _, errorValue := os.Stat(databasePath); errorValue != nil {
+		t.Fatalf("driver database path was not created: %v", errorValue)
+	}
+}
+
+func TestOpenSQLiteDatabaseKeepsDeferredTransactions(t *testing.T) {
+	ctx := context.Background()
+	service := NewService(Configuration{})
+	databasePath := filepath.Join(t.TempDir(), "deferred.sqlite")
+	firstDatabase, errorValue := service.openSQLiteDatabase(ctx, databasePath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer firstDatabase.Close()
+	secondDatabase, errorValue := service.openSQLiteDatabase(ctx, databasePath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer secondDatabase.Close()
+	firstTransaction, errorValue := firstDatabase.BeginTx(ctx, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer firstTransaction.Rollback()
+	var value int
+	if errorValue := firstTransaction.QueryRowContext(ctx, "SELECT 1").Scan(&value); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondContext, cancelSecond := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancelSecond()
+	secondTransaction, errorValue := secondDatabase.BeginTx(secondContext, nil)
+	if errorValue != nil {
+		t.Fatalf("deferred second BeginTx failed: %v", errorValue)
+	}
+	if errorValue := secondTransaction.Rollback(); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }
 
