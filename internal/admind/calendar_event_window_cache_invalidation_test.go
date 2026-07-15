@@ -155,11 +155,11 @@ func TestCalendarEventWindowCacheInvalidatesFractionalOverlap(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	stored, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, time.Now())
+	writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !stored {
+	if writeResult != calendarEventWindowCacheWriteStored {
 		t.Fatal("fractional cache range was not stored")
 	}
 	transaction, errorValue := database.BeginTx(context.Background(), nil)
