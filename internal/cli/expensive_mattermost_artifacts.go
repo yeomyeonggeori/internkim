@@ -58,11 +58,11 @@ func writeExpensiveJSONArtifact(filePath string, value any) error {
 	return os.WriteFile(filePath, append(document, '\n'), 0o600)
 }
 
-func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, siteProxyURL string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int) error {
+func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, siteProxyURL string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int, shouldAutoConfirm bool) error {
 	step := scenario.Steps[stepIndex]
 	result := execution.Result.Steps[stepIndex]
 	isFinalStep := stepIndex == len(scenario.Steps)-1
-	if !isFinalStep && len(step.ExpectedAttachments) == 0 && result.PublicURL == "" {
+	if !isFinalStep && len(step.ExpectedAttachments) == 0 && result.PublicURL == "" && step.ApprovalAction == "" {
 		return nil
 	}
 	stepArtifactDirectoryPath := filepath.Join(artifactDirectoryPath, "ui", fmt.Sprintf("step-%02d", stepIndex+1))
@@ -80,6 +80,9 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL="+result.PublicURL,
 		"INTERNKIM_SITE_PROXY_URL="+siteProxyURL,
 	)
+	if shouldAutoConfirm {
+		environment = append(environment, "INTERNKIM_MATTERMOST_APPROVAL_ACTION="+string(step.ApprovalAction))
+	}
 	if len(step.ExpectedAttachments) > 0 {
 		environment = append(environment, "INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentJSON(step.ExpectedAttachments))
 	}

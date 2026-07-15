@@ -227,6 +227,104 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
+	isApproved := false
+	listCalls := 0
+	initialEvent := mattermostScenarioTaskEvent{TaskEventID: "requested", Name: "confirmation.requested"}
+	completedEvent := mattermostScenarioTaskEvent{TaskEventID: "executed", Name: "approval.executed"}
+	admin := &fakeMattermostScenarioAdminAPI{
+		listTasksValue: func() []mattermostScenarioTaskSummary {
+			listCalls++
+			if listCalls == 1 {
+				return nil
+			}
+			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
+		},
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			if !isApproved {
+				return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{initialEvent}}
+			}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"}, TaskEvents: []mattermostScenarioTaskEvent{initialEvent, completedEvent}}
+		},
+	}
+	mattermost := &fakeMattermostProbeAPI{
+		postMessage: func(mattermostProbeMessage) mattermostProbePost {
+			return mattermostProbePost{ID: "user-post", CreatedAt: 1}
+		},
+		listChannelPosts: func() []mattermostProbePost {
+			posts := []mattermostProbePost{{ID: "approval-post", RootID: "user-post", UserID: "bot", Message: "승인이 필요합니다.", CreatedAt: 2}}
+			if isApproved {
+				posts = append(posts, mattermostProbePost{ID: "completed-post", RootID: "user-post", UserID: "bot", Message: "삭제했습니다.", CreatedAt: 3})
+			}
+			return posts
+		},
+	}
+	scenario := mattermostScenario{Name: "approval", Steps: []mattermostScenarioStep{{
+		Prompt:             "삭제해줘",
+		ApprovalAction:     mattermostScenarioApprovalApprove,
+		ExpectedEvents:     []string{"confirmation.requested", "approval.executed"},
+		ExpectedTaskStatus: "completed",
+	}}}
+	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
+	session.shouldAutoConfirm = true
+
+	errorValue := session.run(context.Background(), func(_ context.Context, execution mattermostScenarioExecution, _ int) error {
+		if execution.Result.Steps[0].TaskStatus != "waiting_approval" {
+			t.Fatalf("hook received status %q", execution.Result.Steps[0].TaskStatus)
+		}
+		isApproved = true
+		return nil
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := session.result.Steps[0]
+	if result.TaskRunID != "task" || result.TaskStatus != "completed" || result.BotMessage != "삭제했습니다." {
+		t.Fatalf("unexpected approval result: %#v", result)
+	}
+	if len(result.TaskEvents) != 2 || len(session.result.Posts) != 3 {
+		t.Fatalf("events=%#v posts=%#v", result.TaskEvents, session.result.Posts)
+	}
+}
+
+func TestMattermostScenarioApprovalRequiresAutoConfirmation(t *testing.T) {
+	listCalls := 0
+	admin := &fakeMattermostScenarioAdminAPI{
+		listTasksValue: func() []mattermostScenarioTaskSummary {
+			listCalls++
+			if listCalls == 1 {
+				return nil
+			}
+			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
+		},
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{{TaskEventID: "requested", Name: "confirmation.requested"}}}
+		},
+	}
+	mattermost := &fakeMattermostProbeAPI{
+		postMessage: func(mattermostProbeMessage) mattermostProbePost {
+			return mattermostProbePost{ID: "user-post", CreatedAt: 1}
+		},
+		listChannelPosts: func() []mattermostProbePost {
+			return []mattermostProbePost{{ID: "approval-post", RootID: "user-post", UserID: "bot", Message: "승인이 필요합니다.", CreatedAt: 2}}
+		},
+	}
+	scenario := mattermostScenario{Name: "approval", Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: mattermostScenarioApprovalApprove}}}
+	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
+	hookCalled := false
+
+	errorValue := session.run(context.Background(), func(context.Context, mattermostScenarioExecution, int) error {
+		hookCalled = true
+		return nil
+	})
+	if errorValue == nil || errorValue.Error() != "Mattermost scenario approval action requires --auto-confirm" {
+		t.Fatalf("unexpected error: %v", errorValue)
+	}
+	if hookCalled {
+		t.Fatal("approval hook ran without auto confirmation")
+	}
+}
+
 func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 	pollError := errors.New("poll failed")
 	detailCalls := 0

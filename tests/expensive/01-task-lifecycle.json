@@ -38,18 +38,11 @@
     },
     {
       "prompt": "방금 확인한 '고객지원 분기 결산 검토 완료' 업무를 삭제해줘.",
+      "approvalAction": "approve",
       "expectedToolCalls": ["task.delete"],
-      "expectedEvents": ["confirmation.requested"],
+      "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1}
-      ],
-      "expectedTaskStatus": "waiting_approval"
-    },
-    {
-      "prompt": "삭제 승인할게.",
-      "expectedToolCalls": ["task.delete"],
-      "expectedEvents": ["approval.executed"],
-      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1},
         {"name": "tool.capability.invoke.result", "outputFragment": "deleted", "count": 1}
       ],
       "expectedTaskStatus": "completed"
