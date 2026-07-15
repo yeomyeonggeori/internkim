@@ -90,7 +90,7 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"prepare-local-fleet-embedding",
 		"make build",
 		"setup --board lab",
-		"configure-local-embedding.sh",
+		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
 		"configure-mattermost-test-settings.sh",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
