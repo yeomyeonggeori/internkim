@@ -160,6 +160,51 @@ test('keeps the existing server clock when a background refresh fails', async ()
 	}
 });
 
+test('clears invalid server clocks and recovers on the next valid response', async () => {
+	const originalState = Reflect.get(globalThis, '$state');
+	const originalFetch = globalThis.fetch;
+	let requestCount = 0;
+	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
+	globalThis.fetch = Object.assign(
+		async () => {
+			requestCount += 1;
+			const summary = buildAttendanceSummaryFixture(currentMonth);
+			if (requestCount === 1) return Response.json({ ...summary, serverTime: firstServerTime });
+			if (requestCount === 2) {
+				const { serverTime: _serverTime, ...legacySummary } = summary;
+				return Response.json(legacySummary);
+			}
+			if (requestCount === 3) return Response.json({ ...summary, serverTime: secondServerTime });
+			return Response.json({ ...summary, serverTime: 'invalid' });
+		},
+		{ preconnect: originalFetch.preconnect }
+	);
+
+	try {
+		const { AttendanceState } = await import('../../../src/routes/attendance/attendance-context.svelte');
+		const attendance = new AttendanceState(attendanceText.ko.loadFailed);
+
+		await attendance.load();
+		expect(attendance.serverClock).not.toBe(null);
+		expect(await attendance.refreshServerClock()).toBe(false);
+		expect(attendance.serverClock).toBe(null);
+
+		expect(await attendance.refreshServerClock()).toBe(true);
+		expect(attendance.serverClock).not.toBe(null);
+
+		expect(await attendance.refreshServerClock()).toBe(false);
+		expect(requestCount).toBe(4);
+		expect(attendance.serverClock).toBe(null);
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalState === undefined) {
+			Reflect.deleteProperty(globalThis, '$state');
+		} else {
+			Reflect.set(globalThis, '$state', originalState);
+		}
+	}
+});
+
 test('coalesces concurrent server clock refresh requests', async () => {
 	const originalState = Reflect.get(globalThis, '$state');
 	const originalFetch = globalThis.fetch;
@@ -204,11 +249,12 @@ test('coalesces concurrent server clock refresh requests', async () => {
 	}
 });
 
-test('keeps a newer server clock when an older summary request finishes later', async () => {
+test('orders legacy and valid server clocks by request sequence', async () => {
 	const originalState = Reflect.get(globalThis, '$state');
 	const originalFetch = globalThis.fetch;
 	let requestCount = 0;
 	let releaseDelayedLoad: (() => void) | undefined;
+	let releaseSecondDelayedLoad: (() => void) | undefined;
 	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 	globalThis.fetch = Object.assign(
 		async () => {
@@ -218,12 +264,25 @@ test('keeps a newer server clock when an older summary request finishes later', 
 					releaseDelayedLoad = resolve;
 				});
 			}
+			if (requestNumber === 4) {
+				await new Promise<void>((resolve) => {
+					releaseSecondDelayedLoad = resolve;
+				});
+			}
+			const summary = buildAttendanceSummaryFixture(currentMonth);
+			if (requestNumber === 2) {
+				const { serverTime: _serverTime, ...legacySummary } = summary;
+				return Response.json(legacySummary);
+			}
 			const serverTime =
-				requestNumber === 1 ? firstServerTime : requestNumber === 2 ? delayedServerTime : secondServerTime;
-			return Response.json({
-				...buildAttendanceSummaryFixture(currentMonth),
-				serverTime
-			});
+				requestNumber === 1
+					? firstServerTime
+					: requestNumber === 4
+						? delayedServerTime
+						: requestNumber === 5
+							? 'invalid'
+							: secondServerTime;
+			return Response.json({ ...summary, serverTime });
 		},
 		{ preconnect: originalFetch.preconnect }
 	);
@@ -245,6 +304,15 @@ test('keeps a newer server clock when an older summary request finishes later', 
 		expect(attendance.currentServerTime(finalClock.monotonicTimestampMilliseconds).toISOString()).toBe(
 			new Date(secondServerTime).toISOString()
 		);
+
+		const secondDelayedLoad = attendance.load();
+		if (!releaseSecondDelayedLoad) throw new Error('Expected the second delayed summary request to start');
+		expect(await attendance.refreshServerClock()).toBe(false);
+		releaseSecondDelayedLoad();
+		await secondDelayedLoad;
+
+		expect(requestCount).toBe(5);
+		expect(attendance.serverClock).toBe(null);
 	} finally {
 		globalThis.fetch = originalFetch;
 		if (originalState === undefined) {
