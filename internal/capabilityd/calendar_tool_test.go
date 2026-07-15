@@ -229,6 +229,49 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 }
 
+func TestCalendarEventUpdateUsesUnchangedTitleAsTarget(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/calendar/api/events" {
+					t.Fatalf("unexpected lookup request %s %s", request.Method, request.URL.String())
+				}
+				return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"비용 테스트 일정"}]}`), nil
+			case 2:
+				if request.Method != http.MethodPut || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
+					t.Fatalf("unexpected update request %s %s", request.Method, request.URL.String())
+				}
+				var payload map[string]any
+				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				if payload["startISO"] != "2026-07-16T14:00:00+09:00" {
+					t.Fatalf("unexpected update payload %#v", payload)
+				}
+				return calendarToolJSONResponse(`{"id":"event-1","title":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"title":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "updated" || requestCount != 2 {
+		t.Fatalf("response = %+v requests = %d", response, requestCount)
+	}
+}
+
 func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
 	_, errorValue := decodeCalendarEventDeleteInput([]byte(`{}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventID") {

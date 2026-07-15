@@ -1,23 +1,6 @@
 ---
 name: calculator
-description: Calculate explicit arithmetic expressions with math.calculate.
-when_to_use: Use when the user asks to calculate, asks a direct arithmetic question, or writes an expression with =, +, -, *, /, %, ^, or **.
-activation:
-  keywords:
-    - 계산
-    - 몇
-    - 더하기
-    - 빼기
-    - 곱하기
-    - 나누기
-    - =
-    - +
-    - "-"
-    - "*"
-    - /
-completion:
-  requiredEvidenceTools:
-    - math.calculate
+description: Calculate explicit arithmetic expressions with math.calculate when the user asks a direct arithmetic question or provides an expression.
 ---
 
 # Calculator

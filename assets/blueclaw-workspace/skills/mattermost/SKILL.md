@@ -1,7 +1,6 @@
 ---
 name: mattermost
 description: Work with Mattermost conversations, posts, threads, attachments, channels, pins, and assistant bot messages when the user is talking with the assistant inside Mattermost.
-when_to_use: Use when the user asks about Mattermost messages, threads, replies, attachments, DMs, channels, pins, headers, invites, or asks to edit/delete messages that assistant posted.
 ---
 
 # Mattermost

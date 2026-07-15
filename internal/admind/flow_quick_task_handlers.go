@@ -53,15 +53,6 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 	if shouldForceQuickTaskRequest(owner, requesterEmail) {
 		writeRequest.Status = flowStatusRequested
 		writeRequest.RequestReason = firstNonEmpty(writeRequest.RequestReason, prompt)
-		includesRequester := shouldIncludeRequesterAsFlowParticipant(writeRequest)
-		if requesterID := memberIDForEmail(members, requesterEmail); requesterID != "" {
-			if includesRequester && !containsString(writeRequest.ParticipantIDs, requesterID) {
-				writeRequest.ParticipantIDs = append(writeRequest.ParticipantIDs, requesterID)
-			}
-			if !includesRequester {
-				writeRequest.ParticipantIDs = removeString(writeRequest.ParticipantIDs, requesterID)
-			}
-		}
 	}
 	body, _ := json.Marshal(writeRequest)
 	clonedRequest := request.Clone(request.Context())

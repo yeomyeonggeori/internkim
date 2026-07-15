@@ -905,7 +905,7 @@ func TestAttentionTriageReturnsBackendFailure(t *testing.T) {
 func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 	chain := &stubEmbeddingChain{response: llmbackend.EmbeddingResponse{
 		Provider:        "ollama",
-		Model:           llmbackend.DefaultEmbeddingGemmaModel,
+		Model:           llmbackend.DefaultEmbeddingModelName,
 		SelectedBackend: "ollama",
 		Embedding:       []float64{0.1, 0.2},
 	}}

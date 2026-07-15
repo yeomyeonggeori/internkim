@@ -70,7 +70,7 @@ func TestMessageWillBePostedRejectsHumanPostInManagedChannels(t *testing.T) {
 	} {
 		api := &testPluginAPI{
 			channel: channel,
-			botUser: &model.User{Id: "bot-1", Username: "internkim"},
+			botUser: &model.User{Id: "bot-1", Username: "internkim", IsBot: true},
 		}
 		pluginValue := &Plugin{activeConfiguration: &configuration{BotUsername: "internkim"}}
 		pluginValue.API = api
@@ -89,7 +89,7 @@ func TestMessageWillBePostedRejectsHumanPostInManagedChannels(t *testing.T) {
 func TestMessageWillBePostedAllowsConfiguredBotAndSystemPosts(t *testing.T) {
 	api := &testPluginAPI{
 		channel: &model.Channel{Id: "calendar-channel", Name: "calendar"},
-		botUser: &model.User{Id: "bot-1", Username: "internkim"},
+		botUser: &model.User{Id: "bot-1", Username: "internkim", IsBot: true},
 	}
 	pluginValue := &Plugin{activeConfiguration: &configuration{BotUsername: "internkim"}}
 	pluginValue.API = api
@@ -108,7 +108,7 @@ func TestMessageWillBePostedAllowsConfiguredBotAndSystemPosts(t *testing.T) {
 func TestMessageHasBeenPostedSendsKoreanRuntimeUnavailableNoticeForBotDM(t *testing.T) {
 	api := &testPluginAPI{
 		channel:      &model.Channel{Id: "channel-1", Type: model.ChannelTypeDirect},
-		botUser:      &model.User{Id: "bot-1", Username: "internkim"},
+		botUser:      &model.User{Id: "bot-1", Username: "internkim", IsBot: true},
 		channelUsers: []*model.User{{Id: "user-1"}, {Id: "bot-1"}},
 		usersByID:    map[string]*model.User{"user-1": &model.User{Id: "user-1", Locale: "ko"}},
 	}
@@ -142,7 +142,7 @@ func TestMessageHasBeenPostedSendsKoreanRuntimeUnavailableNoticeForBotDM(t *test
 func TestMessageHasBeenPostedSkipsNoticeWhenRuntimeIsHealthy(t *testing.T) {
 	api := &testPluginAPI{
 		channel:   &model.Channel{Id: "channel-1", Type: model.ChannelTypeOpen},
-		botUser:   &model.User{Id: "bot-1", Username: "internkim"},
+		botUser:   &model.User{Id: "bot-1", Username: "internkim", IsBot: true},
 		usersByID: map[string]*model.User{"user-1": &model.User{Id: "user-1", Locale: "en"}},
 	}
 	pluginValue := &Plugin{
@@ -163,7 +163,7 @@ func TestMessageHasBeenPostedSkipsNoticeWhenRuntimeIsHealthy(t *testing.T) {
 func TestMessageHasBeenPostedRequiresMentionOutsideDM(t *testing.T) {
 	api := &testPluginAPI{
 		channel:   &model.Channel{Id: "channel-1", Type: model.ChannelTypeOpen},
-		botUser:   &model.User{Id: "bot-1", Username: "internkim"},
+		botUser:   &model.User{Id: "bot-1", Username: "internkim", IsBot: true},
 		usersByID: map[string]*model.User{"user-1": &model.User{Id: "user-1", Locale: "en"}},
 	}
 	pluginValue := &Plugin{
@@ -178,6 +178,27 @@ func TestMessageHasBeenPostedRequiresMentionOutsideDM(t *testing.T) {
 
 	if api.ephemeralPost != nil {
 		t.Fatalf("expected no ephemeral notice without mention, got %+v", api.ephemeralPost)
+	}
+}
+
+func TestMessageHasBeenPostedRejectsConfiguredHumanAccount(t *testing.T) {
+	api := &testPluginAPI{
+		channel:      &model.Channel{Id: "channel-1", Type: model.ChannelTypeDirect},
+		botUser:      &model.User{Id: "human-1", Username: "internkim", IsBot: false},
+		channelUsers: []*model.User{{Id: "user-1"}, {Id: "human-1"}},
+	}
+	pluginValue := &Plugin{
+		activeConfiguration: &configuration{RuntimeHealthURL: "http://runtime.local/health", BotUsername: "internkim"},
+		healthClient: runtimeHealthRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, errors.New("runtime unavailable")
+		}),
+	}
+	pluginValue.API = api
+
+	pluginValue.MessageHasBeenPosted(nil, &model.Post{UserId: "user-1", ChannelId: "channel-1", Message: "도와줘"})
+
+	if api.ephemeralPost != nil {
+		t.Fatalf("expected no bot-authored notice from a human account, got %+v", api.ephemeralPost)
 	}
 }
 

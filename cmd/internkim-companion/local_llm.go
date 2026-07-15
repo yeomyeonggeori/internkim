@@ -44,7 +44,7 @@ func registerLocalLLMFlags(flags *flag.FlagSet) localLLMFlags {
 		ollamaBaseURL:            flags.String("ollama-base-url", llmbackend.DefaultOllamaBaseURL, "ollama base URL"),
 		ollamaModel:              flags.String("ollama-model", "", "ollama model name"),
 		llamaCppEmbeddingBaseURL: flags.String("llamacpp-embedding-base-url", llmbackend.DefaultLlamaCppBaseURL, "llama.cpp embedding server base URL"),
-		llamaCppEmbeddingModel:   flags.String("llamacpp-embedding-model", llmbackend.DefaultEmbeddingGemmaModel, "llama.cpp embedding model name"),
+		llamaCppEmbeddingModel:   flags.String("llamacpp-embedding-model", llmbackend.DefaultEmbeddingModelName, "llama.cpp embedding model name"),
 		llamaCppBaseURL:          flags.String("llamacpp-base-url", llmbackend.DefaultLlamaCppBaseURL, "llama.cpp server base URL"),
 		llamaCppModel:            flags.String("llamacpp-model", "", "llama.cpp model alias"),
 		mlxBaseURL:               flags.String("mlx-base-url", llmbackend.DefaultMLXBaseURL, "MLX server base URL"),
@@ -145,7 +145,7 @@ func (settings localLLMSettings) embeddingProviderSetFor(providerName string) ll
 		AttemptTimeout:  settings.Configuration.AttemptTimeout,
 		HTTPClient:      settings.Configuration.HTTPClient,
 		LlamaCppBaseURL: firstNonEmpty(settings.Configuration.LlamaCppEmbeddingBaseURL, settings.Configuration.LlamaCppBaseURL),
-		LlamaCppModel:   firstNonEmpty(settings.Configuration.LlamaCppEmbeddingModel, llmbackend.DefaultEmbeddingGemmaModel),
+		LlamaCppModel:   firstNonEmpty(settings.Configuration.LlamaCppEmbeddingModel, llmbackend.DefaultEmbeddingModelName),
 	}
 	return llmbackend.BuildLocalEmbeddingProviderSet(configuration)
 }

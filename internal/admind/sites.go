@@ -894,9 +894,9 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		Description:         siteDescriptionFromCreateRequest(payload),
 		Idea:                firstNonEmpty(strings.TrimSpace(payload.Idea), strings.TrimSpace(payload.Prompt)),
 		OriginalPrompt:      strings.TrimSpace(payload.Prompt),
-		Purpose:             firstNonEmpty(strings.TrimSpace(payload.Purpose), inferSitePurpose(payload)),
+		Purpose:             firstNonEmpty(strings.TrimSpace(payload.Purpose), "prototype"),
 		Audience:            strings.TrimSpace(payload.Audience),
-		Archetype:           firstNonEmpty(strings.TrimSpace(payload.Archetype), inferSiteArchetype(payload)),
+		Archetype:           firstNonEmpty(strings.TrimSpace(payload.Archetype), "landing"),
 		DomainKeywords:      normalizeSiteKeywords(payload.DomainKeywords, payload),
 		Status:              SiteStatusDraft,
 		Visibility:          firstNonEmpty(strings.TrimSpace(payload.Visibility), "public"),
@@ -1158,36 +1158,6 @@ func siteDescriptionFromCreateRequest(payload siteCreateRequest) string {
 		firstSentence(payload.Prompt),
 		firstNonEmpty(strings.TrimSpace(payload.Title), normalizeSiteSlug(payload.Slug)),
 	)
-}
-
-func inferSitePurpose(payload siteCreateRequest) string {
-	text := strings.ToLower(strings.Join([]string{payload.Title, payload.Prompt, payload.DesignBrief, payload.PrototypeScope}, " "))
-	switch {
-	case strings.Contains(text, "portfolio") || strings.Contains(text, "포트폴리오"):
-		return "portfolio"
-	case strings.Contains(text, "booking") || strings.Contains(text, "예약"):
-		return "booking"
-	case strings.Contains(text, "dashboard") || strings.Contains(text, "대시보드"):
-		return "dashboard"
-	case strings.Contains(text, "marketplace") || strings.Contains(text, "마켓"):
-		return "marketplace"
-	case strings.Contains(text, "admin") || strings.Contains(text, "관리"):
-		return "admin tool"
-	default:
-		return "prototype"
-	}
-}
-
-func inferSiteArchetype(payload siteCreateRequest) string {
-	purpose := inferSitePurpose(payload)
-	switch purpose {
-	case "portfolio", "booking", "dashboard", "marketplace":
-		return purpose
-	case "admin tool":
-		return "admin tool"
-	default:
-		return "landing"
-	}
 }
 
 func normalizeSiteKeywords(keywords []string, payload siteCreateRequest) []string {

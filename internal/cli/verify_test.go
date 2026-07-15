@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 	"testing"
+	"time"
 )
 
 func TestVerifyMattermostScriptDeletesTestMessagesAndBotReplies(t *testing.T) {
@@ -367,5 +367,27 @@ func TestMattermostPromptScriptSSHTimeoutCoversPhaseSum(t *testing.T) {
 	plain := mattermostPromptScriptSSHTimeout(900, false)
 	if plain != time.Duration(120+900+60+900+180)*time.Second {
 		t.Fatalf("unexpected non-website ssh timeout %v", plain)
+	}
+}
+
+func TestMattermostDirectMessageKeepScriptPrintsManualLogin(t *testing.T) {
+	script := verifyMattermostDirectMessageE2EScript(true, 300)
+	for _, fragment := range []string{
+		"keep_artifacts=true",
+		"manualTest",
+		"requesterUsername: $requester_username",
+		"recipientUsername: $recipient_username",
+		"password: $password",
+		"Log in as requesterUsername and open the direct message with @internkim.",
+		"post recipient identity",
+		"resolve direct-message recipient",
+		`.status == "resolved" and .recipient.externalUserID == $user_id`,
+		`delete_post "${recipient_token:-}" "${recipient_identity_post_id:-}"`,
+		`--arg displayName "$requester_username"`,
+		`--arg displayName "$recipient_username"`,
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected direct-message keep script to contain %q", fragment)
+		}
 	}
 }

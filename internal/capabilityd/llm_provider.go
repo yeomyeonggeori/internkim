@@ -79,7 +79,7 @@ func (service Service) llmRequestModel(requestModel string) string {
 }
 
 func (service Service) providerForExecutionMode(ctx context.Context, toolName, executionMode, providerName, accelerator string) (LLMProvider, error) {
-	companionProvider := service.companionProvider()
+	companionProvider := service.companionInferenceProvider()
 	remoteProvider := service.openRouterBackend()
 	localProviderSet := service.localProviderSet(providerName, accelerator, false)
 	switch strings.ToLower(firstNonEmpty(executionMode, "auto")) {
@@ -124,7 +124,7 @@ func (service Service) companionLLMProviderForAuto(ctx context.Context, toolName
 	if !hasCapabilityDescriptor(descriptors, toolName) {
 		return nil
 	}
-	return service.companionProvider()
+	return service.companionInferenceProvider()
 }
 
 func hasCapabilityDescriptor(descriptors []capabilities.Descriptor, toolName string) bool {
@@ -144,7 +144,7 @@ func (service Service) localProviderSet(providerName, accelerator string, allowS
 		Accelerator:             accelerator,
 		AttemptTimeout:          service.Configuration.ProviderAttemptTimeout,
 		AllowStructuredFallback: allowStructuredFallback,
-		HTTPClient:              service.httpClient(),
+		HTTPClient:              service.providerHTTPClient(),
 		RunCommand:              service.runCommand,
 		LlamaCppServiceName:     locallm.LlamaCppServiceName,
 		LlamaCppStartTimeout:    30 * time.Second,
@@ -166,7 +166,7 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 		FallbackModelNames:  service.openRouterActionFallbackModelNames(),
 		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
 		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
-		HTTPClient:          service.httpClient(),
+		HTTPClient:          service.providerHTTPClient(),
 	}
 }
 

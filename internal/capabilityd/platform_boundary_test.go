@@ -151,7 +151,7 @@ func TestMattermostCompanionRecoverySendsChannelInstructionByDM(t *testing.T) {
 				DeepLink:  "internkim://pair?device_url=https%3A%2F%2Fdevice.example.com&code=ABCD-1234",
 			}), nil
 		case "https://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "https://mattermost.test/api/v4/channels/direct":
 			var body []string
 			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
@@ -963,7 +963,7 @@ func TestMattermostPollerForwardsFirstMessageInNewDirectChannel(t *testing.T) {
 		}
 		switch {
 		case request.URL.Path == "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1", "username": "internkim"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "username": "internkim", "is_bot": true}), nil
 		case request.URL.Path == "/api/v4/users/bot-1/channels":
 			channelListRequestCount++
 			if channelListRequestCount == 1 {
@@ -1110,7 +1110,7 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/users/bot-1/typing":
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1174,7 +1174,7 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/users/bot-1/typing":
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1274,13 +1274,14 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
-func TestMattermostEphemeralReplyUsesBotAsPostAuthor(t *testing.T) {
+func TestMattermostEphemeralReplyUsesBotAuthentication(t *testing.T) {
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
-		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
 		case "/api/v4/posts/ephemeral":
+			if request.Header.Get("Authorization") != "Bearer test-token" {
+				t.Fatalf("ephemeral authorization = %q", request.Header.Get("Authorization"))
+			}
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
@@ -1321,8 +1322,11 @@ func TestMattermostEphemeralReplyUsesBotAsPostAuthor(t *testing.T) {
 		t.Fatalf("ephemeral target = %+v", payload)
 	}
 	post, isMap := payload["post"].(map[string]any)
-	if !isMap || post["user_id"] != "bot-1" || post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
+	if !isMap || post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
 		t.Fatalf("ephemeral post = %+v", payload["post"])
+	}
+	if _, hasUserID := post["user_id"]; hasUserID {
+		t.Fatalf("ephemeral author must come from bot authentication, got %+v", post)
 	}
 }
 
@@ -1406,6 +1410,9 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 			postRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
 		case "/api/v4/posts/ephemeral":
+			if request.Header.Get("Authorization") != "Bearer test-token" {
+				t.Fatalf("ephemeral authorization = %q", request.Header.Get("Authorization"))
+			}
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
@@ -1414,8 +1421,6 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "user-1", "username": "user-one"}), nil
-		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1488,8 +1493,8 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
 		}
-		if post["user_id"] != "bot-1" {
-			t.Fatalf("expected ephemeral control authored by bot-1, got %+v", post)
+		if _, hasUserID := post["user_id"]; hasUserID {
+			t.Fatalf("expected ephemeral control author from bot authentication, got %+v", post)
 		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
@@ -1531,6 +1536,9 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 			postRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
 		case "/api/v4/posts/ephemeral":
+			if request.Header.Get("Authorization") != "Bearer test-token" {
+				t.Fatalf("ephemeral authorization = %q", request.Header.Get("Authorization"))
+			}
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
@@ -1539,8 +1547,6 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
 		case "/api/v4/users/requester-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "requester-1", "username": "requester-one"}), nil
-		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1605,8 +1611,8 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
 		}
-		if post["user_id"] != "bot-1" {
-			t.Fatalf("expected ephemeral attachment authored by bot-1, got %+v", post)
+		if _, hasUserID := post["user_id"]; hasUserID {
+			t.Fatalf("expected ephemeral attachment author from bot authentication, got %+v", post)
 		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
@@ -1676,7 +1682,7 @@ func TestMattermostReactionAddCreatesBotReaction(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/reactions":
 			if request.Method != http.MethodPost {
 				t.Fatalf("unexpected reaction method: %s", request.Method)
@@ -1724,7 +1730,7 @@ func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/users/bot-1/typing":
 			typingRequests <- map[string]string{}
 			return testJSONResponse(http.StatusOK, map[string]string{}), nil
@@ -1774,7 +1780,7 @@ func TestMattermostProgressStartIgnoresTypingFailure(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/users/bot-1/typing":
 			typingRequestCount++
 			return testJSONResponse(http.StatusInternalServerError, map[string]string{"error": "typing unavailable"}), nil
@@ -2547,7 +2553,7 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 	t.Helper()
 	switch {
 	case request.URL.Path == "/api/v4/users/me":
-		return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1", "username": "internkim"})
+		return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "username": "internkim", "is_bot": true})
 	case request.URL.Path == "/api/v4/users/bot-1/channels":
 		return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D", "name": "user-1__bot-1"}})
 	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("since") != "":

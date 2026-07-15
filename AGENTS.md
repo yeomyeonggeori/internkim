@@ -184,7 +184,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
   generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
-  without it). Embedding: embeddinggemma-300M QAT on CPU (`-ngl 0`, frees GPU for
+  without it). Embedding: BGE-M3 Q8 on CPU (`-ngl 0`, frees GPU for
   generation). gemma-4-E4B does not fit the 8GB Jetson alongside firecracker; use E2B.
   Build the `llama-server` bundle in a local `linux/arm64` container and deploy only that
   artifact. `litert_lm_main` is a legacy fallback path, not the default generation backend;
