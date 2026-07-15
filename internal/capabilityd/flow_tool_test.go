@@ -157,10 +157,13 @@ func TestFlowTaskAddPropagatesExplicitTitleEndDateAndDuplicateConfirmation(t *te
 	}
 }
 
-func TestDecodeFlowTaskAddInputRejectsRemovedContentField(t *testing.T) {
-	_, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":"업무 추가","content":"무시되면 안 되는 제목"}`))
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
-		t.Fatalf("error = %v", errorValue)
+func TestDecodeFlowTaskAddInputAcceptsLegacyContentAlias(t *testing.T) {
+	input, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":"업무 추가","content":" 이전 제목 "}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if input.Title != "이전 제목" {
+		t.Fatalf("title = %q", input.Title)
 	}
 }
 
@@ -351,10 +354,35 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	}
 }
 
-func TestDecodeFlowTaskUpdateInputRejectsRemovedContentField(t *testing.T) {
-	_, errorValue := decodeFlowTaskUpdateInput([]byte(`{"taskID":"task-1","content":"무시되면 안 되는 제목"}`))
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
-		t.Fatalf("error = %v", errorValue)
+func TestDecodeFlowTaskUpdateInputAcceptsLegacyContentAlias(t *testing.T) {
+	input, errorValue := decodeFlowTaskUpdateInput([]byte(`{"taskID":"task-1","content":" 이전 제목 "}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if input.Title == nil || *input.Title != "이전 제목" {
+		t.Fatalf("title = %#v", input.Title)
+	}
+}
+
+func TestDecodeFlowTaskInputRejectsTitleAndLegacyContentConflict(t *testing.T) {
+	testCases := []struct {
+		document string
+		decode   func([]byte) error
+	}{
+		{document: `{"prompt":"업무 추가","title":"같은 제목","content":"같은 제목"}`, decode: func(document []byte) error {
+			_, errorValue := decodeFlowTaskAddInput(document)
+			return errorValue
+		}},
+		{document: `{"taskID":"task-1","title":"새 제목","content":"이전 제목"}`, decode: func(document []byte) error {
+			_, errorValue := decodeFlowTaskUpdateInput(document)
+			return errorValue
+		}},
+	}
+	for _, testCase := range testCases {
+		errorValue := testCase.decode([]byte(testCase.document))
+		if errorValue == nil || !strings.Contains(errorValue.Error(), "both title and content") {
+			t.Fatalf("error = %v for %s", errorValue, testCase.document)
+		}
 	}
 }
 

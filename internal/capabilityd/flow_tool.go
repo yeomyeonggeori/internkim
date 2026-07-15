@@ -311,6 +311,10 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	if len(bytes.TrimSpace(document)) == 0 {
 		return flowTaskAddInput{}, fmt.Errorf("task.add input is required")
 	}
+	document, errorValue := normalizeLegacyFlowTaskTitle(document)
+	if errorValue != nil {
+		return flowTaskAddInput{}, errorValue
+	}
 	var input flowTaskAddInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskAddInput{}, errorValue
@@ -345,6 +349,10 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
 		return flowTaskUpdateInput{}, fmt.Errorf("task.update input is required")
+	}
+	document, errorValue := normalizeLegacyFlowTaskTitle(document)
+	if errorValue != nil {
+		return flowTaskUpdateInput{}, errorValue
 	}
 	var input flowTaskUpdateInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
@@ -406,6 +414,28 @@ func decodeStrictFlowTaskInput(document json.RawMessage, value any) error {
 		return fmt.Errorf("task input contains trailing data")
 	}
 	return nil
+}
+
+func normalizeLegacyFlowTaskTitle(document json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if errorValue := json.Unmarshal(document, &fields); errorValue != nil {
+		return nil, errorValue
+	}
+	legacyContent, hasLegacyContent := fields["content"]
+	_, hasTitle := fields["title"]
+	if hasTitle && hasLegacyContent {
+		return nil, fmt.Errorf("task input cannot contain both title and content")
+	}
+	if !hasLegacyContent {
+		return document, nil
+	}
+	fields["title"] = legacyContent
+	delete(fields, "content")
+	normalizedDocument, errorValue := json.Marshal(fields)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return normalizedDocument, nil
 }
 
 func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail string) ([]flowMemberForTool, error) {
