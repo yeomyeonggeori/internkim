@@ -21,7 +21,10 @@ func (service *Service) writeCalendarEventWithSource(ctx context.Context, event 
 func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, event calendarEvent, source string) error {
 	var previousEvent calendarEvent
 	if source == calendarSourceLocal {
-		existing, found, _ := service.readCalendarEventByID(ctx, event.ID)
+		existing, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+		if errorValue != nil {
+			return errorValue
+		}
 		if found {
 			previousEvent = existing
 		}
@@ -33,6 +36,11 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 	defer database.Close()
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
+		return errorValue
+	}
+	previousMutationEvent, previousMutationEventFound, errorValue := readCalendarEventWindowMutationEvent(ctx, transaction, event.ID)
+	if errorValue != nil {
+		_ = transaction.Rollback()
 		return errorValue
 	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
@@ -97,6 +105,14 @@ ON CONFLICT(id) DO UPDATE SET
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	invalidationEvents := []calendarEvent{event}
+	if previousMutationEventFound {
+		invalidationEvents = append(invalidationEvents, previousMutationEvent)
+	}
+	if errorValue := invalidateCalendarEventWindowCache(ctx, transaction, invalidationEvents...); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
@@ -153,6 +169,10 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 		return sql.ErrNoRows
 	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, eventID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
