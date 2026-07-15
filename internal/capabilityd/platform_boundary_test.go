@@ -1278,6 +1278,8 @@ func TestMattermostEphemeralReplyUsesBotAuthentication(t *testing.T) {
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/posts/ephemeral":
 			if request.Header.Get("Authorization") != "Bearer test-token" {
 				t.Fatalf("ephemeral authorization = %q", request.Header.Get("Authorization"))
@@ -1325,8 +1327,8 @@ func TestMattermostEphemeralReplyUsesBotAuthentication(t *testing.T) {
 	if !isMap || post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
 		t.Fatalf("ephemeral post = %+v", payload["post"])
 	}
-	if _, hasUserID := post["user_id"]; hasUserID {
-		t.Fatalf("ephemeral author must come from bot authentication, got %+v", post)
+	if post["user_id"] != "bot-1" {
+		t.Fatalf("ephemeral author must be the authenticated bot, got %+v", post)
 	}
 }
 
@@ -1402,6 +1404,8 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/posts":
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1493,8 +1497,8 @@ func TestMattermostReplySendsAskChoiceEphemeralControl(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
 		}
-		if _, hasUserID := post["user_id"]; hasUserID {
-			t.Fatalf("expected ephemeral control author from bot authentication, got %+v", post)
+		if post["user_id"] != "bot-1" {
+			t.Fatalf("expected ephemeral control author to be the authenticated bot, got %+v", post)
 		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
@@ -1528,6 +1532,8 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		case "/api/v4/posts":
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1611,8 +1617,8 @@ func TestMattermostReplySendsAskAttachmentEphemeralForRequester(t *testing.T) {
 		if !isMap {
 			t.Fatalf("expected ephemeral post document, got %+v", payload)
 		}
-		if _, hasUserID := post["user_id"]; hasUserID {
-			t.Fatalf("expected ephemeral attachment author from bot authentication, got %+v", post)
+		if post["user_id"] != "bot-1" {
+			t.Fatalf("expected ephemeral attachment author to be the authenticated bot, got %+v", post)
 		}
 		props := post["props"].(map[string]any)
 		attachments := props["attachments"].([]any)

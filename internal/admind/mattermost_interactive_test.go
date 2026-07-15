@@ -15,7 +15,7 @@ func TestMattermostInteractiveActionURLUsesConfiguredPublicBaseURL(t *testing.T)
 	configuration.MattermostInteractiveBaseURL = " https://poc0-t15.example.test/ "
 	service := &Service{Configuration: configuration}
 
-	actualURL := service.mattermostInteractiveActionURL()
+	actualURL := service.mattermostInteractiveActionBuilder().URL
 	if actualURL != "https://poc0-t15.example.test/_internkim/mattermost/actions" {
 		t.Fatalf("interactive action URL = %q", actualURL)
 	}

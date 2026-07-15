@@ -8,10 +8,7 @@ import (
 )
 
 func TestActionBuilderAddsSharedEndpointAndToken(t *testing.T) {
-	builder := ActionBuilder{
-		URL:   ActionURL(" https://flow.example.com/ "),
-		Token: "shared-token",
-	}
+	builder := NewActionBuilder("shared-token", "", " https://flow.example.com/ ")
 
 	button := builder.Button("attendanceClockIn", "출근", "", "primary", Context{})
 	if button.Integration.URL != "https://flow.example.com/_internkim/mattermost/actions" {
@@ -24,6 +21,14 @@ func TestActionBuilderAddsSharedEndpointAndToken(t *testing.T) {
 	selection := builder.Select("askChoice", "선택", Context{Action: "ask.choice"}, []Option{{Text: "A", Value: "a"}})
 	if selection.Integration.Context.Action != "ask.choice" || selection.Integration.Context.Token != "shared-token" {
 		t.Fatalf("selection context = %+v", selection.Integration.Context)
+	}
+}
+
+func TestActionBuilderResolvesLocalListenAddress(t *testing.T) {
+	builder := NewActionBuilder("shared-token", "", LocalHTTPBaseURL("0.0.0.0:18080"))
+
+	if builder.URL != "http://127.0.0.1:18080/_internkim/mattermost/actions" {
+		t.Fatalf("button URL = %q", builder.URL)
 	}
 }
 

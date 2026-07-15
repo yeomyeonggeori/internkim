@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -207,10 +206,11 @@ func (service *Service) mattermostInteractiveButtonWithContext(actionID string, 
 }
 
 func (service *Service) mattermostInteractiveActionBuilder() mattermostinteractive.ActionBuilder {
-	return mattermostinteractive.ActionBuilder{
-		URL:   service.mattermostInteractiveActionURL(),
-		Token: service.ensureMattermostInteractiveActionToken(),
-	}
+	return mattermostinteractive.NewActionBuilder(
+		service.ensureMattermostInteractiveActionToken(),
+		service.Configuration.MattermostInteractiveBaseURL,
+		mattermostinteractive.LocalHTTPBaseURL(service.Configuration.ListenAddress),
+	)
 }
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
@@ -231,19 +231,6 @@ func isMattermostAskActionTarget(payload mattermostInteractivePayload) bool {
 		return false
 	}
 	return strings.TrimSpace(payload.UserID) == targetUserID
-}
-
-func (service *Service) mattermostInteractiveActionURL() string {
-	baseURL := strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostInteractiveBaseURL), "/")
-	if baseURL != "" {
-		return mattermostinteractive.ActionURL(baseURL)
-	}
-	address := strings.TrimSpace(service.Configuration.ListenAddress)
-	_, port, errorValue := net.SplitHostPort(address)
-	if errorValue == nil && port != "" {
-		return mattermostinteractive.ActionURL("http://127.0.0.1:" + port)
-	}
-	return mattermostinteractive.ActionURL("http://" + strings.TrimRight(address, "/"))
 }
 
 func (service *Service) ensureMattermostInteractiveActionToken() string {
