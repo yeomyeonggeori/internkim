@@ -115,31 +115,38 @@ async function verifyPublicSite(botReply: Locator, page: Page): Promise<void> {
 	const publicLink = await findPublicLink(botReply, expectedURL);
 	await verify(publicLink).toBeVisible();
 	if (siteProxyURL !== '') {
-		await publicLink.click({ trial: true });
-		await verifySiteThroughProxy(page, expectedURL);
+		await routePublicSiteThroughProxy(page, expectedURL);
+		const sitePage = await openPublicLink(publicLink, page, expectedURL);
+		await verifyPublicSiteContent(sitePage);
 		return;
 	}
-	const target = await publicLink.getAttribute('target');
-	let sitePage = page;
-	if (target === '_blank') {
-		const [openedPage] = await Promise.all([page.waitForEvent('popup'), publicLink.click()]);
-		sitePage = openedPage;
-	} else {
-		await Promise.all([page.waitForURL((url) => url.origin === expectedURL.origin), publicLink.click()]);
-	}
-	await sitePage.waitForLoadState('domcontentloaded');
-	await verify.poll(() => new URL(sitePage.url()).origin).toBe(expectedURL.origin);
+	const sitePage = await openPublicLink(publicLink, page, expectedURL);
 	await verifyPublicSiteContent(sitePage);
 }
 
-async function verifySiteThroughProxy(page: Page, expectedURL: URL): Promise<void> {
-	const sitePage = await page.context().newPage();
-	await sitePage.setExtraHTTPHeaders({ Host: expectedURL.host });
-	const proxyURL = new URL(siteProxyURL);
-	proxyURL.pathname = expectedURL.pathname;
-	proxyURL.search = expectedURL.search;
-	await sitePage.goto(proxyURL.toString(), { waitUntil: 'domcontentloaded' });
-	await verifyPublicSiteContent(sitePage);
+async function openPublicLink(publicLink: Locator, page: Page, expectedURL: URL): Promise<Page> {
+	const target = await publicLink.getAttribute('target');
+	if (target === '_blank') {
+		const [openedPage] = await Promise.all([page.waitForEvent('popup'), publicLink.click()]);
+		await openedPage.waitForLoadState('domcontentloaded');
+		await verify.poll(() => new URL(openedPage.url()).origin).toBe(expectedURL.origin);
+		return openedPage;
+	}
+	await Promise.all([page.waitForURL((url) => url.origin === expectedURL.origin), publicLink.click()]);
+	await page.waitForLoadState('domcontentloaded');
+	return page;
+}
+
+async function routePublicSiteThroughProxy(page: Page, expectedURL: URL): Promise<void> {
+	await page.context().route(`${expectedURL.origin}/**`, async (route) => {
+		const publicRequestURL = new URL(route.request().url());
+		const proxyRequestURL = new URL(siteProxyURL);
+		proxyRequestURL.pathname = publicRequestURL.pathname;
+		proxyRequestURL.search = publicRequestURL.search;
+		const headers = { ...route.request().headers(), host: expectedURL.host };
+		const response = await route.fetch({ url: proxyRequestURL.toString(), headers });
+		await route.fulfill({ response });
+	});
 }
 
 async function verifyPublicSiteContent(sitePage: Page): Promise<void> {
@@ -149,6 +156,10 @@ async function verifyPublicSiteContent(sitePage: Page): Promise<void> {
 	for (const fragment of expectedPublicText) {
 		await verify(sitePage.getByText(fragment, { exact: false }).first()).toBeVisible();
 	}
+	await sitePage.setViewportSize({ width: 1440, height: 1000 });
+	await sitePage.screenshot({ path: join(artifactDirectory, 'site-desktop.png'), fullPage: true });
+	await sitePage.setViewportSize({ width: 390, height: 844 });
+	await sitePage.screenshot({ path: join(artifactDirectory, 'site-mobile.png'), fullPage: true });
 	for (const label of expectedPublicControls) {
 		const control = sitePage.getByRole('link', { name: new RegExp(escapeRegularExpression(label), 'i') })
 			.or(sitePage.getByRole('button', { name: new RegExp(escapeRegularExpression(label), 'i') }))
@@ -159,10 +170,6 @@ async function verifyPublicSiteContent(sitePage: Page): Promise<void> {
 		await verify(sitePage.locator('body')).not.toContainText(/bad gateway|not found|application error/i);
 		await sitePage.screenshot({ path: join(artifactDirectory, `site-control-${safeFilename(label)}.png`), fullPage: true });
 	}
-	await sitePage.setViewportSize({ width: 1440, height: 1000 });
-	await sitePage.screenshot({ path: join(artifactDirectory, 'site-desktop.png'), fullPage: true });
-	await sitePage.setViewportSize({ width: 390, height: 844 });
-	await sitePage.screenshot({ path: join(artifactDirectory, 'site-mobile.png'), fullPage: true });
 }
 
 function parseStringArray(value: string | undefined): string[] {
