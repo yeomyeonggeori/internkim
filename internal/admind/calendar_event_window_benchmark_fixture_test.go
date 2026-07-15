@@ -15,9 +15,21 @@ import (
 	"time"
 )
 
-const calendarEventWindowBenchmarkEventCount = 120
+const (
+	calendarEventWindowBenchmarkEventCount        = 120
+	calendarEventWindowBenchmarkHistoryEventCount = calendarEventWindowBenchmarkEventCount * 12
+	calendarEventWindowBenchmarkRangeIndexName    = "calendar_events_active_end_start_benchmark_idx"
+)
 
 func newCalendarEventWindowBenchmarkService(testContext testing.TB) *Service {
+	return newCalendarEventWindowBenchmarkServiceWithHistory(testContext, 0)
+}
+
+func newCalendarEventWindowHistoryBenchmarkService(testContext testing.TB) *Service {
+	return newCalendarEventWindowBenchmarkServiceWithHistory(testContext, calendarEventWindowBenchmarkHistoryEventCount)
+}
+
+func newCalendarEventWindowBenchmarkServiceWithHistory(testContext testing.TB, historyEventCount int) *Service {
 	testContext.Helper()
 	rootPath := testContext.TempDir()
 	writeBenchmarkFile := func(name string, document string) string {
@@ -40,6 +52,7 @@ func newCalendarEventWindowBenchmarkService(testContext testing.TB) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: calendarEventWindowBenchmarkTransport(testContext)}
 	seedCalendarEventWindowBenchmarkFixture(testContext, service)
+	seedCalendarEventWindowBenchmarkHistory(testContext, service, historyEventCount)
 	service.Configuration.MattermostBaseURL = "http://mattermost.local"
 	service.Configuration.MattermostAdminPasswordPath = writeBenchmarkFile("mattermost-admin-password", "admin-password")
 	return service
@@ -67,15 +80,27 @@ func calendarEventWindowBenchmarkTransport(testContext testing.TB) roundTripFunc
 func seedCalendarEventWindowBenchmarkFixture(testContext testing.TB, service *Service) {
 	testContext.Helper()
 	startTime, _ := calendarEventWindowBenchmarkRange()
+	seedCalendarEventWindowBenchmarkEvents(testContext, service, "benchmark-event", startTime, calendarEventWindowBenchmarkEventCount)
+}
+
+func seedCalendarEventWindowBenchmarkHistory(testContext testing.TB, service *Service, eventCount int) {
+	testContext.Helper()
+	startTime, _ := calendarEventWindowBenchmarkRange()
+	historyStartTime := startTime.Add(-time.Duration(eventCount) * 6 * time.Hour)
+	seedCalendarEventWindowBenchmarkEvents(testContext, service, "benchmark-history-event", historyStartTime, eventCount)
+}
+
+func seedCalendarEventWindowBenchmarkEvents(testContext testing.TB, service *Service, idPrefix string, startTime time.Time, eventCount int) {
+	testContext.Helper()
 	participants := []calendarParticipant{
 		{PersonID: stableFlowID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
 		{PersonID: stableFlowID("other@example.com"), Name: "Other", Email: "other@example.com"},
 	}
-	for index := 0; index < calendarEventWindowBenchmarkEventCount; index++ {
+	for index := 0; index < eventCount; index++ {
 		eventStartTime := startTime.Add(time.Duration(index) * 6 * time.Hour)
 		event := calendarEvent{
-			ID:                fmt.Sprintf("benchmark-event-%03d", index),
-			UID:               fmt.Sprintf("benchmark-event-%03d@intern.kim", index),
+			ID:                fmt.Sprintf("%s-%04d", idPrefix, index),
+			UID:               fmt.Sprintf("%s-%04d@intern.kim", idPrefix, index),
 			Title:             fmt.Sprintf("Benchmark event %03d", index),
 			Description:       "Calendar event window benchmark",
 			Location:          "Benchmark room",
@@ -101,7 +126,51 @@ func calendarEventWindowBenchmarkRange() (time.Time, time.Time) {
 	return startTime, startTime.AddDate(0, 1, 0)
 }
 
-func requestCalendarEventWindowBenchmark(testContext testing.TB, handler http.Handler) calendarEventsResponse {
+func calendarEventWindowBenchmarkQueryPlan(testContext testing.TB, service *Service) []string {
+	testContext.Helper()
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	defer database.Close()
+	startTime, endTime := calendarEventWindowBenchmarkRange()
+	query, arguments := calendarEventRangeQuery(startTime, endTime)
+	rows, errorValue := database.QueryContext(context.Background(), "EXPLAIN QUERY PLAN "+query, arguments...)
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	defer rows.Close()
+	details := []string{}
+	for rows.Next() {
+		var identifier int
+		var parentIdentifier int
+		var unused int
+		var detail string
+		if errorValue := rows.Scan(&identifier, &parentIdentifier, &unused, &detail); errorValue != nil {
+			testContext.Fatal(errorValue)
+		}
+		details = append(details, detail)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	return details
+}
+
+func createCalendarEventWindowBenchmarkRangeIndex(testContext testing.TB, service *Service) {
+	testContext.Helper()
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	defer database.Close()
+	statement := "CREATE INDEX " + calendarEventWindowBenchmarkRangeIndexName + " ON calendar_events(end_at, start_at) WHERE deleted_at = ''"
+	if _, errorValue := database.ExecContext(context.Background(), statement); errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+}
+
+func serveCalendarEventWindowBenchmark(testContext testing.TB, handler http.Handler) *httptest.ResponseRecorder {
 	testContext.Helper()
 	request := calendarEventWindowBenchmarkRequest()
 	response := httptest.NewRecorder()
@@ -109,6 +178,11 @@ func requestCalendarEventWindowBenchmark(testContext testing.TB, handler http.Ha
 	if response.Code != http.StatusOK {
 		testContext.Fatalf("calendar event window status = %d body = %s", response.Code, response.Body.String())
 	}
+	return response
+}
+
+func decodeCalendarEventWindowBenchmarkResponse(testContext testing.TB, response *httptest.ResponseRecorder) calendarEventsResponse {
+	testContext.Helper()
 	var document calendarEventsResponse
 	if errorValue := json.NewDecoder(bytes.NewReader(response.Body.Bytes())).Decode(&document); errorValue != nil {
 		testContext.Fatal(errorValue)
