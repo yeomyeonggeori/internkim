@@ -26,7 +26,6 @@ FLEET_ID="$(cat /root/.internkim/env/fleet-id 2>/dev/null || true)"
 FLEET_SECRET="$(cat /root/.internkim/secrets/fleet-secret 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
-POLICY_PATH="/root/.blueclaw/config/policy.json"
 WORKSPACE_PATH="/root/.blueclaw/workspace"
 
 if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
@@ -68,20 +67,25 @@ write_removable_policy_emails() {
     sort -u > "$policy_removable_path"
 }
 
+refresh_current_policy() {
+  curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path"
+}
+
 sync_posix_policy() {
-  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$POLICY_PATH" ]; then
+  refresh_current_policy
+  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$current_policy_path" ]; then
     /usr/local/bin/blueclaw-posix-helper sync \
-      --policy "$POLICY_PATH" \
+      --policy "$current_policy_path" \
       --workspace "$WORKSPACE_PATH" >/root/.blueclaw/workspace/.blueclaw/logs/posix-sync.log 2>&1
   fi
 }
 
 ensure_person_workspace_directories() {
-  [ -s "$POLICY_PATH" ] || return 0
+  [ -s "$current_policy_path" ] || return 0
   install -d -m 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles"
   chown blueclaw:blueclaw "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles" 2>/dev/null || true
   chmod 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles" 2>/dev/null || true
-  jq -r '.people[]?.personID // empty' "$POLICY_PATH" | while IFS= read -r person_id; do
+  jq -r '.people[]?.personID // empty' "$current_policy_path" | while IFS= read -r person_id; do
     [ -n "$person_id" ] || continue
     person_path="$WORKSPACE_PATH/private/people/$person_id"
     [ -d "$person_path" ] || continue

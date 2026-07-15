@@ -23,7 +23,10 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 
 	for _, fragment := range []string{
 		`{personID:$personID,email:$email,circles:`,
+		"refresh_current_policy()",
+		"curl -fsS \"$BLUECLAW_URL/admin/api/policy\" > \"$current_policy_path\"",
 		"blueclaw-posix-helper sync",
+		"--policy \"$current_policy_path\"",
 		"install -d -m 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"chmod 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"$WORKSPACE_PATH/private/people/$person_id",
@@ -34,6 +37,9 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync script to include %q", fragment)
 		}
+	}
+	if strings.Contains(script, `--policy "$POLICY_PATH"`) {
+		t.Fatal("expected POSIX sync to avoid the pre-launch host policy copy")
 	}
 }
 

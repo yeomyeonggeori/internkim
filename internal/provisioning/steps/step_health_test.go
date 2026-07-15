@@ -35,6 +35,37 @@ func TestBlueclawFirecrackerHealthRunsRootfsMountCheckWhenServiceIsInactive(t *t
 	}
 }
 
+func TestBlueclawUsersPolicyHealthReadsRuntimePolicyAPI(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	checkBlueclawUsersPolicy(context, &failedChecks)
+
+	if len(failedChecks) != 0 {
+		t.Fatalf("expected runtime policy API health to pass, got failed checks %+v", failedChecks)
+	}
+	if !strings.Contains(connection.command, "http://127.0.0.1:8080/admin/api/policy") {
+		t.Fatalf("expected runtime policy API lookup, got %q", connection.command)
+	}
+	if strings.Contains(connection.command, `policy_path = "/root/.blueclaw/config/policy.json"`) {
+		t.Fatal("expected health check to avoid the pre-launch host policy copy")
+	}
+}
+
+type blueclawUsersPolicyHealthBoardConnection struct {
+	command string
+}
+
+func (connection *blueclawUsersPolicyHealthBoardConnection) Run(command string) string {
+	connection.command = command
+	return "ok"
+}
+
+func (connection *blueclawUsersPolicyHealthBoardConnection) SCP(localPath string, remotePath string) error {
+	return nil
+}
+
 type blueclawFirecrackerHealthBoardConnection struct {
 	blueclawServiceStatus string
 	rootfsContractOutput  string
