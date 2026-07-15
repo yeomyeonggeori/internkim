@@ -23,6 +23,28 @@ runtime_was_modified=false
 workspace_sync_source=$(mktemp -d)
 blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
 
+stage_workspace_runtime_config() {
+  local workspace_runtime_source=$1
+  mkdir -p "$workspace_sync_source/.blueclaw/config"
+  cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"
+}
+
+replace_host_runtime_config() {
+  local runtime_source=$1
+  local temporary_runtime_config
+  if ! temporary_runtime_config=$(mktemp "${runtime_config}.tmp.XXXXXX"); then
+    return 1
+  fi
+  if ! cp "$runtime_source" "$temporary_runtime_config"; then
+    rm -f "$temporary_runtime_config"
+    return 1
+  fi
+  if ! mv "$temporary_runtime_config" "$runtime_config"; then
+    rm -f "$temporary_runtime_config"
+    return 1
+  fi
+}
+
 sync_workspace_runtime_config() {
   systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true
   for _ in $(seq 1 20); do
@@ -35,22 +57,27 @@ sync_workspace_runtime_config() {
     systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true
   fi
   local sync_status=0
-  /usr/local/bin/blueclaw-supervisor sync-workspace --atomic \
+  /usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state \
     --runtime "$runtime_config" \
-    --source "$workspace_sync_source" \
-    --relative-target .blueclaw/config || sync_status=$?
+    --source "$workspace_sync_source" || sync_status=$?
   systemctl start "$blueclaw_service_name"
   systemctl is-active "$blueclaw_service_name" 2>/dev/null
   return "$sync_status"
+}
+
+apply_runtime_config() {
+  local runtime_source=$1
+  local workspace_runtime_source=$2
+  stage_workspace_runtime_config "$workspace_runtime_source"
+  replace_host_runtime_config "$runtime_source"
+  sync_workspace_runtime_config
 }
 
 restore_runtime() {
   if [ "$runtime_was_modified" != true ]; then
     return
   fi
-  cp "$runtime_config_backup" "$runtime_config"
-  cp "$workspace_runtime_config_backup" "$workspace_sync_source/runtime.json"
-  sync_workspace_runtime_config || true
+  apply_runtime_config "$runtime_config_backup" "$workspace_runtime_config_backup" || true
 }
 
 restore_sdkd() {
@@ -113,16 +140,29 @@ run_task() {
 
 enable_router_schema() {
   local temporary_runtime_config temporary_workspace_runtime_config
-  temporary_runtime_config=$(mktemp)
-  temporary_workspace_runtime_config=$(mktemp)
-  jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
-    "$runtime_config" >"$temporary_runtime_config"
-  jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
-    "$workspace_runtime_config" >"$temporary_workspace_runtime_config"
+  if ! temporary_runtime_config=$(mktemp); then
+    return 1
+  fi
+  if ! temporary_workspace_runtime_config=$(mktemp); then
+    rm -f "$temporary_runtime_config"
+    return 1
+  fi
+  if ! jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
+    "$runtime_config" >"$temporary_runtime_config"; then
+    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
+    return 1
+  fi
+  if ! jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
+    "$workspace_runtime_config" >"$temporary_workspace_runtime_config"; then
+    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
+    return 1
+  fi
   runtime_was_modified=true
-  mv "$temporary_runtime_config" "$runtime_config"
-  mv "$temporary_workspace_runtime_config" "$workspace_sync_source/runtime.json"
-  sync_workspace_runtime_config
+  if ! apply_runtime_config "$temporary_runtime_config" "$temporary_workspace_runtime_config"; then
+    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
+    return 1
+  fi
+  rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
 }
 
 assert_guest_sdkd_router_transport() {
