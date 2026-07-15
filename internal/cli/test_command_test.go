@@ -115,6 +115,27 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	}
 }
 
+func TestParseTestArgumentsAcceptsPreparedExpensiveRun(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{
+		"expensive",
+		"--run-id", "prepared-run",
+		"--skip-provisioning",
+	}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.RunID != "prepared-run" || !configuration.ShouldSkipProvisioning {
+		t.Fatalf("unexpected prepared run configuration: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsRejectsUnidentifiedPreparedRun(t *testing.T) {
+	_, errorValue := parseTestArguments([]string{"expensive", "--skip-provisioning"}, time.Now())
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requires --run-id or --reuse") {
+		t.Fatalf("unexpected error: %v", errorValue)
+	}
+}
+
 func TestParseTestArgumentsRejectsUnknownLanguageModelProvider(t *testing.T) {
 	_, errorValue := parseTestArguments([]string{"expensive", "--llm-provider", "unknown"}, time.Now())
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "llm provider must be") {
