@@ -6,7 +6,6 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 service_name=blueclaw-sdkd.service
-blueclaw_service_name=blueclaw.service
 runtime_directory=/run/blueclaw-sdkd
 socket_path=$runtime_directory/sdkd.sock
 auth_key_path=/root/.internkim/secrets/sdkd-auth-key
@@ -15,88 +14,10 @@ workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json
 capability_socket_path=/run/internkim/capability.sock
 chat_bridge_path=/_internkim/sdkd/v1/llm/chat
 invalid_chat_request='{"executionMode":"auto","messages":[],"parallelToolCalls":"invalid"}'
-runtime_config_backup=$(mktemp)
-workspace_runtime_config_backup=$(mktemp)
-cp "$runtime_config" "$runtime_config_backup"
-cp "$workspace_runtime_config" "$workspace_runtime_config_backup"
-runtime_was_modified=false
-workspace_sync_source=$(mktemp -d)
-blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
 requester_person_id=
 
-stage_workspace_runtime_config() {
-  local workspace_runtime_source=$1
-  mkdir -p "$workspace_sync_source/.blueclaw/config"
-  cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"
-}
-
-replace_host_runtime_config() {
-  local runtime_source=$1
-  local temporary_runtime_config
-  if ! temporary_runtime_config=$(mktemp "${runtime_config}.tmp.XXXXXX"); then
-    return 1
-  fi
-  if ! cp "$runtime_source" "$temporary_runtime_config"; then
-    rm -f "$temporary_runtime_config"
-    return 1
-  fi
-  if ! mv "$temporary_runtime_config" "$runtime_config"; then
-    rm -f "$temporary_runtime_config"
-    return 1
-  fi
-}
-
-wait_for_blueclaw() {
-  for _ in $(seq 1 60); do
-    if curl --fail --silent --max-time 3 http://127.0.0.1:8080/admin/api/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
-      return
-    fi
-    sleep 1
-  done
-  systemctl status "$blueclaw_service_name" --no-pager >&2
-  return 1
-}
-
-sync_workspace_runtime_config() {
-  systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true
-  for _ in $(seq 1 20); do
-    if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
-      break
-    fi
-    sleep 1
-  done
-  if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then
-    systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true
-  fi
-  local sync_status=0
-  /usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state \
-    --runtime "$runtime_config" \
-    --source "$workspace_sync_source" || sync_status=$?
-  systemctl start "$blueclaw_service_name"
-  systemctl is-active "$blueclaw_service_name" 2>/dev/null
-  wait_for_blueclaw
-  return "$sync_status"
-}
-
-apply_runtime_config() {
-  local runtime_source=$1
-  local workspace_runtime_source=$2
-  stage_workspace_runtime_config "$workspace_runtime_source"
-  replace_host_runtime_config "$runtime_source"
-  sync_workspace_runtime_config
-}
-
-restore_runtime() {
-  if [ "$runtime_was_modified" != true ]; then
-    return
-  fi
-  apply_runtime_config "$runtime_config_backup" "$workspace_runtime_config_backup" || true
-}
-
 restore_sdkd() {
-  restore_runtime || true
   systemctl start "$service_name" >/dev/null 2>&1 || true
-  rm -rf "$workspace_sync_source" "$runtime_config_backup" "$workspace_runtime_config_backup"
 }
 
 wait_for_sdkd() {
@@ -155,33 +76,6 @@ run_task() {
   fi
   rm -f "$response_path"
   printf '%s\n' "$task_run_id"
-}
-
-enable_router_schema() {
-  local temporary_runtime_config temporary_workspace_runtime_config
-  if ! temporary_runtime_config=$(mktemp); then
-    return 1
-  fi
-  if ! temporary_workspace_runtime_config=$(mktemp); then
-    rm -f "$temporary_runtime_config"
-    return 1
-  fi
-  if ! jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
-    "$runtime_config" >"$temporary_runtime_config"; then
-    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
-    return 1
-  fi
-  if ! jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
-    "$workspace_runtime_config" >"$temporary_workspace_runtime_config"; then
-    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
-    return 1
-  fi
-  runtime_was_modified=true
-  if ! apply_runtime_config "$temporary_runtime_config" "$temporary_workspace_runtime_config"; then
-    rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
-    return 1
-  fi
-  rm -f "$temporary_runtime_config" "$temporary_workspace_runtime_config"
 }
 
 assert_guest_sdkd_router_transport() {
@@ -318,9 +212,8 @@ if grep -qE '/run/blueclaw-sdkd|sdkd-auth-key' "$runtime_config"; then
   exit 1
 fi
 
-jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$runtime_config" >/dev/null
-jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config" >/dev/null
-enable_router_schema
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]' "$runtime_config" >/dev/null
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]' "$workspace_runtime_config" >/dev/null
 requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
 router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '' false)
 assert_guest_sdkd_router_transport "$router_task_run_id"
