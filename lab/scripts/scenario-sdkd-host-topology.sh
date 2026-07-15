@@ -21,12 +21,27 @@ cp "$runtime_config" "$runtime_config_backup"
 cp "$workspace_runtime_config" "$workspace_runtime_config_backup"
 runtime_was_modified=false
 workspace_sync_source=$(mktemp -d)
+blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
 
 sync_workspace_runtime_config() {
+  systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+  if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+    systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true
+  fi
+  local sync_status=0
   /usr/local/bin/blueclaw-supervisor sync-workspace --atomic \
     --runtime "$runtime_config" \
     --source "$workspace_sync_source" \
-    --relative-target .blueclaw/config
+    --relative-target .blueclaw/config || sync_status=$?
+  systemctl start "$blueclaw_service_name"
+  systemctl is-active "$blueclaw_service_name" 2>/dev/null
+  return "$sync_status"
 }
 
 restore_runtime() {
@@ -34,14 +49,12 @@ restore_runtime() {
     return
   fi
   cp "$runtime_config_backup" "$runtime_config"
-  cp "$workspace_runtime_config_backup" "$workspace_runtime_config"
-  cp "$workspace_runtime_config" "$workspace_sync_source/runtime.json"
+  cp "$workspace_runtime_config_backup" "$workspace_sync_source/runtime.json"
   sync_workspace_runtime_config || true
-  systemctl restart "$blueclaw_service_name" >/dev/null 2>&1 || true
 }
 
 restore_sdkd() {
-  restore_runtime
+  restore_runtime || true
   systemctl start "$service_name" >/dev/null 2>&1 || true
   rm -rf "$workspace_sync_source" "$runtime_config_backup" "$workspace_runtime_config_backup"
 }
@@ -108,11 +121,8 @@ enable_router_schema() {
     "$workspace_runtime_config" >"$temporary_workspace_runtime_config"
   runtime_was_modified=true
   mv "$temporary_runtime_config" "$runtime_config"
-  mv "$temporary_workspace_runtime_config" "$workspace_runtime_config"
-  cp "$workspace_runtime_config" "$workspace_sync_source/runtime.json"
+  mv "$temporary_workspace_runtime_config" "$workspace_sync_source/runtime.json"
   sync_workspace_runtime_config
-  systemctl restart "$blueclaw_service_name"
-  systemctl is-active --quiet "$blueclaw_service_name"
 }
 
 assert_guest_sdkd_router_transport() {

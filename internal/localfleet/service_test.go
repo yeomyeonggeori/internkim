@@ -458,7 +458,16 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`taskDecisionPreset:$taskDecisionPreset`,
 		`task_decision_preset=${2-sdkd_topology}`,
 		`workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json`,
+		`blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'`,
+		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
+		`for _ in $(seq 1 20); do`,
+		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
+		`sleep 1`,
+		`if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
+		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
 		`blueclaw-supervisor sync-workspace --atomic`,
+		`systemctl start "$blueclaw_service_name"`,
+		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
 		`structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)`,
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]'`,
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config"`,
@@ -494,11 +503,33 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`systemctl restart "$service_name"`,
 		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
 		`assert_guest_sdkd_structured_transport "$recovered_task_run_id" false`,
+		`restore_runtime || true`,
 		`trap restore_sdkd EXIT`,
 	} {
 		if !strings.Contains(script, expectedFragment) {
 			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
 		}
+	}
+	lastIndex := -1
+	for _, expectedFragment := range []string{
+		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
+		`for _ in $(seq 1 20); do`,
+		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
+		`sleep 1`,
+		`if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
+		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
+		`blueclaw-supervisor sync-workspace --atomic`,
+		`systemctl start "$blueclaw_service_name"`,
+		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
+	} {
+		fragmentIndex := strings.Index(script, expectedFragment)
+		if fragmentIndex < 0 {
+			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
+		}
+		if fragmentIndex <= lastIndex {
+			t.Fatalf("expected %q after previous workspace sync fragment", expectedFragment)
+		}
+		lastIndex = fragmentIndex
 	}
 }
 
