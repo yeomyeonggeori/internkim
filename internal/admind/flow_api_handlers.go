@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -83,41 +84,34 @@ func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
 
 func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, request *http.Request) {
 	now := time.Now()
-	weekCode := strings.TrimSpace(request.URL.Query().Get("week"))
-	if weekCode == "" {
-		weekCode = weekCodeForDate(now)
-	} else if canonical := canonicalWeekCode(weekCode); canonical != "" {
-		weekCode = canonical
+	weekCode, errorValue := parseFlowSummaryWeekCode(request.URL.Query().Get("week"), now)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
 	}
 	weekStart := weekStartForCode(weekCode, now)
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)
-	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	memberFingerprint, errorValue := flowSummaryMemberFingerprint(members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	weeklyTasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
+	dependencyKeys := flowSummaryDependencyKeysForWeek(weekCode, weekStart)
+	readModel, errorValue := service.readCachedFlowSummaryReadModel(request.Context(), weekCode, dependencyKeys, memberFingerprint, func(ctx context.Context) (flowSummaryReadModel, error) {
+		return service.buildFlowSummaryReadModel(ctx, weekCode, weekStart, members)
+	})
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, weeklyTasks, definitions)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	metrics := buildFlowMetrics(weeklyTasks, definitions)
-	metrics.MemberScores = map[string]int{}
-	metrics.MemberScoreDetails = map[string]flowMemberScoreItem{}
-	metrics.TotalScore = 0
 	response := flowSummaryResponse{
 		Week:        buildFlowWeek(weekCode, weekStart, now),
 		CurrentWeek: buildFlowWeek(currentWeekCode, currentWeekStart, now),
-		WeeklyTasks: weeklyTasks,
-		Metrics:     metrics,
-		Report:      report,
+		WeeklyTasks: readModel.WeeklyTasks,
+		Metrics:     readModel.Metrics,
+		Report:      readModel.Report,
 		Source:      "sqlite",
 	}
 	service.writeJSON(responseWriter, response)
