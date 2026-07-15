@@ -52,10 +52,6 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if taskID == "" && callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = flowStatusRequested
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
-		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && shouldIncludeRequesterAsFlowParticipant(payload) && !containsString(participantIDs, requesterID) {
-			participantIDs = append(participantIDs, requesterID)
-			participants = append(participants, memberByID[requesterID])
-		}
 	}
 	if !isAllowedFlowStatus(status) {
 		return flowTask{}, flowValidationError("status is not allowed")
@@ -98,21 +94,4 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		RequestReason:      strings.TrimSpace(payload.RequestReason),
 		DecisionReason:     strings.TrimSpace(payload.DecisionReason),
 	}, nil
-}
-
-func shouldIncludeRequesterAsFlowParticipant(payload flowTaskWriteRequest) bool {
-	text := strings.ToLower(strings.Join([]string{
-		payload.Content,
-		payload.Goal,
-		payload.RequestReason,
-	}, " "))
-	for _, marker := range []string{
-		"같이", "함께", "공동", "협업", "동행", "나랑", "저랑", "우리",
-		"together", "with me", "with us", "joint", "collaborate",
-	} {
-		if strings.Contains(text, marker) {
-			return true
-		}
-	}
-	return false
 }

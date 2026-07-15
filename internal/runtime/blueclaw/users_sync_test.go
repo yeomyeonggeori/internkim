@@ -51,6 +51,10 @@ func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *te
 
 	for _, fragment := range []string{
 		`{personID:$personID,email:$email,circles:`,
+		"refresh_current_policy()",
+		"curl -fsS \"$BLUECLAW_URL/admin/api/policy\" > \"$current_policy_path\"",
+		"blueclaw-posix-helper sync",
+		"--policy \"$current_policy_path\"",
 		"install -d -m 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"chmod 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"$WORKSPACE_PATH/private/people/$person_id",
@@ -62,8 +66,8 @@ func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *te
 			t.Fatalf("expected users sync script to include %q", fragment)
 		}
 	}
-	if strings.Contains(script, "blueclaw-posix-helper sync") || strings.Contains(script, "sync_posix_policy") {
-		t.Fatal("users sync must leave POSIX policy reconciliation to the authoritative guest runtime")
+	if strings.Contains(script, `--policy "$POLICY_PATH"`) {
+		t.Fatal("expected POSIX sync to avoid the pre-launch host policy copy")
 	}
 }
 

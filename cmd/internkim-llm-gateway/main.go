@@ -28,7 +28,7 @@ func main() {
 		Handler: llmgateway.Service{
 			Configuration: configuration,
 			RateLimiter:   llmgateway.NewMemoryRateLimiter(),
-			HTTPClient:    &http.Client{Timeout: 10 * time.Minute},
+			HTTPClient:    &http.Client{},
 		}.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

@@ -1,7 +1,6 @@
 ---
 name: internkim-flow
-description: Add, find, update, or complete weekly work items when the user asks the assistant to handle work, todos, requests, deadlines, or task notes.
-when_to_use: Use when the user asks to add, record, request, find, update, change, or complete work items, todos, 업무, 회의 준비, 미팅 준비, 추가, 넣어, 등록, 요청, 수정, 변경, 완료, 마감, 전달, 할 일, or 할일.
+description: Add, find, update, or complete weekly work items when the user asks to add, record, request, find, change, or complete work, todos, 업무, deadlines, or task notes.
 ---
 
 # 업무 관리

@@ -24,6 +24,41 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 	}
 }
 
+func TestMattermostAskActionURLUsesConfiguredPublicBaseURL(t *testing.T) {
+	configuration := Configuration{
+		AdmindBaseURL:                "http://127.0.0.1:18080",
+		MattermostInteractiveBaseURL: " https://poc0-t15.example.test/ ",
+	}
+	service := Service{Configuration: configuration}
+
+	actualURL := service.mattermostAskActionBuilder().URL
+	if actualURL != "https://poc0-t15.example.test/_internkim/mattermost/actions" {
+		t.Fatalf("ask action URL = %q", actualURL)
+	}
+}
+
+func TestMattermostHealthRejectsHumanTokenUser(t *testing.T) {
+	tokenPath := filepath.Join(t.TempDir(), "mattermost-token")
+	if errorValue := os.WriteFile(tokenPath, []byte("human-token"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "https://mattermost.test", MattermostTokenPath: tokenPath},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "human-1", "username": "internkim", "is_bot": false}), nil
+		})},
+	}
+	service.healthState().Update(func(state *platformHealthState) {
+		state.MattermostForwarderRunning = true
+		state.MattermostBotUserResolved = true
+	})
+
+	health := service.mattermostHealth(context.Background())
+	if health["ok"] != false || health["botUserResolved"] != false {
+		t.Fatalf("expected human token user to be unhealthy, got %+v", health)
+	}
+}
+
 func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
 	configuration := DefaultConfiguration()
 
@@ -39,13 +74,23 @@ func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
 func TestHTTPClientTimeoutTracksProviderAttemptTimeout(t *testing.T) {
 	service := Service{Configuration: Configuration{}.WithDefaults()}
 
-	if service.httpClientTimeout() != 5*time.Minute+30*time.Second {
-		t.Fatalf("expected default provider timeout with buffer, got %s", service.httpClientTimeout())
+	if service.httpClientTimeout() != 120*time.Second {
+		t.Fatalf("expected general HTTP timeout, got %s", service.httpClientTimeout())
 	}
 
 	shortTimeoutService := Service{Configuration: Configuration{ProviderAttemptTimeout: 30 * time.Second}.WithDefaults()}
 	if shortTimeoutService.httpClientTimeout() != 120*time.Second {
 		t.Fatalf("expected minimum http timeout, got %s", shortTimeoutService.httpClientTimeout())
+	}
+}
+
+func TestProviderHTTPClientHasNoDefaultTimeout(t *testing.T) {
+	service := Service{Configuration: Configuration{}.WithDefaults()}
+	if service.providerHTTPClient().Timeout != 0 {
+		t.Fatalf("expected provider HTTP client without a default timeout, got %s", service.providerHTTPClient().Timeout)
+	}
+	if service.companionInferenceProvider().httpClient().Timeout != 0 {
+		t.Fatalf("expected companion inference client without a default timeout, got %s", service.companionInferenceProvider().httpClient().Timeout)
 	}
 }
 
@@ -416,7 +461,7 @@ func TestEmbeddingCreateUsesOpenRouterSecretWithoutReturningIt(t *testing.T) {
 	}
 }
 
-func TestRemoteEmbeddingModeMapsLocalEmbeddingAliasToOpenRouterDefault(t *testing.T) {
+func TestRemoteEmbeddingModePreservesRequestedEmbeddingModel(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -432,12 +477,12 @@ func TestRemoteEmbeddingModeMapsLocalEmbeddingAliasToOpenRouterDefault(t *testin
 		if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		if document["model"] != "openai/text-embedding-3-small" {
-			t.Fatalf("expected remote embedding model default, got %v", document["model"])
+		if document["model"] != "embeddinggemma" {
+			t.Fatalf("expected requested embedding model, got %v", document["model"])
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"model":"openai/text-embedding-3-small","data":[{"embedding":[0.1,0.2]}]}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"model":"embeddinggemma","data":[{"embedding":[0.1,0.2]}]}`)),
 			Header:     make(http.Header),
 		}, nil
 	})}

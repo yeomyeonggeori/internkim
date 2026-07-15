@@ -2891,11 +2891,11 @@ func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
 	}
 }
 
-func TestFlowAPIAddsRequesterParticipantForJointOtherMemberTask(t *testing.T) {
+func TestFlowAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	payload := flowTaskWriteRequest{
 		OwnerID:        stableFlowID("other@example.com"),
-		ParticipantIDs: []string{stableFlowID("other@example.com")},
+		ParticipantIDs: []string{stableFlowID("other@example.com"), stableFlowID("staff@example.com")},
 		Type:           "회의",
 		Content:        "같이 10분 회의",
 		Size:           "XS",

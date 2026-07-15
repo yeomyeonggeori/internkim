@@ -24,7 +24,7 @@ export const defaultSettings: CompanionSettings = {
 	enableLocalLLM: false,
 	localBackendOrder: ['ollama'],
 	ollama: { baseURL: 'http://127.0.0.1:11434', model: '' },
-	llamacpp: { baseURL: 'http://127.0.0.1:8080', model: '', embeddingModel: 'embeddinggemma' },
+	llamacpp: { baseURL: 'http://127.0.0.1:8080', model: '', embeddingModel: 'baai/bge-m3' },
 	mlx: { baseURL: 'http://127.0.0.1:10240', model: '' },
 	stt: null,
 	tts: null

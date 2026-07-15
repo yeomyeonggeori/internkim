@@ -176,8 +176,6 @@ type Backend interface {
 	Ping(context.Context) error
 }
 
-const DefaultAttemptTimeout = 90 * time.Second
-
 type AutoProvider struct {
 	Providers               []Provider
 	AttemptTimeout          time.Duration
@@ -196,7 +194,7 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 		}
 		candidateRequest := request
 		candidateRequest.Messages = compactedMessages
-		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		attemptContext, cancel := providerAttemptContext(ctx, provider.AttemptTimeout)
 		defer cancel()
 		return candidate.CompleteStructured(attemptContext, candidateRequest)
 	})
@@ -210,7 +208,7 @@ func (provider AutoProvider) CompleteText(ctx context.Context, request TextReque
 		}
 		candidateRequest := request
 		candidateRequest.Messages = compactedMessages
-		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		attemptContext, cancel := providerAttemptContext(ctx, provider.AttemptTimeout)
 		defer cancel()
 		return candidate.CompleteText(attemptContext, candidateRequest)
 	})
@@ -218,17 +216,17 @@ func (provider AutoProvider) CompleteText(ctx context.Context, request TextReque
 
 func (provider AutoProvider) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
 	return completeChatWithProviderChain(provider.Providers, chatRequestTrace(request), func(candidate ChatCompleter) (ChatResponse, error) {
-		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		attemptContext, cancel := providerAttemptContext(ctx, provider.AttemptTimeout)
 		defer cancel()
 		return candidate.CompleteChat(attemptContext, request)
 	})
 }
 
-func (provider AutoProvider) attemptTimeout() time.Duration {
-	if provider.AttemptTimeout <= 0 {
-		return DefaultAttemptTimeout
+func providerAttemptContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(ctx)
 	}
-	return provider.AttemptTimeout
+	return context.WithTimeout(ctx, timeout)
 }
 
 func completeWithProviderChain(providers []Provider, requestTrace string, complete func(Provider) (Response, error)) (Response, error) {

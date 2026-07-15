@@ -1,7 +1,6 @@
 ---
 name: calendar
 description: Read or write the workspace calendar with calendar capability operations. Use this whenever the user asks to add, find, update, cancel, delete, or check meetings, schedules, 일정, 캘린더, 미팅, 회의, 약속, or reminders, even if they do not explicitly say "calendar."
-when_to_use: Use when the user asks about calendar, schedule, meeting, 일정, 캘린더, 미팅, 회의, 약속, or reminders.
 ---
 
 # Workspace Calendar
@@ -43,26 +42,24 @@ Optional fields:
 - `endISO`
 - `query`
 - `limit`
-- `query`
 
 Use both `startISO` and `endISO` together when narrowing a date range.
 
 ### `calendar.update`
 
-Update an existing event. This does not require approval. List first if the user has not provided an `eventID`.
+Update an existing event. This does not require approval. Use an `eventID` only when it came from a successful observation; otherwise use `query` with the user's distinctive title wording.
 
 Required fields:
 
-- `eventID`
 - `title`
 - `startISO`
 - `endISO`
 
-Optional fields are the same as `calendar.add`.
+Set either `eventID` or `query` when changing the title. If the title stays unchanged, the runtime can use that title to find the event when both are omitted. Other optional fields are the same as `calendar.add`.
 
 ### `calendar.delete`
 
-Delete an event by `eventID`. This requires approval. List matching events first when the user refers to an event by title or time.
+Delete an event by observed `eventID` or distinctive `query`. This requires approval.
 
 ## Rules
 

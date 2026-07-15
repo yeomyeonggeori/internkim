@@ -4,12 +4,53 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
+
+func TestCapabilityContractUsesCurrentDefinitions(t *testing.T) {
+	contract := CurrentCapabilityContract()
+	if contract.Version != 1 {
+		t.Fatalf("contract version = %d, want 1", contract.Version)
+	}
+	if !reflect.DeepEqual(contract.ToolNames, capabilities.DefaultToolNames()) {
+		t.Fatalf("contract tool names do not match current capabilities")
+	}
+	if !reflect.DeepEqual(contract.ToolDescriptors, capabilities.DefaultToolDescriptors()) {
+		t.Fatalf("contract tool descriptors do not match current capabilities")
+	}
+	if !reflect.DeepEqual(contract.RoutingCandidates, capabilities.RoutingCandidates()) {
+		t.Fatalf("contract routing candidates do not match current capabilities")
+	}
+	if !reflect.DeepEqual(contract.PolicyResourceDefaults, defaultResourceAccessPolicies()) {
+		t.Fatalf("contract policy defaults do not match current Blueclaw policy")
+	}
+	for legacyToolName, currentToolName := range capabilities.LegacyToolNameReplacements() {
+		legacyResource := "tool:" + legacyToolName
+		currentResource := "tool:" + currentToolName
+		if contract.PolicyResourceReplacements[legacyResource] != currentResource {
+			t.Fatalf("policy replacement for %q = %q, want %q", legacyResource, contract.PolicyResourceReplacements[legacyResource], currentResource)
+		}
+	}
+}
+
+func TestCapabilityContractDocumentIsDeterministic(t *testing.T) {
+	firstDocument, errorValue := CapabilityContractDocument()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondDocument, errorValue := CapabilityContractDocument()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if firstDocument != secondDocument {
+		t.Fatal("expected deterministic capability contract document")
+	}
+}
 
 func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *testing.T) {
 	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
@@ -326,6 +367,7 @@ func TestBlueclawRuntimeConfigCanIncludeGenerationOptions(t *testing.T) {
 func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *testing.T) {
 	t.Setenv(BlueclawTestModelEnvironment, "google/test-model")
 	t.Setenv(BlueclawTestModelTierEnvironment, "xlow")
+	t.Setenv(BlueclawTestMaximumModelTierEnvironment, "xlow")
 	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
 	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
 	t.Setenv(BlueclawAdminTaskDiagnosticEnvironment, "true")
@@ -342,6 +384,9 @@ func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *
 	}
 	if options.DefaultTaskLevel != "xlow" {
 		t.Fatalf("expected task level from environment, got %+v", options)
+	}
+	if options.MaximumModelTier != "xlow" {
+		t.Fatalf("expected maximum model tier from environment, got %+v", options)
 	}
 	if options.GenerationSeed == nil || *options.GenerationSeed != 41 {
 		t.Fatalf("expected seed from environment, got %+v", options)
@@ -446,6 +491,30 @@ func TestBlueclawRuntimeConfigUsesRequestedDefaultTaskLevel(t *testing.T) {
 	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
 	if agentConfiguration["defaultTaskLevel"] != "xlow" {
 		t.Fatalf("expected xlow default task level, got %+v", agentConfiguration)
+	}
+}
+
+func TestBlueclawRuntimeConfigIncludesMaximumModelTier(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{MaximumModelTier: "low"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	capabilityLanguageModel := languageModel["capability"].(map[string]any)
+	if capabilityLanguageModel["maximumModelTier"] != "low" {
+		t.Fatalf("expected low maximum model tier, got %+v", capabilityLanguageModel)
+	}
+}
+
+func TestBlueclawRuntimeConfigRejectsInvalidMaximumModelTierEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestMaximumModelTierEnvironment, "coding")
+	_, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "maximum model tier") {
+		t.Fatalf("expected maximum model tier error, got %v", errorValue)
 	}
 }
 
@@ -953,7 +1022,7 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		"--host " + locallm.LlamaCppHost,
 		"--port " + locallm.LlamaCppEmbeddingPort,
 		"--embeddings",
-		"--pooling mean",
+		"--pooling cls",
 		"--batch-size " + locallm.LlamaCppEmbeddingBatchSize,
 		"--ubatch-size " + locallm.LlamaCppEmbeddingUBatchSize,
 		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,

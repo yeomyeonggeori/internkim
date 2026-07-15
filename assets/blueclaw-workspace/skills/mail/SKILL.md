@@ -1,7 +1,6 @@
 ---
 name: mail
 description: Read, search, draft, and send mail through the workspace IMAP/SMTP mail capabilities. Use for 메일 확인, 이메일 검색, 받은메일, 최근 메일, 답장, 초안, and sending email.
-when_to_use: Use when the user asks to check, find, read, search, reply to, draft, or send email or mail; Korean examples include 메일 확인, 이메일 찾아줘, 최근 메일, 받은메일, GitHub에서 온 메일, 답장 써줘, 메일 보내줘.
 ---
 
 # Mail

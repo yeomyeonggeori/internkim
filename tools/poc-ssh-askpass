@@ -1,0 +1,2 @@
+#!/bin/sh
+printf '%s\n' "$INTERNKIM_POC_SSH_PASSWORD"

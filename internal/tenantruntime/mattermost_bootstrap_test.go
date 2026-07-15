@@ -68,6 +68,28 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	}
 }
 
+func TestMattermostBootstrapRejectsExistingHumanInternKimAccount(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/api/v4/bots":
+			writeMattermostBootstrapJSON(responseWriter, http.StatusBadRequest, map[string]string{"message": "username exists"})
+		case "/api/v4/users/username/internkim":
+			writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]any{"id": "human-1", "username": "internkim", "is_bot": false})
+		case "/api/v4/users/human-1":
+			writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]any{"id": "human-1", "username": "internkim", "is_bot": false})
+		default:
+			writeMattermostBootstrapJSON(responseWriter, http.StatusNotFound, map[string]string{"path": request.URL.Path})
+		}
+	}))
+	defer server.Close()
+
+	client := mattermostBootstrapClient{baseURL: server.URL, httpClient: server.Client()}
+	_, _, errorValue := client.ensureBot("admin-token", "team-1")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "is not a bot") {
+		t.Fatalf("expected human account rejection, got %v", errorValue)
+	}
+}
+
 func TestBootstrapMattermostTenantResourcesProvisionMembersIdempotently(t *testing.T) {
 	server := newMattermostBootstrapTestServer(t)
 	server.usersByEmail["existing@example.com"] = mattermostBootstrapTestUser{ID: "user-existing", Username: "existing"}
@@ -224,6 +246,10 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 	}
 	if request.URL.Path == "/api/v4/bots" && request.Method == http.MethodPost {
 		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]string{"user_id": "bot-1"})
+		return
+	}
+	if request.URL.Path == "/api/v4/users/bot-1" && request.Method == http.MethodGet {
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]any{"id": "bot-1", "username": "internkim", "is_bot": true})
 		return
 	}
 	if request.URL.Path == "/api/v4/users/bot-1/patch" && request.Method == http.MethodPut {
