@@ -34,8 +34,5 @@ func ensureFlowSummaryCacheSchema(ctx context.Context, database *sql.DB) error {
 			return fmt.Errorf("create flow summary cache schema: %w", errorValue)
 		}
 	}
-	if _, errorValue := database.ExecContext(ctx, "DELETE FROM flow_summary_cache_entries"); errorValue != nil {
-		return fmt.Errorf("clear flow summary cache entries: %w", errorValue)
-	}
 	return nil
 }

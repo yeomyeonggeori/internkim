@@ -23,6 +23,36 @@ func TestEnsureFlowSummaryCacheSchemaCreatesExactTables(t *testing.T) {
 	assertFlowSummaryCacheTableShape(t, database, "flow_summary_cache_entries", "week_code,requested_week_revision,previous_week_revision,current_month_revision,previous_month_revision,definitions_revision,member_fingerprint,schema_version,payload_json,cached_at", "week_code")
 }
 
+func TestEnsureFlowSummaryCacheSchemaDoesNotClearDerivedEntries(t *testing.T) {
+	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
+	database, errorValue := service.openSQLiteDatabase(context.Background(), service.Configuration.FlowDatabasePath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	if errorValue := ensureFlowSummaryCacheSchema(context.Background(), database); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `
+		INSERT INTO flow_summary_cache_entries (
+			week_code, requested_week_revision, previous_week_revision, current_month_revision,
+			previous_month_revision, definitions_revision, member_fingerprint, schema_version,
+			payload_json, cached_at
+		) VALUES ('26W28', 0, 0, 0, 0, 0, 'members', 1, '{}', '2026-07-15T00:00:00Z')`); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := ensureFlowSummaryCacheSchema(context.Background(), database); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var count int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM flow_summary_cache_entries").Scan(&count); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if count != 1 {
+		t.Fatalf("cache entry count = %d, want 1", count)
+	}
+}
+
 func TestEnsureFlowSummaryCacheSchemaPreservesLegacyFlowData(t *testing.T) {
 	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "legacy-flow.sqlite")})
 	database, errorValue := service.openSQLiteDatabase(context.Background(), service.Configuration.FlowDatabasePath, nil)
