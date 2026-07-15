@@ -803,7 +803,10 @@ func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context,
 	if attachment == nil {
 		return nil
 	}
-	post := mattermostEphemeralPost(handle)
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return errorValue
+	}
 	post["props"] = map[string]any{
 		"internkim_raw_event_id": request.RawEventID,
 		"internkim_outbox_id":    request.OutboxID,
@@ -814,7 +817,10 @@ func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context,
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
-	post := mattermostEphemeralPost(handle)
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	post["message"] = strings.TrimSpace(message)
 	post["props"] = map[string]any{
 		"internkim_raw_event_id": request.RawEventID,
@@ -824,20 +830,25 @@ func (service Service) sendMattermostEphemeralText(ctx context.Context, handle p
 		"user_id": strings.TrimSpace(request.EphemeralUserID),
 		"post":    post,
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
+	if errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
 		return nil, errorValue
 	}
 	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
 }
 
-func mattermostEphemeralPost(handle platformHandle) map[string]any {
+func (service Service) mattermostEphemeralPost(ctx context.Context, handle platformHandle) (map[string]any, error) {
+	botUser, errorValue := service.resolveMattermostBotUser(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	post := map[string]any{
 		"channel_id": handle.ChannelID,
+		"user_id":    botUser.ID,
 	}
 	if strings.TrimSpace(handle.RootID) != "" {
 		post["root_id"] = handle.RootID
 	}
-	return post
+	return post, nil
 }
 
 func (request replyRequest) mattermostAskTargetUserID() string {
@@ -964,10 +975,11 @@ func (service Service) mattermostAskButton(id string, name string, style string,
 }
 
 func (service Service) mattermostAskActionBuilder() mattermostinteractive.ActionBuilder {
-	return mattermostinteractive.ActionBuilder{
-		URL:   service.mattermostAskActionURL(),
-		Token: service.ensureMattermostInteractiveActionToken(),
-	}
+	return mattermostinteractive.NewActionBuilder(
+		service.ensureMattermostInteractiveActionToken(),
+		service.Configuration.MattermostInteractiveBaseURL,
+		service.Configuration.AdmindBaseURL,
+	)
 }
 
 func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Context {
@@ -1026,14 +1038,6 @@ func trimNonEmptyPlatformStrings(values []string) []string {
 		}
 	}
 	return trimmedValues
-}
-
-func (service Service) mattermostAskActionURL() string {
-	baseURL := strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostInteractiveBaseURL), "/")
-	if baseURL == "" {
-		baseURL = strings.TrimRight(strings.TrimSpace(service.Configuration.AdmindBaseURL), "/")
-	}
-	return mattermostinteractive.ActionURL(baseURL)
 }
 
 func (service Service) ensureMattermostInteractiveActionToken() string {

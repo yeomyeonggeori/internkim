@@ -87,6 +87,40 @@ def migrate_flow_database(name, workspace):
     subprocess.run([CONTAINER, 'cp', f'{name}:{source_path}', destination_path], check=True)
 
 
+def ensure_mattermost_bot(number):
+    username = f'internkim{number:02d}'
+    subprocess.run([
+        CONTAINER,
+        'exec',
+        'poc-mattermost',
+        'mmctl',
+        '--local',
+        'user',
+        'convert',
+        username,
+        '--bot',
+    ], capture_output=True, text=True)
+
+
+def verify_mattermost_bot(container_name, expected_username):
+    shell_command = (
+        'token="$(cat /secrets/mattermost-bot-token)"; '
+        'curl --silent --show-error --fail '
+        '-H "Authorization: Bearer $token" '
+        '"http://${MATTERMOST_HOST}:8065/api/v4/users/me"'
+    )
+    result = subprocess.run(
+        [CONTAINER, 'exec', container_name, 'sh', '-c', shell_command],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f'Mattermost bot verification failed for {expected_username}: {result.stderr.strip()}')
+    user_document = json.loads(result.stdout)
+    if user_document.get('username') != expected_username or user_document.get('is_bot') is not True:
+        raise RuntimeError(f'Mattermost account is not a bot: {expected_username}')
+
+
 def start_tenant(n, pg_ip, mm_ip):
     name = f'poc-tenant-{n:02d}'
     tenant_id = f'tenant_{n:02d}'
@@ -97,6 +131,7 @@ def start_tenant(n, pg_ip, mm_ip):
     openrouter = os.path.join(BASE, 'secrets', 'openrouter-key')
     os.makedirs(workspace, exist_ok=True)
     initialize_workspace_settings(workspace)
+    ensure_mattermost_bot(n)
 
     existing = run([CONTAINER, 'inspect', name], check=False)
     if existing:
@@ -119,6 +154,7 @@ def start_tenant(n, pg_ip, mm_ip):
         TENANT_IMAGE]
     print(f'Starting {name}...')
     run(cmd)
+    verify_mattermost_bot(name, f'internkim{n:02d}')
 
 
 def default_tenant_count():

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,28 @@ type Integration struct {
 type ActionBuilder struct {
 	URL   string
 	Token string
+}
+
+func NewActionBuilder(token string, baseURLs ...string) ActionBuilder {
+	return ActionBuilder{URL: ResolveActionURL(baseURLs...), Token: token}
+}
+
+func ResolveActionURL(baseURLs ...string) string {
+	for _, baseURL := range baseURLs {
+		if strings.TrimSpace(baseURL) != "" {
+			return ActionURL(baseURL)
+		}
+	}
+	return ActionPath
+}
+
+func LocalHTTPBaseURL(listenAddress string) string {
+	trimmedAddress := strings.TrimSpace(listenAddress)
+	_, port, errorValue := net.SplitHostPort(trimmedAddress)
+	if errorValue == nil && port != "" {
+		return "http://127.0.0.1:" + port
+	}
+	return "http://" + strings.TrimRight(trimmedAddress, "/")
 }
 
 func ActionURL(baseURL string) string {

@@ -31,7 +31,7 @@ func TestMattermostAskActionURLUsesConfiguredPublicBaseURL(t *testing.T) {
 	}
 	service := Service{Configuration: configuration}
 
-	actualURL := service.mattermostAskActionURL()
+	actualURL := service.mattermostAskActionBuilder().URL
 	if actualURL != "https://poc0-t15.intern.kim/_internkim/mattermost/actions" {
 		t.Fatalf("ask action URL = %q", actualURL)
 	}
