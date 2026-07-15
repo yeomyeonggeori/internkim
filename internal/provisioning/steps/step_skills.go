@@ -73,7 +73,7 @@ done
 if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` || pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
   systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
 fi
-` + blueclaw.BlueclawSupervisorBinaryPath + ` sync-workspace --workspace-image ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` --source ` + shellQuote(blueclaw.BlueclawWorkspacePath) + `
+` + blueclaw.BlueclawSupervisorBinaryPath + ` sync-workspace --atomic --workspace-image ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` --source ` + shellQuote(blueclaw.BlueclawWorkspacePath+"/skills") + ` --relative-target skills
 systemctl start ` + blueclaw.BlueclawServiceName + `
 systemctl is-active ` + blueclaw.BlueclawServiceName + ` 2>/dev/null`
 }
