@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,45 @@ import (
 	"testing"
 	"time"
 )
+
+func TestFlowTaskAPICanonicalizesCompatibleWeekCodesBeforeStorage(t *testing.T) {
+	for _, weekCode := range []string{"2026-W28", "26w28"} {
+		t.Run(weekCode, func(t *testing.T) {
+			service := newFlowAuthorizationTestService(t)
+			staffID := stableFlowID("staff@example.com")
+			payload := newFlowTaskPayload("staff@example.com", "canonical week "+weekCode, flowStatusInProgress, 0, []string{staffID})
+			payload.WeekCode = weekCode
+
+			createdTask := createFlowTaskForTest(t, service.router(), "staff@example.com", payload)
+
+			if createdTask.WeekCode != "26W28" {
+				t.Fatalf("response week = %q, want 26W28", createdTask.WeekCode)
+			}
+			database, errorValue := service.openFlowDatabase(context.Background())
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			var storedWeekCode string
+			if errorValue := database.QueryRowContext(context.Background(), "SELECT week_code FROM flow_tasks WHERE id = ?", createdTask.ID).Scan(&storedWeekCode); errorValue != nil {
+				database.Close()
+				t.Fatal(errorValue)
+			}
+			if errorValue := database.Close(); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if storedWeekCode != "26W28" {
+				t.Fatalf("stored week = %q, want 26W28", storedWeekCode)
+			}
+			tasks, errorValue := service.readFlowTasks(context.Background(), "26W28", nil)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(tasks) != 1 || tasks[0].WeekCode != "26W28" {
+				t.Fatalf("tasks = %+v", tasks)
+			}
+		})
+	}
+}
 
 func TestFlowTaskAPIRejectsMalformedWeekCode(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)

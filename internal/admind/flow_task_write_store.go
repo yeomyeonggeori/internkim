@@ -188,13 +188,11 @@ func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, task
 	}
 	if found && existingTask.MattermostPostID != trimmedPostID {
 		weekKey, errorValue := flowTaskWeekSummarySourceKey(existingTask)
-		if errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
-		if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, []flowSummarySourceKey{weekKey}); errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
+		if errorValue == nil {
+			if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, []flowSummarySourceKey{weekKey}); errorValue != nil {
+				_ = transaction.Rollback()
+				return errorValue
+			}
 		}
 	}
 	return transaction.Commit()
