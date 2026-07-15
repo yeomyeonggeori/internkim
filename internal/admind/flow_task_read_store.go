@@ -1,6 +1,13 @@
 package admind
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
+
+type flowTaskQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
 
 func (service *Service) readFlowTasks(ctx context.Context, weekCode string, members []flowMember) ([]flowTask, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
@@ -85,7 +92,15 @@ func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (fl
 		return flowTask{}, false, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
+	return readFlowTaskByIDWithQueryer(ctx, database, taskID)
+}
+
+func readFlowTaskByIDInTransaction(ctx context.Context, transaction *sql.Tx, taskID string) (flowTask, bool, error) {
+	return readFlowTaskByIDWithQueryer(ctx, transaction, taskID)
+}
+
+func readFlowTaskByIDWithQueryer(ctx context.Context, queryer flowTaskQueryer, taskID string) (flowTask, bool, error) {
+	rows, errorValue := queryer.QueryContext(ctx, `
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
 FROM flow_tasks
 WHERE id = ?`, taskID)
