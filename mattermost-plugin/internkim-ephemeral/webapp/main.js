@@ -151,7 +151,15 @@
 	function createChannelHeaderIcon(React) {
 		return React.createElement(
 			'svg',
-			{ width: 18, height: 18, viewBox: '0 0 24 24', fill: 'currentColor' },
+			{
+				width: 18,
+				height: 18,
+				viewBox: '0 0 24 24',
+				fill: 'currentColor',
+				role: 'img',
+				'aria-label': 'InternKim boards',
+				'data-testid': 'internkim-boards-icon',
+			},
 			React.createElement('rect', { x: 3, y: 3, width: 5, height: 18, rx: 1 }),
 			React.createElement('rect', { x: 10, y: 3, width: 5, height: 12, rx: 1 }),
 			React.createElement('rect', { x: 17, y: 3, width: 5, height: 8, rx: 1 }),
