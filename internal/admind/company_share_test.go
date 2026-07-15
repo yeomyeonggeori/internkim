@@ -364,6 +364,9 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 		FlowDatabasePath:       temporaryDirectory + "/flow.sqlite",
 		AttendanceDatabasePath: temporaryDirectory + "/attendance.sqlite",
 	})
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	insertCompanyShareActivityTestData(t, service)
 
 	activity, errorValue := service.buildCompanyShareTeamActivity(t.Context(), time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC))
@@ -372,6 +375,9 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 	}
 	if activity.AttendanceTotal != 2 || activity.WorkTotal != 2 || len(activity.Members) != 2 {
 		t.Fatalf("unexpected activity aggregate: %#v", activity)
+	}
+	if activity.Days[len(activity.Days)-2].WorkMinutes != 60 || activity.Days[len(activity.Days)-1].WorkMinutes != 300 {
+		t.Fatalf("overnight work minutes were not split by date: %#v", activity.Days[len(activity.Days)-2:])
 	}
 	if len(activity.RecentWork) != 2 || activity.RecentWork[0].MemberSeed == "" || activity.RecentWork[0].Title == "" {
 		t.Fatalf("unexpected recent work: %#v", activity.RecentWork)
@@ -467,8 +473,10 @@ INSERT INTO attendance_events (
 	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
 	canceled_at, cancel_reason, repeated_click_at
 ) VALUES
-('attendance-1', 'member-1', 'member', 'member@example.com', '김철수', 'clock_in', '2026-07-13T00:00:00Z', '2026-07-13', '09:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
-('attendance-2', 'member-2', 'second', 'second@example.com', '이영희', 'clock_in', '2026-07-14T00:00:00Z', '2026-07-14', '09:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', '')`)
+('attendance-1', 'member-1', 'member', 'member@example.com', '김철수', 'clock_in', '2026-07-13T14:00:00Z', '2026-07-13', '23:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
+('attendance-1-out', 'member-1', 'member', 'member@example.com', '김철수', 'clock_out', '2026-07-13T17:00:00Z', '2026-07-13', '02:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
+('attendance-2', 'member-2', 'second', 'second@example.com', '이영희', 'clock_in', '2026-07-14T00:00:00Z', '2026-07-14', '09:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
+('attendance-2-out', 'member-2', 'second', 'second@example.com', '이영희', 'clock_out', '2026-07-14T03:00:00Z', '2026-07-14', '12:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', '')`)
 	attendanceDatabase.Close()
 	if errorValue != nil {
 		t.Fatal(errorValue)
