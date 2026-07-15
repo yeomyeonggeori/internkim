@@ -17,6 +17,37 @@ func normalizeFlowTaskDates(payload flowTaskWriteRequest, status string, now tim
 	return normalizeFlowStatusDates(payload.StartDate, payload.EndDate, payload.WeekCode, status, now)
 }
 
+func canonicalFlowTaskWeekCode(weekCode string, now time.Time) (string, error) {
+	trimmedWeekCode := strings.TrimSpace(weekCode)
+	if trimmedWeekCode == "" {
+		return "", nil
+	}
+	canonicalWeekCode := canonicalFlowSummaryWeekCode(trimmedWeekCode, now)
+	if canonicalWeekCode == "" {
+		return "", flowValidationError("weekCode must be a valid ISO week")
+	}
+	return canonicalWeekCode, nil
+}
+
+func validateFlowTaskDateInput(startDate string, endDate string, location *time.Location) error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "startDate", value: startDate},
+		{name: "endDate", value: endDate},
+	} {
+		trimmedValue := strings.TrimSpace(field.value)
+		if trimmedValue == "" {
+			continue
+		}
+		if _, errorValue := time.ParseInLocation("2006-01-02", trimmedValue, location); errorValue != nil {
+			return flowValidationError(field.name + " must be a valid YYYY-MM-DD date")
+		}
+	}
+	return nil
+}
+
 func normalizeFlowStatusDates(startDate string, endDate string, weekCode string, status string, now time.Time) normalizedFlowTaskDates {
 	startDate = strings.TrimSpace(startDate)
 	endDate = strings.TrimSpace(endDate)
