@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,17 +97,13 @@ func seedCalendarEventWindowBenchmarkFixture(testContext testing.TB, service *Se
 }
 
 func calendarEventWindowBenchmarkRange() (time.Time, time.Time) {
-	startTime := time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC)
+	startTime := time.Date(2025, time.July, 1, 0, 0, 0, 0, time.UTC)
 	return startTime, startTime.AddDate(0, 1, 0)
 }
 
 func requestCalendarEventWindowBenchmark(testContext testing.TB, handler http.Handler) calendarEventsResponse {
 	testContext.Helper()
-	startTime, endTime := calendarEventWindowBenchmarkRange()
-	requestPath := "/calendar/api/events?startISO=" + startTime.Format(time.RFC3339) + "&endISO=" + endTime.Format(time.RFC3339)
-	request := httptest.NewRequest(http.MethodGet, requestPath, nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	request := calendarEventWindowBenchmarkRequest()
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -117,6 +114,17 @@ func requestCalendarEventWindowBenchmark(testContext testing.TB, handler http.Ha
 		testContext.Fatal(errorValue)
 	}
 	return document
+}
+
+func calendarEventWindowBenchmarkRequest() *http.Request {
+	startTime, endTime := calendarEventWindowBenchmarkRange()
+	query := url.Values{}
+	query.Set("startISO", startTime.Format(time.RFC3339))
+	query.Set("endISO", endTime.Format(time.RFC3339))
+	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events?"+query.Encode(), nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	return request
 }
 
 func resetCalendarActorProfileBenchmarkCache(service *Service) {
