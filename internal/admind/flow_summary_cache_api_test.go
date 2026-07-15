@@ -10,17 +10,40 @@ import (
 )
 
 func TestFlowSummaryAPIRejectsInvalidWeekWithoutCacheEntry(t *testing.T) {
+	for _, weekCode := range []string{"not-a-week", "garbage25W52suffix", "25W53"} {
+		t.Run(weekCode, func(t *testing.T) {
+			service := newFlowAuthorizationTestService(t)
+			request := newFlowSummaryAPIRequest(weekCode)
+			response := httptest.NewRecorder()
+
+			service.router().ServeHTTP(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+			}
+			if count := flowSummaryCacheEntryCountForTest(t, service); count != 0 {
+				t.Fatalf("cache entry count = %d, want 0", count)
+			}
+		})
+	}
+}
+
+func TestFlowSummaryAPICanonicalizesValidWeek(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	request := newFlowSummaryAPIRequest("not-a-week")
+	request := newFlowSummaryAPIRequest("2026-W28")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
 
-	if response.Code != http.StatusBadRequest {
+	if response.Code != http.StatusOK {
 		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
 	}
-	if count := flowSummaryCacheEntryCountForTest(t, service); count != 0 {
-		t.Fatalf("cache entry count = %d, want 0", count)
+	var summary flowSummaryResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if summary.Week.Code != "26W28" {
+		t.Fatalf("summary week = %q, want %q", summary.Week.Code, "26W28")
 	}
 }
 
@@ -69,6 +92,8 @@ func TestFlowSummaryCacheStoreRejectsNoncanonicalWeek(t *testing.T) {
 		{name: "empty", weekCode: ""},
 		{name: "long year", weekCode: "2026-W28"},
 		{name: "invalid", weekCode: "not-a-week"},
+		{name: "garbage partial match", weekCode: "garbage25W52suffix"},
+		{name: "nonexistent ISO week", weekCode: "25W53"},
 		{name: "whitespace", weekCode: " 26W28 "},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
