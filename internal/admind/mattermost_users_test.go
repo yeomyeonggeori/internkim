@@ -68,7 +68,7 @@ func TestAllowedMattermostUsersFallsBackToActiveUsersWhenDeviceAuthIsAbsent(t *t
 		}
 		return jsonResponse(http.StatusOK, `[
 			{"id":"admin","username":"admin","delete_at":0},
-			{"id":"agent-1","username":"internkim01","delete_at":0},
+			{"id":"agent-1","username":"internkim01","delete_at":0,"is_bot":true},
 			{"id":"admin-1","username":"admin01","delete_at":0},
 			{"id":"deleted-1","username":"deleted01","delete_at":10}
 		]`, nil), nil
@@ -78,8 +78,17 @@ func TestAllowedMattermostUsersFallsBackToActiveUsersWhenDeviceAuthIsAbsent(t *t
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(users) != 2 || users[0].ID != "agent-1" || users[1].ID != "admin-1" {
+	if len(users) != 1 || users[0].ID != "admin-1" {
 		t.Fatalf("expected active tenant users without device auth, got %+v", users)
+	}
+}
+
+func TestProtectedMattermostUsersIncludeEveryBot(t *testing.T) {
+	if !isProtectedMattermostUser(mattermostUserRecord{Username: "custom-agent", IsBot: true}) {
+		t.Fatal("expected bot account to be protected from people projections")
+	}
+	if isProtectedMattermostUser(mattermostUserRecord{Username: "admin15"}) {
+		t.Fatal("expected human tenant admin to remain visible")
 	}
 }
 
