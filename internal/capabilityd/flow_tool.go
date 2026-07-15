@@ -16,6 +16,7 @@ import (
 
 type flowTaskAddInput struct {
 	Prompt           string `json:"prompt"`
+	Content          string `json:"content"`
 	TargetPersonHint string `json:"targetPersonHint"`
 	WeekCode         string `json:"weekCode"`
 	AllowDuplicate   bool   `json:"allowDuplicate"`
@@ -127,6 +128,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	}
 	payload := map[string]any{
 		"prompt":         input.Prompt,
+		"content":        input.Content,
 		"ownerID":        ownerResolution.OwnerID,
 		"weekCode":       input.WeekCode,
 		"requesterEmail": request.Context.RequesterEmail,
@@ -312,6 +314,7 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 		return flowTaskAddInput{}, errorValue
 	}
 	input.Prompt = strings.TrimSpace(input.Prompt)
+	input.Content = strings.TrimSpace(input.Content)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
 	input.WeekCode = strings.TrimSpace(input.WeekCode)
 	if input.Prompt == "" {

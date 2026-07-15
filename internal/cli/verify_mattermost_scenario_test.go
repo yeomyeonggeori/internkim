@@ -201,8 +201,11 @@ func TestMattermostScenarioToolEvidenceRequiresRequestedEvent(t *testing.T) {
 	if countMattermostScenarioToolEvents(events, "task.add") != 0 {
 		t.Fatal("expected result events not to count as tool requests")
 	}
-	events = append(events, mattermostScenarioTaskEvent{Name: "tool.capability.invoke.requested", Body: `{"operation":"task.add"}`})
-	if countMattermostScenarioToolEvents(events, "task.add") != 1 {
-		t.Fatal("expected the requested capability event to count once")
+	events = append(events,
+		mattermostScenarioTaskEvent{Name: "tool.capability.invoke.requested", Body: `{"operation":"task.add"}`},
+		mattermostScenarioTaskEvent{Name: "tool.capability.invoke.requested", Body: `{"input":{"operation":"task.add"}}`},
+	)
+	if countMattermostScenarioToolEvents(events, "task.add") != 2 {
+		t.Fatal("expected both capability request shapes to count")
 	}
 }

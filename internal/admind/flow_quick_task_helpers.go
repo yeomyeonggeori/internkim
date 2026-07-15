@@ -44,6 +44,10 @@ func shouldForceQuickTaskRequest(owner flowMember, requesterEmail string) bool {
 	return true
 }
 
+func flowQuickTaskContent(explicitContent string, inferredContent string) string {
+	return firstNonEmpty(strings.TrimSpace(explicitContent), inferredContent)
+}
+
 func memberIDForEmail(members []flowMember, email string) string {
 	for _, member := range members {
 		if strings.EqualFold(member.Email, strings.TrimSpace(email)) {
