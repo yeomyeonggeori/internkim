@@ -66,9 +66,9 @@ func startMattermostScenarioSession(contextValue context.Context, target verifyT
 	session := newMattermostScenarioSession(scenario, mattermost, admin)
 	if errorValue := session.setup(contextValue); errorValue != nil {
 		cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancelCleanup()
-		_ = session.cleanup(cleanupContext)
-		return nil, errorValue
+		cleanupError := session.cleanup(cleanupContext)
+		cancelCleanup()
+		return nil, errors.Join(errorValue, cleanupError)
 	}
 	return session, nil
 }
