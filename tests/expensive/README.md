@@ -7,6 +7,7 @@ when every step satisfies its strict assertions.
 ```bash
 ./internkim test expensive --auto-confirm
 ./internkim test expensive --scenario task-lifecycle --auto-confirm
+./internkim test expensive --run-id <prepared-run> --skip-provisioning --scenario task-lifecycle --auto-confirm
 ./internkim test expensive --scenario document-lifecycle
 ./internkim test expensive --maximum-model-tier high
 ./internkim test expensive --real
