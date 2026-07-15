@@ -186,3 +186,46 @@ func TestCalendarEventWindowCacheInvalidatesFractionalOverlap(t *testing.T) {
 		t.Fatalf("fractional overlap cache entries = %d, want 0", cacheEntryCount)
 	}
 }
+
+func TestCalendarEventWindowCacheInvalidatesMattermostProjectionChanges(t *testing.T) {
+	service := newCalendarTestService(t)
+	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(24 * time.Hour)
+	event := calendarEvent{
+		ID:                "mattermost-projection-event",
+		UID:               "mattermost-projection-event@example.test",
+		Title:             "Mattermost projection event",
+		StartISO:          startTime.Add(time.Hour).Format(time.RFC3339),
+		EndISO:            startTime.Add(2 * time.Hour).Format(time.RFC3339),
+		TimeZone:          "UTC",
+		Color:             "#2563eb",
+		ReminderLeadHours: calendarDefaultReminderLeadHours,
+		CreatedByEmail:    "staff@example.com",
+	}
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.updateCalendarEventMattermostPostID(context.Background(), event.ID, "post-1"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	events, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].MattermostPostID != "post-1" {
+		t.Fatalf("events after Mattermost projection update = %+v", events)
+	}
+	if errorValue := service.updateCalendarEventMattermostPostID(context.Background(), event.ID, ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	events, errorValue = service.readCalendarEventWindow(context.Background(), startTime, endTime)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].MattermostPostID != "" {
+		t.Fatalf("events after Mattermost projection clear = %+v", events)
+	}
+}

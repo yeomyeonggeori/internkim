@@ -415,21 +415,6 @@ func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventPro
 	return projection, errorValue
 }
 
-func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context, eventID string, postID string) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	trimmedPostID := strings.TrimSpace(postID)
-	postCreatedAt := ""
-	if trimmedPostID != "" {
-		postCreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
-	}
-	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
-	return errorValue
-}
-
 func boolToSQLiteInteger(value bool) int {
 	if value {
 		return 1
