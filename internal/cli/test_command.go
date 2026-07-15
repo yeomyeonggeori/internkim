@@ -40,6 +40,7 @@ type testCommandConfiguration struct {
 	ExpectedTools              []string
 	ShouldExpectPublicURL      bool
 	ShouldReuseFleet           bool
+	ShouldSkipProvisioning     bool
 	ShouldKeepArtifacts        bool
 	ShouldOpenFiles            bool
 	ShouldUseRealModels        bool
@@ -75,6 +76,7 @@ func runTestArguments(arguments []string) error {
 func parseTestArguments(arguments []string, now time.Time) (testCommandConfiguration, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
+	skipProvisioning := flagSet.Bool("skip-provisioning", false, "Run against an already prepared Local Fleet")
 	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM and evidence after the test")
 	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
@@ -102,6 +104,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	flagSet.Var(&scenarioNames, "scenario", "Run one expensive scenario by name; repeat for multiple scenarios")
 	flagArguments, positionalArguments := splitFlagsAndPositionals(arguments, map[string]bool{
 		"reuse":             true,
+		"skip-provisioning": true,
 		"keep":              true,
 		"no-open":           true,
 		"real":              true,
@@ -140,6 +143,12 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if *reuseFleet && strings.TrimSpace(*runID) != "" {
 		return testCommandConfiguration{}, errors.New("--run-id requires a disposable Local Fleet run; remove --reuse")
 	}
+	if *skipProvisioning && suite != testSuiteExpensive {
+		return testCommandConfiguration{}, errors.New("--skip-provisioning requires the expensive suite")
+	}
+	if *skipProvisioning && !*reuseFleet && strings.TrimSpace(*runID) == "" {
+		return testCommandConfiguration{}, errors.New("--skip-provisioning requires --run-id or --reuse")
+	}
 	normalizedMaximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(*maximumModelTier)
 	if errorValue != nil {
 		return testCommandConfiguration{}, errorValue
@@ -168,6 +177,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ExpectedTools:              expectedTools.Values(),
 		ShouldExpectPublicURL:      *expectPublicURL,
 		ShouldReuseFleet:           *reuseFleet,
+		ShouldSkipProvisioning:     *skipProvisioning,
 		ShouldKeepArtifacts:        *keepArtifacts,
 		ShouldOpenFiles:            !*noOpen,
 		ShouldUseRealModels:        *useRealModels,
@@ -333,7 +343,12 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 	} else {
 		fmt.Println("Maximum model tier: " + configuration.MaximumModelTier)
 	}
-	runError := service.Run(contextValue, logger, localfleet.JobRequest{Action: localfleet.ActionUp, KeepArtifacts: true, SkipWeb: false})
+	var runError error
+	if configuration.ShouldSkipProvisioning {
+		fmt.Println("Provisioning: skipped (using prepared Local Fleet)")
+	} else {
+		runError = service.Run(contextValue, logger, localfleet.JobRequest{Action: localfleet.ActionUp, KeepArtifacts: true, SkipWeb: false})
+	}
 	if runError == nil {
 		runError = runExpensiveMattermostScenarios(contextValue, repositoryRootPath, executablePath, runID, service, configuration, scenarios)
 	}
