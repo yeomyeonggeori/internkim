@@ -458,16 +458,28 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`taskDecisionPreset:$taskDecisionPreset`,
 		`task_decision_preset=${2-sdkd_topology}`,
 		`workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json`,
+		`workspace_sync_source=$(mktemp -d)`,
 		`blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'`,
+		`stage_workspace_runtime_config() {`,
+		`mkdir -p "$workspace_sync_source/.blueclaw/config"`,
+		`cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"`,
+		`replace_host_runtime_config() {`,
+		`mktemp "${runtime_config}.tmp.XXXXXX"`,
+		`cp "$runtime_source" "$temporary_runtime_config"`,
+		`mv "$temporary_runtime_config" "$runtime_config"`,
+		`sync_workspace_runtime_config() {`,
 		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
-		`for _ in $(seq 1 20); do`,
 		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
-		`sleep 1`,
-		`if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
 		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
-		`blueclaw-supervisor sync-workspace --atomic`,
+		`/usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state`,
+		`--runtime "$runtime_config"`,
+		`--source "$workspace_sync_source"`,
 		`systemctl start "$blueclaw_service_name"`,
 		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
+		`apply_runtime_config() {`,
+		`stage_workspace_runtime_config "$workspace_runtime_source"`,
+		`replace_host_runtime_config "$runtime_source"`,
+		`apply_runtime_config "$runtime_config_backup" "$workspace_runtime_config_backup"`,
 		`structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)`,
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]'`,
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config"`,
@@ -510,15 +522,25 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
 		}
 	}
+	for _, forbiddenFragment := range []string{
+		"--relative-target",
+		"--relative-target .blueclaw/config",
+	} {
+		if strings.Contains(script, forbiddenFragment) {
+			t.Fatalf("did not expect %q in SDKD topology script", forbiddenFragment)
+		}
+	}
 	lastIndex := -1
 	for _, expectedFragment := range []string{
+		`stage_workspace_runtime_config() {`,
+		`cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"`,
+		`replace_host_runtime_config() {`,
+		`temporary_runtime_config=$(mktemp "${runtime_config}.tmp.XXXXXX")`,
+		`cp "$runtime_source" "$temporary_runtime_config"`,
+		`mv "$temporary_runtime_config" "$runtime_config"`,
 		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
-		`for _ in $(seq 1 20); do`,
-		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
-		`sleep 1`,
-		`if systemctl is-active --quiet "$blueclaw_service_name" || pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
 		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
-		`blueclaw-supervisor sync-workspace --atomic`,
+		`/usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state`,
 		`systemctl start "$blueclaw_service_name"`,
 		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
 	} {
@@ -530,6 +552,22 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 			t.Fatalf("expected %q after previous workspace sync fragment", expectedFragment)
 		}
 		lastIndex = fragmentIndex
+	}
+	applyRuntimeConfigIndex := strings.Index(script, `apply_runtime_config() {`)
+	if applyRuntimeConfigIndex < 0 {
+		t.Fatal("expected apply_runtime_config function")
+	}
+	lastIndex = applyRuntimeConfigIndex
+	for _, expectedFragment := range []string{
+		`stage_workspace_runtime_config "$workspace_runtime_source"`,
+		`replace_host_runtime_config "$runtime_source"`,
+		`sync_workspace_runtime_config`,
+	} {
+		fragmentIndex := strings.Index(script[lastIndex:], expectedFragment)
+		if fragmentIndex < 0 {
+			t.Fatalf("expected %q in apply_runtime_config", expectedFragment)
+		}
+		lastIndex += fragmentIndex
 	}
 }
 
