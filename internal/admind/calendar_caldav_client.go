@@ -26,10 +26,17 @@ const (
 	caldavWildcardETag         = "*"
 )
 
-var errCalDAVPreconditionFailed = errors.New("caldav precondition failed")
+var (
+	errCalDAVPreconditionFailed = errors.New("caldav precondition failed")
+	errCalDAVObjectNotFound     = errors.New("caldav object not found")
+)
 
 func isCalDAVPreconditionFailed(errorValue error) bool {
 	return errors.Is(errorValue, errCalDAVPreconditionFailed)
+}
+
+func isCalDAVObjectNotFound(errorValue error) bool {
+	return errors.Is(errorValue, errCalDAVObjectNotFound)
 }
 
 type calDAVCalendarInfo struct {
@@ -185,17 +192,35 @@ type calDAVCTagProp struct {
 }
 
 func (client *outboundCalDAVClient) getCalendarObject(ctx context.Context, objectPath string) (calDAVCalendarObject, error) {
-	object, errorValue := client.caldav.GetCalendarObject(ctx, calDAVPathOnly(objectPath))
+	requestURL, errorValue := client.absoluteURL(objectPath)
 	if errorValue != nil {
 		return calDAVCalendarObject{}, errorValue
 	}
-	encoded, errorValue := encodeICalendarBytes(object)
+	requestCtx, cancel := context.WithTimeout(ctx, caldavDefaultTimeout)
+	defer cancel()
+	request, errorValue := http.NewRequestWithContext(requestCtx, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return calDAVCalendarObject{}, errorValue
+	}
+	request.Header.Set("Accept", ical.MIMEType)
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return calDAVCalendarObject{}, errorValue
+	}
+	defer drainAndCloseResponse(response)
+	if response.StatusCode == http.StatusNotFound {
+		return calDAVCalendarObject{}, errCalDAVObjectNotFound
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return calDAVCalendarObject{}, fmt.Errorf("caldav get %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))
+	}
+	encoded, errorValue := io.ReadAll(response.Body)
 	if errorValue != nil {
 		return calDAVCalendarObject{}, errorValue
 	}
 	return calDAVCalendarObject{
-		Path: object.Path,
-		ETag: object.ETag,
+		Path: calDAVPathOnly(objectPath),
+		ETag: strings.TrimSpace(response.Header.Get("ETag")),
 		Data: encoded,
 	}, nil
 }
@@ -226,6 +251,9 @@ func (client *outboundCalDAVClient) putCalendarObject(ctx context.Context, objec
 	if response.StatusCode == http.StatusPreconditionFailed || response.StatusCode == http.StatusConflict {
 		log.Printf("caldav put conflict status=%d url=%s if-match=%q if-none-match=%q body=%s", response.StatusCode, requestURL, ifMatch, ifNoneMatch, readCalDAVResponseExcerpt(response))
 		return "", errCalDAVPreconditionFailed
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return "", errCalDAVObjectNotFound
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return "", fmt.Errorf("caldav put %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))

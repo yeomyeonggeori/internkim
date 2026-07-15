@@ -227,6 +227,32 @@ func TestCalDAVClientDeleteTolerates404(t *testing.T) {
 	}
 }
 
+func TestCalDAVClientPutMaps404ToObjectNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := newTestOutboundCalDAVClient(t, server)
+	_, errorValue := client.putCalendarObject(context.Background(), "/calendars/me/events/gone.ics", []byte("calendar"), `"etag"`, "")
+	if !isCalDAVObjectNotFound(errorValue) {
+		t.Fatalf("expected object not found, got %v", errorValue)
+	}
+}
+
+func TestCalDAVClientGetMaps404ToObjectNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := newTestOutboundCalDAVClient(t, server)
+	_, errorValue := client.getCalendarObject(context.Background(), "/calendars/me/events/gone.ics")
+	if !isCalDAVObjectNotFound(errorValue) {
+		t.Fatalf("expected object not found, got %v", errorValue)
+	}
+}
+
 func TestCalDAVClientAbsoluteURLHandlesPathVariants(t *testing.T) {
 	client := &outboundCalDAVClient{endpoint: "https://caldav.example.com/base/"}
 	cases := []struct {
