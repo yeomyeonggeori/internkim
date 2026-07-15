@@ -81,3 +81,51 @@ func TestCalendarEventWindowCacheKeepsDynamicImagesOutsidePayload(t *testing.T) 
 		t.Fatalf("cached dynamic images = %q/%q/%q", payload.Events[0].CreatedByImage, payload.Events[0].UpdatedByImage, payload.Events[0].Participants[0].Image)
 	}
 }
+
+func TestCalendarEventWindowCacheWriteFailureReturnsSourceEvents(t *testing.T) {
+	service := newCalendarEventWindowBenchmarkService(t)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_calendar_event_window_cache_insert
+		BEFORE INSERT ON calendar_event_window_cache_entries
+		BEGIN
+			SELECT RAISE(FAIL, 'cache write failed');
+		END`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveCalendarEventWindowBenchmark(t, service.router())
+	document := decodeCalendarEventWindowBenchmarkResponse(t, response)
+	verifyCalendarEventWindowBenchmarkResponse(t, document)
+}
+
+func TestCalendarEventWindowCacheReadFailureReturnsSourceEvents(t *testing.T) {
+	service := newCalendarEventWindowBenchmarkService(t)
+	handler := service.router()
+	serveCalendarEventWindowBenchmark(t, handler)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_calendar_event_window_cache_touch
+		BEFORE UPDATE OF last_used_at ON calendar_event_window_cache_entries
+		BEGIN
+			SELECT RAISE(FAIL, 'cache touch failed');
+		END`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveCalendarEventWindowBenchmark(t, handler)
+	document := decodeCalendarEventWindowBenchmarkResponse(t, response)
+	verifyCalendarEventWindowBenchmarkResponse(t, document)
+}
