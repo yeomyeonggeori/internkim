@@ -26,6 +26,16 @@
       "expectedTaskStatus": "completed"
     },
     {
+      "prompt": "내 캘린더를 조회해서 방금 수정한 '비용 테스트 일정'이 오후 2시부터 3시로 등록되어 있는지 확인해줘.",
+      "expectedToolCalls": ["calendar.list"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.requested", "bodyFragment": "비용 테스트 일정", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "T14:00:00+09:00", "count": 1}
+      ],
+      "expectedReplyFragments": ["비용 테스트 일정", "14:00"],
+      "expectedTaskStatus": "completed"
+    },
+    {
       "prompt": "방금 수정한 '비용 테스트 일정'을 삭제해줘.",
       "expectedToolCalls": ["calendar.delete"],
       "expectedEvents": ["confirmation.requested"],
