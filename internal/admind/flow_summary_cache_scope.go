@@ -49,7 +49,7 @@ func flowSummaryMemberFingerprint(members []flowMember) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func flowTaskSummarySourceKeys(task flowTask) ([]flowSummarySourceKey, error) {
+func flowTaskSummarySourceKeys(task flowTask) []flowSummarySourceKey {
 	keySet := map[flowSummarySourceKey]struct{}{}
 	if weekKey, errorValue := flowTaskWeekSummarySourceKey(task); errorValue == nil {
 		keySet[weekKey] = struct{}{}
@@ -65,7 +65,7 @@ func flowTaskSummarySourceKeys(task flowTask) ([]flowSummarySourceKey, error) {
 		}
 		keySet[flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: parsedDate.Format("2006-01")}] = struct{}{}
 	}
-	return sortedFlowSummarySourceKeys(keySet), nil
+	return sortedFlowSummarySourceKeys(keySet)
 }
 
 func flowTaskWeekSummarySourceKey(task flowTask) (flowSummarySourceKey, error) {
@@ -76,21 +76,17 @@ func flowTaskWeekSummarySourceKey(task flowTask) (flowSummarySourceKey, error) {
 	return flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: weekCode}, nil
 }
 
-func flowTasksSummarySourceKeys(tasks []flowTask) ([]flowSummarySourceKey, error) {
+func flowTasksSummarySourceKeys(tasks []flowTask) []flowSummarySourceKey {
 	keySet := map[flowSummarySourceKey]struct{}{}
 	for _, task := range tasks {
-		keys, errorValue := flowTaskSummarySourceKeys(task)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		for _, key := range keys {
+		for _, key := range flowTaskSummarySourceKeys(task) {
 			keySet[key] = struct{}{}
 		}
 	}
-	return sortedFlowSummarySourceKeys(keySet), nil
+	return sortedFlowSummarySourceKeys(keySet)
 }
 
-func flowTaskBoardMoveSummarySourceKeys(previousTasks []flowTask, updates []flowTask) ([]flowSummarySourceKey, error) {
+func flowTaskBoardMoveSummarySourceKeys(previousTasks []flowTask, updates []flowTask) []flowSummarySourceKey {
 	previousTasksByID := make(map[string]flowTask, len(previousTasks))
 	for _, task := range previousTasks {
 		previousTasksByID[strings.TrimSpace(task.ID)] = task

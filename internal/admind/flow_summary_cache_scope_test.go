@@ -108,10 +108,7 @@ func TestFlowTaskAPIRejectsMalformedDates(t *testing.T) {
 
 func TestFlowTaskSummarySourceKeysUsesWeekAndEndpointMonths(t *testing.T) {
 	task := flowTask{ID: "task-1", WeekCode: "26W28", StartDate: "2026-06-30", EndDate: "2026-07-02"}
-	keys, errorValue := flowTaskSummarySourceKeys(task)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	keys := flowTaskSummarySourceKeys(task)
 	want := []flowSummarySourceKey{
 		{Kind: flowSummarySourceMonth, Key: "2026-06"},
 		{Kind: flowSummarySourceMonth, Key: "2026-07"},
@@ -146,10 +143,7 @@ func TestFlowTaskSummarySourceKeysSkipsMalformedLegacyFragments(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			keys, errorValue := flowTaskSummarySourceKeys(testCase.task)
-			if errorValue != nil {
-				t.Fatal(errorValue)
-			}
+			keys := flowTaskSummarySourceKeys(testCase.task)
 			if !reflect.DeepEqual(keys, testCase.want) {
 				t.Fatalf("keys = %+v, want %+v", keys, testCase.want)
 			}
@@ -167,11 +161,7 @@ func TestFlowTaskBoardMoveSummarySourceKeysIncludePreviousAndUpdatedScopes(t *te
 		{ID: "reranked", WeekCode: "26W31", StartDate: "2026-08-01", EndDate: "2026-08-02", Status: flowStatusInProgress, StatusRank: 2048},
 	}
 
-	keys, errorValue := flowTaskBoardMoveSummarySourceKeys(previousTasks, updates)
-
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	keys := flowTaskBoardMoveSummarySourceKeys(previousTasks, updates)
 	want := []flowSummarySourceKey{
 		{Kind: flowSummarySourceMonth, Key: "2026-07"},
 		{Kind: flowSummarySourceMonth, Key: "2026-08"},

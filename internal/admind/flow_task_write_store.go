@@ -64,10 +64,7 @@ func writeFlowTaskAndInvalidateSummaryInTransaction(ctx context.Context, transac
 	if found {
 		sourceTasks = append(sourceTasks, existingTask)
 	}
-	sourceKeys, errorValue := flowTasksSummarySourceKeys(sourceTasks)
-	if errorValue != nil {
-		return errorValue
-	}
+	sourceKeys := flowTasksSummarySourceKeys(sourceTasks)
 	return incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys)
 }
 
@@ -222,12 +219,12 @@ func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) e
 		return errorValue
 	}
 	if found {
-		sourceKeys, errorValue := flowTaskSummarySourceKeys(existingTask)
-		if errorValue != nil {
+		sourceKeys := flowTaskSummarySourceKeys(existingTask)
+		if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys); errorValue != nil {
 			_ = transaction.Rollback()
 			return errorValue
 		}
-		if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys); errorValue != nil {
+		if errorValue := clearFlowSummaryCacheEntries(ctx, transaction); errorValue != nil {
 			_ = transaction.Rollback()
 			return errorValue
 		}
