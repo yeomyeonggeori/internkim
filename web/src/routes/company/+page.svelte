@@ -36,7 +36,7 @@
 	const text = $derived(language === 'ko' ? companyPageText.ko : companyPageText.en);
 	const profile = $derived(resolveProfile(snapshot, language));
 	const narrative = $derived(resolveNarrative(snapshot, language));
-	const localCurrency = $derived(snapshot ? companyLocalCurrency(snapshot.metrics) : undefined);
+	const localCurrency = $derived(snapshot ? companyLocalCurrency(snapshot.metrics, snapshot.records) : undefined);
 	const availableLanguages = $derived(snapshot?.languages?.length ? snapshot.languages : ['en']);
 
 	onMount(() => {
