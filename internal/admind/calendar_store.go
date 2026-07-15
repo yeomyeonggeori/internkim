@@ -113,7 +113,10 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarChannelOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	return ensureCalendarSyncSchema(ctx, database)
+	if errorValue := ensureCalendarSyncSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	return ensureCalendarEventWindowCacheSchema(ctx, database)
 }
 
 func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) error {
