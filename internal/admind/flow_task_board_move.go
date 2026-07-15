@@ -64,11 +64,7 @@ func (service *Service) writeFlowTaskBoardMove(ctx context.Context, request flow
 			return flowTask{}, errorValue
 		}
 	}
-	sourceKeys, errorValue := flowTaskBoardMoveSummarySourceKeys(tasks, move.updates)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return flowTask{}, errorValue
-	}
+	sourceKeys := flowTaskBoardMoveSummarySourceKeys(tasks, move.updates)
 	if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys); errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
