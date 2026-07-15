@@ -107,7 +107,7 @@ func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
 
 func (service Service) configureLocalEmbeddingPlan() CommandPlan {
 	scriptPath := "/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath))
+	return service.labCommand("vm-ssh", "sudo bash "+quoteShell(scriptPath))
 }
 
 func (service Service) mattermostTestSettingsPlan() CommandPlan {
