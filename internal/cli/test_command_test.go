@@ -183,6 +183,9 @@ func TestLocalFleetScenarioTargetUsesSupportedVirtualMachineSSH(t *testing.T) {
 	if target.host != "192.168.64.20" || target.user != "admin" {
 		t.Fatalf("unexpected target: %#v", target)
 	}
+	if target.sshClient == nil {
+		t.Fatal("expected legacy prompt SSH client to remain available")
+	}
 	remote, isLocalFleetRemote := target.scenarioRemote.(mattermostScenarioLocalFleetRemote)
 	if !isLocalFleetRemote {
 		t.Fatalf("expected Local Fleet remote, got %#v", target.scenarioRemote)
