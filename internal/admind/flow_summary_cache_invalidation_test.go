@@ -46,6 +46,40 @@ func TestFlowSummaryCacheInvalidatesDeletedTaskScopes(t *testing.T) {
 	}
 }
 
+func TestFlowSummaryCacheRepairsLegacyMalformedTask(t *testing.T) {
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	insertLegacyMalformedFlowTask(t, service, "legacy-update")
+	task := flowSummaryInvalidationTask("legacy-update", "26W28", "2026-07-06", "2026-07-07", flowStatusInProgress, 1024)
+
+	if errorValue := service.writeFlowTask(ctx, task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	repairedTask := readFlowTaskByIDForTest(t, service, task.ID)
+	if repairedTask.WeekCode != task.WeekCode || repairedTask.StartDate != task.StartDate || repairedTask.EndDate != task.EndDate {
+		t.Fatalf("repaired task = %+v", repairedTask)
+	}
+	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: "26W28"}, 1)
+	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: "2026-07"}, 1)
+	assertFlowSummarySourceRevisionRowCount(t, service, 2)
+}
+
+func TestFlowSummaryCacheDeletesLegacyMalformedTask(t *testing.T) {
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	insertLegacyMalformedFlowTask(t, service, "legacy-delete")
+
+	if errorValue := service.deleteFlowTaskByID(ctx, "legacy-delete"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, found, errorValue := service.readFlowTaskByID(ctx, "legacy-delete"); errorValue != nil || found {
+		t.Fatalf("found = %v error = %v", found, errorValue)
+	}
+	assertFlowSummarySourceRevisionRowCount(t, service, 0)
+}
+
 func TestFlowSummaryCacheInvalidatesStatusEndTaskScopes(t *testing.T) {
 	service := newFlowSummaryCacheTestService(t)
 	ctx := context.Background()
@@ -108,10 +142,24 @@ func TestFlowSummaryCacheInvalidatesMattermostPostWeek(t *testing.T) {
 	}
 	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: "26W28"}, 2)
 	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: "2026-07"}, 1)
+	fixedPostCreatedAt := "2026-07-01T01:02:03Z"
+	fixedUpdatedAt := "2026-07-02T01:02:03Z"
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, "UPDATE flow_tasks SET status_rank = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", 4096, fixedPostCreatedAt, fixedUpdatedAt, task.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if errorValue := service.updateFlowTaskMattermostPostID(ctx, task.ID, "post-1"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: "26W28"}, 2)
+	assertFlowTaskWriteMetadata(t, service, task.ID, 4096, fixedPostCreatedAt, fixedUpdatedAt)
 	if errorValue := service.updateFlowTaskMattermostPostID(ctx, task.ID, ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -178,5 +226,77 @@ func assertFlowSummarySourceRevision(t *testing.T, service *Service, key flowSum
 	}
 	if revision != expected {
 		t.Fatalf("revision %s/%s = %d, want %d", key.Kind, key.Key, revision, expected)
+	}
+}
+
+func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string) {
+	t.Helper()
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(context.Background(), `
+	INSERT INTO flow_tasks (
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		taskID,
+		"not-a-week",
+		"owner",
+		"Owner",
+		`["owner"]`,
+		`["Owner"]`,
+		"개발",
+		"회의",
+		taskID,
+		"legacy malformed row",
+		"XS",
+		flowStatusInProgress,
+		1024,
+		"July",
+		"2026-13-01",
+		0,
+		"",
+		"",
+		"",
+		"2026-07-01T00:00:00Z",
+		"2026-07-01T00:00:00Z",
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func assertFlowSummarySourceRevisionRowCount(t *testing.T, service *Service, expected int) {
+	t.Helper()
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var count int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM flow_summary_source_revisions").Scan(&count); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if count != expected {
+		t.Fatalf("source revision rows = %d, want %d", count, expected)
+	}
+}
+
+func assertFlowTaskWriteMetadata(t *testing.T, service *Service, taskID string, expectedStatusRank int, expectedPostCreatedAt string, expectedUpdatedAt string) {
+	t.Helper()
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var statusRank int
+	var postCreatedAt string
+	var updatedAt string
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT status_rank, mattermost_post_created_at, updated_at FROM flow_tasks WHERE id = ?", taskID).Scan(&statusRank, &postCreatedAt, &updatedAt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if statusRank != expectedStatusRank || postCreatedAt != expectedPostCreatedAt || updatedAt != expectedUpdatedAt {
+		t.Fatalf("status rank = %d post created at = %q updated at = %q, want %d, %q, %q", statusRank, postCreatedAt, updatedAt, expectedStatusRank, expectedPostCreatedAt, expectedUpdatedAt)
 	}
 }

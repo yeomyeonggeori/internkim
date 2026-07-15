@@ -46,18 +46,18 @@ func flowSummaryMemberFingerprint(members []flowMember) (string, error) {
 }
 
 func flowTaskSummarySourceKeys(task flowTask) ([]flowSummarySourceKey, error) {
-	weekKey, errorValue := flowTaskWeekSummarySourceKey(task)
-	if errorValue != nil {
-		return nil, errorValue
+	keySet := map[flowSummarySourceKey]struct{}{}
+	if weekKey, errorValue := flowTaskWeekSummarySourceKey(task); errorValue == nil {
+		keySet[weekKey] = struct{}{}
 	}
-	keySet := map[flowSummarySourceKey]struct{}{weekKey: {}}
 	for _, date := range []string{task.StartDate, task.EndDate} {
-		if strings.TrimSpace(date) == "" {
+		trimmedDate := strings.TrimSpace(date)
+		if trimmedDate == "" {
 			continue
 		}
-		parsedDate, errorValue := time.Parse("2006-01-02", date)
+		parsedDate, errorValue := time.Parse("2006-01-02", trimmedDate)
 		if errorValue != nil {
-			return nil, fmt.Errorf("derive flow summary cache scope for task %q date %q: %w", task.ID, date, errorValue)
+			continue
 		}
 		keySet[flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: parsedDate.Format("2006-01")}] = struct{}{}
 	}
@@ -65,7 +65,7 @@ func flowTaskSummarySourceKeys(task flowTask) ([]flowSummarySourceKey, error) {
 }
 
 func flowTaskWeekSummarySourceKey(task flowTask) (flowSummarySourceKey, error) {
-	weekCode := canonicalWeekCode(task.WeekCode)
+	weekCode := canonicalFlowSummaryWeekCode(strings.TrimSpace(task.WeekCode), flowDateNow())
 	if weekCode == "" {
 		return flowSummarySourceKey{}, fmt.Errorf("derive flow summary cache scope for task %q: invalid week code %q", task.ID, task.WeekCode)
 	}

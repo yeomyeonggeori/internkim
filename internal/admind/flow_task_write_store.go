@@ -175,6 +175,9 @@ func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, task
 		return errorValue
 	}
 	trimmedPostID := strings.TrimSpace(postID)
+	if found && existingTask.MattermostPostID == trimmedPostID {
+		return transaction.Commit()
+	}
 	postCreatedAt := ""
 	if trimmedPostID != "" {
 		postCreatedAt = time.Now().UTC().Format(time.RFC3339)
