@@ -321,6 +321,7 @@ func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
 	multiplexer.HandleFunc("POST /_internkim/sdkd/v1/llm/structured", service.handleSDKDStructured)
+	multiplexer.HandleFunc("POST /_internkim/sdkd/v1/llm/chat", service.handleSDKDChat)
 	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
