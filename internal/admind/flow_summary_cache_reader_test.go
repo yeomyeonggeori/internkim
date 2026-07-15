@@ -1,9 +1,11 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"path/filepath"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 )
@@ -93,22 +95,99 @@ func TestFlowSummaryCacheRebuildsCorruptPayload(t *testing.T) {
 }
 
 func TestFlowSummaryCacheFallsBackWhenCacheStorageFails(t *testing.T) {
-	service := NewService(Configuration{FlowDatabasePath: t.TempDir()})
-	buildCount := 0
-	readModel, errorValue := service.readCachedFlowSummaryReadModel(context.Background(), "26W28", flowSummaryCacheTestKeys(), "members-v1", func(context.Context) (flowSummaryReadModel, error) {
-		buildCount++
-		return flowSummaryReadModel{WeeklyTasks: []flowTask{{ID: "source"}}}, nil
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	members := []flowMember{{ID: "member-1", Name: "Member One"}}
+	task := flowTask{
+		ID:               "source-task",
+		WeekCode:         "26W28",
+		OwnerID:          members[0].ID,
+		OwnerName:        members[0].Name,
+		ParticipantIDs:   []string{members[0].ID},
+		ParticipantNames: []string{members[0].Name},
+		Business:         "Development",
+		Type:             "Implementation",
+		Content:          "Build from source",
+		Goal:             "Keep summaries available",
+		Size:             "S",
+		Status:           flowStatusInProgress,
+		StatusRank:       1024,
+		StartDate:        "2026-07-06",
+		EndDate:          "2026-07-07",
+	}
+	if errorValue := service.writeFlowTask(ctx, task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, "DROP TABLE flow_summary_cache_entries"); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	weekStart := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	readModel, errorValue := service.readCachedFlowSummaryReadModel(ctx, "26W28", flowSummaryDependencyKeysForWeek("26W28", weekStart), "members-v1", func(ctx context.Context) (flowSummaryReadModel, error) {
+		return service.buildFlowSummaryReadModel(ctx, "26W28", weekStart, members)
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if buildCount != 1 || len(readModel.WeeklyTasks) != 1 || readModel.WeeklyTasks[0].ID != "source" {
-		t.Fatalf("build count = %d read model = %+v", buildCount, readModel)
+	if len(readModel.WeeklyTasks) != 1 || readModel.WeeklyTasks[0].ID != task.ID {
+		t.Fatalf("read model = %+v", readModel)
+	}
+}
+
+func TestFlowSummaryCacheLogsCleanupFailureSeparatelyFromWrite(t *testing.T) {
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	keys := flowSummaryCacheTestKeys()
+	if _, _, _, errorValue := service.readFlowSummaryCacheSnapshot(ctx, "missing", keys, "members-v1"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = database.ExecContext(ctx, `
+		INSERT INTO flow_summary_cache_entries(
+			week_code, requested_week_revision, previous_week_revision, current_month_revision,
+			previous_month_revision, definitions_revision, member_fingerprint, schema_version, payload_json, cached_at
+		) VALUES ('26W27', 0, 0, 0, 0, 0, 'members-v1', 1, '{}', '2020-01-01T00:00:00Z');
+		CREATE TRIGGER reject_flow_summary_cache_cleanup
+		BEFORE DELETE ON flow_summary_cache_entries
+		BEGIN
+			SELECT RAISE(FAIL, 'cleanup blocked');
+		END`)
+	if errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var logOutput bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+	defer slog.SetDefault(previousLogger)
+	if _, errorValue := service.readCachedFlowSummaryReadModel(ctx, "26W28", keys, "members-v1", func(context.Context) (flowSummaryReadModel, error) {
+		return flowSummaryReadModel{WeeklyTasks: []flowTask{{ID: "fresh"}}}, nil
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(logOutput.String(), `"operation":"cleanup"`) {
+		t.Fatalf("log output = %s", logOutput.String())
+	}
+	if _, _, found, errorValue := service.readFlowSummaryCacheSnapshot(ctx, "26W28", keys, "members-v1"); errorValue != nil || !found {
+		t.Fatalf("stored cache found = %v error = %v", found, errorValue)
 	}
 }
 
 func TestFlowSummaryCacheReturnsSourceBuildFailure(t *testing.T) {
-	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
+	service := newFlowSummaryCacheTestService(t)
 	expectedError := errors.New("source failed")
 	_, errorValue := service.readCachedFlowSummaryReadModel(context.Background(), "26W28", flowSummaryCacheTestKeys(), "members-v1", func(context.Context) (flowSummaryReadModel, error) {
 		return flowSummaryReadModel{}, expectedError
