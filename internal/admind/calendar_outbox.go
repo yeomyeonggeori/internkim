@@ -28,6 +28,8 @@ type calendarOutboxRow struct {
 	LastError       string
 	CreatedAt       string
 	LastAttemptedAt string
+	Status          string
+	FailedAt        string
 }
 
 type pendingCalendarLocalChange struct {
@@ -86,16 +88,28 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, '')`,
 }
 
 func (service *Service) listPendingCalendarOutbox(ctx context.Context, accountID string) ([]calendarOutboxRow, error) {
+	return service.listCalendarOutbox(ctx, accountID, false)
+}
+
+func (service *Service) listCalendarOutbox(ctx context.Context, accountID string, includeBlocked bool) ([]calendarOutboxRow, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
-	query := `SELECT id, account_id, event_id, event_uid, operation, payload_ics, if_match_etag, remote_href, changed_fields, attempt_count, last_error, created_at, last_attempted_at FROM calendar_outbox`
+	query := `SELECT id, account_id, event_id, event_uid, operation, payload_ics, if_match_etag, remote_href, changed_fields, attempt_count, last_error, created_at, last_attempted_at, status, failed_at FROM calendar_outbox`
 	arguments := []any{}
+	conditions := []string{}
 	if strings.TrimSpace(accountID) != "" {
-		query += " WHERE account_id = ?"
+		conditions = append(conditions, "account_id = ?")
 		arguments = append(arguments, strings.TrimSpace(accountID))
+	}
+	if !includeBlocked {
+		conditions = append(conditions, "status = ?")
+		arguments = append(arguments, calendarOutboxStatusPending)
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	query += " ORDER BY id"
 	rows, errorValue := database.QueryContext(ctx, query, arguments...)
@@ -121,6 +135,8 @@ func (service *Service) listPendingCalendarOutbox(ctx context.Context, accountID
 			&row.LastError,
 			&row.CreatedAt,
 			&row.LastAttemptedAt,
+			&row.Status,
+			&row.FailedAt,
 		); errorValue != nil {
 			return nil, errorValue
 		}
@@ -131,6 +147,19 @@ func (service *Service) listPendingCalendarOutbox(ctx context.Context, accountID
 		result = append(result, row)
 	}
 	return result, rows.Err()
+}
+
+func (service *Service) markCalendarOutboxBlocked(ctx context.Context, rowID int64, failedAt string, failure string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `
+UPDATE calendar_outbox
+SET status = ?, failed_at = ?, last_error = ?
+WHERE id = ?`, calendarOutboxStatusBlocked, strings.TrimSpace(failedAt), strings.TrimSpace(failure), rowID)
+	return errorValue
 }
 
 func normalizeCalendarOutboxPutChangedFields(fields []string) []string {

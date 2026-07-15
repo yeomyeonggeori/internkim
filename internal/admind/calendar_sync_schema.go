@@ -9,6 +9,8 @@ const (
 	remoteCalendarProviderGoogle  = "google"
 	calendarOutboxOperationPut    = "put"
 	calendarOutboxOperationDelete = "delete"
+	calendarOutboxStatusPending   = "pending"
+	calendarOutboxStatusBlocked   = "blocked"
 )
 
 func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
@@ -21,7 +23,25 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarRemoteEventStateTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return ensureCalendarConflictsTable(ctx, database)
+}
+
+func ensureCalendarRemoteEventStateTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_remote_event_sync_state (
+	account_id TEXT NOT NULL,
+	calendar_url TEXT NOT NULL,
+	event_uid TEXT NOT NULL,
+	remote_modified_at TEXT NOT NULL DEFAULT '',
+	last_seen_at TEXT NOT NULL DEFAULT '',
+	missing_detected_at TEXT NOT NULL DEFAULT '',
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(account_id, calendar_url, event_uid)
+)`)
+	return errorValue
 }
 
 func ensureCalendarConflictsTable(ctx context.Context, database *sql.DB) error {
@@ -140,7 +160,9 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	attempt_count INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL,
-	last_attempted_at TEXT NOT NULL DEFAULT ''
+	last_attempted_at TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL DEFAULT 'pending',
+	failed_at TEXT NOT NULL DEFAULT ''
 )`)
 	if errorValue != nil {
 		return errorValue
@@ -149,6 +171,12 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "changed_fields", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "status", "TEXT NOT NULL DEFAULT 'pending'"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "failed_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx,
