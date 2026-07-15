@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
@@ -132,6 +134,19 @@ func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 	}
 	if !configuration.ServiceOptions.ShouldUseRealModels {
 		t.Fatalf("expected real model option: %+v", configuration.ServiceOptions)
+	}
+}
+
+func TestDevFleetReprovisionUsesLowModelTier(t *testing.T) {
+	environment := devFleetReprovisionEnvironment(nil, "")
+	expectedValues := []string{
+		"INTERNKIM_TEST_MODEL_TIER=low",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
+	}
+	for _, expectedValue := range expectedValues {
+		if !slices.Contains(environment, expectedValue) {
+			t.Fatalf("expected %q in %#v", expectedValue, environment)
+		}
 	}
 }
 
