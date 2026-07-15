@@ -63,6 +63,33 @@ func TestRunGoogleCalendarPullInitialDiscoveryAndUpsert(t *testing.T) {
 	}
 }
 
+func TestRunGoogleCalendarPullStoresRemoteObservationState(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	modifiedAt := time.Date(2026, 7, 15, 1, 2, 3, 0, time.UTC)
+	event := newLocalTestCalendarEvent("remote-observation", "Observed")
+	remoteObject := calDAVCalendarObject{
+		Path: activeRemoteCalendarTarget(account).CalendarURL + event.UID + ".ics",
+		ETag: `"etag-observed"`,
+		Data: encodeCalendarTestEventWithLastModified(t, event, modifiedAt),
+	}
+	client := &fakeCalDAVPullClient{ctag: "observed-ctag", objects: []calDAVCalendarObject{remoteObject}}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, account, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	state, found, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, activeRemoteCalendarTarget(account).CalendarURL, event.UID)
+	if errorValue != nil || !found {
+		t.Fatalf("remote event state: found=%v error=%v", found, errorValue)
+	}
+	if state.RemoteModifiedAt != modifiedAt.Format(time.RFC3339Nano) {
+		t.Fatalf("remote modified at=%q", state.RemoteModifiedAt)
+	}
+	if state.LastSeenAt == "" || state.MissingDetectedAt != "" {
+		t.Fatalf("observation state=%+v", state)
+	}
+}
+
 func TestRunGoogleCalendarPullSkipsDiscoveryAndSameETagWrites(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()

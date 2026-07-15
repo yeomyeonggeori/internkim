@@ -286,6 +286,7 @@ func (service *Service) readCalendarEventByUID(ctx context.Context, uid string) 
 type calendarEventProjection struct {
 	Event     calendarEvent
 	IsDeleted bool
+	DeletedAt string
 }
 
 func (service *Service) readCalendarEventProjectionByID(ctx context.Context, eventID string) (calendarEventProjection, bool, error) {
@@ -394,7 +395,6 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventProjection, error) {
 	var projection calendarEventProjection
 	var isAllDay int
-	var deletedAt string
 	errorValue := scanner.Scan(
 		&projection.Event.ID,
 		&projection.Event.UID,
@@ -418,11 +418,11 @@ func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventPro
 		&projection.Event.RemoteSource,
 		&projection.Event.RemoteETag,
 		&projection.Event.RemoteHref,
-		&deletedAt,
+		&projection.DeletedAt,
 	)
 	projection.Event.IsAllDay = isAllDay == 1
 	projection.Event.ReminderLeadHours = normalizeCalendarReminderLeadHours(projection.Event.ReminderLeadHours)
-	projection.IsDeleted = strings.TrimSpace(deletedAt) != ""
+	projection.IsDeleted = strings.TrimSpace(projection.DeletedAt) != ""
 	return projection, errorValue
 }
 

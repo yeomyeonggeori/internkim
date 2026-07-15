@@ -346,7 +346,7 @@ func TestPushCalendarOutboxKeepsAuthErrorAfterNoopRow(t *testing.T) {
 	}
 }
 
-func TestPushCalendarOutboxDropsRowAfterMaxAttempts(t *testing.T) {
+func TestPushCalendarOutboxBlocksRowAfterMaxAttempts(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -374,9 +374,19 @@ func TestPushCalendarOutboxDropsRowAfterMaxAttempts(t *testing.T) {
 	if len(client.putCalls) != 0 {
 		t.Errorf("client should not be called when attempt cap reached, got %d put calls", len(client.putCalls))
 	}
-	remaining, _ := service.listPendingCalendarOutbox(ctx, "")
-	if len(remaining) != 0 {
-		t.Errorf("outbox row should be dropped after cap, got %d remaining", len(remaining))
+	pending, _ := service.listPendingCalendarOutbox(ctx, "")
+	if len(pending) != 0 {
+		t.Errorf("blocked row should not remain pending, got %d", len(pending))
+	}
+	stored, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("failed row should be preserved, got %d", len(stored))
+	}
+	if stored[0].Status != calendarOutboxStatusBlocked || stored[0].FailedAt == "" {
+		t.Fatalf("failed row not blocked: %+v", stored[0])
 	}
 }
 

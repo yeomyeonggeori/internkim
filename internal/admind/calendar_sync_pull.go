@@ -77,6 +77,9 @@ func (service *Service) runCalendarPull(ctx context.Context, provider calendarPr
 		return false, fmt.Errorf("fetch ctag: %w", errorValue)
 	}
 	if !forceQuery && serverCTag != "" && serverCTag == target.CalendarCTag && !target.NeedsInitialSyncCompletion {
+		if errorValue := service.markCalendarRemoteTargetLastSeen(ctx, account, target, time.Now().UTC()); errorValue != nil {
+			return false, errorValue
+		}
 		return false, nil
 	}
 	objects, errorValue := client.queryAllCalendarEvents(ctx, target.CalendarURL)
@@ -104,6 +107,7 @@ func (service *Service) runCalendarPull(ctx context.Context, provider calendarPr
 
 func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}) error {
 	target := activeRemoteCalendarTarget(account)
+	observedAt := time.Now().UTC()
 	activeEvents, errorValue := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
 	if errorValue != nil {
 		return errorValue
@@ -126,7 +130,7 @@ func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account
 	if errorValue != nil {
 		return errorValue
 	}
-	remoteUIDs, errorValue := service.applyPulledRemoteEvents(ctx, account, remoteObjects, existingByUID)
+	remoteUIDs, errorValue := service.applyPulledRemoteEventsAt(ctx, account, target, remoteObjects, existingByUID, observedAt)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -134,10 +138,14 @@ func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account
 	if target.NeedsInitialSyncCompletion {
 		return nil
 	}
-	return service.softDeleteMissingRemoteEvents(ctx, account.ID, target, activeEvents, remoteUIDs, mergeCalendarProtectedUIDs(protectedUIDs, pendingLocalChanges))
+	return service.softDeleteMissingRemoteEventsWithConflictState(ctx, account.ID, target, activeEvents, remoteUIDs, protectedUIDs, pendingLocalChanges, observedAt)
 }
 
 func (service *Service) applyPulledRemoteEvents(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent) (map[string]struct{}, error) {
+	return service.applyPulledRemoteEventsAt(ctx, account, activeRemoteCalendarTarget(account), remoteObjects, existingByUID, time.Now().UTC())
+}
+
+func (service *Service) applyPulledRemoteEventsAt(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent, observedAt time.Time) (map[string]struct{}, error) {
 	remoteUIDs := map[string]struct{}{}
 	for _, object := range remoteObjects {
 		event, errorValue := decodeRemoteCalendarObject(object, account.AccountEmail)
@@ -146,6 +154,9 @@ func (service *Service) applyPulledRemoteEvents(ctx context.Context, account rem
 			continue
 		}
 		remoteUIDs[event.UID] = struct{}{}
+		if errorValue := service.markCalendarRemoteEventObserved(ctx, account.ID, target.CalendarURL, event, observedAt); errorValue != nil {
+			return nil, errorValue
+		}
 		previous, found := existingByUID[event.UID]
 		if found {
 			if previous.RemoteETag == event.RemoteETag && previous.RemoteETag != "" {
@@ -177,7 +188,7 @@ func (service *Service) applyPulledRemoteEvent(ctx context.Context, account remo
 		return errorValue
 	}
 	if hasPendingLocalDelete {
-		return nil
+		return service.reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx, account, currentEvent, remoteEvent)
 	}
 	if hasCurrentEvent {
 		if currentEvent.RemoteETag == remoteEvent.RemoteETag && currentEvent.RemoteETag != "" {
@@ -205,8 +216,11 @@ func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx c
 	if errorValue := service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, pendingLocalChange.ChangedFields); errorValue != nil {
 		return errorValue
 	}
-	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, pendingLocalChange.ChangedFields)
-	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, pendingLocalChange.ChangedFields)
+	previousRemote := decodeCalendarEventFromRawICS(localEvent.RawICS, localEvent.RemoteHref, localEvent.CreatedByEmail)
+	remoteChangedFields := diffCalendarEventFields(previousRemote, remoteEvent)
+	localWinningFields := selectCalendarLocalWinningFields(pendingLocalChange.ChangedFields, remoteChangedFields, pendingLocalChange.FieldChangedAt, parseCalendarConflictTime(remoteEvent.RemoteModifiedAt))
+	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, localWinningFields)
+	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, localWinningFields)
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
 	mergedEvent.CreatedByName = localEvent.CreatedByName
@@ -217,24 +231,18 @@ func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx c
 	if errorValue := service.writeCalendarEventWithSourceLocked(ctx, mergedEvent, calendarSourcePull); errorValue != nil {
 		return fmt.Errorf("write pulled pending local event %s: %w", mergedEvent.UID, errorValue)
 	}
-	return service.updatePendingCalendarOutboxRemoteState(ctx, account.ID, mergedEvent.UID, remoteEvent.RemoteHref, remoteEvent.RemoteETag)
-}
-
-func mergeCalendarProtectedUIDs(protectedUIDs map[string]struct{}, pendingLocalChanges map[string]pendingCalendarLocalChange) map[string]struct{} {
-	if len(pendingLocalChanges) == 0 {
-		return protectedUIDs
-	}
-	result := map[string]struct{}{}
-	for eventUID := range protectedUIDs {
-		result[eventUID] = struct{}{}
-	}
-	for eventUID := range pendingLocalChanges {
-		result[eventUID] = struct{}{}
-	}
-	return result
+	return service.retainPendingCalendarOutboxFields(ctx, account.ID, mergedEvent.UID, localWinningFields, remoteEvent.RemoteHref, remoteEvent.RemoteETag)
 }
 
 func (service *Service) softDeleteMissingRemoteEvents(ctx context.Context, accountID string, target remoteCalendarTarget, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}) error {
+	pendingLocalChanges, errorValue := service.listPendingCalendarLocalChanges(ctx, accountID)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.softDeleteMissingRemoteEventsWithConflictState(ctx, accountID, target, allEvents, remoteUIDs, protectedUIDs, pendingLocalChanges, time.Now().UTC())
+}
+
+func (service *Service) softDeleteMissingRemoteEventsWithConflictState(ctx context.Context, accountID string, target remoteCalendarTarget, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}, pendingLocalChanges map[string]pendingCalendarLocalChange, detectedAt time.Time) error {
 	for _, event := range allEvents {
 		if event.RemoteSource != remoteCalendarProviderGoogle {
 			continue
@@ -248,14 +256,14 @@ func (service *Service) softDeleteMissingRemoteEvents(ctx context.Context, accou
 		if _, protected := protectedUIDs[event.UID]; protected {
 			continue
 		}
-		if errorValue := service.softDeleteMissingRemoteEvent(ctx, accountID, event); errorValue != nil {
+		if errorValue := service.softDeleteMissingRemoteEvent(ctx, accountID, target, event, pendingLocalChanges[event.UID], detectedAt); errorValue != nil {
 			return fmt.Errorf("soft delete %s: %w", event.ID, errorValue)
 		}
 	}
 	return nil
 }
 
-func (service *Service) softDeleteMissingRemoteEvent(ctx context.Context, accountID string, event calendarEvent) error {
+func (service *Service) softDeleteMissingRemoteEvent(ctx context.Context, accountID string, target remoteCalendarTarget, event calendarEvent, pendingLocalChange pendingCalendarLocalChange, detectedAt time.Time) error {
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
 	currentEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
@@ -270,10 +278,32 @@ func (service *Service) softDeleteMissingRemoteEvent(ctx context.Context, accoun
 	} else if hasPendingLocalDelete {
 		return nil
 	}
-	if _, hasPendingLocalChange, errorValue := service.readPendingCalendarLocalChange(ctx, accountID, currentEvent.UID); errorValue != nil {
+	refreshedPendingLocalChange, hasPendingLocalChange, errorValue := service.readPendingCalendarLocalChange(ctx, accountID, currentEvent.UID)
+	if errorValue != nil {
 		return errorValue
-	} else if hasPendingLocalChange {
-		return nil
+	}
+	if hasPendingLocalChange {
+		pendingLocalChange = refreshedPendingLocalChange
+	} else {
+		pendingLocalChange = pendingCalendarLocalChange{}
+	}
+	remoteState, errorValue := service.markCalendarRemoteEventMissing(ctx, accountID, target.CalendarURL, currentEvent.UID, detectedAt)
+	if errorValue != nil {
+		return errorValue
+	}
+	if len(pendingLocalChange.ChangedFields) > 0 {
+		winner := resolveCalendarRemoteDeletion(
+			latestCalendarPendingChangeAt(pendingLocalChange),
+			parseCalendarConflictTime(remoteState.LastSeenAt),
+			parseCalendarConflictTime(remoteState.MissingDetectedAt),
+		)
+		if winner == calendarConflictWinnerLocal {
+			return service.updatePendingCalendarOutboxRemoteState(ctx, accountID, currentEvent.UID, "", "")
+		}
+		if errorValue := service.softDeleteCalendarEventWithSourceLocked(ctx, currentEvent.ID, calendarSourcePull); errorValue != nil {
+			return errorValue
+		}
+		return service.deleteCalendarOutboxForEventUID(ctx, accountID, currentEvent.UID)
 	}
 	return service.softDeleteCalendarEventWithSourceLocked(ctx, currentEvent.ID, calendarSourcePull)
 }
