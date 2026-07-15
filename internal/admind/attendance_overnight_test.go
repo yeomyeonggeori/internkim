@@ -77,6 +77,7 @@ func TestAttendanceToggleAfterOvernightClockInProducesClockOut(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	location, _ := service.workspaceTimeLocation()
 	expectedWorkDate := time.Now().In(location).AddDate(0, 0, -1).Format("2006-01-02")
+	expectedClockOutDate := time.Now().In(location).Format("2006-01-02")
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -109,35 +110,35 @@ func TestAttendanceToggleAfterOvernightClockInProducesClockOut(t *testing.T) {
 	if latestEvent.Kind != attendanceKindClockOut {
 		t.Fatalf("expected toggle to clock out after overnight clock-in, events = %+v", events)
 	}
-	if latestEvent.LocalDate != expectedWorkDate {
-		t.Fatalf("expected clock-out work date %s, got %+v", expectedWorkDate, latestEvent)
+	if latestEvent.LocalDate != expectedClockOutDate {
+		t.Fatalf("expected clock-out event date %s, got %+v", expectedClockOutDate, latestEvent)
 	}
 }
 
-func TestAttendanceOvernightClockOutStaysInClockInMonthAcrossBoundaries(t *testing.T) {
+func TestAttendanceOvernightClockOutAppearsInBothMonthsAcrossBoundaries(t *testing.T) {
 	cases := []struct {
-		name      string
-		clockIn   time.Time
-		clockOut  time.Time
-		workMonth string
-		nextMonth string
-		workDate  string
+		name         string
+		clockIn      time.Time
+		clockOut     time.Time
+		workMonth    string
+		nextMonth    string
+		clockOutDate string
 	}{
 		{
-			name:      "month end",
-			clockIn:   time.Date(2026, 6, 30, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
-			clockOut:  time.Date(2026, 7, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
-			workMonth: "2026-06",
-			nextMonth: "2026-07",
-			workDate:  "2026-06-30",
+			name:         "month end",
+			clockIn:      time.Date(2026, 6, 30, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			clockOut:     time.Date(2026, 7, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			workMonth:    "2026-06",
+			nextMonth:    "2026-07",
+			clockOutDate: "2026-07-01",
 		},
 		{
-			name:      "year end",
-			clockIn:   time.Date(2026, 12, 31, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
-			clockOut:  time.Date(2027, 1, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
-			workMonth: "2026-12",
-			nextMonth: "2027-01",
-			workDate:  "2026-12-31",
+			name:         "year end",
+			clockIn:      time.Date(2026, 12, 31, 21, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			clockOut:     time.Date(2027, 1, 1, 4, 0, 0, 0, time.FixedZone("Asia/Seoul", 9*60*60)),
+			workMonth:    "2026-12",
+			nextMonth:    "2027-01",
+			clockOutDate: "2027-01-01",
 		},
 	}
 	for _, testCase := range cases {
@@ -168,11 +169,11 @@ func TestAttendanceOvernightClockOutStaysInClockInMonthAcrossBoundaries(t *testi
 			if errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if len(workMonthEvents) != 2 || len(nextMonthEvents) != 0 {
+			if len(workMonthEvents) != 2 || len(nextMonthEvents) != 2 {
 				t.Fatalf("work month events = %+v next month events = %+v", workMonthEvents, nextMonthEvents)
 			}
 			clockOutEvent, found := findAttendanceEventByKind(workMonthEvents, attendanceKindClockOut)
-			if !found || clockOutEvent.LocalDate != testCase.workDate {
+			if !found || clockOutEvent.LocalDate != testCase.clockOutDate {
 				t.Fatalf("clock out event = %+v", clockOutEvent)
 			}
 		})

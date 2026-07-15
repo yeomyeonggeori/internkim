@@ -76,6 +76,9 @@ func (service *Service) createAttendanceEventOverride(ctx context.Context, datab
 	if errorValue != nil {
 		return attendanceEventOverride{}, errorValue
 	}
+	if localTime.After(editedAt) {
+		return attendanceEventOverride{}, fmt.Errorf("attendance event time cannot be in the future")
+	}
 	events, errorValue := service.applyAttendanceEventOverrides(ctx, database, []attendanceEvent{event})
 	if errorValue != nil {
 		return attendanceEventOverride{}, errorValue
