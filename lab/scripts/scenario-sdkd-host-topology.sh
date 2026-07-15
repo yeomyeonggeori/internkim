@@ -6,16 +6,44 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 service_name=blueclaw-sdkd.service
+blueclaw_service_name=blueclaw.service
 runtime_directory=/run/blueclaw-sdkd
 socket_path=$runtime_directory/sdkd.sock
 auth_key_path=/root/.internkim/secrets/sdkd-auth-key
 runtime_config=/root/.blueclaw/config/runtime.json
+workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json
 capability_socket_path=/run/internkim/capability.sock
 chat_bridge_path=/_internkim/sdkd/v1/llm/chat
 invalid_chat_request='{"executionMode":"auto","messages":[],"parallelToolCalls":"invalid"}'
+runtime_config_backup=$(mktemp)
+workspace_runtime_config_backup=$(mktemp)
+cp "$runtime_config" "$runtime_config_backup"
+cp "$workspace_runtime_config" "$workspace_runtime_config_backup"
+runtime_was_modified=false
+workspace_sync_source=$(mktemp -d)
+
+sync_workspace_runtime_config() {
+  /usr/local/bin/blueclaw-supervisor sync-workspace --atomic \
+    --runtime "$runtime_config" \
+    --source "$workspace_sync_source" \
+    --relative-target .blueclaw/config
+}
+
+restore_runtime() {
+  if [ "$runtime_was_modified" != true ]; then
+    return
+  fi
+  cp "$runtime_config_backup" "$runtime_config"
+  cp "$workspace_runtime_config_backup" "$workspace_runtime_config"
+  cp "$workspace_runtime_config" "$workspace_sync_source/runtime.json"
+  sync_workspace_runtime_config || true
+  systemctl restart "$blueclaw_service_name" >/dev/null 2>&1 || true
+}
 
 restore_sdkd() {
+  restore_runtime
   systemctl start "$service_name" >/dev/null 2>&1 || true
+  rm -rf "$workspace_sync_source" "$runtime_config_backup" "$workspace_runtime_config_backup"
 }
 
 wait_for_sdkd() {
@@ -31,10 +59,15 @@ wait_for_sdkd() {
 
 run_task() {
   local prompt=$1
+  local task_decision_preset=${2-sdkd_topology}
   local conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"
   local request_body response_path http_status task_run_id
   response_path=$(mktemp)
-  request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:"00000000-0000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:"sdkd_topology"}')
+  if [ -n "$task_decision_preset" ]; then
+    request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" --arg taskDecisionPreset "$task_decision_preset" '{requesterPersonID:"00000000-0000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:$taskDecisionPreset}')
+  else
+    request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:"00000000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt}')
+  fi
   if ! http_status=$(curl --silent --show-error --connect-timeout 10 --max-time 300 \
     -H 'Content-Type: application/json' \
     -d "$request_body" \
@@ -63,6 +96,71 @@ run_task() {
   fi
   rm -f "$response_path"
   printf '%s\n' "$task_run_id"
+}
+
+enable_router_schema() {
+  local temporary_runtime_config temporary_workspace_runtime_config
+  temporary_runtime_config=$(mktemp)
+  temporary_workspace_runtime_config=$(mktemp)
+  jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
+    "$runtime_config" >"$temporary_runtime_config"
+  jq '.languageModel.sdkd.structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)' \
+    "$workspace_runtime_config" >"$temporary_workspace_runtime_config"
+  runtime_was_modified=true
+  mv "$temporary_runtime_config" "$runtime_config"
+  mv "$temporary_workspace_runtime_config" "$workspace_runtime_config"
+  cp "$workspace_runtime_config" "$workspace_sync_source/runtime.json"
+  sync_workspace_runtime_config
+  systemctl restart "$blueclaw_service_name"
+  systemctl is-active --quiet "$blueclaw_service_name"
+}
+
+assert_guest_sdkd_router_transport() {
+  local task_run_id=$1
+  local response_path
+  response_path=$(mktemp)
+  if ! curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$response_path" \
+    "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id"; then
+    echo "task detail request failed for router task $task_run_id" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  if ! jq -e '
+      [.taskEvents[] |
+        select(.name == "agent.intake") |
+        (.body | fromjson)
+      ] as $intakes |
+      [.taskEvents[] |
+        select(.name == "agent.task_launched") |
+        (.body | fromjson)
+      ] as $launches |
+      [.taskEvents[] |
+        select(.name == "llm.call") |
+        (.body | fromjson) |
+        select(.schemaName == "blueclaw_turn_router")
+      ] as $router_calls |
+      [.taskEvents[] |
+        select(.name == "llm.call") |
+        (.body | fromjson) |
+        select(.schemaName == "blueclaw_agent_turn_action")
+      ] as $calls |
+      ($intakes | length) > 0 and
+      all($intakes[]; .usedDeterministicFallback == false) and
+      ($launches | length) > 0 and
+      all($launches[]; (.isIntakePrecomputed // false) == false) and
+      ($router_calls | length) > 0 and
+      all($router_calls[]; (.usedFallback // false) == false) and
+      ($calls | length) > 0 and
+      all($calls[]; (.usedFallback // false) == false)
+    ' "$response_path" >/dev/null; then
+    echo "task detail did not prove non-diagnostic SDKD router transport for $task_run_id" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
 }
 
 assert_guest_sdkd_structured_transport() {
@@ -157,6 +255,12 @@ if grep -qE '/run/blueclaw-sdkd|sdkd-auth-key' "$runtime_config"; then
   echo "guest runtime exposes host SDKD paths" >&2
   exit 1
 fi
+
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$runtime_config" >/dev/null
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config" >/dev/null
+enable_router_schema
+router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')
+assert_guest_sdkd_router_transport "$router_task_run_id"
 
 authoritative_task_run_id=$(run_task 'Reply with exactly SDKD topology authoritative ok.')
 assert_host_chat_bridge_response 400 invalid_chat_completion_request false
