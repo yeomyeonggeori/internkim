@@ -111,6 +111,7 @@ type attendanceAbsenceRange struct {
 
 type attendanceSummaryResponse struct {
 	Month                string               `json:"month"`
+	ServerTime           string               `json:"serverTime"`
 	CurrentUserEmail     string               `json:"currentUserEmail"`
 	IsAdmin              bool                 `json:"isAdmin"`
 	TimeZone             string               `json:"timeZone"`
