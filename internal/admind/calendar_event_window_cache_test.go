@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,6 +58,13 @@ func TestCalendarEventWindowCachePurgesEntriesForNewService(t *testing.T) {
 	}
 	if cacheEntryCount != 0 {
 		t.Fatalf("cache entries after restart = %d, want 0", cacheEntryCount)
+	}
+}
+
+func TestCalendarEventWindowCacheSkipsWideRange(t *testing.T) {
+	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	if _, cacheable := calendarEventWindowCacheRangeFor(startTime, startTime.Add(63*24*time.Hour)); cacheable {
+		t.Fatal("63 day range is cacheable")
 	}
 }
 
@@ -208,11 +216,11 @@ func TestCalendarEventWindowCacheKeepsMostRecentlyUsedEntries(t *testing.T) {
 		if index == 1 {
 			secondOldestRange = cacheRange
 		}
-		stored, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, baseTime.Add(time.Duration(index)*time.Second))
+		writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, baseTime.Add(time.Duration(index)*time.Second))
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		if !stored {
+		if writeResult != calendarEventWindowCacheWriteStored {
 			t.Fatalf("cache entry %d was not stored", index)
 		}
 	}
@@ -223,9 +231,9 @@ func TestCalendarEventWindowCacheKeepsMostRecentlyUsedEntries(t *testing.T) {
 	}
 	newStartTime := baseTime.Add(time.Duration(calendarEventWindowCacheMaximumEntries) * 24 * time.Hour)
 	newRange, _ := calendarEventWindowCacheRangeFor(newStartTime, newStartTime.Add(24*time.Hour))
-	if stored, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, newRange, revision, nil, baseTime.Add(time.Duration(calendarEventWindowCacheMaximumEntries)*time.Second)); errorValue != nil {
+	if writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, newRange, revision, nil, baseTime.Add(time.Duration(calendarEventWindowCacheMaximumEntries)*time.Second)); errorValue != nil {
 		t.Fatal(errorValue)
-	} else if !stored {
+	} else if writeResult != calendarEventWindowCacheWriteStored {
 		t.Fatal("new cache entry was not stored")
 	}
 	var cacheEntryCount int
@@ -242,6 +250,116 @@ func TestCalendarEventWindowCacheKeepsMostRecentlyUsedEntries(t *testing.T) {
 	}
 	if cacheEntryCount != calendarEventWindowCacheMaximumEntries || oldestEntryCount != 1 || secondOldestEntryCount != 0 {
 		t.Fatalf("cache entries = %d oldest entries = %d second oldest entries = %d", cacheEntryCount, oldestEntryCount, secondOldestEntryCount)
+	}
+}
+
+func TestCalendarEventWindowCacheSkipsOversizedPayload(t *testing.T) {
+	service := newCalendarTestService(t)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	revision, errorValue := readCalendarEventWindowSourceRevision(context.Background(), database)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	cacheRange, _ := calendarEventWindowCacheRangeFor(startTime, startTime.Add(24*time.Hour))
+	events := []calendarEvent{{ID: "oversized", Description: strings.Repeat("x", (4<<20)+1)}}
+	writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, events, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if writeResult != calendarEventWindowCacheWriteSkipped {
+		t.Fatalf("oversized payload write result = %d", writeResult)
+	}
+}
+
+func TestCalendarEventWindowCacheThrottlesLRUTouch(t *testing.T) {
+	service := newCalendarTestService(t)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	revision, errorValue := readCalendarEventWindowSourceRevision(context.Background(), database)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baseTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	cacheRange, _ := calendarEventWindowCacheRangeFor(baseTime, baseTime.Add(24*time.Hour))
+	if writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, baseTime); errorValue != nil {
+		t.Fatal(errorValue)
+	} else if writeResult != calendarEventWindowCacheWriteStored {
+		t.Fatal("cache entry was not stored")
+	}
+	if _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, baseTime.Add(30*time.Second)); errorValue != nil {
+		t.Fatal(errorValue)
+	} else if !found {
+		t.Fatal("cache entry was not found")
+	}
+	var lastUsedAt string
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT last_used_at FROM calendar_event_window_cache_entries WHERE cache_key = ?", cacheRange.Key).Scan(&lastUsedAt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if lastUsedAt != formatCalendarEventWindowCacheTimestamp(baseTime) {
+		t.Fatalf("last used at after early hit = %q", lastUsedAt)
+	}
+	lateTouchTime := baseTime.Add(2 * time.Minute)
+	if _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, lateTouchTime); errorValue != nil {
+		t.Fatal(errorValue)
+	} else if !found {
+		t.Fatal("cache entry was not found")
+	}
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT last_used_at FROM calendar_event_window_cache_entries WHERE cache_key = ?", cacheRange.Key).Scan(&lastUsedAt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if lastUsedAt != formatCalendarEventWindowCacheTimestamp(lateTouchTime) {
+		t.Fatalf("last used at after late hit = %q", lastUsedAt)
+	}
+}
+
+func TestCalendarEventWindowCacheRollsBackFailedCleanup(t *testing.T) {
+	service := newCalendarTestService(t)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	revision, errorValue := readCalendarEventWindowSourceRevision(context.Background(), database)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baseTime := time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC)
+	for index := range calendarEventWindowCacheMaximumEntries {
+		startTime := baseTime.Add(time.Duration(index) * 24 * time.Hour)
+		cacheRange, _ := calendarEventWindowCacheRangeFor(startTime, startTime.Add(24*time.Hour))
+		if writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, baseTime.Add(time.Duration(index)*time.Second)); errorValue != nil {
+			t.Fatal(errorValue)
+		} else if writeResult != calendarEventWindowCacheWriteStored {
+			t.Fatalf("cache entry %d was not stored", index)
+		}
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_calendar_event_window_cache_cleanup
+		BEFORE DELETE ON calendar_event_window_cache_entries
+		BEGIN
+			SELECT RAISE(FAIL, 'cache cleanup failed');
+		END`); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	newStartTime := baseTime.Add(time.Duration(calendarEventWindowCacheMaximumEntries) * 24 * time.Hour)
+	newRange, _ := calendarEventWindowCacheRangeFor(newStartTime, newStartTime.Add(24*time.Hour))
+	if _, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, newRange, revision, nil, baseTime.Add(time.Hour)); errorValue == nil {
+		t.Fatal("cache cleanup succeeded")
+	}
+	var cacheEntryCount int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM calendar_event_window_cache_entries").Scan(&cacheEntryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if cacheEntryCount != calendarEventWindowCacheMaximumEntries {
+		t.Fatalf("cache entries after failed cleanup = %d, want %d", cacheEntryCount, calendarEventWindowCacheMaximumEntries)
 	}
 }
 
