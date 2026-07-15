@@ -100,6 +100,10 @@ func (service Service) CleanupEphemeral(contextValue context.Context, logger Log
 	return service.runCleanupPlans(cleanupContext, logger, service.ephemeralCleanupPlans())
 }
 
+func (service Service) ConnectPreparedFleet(contextValue context.Context, logger Logger) error {
+	return service.runPlans(contextValue, logger, service.preparedFleetPlans())
+}
+
 func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {
 	errorValue := service.runAction(contextValue, logger, request)
 	cleanupError := service.CleanupEphemeral(contextValue, logger)
