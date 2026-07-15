@@ -601,10 +601,14 @@ func resolveLocalFleetTestTarget(contextValue context.Context, service localflee
 }
 
 func newLocalFleetTestTarget(repositoryRootPath string, executablePath string, configurationPath string, host string) verifyTarget {
+	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	return verifyTarget{
-		host:      host,
-		user:      "admin",
-		scriptDir: repositoryRootPath,
+		host:       host,
+		user:       "admin",
+		password:   "admin",
+		scriptDir:  repositoryRootPath,
+		sshpassBin: sshpassBin,
+		sshClient:  newSSH(sshpassBin, "admin", "admin", host),
 		scenarioRemote: mattermostScenarioLocalFleetRemote{
 			executablePath:    executablePath,
 			configurationPath: configurationPath,
