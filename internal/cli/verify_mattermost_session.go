@@ -234,12 +234,13 @@ func (session *mattermostScenarioSession) postStep(contextValue context.Context,
 	}
 	if session.rootPostID == "" {
 		session.rootPostID = post.ID
+		session.result.ConversationID = session.conversationID()
 	}
 	return post, nil
 }
 
 func (session *mattermostScenarioSession) snapshotTasks(contextValue context.Context) (map[string]mattermostScenarioTaskSnapshot, error) {
-	tasks, errorValue := session.admin.listTasks(contextValue, session.channelID)
+	tasks, errorValue := session.admin.listTasks(contextValue, session.conversationID())
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -261,7 +262,7 @@ func (session *mattermostScenarioSession) waitForStepTask(contextValue context.C
 	var latestDetail mattermostScenarioTaskDetail
 	var latestEvents []mattermostScenarioTaskEvent
 	for {
-		tasks, errorValue := session.admin.listTasks(contextValue, session.channelID)
+		tasks, errorValue := session.admin.listTasks(contextValue, session.conversationID())
 		if errorValue != nil {
 			return latestDetail, latestEvents, errorValue
 		}
@@ -289,6 +290,13 @@ func (session *mattermostScenarioSession) waitForStepTask(contextValue context.C
 			return latestDetail, latestEvents, errorValue
 		}
 	}
+}
+
+func (session *mattermostScenarioSession) conversationID() string {
+	if session.rootPostID == "" {
+		return session.channelID
+	}
+	return "thread:" + session.channelID + ":" + session.rootPostID
 }
 
 func (session *mattermostScenarioSession) waitForStepReply(contextValue context.Context, postedAt int64) (mattermostProbePost, error) {
