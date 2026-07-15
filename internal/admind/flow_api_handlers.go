@@ -93,31 +93,17 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)
-	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	readModel, errorValue := service.buildFlowSummaryReadModel(request.Context(), weekCode, weekStart, members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	weeklyTasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, weeklyTasks, definitions)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	metrics := buildFlowMetrics(weeklyTasks, definitions)
-	metrics.MemberScores = map[string]int{}
-	metrics.MemberScoreDetails = map[string]flowMemberScoreItem{}
-	metrics.TotalScore = 0
 	response := flowSummaryResponse{
 		Week:        buildFlowWeek(weekCode, weekStart, now),
 		CurrentWeek: buildFlowWeek(currentWeekCode, currentWeekStart, now),
-		WeeklyTasks: weeklyTasks,
-		Metrics:     metrics,
-		Report:      report,
+		WeeklyTasks: readModel.WeeklyTasks,
+		Metrics:     readModel.Metrics,
+		Report:      readModel.Report,
 		Source:      "sqlite",
 	}
 	service.writeJSON(responseWriter, response)
