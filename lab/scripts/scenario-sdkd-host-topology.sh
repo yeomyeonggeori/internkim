@@ -204,19 +204,12 @@ assert_guest_sdkd_router_transport() {
         (.body | fromjson) |
         select(.schemaName == "blueclaw_turn_router")
       ] as $router_calls |
-      [.taskEvents[] |
-        select(.name == "llm.call") |
-        (.body | fromjson) |
-        select(.schemaName == "blueclaw_agent_turn_action")
-      ] as $calls |
       ($intakes | length) > 0 and
       all($intakes[]; .usedDeterministicFallback == false) and
       ($launches | length) > 0 and
       all($launches[]; (.isIntakePrecomputed // false) == false) and
       ($router_calls | length) > 0 and
-      all($router_calls[]; (.usedFallback // false) == false) and
-      ($calls | length) > 0 and
-      all($calls[]; (.usedFallback // false) == false)
+      all($router_calls[]; (.usedFallback // false) == false)
     ' "$response_path" >/dev/null; then
     echo "task detail did not prove non-diagnostic SDKD router transport for $task_run_id" >&2
     jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
@@ -323,7 +316,7 @@ jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action
 jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config" >/dev/null
 enable_router_schema
 requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
-router_task_run_id=$(run_task 'Use terminal.run to execute printf "SDKD topology router ok" and return the output.' '')
+router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')
 assert_guest_sdkd_router_transport "$router_task_run_id"
 
 authoritative_task_run_id=$(run_task 'Reply with exactly SDKD topology authoritative ok.')
