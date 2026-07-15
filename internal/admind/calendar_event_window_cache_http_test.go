@@ -51,6 +51,20 @@ func TestCalendarEventWindowCacheHTTPOnlyCachesExplicitRange(t *testing.T) {
 	if cacheEntryCount != 0 {
 		t.Fatalf("upcoming cache entries = %d, want 0", cacheEntryCount)
 	}
+	request = httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("unbounded status = %d body = %s", response.Code, response.Body.String())
+	}
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM calendar_event_window_cache_entries").Scan(&cacheEntryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if cacheEntryCount != 0 {
+		t.Fatalf("unbounded cache entries = %d, want 0", cacheEntryCount)
+	}
 }
 
 func TestCalendarEventWindowCacheKeepsDynamicImagesOutsidePayload(t *testing.T) {
