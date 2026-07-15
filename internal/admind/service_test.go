@@ -3206,7 +3206,7 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "me@example.com")
+	request.Header.Set(flowResolvedActorHeader, "me@example.com")
 	task, errorValue := service.flowTaskFromRequest(request, members, flowDefinitions{
 		Types: []string{"회의"},
 		Sizes: defaultFlowSizeDefinitions(),
