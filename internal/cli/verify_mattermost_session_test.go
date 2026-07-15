@@ -8,12 +8,12 @@ import (
 )
 
 type fakeMattermostProbeAPI struct {
-	postMessage       func(mattermostProbeMessage) mattermostProbePost
-	listChannelPosts  func() []mattermostProbePost
-	fileMetadata      map[string]mattermostProbeFileMetadata
-	fileContents      map[string][]byte
-	deletedChannelIDs []string
-	deletedUserIDs    []string
+	postMessage      func(mattermostProbeMessage) mattermostProbePost
+	listChannelPosts func() []mattermostProbePost
+	fileMetadata     map[string]mattermostProbeFileMetadata
+	fileContents     map[string][]byte
+	deletedPostIDs   []string
+	deletedUserIDs   []string
 }
 
 func (fake *fakeMattermostProbeAPI) Login(context.Context, string, string) (string, error) {
@@ -56,8 +56,8 @@ func (fake *fakeMattermostProbeAPI) DownloadFile(_ context.Context, _ string, fi
 	return fake.fileContents[fileID], nil
 }
 
-func (fake *fakeMattermostProbeAPI) DeleteChannel(_ context.Context, _ string, channelID string) error {
-	fake.deletedChannelIDs = append(fake.deletedChannelIDs, channelID)
+func (fake *fakeMattermostProbeAPI) DeletePost(_ context.Context, _ string, postID string) error {
+	fake.deletedPostIDs = append(fake.deletedPostIDs, postID)
 	return nil
 }
 
@@ -188,7 +188,7 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 			}
 			return []mattermostProbePost{{ID: "bot-post-2", RootID: "user-post-1", UserID: "bot", Message: "삭제했습니다.", CreatedAt: 21}}
 		},
-		fileMetadata: map[string]mattermostProbeFileMetadata{"file": {ID: "file", Name: "report.docx", MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}},
+		fileMetadata: map[string]mattermostProbeFileMetadata{"file": {ID: "file", Name: "report.docx", MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Size: 8}},
 		fileContents: map[string][]byte{"file": []byte("document")},
 	}
 	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "만들어줘", ExpectedTaskStatus: "completed"}, {Prompt: "삭제해줘", ExpectedTaskStatus: "completed"}}}
@@ -260,8 +260,8 @@ func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 	if len(stepResult.TaskEvents) != 1 || stepResult.TaskEvents[0].TaskEventID != "new" {
 		t.Fatalf("unexpected partial task events: %#v", stepResult.TaskEvents)
 	}
-	if stepResult.DurationMS <= 0 || len(session.result.Posts) != 1 {
-		t.Fatalf("duration=%d posts=%#v", stepResult.DurationMS, session.result.Posts)
+	if stepResult.ProcessingMS <= 0 || len(session.result.Posts) != 1 {
+		t.Fatalf("duration=%d posts=%#v", stepResult.ProcessingMS, session.result.Posts)
 	}
 }
 
@@ -350,8 +350,8 @@ func TestMattermostScenarioRecordsDurationWhenHookFails(t *testing.T) {
 	if !errors.Is(errorValue, hookError) {
 		t.Fatalf("expected hook failure, got %v", errorValue)
 	}
-	if session.result.DurationMS <= 0 {
-		t.Fatalf("expected failed scenario duration, got %d", session.result.DurationMS)
+	if session.result.ScenarioWallDurationMS <= 0 {
+		t.Fatalf("expected failed scenario duration, got %d", session.result.ScenarioWallDurationMS)
 	}
 }
 
@@ -368,7 +368,7 @@ func TestMattermostScenarioUnexpectedTerminalStatusReturnsWithoutPolling(t *test
 	pollCount := 0
 	session.poll = func(context.Context) error { pollCount++; return nil }
 
-	detail, _, errorValue := session.waitForStepTask(context.Background(), map[string]mattermostScenarioTaskSnapshot{}, "completed")
+	detail, _, errorValue := session.waitForStepTask(context.Background(), map[string]mattermostScenarioTaskSnapshot{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -381,6 +381,7 @@ func TestMattermostScenarioCleanupIsIdempotent(t *testing.T) {
 	mattermost := &fakeMattermostProbeAPI{}
 	admin := &fakeMattermostScenarioAdminAPI{}
 	session := newTestMattermostScenarioSession(mattermostScenario{}, mattermost, admin)
+	session.result.Posts = []mattermostScenarioPost{{ID: "user-post"}, {ID: "bot-post"}}
 
 	if errorValue := session.cleanup(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
@@ -388,8 +389,8 @@ func TestMattermostScenarioCleanupIsIdempotent(t *testing.T) {
 	if errorValue := session.cleanup(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if admin.cleanupCount != 1 || len(mattermost.deletedChannelIDs) != 1 || len(mattermost.deletedUserIDs) != 1 {
-		t.Fatalf("admin=%d channels=%v users=%v", admin.cleanupCount, mattermost.deletedChannelIDs, mattermost.deletedUserIDs)
+	if admin.cleanupCount != 1 || len(mattermost.deletedPostIDs) != 2 || len(mattermost.deletedUserIDs) != 1 {
+		t.Fatalf("admin=%d posts=%v users=%v", admin.cleanupCount, mattermost.deletedPostIDs, mattermost.deletedUserIDs)
 	}
 }
 
@@ -403,8 +404,20 @@ func TestMattermostScenarioPollingStopsWhenContextIsCancelled(t *testing.T) {
 	contextValue, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, errorValue := session.waitForStepTask(contextValue, nil, "completed")
+	_, _, errorValue := session.waitForStepTask(contextValue, nil)
 	if !errors.Is(errorValue, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioStepMetricsDescribeAgentWork(t *testing.T) {
+	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router"}`},
+		{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action"}`},
+		{Name: "tool.capability.invoke.requested"},
+	}}
+	setMattermostScenarioStepMetrics(&result)
+	if result.LLMCallCount != 2 || result.AgentStepCount != 1 || result.ToolCallCount != 1 {
+		t.Fatalf("unexpected step metrics: %#v", result)
 	}
 }
