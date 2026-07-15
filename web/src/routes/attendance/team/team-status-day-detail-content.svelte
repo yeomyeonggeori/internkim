@@ -86,9 +86,12 @@
 
 	$effect(() => {
 		if (!isEditingWorkRecords) return;
-		return startAttendanceMinuteClock((currentTime) => {
-			workEditNow = currentTime;
-		});
+		return startAttendanceMinuteClock(
+			(currentTime) => {
+				workEditNow = currentTime;
+			},
+			() => attendance.currentServerTime()
+		);
 	});
 
 	async function deleteAbsence(absenceID: string) {
@@ -107,7 +110,8 @@
 	}
 
 	function openWorkRecordEditor(): void {
-		workEditNow = new Date();
+		if (!attendance.serverClock) return;
+		workEditNow = attendance.currentServerTime();
 		workEventDrafts = createWorkEventDrafts(attendance.summary?.events ?? []);
 		workEditReason = '';
 		workEditError = '';
@@ -168,11 +172,11 @@
 		return Math.max(0, localTimeMinutes(endTime) - localTimeMinutes(startTime));
 	}
 
-	function updateEventTime(eventID: string | undefined, localTime: string): void {
-		if (!eventID) return;
+	function updateEventTime(eventID: string | undefined, localTime: string): string {
+		if (!eventID) return localTime;
 		const draft = workEventDrafts[eventID];
-		if (!draft) return;
-		const currentTime = new Date();
+		if (!draft) return localTime;
+		const currentTime = attendance.currentServerTime();
 		workEditNow = currentTime;
 		draft.localTime = fallbackFutureAttendanceLocalTime(
 			draft.localDate,
@@ -180,6 +184,7 @@
 			attendance.summary?.timeZone,
 			currentTime
 		);
+		return draft.localTime;
 	}
 
 	function updateSegmentLocation(segment: TeamStatusDayDetail['day']['segments'][number], locationID: string): void {
@@ -253,7 +258,7 @@
 						variant="ghost"
 						size="icon-sm"
 						aria-label={isEditingWorkRecords ? text.cancel : text.edit}
-						disabled={isSavingWorkRecords}
+						disabled={isSavingWorkRecords || !attendance.serverClock}
 						onclick={isEditingWorkRecords ? closeWorkRecordEditor : openWorkRecordEditor}
 						data-testid="work-record-edit-button"
 						data-state={isEditingWorkRecords ? 'editing' : 'idle'}
