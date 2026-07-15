@@ -33,8 +33,9 @@ type calendarOutboxRow struct {
 }
 
 type pendingCalendarLocalChange struct {
-	EventUID      string
-	ChangedFields []string
+	EventUID       string
+	ChangedFields  []string
+	FieldChangedAt map[string]time.Time
 }
 
 func encodeChangedFields(fields []string) string {
@@ -170,7 +171,7 @@ func normalizeCalendarOutboxPutChangedFields(fields []string) []string {
 }
 
 func (service *Service) listPendingCalendarLocalChanges(ctx context.Context, accountID string) (map[string]pendingCalendarLocalChange, error) {
-	rows, errorValue := service.listPendingCalendarOutbox(ctx, accountID)
+	rows, errorValue := service.listCalendarOutbox(ctx, accountID, true)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -182,7 +183,16 @@ func (service *Service) listPendingCalendarLocalChanges(ctx context.Context, acc
 		}
 		change := result[eventUID]
 		change.EventUID = eventUID
+		if change.FieldChangedAt == nil {
+			change.FieldChangedAt = map[string]time.Time{}
+		}
 		change.ChangedFields = mergeCalendarFieldLists(change.ChangedFields, row.ChangedFields)
+		changedAt := parseCalendarConflictTime(row.CreatedAt)
+		for _, field := range row.ChangedFields {
+			if changedAt.After(change.FieldChangedAt[field]) {
+				change.FieldChangedAt[field] = changedAt
+			}
+		}
 		result[eventUID] = change
 	}
 	return result, nil
@@ -198,7 +208,7 @@ func (service *Service) readPendingCalendarLocalChange(ctx context.Context, acco
 		return pendingCalendarLocalChange{}, false, errorValue
 	}
 	defer database.Close()
-	query := `SELECT changed_fields FROM calendar_outbox WHERE event_uid = ? AND operation = ?`
+	query := `SELECT changed_fields, created_at FROM calendar_outbox WHERE event_uid = ? AND operation = ?`
 	arguments := []any{trimmedEventUID, calendarOutboxOperationPut}
 	if strings.TrimSpace(accountID) != "" {
 		query += " AND account_id = ?"
@@ -210,17 +220,74 @@ func (service *Service) readPendingCalendarLocalChange(ctx context.Context, acco
 		return pendingCalendarLocalChange{}, false, errorValue
 	}
 	defer rows.Close()
-	change := pendingCalendarLocalChange{EventUID: trimmedEventUID}
+	change := pendingCalendarLocalChange{EventUID: trimmedEventUID, FieldChangedAt: map[string]time.Time{}}
 	found := false
 	for rows.Next() {
 		var changedFieldsRaw string
-		if errorValue := rows.Scan(&changedFieldsRaw); errorValue != nil {
+		var createdAtRaw string
+		if errorValue := rows.Scan(&changedFieldsRaw, &createdAtRaw); errorValue != nil {
 			return pendingCalendarLocalChange{}, false, errorValue
 		}
-		change.ChangedFields = mergeCalendarFieldLists(change.ChangedFields, normalizeCalendarOutboxPutChangedFields(decodeChangedFields(changedFieldsRaw)))
+		changedFields := normalizeCalendarOutboxPutChangedFields(decodeChangedFields(changedFieldsRaw))
+		change.ChangedFields = mergeCalendarFieldLists(change.ChangedFields, changedFields)
+		changedAt := parseCalendarConflictTime(createdAtRaw)
+		for _, field := range changedFields {
+			if changedAt.After(change.FieldChangedAt[field]) {
+				change.FieldChangedAt[field] = changedAt
+			}
+		}
 		found = true
 	}
 	return change, found, rows.Err()
+}
+
+func (service *Service) retainPendingCalendarOutboxFields(ctx context.Context, accountID string, eventUID string, retainedFields []string, remoteHref string, remoteETag string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, changed_fields
+FROM calendar_outbox
+WHERE account_id = ? AND event_uid = ? AND operation = ?
+ORDER BY id`, strings.TrimSpace(accountID), strings.TrimSpace(eventUID), calendarOutboxOperationPut)
+	if errorValue != nil {
+		return errorValue
+	}
+	type retainedCalendarOutboxRow struct {
+		ID     int64
+		Fields []string
+	}
+	retainedRows := []retainedCalendarOutboxRow{}
+	for rows.Next() {
+		var rowID int64
+		var changedFieldsRaw string
+		if errorValue := rows.Scan(&rowID, &changedFieldsRaw); errorValue != nil {
+			rows.Close()
+			return errorValue
+		}
+		changedFields := normalizeCalendarOutboxPutChangedFields(decodeChangedFields(changedFieldsRaw))
+		retainedRows = append(retainedRows, retainedCalendarOutboxRow{ID: rowID, Fields: intersectCalendarFields(changedFields, retainedFields)})
+	}
+	if errorValue := rows.Close(); errorValue != nil {
+		return errorValue
+	}
+	for _, row := range retainedRows {
+		if len(row.Fields) == 0 {
+			if _, errorValue := database.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE id = ?`, row.ID); errorValue != nil {
+				return errorValue
+			}
+			continue
+		}
+		if _, errorValue := database.ExecContext(ctx, `
+UPDATE calendar_outbox
+SET changed_fields = ?, if_match_etag = ?, remote_href = ?, status = ?, failed_at = '', attempt_count = 0, last_error = ''
+WHERE id = ?`, encodeChangedFields(row.Fields), strings.TrimSpace(remoteETag), strings.TrimSpace(remoteHref), calendarOutboxStatusPending, row.ID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (service *Service) hasPendingCalendarLocalDelete(ctx context.Context, accountID string, eventUID string) (bool, error) {
@@ -352,6 +419,23 @@ func (service *Service) updatePendingCalendarOutboxRemoteState(ctx context.Conte
 	return errorValue
 }
 
+func (service *Service) updatePendingCalendarDeleteRemoteState(ctx context.Context, accountID string, eventUID string, remoteHref string, remoteETag string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx,
+		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND event_uid = ? AND operation = ?`,
+		strings.TrimSpace(remoteETag),
+		strings.TrimSpace(remoteHref),
+		strings.TrimSpace(accountID),
+		strings.TrimSpace(eventUID),
+		calendarOutboxOperationDelete,
+	)
+	return errorValue
+}
+
 func (service *Service) markCalendarOutboxAttempt(ctx context.Context, rowID int64, lastError string) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -372,5 +456,15 @@ func (service *Service) deleteCalendarOutbox(ctx context.Context, rowID int64) e
 	}
 	defer database.Close()
 	_, errorValue = database.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE id = ?`, rowID)
+	return errorValue
+}
+
+func (service *Service) deleteCalendarOutboxForEventUID(ctx context.Context, accountID string, eventUID string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE account_id = ? AND event_uid = ?`, strings.TrimSpace(accountID), strings.TrimSpace(eventUID))
 	return errorValue
 }

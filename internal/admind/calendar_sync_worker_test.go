@@ -17,6 +17,22 @@ func TestRunGoogleCalendarPullSkipsQueryWhenCTagUnchanged(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("seed: %v", errorValue)
 	}
+	event := newLocalTestCalendarEvent("unchanged-ctag-observation", "Observed")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteHref = updated.DefaultCalendarURL + event.UID + ".ics"
+	event.RemoteETag = `"etag-observed"`
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	previousLastSeenAt := time.Now().UTC().Add(-time.Hour)
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   updated.ID,
+		CalendarURL: updated.DefaultCalendarURL,
+		EventUID:    event.UID,
+		LastSeenAt:  previousLastSeenAt.Format(time.RFC3339Nano),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	client := &fakeCalDAVPullClient{ctag: "ctag-known"}
 	changed, errorValue := service.runGoogleCalendarPull(ctx, updated, client)
 	if errorValue != nil {
@@ -30,6 +46,13 @@ func TestRunGoogleCalendarPullSkipsQueryWhenCTagUnchanged(t *testing.T) {
 	}
 	if client.queryCalls != 0 {
 		t.Errorf("query should be skipped on identical ctag, got %d", client.queryCalls)
+	}
+	state, found, errorValue := service.readCalendarRemoteEventState(ctx, updated.ID, updated.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found {
+		t.Fatalf("remote state: found=%v error=%v", found, errorValue)
+	}
+	if !parseCalendarConflictTime(state.LastSeenAt).After(previousLastSeenAt) {
+		t.Fatalf("last seen was not advanced: %q", state.LastSeenAt)
 	}
 }
 

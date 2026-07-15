@@ -87,6 +87,19 @@ func TestPullConflictStaleMissingRemotePreservesLatePendingLocalEdit(t *testing.
 	if errorValue != nil {
 		t.Fatalf("read stale snapshot: %v", errorValue)
 	}
+	pullStartedAt := time.Now().UTC()
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   account.ID,
+		CalendarURL: activeRemoteCalendarTarget(account).CalendarURL,
+		EventUID:    baselineEvent.UID,
+		LastSeenAt:  pullStartedAt.Add(-time.Minute).Format(time.RFC3339Nano),
+	}); errorValue != nil {
+		t.Fatalf("seed remote state: %v", errorValue)
+	}
+	pendingLocalChanges, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatalf("read stale pending changes: %v", errorValue)
+	}
 
 	localUpdated := baselineEvent
 	localUpdated.Title = "Late Local"
@@ -94,7 +107,7 @@ func TestPullConflictStaleMissingRemotePreservesLatePendingLocalEdit(t *testing.
 		t.Fatalf("late local update: %v", errorValue)
 	}
 
-	if errorValue := service.softDeleteMissingRemoteEvents(ctx, account.ID, activeRemoteCalendarTarget(account), activeEvents, map[string]struct{}{}, nil); errorValue != nil {
+	if errorValue := service.softDeleteMissingRemoteEventsWithConflictState(ctx, account.ID, activeRemoteCalendarTarget(account), activeEvents, map[string]struct{}{}, nil, pendingLocalChanges, pullStartedAt); errorValue != nil {
 		t.Fatalf("soft delete missing remote: %v", errorValue)
 	}
 
