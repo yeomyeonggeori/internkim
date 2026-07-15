@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -42,4 +43,59 @@ func flowSummaryMemberFingerprint(members []flowMember) (string, error) {
 	}
 	digest := sha256.Sum256(document)
 	return hex.EncodeToString(digest[:]), nil
+}
+
+func flowTaskSummarySourceKeys(task flowTask) ([]flowSummarySourceKey, error) {
+	weekKey, errorValue := flowTaskWeekSummarySourceKey(task)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	keySet := map[flowSummarySourceKey]struct{}{weekKey: {}}
+	for _, date := range []string{task.StartDate, task.EndDate} {
+		if strings.TrimSpace(date) == "" {
+			continue
+		}
+		parsedDate, errorValue := time.Parse("2006-01-02", date)
+		if errorValue != nil {
+			return nil, fmt.Errorf("derive flow summary cache scope for task %q date %q: %w", task.ID, date, errorValue)
+		}
+		keySet[flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: parsedDate.Format("2006-01")}] = struct{}{}
+	}
+	return sortedFlowSummarySourceKeys(keySet), nil
+}
+
+func flowTaskWeekSummarySourceKey(task flowTask) (flowSummarySourceKey, error) {
+	weekCode := canonicalWeekCode(task.WeekCode)
+	if weekCode == "" {
+		return flowSummarySourceKey{}, fmt.Errorf("derive flow summary cache scope for task %q: invalid week code %q", task.ID, task.WeekCode)
+	}
+	return flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: weekCode}, nil
+}
+
+func flowTasksSummarySourceKeys(tasks []flowTask) ([]flowSummarySourceKey, error) {
+	keySet := map[flowSummarySourceKey]struct{}{}
+	for _, task := range tasks {
+		keys, errorValue := flowTaskSummarySourceKeys(task)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		for _, key := range keys {
+			keySet[key] = struct{}{}
+		}
+	}
+	return sortedFlowSummarySourceKeys(keySet), nil
+}
+
+func sortedFlowSummarySourceKeys(keySet map[flowSummarySourceKey]struct{}) []flowSummarySourceKey {
+	keys := make([]flowSummarySourceKey, 0, len(keySet))
+	for key := range keySet {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(leftIndex int, rightIndex int) bool {
+		if keys[leftIndex].Kind != keys[rightIndex].Kind {
+			return keys[leftIndex].Kind < keys[rightIndex].Kind
+		}
+		return keys[leftIndex].Key < keys[rightIndex].Key
+	})
+	return keys
 }
