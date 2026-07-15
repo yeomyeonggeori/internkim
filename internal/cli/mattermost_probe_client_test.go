@@ -161,6 +161,21 @@ func TestMattermostProbeClientDeactivatesUserWhenPermanentDeletionRejectsDirectC
 	}
 }
 
+func TestMattermostProbeClientTreatsMissingPostAsDeleted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		writeJSONDocument(t, responseWriter, http.StatusNotFound, `{"message":"post not found"}`)
+	}))
+	defer server.Close()
+	client, errorValue := newMattermostProbeClient(server.URL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := client.DeletePost(context.Background(), "token", "missing"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
 func TestMattermostProbeClientReportsBothUserDeletionFailures(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		writeJSONDocument(t, responseWriter, http.StatusForbidden, `{"message":"deletion denied"}`)

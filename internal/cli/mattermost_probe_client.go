@@ -287,7 +287,11 @@ func (client *mattermostProbeClient) DownloadFile(contextValue context.Context, 
 
 func (client *mattermostProbeClient) DeletePost(contextValue context.Context, token string, postID string) error {
 	requestPath := "/api/v4/posts/" + url.PathEscape(postID)
-	return client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
+	errorValue := client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
+	if isMattermostProbeStatus(errorValue, http.StatusNotFound) {
+		return nil
+	}
+	return errorValue
 }
 
 func (client *mattermostProbeClient) DeleteUser(contextValue context.Context, token string, userID string) error {
@@ -364,6 +368,11 @@ func requireSuccessfulMattermostResponse(response *http.Response) error {
 		StatusCode: response.StatusCode,
 		Body:       strings.TrimSpace(string(document)),
 	}
+}
+
+func isMattermostProbeStatus(errorValue error, statusCode int) bool {
+	var responseError mattermostProbeHTTPError
+	return errors.As(errorValue, &responseError) && responseError.StatusCode == statusCode
 }
 
 func validateMattermostProbeUser(user mattermostProbeUser, errorValue error) error {
