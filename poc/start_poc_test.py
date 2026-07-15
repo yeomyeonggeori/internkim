@@ -114,6 +114,47 @@ class WorkspaceSettingsTest(unittest.TestCase):
 
             run.assert_not_called()
 
+    def test_converts_only_tenant_internkim_account_to_bot(self):
+        completed_process = mock.Mock(returncode=0)
+        with mock.patch.object(START_POC.subprocess, 'run', return_value=completed_process) as run:
+            START_POC.ensure_mattermost_bot(15)
+
+        run.assert_called_once_with([
+            START_POC.CONTAINER,
+            'exec',
+            'poc-mattermost',
+            'mmctl',
+            '--local',
+            'user',
+            'convert',
+            'internkim15',
+            '--bot',
+        ], capture_output=True, text=True)
+
+    def test_verifies_tenant_token_belongs_to_expected_bot(self):
+        completed_process = mock.Mock(
+            returncode=0,
+            stdout=json.dumps({'username': 'internkim15', 'is_bot': True}),
+            stderr='',
+        )
+        with mock.patch.object(START_POC.subprocess, 'run', return_value=completed_process) as run:
+            START_POC.verify_mattermost_bot('poc-tenant-15', 'internkim15')
+
+        arguments = run.call_args.args[0]
+        self.assertEqual(arguments[:4], [START_POC.CONTAINER, 'exec', 'poc-tenant-15', 'sh'])
+        self.assertIn('/secrets/mattermost-bot-token', arguments[-1])
+        self.assertNotIn('admin15', ' '.join(arguments))
+
+    def test_rejects_human_tenant_token_user(self):
+        completed_process = mock.Mock(
+            returncode=0,
+            stdout=json.dumps({'username': 'internkim15', 'is_bot': False}),
+            stderr='',
+        )
+        with mock.patch.object(START_POC.subprocess, 'run', return_value=completed_process):
+            with self.assertRaisesRegex(RuntimeError, 'Mattermost account is not a bot: internkim15'):
+                START_POC.verify_mattermost_bot('poc-tenant-15', 'internkim15')
+
 
 if __name__ == '__main__':
     unittest.main()
