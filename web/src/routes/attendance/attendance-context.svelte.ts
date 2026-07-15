@@ -10,6 +10,11 @@ import {
 } from './attendance-api';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
 import { currentMonthInTimeZone } from './shared/attendance-date';
+import {
+	type AttendanceServerClock,
+	attendanceServerTime,
+	createAttendanceServerClock
+} from './shared/attendance-server-clock';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
 export type AttendanceAbsenceKind = 'leave' | 'other';
@@ -101,6 +106,7 @@ export type AttendanceMember = {
 
 export type AttendanceSummary = {
 	month: string;
+	serverTime?: string;
 	currentUserEmail: string;
 	isAdmin: boolean;
 	timeZone: string;
@@ -122,8 +128,12 @@ export class AttendanceState {
 	selectedDate = $state<string>('');
 	isLoading = $state<boolean>(false);
 	errorMessage = $state<string>('');
+	serverClock = $state<AttendanceServerClock | null>(null);
 
 	private loadFailedMessage: string;
+	private serverClockRequestSequence = 0;
+	private appliedServerClockRequestSequence = 0;
+	private serverClockRefreshPromise: Promise<boolean> | null = null;
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
@@ -156,8 +166,46 @@ export class AttendanceState {
 		}
 	}
 
-	private fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
-		return fetchAttendanceSummary({ month });
+	currentServerTime(monotonicTimestampMilliseconds: number = performance.now()): Date {
+		if (!this.serverClock) return new Date(Number.NaN);
+		return attendanceServerTime(this.serverClock, monotonicTimestampMilliseconds);
+	}
+
+	refreshServerClock(): Promise<boolean> {
+		if (this.serverClockRefreshPromise) return this.serverClockRefreshPromise;
+		const refreshPromise = this.requestServerClockRefresh();
+		this.serverClockRefreshPromise = refreshPromise;
+		return refreshPromise.finally(() => {
+			if (this.serverClockRefreshPromise === refreshPromise) this.serverClockRefreshPromise = null;
+		});
+	}
+
+	private async requestServerClockRefresh(): Promise<boolean> {
+		const requestSequence = ++this.serverClockRequestSequence;
+		try {
+			const summary = await fetchAttendanceSummary({ month: this.selectedMonth });
+			const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
+			if (!serverClock) return false;
+			this.applyServerClock(serverClock, requestSequence);
+			return true;
+		} catch (error) {
+			if (error instanceof Error) return false;
+			throw error;
+		}
+	}
+
+	private async fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
+		const requestSequence = ++this.serverClockRequestSequence;
+		const summary = await fetchAttendanceSummary({ month });
+		const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
+		if (serverClock) this.applyServerClock(serverClock, requestSequence);
+		return summary;
+	}
+
+	private applyServerClock(serverClock: AttendanceServerClock, requestSequence: number): void {
+		if (requestSequence <= this.appliedServerClockRequestSequence) return;
+		this.serverClock = serverClock;
+		this.appliedServerClockRequestSequence = requestSequence;
 	}
 
 	private async refreshCurrentMonthSnapshot(filteredSummary: AttendanceSummary) {
