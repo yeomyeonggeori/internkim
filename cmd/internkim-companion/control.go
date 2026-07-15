@@ -302,7 +302,7 @@ func decodeControlLocalLLMSettings(request *http.Request, httpClient *http.Clien
 		OllamaBaseURL:            payload.Ollama.BaseURL,
 		OllamaModel:              payload.Ollama.Model,
 		LlamaCppEmbeddingBaseURL: payload.LlamaCpp.BaseURL,
-		LlamaCppEmbeddingModel:   firstNonEmpty(payload.LlamaCpp.EmbeddingModel, llmbackend.DefaultEmbeddingGemmaModel),
+		LlamaCppEmbeddingModel:   firstNonEmpty(payload.LlamaCpp.EmbeddingModel, llmbackend.DefaultEmbeddingModelName),
 		LlamaCppBaseURL:          payload.LlamaCpp.BaseURL,
 		LlamaCppModel:            payload.LlamaCpp.Model,
 		MLXBaseURL:               payload.MLX.BaseURL,

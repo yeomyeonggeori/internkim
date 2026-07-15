@@ -29,6 +29,7 @@ type platformDMMattermostUser struct {
 	LastName    string `json:"last_name"`
 	Nickname    string `json:"nickname"`
 	DeleteAt    int64  `json:"delete_at"`
+	IsBot       bool   `json:"is_bot"`
 }
 
 type platformDMRecipient struct {
@@ -240,6 +241,9 @@ func (service Service) resolveMattermostBotUser(ctx context.Context) (platformDM
 	}
 	if strings.TrimSpace(botUser.ID) == "" {
 		return platformDMMattermostUser{}, fmt.Errorf("mattermost bot user is not available")
+	}
+	if !botUser.IsBot {
+		return platformDMMattermostUser{}, fmt.Errorf("mattermost token user is not a bot")
 	}
 	return botUser, nil
 }

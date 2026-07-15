@@ -1,0 +1,67 @@
+{
+  "name": "website-lifecycle",
+  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/website"],
+  "allowedTools": ["conversation.history", "memory.search", "capability.invoke", "terminal.run", "file.read", "file.write", "file.edit"],
+  "capabilityToolNames": ["site.create", "site.status", "site.publish", "site.delete"],
+  "capabilityToolDescriptors": [
+    {"name": "site.delete", "requiresApproval": true}
+  ],
+  "initialToolNames": ["capability.invoke"],
+  "steps": [
+    {
+      "prompt": "'비용 테스트 스튜디오'라는 단일 페이지 웹사이트를 만들어줘. 아직 배포하지는 마.",
+      "expectedToolCalls": ["site.create"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 스튜디오", "count": 1}
+      ],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["비용 테스트 스튜디오"]}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "방금 만든 웹사이트 첫 화면에 '고정 시드 기반 검증' 문구를 추가해줘. 아직 배포하지 마.",
+      "expectedToolCalls": ["file.write"],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 기반 검증"]}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "방금 수정한 웹사이트를 배포해줘.",
+      "expectedToolCalls": ["site.publish", "site.status"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "https://demo.device.example.test", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "published", "count": 2}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "배포한 웹사이트의 문구를 '고정 시드 41 검증 완료'로 바꾸고 다시 배포해줘.",
+      "expectedToolCalls": ["site.publish", "site.status"],
+      "expectedAnyToolCalls": ["file.edit", "file.write"],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 41 검증 완료"]}
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "방금 배포한 '비용 테스트 스튜디오' 웹사이트를 삭제해줘.",
+      "expectedEvents": ["confirmation.requested"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
+      ],
+      "expectedTaskStatus": "waiting_approval"
+    },
+    {
+      "prompt": "웹사이트 삭제 승인할게.",
+      "expectedToolCalls": ["site.delete"],
+      "expectedEvents": ["approval.executed"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
+      ],
+      "forbiddenWorkspaceFiles": ["circles/staff/sites/demo"],
+      "expectedTaskStatus": "completed"
+    }
+  ]
+}

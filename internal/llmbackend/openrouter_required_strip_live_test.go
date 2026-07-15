@@ -20,7 +20,6 @@ func experimentModelName() string {
 
 const experimentTrialsPerCase = 10
 const experimentWorkerCount = 4
-const experimentTrialTimeout = 60 * time.Second
 
 var experimentISOTimestampPattern = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}`)
 
@@ -169,8 +168,7 @@ func runExperimentTrial(backend OpenRouterBackend, schemaDocument json.RawMessag
 		Trial:    trial,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), experimentTrialTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	seed := int64(trial)
 	temperature := 0.0

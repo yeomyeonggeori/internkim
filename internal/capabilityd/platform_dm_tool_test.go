@@ -30,7 +30,7 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
 				if errorValue := json.NewDecoder(request.Body).Decode(&directChannelBody); errorValue != nil {
 					t.Fatal(errorValue)
@@ -253,7 +253,7 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
 				return platformDMTestJSONResponse(`{"id":"dm-channel-1"}`), nil
 			case "http://mattermost.local/api/v4/posts":
@@ -291,7 +291,7 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
 				return platformDMTestStatusResponse(http.StatusServiceUnavailable, "direct channel unavailable"), nil
 			default:
@@ -329,7 +329,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(`{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`), nil
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			default:
 				t.Fatalf("unexpected request %s", request.URL.String())
 				return nil, nil
@@ -380,7 +380,7 @@ func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument st
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(resolutionDocument), nil
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
 				return platformDMTestJSONResponse(`{"id":"dm-channel-1"}`), nil
 			case "http://mattermost.local/api/v4/posts":
@@ -446,7 +446,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 					return platformDMTestJSONResponse(`{"status":"not_found","approvedPeople":["이샘플"]}`), nil
 				}
 			case "http://mattermost.local/api/v4/users/me":
-				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
 				return platformDMTestJSONResponse(`{"id":"dm-channel"}`), nil
 			case "http://mattermost.local/api/v4/posts":
@@ -577,7 +577,7 @@ func TestSendMattermostDirectMessageSetsPendingPostID(t *testing.T) {
 	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case strings.HasSuffix(request.URL.Path, "/api/v4/users/me"):
-			return jsonResponse(map[string]string{"id": "bot-1", "username": "internkim"}), nil
+			return jsonResponse(map[string]any{"id": "bot-1", "username": "internkim", "is_bot": true}), nil
 		case strings.HasSuffix(request.URL.Path, "/api/v4/channels/direct"):
 			return jsonResponse(map[string]string{"id": "channel-1"}), nil
 		case strings.HasSuffix(request.URL.Path, "/api/v4/posts") && request.Method == http.MethodPost:

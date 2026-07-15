@@ -11,15 +11,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestOpenRouterLiveDocumentedToolSchemaFromEnv(t *testing.T) {
 	backend, apiKey := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	requestDocument, errorValue := json.Marshal(map[string]any{
 		"model": backend.resolveModelName(""),
@@ -59,8 +57,7 @@ func TestOpenRouterLiveDocumentedToolSchemaFromEnv(t *testing.T) {
 
 func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Call browser.open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
@@ -88,8 +85,7 @@ func findLiveDescriptor(t *testing.T, descriptors []capabilities.Descriptor, too
 
 func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
@@ -106,8 +102,7 @@ func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 
 func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
@@ -124,8 +119,7 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 
 func TestOpenRouterLiveLargePerToolActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	const probeToolCount = 30
 	descriptors := make([]capabilities.Descriptor, 0, probeToolCount)
 	for index := 0; index < probeToolCount; index++ {
@@ -150,8 +144,7 @@ func TestOpenRouterLiveLargePerToolActionSchemaFromEnv(t *testing.T) {
 
 func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	response, errorValue := backend.CompleteStructured(ctx, StructuredRequest{
 		Messages: []Message{
 			{
@@ -216,7 +209,7 @@ func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 		KeyPath:    keyPath,
 		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
 		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
-		HTTPClient: httpClientWithTimeout(45 * time.Second),
+		HTTPClient: &http.Client{},
 	}
 	return backend, apiKey
 }
@@ -308,8 +301,4 @@ func testEnvValue(key string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-func httpClientWithTimeout(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout}
 }

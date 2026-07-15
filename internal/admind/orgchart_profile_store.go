@@ -18,6 +18,7 @@ func (service *Service) writeOrgchartProfiles(ctx context.Context, profiles []or
 	if errorValue != nil {
 		return errorValue
 	}
+	writtenProfiles := make([]orgchartProfile, 0, len(profiles))
 	for _, profile := range profiles {
 		normalizedProfile := normalizeOrgchartProfile(profile)
 		profileKey := orgchartProfileKey(normalizedProfile)
@@ -94,6 +95,11 @@ ON CONFLICT(profile_key) DO UPDATE SET
 			_ = transaction.Rollback()
 			return errorValue
 		}
+		writtenProfiles = append(writtenProfiles, normalizedProfile)
+	}
+	if errorValue := invalidateOrgchartProfiles(ctx, transaction, writtenProfiles); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
 	}
 	return transaction.Commit()
 }

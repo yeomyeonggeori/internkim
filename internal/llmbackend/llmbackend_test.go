@@ -1286,6 +1286,13 @@ func TestAutoProviderReportsAggregateErrorWhenAllFail(t *testing.T) {
 	}
 }
 
+func TestAutoProviderHasNoDefaultAttemptDeadline(t *testing.T) {
+	auto := AutoProvider{Providers: []Provider{deadlineRejectingProvider{}}}
+	if _, errorValue := auto.CompleteText(context.Background(), TextRequest{}); errorValue != nil {
+		t.Fatalf("expected provider call without an arbitrary deadline: %v", errorValue)
+	}
+}
+
 func TestLiteRTProviderPingReturnsUnavailableWhenConstrainedRunnerMissing(t *testing.T) {
 	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
 	setLiteRTConstrainedRunnerPath(t, missingPath)
@@ -1784,6 +1791,25 @@ func openRouterRequestHasTool(tools []any, functionName string) bool {
 type staticProvider struct {
 	response   Response
 	errorValue error
+}
+
+type deadlineRejectingProvider struct{}
+
+func (deadlineRejectingProvider) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	_ = request
+	return completeWithoutDeadline(ctx)
+}
+
+func (deadlineRejectingProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
+	_ = request
+	return completeWithoutDeadline(ctx)
+}
+
+func completeWithoutDeadline(ctx context.Context) (Response, error) {
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return Response{}, errors.New("provider request received an arbitrary deadline")
+	}
+	return Response{Content: "ok"}, nil
 }
 
 func (provider staticProvider) CompleteStructured(context.Context, StructuredRequest) (Response, error) {

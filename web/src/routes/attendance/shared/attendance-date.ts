@@ -13,6 +13,28 @@ export function timeInTimeZone(timeZone?: string, date: Date = new Date()): stri
 	return `${parts.hour}:${parts.minute}`;
 }
 
+export function isFutureAttendanceLocalTime(
+	localDate: string,
+	localTime: string,
+	timeZone?: string,
+	now: Date = new Date()
+): boolean {
+	const currentLocalDate = todayDateInTimeZone(timeZone, now);
+	if (localDate !== currentLocalDate) return localDate > currentLocalDate;
+	return localTime > timeInTimeZone(timeZone, now);
+}
+
+export function fallbackFutureAttendanceLocalTime(
+	localDate: string,
+	localTime: string,
+	timeZone?: string,
+	now: Date = new Date()
+): string {
+	if (localDate !== todayDateInTimeZone(timeZone, now)) return localTime;
+	if (!isFutureAttendanceLocalTime(localDate, localTime, timeZone, now)) return localTime;
+	return timeInTimeZone(timeZone, now);
+}
+
 export function timeZoneDisplayLabel(timeZone?: string, date: Date = new Date()): string {
 	const zone = normalizeTimeZone(timeZone);
 	const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' })

@@ -56,7 +56,10 @@ CREATE TABLE IF NOT EXISTS orgchart_metadata (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 )`)
-	return errorValue
+	if errorValue != nil {
+		return errorValue
+	}
+	return ensureOrgchartPeopleCacheSchema(ctx, database)
 }
 
 func createOrgchartProfilesTable(ctx context.Context, executor orgchartSchemaExecutor, tableName string) error {

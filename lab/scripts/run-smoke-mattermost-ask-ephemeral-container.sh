@@ -11,5 +11,10 @@ container exec "$virtual_machine_name" sudo bash -lc "base64 -d > '$remote_scrip
 $encoded_script
 EOF
 chmod +x '$remote_script_path'
+INTERNKIM_TENANT_ROOT=/root/.internkim \
+INTERNKIM_CAPABILITY_SOCKET=/run/internkim/capability.sock \
+MATTERMOST_FLOW_CHANNEL_ID_PATH=/root/.internkim/env/channel-id \
+MATTERMOST_URL=http://127.0.0.1:8065 \
+ADMIND_URL=http://127.0.0.1:18080 \
 '$remote_script_path'
 rm -f '$remote_script_path'"

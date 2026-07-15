@@ -948,11 +948,11 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 }
 
 func (state *setupFlowState) installMattermostEphemeralPluginSSH() error {
-	localPath := filepath.Join(state.scriptDir, "build", "mattermost-plugins", "com.internkim.ephemeral-0.2.0.tar.gz")
+	localPath := filepath.Join(state.scriptDir, "build", "mattermost-plugins", "com.internkim.ephemeral-0.2.1.tar.gz")
 	if _, errorValue := os.Stat(localPath); errorValue != nil {
 		return nil
 	}
-	remotePath := "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz"
+	remotePath := "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.1.tar.gz"
 	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(remotePath)))
 	if errorValue := state.sshClient.scp(localPath, remotePath); errorValue != nil {
 		return errorValue

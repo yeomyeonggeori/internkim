@@ -1,0 +1,31 @@
+{
+  "name": "addressing-response",
+  "skillDirectoryPaths": [],
+  "allowedTools": ["conversation.history", "memory.search"],
+  "capabilityToolNames": [],
+  "initialToolNames": [],
+  "turnOptions": {
+    "MaxIterationCount": 8,
+    "MaxToolCallCount": 6,
+    "MaxElapsedSecond": 60
+  },
+  "steps": [
+    {
+      "prompt": "내일 점심 메뉴는 뭘로 할까요?",
+      "expectedResponse": "ignore_or_react",
+      "conversationType": "O",
+      "channelID": "town-square",
+      "channelName": "town-square"
+    },
+    {
+      "prompt": "@김인턴 방금 대화에서 추천할 만한 점심 메뉴 하나만 말해줘.",
+      "expectedResponse": "reply",
+      "conversationType": "O",
+      "channelID": "town-square",
+      "channelName": "town-square",
+      "addressing": {"botMentioned": true},
+      "minimumReplyLength": 5,
+      "expectedTaskStatus": "completed"
+    }
+  ]
+}
