@@ -597,20 +597,18 @@ func resolveLocalFleetTestTarget(contextValue context.Context, service localflee
 	if host == "" {
 		return verifyTarget{}, errors.New("Local Fleet VM IP is empty")
 	}
-	return newLocalFleetTestTarget(repositoryRootPath, host), nil
+	return newLocalFleetTestTarget(repositoryRootPath, executablePath, service.ConfigurationPath(), host), nil
 }
 
-func newLocalFleetTestTarget(repositoryRootPath string, host string) verifyTarget {
-	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
-	sshConnection := newSSH(sshpassBin, "admin", "admin", host)
-	sshConnection.shouldUseFlexibleAuthentication = true
+func newLocalFleetTestTarget(repositoryRootPath string, executablePath string, configurationPath string, host string) verifyTarget {
 	return verifyTarget{
-		host:       host,
-		user:       "admin",
-		password:   "admin",
-		scriptDir:  repositoryRootPath,
-		sshpassBin: sshpassBin,
-		sshClient:  sshConnection,
+		host:      host,
+		user:      "admin",
+		scriptDir: repositoryRootPath,
+		scenarioRemote: mattermostScenarioLocalFleetRemote{
+			executablePath:    executablePath,
+			configurationPath: configurationPath,
+		},
 	}
 }
 

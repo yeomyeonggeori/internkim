@@ -394,7 +394,7 @@ func TestVirtualMachineSSHUsesConfiguredPasswordAuthentication(t *testing.T) {
 		t.Fatalf("expected vm ssh to use repo sshpass, got %q", command.ExecutableName)
 	}
 	joinedArguments := strings.Join(command.Arguments, " ")
-	for _, expectedFragment := range []string{"-p admin", "ssh", "StrictHostKeyChecking=no", "admin@192.168.65.10", "cd /mnt/shared && true"} {
+	for _, expectedFragment := range []string{"-p admin", "ssh", "StrictHostKeyChecking=no", "LogLevel=ERROR", "admin@192.168.65.10", "cd /mnt/shared && true"} {
 		if !strings.Contains(joinedArguments, expectedFragment) {
 			t.Fatalf("expected vm ssh arguments to contain %q, got %v", expectedFragment, command.Arguments)
 		}

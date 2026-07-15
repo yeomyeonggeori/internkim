@@ -4254,13 +4254,12 @@ func getKeychainPassword(ssid string) string {
 // --- SSH helpers ---
 
 type sshClient struct {
-	sshpassBin                      string
-	user                            string
-	pass                            string
-	host                            string
-	port                            string
-	proxyCommand                    string
-	shouldUseFlexibleAuthentication bool
+	sshpassBin   string
+	user         string
+	pass         string
+	host         string
+	port         string
+	proxyCommand string
 }
 
 func newSSH(sshpassBin, user, pass, host string) *sshClient {
@@ -4325,7 +4324,7 @@ func (s *sshClient) sshArgs(extra ...string) []string {
 		"-o", "LogLevel=ERROR",
 		"-p", s.port,
 	}
-	if s.pass != "" && !s.shouldUseFlexibleAuthentication {
+	if s.pass != "" {
 		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
 	}
 	if s.proxyCommand != "" {

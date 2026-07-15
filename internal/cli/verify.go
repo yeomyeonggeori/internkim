@@ -20,14 +20,15 @@ import (
 )
 
 type verifyTarget struct {
-	host       string
-	user       string
-	password   string
-	nodeID     string
-	scriptDir  string
-	stateDir   string
-	sshpassBin string
-	sshClient  *sshClient
+	host           string
+	user           string
+	password       string
+	nodeID         string
+	scriptDir      string
+	stateDir       string
+	sshpassBin     string
+	sshClient      *sshClient
+	scenarioRemote mattermostScenarioRemote
 }
 
 func runVerify() {
