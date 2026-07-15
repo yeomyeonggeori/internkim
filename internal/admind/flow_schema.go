@@ -88,6 +88,9 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowChannelOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowSummaryCacheSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return seedFlowDefinitions(ctx, database)
 }
 
