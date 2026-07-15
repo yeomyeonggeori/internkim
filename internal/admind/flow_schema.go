@@ -7,7 +7,7 @@ import (
 )
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
-	options := sqliteDatabaseOptions{dataSourceParameters: []string{"_txlock=immediate"}}
+	options := sqliteDatabaseOptions{transactionLock: "immediate"}
 	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema, options)
 }
 
