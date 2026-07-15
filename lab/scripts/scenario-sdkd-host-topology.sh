@@ -22,6 +22,7 @@ cp "$workspace_runtime_config" "$workspace_runtime_config_backup"
 runtime_was_modified=false
 workspace_sync_source=$(mktemp -d)
 blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
+requester_person_id=
 
 stage_workspace_runtime_config() {
   local workspace_runtime_source=$1
@@ -116,9 +117,9 @@ run_task() {
   local request_body response_path http_status task_run_id
   response_path=$(mktemp)
   if [ -n "$task_decision_preset" ]; then
-    request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" --arg taskDecisionPreset "$task_decision_preset" '{requesterPersonID:"00000000-0000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:$taskDecisionPreset}')
+    request_body=$(jq -cn --arg requesterPersonID "$requester_person_id" --arg conversationID "$conversation_id" --arg prompt "$prompt" --arg taskDecisionPreset "$task_decision_preset" '{requesterPersonID:$requesterPersonID,conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:$taskDecisionPreset}')
   else
-    request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:"00000000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt}')
+    request_body=$(jq -cn --arg requesterPersonID "$requester_person_id" --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:$requesterPersonID,conversationID:$conversationID,prompt:$prompt}')
   fi
   if ! http_status=$(curl --silent --show-error --connect-timeout 10 --max-time 300 \
     -H 'Content-Type: application/json' \
@@ -321,6 +322,7 @@ fi
 jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$runtime_config" >/dev/null
 jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config" >/dev/null
 enable_router_schema
+requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
 router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')
 assert_guest_sdkd_router_transport "$router_task_run_id"
 
