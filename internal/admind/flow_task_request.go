@@ -68,7 +68,16 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if !containsFlowSize(definitions.Sizes, size) {
 		return flowTask{}, flowValidationError("size is not allowed")
 	}
-	dates := normalizeFlowTaskDates(payload, status, flowDateNow())
+	now := flowDateNow()
+	canonicalWeekCode, errorValue := canonicalFlowTaskWeekCode(payload.WeekCode, now)
+	if errorValue != nil {
+		return flowTask{}, errorValue
+	}
+	payload.WeekCode = canonicalWeekCode
+	if errorValue := validateFlowTaskDateInput(payload.StartDate, payload.EndDate, now.Location()); errorValue != nil {
+		return flowTask{}, errorValue
+	}
+	dates := normalizeFlowTaskDates(payload, status, now)
 	id := strings.TrimSpace(taskID)
 	if id == "" {
 		id = stableFlowID(dates.WeekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
