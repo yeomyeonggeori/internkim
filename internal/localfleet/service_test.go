@@ -467,6 +467,8 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`mktemp "${runtime_config}.tmp.XXXXXX"`,
 		`cp "$runtime_source" "$temporary_runtime_config"`,
 		`mv "$temporary_runtime_config" "$runtime_config"`,
+		`wait_for_blueclaw() {`,
+		`http://127.0.0.1:8080/admin/api/health`,
 		`sync_workspace_runtime_config() {`,
 		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
 		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
@@ -476,6 +478,8 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`--source "$workspace_sync_source"`,
 		`systemctl start "$blueclaw_service_name"`,
 		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
+		`systemctl is-active "$blueclaw_service_name" 2>/dev/null
+  wait_for_blueclaw`,
 		`apply_runtime_config() {`,
 		`stage_workspace_runtime_config "$workspace_runtime_source"`,
 		`replace_host_runtime_config "$runtime_source"`,
