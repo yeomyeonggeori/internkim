@@ -16,15 +16,23 @@ type adminDatabaseSchemas struct {
 	ready map[string]bool
 }
 
+type sqliteDatabaseOptions struct {
+	dataSourceParameters []string
+}
+
 func newAdminDatabaseSchemas() *adminDatabaseSchemas {
 	return &adminDatabaseSchemas{ready: map[string]bool{}}
 }
 
 func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath string, ensureSchema func(context.Context, *sql.DB) error) (*sql.DB, error) {
+	return service.openSQLiteDatabaseWithOptions(ctx, databasePath, ensureSchema, sqliteDatabaseOptions{})
+}
+
+func (service *Service) openSQLiteDatabaseWithOptions(ctx context.Context, databasePath string, ensureSchema func(context.Context, *sql.DB) error, options sqliteDatabaseOptions) (*sql.DB, error) {
 	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
-	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(databasePath))
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSNWithOptions(databasePath, options))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -41,11 +49,17 @@ func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath str
 }
 
 func sqliteDatabaseDSN(databasePath string) string {
+	return sqliteDatabaseDSNWithOptions(databasePath, sqliteDatabaseOptions{})
+}
+
+func sqliteDatabaseDSNWithOptions(databasePath string, options sqliteDatabaseOptions) string {
+	parameters := []string{"_pragma=journal_mode(WAL)", "_pragma=busy_timeout(5000)", "_pragma=foreign_keys(on)"}
+	parameters = append(parameters, options.dataSourceParameters...)
 	separator := "?"
 	if strings.Contains(databasePath, "?") {
 		separator = "&"
 	}
-	return databasePath + separator + "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)"
+	return databasePath + separator + strings.Join(parameters, "&")
 }
 
 func configureSQLiteDatabase(database *sql.DB) {
