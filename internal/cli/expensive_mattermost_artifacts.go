@@ -32,7 +32,6 @@ func writeExpensiveMattermostEvidence(directoryPath string, result mattermostSce
 
 func sanitizeMattermostScenarioResult(result mattermostScenarioResult) mattermostScenarioResult {
 	sanitizedResult := result
-	sanitizedResult.Files = sanitizeDownloadedMattermostFiles(result.Files)
 	sanitizedResult.Steps = append([]mattermostScenarioStepResult(nil), result.Steps...)
 	for stepIndex := range sanitizedResult.Steps {
 		sanitizedResult.Steps[stepIndex].Attachments = sanitizeDownloadedMattermostFiles(result.Steps[stepIndex].Attachments)
@@ -59,7 +58,7 @@ func writeExpensiveJSONArtifact(filePath string, value any) error {
 	return os.WriteFile(filePath, append(document, '\n'), 0o600)
 }
 
-func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int) error {
+func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, siteProxyURL string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int) error {
 	step := scenario.Steps[stepIndex]
 	result := execution.Result.Steps[stepIndex]
 	isFinalStep := stepIndex == len(scenario.Steps)-1
@@ -79,6 +78,7 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		"INTERNKIM_MATTERMOST_BOT_USERNAME="+execution.BotUsername,
 		"INTERNKIM_MATTERMOST_ARTIFACT_DIR="+stepArtifactDirectoryPath,
 		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL="+result.PublicURL,
+		"INTERNKIM_SITE_PROXY_URL="+siteProxyURL,
 	)
 	if len(step.ExpectedAttachments) > 0 {
 		environment = append(environment, "INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentJSON(step.ExpectedAttachments))
@@ -87,7 +87,7 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT="+marshalEnvironmentJSON(step.ExpectedPublicText),
 		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS="+marshalEnvironmentJSON(step.ExpectedPublicControls),
 	)
-	command := exec.CommandContext(contextValue, "bun", "run", "test:e2e:mattermost-expensive")
+	command := exec.CommandContext(contextValue, "bun", "run", "test:e2e:mattermost-expensive", "--output="+filepath.Join(stepArtifactDirectoryPath, "playwright"))
 	command.Dir = filepath.Join(repositoryRootPath, "web")
 	command.Env = environment
 	command.Stdout = os.Stdout

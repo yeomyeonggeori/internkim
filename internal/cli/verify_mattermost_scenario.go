@@ -98,7 +98,10 @@ type mattermostScenarioStepResult struct {
 	Attachments    []downloadedMattermostFile          `json:"attachments"`
 	WorkspaceFiles []mattermostScenarioWorkspaceResult `json:"workspaceFiles"`
 	PublicURL      string                              `json:"publicURL,omitempty"`
-	DurationMS     int64                               `json:"durationMs"`
+	LLMCallCount   int                                 `json:"llmCallCount"`
+	AgentStepCount int                                 `json:"agentStepCount"`
+	ToolCallCount  int                                 `json:"toolCallCount"`
+	ProcessingMS   int64                               `json:"processingMs"`
 }
 
 type mattermostScenarioWorkspaceResult struct {
@@ -120,9 +123,8 @@ type mattermostScenarioResult struct {
 	UserID                 string                                    `json:"userID"`
 	Posts                  []mattermostScenarioPost                  `json:"posts"`
 	Steps                  []mattermostScenarioStepResult            `json:"steps"`
-	Files                  []downloadedMattermostFile                `json:"files"`
-	StepCount              int                                       `json:"stepCount"`
-	DurationMS             int64                                     `json:"durationMs"`
+	TurnCount              int                                       `json:"turnCount"`
+	ScenarioWallDurationMS int64                                     `json:"scenarioWallDurationMs"`
 	EfficiencyObservations []mattermostScenarioEfficiencyObservation `json:"efficiencyObservations,omitempty"`
 }
 

@@ -18,7 +18,6 @@ func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t 
 	}
 	result := mattermostScenarioResult{
 		ScenarioName: "document-lifecycle",
-		Files:        []downloadedMattermostFile{file},
 		Steps: []mattermostScenarioStepResult{{
 			Attachments: []downloadedMattermostFile{file},
 			TaskEvents:  []mattermostScenarioTaskEvent{{TaskEventID: "event-1", Name: "task.completed"}},

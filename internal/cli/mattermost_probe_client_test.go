@@ -48,7 +48,7 @@ func TestMattermostProbeClientLifecycle(t *testing.T) {
 		case "GET /api/v4/files/file%2Fid":
 			responseWriter.WriteHeader(http.StatusOK)
 			_, _ = responseWriter.Write([]byte("content"))
-		case "DELETE /api/v4/channels/channel%2Fid":
+		case "DELETE /api/v4/posts/post%2Fid":
 			responseWriter.WriteHeader(http.StatusOK)
 		case "DELETE /api/v4/users/probe%2Fid":
 			if request.URL.Query().Get("permanent") != "true" {
@@ -108,7 +108,7 @@ func TestMattermostProbeClientLifecycle(t *testing.T) {
 	if errorValue != nil || string(document) != "content" {
 		t.Fatalf("document = %q, error = %v", document, errorValue)
 	}
-	if errorValue := client.DeleteChannel(contextValue, token, channel.ID); errorValue != nil {
+	if errorValue := client.DeletePost(contextValue, token, post.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if errorValue := client.DeleteUserPermanently(contextValue, token, createdUser.ID); errorValue != nil {
@@ -125,7 +125,7 @@ func TestMattermostProbeClientLifecycle(t *testing.T) {
 		"GET /api/v4/channels/channel%2Fid/posts?per_page=200",
 		"GET /api/v4/files/file%2Fid/info",
 		"GET /api/v4/files/file%2Fid",
-		"DELETE /api/v4/channels/channel%2Fid",
+		"DELETE /api/v4/posts/post%2Fid",
 		"DELETE /api/v4/users/probe%2Fid?permanent=true",
 	}
 	if !reflect.DeepEqual(requests, expectedRequests) {
