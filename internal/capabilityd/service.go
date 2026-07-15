@@ -113,6 +113,7 @@ type replyRequest struct {
 	Message         string                        `json:"message"`
 	RawEventID      string                        `json:"rawEventID,omitempty"`
 	OutboxID        string                        `json:"outboxID,omitempty"`
+	ReplyKind       string                        `json:"replyKind,omitempty"`
 	EphemeralUserID string                        `json:"ephemeralUserID,omitempty"`
 	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
 	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
@@ -683,7 +684,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	message = service.normalizeMattermostReplyMentions(ctx, message)
 	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
-	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
+	if shouldSendMattermostEphemeralText(request) {
 		if len(request.Attachments) > 0 {
 			return nil, errors.New("mattermost ephemeral reply cannot send native file attachments")
 		}
@@ -718,12 +719,14 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
-	if errorValue == nil && request.Interaction != nil {
-		if ephemeralError := service.sendMattermostAskEphemeralAttachment(ctx, handle, request); ephemeralError != nil {
-			log.Printf("mattermost ask ephemeral attachment failed: %v", ephemeralError)
-		}
-	}
 	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
+}
+
+func shouldSendMattermostEphemeralText(request replyRequest) bool {
+	if request.Interaction != nil || strings.TrimSpace(request.ReplyKind) == "checkpoint" {
+		return false
+	}
+	return strings.TrimSpace(request.EphemeralUserID) != ""
 }
 
 func (service Service) mattermostInteractionResolve(ctx context.Context, reader io.Reader) (any, error) {
@@ -773,16 +776,10 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 		"internkim_raw_event_id": request.RawEventID,
 		"internkim_outbox_id":    request.OutboxID,
 	}
-	if request.shouldSendMattermostAskAttachmentInline() {
-		if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
-			properties["attachments"] = []any{attachment}
-		}
+	if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
+		properties["attachments"] = []any{attachment}
 	}
 	return properties
-}
-
-func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
-	return false
 }
 
 func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle platformHandle, request replyRequest) string {
@@ -806,28 +803,6 @@ func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle pl
 		return ""
 	}
 	return "@" + response.Username + " "
-}
-
-func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context, handle platformHandle, request replyRequest) error {
-	targetUserID := request.mattermostAskTargetUserID()
-	if targetUserID == "" {
-		return nil
-	}
-	attachment := service.mattermostAskAttachment(request, handle)
-	if attachment == nil {
-		return nil
-	}
-	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
-	if errorValue != nil {
-		return errorValue
-	}
-	post["props"] = map[string]any{
-		"internkim_raw_event_id": request.RawEventID,
-		"internkim_outbox_id":    request.OutboxID,
-		"attachments":            []any{attachment},
-	}
-	body := map[string]any{"user_id": targetUserID, "post": post}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil)
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
