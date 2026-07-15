@@ -21,6 +21,11 @@ type mattermostScenarioSSHRemote struct {
 	client *sshClient
 }
 
+type mattermostScenarioLocalFleetRemote struct {
+	executablePath    string
+	configurationPath string
+}
+
 func (remote mattermostScenarioSSHRemote) run(contextValue context.Context, script string) (string, error) {
 	target := fmt.Sprintf("%s@%s", remote.client.user, remote.client.host)
 	commandName := "ssh"
@@ -34,6 +39,20 @@ func (remote mattermostScenarioSSHRemote) run(contextValue context.Context, scri
 		return "", fmt.Errorf("run Local Fleet command: %w: %s", errorValue, strings.TrimSpace(string(output)))
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func (remote mattermostScenarioLocalFleetRemote) run(contextValue context.Context, script string) (string, error) {
+	command := exec.CommandContext(contextValue, remote.executablePath, remote.arguments(script)...)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return "", fmt.Errorf("run Local Fleet command: %w: %s", errorValue, strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func (remote mattermostScenarioLocalFleetRemote) arguments(script string) []string {
+	privilegedScript := "sudo -p '' bash -lc " + quoteShellValue(script)
+	return []string{"lab", "vm-ssh", "--config", remote.configurationPath, privilegedScript}
 }
 
 type mattermostScenarioAdmin struct {

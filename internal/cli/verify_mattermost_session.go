@@ -56,14 +56,18 @@ type mattermostScenarioTaskSnapshot struct {
 }
 
 func startMattermostScenarioSession(contextValue context.Context, target verifyTarget, mattermostURL string, scenario mattermostScenario) (*mattermostScenarioSession, error) {
-	if target.sshClient == nil {
+	remote := target.scenarioRemote
+	if remote == nil && target.sshClient != nil {
+		remote = mattermostScenarioSSHRemote{client: target.sshClient}
+	}
+	if remote == nil {
 		return nil, errors.New("Mattermost scenario requires a Local Fleet SSH target")
 	}
 	mattermost, errorValue := newMattermostProbeClient(mattermostURL)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	admin := mattermostScenarioAdmin{remote: mattermostScenarioSSHRemote{client: target.sshClient}}
+	admin := mattermostScenarioAdmin{remote: remote}
 	session := newMattermostScenarioSession(scenario, mattermost, admin)
 	if errorValue := session.setup(contextValue); errorValue != nil {
 		cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 2*time.Minute)

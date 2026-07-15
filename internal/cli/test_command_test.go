@@ -177,21 +177,22 @@ func TestLoadExpensiveScenarioReferencesRejectsUnsupportedTopology(t *testing.T)
 	}
 }
 
-func TestLocalFleetScenarioTargetUsesFlexibleSSHAuthentication(t *testing.T) {
-	target := newLocalFleetTestTarget("/repo", "192.168.64.20")
+func TestLocalFleetScenarioTargetUsesSupportedVirtualMachineSSH(t *testing.T) {
+	target := newLocalFleetTestTarget("/repo", "/repo/internkim", "/repo/run/config.json", "192.168.64.20")
 
-	if target.sshClient == nil {
-		t.Fatal("expected SSH client")
-	}
 	if target.host != "192.168.64.20" || target.user != "admin" {
 		t.Fatalf("unexpected target: %#v", target)
 	}
-	if target.password != "admin" || target.sshClient.pass != "admin" || !target.sshClient.shouldUseFlexibleAuthentication {
-		t.Fatalf("Local Fleet scenario must preserve flexible SSH authentication: %#v", target.sshClient)
+	remote, isLocalFleetRemote := target.scenarioRemote.(mattermostScenarioLocalFleetRemote)
+	if !isLocalFleetRemote {
+		t.Fatalf("expected Local Fleet remote, got %#v", target.scenarioRemote)
 	}
-	arguments := strings.Join(target.sshClient.sshArgs(), " ")
-	if strings.Contains(arguments, "PreferredAuthentications=password") || strings.Contains(arguments, "PubkeyAuthentication=no") {
-		t.Fatalf("Local Fleet scenario forced password-only authentication: %s", arguments)
+	arguments := remote.arguments("cat /root/secret")
+	joinedArguments := strings.Join(arguments, " ")
+	for _, expected := range []string{"lab vm-ssh", "--config /repo/run/config.json", "sudo -p '' bash -lc", "cat /root/secret"} {
+		if !strings.Contains(joinedArguments, expected) {
+			t.Fatalf("Local Fleet remote arguments missing %q: %v", expected, arguments)
+		}
 	}
 }
 
