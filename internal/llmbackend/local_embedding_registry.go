@@ -56,7 +56,7 @@ func buildLocalEmbeddingBackendsForProvider(providerName string, configuration L
 	case "llamacpp":
 		return []EmbeddingBackend{LlamaCppEmbeddingBackend{
 			BaseURL:    firstNonEmpty(configuration.LlamaCppBaseURL, DefaultLlamaCppBaseURL),
-			ModelName:  firstNonEmpty(configuration.LlamaCppModel, DefaultEmbeddingGemmaModel),
+			ModelName:  firstNonEmpty(configuration.LlamaCppModel, DefaultEmbeddingModelName),
 			HTTPClient: configuration.HTTPClient,
 		}}
 	default:
@@ -77,17 +77,14 @@ func localEmbeddingProviderOrder(configuration LocalEmbeddingProviderConfig) []s
 func localEmbeddingProviderModel(backend EmbeddingBackend, configuration LocalEmbeddingProviderConfig) string {
 	switch backend.Name() {
 	case "llamacpp":
-		return firstNonEmpty(configuration.LlamaCppModel, DefaultEmbeddingGemmaModel)
+		return firstNonEmpty(configuration.LlamaCppModel, DefaultEmbeddingModelName)
 	default:
 		return ""
 	}
 }
 
 func localEmbeddingProviderAttemptTimeout(configuration LocalEmbeddingProviderConfig) time.Duration {
-	if configuration.AttemptTimeout > 0 {
-		return configuration.AttemptTimeout
-	}
-	return DefaultAttemptTimeout
+	return configuration.AttemptTimeout
 }
 
 func pingEmbeddingBackend(ctx context.Context, backend EmbeddingBackend) error {

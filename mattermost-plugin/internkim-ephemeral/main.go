@@ -188,7 +188,7 @@ func (pluginValue *Plugin) shouldHandlePost(post *model.Post) bool {
 
 func (pluginValue *Plugin) botUser() *model.User {
 	botUser, appError := pluginValue.API.GetUserByUsername(pluginValue.botUsername())
-	if appError != nil || botUser == nil {
+	if appError != nil || botUser == nil || !botUser.IsBot {
 		pluginValue.API.LogWarn("runtime fallback skipped: bot user lookup failed", "botUsername", pluginValue.botUsername())
 		return nil
 	}

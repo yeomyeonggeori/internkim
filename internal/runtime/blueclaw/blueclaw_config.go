@@ -21,6 +21,7 @@ const (
 	BlueclawTestModelName                               = "google/gemini-3.1-flash-lite"
 	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
+	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
@@ -62,6 +63,7 @@ type RuntimeConfigOptions struct {
 	BridgeListenAddress       string
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
+	MaximumModelTier          string
 	ShouldUseModelForAllTiers bool
 	VirtualCPUCount           int
 }
@@ -120,6 +122,10 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		return RuntimeConfigOptions{}, errorValue
 	}
 	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
+	maximumModelTier, errorValue := NormalizeMaximumModelTier(optionalStringEnvironment(BlueclawTestMaximumModelTierEnvironment))
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
 	virtualCPUCount, errorValue := optionalInt64Environment(BlueclawVirtualCPUCountEnvironment)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
@@ -129,6 +135,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		ShouldUseModelForAllTiers: modelName != "",
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
+		MaximumModelTier:          maximumModelTier,
 	}
 	if virtualCPUCount != nil {
 		options.VirtualCPUCount = int(*virtualCPUCount)
@@ -166,6 +173,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			}
 			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
 		}
+	}
+	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
+		capabilityLanguageModel["maximumModelTier"] = maximumModelTier
 	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
@@ -209,7 +219,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"defaultTaskLevel":    "low",
 		"skillTaskLevelFloor": "high",
-		"toolResultMaxBytes": 32768,
+		"toolResultMaxBytes":  32768,
 		"failureRecovery": map[string]any{
 			"failureDebtFinalizationGate": true,
 			"attemptFingerprint":          "tool_input_error_code",
@@ -321,11 +331,11 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"mcpServers": []map[string]any{},
 		"terminal": map[string]any{
-			"mode":                   terminalMode,
-			"sandboxProvider":        "",
-			"workspaceRootPath":      terminalWorkspaceRootPath,
-			"posixHelperPath":        terminalPOSIXHelperPath,
-			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,
+			"mode":               terminalMode,
+			"sandboxProvider":    "",
+			"workspaceRootPath":  terminalWorkspaceRootPath,
+			"posixHelperPath":    terminalPOSIXHelperPath,
+			"deniedPathPrefixes": BlueclawDeniedPathPrefixes,
 			"requesterWorkspace": map[string]any{
 				"requesterTemporaryEnvironmentVariable": "BLUECLAW_REQUESTER_TMP",
 				"taskTemporaryEnvironmentVariable":      "BLUECLAW_TASK_TMP",
@@ -352,6 +362,19 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func NormalizeMaximumModelTier(modelTier string) (string, error) {
+	normalizedModelTier := strings.ToLower(strings.TrimSpace(modelTier))
+	if normalizedModelTier == "" {
+		return "", nil
+	}
+	for _, supportedModelTier := range []string{"xlow", "low", "medium", "high", "xhigh", "max"} {
+		if normalizedModelTier == supportedModelTier {
+			return normalizedModelTier, nil
+		}
+	}
+	return "", fmt.Errorf("maximum model tier must be xlow, low, medium, high, xhigh, or max: %s", modelTier)
 }
 
 func firstNonEmptyString(values ...string) string {

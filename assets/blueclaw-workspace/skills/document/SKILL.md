@@ -1,10 +1,6 @@
 ---
 name: document
 description: Create, read, edit, and attach text documents — .docx by default, PDF on request — authored from a markdown source of truth. Use for Word documents, reports, memos, letters, templates, tracked changes review, comments, document cleanup, 워드, 문서, 보고서, 메모, 서식, PDF 보고서, or docx requests. Do not use for spreadsheets, slide decks, or manipulating existing PDF files. For standardized company forms and contracts (견적서, 품의서, 증명서, 근로계약서, NDA, quotation, invoice, certificate, contract) follow the paperwork skill, which reuses these scripts with its own document specs.
-when_to_use: Use when the user asks for Word, .docx, report, memo, letter, template, document formatting, document editing, 문서, 워드, 보고서, 메모, 서식, or a polished Word deliverable.
-completion:
-  requiredEvidenceTools:
-    - file.deliver
 ---
 
 # DOCX Documents

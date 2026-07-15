@@ -60,7 +60,7 @@ fn default_llamacpp_endpoint() -> BackendEndpoint {
     BackendEndpoint {
         base_url: "http://127.0.0.1:8080".to_string(),
         model: String::new(),
-        embedding_model: Some("embeddinggemma".to_string()),
+        embedding_model: Some("baai/bge-m3".to_string()),
     }
 }
 

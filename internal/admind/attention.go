@@ -322,10 +322,8 @@ func (service *Service) processRemoteAttention(contextValue context.Context, req
 		service.updateRemoteAttentionResult(request.JobID, companionAttentionRemoteStored, "", "no_reply_target", "")
 		return
 	}
-	attentionContext, cancel := context.WithTimeout(contextValue, 10*time.Second)
-	defer cancel()
 	var response capabilities.RemoteAttentionResponse
-	errorValue := service.blueclawJSONRequest(attentionContext, http.MethodPost, "/admin/api/attention/run", request, &response)
+	errorValue := service.blueclawJSONRequest(contextValue, http.MethodPost, "/admin/api/attention/run", request, &response)
 	if errorValue != nil {
 		service.updateRemoteAttentionResult(request.JobID, companionAttentionRemoteFailed, "", "", errorValue.Error())
 		return

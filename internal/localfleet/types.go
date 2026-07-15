@@ -26,6 +26,7 @@ type Options struct {
 	MattermostHostPort    int
 	GenerationSeed        string
 	GenerationTemperature string
+	MaximumModelTier      string
 	IsEphemeral           bool
 	ShouldUseRealModels   bool
 }

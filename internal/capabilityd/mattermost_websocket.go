@@ -45,7 +45,10 @@ func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
 
 	backoff := time.Second
 	for ctx.Err() == nil {
-		errorValue := forwarder.runOnce(ctx)
+		wasConnected, errorValue := forwarder.runOnce(ctx)
+		if wasConnected {
+			backoff = time.Second
+		}
 		if errorValue != nil && ctx.Err() == nil {
 			log.Printf("mattermost forwarder disconnected: botUserID=%s botUsername=%s error=%v", forwarder.BotUserID, forwarder.BotUsername, errorValue)
 			if forwarder.PollFallback != nil {
@@ -60,7 +63,7 @@ func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
 		case <-timer.C:
 		}
 		log.Printf("mattermost forwarder reconnecting: botUserID=%s botUsername=%s backoff=%s", forwarder.BotUserID, forwarder.BotUsername, backoff)
-		if backoff < 30*time.Second {
+		if !wasConnected && backoff < 30*time.Second {
 			backoff *= 2
 		}
 	}
@@ -73,25 +76,37 @@ func (forwarder MattermostWebSocketForwarder) idleReadTimeout() time.Duration {
 	return defaultMattermostWebSocketIdleReadTimeout
 }
 
-func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error {
+func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) (bool, error) {
 	connection, reader, errorValue := forwarder.connect(ctx)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	defer connection.Close()
 
 	if errorValue := writeWebSocketTextFrame(connection, forwarder.authenticationChallenge()); errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	log.Printf("mattermost forwarder connected: botUserID=%s botUsername=%s", forwarder.BotUserID, forwarder.BotUsername)
 
+	isAwaitingPong := false
 	for ctx.Err() == nil {
-		if errorValue := connection.SetReadDeadline(time.Now().Add(forwarder.idleReadTimeout())); errorValue != nil {
-			return errorValue
+		if errorValue := connection.SetReadDeadline(time.Now().Add(forwarder.idleReadTimeout() / 2)); errorValue != nil {
+			return true, errorValue
 		}
 		payload, errorValue := readWebSocketFrame(connection, reader)
 		if errorValue != nil {
-			return errorValue
+			if !isTimeout(errorValue) || isAwaitingPong {
+				return true, errorValue
+			}
+			if errorValue := writeWebSocketFrame(connection, 0x9, nil); errorValue != nil {
+				return true, errorValue
+			}
+			isAwaitingPong = true
+			continue
+		}
+		isAwaitingPong = false
+		if len(payload) == 0 {
+			continue
 		}
 		payloadDocument := append([]byte(nil), payload...)
 		go func() {
@@ -103,7 +118,12 @@ func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error
 			}
 		}()
 	}
-	return ctx.Err()
+	return true, ctx.Err()
+}
+
+func isTimeout(errorValue error) bool {
+	networkError, isNetworkError := errorValue.(net.Error)
+	return isNetworkError && networkError.Timeout()
 }
 
 func (forwarder MattermostWebSocketForwarder) connect(ctx context.Context) (net.Conn, *bufio.Reader, error) {
@@ -303,11 +323,11 @@ func readWebSocketFrame(writer io.Writer, reader *bufio.Reader) ([]byte, error) 
 		return nil, errors.New("websocket close: " + string(payload))
 	case 0x9:
 		_ = writeWebSocketFrame(writer, 0xA, payload)
-		return readWebSocketFrame(writer, reader)
+		return nil, nil
 	case 0xA:
-		return readWebSocketFrame(writer, reader)
+		return nil, nil
 	default:
-		return readWebSocketFrame(writer, reader)
+		return nil, nil
 	}
 }
 
