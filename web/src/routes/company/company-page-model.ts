@@ -39,6 +39,12 @@ export type CompanyShareRecord = {
 	attributes?: Record<string, string>;
 };
 
+export type CompanyRecordMoney = {
+	amount: number;
+	currency: CompanyMetricCurrency;
+	valueUSD?: number;
+};
+
 export type CompanyShareDocument = {
 	documentType: string;
 	title: string;
@@ -189,12 +195,16 @@ export function companyWorkStatusPercentage(count: number, statuses: CompanyShar
 	return total === 0 ? 0 : count / total * 100;
 }
 
-export function companyLocalCurrency(metrics: CompanyShareMetric[]): CompanyMetricCurrency | undefined {
+export function companyLocalCurrency(metrics: CompanyShareMetric[], records: CompanyShareRecord[] = []): CompanyMetricCurrency | undefined {
 	const currencies = new Set(
 		metrics
 			.filter((metric) => metric.currency && metric.currency !== 'USD' && metric.valueUSD !== undefined)
 			.map((metric) => metric.currency)
 	);
+	for (const record of records) {
+		const money = companyRecordMoney(record);
+		if (money?.currency !== 'USD' && money?.valueUSD !== undefined) currencies.add(money.currency);
+	}
 	if (currencies.size !== 1) return undefined;
 	return currencies.values().next().value;
 }
@@ -207,16 +217,61 @@ export function companyMetricDisplayValue(metric: CompanyShareMetric, displayCur
 export function formatCompanyMetricValue(metric: CompanyShareMetric, displayCurrency: CompanyMetricDisplayCurrency, language: string): string {
 	const currency = companyMetricDisplayCode(metric, displayCurrency);
 	const value = companyMetricDisplayValue(metric, displayCurrency);
-	if (currency) {
-		return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : language, {
-			style: 'currency',
-			currency,
-			currencyDisplay: 'narrowSymbol',
-			notation: 'compact',
-			maximumFractionDigits: 1
-		}).format(value);
-	}
+	if (currency) return formatCompanyCurrencyValue(value, currency);
 	return `${new Intl.NumberFormat(language).format(value)}${metric.unit ? ` ${metric.unit}` : ''}`;
+}
+
+export function companyRecordMoney(record: CompanyShareRecord): CompanyRecordMoney | undefined {
+	const attributes = record.attributes ?? {};
+	const amount = parseCompanyMoneyNumber(attributes.amount);
+	const currency = parseCompanyMetricCurrency(attributes.currency);
+	if (amount === undefined || !currency) return undefined;
+	const valueUSD = parseCompanyMoneyNumber(attributes.valueUSD ?? attributes.amountUSD);
+	return { amount, currency, ...(valueUSD === undefined ? {} : { valueUSD }) };
+}
+
+export function companyRecordVisibleAttributes(record: CompanyShareRecord): Array<[string, string]> {
+	const attributes = Object.entries(record.attributes ?? {});
+	if (!companyRecordMoney(record)) return attributes;
+	return attributes.filter(([key]) => !companyRecordMoneyAttributeKeys.has(key.toLowerCase()));
+}
+
+export function formatCompanyRecordMoney(money: CompanyRecordMoney, displayCurrency: CompanyMetricDisplayCurrency): string {
+	if (displayCurrency === 'USD' && money.valueUSD !== undefined) return formatCompanyCurrencyValue(money.valueUSD, 'USD');
+	return formatCompanyCurrencyValue(money.amount, money.currency);
+}
+
+export function formatCompanyRecordMoneyEquivalent(money: CompanyRecordMoney, displayCurrency: CompanyMetricDisplayCurrency): string | undefined {
+	if (money.currency === 'USD' || money.valueUSD === undefined) return undefined;
+	if (displayCurrency === 'USD') return formatCompanyCurrencyValue(money.amount, money.currency);
+	return formatCompanyCurrencyValue(money.valueUSD, 'USD');
+}
+
+function formatCompanyCurrencyValue(value: number, currency: CompanyMetricCurrency): string {
+	return new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency,
+		currencyDisplay: 'narrowSymbol',
+		notation: 'compact',
+		maximumFractionDigits: 1
+	}).format(value);
+}
+
+const companyRecordMoneyAttributeKeys = new Set(['amount', 'currency', 'valueusd', 'amountusd']);
+
+function parseCompanyMetricCurrency(value: string | undefined): CompanyMetricCurrency | undefined {
+	const currency = value?.trim().toUpperCase();
+	switch (currency) {
+		case 'USD': case 'KRW': case 'EUR': case 'JPY': case 'GBP': case 'CNY': case 'HKD':
+		case 'SGD': case 'AUD': case 'CAD': case 'CHF': case 'INR': return currency;
+		default: return undefined;
+	}
+}
+
+function parseCompanyMoneyNumber(value: string | undefined): number | undefined {
+	if (!value?.trim()) return undefined;
+	const number = Number(value.replaceAll(',', '').trim());
+	return Number.isFinite(number) ? number : undefined;
 }
 
 function companyMetricDisplayCode(metric: CompanyShareMetric, displayCurrency: CompanyMetricDisplayCurrency): CompanyMetricCurrency | undefined {
