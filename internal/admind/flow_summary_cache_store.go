@@ -129,6 +129,9 @@ func flowSummaryCacheEntryMatches(entry flowSummaryCacheEntry, current flowSumma
 }
 
 func (service *Service) writeFlowSummaryCacheEntryIfCurrent(ctx context.Context, weekCode string, keys flowSummaryDependencyKeys, expected flowSummaryDependencySnapshot, payload []byte, now time.Time) (bool, error) {
+	if weekCode == "" || canonicalWeekCode(weekCode) != weekCode {
+		return false, fmt.Errorf("write flow summary cache: noncanonical week code %q", weekCode)
+	}
 	if !json.Valid(payload) {
 		return false, fmt.Errorf("write flow summary cache: payload is not valid JSON")
 	}
