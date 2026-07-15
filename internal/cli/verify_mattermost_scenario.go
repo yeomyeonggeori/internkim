@@ -120,6 +120,7 @@ type mattermostScenarioEfficiencyObservation struct {
 type mattermostScenarioResult struct {
 	ScenarioName           string                                    `json:"scenarioName"`
 	ChannelID              string                                    `json:"channelID"`
+	ConversationID         string                                    `json:"conversationID"`
 	UserID                 string                                    `json:"userID"`
 	Posts                  []mattermostScenarioPost                  `json:"posts"`
 	Steps                  []mattermostScenarioStepResult            `json:"steps"`

@@ -201,11 +201,14 @@ func (admin mattermostScenarioAdmin) workspaceDownload(contextValue context.Cont
 
 func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, result mattermostScenarioResult, email string) error {
 	cleanupErrors := []error{}
-	if errorValue := admin.deleteConversationTasks(contextValue, result.ChannelID); errorValue != nil {
+	conversationID := firstNonEmptyString(result.ConversationID, result.ChannelID)
+	if errorValue := admin.deleteConversationTasks(contextValue, conversationID); errorValue != nil {
 		cleanupErrors = append(cleanupErrors, errorValue)
 	}
-	if errorValue := admin.deleteConversationSites(contextValue, result.ChannelID); errorValue != nil {
-		cleanupErrors = append(cleanupErrors, errorValue)
+	if mattermostScenarioHasSiteEvidence(result) {
+		if errorValue := admin.deleteConversationSites(contextValue, conversationID); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, errorValue)
+		}
 	}
 	if normalizedEmail := strings.TrimSpace(email); normalizedEmail != "" {
 		if _, errorValue := admin.request(contextValue, "DELETE", "/admin/api/people?email="+url.QueryEscape(normalizedEmail), nil); errorValue != nil {
@@ -213,6 +216,20 @@ func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, resul
 		}
 	}
 	return errors.Join(cleanupErrors...)
+}
+
+func mattermostScenarioHasSiteEvidence(result mattermostScenarioResult) bool {
+	for _, step := range result.Steps {
+		if step.PublicURL != "" {
+			return true
+		}
+		for _, event := range step.TaskEvents {
+			if strings.Contains(event.Name, "site.") || strings.Contains(event.Body, "site.") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (admin mattermostScenarioAdmin) deleteConversationTasks(contextValue context.Context, conversationID string) error {
@@ -278,7 +295,7 @@ func (admin mattermostScenarioAdmin) deleteConversationSites(contextValue contex
 			"requestedBy":   site.Owner,
 			"requester":     site.OwnerIdentity,
 		}
-		if errorValue := admin.requestJSON(contextValue, "DELETE", endpoint, body, nil); errorValue != nil {
+		if errorValue := admin.requestAdmindJSON(contextValue, "DELETE", endpoint, body, nil); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario site %s: %w", site.SiteID, errorValue))
 		}
 	}
@@ -295,7 +312,7 @@ func (admin mattermostScenarioAdmin) conversationSites(contextValue context.Cont
 	var response struct {
 		Sites []mattermostScenarioSite `json:"sites"`
 	}
-	if errorValue := admin.requestJSON(contextValue, "GET", "/admin/api/sites", nil, &response); errorValue != nil {
+	if errorValue := admin.requestAdmindJSON(contextValue, "GET", "/admin/api/sites", nil, &response); errorValue != nil {
 		return nil, errorValue
 	}
 	sites := make([]mattermostScenarioSite, 0, len(response.Sites))
@@ -318,7 +335,15 @@ func mattermostScenarioSiteIDs(sites []mattermostScenarioSite) []string {
 }
 
 func (admin mattermostScenarioAdmin) requestJSON(contextValue context.Context, method string, endpoint string, body any, output any) error {
-	document, errorValue := admin.request(contextValue, method, endpoint, body)
+	return admin.requestJSONAt(contextValue, "http://127.0.0.1:8080", method, endpoint, body, output)
+}
+
+func (admin mattermostScenarioAdmin) requestAdmindJSON(contextValue context.Context, method string, endpoint string, body any, output any) error {
+	return admin.requestJSONAt(contextValue, "http://127.0.0.1:18080", method, endpoint, body, output)
+}
+
+func (admin mattermostScenarioAdmin) requestJSONAt(contextValue context.Context, baseURL string, method string, endpoint string, body any, output any) error {
+	document, errorValue := admin.requestAt(contextValue, baseURL, method, endpoint, body)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -332,7 +357,11 @@ func (admin mattermostScenarioAdmin) requestJSON(contextValue context.Context, m
 }
 
 func (admin mattermostScenarioAdmin) request(contextValue context.Context, method string, endpoint string, body any) (string, error) {
-	requestURL := "http://127.0.0.1:8080" + endpoint
+	return admin.requestAt(contextValue, "http://127.0.0.1:8080", method, endpoint, body)
+}
+
+func (admin mattermostScenarioAdmin) requestAt(contextValue context.Context, baseURL string, method string, endpoint string, body any) (string, error) {
+	requestURL := baseURL + endpoint
 	arguments := []string{"curl", "--silent", "--show-error", "--fail", "-X", method}
 	if body != nil {
 		document, errorValue := json.Marshal(body)

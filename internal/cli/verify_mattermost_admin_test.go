@@ -51,6 +51,7 @@ func TestMattermostScenarioWorkspaceFilesRecursesThroughPathGlob(t *testing.T) {
 }
 
 func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *testing.T) {
+	conversationID := "thread:channel:root"
 	taskListCount := 0
 	siteListCount := 0
 	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
@@ -64,7 +65,7 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 		case strings.Contains(script, "/admin/api/sites"):
 			siteListCount++
 			if siteListCount == 1 {
-				return `{"sites":[{"siteID":"site-other","conversationID":"other"},{"siteID":"site-matching","conversationID":"channel","owner":"owner@example.com","ownerIdentity":{"personID":"person-owner","platform":"mattermost","platformUserID":"user-owner"}}]}`, nil
+				return `{"sites":[{"siteID":"site-other","conversationID":"other"},{"siteID":"site-matching","conversationID":"thread:channel:root","owner":"owner@example.com","ownerIdentity":{"personID":"person-owner","platform":"mattermost","platformUserID":"user-owner"}}]}`, nil
 			}
 			return `{"sites":[{"siteID":"site-other","conversationID":"other"}]}`, nil
 		case strings.Contains(script, "/admin/api/people"):
@@ -72,7 +73,7 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 		case strings.Contains(script, "/admin/api/task"):
 			taskListCount++
 			if taskListCount == 1 {
-				return `[{"taskRunID":"task-1","originConversationID":"channel"},{"taskRunID":"task-other","originConversationID":"other"},{"taskRunID":"task-2","originConversationID":"channel"}]`, nil
+				return `[{"taskRunID":"task-1","originConversationID":"thread:channel:root"},{"taskRunID":"task-other","originConversationID":"other"},{"taskRunID":"task-2","originConversationID":"thread:channel:root"}]`, nil
 			}
 			return `[{"taskRunID":"task-other","originConversationID":"other"}]`, nil
 		default:
@@ -80,8 +81,13 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 		}
 	}}
 	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{
+		ChannelID:      "channel",
+		ConversationID: conversationID,
+		Steps:          []mattermostScenarioStepResult{{PublicURL: "https://example.intern.kim"}},
+	}
 
-	if errorValue := admin.cleanup(context.Background(), mattermostScenarioResult{ChannelID: "channel"}, "probe@example.com"); errorValue != nil {
+	if errorValue := admin.cleanup(context.Background(), result, "probe@example.com"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedScripts := strings.Join(remote.scripts, "\n")
@@ -124,18 +130,26 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 		case strings.Contains(script, "/admin/api/sites/site-1"):
 			return "", errors.New("site delete failed")
 		case strings.Contains(script, "/admin/api/sites"):
-			return `{"sites":[{"siteID":"site-1","conversationID":"channel","ownerIdentity":{"personID":"person-1"}}]}`, nil
+			return `{"sites":[{"siteID":"site-1","conversationID":"thread:channel:root","ownerIdentity":{"personID":"person-1"}}]}`, nil
 		case strings.Contains(script, "/admin/api/people"):
 			return "", errors.New("person delete failed")
 		case strings.Contains(script, "/admin/api/task"):
-			return `[{"taskRunID":"task-1","originConversationID":"channel"}]`, nil
+			return `[{"taskRunID":"task-1","originConversationID":"thread:channel:root"}]`, nil
 		default:
 			return `{}`, nil
 		}
 	}}
 	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{
+		ChannelID:      "channel",
+		ConversationID: "thread:channel:root",
+		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
+			Name: "tool.capability.invoke.requested",
+			Body: `{"operation":"site.create"}`,
+		}}}},
+	}
 
-	errorValue := admin.cleanup(context.Background(), mattermostScenarioResult{ChannelID: "channel"}, "probe@example.com")
+	errorValue := admin.cleanup(context.Background(), result, "probe@example.com")
 	if errorValue == nil {
 		t.Fatal("expected cleanup failure")
 	}
@@ -150,6 +164,19 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 		if !strings.Contains(errorValue.Error(), fragment) {
 			t.Fatalf("cleanup error is missing %q: %v", fragment, errorValue)
 		}
+	}
+}
+
+func TestMattermostScenarioCleanupSkipsSitesWithoutSiteEvidence(t *testing.T) {
+	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return `[]`, nil }}
+	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{ConversationID: "thread:channel:root"}
+
+	if errorValue := admin.cleanup(context.Background(), result, ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if scripts := strings.Join(remote.scripts, "\n"); strings.Contains(scripts, "/admin/api/sites") {
+		t.Fatalf("cleanup without site evidence listed sites:\n%s", scripts)
 	}
 }
 

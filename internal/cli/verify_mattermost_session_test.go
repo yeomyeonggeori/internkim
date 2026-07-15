@@ -71,6 +71,7 @@ type fakeMattermostScenarioAdminAPI struct {
 	taskDetailValue    func(string) mattermostScenarioTaskDetail
 	workspaceFileValue func(mattermostScenarioStep) []mattermostScenarioWorkspaceResult
 	workspaceFileError error
+	conversationIDs    []string
 	cleanupCount       int
 }
 
@@ -82,7 +83,8 @@ func (fake *fakeMattermostScenarioAdminAPI) invitePerson(context.Context, string
 	return nil
 }
 
-func (fake *fakeMattermostScenarioAdminAPI) listTasks(context.Context, string) ([]mattermostScenarioTaskSummary, error) {
+func (fake *fakeMattermostScenarioAdminAPI) listTasks(_ context.Context, conversationID string) ([]mattermostScenarioTaskSummary, error) {
+	fake.conversationIDs = append(fake.conversationIDs, conversationID)
 	return fake.listTasksValue(), nil
 }
 
@@ -150,6 +152,18 @@ func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapsh
 	}
 	if len(session.result.Steps[0].TaskEvents) != 1 || session.result.Steps[0].TaskEvents[0].TaskEventID != "new" {
 		t.Fatalf("unexpected step events: %#v", session.result.Steps[0].TaskEvents)
+	}
+	expectedConversationIDs := []string{"channel", "thread:channel:user-post"}
+	if len(admin.conversationIDs) != len(expectedConversationIDs) {
+		t.Fatalf("unexpected conversation IDs: %#v", admin.conversationIDs)
+	}
+	for index := range expectedConversationIDs {
+		if admin.conversationIDs[index] != expectedConversationIDs[index] {
+			t.Fatalf("unexpected conversation IDs: %#v", admin.conversationIDs)
+		}
+	}
+	if session.result.ConversationID != "thread:channel:user-post" {
+		t.Fatalf("unexpected result conversation ID: %q", session.result.ConversationID)
 	}
 }
 
