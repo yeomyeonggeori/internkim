@@ -75,7 +75,7 @@ func runTestArguments(arguments []string) error {
 func parseTestArguments(arguments []string, now time.Time) (testCommandConfiguration, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM, messages, and users after the test")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM and evidence after the test")
 	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
@@ -89,7 +89,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
 	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
 	if languageModelProviderDefault == "" {
-		languageModelProviderDefault = "openrouter"
+		languageModelProviderDefault = "sdkd"
 	}
 	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter, capability, or sdkd")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
@@ -225,6 +225,7 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
 		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
+		SDKDMode:              testSDKDMode(configuration.LanguageModelProvider),
 		ShouldUseRealModels:   configuration.ShouldUseRealModels,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
 	})
@@ -251,6 +252,13 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		}
 	}
 	return runError
+}
+
+func testSDKDMode(provider string) localfleet.SDKDMode {
+	if provider == "sdkd" {
+		return localfleet.SDKDModeAuthoritative
+	}
+	return ""
 }
 
 func runTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
@@ -283,28 +291,89 @@ type expensiveScenarioReference struct {
 	Path string `json:"-"`
 }
 
+var realMattermostScenarioNames = map[string]bool{
+	"task-lifecycle":     true,
+	"calendar-lifecycle": true,
+	"website-lifecycle":  true,
+	"document-lifecycle": true,
+}
+
 func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
 	scenarios, errorValue := loadExpensiveScenarioReferences(repositoryRootPath, configuration.ScenarioNames)
 	if errorValue != nil {
 		return errorValue
 	}
-	embeddingService, errorValue := startLocalTestEmbeddingService(contextValue, repositoryRootPath)
+	executablePath, errorValue := currentExecutablePath()
 	if errorValue != nil {
 		return errorValue
 	}
-	defer embeddingService.stop()
+	runID := firstNonEmptyString(configuration.RunID, "expensive-"+time.Now().UTC().Format("20060102T150405")+"-"+randomHexString(4))
+	service, errorValue := localfleet.NewService(localfleet.Options{
+		RepositoryRootPath:    repositoryRootPath,
+		ExecutablePath:        executablePath,
+		RunID:                 runID,
+		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
+		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
+		MaximumModelTier:      configuration.MaximumModelTier,
+		SDKDMode:              localfleet.SDKDModeAuthoritative,
+		IsEphemeral:           !configuration.ShouldReuseFleet,
+		ShouldUseRealModels:   configuration.ShouldUseRealModels,
+	})
+	if errorValue != nil {
+		return errorValue
+	}
+	logger := standardLocalFleetLogger{}
+	shouldCleanupFleet := !configuration.ShouldKeepArtifacts && !configuration.ShouldReuseFleet
 	fmt.Println("Test suite: expensive")
-	fmt.Println("Embedding model: baai/bge-m3 (local llama.cpp)")
+	fmt.Println("Environment: Local Fleet Mattermost DM")
+	fmt.Println("LLM runtime: SDKD authoritative")
 	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
 	if configuration.ShouldUseRealModels {
 		fmt.Println("Model tiers: production (--real)")
 	} else {
 		fmt.Println("Maximum model tier: " + configuration.MaximumModelTier)
 	}
-	fmt.Println("LLM provider: " + configuration.LanguageModelProvider)
+	runError := service.Run(contextValue, logger, localfleet.JobRequest{Action: localfleet.ActionUp, KeepArtifacts: true, SkipWeb: false})
+	if runError == nil {
+		runError = runExpensiveMattermostScenarios(contextValue, repositoryRootPath, executablePath, runID, service, configuration, scenarios)
+	}
+	if shouldCleanupFleet {
+		cleanupError := service.CleanupEphemeral(contextValue, logger)
+		return errors.Join(runError, cleanupError)
+	}
+	return runError
+}
+
+func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRootPath string, executablePath string, runID string, service localfleet.Service, configuration testCommandConfiguration, scenarios []expensiveScenarioReference) error {
+	status := service.Status(contextValue)
+	if errorValue := validateExpensiveFleetStatus(status); errorValue != nil {
+		return errorValue
+	}
+	target, errorValue := resolveLocalFleetTestTarget(contextValue, service, repositoryRootPath, executablePath)
+	if errorValue != nil {
+		return errorValue
+	}
 	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
-		return runExpensiveScenario(contextValue, repositoryRootPath, configuration, scenario, embeddingService.endpoint)
+		return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, status.MattermostURL, configuration, scenario)
 	})
+}
+
+func validateExpensiveFleetStatus(status localfleet.Status) error {
+	endpoints := map[string]localfleet.EndpointStatus{
+		"virtual machine": status.VirtualMachine,
+		"SSH":             status.SSH,
+		"admin":           status.Admin,
+		"Mattermost":      status.Mattermost,
+	}
+	for name, endpoint := range endpoints {
+		if endpoint.State != "ok" {
+			return fmt.Errorf("Local Fleet %s is %s: %s", name, endpoint.State, endpoint.Message)
+		}
+	}
+	if strings.TrimSpace(status.MattermostURL) == "" {
+		return errors.New("Local Fleet Mattermost URL is empty")
+	}
+	return nil
 }
 
 func runSequentialExpensiveScenarios(scenarios []expensiveScenarioReference, runScenario func(expensiveScenarioReference) error) error {
@@ -338,8 +407,14 @@ func loadExpensiveScenarioReferences(repositoryRootPath string, selectedScenario
 		scenario.Name = strings.TrimSpace(scenario.Name)
 		scenario.Path = scenarioPath
 		baseName := strings.TrimSuffix(filepath.Base(scenarioPath), filepath.Ext(scenarioPath))
+		if len(selectedNames) == 0 && !realMattermostScenarioNames[scenario.Name] {
+			continue
+		}
 		if len(selectedNames) > 0 && !selectedNames[scenario.Name] && !selectedNames[baseName] {
 			continue
+		}
+		if !realMattermostScenarioNames[scenario.Name] {
+			return nil, fmt.Errorf("expensive scenario %s does not yet have a real Mattermost topology", scenario.Name)
 		}
 		matchedNames[scenario.Name] = true
 		matchedNames[baseName] = true
@@ -364,37 +439,35 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveScenario(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration, scenario expensiveScenarioReference, embeddingEndpoint string) error {
-	timeout := time.Duration(configuration.TimeoutSeconds) * time.Second
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
 	scenarioContext, cancel := expensiveScenarioContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
-	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(scenario.Name))
-	arguments := []string{
-		"run", "./cmd/blueclaw-lab", "virtual-session",
-		"--scenario-file", scenario.Path,
-		"--artifact-dir", artifactDirectoryPath,
-		"--live-llm", "--strict-assertions",
-		"--seed", strconv.FormatInt(configuration.GenerationSeed, 10),
-		"--temperature", formatTestFloat(configuration.GenerationTemperature),
-		"--embedding-endpoint", embeddingEndpoint,
+	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
+	if errorValue != nil {
+		return errorValue
 	}
-	if configuration.ShouldUseRealModels {
-		arguments = append(arguments, "--real-model-tiers")
-	} else {
-		arguments = append(arguments, "--maximum-model-tier", configuration.MaximumModelTier)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
+	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
+		return errorValue
 	}
-	arguments = appendExpensiveLanguageModelArguments(arguments, configuration)
-	command := exec.CommandContext(scenarioContext, "go", arguments...)
-	command.Dir = filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
-	command.Env = append(os.Environ(), "GOCACHE=/tmp/internkim-expensive-go-cache")
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	errorValue := command.Run()
+	session, errorValue := startMattermostScenarioSession(scenarioContext, target, mattermostURL, scenario)
+	if errorValue != nil {
+		return errorValue
+	}
+	runError := session.run(scenarioContext, func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
+		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
+			return errorValue
+		}
+		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, execution, stepIndex)
+	})
+	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
+	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
+	cleanupError := session.cleanup(cleanupContext)
+	cancelCleanup()
 	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("timed out after %s", timeout)
+		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
-	return errorValue
+	return errors.Join(runError, writeError, cleanupError)
 }
 
 func expensiveScenarioContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {
@@ -402,27 +475,6 @@ func expensiveScenarioContext(parent context.Context, timeoutSeconds int) (conte
 		return parent, func() {}
 	}
 	return context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
-}
-
-func appendExpensiveLanguageModelArguments(arguments []string, configuration testCommandConfiguration) []string {
-	provider := strings.TrimSpace(configuration.LanguageModelProvider)
-	if provider == "" {
-		provider = "openrouter"
-	}
-	arguments = append(arguments, "--llm-provider", provider)
-	optionalArguments := [][2]string{
-		{"--llm-endpoint", configuration.LanguageModelEndpoint},
-		{"--llm-unix-socket", configuration.LanguageModelSocket},
-		{"--llm-auth-key-path", configuration.LanguageModelAuthKeyPath},
-		{"--llm-execution-mode", configuration.LanguageModelExecutionMode},
-	}
-	for _, optionalArgument := range optionalArguments {
-		if strings.TrimSpace(optionalArgument[1]) == "" {
-			continue
-		}
-		arguments = append(arguments, optionalArgument[0], optionalArgument[1])
-	}
-	return arguments
 }
 
 func safeTestScenarioName(name string) string {

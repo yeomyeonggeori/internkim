@@ -95,9 +95,14 @@ func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkip
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
 		service.command("make", "build"),
+	}
+	if !service.options.IsEphemeral && !slices.Contains(additionalSkippedSteps, "blueclaw-runtime-base") {
+		plans = append(plans, service.shellPlan("ensure reusable runtime base", service.ensureRuntimeBaseCommand()))
+	}
+	plans = append(plans,
 		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
 		service.configureLocalEmbeddingPlan(),
-	}
+	)
 	if slices.Contains(additionalSkippedSteps, "mattermost") {
 		return plans
 	}
@@ -132,9 +137,10 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 func (service Service) sdkdHostTopologyScenarioPlans() []CommandPlan {
 	service.options.ShouldUseRealModels = true
 	service.options.MaximumModelTier = ""
+	service.options.SDKDMode = SDKDModeAuthoritative
 	plans := service.upPlansWithSkippedSetupSteps(true, []string{"mattermost"})
 	for index := range plans {
-		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawSDKDModeEnvironment+"=authoritative")
+		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawSDKDModeEnvironment+"="+string(SDKDModeAuthoritative))
 		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")
 	}
 	return append(
@@ -288,7 +294,6 @@ func (service Service) checkSharedWorkspaceCommand() string {
 }
 
 func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...string) string {
-	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	skippedSteps := []string{"wifi", "local-llm", "cloudflare-access", "tunnel", "google", "slack"}
 	if skipWeb {
 		skippedSteps = append(skippedSteps, "web")
@@ -301,11 +306,20 @@ func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...stri
 			skippedSteps = append(skippedSteps, skippedStep)
 		}
 	}
+	return service.setupSSHCommand("--force --skip " + strings.Join(skippedSteps, ","))
+}
+
+func (service Service) ensureRuntimeBaseCommand() string {
+	return service.setupSSHCommand("--only blueclaw-runtime-base --skip web")
+}
+
+func (service Service) setupSSHCommand(selectionArguments string) string {
+	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	setupCommandParts := append(service.setupEnvironmentAssignments(), quoteShell(service.options.ExecutablePath))
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force --skip " + strings.Join(skippedSteps, ","),
+		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock " + selectionArguments,
 	}, " && ")
 }
 
@@ -319,6 +333,9 @@ func (service Service) setupEnvironmentAssignments() []string {
 	}
 	if maximumModelTier := strings.TrimSpace(service.options.MaximumModelTier); maximumModelTier != "" {
 		assignments = append(assignments, blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+quoteShell(maximumModelTier))
+	}
+	if service.options.SDKDMode != "" {
+		assignments = append(assignments, blueclaw.BlueclawSDKDModeEnvironment+"="+quoteShell(string(service.options.SDKDMode)))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))

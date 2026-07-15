@@ -255,6 +255,11 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.MattermostHostPort = mattermostHostPort
 	}
+	sdkdMode, errorValue := normalizeSDKDMode(options.SDKDMode)
+	if errorValue != nil {
+		return options, errorValue
+	}
+	options.SDKDMode = sdkdMode
 	maximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(options.MaximumModelTier)
 	if errorValue != nil {
 		return options, errorValue
@@ -267,6 +272,16 @@ func normalizeOptions(options Options) (Options, error) {
 	}
 	options.MaximumModelTier = maximumModelTier
 	return options, nil
+}
+
+func normalizeSDKDMode(mode SDKDMode) (SDKDMode, error) {
+	normalizedMode := SDKDMode(strings.ToLower(strings.TrimSpace(string(mode))))
+	switch normalizedMode {
+	case "", SDKDModeShadow, SDKDModeAuthoritative:
+		return normalizedMode, nil
+	default:
+		return "", fmt.Errorf("unsupported SDKD mode: %s", mode)
+	}
 }
 
 func defaultStateRootPath(options Options) string {

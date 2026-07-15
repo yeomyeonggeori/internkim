@@ -1,38 +1,41 @@
 {
   "name": "document-lifecycle",
+  "requiresSDKD": true,
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/document"],
   "allowedTools": ["conversation.history", "memory.search", "terminal.run", "file.preview", "file.delete", "file.deliver"],
   "initialToolNames": ["terminal.run", "file.preview", "file.deliver"],
   "steps": [
     {
-      "prompt": "'비용 테스트 운영 검토'라는 제목의 짧은 DOCX 업무 문서를 ~/documents/business-operations-review.docx로 만들어서 전달해줘. 내용에는 상태가 초안이고 담당이 운영팀이라는 항목을 넣어줘.",
+      "prompt": "운영팀과 재무팀이 함께 볼 수 있도록 '분기 결산 운영 검토'라는 제목의 짧은 DOCX 문서를 작성해서 보내줘. 검토 목적과 다음 단계를 간단히 적고, 현재 상태는 초안, 담당은 운영팀이라고 표시해줘.",
       "expectedToolCalls": ["terminal.run", "file.deliver"],
       "expectedAttachments": [".docx"],
+      "expectedDocumentText": ["분기 결산 운영 검토", "초안", "운영팀"],
       "expectedEventCounts": [
-        {"name": "tool.terminal.run.requested", "bodyFragment": "비용 테스트 운영 검토", "count": 1},
-        {"name": "tool.file.deliver.result", "bodyFragment": "business-operations-review.docx", "count": 1}
+        {"name": "tool.terminal.run.requested", "bodyFragment": "분기 결산 운영 검토", "count": 1},
+        {"name": "tool.file.deliver.result", "bodyFragment": ".docx", "count": 1}
       ],
-      "expectedReplyFragments": ["비용 테스트 운영 검토", "DOCX"],
+      "expectedReplyFragments": ["분기 결산 운영 검토", "DOCX"],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 전달한 DOCX를 읽어서 제목, 상태, 담당을 확인해줘.",
+      "prompt": "방금 전달한 DOCX를 읽어서 제목, 상태, 담당과 다음 단계를 확인해줘.",
       "expectedToolCalls": ["file.preview"],
       "expectedEventCounts": [
-        {"name": "tool.file.preview.result", "bodyFragment": "business-operations-review.docx", "count": 1},
-        {"name": "tool.file.preview.result", "bodyFragment": "비용 테스트 운영 검토", "count": 1}
+        {"name": "tool.file.preview.result", "bodyFragment": ".docx", "count": 1},
+        {"name": "tool.file.preview.result", "bodyFragment": "분기 결산 운영 검토", "count": 1}
       ],
-      "expectedReplyFragments": ["비용 테스트 운영 검토", "초안", "운영팀"],
+      "expectedReplyFragments": ["분기 결산 운영 검토", "초안", "운영팀"],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 만든 DOCX의 상태를 '검토 완료'로 바꾸고 담당을 '재무팀'으로 수정해서 같은 파일로 다시 전달해줘.",
+      "prompt": "방금 만든 DOCX의 상태를 '검토 완료'로 바꾸고 담당을 '재무팀'으로 수정해서 같은 문서로 다시 전달해줘.",
       "expectedToolCalls": ["terminal.run", "file.deliver"],
       "expectedAttachments": [".docx"],
+      "expectedDocumentText": ["분기 결산 운영 검토", "검토 완료", "재무팀"],
       "expectedEventCounts": [
         {"name": "tool.terminal.run.requested", "bodyFragment": "검토 완료", "count": 1},
         {"name": "tool.terminal.run.requested", "bodyFragment": "재무팀", "count": 1},
-        {"name": "tool.file.deliver.result", "bodyFragment": "business-operations-review.docx", "count": 1}
+        {"name": "tool.file.deliver.result", "bodyFragment": ".docx", "count": 1}
       ],
       "expectedReplyFragments": ["검토 완료", "재무팀"],
       "expectedTaskStatus": "completed"
@@ -48,7 +51,7 @@
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "수정한 business-operations-review.docx를 삭제해줘.",
+      "prompt": "수정한 DOCX를 삭제해줘.",
       "expectedToolCalls": ["file.delete"],
       "expectedEvents": ["confirmation.requested"],
       "expectedTaskStatus": "waiting_approval"
@@ -60,7 +63,7 @@
       "expectedEventCounts": [
         {"name": "tool.file.delete.result", "bodyFragment": "deleted", "count": 1}
       ],
-      "forbiddenWorkspaceFiles": ["private/people/person-1/documents/business-operations-review.docx"],
+      "forbiddenWorkspaceFiles": ["private/people/*/documents/*.docx"],
       "expectedTaskStatus": "completed"
     }
   ]
