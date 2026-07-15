@@ -60,7 +60,7 @@ func sqliteDatabaseDSNWithOptions(databasePath string, options sqliteDatabaseOpt
 	if options.transactionLock != "" {
 		query.Set("_txlock", options.transactionLock)
 	}
-	databaseURL := url.URL{Scheme: "file", Path: databasePath, RawQuery: query.Encode()}
+	databaseURL := url.URL{Scheme: "file", Path: databasePath, RawQuery: query.Encode(), OmitHost: true}
 	return databaseURL.String()
 }
 

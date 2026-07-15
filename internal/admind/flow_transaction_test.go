@@ -163,6 +163,40 @@ func TestOpenSQLiteDatabaseKeepsDeferredTransactions(t *testing.T) {
 	}
 }
 
+func TestOpenSQLiteDatabasePreservesRelativeDatabasePath(t *testing.T) {
+	t.Chdir(t.TempDir())
+	ctx := context.Background()
+	service := NewService(Configuration{})
+	databasePath := "shared.sqlite"
+	database, errorValue := service.openSQLiteDatabase(ctx, databasePath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(databasePath); errorValue != nil {
+		t.Fatalf("relative shared database path was not created: %v", errorValue)
+	}
+}
+
+func TestOpenFlowDatabasePreservesRelativeDatabasePath(t *testing.T) {
+	t.Chdir(t.TempDir())
+	ctx := context.Background()
+	databasePath := "flow.sqlite"
+	service := NewService(Configuration{FlowDatabasePath: databasePath})
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(databasePath); errorValue != nil {
+		t.Fatalf("relative Flow database path was not created: %v", errorValue)
+	}
+}
+
 func TestConcurrentFlowTaskWritesPreserveTasksAndRevisions(t *testing.T) {
 	ctx := context.Background()
 	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
