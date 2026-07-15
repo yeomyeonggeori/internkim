@@ -51,11 +51,24 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	if !isValid {
 		return
 	}
+	payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	identities := []orgchartPersonIdentity{identity}
+	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer mutation.completeAfterRequest(request.Context())
 	payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
 		return
 	}
+	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
@@ -70,61 +83,9 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	_, _ = responseWriter.Write(responseBody)
 }
 
-func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter, request *http.Request) {
-	var batchRequest struct {
-		Users []adminUserMutation `json:"users"`
-	}
-	if errorValue := json.NewDecoder(request.Body).Decode(&batchRequest); errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	if len(batchRequest.Users) == 0 {
-		http.Error(responseWriter, "users required", http.StatusBadRequest)
-		return
-	}
-	temporaryPassword := ""
-	temporaryPasswordEmail := ""
-	for _, rawPayload := range batchRequest.Users {
-		payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		payload, provisionResult, errorValue := service.applyLocalUserMutation(request.Context(), payload, hasExplicitCircleMutation)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), statusForUserMutationError(errorValue))
-			return
-		}
-		if temporaryPassword == "" && provisionResult.TemporaryPassword != "" {
-			temporaryPassword = provisionResult.TemporaryPassword
-			temporaryPasswordEmail = payload.Email
-		}
-	}
-	service.triggerUsersSync(request.Context())
-	response, errorValue := service.buildLocalUsersResponse(request.Context())
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if temporaryPassword != "" {
-		responseBody = localUsersBodyWithTemporaryPassword(responseBody, temporaryPassword, temporaryPasswordEmail)
-	}
-	responseWriter.Header().Set("Content-Type", "application/json")
-	_, _ = responseWriter.Write(responseBody)
-}
-
 func (service *Service) applyLocalUserMutation(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) (adminUserMutation, mattermostProvisionResult, error) {
-	userID, errorValue := service.localBlueclawPersonIDByEmail(ctx, payload.Email)
-	if errorValue != nil {
-		return payload, mattermostProvisionResult{}, errorValue
-	}
 	if strings.TrimSpace(payload.UserID) == "" {
-		payload.UserID = firstNonEmpty(userID, newInternKimUserID())
+		return payload, mattermostProvisionResult{}, errors.New("resolved userID required for local user mutation")
 	}
 	payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
 	if payload.Role != "admin" {
@@ -191,6 +152,18 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "cannot remove the last admin user", http.StatusConflict)
 		return
 	}
+	identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), userRecord.Email, "")
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	identities := []orgchartPersonIdentity{identity}
+	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer mutation.completeAfterRequest(request.Context())
 	if errorValue := service.deactivateMattermostUserByID(request.Context(), userRecord.ID); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -203,6 +176,7 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }

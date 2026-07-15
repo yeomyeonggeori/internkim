@@ -1,4 +1,3 @@
-import type { OrgGroup, UserRecord } from '../admin/admin-types';
 import type { OrgProfileUpdate } from '../admin/admin-api';
 import { copyUserRecord, reconcileEditingRecords } from '../admin/orgchart-editing-records';
 import {
@@ -9,6 +8,7 @@ import {
 	type OrgProfileSnapshot
 } from '../admin/orgchart-profile-model';
 import { isSupervisorCandidateForRecord } from '../admin/orgchart-tree';
+import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type { OrgProfileSnapshot };
 

@@ -6,7 +6,7 @@
 .artifacts/skill-artifact-evals/
 .cache/
 .gocache/
-.agents/
+.agents
 .internkim-dev/
 .local/
 local-captures/

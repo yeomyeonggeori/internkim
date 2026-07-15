@@ -18,6 +18,16 @@ func (service *Service) writeOrgchartGroups(ctx context.Context, groups []orgGro
 	if errorValue != nil {
 		return errorValue
 	}
+	previousGroups, errorValue := readOrgchartGroupsFromQueryRunner(ctx, transaction)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	changedGroupIDs := changedOrgchartGroupIDs(previousGroups, normalizedGroups, groupAliases)
+	if errorValue := invalidateOrgchartGroups(ctx, transaction, changedGroupIDs); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM orgchart_groups"); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -44,22 +54,28 @@ func (service *Service) readOrgchartGroups(ctx context.Context) ([]orgGroupRecor
 	return groups, errorValue
 }
 
-func (service *Service) readOrgchartGroupsOrInitialize(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, error) {
+func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, bool, error) {
 	groups, isInitialized, errorValue := service.readOrgchartGroupsWithInitialization(ctx)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, false, errorValue
 	}
 	if isInitialized {
-		return groups, nil
+		return groups, true, nil
 	}
 	if len(groups) > 0 {
-		return groups, service.markOrgchartGroupsInitialized(ctx)
+		if errorValue := service.markOrgchartGroupsInitialized(ctx); errorValue != nil {
+			return nil, false, errorValue
+		}
+		return groups, true, nil
 	}
 	if len(normalizeOrgchartGroups(fallbackGroups)) == 0 {
-		return groups, nil
+		return groups, false, nil
 	}
 	importedGroups, _, errorValue := service.importOrgchartGroupsIfUninitialized(ctx, fallbackGroups)
-	return importedGroups, errorValue
+	if errorValue != nil {
+		return nil, false, errorValue
+	}
+	return importedGroups, true, nil
 }
 
 func (service *Service) readOrgchartGroupsWithInitialization(ctx context.Context) ([]orgGroupRecord, bool, error) {
