@@ -2,6 +2,7 @@ package lab
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -222,6 +223,12 @@ func (service Service) VirtualMachineSSH(ctx context.Context, remoteArguments []
 		"UserKnownHostsFile=/dev/null",
 		"-o",
 		"LogLevel=ERROR",
+		"-o",
+		"ControlMaster=auto",
+		"-o",
+		"ControlPersist=600",
+		"-o",
+		"ControlPath=" + service.sshControlPath(),
 		service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress,
 	}
 	commandArguments = append(commandArguments, remoteArguments...)
@@ -231,6 +238,11 @@ func (service Service) VirtualMachineSSH(ctx context.Context, remoteArguments []
 		Arguments:            commandArguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
 	})
+}
+
+func (service Service) sshControlPath() string {
+	identifier := sha256.Sum256([]byte(service.configuration.VirtualMachine.Container.Name))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("internkim-ssh-%x", identifier[:8]))
 }
 
 func (service Service) VirtualMachineStatus(ctx context.Context) (string, error) {
