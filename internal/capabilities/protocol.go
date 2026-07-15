@@ -189,7 +189,8 @@ func completionEvidence(mode string, action string, targetKind string) *Completi
 func flowTaskAddInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("prompt", jsonschema.String().WithDescription("Natural-language description of the task to create, e.g. 'Prepare the Q3 budget report by Friday'. The system uses this to generate the structured task fields.")),
-		jsonschema.Field("content", jsonschema.String().WithDescription("Exact task title when the user explicitly provides one. Preserve the user's wording verbatim. Leave empty to infer a concise title from prompt.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("Exact task title when the user explicitly provides one. Preserve the user's wording verbatim. Leave empty to infer a concise title from prompt.")),
+		jsonschema.Field("endDate", jsonschema.String().WithDescription("Task due date in YYYY-MM-DD format when the user explicitly provides one. Leave empty to infer it from prompt.")),
 		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person the task belongs to, e.g. 'Alice' or 'alice@example.com'. Leave empty to assign to the requester themselves.")),
 		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week the task belongs to in YYYY-WNN format, e.g. '2026-W26'. Leave empty to use the current week.")),
 		jsonschema.Field("allowDuplicate", jsonschema.Boolean().WithDescription("If true, create the task even if a similar one already exists. Defaults to false, which deduplicates by content.")),
@@ -213,7 +214,7 @@ func flowTaskUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword search to locate the task when taskID is unknown, e.g. 'budget report'. Used together with weekCode and targetPersonHint.")),
 		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the task owner when identifying by query, e.g. 'Alice'. Leave empty for the requester's own tasks.")),
 		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week of the task in YYYY-WNN format, e.g. '2026-W26'. Helps disambiguate when multiple tasks match the query.")),
-		jsonschema.Field("content", jsonschema.String().WithDescription("New title/description text for the task. Omit to leave the content unchanged.")),
+		jsonschema.Field("title", jsonschema.String().WithDescription("New task title. Omit to leave the title unchanged.")),
 		jsonschema.Field("goal", jsonschema.String().WithDescription("Definition of done or success criterion for this task. Omit to leave unchanged.")),
 		jsonschema.Field("status", jsonschema.String().WithDescription("New task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단'. Providing no patch fields at all automatically sets status to '완료'.")),
 		jsonschema.Field("size", jsonschema.String().WithDescription("Effort size estimate for the task, e.g. 'S', 'M', 'L', 'XL'. Omit to leave unchanged.")),
