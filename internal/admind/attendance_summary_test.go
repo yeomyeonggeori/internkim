@@ -18,6 +18,32 @@ func newLocalAttendanceRequest(method string, target string, body io.Reader) *ht
 	return request
 }
 
+func TestAttendanceSummaryIncludesServerTime(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-07", nil)
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	requestStartedAt := time.Now().UTC()
+
+	service.handleAttendance(recorder, request)
+
+	requestFinishedAt := time.Now().UTC()
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	serverTime, errorValue := time.Parse(time.RFC3339Nano, response.ServerTime)
+	if errorValue != nil {
+		t.Fatalf("server time = %q: %v", response.ServerTime, errorValue)
+	}
+	if serverTime.Before(requestStartedAt) || serverTime.After(requestFinishedAt) {
+		t.Fatalf("server time = %s, request range = %s to %s", serverTime, requestStartedAt, requestFinishedAt)
+	}
+}
+
 func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
