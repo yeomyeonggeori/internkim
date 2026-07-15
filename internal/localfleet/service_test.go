@@ -462,36 +462,8 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`task_decision_preset=${2-sdkd_topology}`,
 		`requires_completed_finish=${3-true}`,
 		`workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json`,
-		`workspace_sync_source=$(mktemp -d)`,
-		`blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'`,
-		`stage_workspace_runtime_config() {`,
-		`mkdir -p "$workspace_sync_source/.blueclaw/config"`,
-		`cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"`,
-		`replace_host_runtime_config() {`,
-		`mktemp "${runtime_config}.tmp.XXXXXX"`,
-		`cp "$runtime_source" "$temporary_runtime_config"`,
-		`mv "$temporary_runtime_config" "$runtime_config"`,
-		`wait_for_blueclaw() {`,
-		`http://127.0.0.1:8080/admin/api/health`,
-		`sync_workspace_runtime_config() {`,
-		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
-		`if ! systemctl is-active --quiet "$blueclaw_service_name" && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then`,
-		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
-		`/usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state`,
-		`--runtime "$runtime_config"`,
-		`--source "$workspace_sync_source"`,
-		`systemctl start "$blueclaw_service_name"`,
-		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
-		`systemctl is-active "$blueclaw_service_name" 2>/dev/null
-  wait_for_blueclaw`,
-		`apply_runtime_config() {`,
-		`stage_workspace_runtime_config "$workspace_runtime_source"`,
-		`replace_host_runtime_config "$runtime_source"`,
-		`apply_runtime_config "$runtime_config_backup" "$workspace_runtime_config_backup"`,
-		`structuredSchemaNames = ((.languageModel.sdkd.structuredSchemaNames // []) + ["blueclaw_turn_router"] | unique)`,
-		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]'`,
-		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config"`,
-		`enable_router_schema`,
+		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]'`,
+		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]' "$workspace_runtime_config"`,
 		`http://127.0.0.1:8080/admin/api/policy`,
 		`.people[0].personID | select(length > 0)`,
 		`router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '' false)`,
@@ -524,7 +496,6 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`systemctl restart "$service_name"`,
 		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
 		`assert_guest_sdkd_structured_transport "$recovered_task_run_id" false`,
-		`restore_runtime || true`,
 		`trap restore_sdkd EXIT`,
 	} {
 		if !strings.Contains(script, expectedFragment) {
@@ -535,49 +506,13 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		"--relative-target",
 		"--relative-target .blueclaw/config",
 		"00000000-0000-0000-0000-000000000001",
+		"blueclaw_service_name",
+		"enable_router_schema",
+		"sync_workspace_runtime_config",
 	} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("did not expect %q in SDKD topology script", forbiddenFragment)
 		}
-	}
-	lastIndex := -1
-	for _, expectedFragment := range []string{
-		`stage_workspace_runtime_config() {`,
-		`cp "$workspace_runtime_source" "$workspace_sync_source/.blueclaw/config/runtime.json"`,
-		`replace_host_runtime_config() {`,
-		`temporary_runtime_config=$(mktemp "${runtime_config}.tmp.XXXXXX")`,
-		`cp "$runtime_source" "$temporary_runtime_config"`,
-		`mv "$temporary_runtime_config" "$runtime_config"`,
-		`systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true`,
-		`systemctl kill "$blueclaw_service_name" --kill-who=all --signal=KILL >/dev/null 2>&1 || true`,
-		`/usr/local/bin/blueclaw-supervisor sync-workspace --atomic --preserve-guest-state`,
-		`systemctl start "$blueclaw_service_name"`,
-		`systemctl is-active "$blueclaw_service_name" 2>/dev/null`,
-	} {
-		fragmentIndex := strings.Index(script, expectedFragment)
-		if fragmentIndex < 0 {
-			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
-		}
-		if fragmentIndex <= lastIndex {
-			t.Fatalf("expected %q after previous workspace sync fragment", expectedFragment)
-		}
-		lastIndex = fragmentIndex
-	}
-	applyRuntimeConfigIndex := strings.Index(script, `apply_runtime_config() {`)
-	if applyRuntimeConfigIndex < 0 {
-		t.Fatal("expected apply_runtime_config function")
-	}
-	lastIndex = applyRuntimeConfigIndex
-	for _, expectedFragment := range []string{
-		`stage_workspace_runtime_config "$workspace_runtime_source"`,
-		`replace_host_runtime_config "$runtime_source"`,
-		`sync_workspace_runtime_config`,
-	} {
-		fragmentIndex := strings.Index(script[lastIndex:], expectedFragment)
-		if fragmentIndex < 0 {
-			t.Fatalf("expected %q in apply_runtime_config", expectedFragment)
-		}
-		lastIndex += fragmentIndex
 	}
 }
 

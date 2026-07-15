@@ -290,7 +290,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"localOnly":             options.LocalOnly,
 			"timeoutSecond":         60,
 			"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
-			"structuredSchemaNames": []string{"blueclaw_agent_turn_action"},
+			"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_turn_router"},
 		}
 		if strings.EqualFold(options.SDKDMode, "authoritative") {
 			languageModelConfiguration["defaultProvider"] = "sdkd"

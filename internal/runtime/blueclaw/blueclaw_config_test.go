@@ -121,6 +121,12 @@ func TestBlueclawRuntimeConfigIncludesCredentiallessSDKDBridge(t *testing.T) {
 	if sdkd["authKeyPath"] != "" || sdkd["unixSocketPath"] != "" {
 		t.Fatalf("expected no host SDKD paths in guest configuration: %+v", sdkd)
 	}
+	structuredSchemaNames, isStructuredSchemaNames := sdkd["structuredSchemaNames"].([]any)
+	if !isStructuredSchemaNames || len(structuredSchemaNames) != 2 ||
+		structuredSchemaNames[0] != "blueclaw_agent_turn_action" ||
+		structuredSchemaNames[1] != "blueclaw_turn_router" {
+		t.Fatalf("expected SDKD structured schemas to include action and router, got %+v", sdkd["structuredSchemaNames"])
+	}
 	if strings.Contains(document, SDKDSocketPath) || strings.Contains(document, SDKDAuthKeyPath) {
 		t.Fatal("expected host SDKD secrets and socket to stay out of guest configuration")
 	}
