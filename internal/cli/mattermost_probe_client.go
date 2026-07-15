@@ -12,7 +12,10 @@ import (
 	"strings"
 )
 
-const mattermostProbeMaximumJSONBytes = 8 << 20
+const (
+	mattermostProbeMaximumJSONBytes = 8 << 20
+	mattermostProbeMaximumFileBytes = 64 << 20
+)
 
 type mattermostProbeAPI interface {
 	Login(context.Context, string, string) (string, error)
@@ -25,7 +28,7 @@ type mattermostProbeAPI interface {
 	ListChannelPosts(context.Context, string, string) ([]mattermostProbePost, error)
 	FileMetadata(context.Context, string, string) (mattermostProbeFileMetadata, error)
 	DownloadFile(context.Context, string, string) ([]byte, error)
-	DeleteChannel(context.Context, string, string) error
+	DeletePost(context.Context, string, string) error
 	DeleteUserPermanently(context.Context, string, string) error
 }
 
@@ -272,15 +275,18 @@ func (client *mattermostProbeClient) DownloadFile(contextValue context.Context, 
 	if errorValue := requireSuccessfulMattermostResponse(response); errorValue != nil {
 		return nil, errorValue
 	}
-	document, errorValue := io.ReadAll(response.Body)
+	document, errorValue := io.ReadAll(io.LimitReader(response.Body, mattermostProbeMaximumFileBytes+1))
 	if errorValue != nil {
 		return nil, fmt.Errorf("read Mattermost file %q: %w", fileID, errorValue)
+	}
+	if len(document) > mattermostProbeMaximumFileBytes {
+		return nil, fmt.Errorf("Mattermost file %q exceeds %d bytes", fileID, mattermostProbeMaximumFileBytes)
 	}
 	return document, nil
 }
 
-func (client *mattermostProbeClient) DeleteChannel(contextValue context.Context, token string, channelID string) error {
-	requestPath := "/api/v4/channels/" + url.PathEscape(channelID)
+func (client *mattermostProbeClient) DeletePost(contextValue context.Context, token string, postID string) error {
+	requestPath := "/api/v4/posts/" + url.PathEscape(postID)
 	return client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
 }
 

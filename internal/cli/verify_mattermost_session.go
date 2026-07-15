@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -82,7 +83,7 @@ func newMattermostScenarioSession(scenario mattermostScenario, mattermost matter
 		poll:           waitForMattermostScenarioPoll,
 		result: mattermostScenarioResult{
 			ScenarioName: scenario.Name,
-			StepCount:    len(scenario.Steps),
+			TurnCount:    len(scenario.Steps),
 		},
 	}
 }
@@ -148,7 +149,7 @@ func (session *mattermostScenarioSession) setup(contextValue context.Context) er
 func (session *mattermostScenarioSession) run(contextValue context.Context, hook mattermostScenarioStepHook) error {
 	session.startedAt = time.Now()
 	defer func() {
-		session.result.DurationMS = time.Since(session.startedAt).Milliseconds()
+		session.result.ScenarioWallDurationMS = time.Since(session.startedAt).Milliseconds()
 	}()
 	for stepIndex := range session.scenario.Steps {
 		if errorValue := session.runStep(contextValue, stepIndex); errorValue != nil {
@@ -169,7 +170,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	session.result.Steps = append(session.result.Steps, mattermostScenarioStepResult{Prompt: step.Prompt})
 	stepResult := &session.result.Steps[len(session.result.Steps)-1]
 	defer func() {
-		stepResult.DurationMS = time.Since(startedAt).Milliseconds()
+		stepResult.ProcessingMS = time.Since(startedAt).Milliseconds()
 	}()
 	snapshot, errorValue := session.snapshotTasks(contextValue)
 	if errorValue != nil {
@@ -180,10 +181,11 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 		return errorValue
 	}
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(userPost))
-	detail, events, errorValue := session.waitForStepTask(contextValue, snapshot, step.ExpectedTaskStatus)
+	detail, events, errorValue := session.waitForStepTask(contextValue, snapshot)
 	stepResult.TaskRunID = detail.TaskRun.TaskRunID
 	stepResult.TaskStatus = detail.TaskRun.Status
 	stepResult.TaskEvents = events
+	setMattermostScenarioStepMetrics(stepResult)
 	stepResult.PublicURL = findMattermostScenarioEventPublicURL(events)
 	if errorValue != nil {
 		return errorValue
@@ -196,7 +198,6 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(botPost))
 	attachments, errorValue := session.downloadAttachments(contextValue, botPost.FileIDs)
 	stepResult.Attachments = attachments
-	session.result.Files = append(session.result.Files, attachments...)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -206,6 +207,23 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	}
 	stepResult.WorkspaceFiles = workspaceFiles
 	return validateMattermostScenarioStep(stepIndex, step, *stepResult, &session.result)
+}
+
+func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {
+	for _, event := range result.TaskEvents {
+		if event.Name == "llm.call" {
+			result.LLMCallCount++
+			var call struct {
+				SchemaName string `json:"schemaName"`
+			}
+			if json.Unmarshal([]byte(event.Body), &call) == nil && call.SchemaName == "blueclaw_agent_turn_action" {
+				result.AgentStepCount++
+			}
+		}
+		if strings.HasPrefix(event.Name, "tool.") && strings.HasSuffix(event.Name, ".requested") {
+			result.ToolCallCount++
+		}
+	}
 }
 
 func (session *mattermostScenarioSession) postStep(contextValue context.Context, prompt string) (mattermostProbePost, error) {
@@ -239,7 +257,7 @@ func (session *mattermostScenarioSession) snapshotTasks(contextValue context.Con
 	return snapshot, nil
 }
 
-func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, snapshot map[string]mattermostScenarioTaskSnapshot, expectedStatus string) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, error) {
+func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, snapshot map[string]mattermostScenarioTaskSnapshot) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, error) {
 	var latestDetail mattermostScenarioTaskDetail
 	var latestEvents []mattermostScenarioTaskEvent
 	for {
@@ -265,9 +283,7 @@ func (session *mattermostScenarioSession) waitForStepTask(contextValue context.C
 			if len(newEvents) == 0 || isMattermostScenarioTaskInProgress(detail.TaskRun.Status) {
 				continue
 			}
-			if expectedStatus == "" || detail.TaskRun.Status == expectedStatus || !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) {
-				return detail, newEvents, nil
-			}
+			return detail, newEvents, nil
 		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
 			return latestDetail, latestEvents, errorValue
@@ -305,6 +321,9 @@ func (session *mattermostScenarioSession) downloadAttachments(contextValue conte
 		if errorValue != nil {
 			return files, errorValue
 		}
+		if int64(len(document)) != metadata.Size {
+			return files, errors.New("Mattermost attachment size does not match its metadata")
+		}
 		files = append(files, downloadedMattermostFile{
 			FileID:        fileID,
 			Filename:      metadata.Name,
@@ -335,9 +354,11 @@ func (session *mattermostScenarioSession) cleanup(contextValue context.Context) 
 	if errorValue := session.admin.cleanup(contextValue, session.result, session.email); errorValue != nil {
 		cleanupErrors = append(cleanupErrors, errorValue)
 	}
-	if session.channelID != "" && session.adminToken != "" {
-		if errorValue := session.mattermost.DeleteChannel(contextValue, session.adminToken, session.channelID); errorValue != nil {
-			cleanupErrors = append(cleanupErrors, errorValue)
+	if session.adminToken != "" {
+		for _, post := range session.result.Posts {
+			if errorValue := session.mattermost.DeletePost(contextValue, session.adminToken, post.ID); errorValue != nil {
+				cleanupErrors = append(cleanupErrors, errorValue)
+			}
 		}
 	}
 	if session.userID != "" && session.adminToken != "" {

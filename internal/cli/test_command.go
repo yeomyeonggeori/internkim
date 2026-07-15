@@ -354,7 +354,7 @@ func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRoo
 		return errorValue
 	}
 	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
-		return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, status.MattermostURL, configuration, scenario)
+		return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario)
 	})
 }
 
@@ -372,6 +372,9 @@ func validateExpensiveFleetStatus(status localfleet.Status) error {
 	}
 	if strings.TrimSpace(status.MattermostURL) == "" {
 		return errors.New("Local Fleet Mattermost URL is empty")
+	}
+	if strings.TrimSpace(status.AdminURL) == "" {
+		return errors.New("Local Fleet admin URL is empty")
 	}
 	return nil
 }
@@ -439,7 +442,7 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
 	scenarioContext, cancel := expensiveScenarioContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
@@ -458,7 +461,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
 			return errorValue
 		}
-		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, execution, stepIndex)
+		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex)
 	})
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
 	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)

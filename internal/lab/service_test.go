@@ -109,6 +109,10 @@ func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
 	}
 	bootstrapScript := createCommand.Arguments[len(createCommand.Arguments)-1]
 	for _, expectedFragment := range []string{
+		"for attempt in 1 2 3",
+		"apt-get update && apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make",
+		"if [ \"$attempt\" -eq 3 ]; then return 1; fi",
+		"sleep $((attempt * 2))",
 		"useradd -m -s /bin/bash admin",
 		"echo 'admin:admin' | chpasswd",
 		"exec /lib/systemd/systemd",
@@ -168,7 +172,7 @@ func TestVirtualMachineUpParsesStatusObject(t *testing.T) {
 
 func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValues: []string{missingContainerListJSON, stoppedContainerListJSON, runningContainerListJSON},
+		outputValues: []string{missingContainerListJSON, "--cap-add", stoppedContainerListJSON, runningContainerListJSON},
 		outputValue:  runningContainerListJSON,
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
@@ -213,7 +217,7 @@ func TestVirtualMachineUpStartsStoppedVirtualMachine(t *testing.T) {
 
 func TestVirtualMachineUpReturnsRunFailureBeforeIPAddressTimeout(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValues: []string{missingContainerListJSON, stoppedContainerListJSON},
+		outputValues: []string{missingContainerListJSON, "--cap-add", stoppedContainerListJSON},
 		runErrors:    []error{nil, errors.New("container start failed")},
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
@@ -399,15 +403,18 @@ func TestVirtualMachineSSHUsesConfiguredPasswordAuthentication(t *testing.T) {
 
 func TestVirtualMachineDiagnosticsIncludesRecoveryCommands(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValue: stoppedContainerListJSON,
+		outputValues: []string{stoppedContainerListJSON, "apt-get update failed\nnetwork unreachable"},
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
 	diagnostics := service.VirtualMachineDiagnostics(context.Background())
-	for _, expectedFragment := range []string{"container diagnostics", "internkim-lab", "container ls", "internkim lab vm-down", "container system start"} {
+	for _, expectedFragment := range []string{"container diagnostics", "internkim-lab", "container ls", "boot log", "apt-get update failed", "network unreachable", "internkim lab vm-down", "container system start"} {
 		if !strings.Contains(diagnostics, expectedFragment) {
 			t.Fatalf("expected diagnostics to contain %q, got:\n%s", expectedFragment, diagnostics)
 		}
+	}
+	if len(commandRunner.outputCommands) != 2 || strings.Join(commandRunner.outputCommands[1].Arguments, " ") != "logs --boot -n 120 internkim-lab" {
+		t.Fatalf("expected bounded container boot log command, got %+v", commandRunner.outputCommands)
 	}
 }
 

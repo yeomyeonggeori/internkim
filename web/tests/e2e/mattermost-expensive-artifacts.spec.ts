@@ -11,6 +11,7 @@ const botUsername = process.env.INTERNKIM_MATTERMOST_BOT_USERNAME?.trim() ?? '';
 const artifactDirectory = process.env.INTERNKIM_MATTERMOST_ARTIFACT_DIR?.trim() ?? '';
 const expectedAttachments = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS);
 const expectedPublicURL = process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL?.trim() ?? '';
+const siteProxyURL = process.env.INTERNKIM_SITE_PROXY_URL?.trim() ?? '';
 const expectedPublicText = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT);
 const expectedPublicControls = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS);
 const teamName = process.env.INTERNKIM_MATTERMOST_TEAM_NAME?.trim() || 'internkim';
@@ -113,6 +114,11 @@ async function verifyPublicSite(botReply: Locator, page: Page): Promise<void> {
 	const expectedURL = new URL(expectedPublicURL);
 	const publicLink = await findPublicLink(botReply, expectedURL);
 	await verify(publicLink).toBeVisible();
+	if (siteProxyURL !== '') {
+		await publicLink.click({ trial: true });
+		await verifySiteThroughProxy(page, expectedURL);
+		return;
+	}
 	const target = await publicLink.getAttribute('target');
 	let sitePage = page;
 	if (target === '_blank') {
@@ -123,6 +129,20 @@ async function verifyPublicSite(botReply: Locator, page: Page): Promise<void> {
 	}
 	await sitePage.waitForLoadState('domcontentloaded');
 	await verify.poll(() => new URL(sitePage.url()).origin).toBe(expectedURL.origin);
+	await verifyPublicSiteContent(sitePage);
+}
+
+async function verifySiteThroughProxy(page: Page, expectedURL: URL): Promise<void> {
+	const sitePage = await page.context().newPage();
+	await sitePage.setExtraHTTPHeaders({ Host: expectedURL.host });
+	const proxyURL = new URL(siteProxyURL);
+	proxyURL.pathname = expectedURL.pathname;
+	proxyURL.search = expectedURL.search;
+	await sitePage.goto(proxyURL.toString(), { waitUntil: 'domcontentloaded' });
+	await verifyPublicSiteContent(sitePage);
+}
+
+async function verifyPublicSiteContent(sitePage: Page): Promise<void> {
 	await verify(sitePage.locator('body')).toBeVisible();
 	await verify(sitePage.locator('body')).not.toContainText(/bad gateway|not found|starter replace|replace this starter/i);
 	await verify(sitePage.locator('body')).not.toBeEmpty();
@@ -134,7 +154,10 @@ async function verifyPublicSite(botReply: Locator, page: Page): Promise<void> {
 			.or(sitePage.getByRole('button', { name: new RegExp(escapeRegularExpression(label), 'i') }))
 			.first();
 		await verify(control).toBeVisible();
-		await control.click({ trial: true });
+		await control.click();
+		await verify(sitePage.locator('body')).toBeVisible();
+		await verify(sitePage.locator('body')).not.toContainText(/bad gateway|not found|application error/i);
+		await sitePage.screenshot({ path: join(artifactDirectory, `site-control-${safeFilename(label)}.png`), fullPage: true });
 	}
 	await sitePage.setViewportSize({ width: 1440, height: 1000 });
 	await sitePage.screenshot({ path: join(artifactDirectory, 'site-desktop.png'), fullPage: true });

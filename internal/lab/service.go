@@ -291,6 +291,7 @@ func (service Service) runtimeBuilderCheck(ctx context.Context, mountDirectoryPa
 
 func (service Service) VirtualMachineDiagnostics(ctx context.Context) string {
 	listOutput, listError := service.commandRunner.Output(ctx, service.buildContainerListCommand())
+	bootLogOutput, bootLogError := service.commandRunner.Output(ctx, service.buildContainerBootLogCommand())
 
 	var message strings.Builder
 	message.WriteString("container diagnostics:\n")
@@ -299,6 +300,13 @@ func (service Service) VirtualMachineDiagnostics(ctx context.Context) string {
 		message.WriteString("  container ls: " + strings.TrimSpace(listOutput) + "\n")
 	} else {
 		message.WriteString("  container ls error: " + listError.Error() + "\n")
+	}
+	if bootLogError != nil {
+		message.WriteString("  boot log error: " + bootLogError.Error() + "\n")
+	} else if strings.TrimSpace(bootLogOutput) != "" {
+		message.WriteString("  boot log:\n    ")
+		message.WriteString(strings.ReplaceAll(strings.TrimSpace(bootLogOutput), "\n", "\n    "))
+		message.WriteString("\n")
 	}
 	message.WriteString("Recovery:\n")
 	message.WriteString("  1. Run `internkim lab vm-down`.\n")
@@ -539,6 +547,20 @@ func (service Service) buildContainerListCommand() ExecutableCommand {
 	}
 }
 
+func (service Service) buildContainerBootLogCommand() ExecutableCommand {
+	return ExecutableCommand{
+		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments: []string{
+			"logs",
+			"--boot",
+			"-n",
+			"120",
+			service.configuration.VirtualMachine.Container.Name,
+		},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	}
+}
+
 func (service Service) buildImageBuildCommand(isCapabilityOptionSupported bool) ExecutableCommand {
 	arguments := []string{
 		"create",
@@ -580,7 +602,14 @@ func (service Service) buildBootstrapScript() string {
 	return strings.Join([]string{
 		"set -eu",
 		"export DEBIAN_FRONTEND=noninteractive",
-		"if [ ! -x /lib/systemd/systemd ]; then apt-get update && apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make; fi",
+		"install_bootstrap_packages() {",
+		"  for attempt in 1 2 3; do",
+		"    if apt-get update && apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make; then return 0; fi",
+		"    if [ \"$attempt\" -eq 3 ]; then return 1; fi",
+		"    sleep $((attempt * 2))",
+		"  done",
+		"}",
+		"if [ ! -x /lib/systemd/systemd ]; then install_bootstrap_packages; fi",
 		"id " + sshUsername + " >/dev/null 2>&1 || useradd -m -s /bin/bash " + sshUsername,
 		"echo '" + sshCredentials + "' | chpasswd",
 		"printf '" + sshUsername + " ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/" + sshUsername,
