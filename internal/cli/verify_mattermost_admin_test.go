@@ -120,6 +120,90 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 	}
 }
 
+func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t *testing.T) {
+	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
+		if strings.Contains(script, "/calendar/api/events/") {
+			return "404", nil
+		}
+		return "204", nil
+	}}
+	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{
+		{TaskEvents: []mattermostScenarioTaskEvent{
+			{
+				Name: "tool.capability.invoke.result",
+				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"},"content":"{\"id\":\"ignored-task\"}"}}`,
+			},
+			{
+				Name: "tool.capability.invoke.result",
+				Body: `{"tool":"calendar.add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
+			},
+		}},
+		{TaskEvents: []mattermostScenarioTaskEvent{
+			{
+				Name: "tool.capability.invoke.result",
+				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`,
+			},
+			{
+				Name: "tool.capability.invoke.result",
+				Body: `{"tool":"task.list","output":{"data":{"id":"must-not-delete"}}}`,
+			},
+		}},
+	}}
+
+	if errorValue := admin.deleteCreatedResources(context.Background(), result, " Probe@Example.com "); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedScripts := strings.Join(remote.scripts, "\n")
+	if strings.Count(joinedScripts, "/flow/api/tasks/task-1") != 1 {
+		t.Fatalf("task resource was not deleted exactly once:\n%s", joinedScripts)
+	}
+	if strings.Count(joinedScripts, "/calendar/api/events/event-1") != 1 {
+		t.Fatalf("calendar resource was not deleted exactly once:\n%s", joinedScripts)
+	}
+	if strings.Contains(joinedScripts, "ignored-task") || strings.Contains(joinedScripts, "must-not-delete") {
+		t.Fatalf("cleanup selected an unrelated resource:\n%s", joinedScripts)
+	}
+	for _, fragment := range []string{
+		"X-InternKim-Requester-Email: probe@example.com",
+		"CF-Access-Authenticated-User-Email: probe@example.com",
+	} {
+		if !strings.Contains(joinedScripts, fragment) {
+			t.Fatalf("domain cleanup is missing %q:\n%s", fragment, joinedScripts)
+		}
+	}
+}
+
+func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *testing.T) {
+	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return "", nil }}
+	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
+		Name: "tool.capability.invoke.result",
+		Body: `{"tool":"task.add","output":{"data":{"taskID":"task-1"}}}`,
+	}}}}}
+
+	errorValue := admin.deleteCreatedResources(context.Background(), result, "")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requester email is empty") {
+		t.Fatalf("cleanup error = %v", errorValue)
+	}
+	if len(remote.scripts) != 0 {
+		t.Fatalf("cleanup without requester identity ran scripts: %#v", remote.scripts)
+	}
+}
+
+func TestMattermostScenarioCreatedResourcesIgnoreMalformedAndFailedResults(t *testing.T) {
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "tool.capability.invoke.result", Body: `not-json`},
+		{Name: "tool.capability.invoke.result", Body: `{"tool":"calendar.add","output":{"data":{"errorCode":"operation_failed"}}}`},
+		{Name: "tool.capability.invoke.requested", Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`},
+	}}}}
+
+	resourceIDs := collectMattermostScenarioCreatedResourceIDs(result)
+	if len(resourceIDs.TaskIDs) != 0 || len(resourceIDs.CalendarEventIDs) != 0 {
+		t.Fatalf("unexpected cleanup resources: %#v", resourceIDs)
+	}
+}
+
 func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResources(t *testing.T) {
 	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
 		switch {

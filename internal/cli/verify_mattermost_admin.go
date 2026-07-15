@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -92,6 +93,11 @@ type mattermostScenarioSiteIdentity struct {
 type mattermostScenarioWorkspaceEntry struct {
 	Name        string `json:"name"`
 	IsDirectory bool   `json:"isDirectory"`
+}
+
+type mattermostScenarioCreatedResourceIDs struct {
+	TaskIDs          []string
+	CalendarEventIDs []string
 }
 
 func (admin mattermostScenarioAdmin) readSecret(contextValue context.Context, filePath string) (string, error) {
@@ -220,6 +226,9 @@ func (admin mattermostScenarioAdmin) workspaceDownload(contextValue context.Cont
 
 func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, result mattermostScenarioResult, email string) error {
 	cleanupErrors := []error{}
+	if errorValue := admin.deleteCreatedResources(contextValue, result, email); errorValue != nil {
+		cleanupErrors = append(cleanupErrors, errorValue)
+	}
 	conversationID := firstNonEmptyString(result.ConversationID, result.ChannelID)
 	if errorValue := admin.deleteConversationTasks(contextValue, conversationID); errorValue != nil {
 		cleanupErrors = append(cleanupErrors, errorValue)
@@ -235,6 +244,115 @@ func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, resul
 		}
 	}
 	return errors.Join(cleanupErrors...)
+}
+
+func (admin mattermostScenarioAdmin) deleteCreatedResources(contextValue context.Context, result mattermostScenarioResult, email string) error {
+	resourceIDs := collectMattermostScenarioCreatedResourceIDs(result)
+	if len(resourceIDs.TaskIDs) == 0 && len(resourceIDs.CalendarEventIDs) == 0 {
+		return nil
+	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return errors.New("delete Mattermost scenario domain resources: requester email is empty")
+	}
+	cleanupErrors := []error{}
+	for _, taskID := range resourceIDs.TaskIDs {
+		if errorValue := admin.deleteCreatedResource(contextValue, "/flow/api/tasks/"+url.PathEscape(taskID), "X-InternKim-Requester-Email", normalizedEmail); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario task %s: %w", taskID, errorValue))
+		}
+	}
+	for _, eventID := range resourceIDs.CalendarEventIDs {
+		if errorValue := admin.deleteCreatedResource(contextValue, "/calendar/api/events/"+url.PathEscape(eventID), "CF-Access-Authenticated-User-Email", normalizedEmail); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario calendar event %s: %w", eventID, errorValue))
+		}
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func collectMattermostScenarioCreatedResourceIDs(result mattermostScenarioResult) mattermostScenarioCreatedResourceIDs {
+	resourceIDs := mattermostScenarioCreatedResourceIDs{}
+	seenTaskIDs := map[string]bool{}
+	seenCalendarEventIDs := map[string]bool{}
+	for _, step := range result.Steps {
+		for _, event := range step.TaskEvents {
+			toolName, resourceID := mattermostScenarioCreatedResourceFromEvent(event)
+			switch {
+			case toolName == "task.add" && !seenTaskIDs[resourceID]:
+				seenTaskIDs[resourceID] = true
+				resourceIDs.TaskIDs = append(resourceIDs.TaskIDs, resourceID)
+			case toolName == "calendar.add" && !seenCalendarEventIDs[resourceID]:
+				seenCalendarEventIDs[resourceID] = true
+				resourceIDs.CalendarEventIDs = append(resourceIDs.CalendarEventIDs, resourceID)
+			}
+		}
+	}
+	return resourceIDs
+}
+
+func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEvent) (string, string) {
+	if event.Name != "tool.capability.invoke.result" {
+		return "", ""
+	}
+	var result struct {
+		Tool   string `json:"tool"`
+		Output struct {
+			Content string          `json:"content"`
+			Data    json.RawMessage `json:"data"`
+		} `json:"output"`
+	}
+	if json.Unmarshal([]byte(event.Body), &result) != nil {
+		return "", ""
+	}
+	identifierKeys := []string{"id"}
+	if result.Tool == "task.add" {
+		identifierKeys = []string{"taskID", "id"}
+	} else if result.Tool == "calendar.add" {
+		identifierKeys = []string{"eventID", "id"}
+	} else {
+		return "", ""
+	}
+	resourceID := mattermostScenarioCreatedResourceID(result.Output.Data, identifierKeys)
+	if resourceID == "" {
+		resourceID = mattermostScenarioCreatedResourceID(json.RawMessage(result.Output.Content), identifierKeys)
+	}
+	if resourceID == "" {
+		return "", ""
+	}
+	return result.Tool, resourceID
+}
+
+func mattermostScenarioCreatedResourceID(document json.RawMessage, identifierKeys []string) string {
+	var values map[string]json.RawMessage
+	if json.Unmarshal(document, &values) != nil {
+		return ""
+	}
+	for _, identifierKey := range identifierKeys {
+		var identifier string
+		if json.Unmarshal(values[identifierKey], &identifier) == nil && strings.TrimSpace(identifier) != "" {
+			return strings.TrimSpace(identifier)
+		}
+	}
+	return ""
+}
+
+func (admin mattermostScenarioAdmin) deleteCreatedResource(contextValue context.Context, endpoint string, headerName string, email string) error {
+	arguments := []string{
+		"curl", "--silent", "--show-error", "-X", "DELETE",
+		"-H", headerName + ": " + email,
+		"--output", "/dev/null", "--write-out", "%{http_code}",
+	}
+	output, errorValue := admin.remote.run(contextValue, shellJoin(arguments)+" "+quoteShellValue("http://127.0.0.1:18080"+endpoint))
+	if errorValue != nil {
+		return errorValue
+	}
+	statusCode, conversionError := strconv.Atoi(strings.TrimSpace(output))
+	if conversionError != nil {
+		return fmt.Errorf("domain cleanup returned invalid HTTP status %q", output)
+	}
+	if statusCode == 404 || statusCode >= 200 && statusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("domain cleanup returned HTTP %d", statusCode)
 }
 
 func mattermostScenarioHasSiteEvidence(result mattermostScenarioResult) bool {
