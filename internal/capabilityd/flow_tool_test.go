@@ -116,7 +116,7 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 	}
 }
 
-func TestFlowTaskAddPropagatesDuplicateConfirmation(t *testing.T) {
+func TestFlowTaskAddPropagatesExplicitContentAndDuplicateConfirmation(t *testing.T) {
 	var payload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
@@ -138,7 +138,7 @@ func TestFlowTaskAddPropagatesDuplicateConfirmation(t *testing.T) {
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"10분 회의","allowDuplicate":true}`),
+		Input:    []byte(`{"prompt":"고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무","content":" 고객지원 분기 결산 누락 항목 확인 ","allowDuplicate":true}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -148,6 +148,9 @@ func TestFlowTaskAddPropagatesDuplicateConfirmation(t *testing.T) {
 	}
 	if payload["allowDuplicate"] != true {
 		t.Fatalf("allowDuplicate = %#v", payload["allowDuplicate"])
+	}
+	if payload["content"] != "고객지원 분기 결산 누락 항목 확인" {
+		t.Fatalf("content = %#v", payload["content"])
 	}
 }
 

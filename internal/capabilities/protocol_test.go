@@ -156,8 +156,11 @@ func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.add")
 
-	assertSchemaHasProperties(t, schema, "prompt", "targetPersonHint", "weekCode", "allowDuplicate")
+	assertSchemaHasProperties(t, schema, "prompt", "content", "targetPersonHint", "weekCode", "allowDuplicate")
 	assertSchemaRequires(t, schema, "prompt")
+	if stringSliceContains(schema.Required, "content") {
+		t.Fatalf("expected content to be optional in %+v", schema.Required)
+	}
 	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
 }
 

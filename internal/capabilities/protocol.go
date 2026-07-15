@@ -189,6 +189,7 @@ func completionEvidence(mode string, action string, targetKind string) *Completi
 func flowTaskAddInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("prompt", jsonschema.String().WithDescription("Natural-language description of the task to create, e.g. 'Prepare the Q3 budget report by Friday'. The system uses this to generate the structured task fields.")),
+		jsonschema.Field("content", jsonschema.String().WithDescription("Exact task title when the user explicitly provides one. Preserve the user's wording verbatim. Leave empty to infer a concise title from prompt.")),
 		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person the task belongs to, e.g. 'Alice' or 'alice@example.com'. Leave empty to assign to the requester themselves.")),
 		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week the task belongs to in YYYY-WNN format, e.g. '2026-W26'. Leave empty to use the current week.")),
 		jsonschema.Field("allowDuplicate", jsonschema.Boolean().WithDescription("If true, create the task even if a similar one already exists. Defaults to false, which deduplicates by content.")),

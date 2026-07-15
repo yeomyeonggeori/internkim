@@ -556,6 +556,12 @@ func isRequestedCapabilityOperation(event mattermostScenarioTaskEvent, operation
 	}
 	var body struct {
 		Operation string `json:"operation"`
+		Input     struct {
+			Operation string `json:"operation"`
+		} `json:"input"`
 	}
-	return json.Unmarshal([]byte(event.Body), &body) == nil && body.Operation == operation
+	if json.Unmarshal([]byte(event.Body), &body) != nil {
+		return false
+	}
+	return body.Operation == operation || body.Input.Operation == operation
 }
