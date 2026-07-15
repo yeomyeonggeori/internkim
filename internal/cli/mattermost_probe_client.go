@@ -29,7 +29,7 @@ type mattermostProbeAPI interface {
 	FileMetadata(context.Context, string, string) (mattermostProbeFileMetadata, error)
 	DownloadFile(context.Context, string, string) ([]byte, error)
 	DeletePost(context.Context, string, string) error
-	DeleteUserPermanently(context.Context, string, string) error
+	DeleteUser(context.Context, string, string) error
 }
 
 type mattermostProbeClient struct {
@@ -290,9 +290,17 @@ func (client *mattermostProbeClient) DeletePost(contextValue context.Context, to
 	return client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
 }
 
-func (client *mattermostProbeClient) DeleteUserPermanently(contextValue context.Context, token string, userID string) error {
-	requestPath := "/api/v4/users/" + url.PathEscape(userID) + "?permanent=true"
-	return client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
+func (client *mattermostProbeClient) DeleteUser(contextValue context.Context, token string, userID string) error {
+	requestPath := "/api/v4/users/" + url.PathEscape(userID)
+	permanentError := client.requestWithoutResult(contextValue, http.MethodDelete, requestPath+"?permanent=true", token)
+	if permanentError == nil {
+		return nil
+	}
+	deactivationError := client.requestWithoutResult(contextValue, http.MethodDelete, requestPath, token)
+	if deactivationError == nil {
+		return nil
+	}
+	return errors.Join(permanentError, deactivationError)
 }
 
 func (client *mattermostProbeClient) requestJSON(contextValue context.Context, method string, requestPath string, token string, payload []byte) ([]byte, error) {

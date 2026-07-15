@@ -374,7 +374,7 @@ func (session *mattermostScenarioSession) cleanup(contextValue context.Context) 
 		}
 	}
 	if session.userID != "" && session.adminToken != "" {
-		if errorValue := session.mattermost.DeleteUserPermanently(contextValue, session.adminToken, session.userID); errorValue != nil {
+		if errorValue := session.mattermost.DeleteUser(contextValue, session.adminToken, session.userID); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, errorValue)
 		}
 	}
