@@ -1,0 +1,24 @@
+{
+  "name": "other-person-task-capture",
+  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/internkim-flow"],
+  "allowedTools": ["conversation.history", "memory.search", "capability.invoke"],
+  "capabilityToolNames": ["task.add", "task.list", "task.update"],
+  "initialToolNames": ["capability.invoke"],
+  "steps": [
+    {
+      "prompt": "@박세은 님 내일까지 신규 가입 플로우 점검 작업 해주세요.",
+      "expectedResponse": "background_action",
+      "conversationType": "O",
+      "channelID": "town-square",
+      "channelName": "town-square",
+      "addressing": {"otherPersonMentioned": true},
+      "expectedToolCalls": ["task.list", "task.add"],
+      "expectedEventCounts": [
+        {"name": "agent.ambient_duty_launch", "bodyFragment": "team_flow", "count": 1},
+        {"name": "tool.capability.invoke.requested", "bodyFragment": "\"targetPersonHint\":\"박세은\"", "count": 2},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "\"targetPersonHint\":\"박세은\"", "count": 1}
+      ],
+      "expectedTaskStatus": "completed"
+    }
+  ]
+}

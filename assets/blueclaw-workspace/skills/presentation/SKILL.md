@@ -1,11 +1,6 @@
 ---
 name: presentation
 description: Generate HTML-first presentation slides and attach requested HTML, PDF, or PPTX files. Also validates existing .pptx files. Use for decks, presentations, pitch decks, research summaries, stakeholder reports, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
-when_to_use: Use for slides, decks, presentations, PPT/PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표자료, 프레젠테이션, 파워포인트, or 피피티 requests, including validation of empty slides, missing titles, or leftover default fonts.
-recommendedMinutes: 60
-completion:
-  requiredEvidenceTools:
-    - file.deliver
 ---
 
 # Presentation

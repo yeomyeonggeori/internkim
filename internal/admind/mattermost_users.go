@@ -435,6 +435,9 @@ func quoteSQLLikePattern(value string) string {
 }
 
 func isProtectedMattermostUser(userRecord mattermostUserRecord) bool {
+	if userRecord.IsBot {
+		return true
+	}
 	username := strings.ToLower(strings.TrimSpace(userRecord.Username))
 	return username == mattermostProvisionerUsername || username == "internkim" || username == "system-bot"
 }

@@ -259,7 +259,7 @@ func (executor Executor) executeEmbedding(ctx context.Context, request capabilit
 	if executor.DevMockLLM {
 		return toolResponse(request.ToolName, map[string]any{
 			"provider":        "companion",
-			"model":           llmbackend.DefaultEmbeddingGemmaModel,
+			"model":           llmbackend.DefaultEmbeddingModelName,
 			"selectedBackend": capabilities.LLMBackendCompanionLocal,
 			"embedding":       []float64{1, 0, 0},
 		})

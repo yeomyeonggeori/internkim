@@ -89,8 +89,11 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"-L '127.0.0.1:18080:127.0.0.1:18080'",
 		"-L '127.0.0.1:8065:127.0.0.1:8065'",
 		"prepare-container-kernel",
+		"prepare-local-fleet-embedding",
 		"make build",
 		"setup --board lab",
+		"configure-local-embedding.sh",
+		"configure-mattermost-test-settings.sh",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
 		"verify mattermost",
@@ -111,6 +114,30 @@ func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	joinedPlans := joinedPlanArguments(plans)
 	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e") {
 		t.Fatalf("expected direct-message verify gate in plans:\n%s", joinedPlans)
+	}
+}
+
+func TestMattermostAskEphemeralScenarioUsesContainerSmoke(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		VirtualMachineName: "internkim-e2e-ask",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.mattermostAskEphemeralScenarioPlans()
+	joinedPlans := joinedPlanArguments(plans)
+	if !strings.Contains(joinedPlans, "/repo/lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-e2e-ask") {
+		t.Fatalf("expected ask ephemeral smoke in plans:\n%s", joinedPlans)
+	}
+	if !strings.Contains(joinedPlans, "--wait-lock") {
+		t.Fatalf("expected local fleet setup to wait for the shared setup lock:\n%s", joinedPlans)
+	}
+	for _, skippedStep := range []string{"web", "blueclaw-runtime-base", "skills", "blueclaw-config", "blueclaw-payload", "blueclaw-payload-direct", "openrouter", "staging", "services", "users-sync", "health"} {
+		if !strings.Contains(joinedPlans, skippedStep) {
+			t.Fatalf("expected ask scenario to skip %q:\n%s", skippedStep, joinedPlans)
+		}
 	}
 }
 
@@ -150,10 +177,13 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
 		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
 	}
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment+"='xlow'") {
-		t.Fatalf("expected test up plan to use the xlow model tier:\n%s", joinedPlans)
+	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
+		t.Fatalf("expected test up plan to preserve tier model names:\n%s", joinedPlans)
 	}
-	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force") {
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='xlow'") {
+		t.Fatalf("expected test up plan to cap models at xlow:\n%s", joinedPlans)
+	}
+	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
 	}
 }
@@ -184,6 +214,20 @@ func TestUpPlanCanUseRealModels(t *testing.T) {
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
 	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) || strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment) {
 		t.Fatalf("expected real model setup to omit test model selection:\n%s", joinedPlans)
+	}
+	if strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
+		t.Fatalf("expected real model setup to omit model tier ceiling:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", MaximumModelTier: "high"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='high'") {
+		t.Fatalf("expected high maximum model tier:\n%s", joinedPlans)
 	}
 }
 
@@ -280,6 +324,40 @@ func TestMattermostDirectMessageScenarioCanKeepArtifacts(t *testing.T) {
 	joinedPlans := joinedPlanArguments(plans)
 	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e --keep") {
 		t.Fatalf("expected direct-message verify keep gate in plans:\n%s", joinedPlans)
+	}
+}
+
+func TestMattermostManualScenarioPreparesBrowserSession(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.mattermostManualScenarioPlans())
+	if !strings.Contains(joinedPlans, "/mnt/shared/workspace/lab/scripts/prepare-mattermost-manual-test.sh") {
+		t.Fatalf("expected manual Mattermost preparation script in plans:\n%s", joinedPlans)
+	}
+}
+
+func TestMattermostManualScenarioRequiresKeep(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	errorValue = service.RunScenario(context.Background(), &recordingLogger{}, "mattermost-manual", false, false)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requires --keep") {
+		t.Fatalf("expected manual Mattermost keep requirement, got %v", errorValue)
+	}
+}
+
+func TestRealModelsIgnorePinnedTestModel(t *testing.T) {
+	t.Setenv(blueclaw.BlueclawTestModelEnvironment, "test/pinned")
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", ShouldUseRealModels: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assignments := strings.Join(service.setupEnvironmentAssignments(), " ")
+	if strings.Contains(assignments, blueclaw.BlueclawTestModelEnvironment) {
+		t.Fatalf("expected real models to ignore pinned test model: %s", assignments)
 	}
 }
 

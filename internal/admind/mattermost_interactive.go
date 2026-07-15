@@ -6,13 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 )
@@ -22,7 +18,6 @@ const legacyMattermostInteractiveActionTokenFilename = "mattermost-interactive-a
 type mattermostInteractivePayload = mattermostinteractive.Payload
 type mattermostInteractiveContext = mattermostinteractive.Context
 type mattermostInteractiveResponse = mattermostinteractive.Response
-type mattermostInteractiveError = mattermostinteractive.Error
 
 type mattermostInteractiveActionHandler func(http.ResponseWriter, *http.Request, mattermostInteractivePayload)
 
@@ -98,18 +93,13 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 		service.writeMattermostAskTargetMismatch(responseWriter)
 		return
 	}
-	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
-	go service.deleteMattermostAskEphemeralPostInBackground(payload)
-	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostInteractiveSuccess(responseWriter)
-}
-
-func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if errorValue := service.forwardMattermostAskAction(ctx, payload); errorValue != nil {
+	if errorValue := service.forwardMattermostAskAction(request.Context(), payload); errorValue != nil {
 		log.Printf("mattermost ask action forward failed: %v", errorValue)
+		service.writeMattermostInteractiveError(responseWriter, "요청 전달에 실패했습니다. 버튼을 다시 눌러 주세요.")
+		return
 	}
+	service.writeMattermostInteractiveSuccess(responseWriter)
+	go service.deleteMattermostAskEphemeralPostInBackground(payload)
 }
 
 func (service *Service) forwardMattermostAskAction(ctx context.Context, payload mattermostInteractivePayload) error {
@@ -212,11 +202,15 @@ func (service *Service) mattermostInteractiveButton(actionID string, name string
 }
 
 func (service *Service) mattermostInteractiveButtonWithContext(actionID string, name string, tooltip string, style string, context mattermostInteractiveContext) mattermostAction {
-	if strings.TrimSpace(context.Action) == "" {
-		context.Action = actionID
-	}
-	context.Token = service.ensureMattermostInteractiveActionToken()
-	return mattermostinteractive.Button(actionID, name, tooltip, style, service.mattermostInteractiveActionURL(), context)
+	return service.mattermostInteractiveActionBuilder().Button(actionID, name, tooltip, style, context)
+}
+
+func (service *Service) mattermostInteractiveActionBuilder() mattermostinteractive.ActionBuilder {
+	return mattermostinteractive.NewActionBuilder(
+		service.ensureMattermostInteractiveActionToken(),
+		service.Configuration.MattermostInteractiveBaseURL,
+		mattermostinteractive.LocalHTTPBaseURL(service.Configuration.ListenAddress),
+	)
 }
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
@@ -224,28 +218,11 @@ func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.Re
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{Error: &mattermostInteractiveError{Message: message}})
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{EphemeralText: message})
 }
 
 func (service *Service) writeMattermostAskTargetMismatch(responseWriter http.ResponseWriter) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{EphemeralText: "이 선택지는 요청한 사용자만 사용할 수 있습니다."})
-}
-
-func (service *Service) deleteMattermostAskControlPost(ctx context.Context, postID string) {
-	trimmedPostID := strings.TrimSpace(postID)
-	if trimmedPostID == "" {
-		return
-	}
-	token, errorValue := service.mattermostBotToken()
-	if errorValue != nil {
-		return
-	}
-	deleteContext, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	path := "/api/v4/posts/" + url.PathEscape(trimmedPostID)
-	if errorValue := service.mattermostRequest(deleteContext, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
-		log.Printf("mattermost ask control delete failed: %v", errorValue)
-	}
 }
 
 func isMattermostAskActionTarget(payload mattermostInteractivePayload) bool {
@@ -256,27 +233,12 @@ func isMattermostAskActionTarget(payload mattermostInteractivePayload) bool {
 	return strings.TrimSpace(payload.UserID) == targetUserID
 }
 
-func (service *Service) mattermostInteractiveActionURL() string {
-	address := strings.TrimSpace(service.Configuration.ListenAddress)
-	_, port, errorValue := net.SplitHostPort(address)
-	if errorValue == nil && port != "" {
-		return "http://127.0.0.1:" + port + "/_internkim/mattermost/actions"
-	}
-	return "http://" + strings.TrimRight(address, "/") + "/_internkim/mattermost/actions"
-}
-
 func (service *Service) ensureMattermostInteractiveActionToken() string {
 	path := service.mattermostInteractiveActionTokenPath()
-	token := strings.TrimSpace(readTrimmedFile(path))
-	if token != "" {
-		return token
-	}
-	token = randomHex(32)
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
-		return token
-	}
-	if errorValue := os.WriteFile(path, []byte(token+"\n"), 0o600); errorValue != nil {
-		return token
+	token, errorValue := mattermostinteractive.LoadOrCreateToken(path, 32)
+	if errorValue != nil {
+		log.Printf("mattermost interactive token unavailable: %v", errorValue)
+		return ""
 	}
 	return token
 }

@@ -90,6 +90,9 @@ func normalizeTarget(target Target) Target {
 	target.Workdir = strings.TrimSpace(target.Workdir)
 	target.ImageTag = strings.TrimSpace(target.ImageTag)
 	target.ComposeFile = strings.TrimSpace(target.ComposeFile)
+	if target.SSHProxyCommand == "" {
+		target.SSHProxyCommand = defaultTargetSSHProxyCommand(target)
+	}
 	if target.Name == "" {
 		target.Name = firstNonEmptyTargetName(hostName(target.AdminURL), target.SSHHost)
 	}
@@ -101,6 +104,17 @@ func normalizeTarget(target Target) Target {
 		target.ID = hashID(target.AdminURL)
 	}
 	return target
+}
+
+func defaultTargetSSHProxyCommand(target Target) string {
+	if target.ResolvedKind() != "poc-container" {
+		return ""
+	}
+	hostname := strings.ToLower(strings.TrimSuffix(target.SSHHost, "."))
+	if strings.HasPrefix(hostname, "ssh-") && strings.HasSuffix(hostname, ".intern.kim") {
+		return "cloudflared access ssh --hostname %h"
+	}
+	return ""
 }
 
 func firstNonEmptyTargetName(values ...string) string {

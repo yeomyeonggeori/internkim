@@ -50,7 +50,7 @@ func (backend OpenRouterEmbeddingBackend) CreateEmbedding(ctx context.Context, r
 	modelName := backend.resolveModelName(request.Model)
 	requestDocument, errorValue := json.Marshal(openRouterEmbeddingRequest{
 		Model: modelName,
-		Input: embeddingRequestInput(applyEmbeddingGemmaPrompts(inputs, request, isBatch)),
+		Input: embeddingRequestInput(prepareEmbeddingInputs(inputs, request, modelName, isBatch)),
 	})
 	if errorValue != nil {
 		return EmbeddingResponse{}, errorValue
@@ -60,7 +60,7 @@ func (backend OpenRouterEmbeddingBackend) CreateEmbedding(ctx context.Context, r
 		return EmbeddingResponse{}, errorValue
 	}
 	response.Provider = "openrouter"
-	response.Model = firstNonEmpty(response.Model, modelName)
+	response.Model = modelName
 	response.SelectedBackend = capabilities.LLMBackendRemote
 	if !isBatch {
 		if len(response.Embeddings) == 0 {
@@ -85,14 +85,10 @@ func (backend OpenRouterEmbeddingBackend) resolveAPIKey() (string, error) {
 
 func (backend OpenRouterEmbeddingBackend) resolveModelName(requestedModel string) string {
 	normalized := strings.TrimSpace(requestedModel)
-	if normalized == "" || strings.EqualFold(normalized, "default") || isLocalModelReference(normalized) || isLocalEmbeddingModelReference(normalized) {
+	if normalized == "" || strings.EqualFold(normalized, "default") || isLocalModelReference(normalized) {
 		return strings.TrimSpace(backend.ModelName)
 	}
 	return normalized
-}
-
-func isLocalEmbeddingModelReference(modelName string) bool {
-	return strings.EqualFold(strings.TrimSpace(modelName), DefaultEmbeddingGemmaModel)
 }
 
 func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (EmbeddingResponse, error) {

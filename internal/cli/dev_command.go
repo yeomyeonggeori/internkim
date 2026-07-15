@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/localfleet"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type devVirtualSessionArguments struct {
@@ -122,7 +123,7 @@ func runDevFleetArguments(arguments []string) error {
 	case "run":
 		return runDevFleetRunArguments(commandArguments)
 	case "reprovision":
-		return runDevFleetReprovision()
+		return runDevFleetReprovision(commandArguments)
 	case "verify-regression":
 		service, errorValue := newLocalFleetService()
 		if errorValue != nil {
@@ -147,7 +148,12 @@ type devFleetRunConfiguration struct {
 // runtime changes only reach it through a reprovision; copying files onto the host
 // and restarting the service does not update the guest. GO_MOD_CACHE must point at
 // the real module cache or the payload build fails on the empty isolated cache.
-func runDevFleetReprovision() error {
+func runDevFleetReprovision(arguments []string) error {
+	flagSet := flag.NewFlagSet("dev fleet reprovision", flag.ContinueOnError)
+	configurationPathArgument := flagSet.String("config", "", "Local Fleet configuration path")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
@@ -156,9 +162,14 @@ func runDevFleetReprovision() error {
 	if errorValue != nil {
 		return errorValue
 	}
-	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
-	if errorValue != nil {
-		return errorValue
+	configurationPath := strings.TrimSpace(*configurationPathArgument)
+	if configurationPath == "" {
+		configurationPath, errorValue = latestLocalFleetConfigurationPath(repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
+	} else if !filepath.IsAbs(configurationPath) {
+		configurationPath = filepath.Join(repositoryRootPath, configurationPath)
 	}
 	vmInternetProtocolAddress, errorValue := localFleetVMInternetProtocolAddress(executablePath, configurationPath)
 	if errorValue != nil {
@@ -169,11 +180,12 @@ func runDevFleetReprovision() error {
 	command := exec.Command(executablePath, "setup", "--board", "lab", "--ssh", "--host", vmInternetProtocolAddress,
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
-		"--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost")
+		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
 	command.Env = append(os.Environ(),
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
 		"INTERNKIM_TEST_MODEL_TIER=xlow",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=xlow",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
 		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
@@ -325,6 +337,7 @@ func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Ser
 		MattermostHostPort:    options.MattermostHostPort,
 		GenerationSeed:        options.GenerationSeed,
 		GenerationTemperature: options.GenerationTemperature,
+		MaximumModelTier:      options.MaximumModelTier,
 		ShouldUseRealModels:   options.ShouldUseRealModels,
 		IsEphemeral:           options.IsEphemeral,
 	})
@@ -630,6 +643,7 @@ func printDevUsage() {
 	fmt.Println("  internkim dev simulate --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --keep --scenario mattermost-manual")
 	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
@@ -638,9 +652,10 @@ func printDevUsage() {
 
 func printDevFleetUsage() {
 	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|reprovision|verify-regression>")
-	fmt.Println("  internkim dev fleet reprovision")
+	fmt.Println("  internkim dev fleet reprovision [--config path]")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
+	fmt.Println("  internkim dev fleet run --keep --scenario mattermost-manual")
 	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")

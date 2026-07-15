@@ -21,6 +21,7 @@ const (
 	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
+	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 	BlueclawSDKDModeEnvironment                         = "INTERNKIM_BLUECLAW_SDKD_MODE"
@@ -67,6 +68,7 @@ type RuntimeConfigOptions struct {
 	BridgeListenAddress       string
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
+	MaximumModelTier          string
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualCPUCount           int
@@ -146,6 +148,10 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	}
 	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
 	modelTier := optionalStringEnvironment(BlueclawTestModelTierEnvironment)
+	maximumModelTier, errorValue := NormalizeMaximumModelTier(optionalStringEnvironment(BlueclawTestMaximumModelTierEnvironment))
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
 	virtualCPUCount, errorValue := optionalInt64Environment(BlueclawVirtualCPUCountEnvironment)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
@@ -163,6 +169,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		SDKDMode:                  optionalStringEnvironment(BlueclawSDKDModeEnvironment),
 		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
 		LocalOnly:                 LocalOnlyEnabled(),
+		MaximumModelTier:          maximumModelTier,
 	}
 	if virtualCPUCount != nil {
 		options.VirtualCPUCount = int(*virtualCPUCount)
@@ -200,6 +207,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			}
 			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
 		}
+	}
+	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
+		capabilityLanguageModel["maximumModelTier"] = maximumModelTier
 	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
@@ -398,6 +408,19 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func NormalizeMaximumModelTier(modelTier string) (string, error) {
+	normalizedModelTier := strings.ToLower(strings.TrimSpace(modelTier))
+	if normalizedModelTier == "" {
+		return "", nil
+	}
+	for _, supportedModelTier := range []string{"xlow", "low", "medium", "high", "xhigh", "max"} {
+		if normalizedModelTier == supportedModelTier {
+			return normalizedModelTier, nil
+		}
+	}
+	return "", fmt.Errorf("maximum model tier must be xlow, low, medium, high, xhigh, or max: %s", modelTier)
 }
 
 func firstNonEmptyString(values ...string) string {

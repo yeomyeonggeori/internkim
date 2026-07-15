@@ -765,7 +765,6 @@ func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) 
 	return time.Duration(total+180) * time.Second
 }
 
-
 func runLocalBrowserVerification(target verifyTarget) error {
 	port, errorValue := reserveMattermostSiteURLPort()
 	if errorValue != nil {
@@ -2416,6 +2415,7 @@ cleanup() {
   delete_post "${requester_token:-}" "${request_post_id:-}"
   delete_post "${requester_token:-}" "${approval_post_id:-}"
   delete_post "${mattermost_token:-}" "${bot_reply_post_id:-}"
+  delete_post "${recipient_token:-}" "${recipient_identity_post_id:-}"
   delete_post "${mattermost_token:-}" "${recipient_dm_post_id:-}"
   delete_user "${requester_user_id:-}"
   delete_user "${recipient_user_id:-}"
@@ -2448,9 +2448,9 @@ test -n "$requester_token"
 test -n "$recipient_token"
 
 blueclaw_request "invite requester" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg personID "$requester_user_id" --arg email "$requester_email" '{personID:$personID,email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$requester_user_id" --arg email "$requester_email" --arg displayName "$requester_username" '{personID:$personID,email:$email,displayName:$displayName}')" >/dev/null
 blueclaw_request "invite recipient" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg personID "$recipient_user_id" --arg email "$recipient_email" '{personID:$personID,email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$recipient_user_id" --arg email "$recipient_email" --arg displayName "$recipient_username" '{personID:$personID,email:$email,displayName:$displayName}')" >/dev/null
 
 request_channel_id="$(api_request "create requester dm" POST http://localhost:8065/api/v4/channels/direct "$requester_token" \
   "$(jq -cn --arg requester_user_id "$requester_user_id" --arg bot_user_id "$bot_user_id" '[$requester_user_id,$bot_user_id]')" | jq -r '.id')"
@@ -2458,6 +2458,29 @@ recipient_channel_id="$(api_request "create recipient dm" POST http://localhost:
   "$(jq -cn --arg recipient_user_id "$recipient_user_id" --arg bot_user_id "$bot_user_id" '[$recipient_user_id,$bot_user_id]')" | jq -r '.id')"
 test -n "$request_channel_id"
 test -n "$recipient_channel_id"
+
+recipient_identity_message="InternKim DM recipient identity $timestamp"
+recipient_identity_post="$(api_request "post recipient identity" POST http://localhost:8065/api/v4/posts "$recipient_token" \
+  "$(jq -cn --arg channel_id "$recipient_channel_id" --arg message "$recipient_identity_message" '{channel_id:$channel_id,message:$message}')")"
+recipient_identity_post_id="$(printf '%%s' "$recipient_identity_post" | jq -r '.id')"
+test -n "$recipient_identity_post_id"
+
+recipient_resolution_body="$(jq -cn --arg platform mattermost --arg hint "$recipient_username" '{platform:$platform,hint:$hint}')"
+recipient_resolution=""
+for _ in $(seq 1 "$timeout_seconds"); do
+  recipient_resolution="$(blueclaw_request "resolve direct-message recipient" POST http://127.0.0.1:8080/admin/api/identity/resolve-recipient "$recipient_resolution_body")"
+  if printf '%%s' "$recipient_resolution" |
+    jq -e --arg user_id "$recipient_user_id" '.status == "resolved" and .recipient.externalUserID == $user_id' >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+if ! printf '%%s' "$recipient_resolution" |
+  jq -e --arg user_id "$recipient_user_id" '.status == "resolved" and .recipient.externalUserID == $user_id' >/dev/null; then
+  echo "direct-message E2E recipient did not resolve: $recipient_username" >&2
+  printf '%%s\n' "$recipient_resolution" >&2
+  exit 1
+fi
 
 request_post="$(api_request "post direct-message request" POST http://localhost:8065/api/v4/posts "$requester_token" \
   "$(jq -cn --arg channel_id "$request_channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')")"
@@ -2537,6 +2560,9 @@ bot_reply_post_id="$(api_request "fetch requester replies" GET "http://localhost
 
 jq -cn \
   --arg task_run_id "$task_run_id" \
+  --arg requester_username "$requester_username" \
+  --arg recipient_username "$recipient_username" \
+  --arg password "$password" \
   --arg requester_channel_id "$request_channel_id" \
   --arg recipient_channel_id "$recipient_channel_id" \
   --arg recipient_dm_post_id "$recipient_dm_post_id" \
@@ -2550,7 +2576,15 @@ jq -cn \
     recipientChannelID: $recipient_channel_id,
     recipientDMPostID: $recipient_dm_post_id,
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
-  }'
+  } + (if $keep then {
+    manualTest: {
+      requesterUsername: $requester_username,
+      recipientUsername: $recipient_username,
+      password: $password,
+      requesterChannelID: $requester_channel_id,
+      instruction: "Log in as requesterUsername and open the direct message with @internkim."
+    }
+  } else {} end)'
 `, keepValue, timeoutSeconds)
 }
 

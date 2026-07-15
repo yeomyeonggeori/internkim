@@ -19,6 +19,7 @@ func main() {
 	mattermostBaseURL := flag.String("mattermost-url", "http://mattermost:8065", "mattermost base URL")
 	adminEmail := flag.String("admin-email", "admin@intern.kim", "admin email for policy")
 	outputDirectory := flag.String("out", ".", "output directory")
+	capabilityContractOutputPath := flag.String("contract-out", "", "capability contract output path")
 	flag.Parse()
 
 	runtimeDocument, errorValue := blueclaw.BlueclawRuntimeConfigDocumentWithOptions(blueclaw.RuntimeConfigOptions{
@@ -44,6 +45,14 @@ func main() {
 
 	writeDocument(filepath.Join(*outputDirectory, "runtime.json"), runtimeDocument)
 	writeDocument(filepath.Join(*outputDirectory, "policy.json"), policyDocument)
+	if *capabilityContractOutputPath != "" {
+		capabilityContractDocument, errorValue := blueclaw.CapabilityContractDocument()
+		if errorValue != nil {
+			fmt.Fprintln(os.Stderr, errorValue)
+			os.Exit(1)
+		}
+		writeDocument(*capabilityContractOutputPath, capabilityContractDocument)
+	}
 }
 
 func writeDocument(path string, document string) {

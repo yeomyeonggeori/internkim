@@ -77,12 +77,14 @@ func TestAttendanceSummaryIncludesRegisteredMembersWithoutEvents(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
 			return jsonResponse(http.StatusOK, `[
 				{"id":"user-1","email":"kim@example.com","username":"kim","nickname":"김철수","roles":"system_user","delete_at":0},
-				{"id":"user-2","email":"park@example.com","username":"park","nickname":"박지민","roles":"system_user","delete_at":0}
+				{"id":"user-2","email":"park@example.com","username":"park","nickname":"박지민","roles":"system_user","delete_at":0},
+				{"id":"bot-1","email":"internkim01@intern.kim","username":"internkim01","nickname":"김인턴","roles":"system_user","delete_at":0,"is_bot":true}
 			]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
 			return jsonResponse(http.StatusOK, `[
 				{"user_id":"user-1","roles":"team_user"},
-				{"user_id":"user-2","roles":"team_user"}
+				{"user_id":"user-2","roles":"team_user"},
+				{"user_id":"bot-1","roles":"team_user"}
 			]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}],"channels":[]}`, nil), nil
