@@ -37,7 +37,7 @@ func readCalendarEventWindowCacheEntry(ctx context.Context, database *sql.DB, ca
 		}
 		return nil, false, nil
 	}
-	if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_window_cache_entries SET last_used_at = ? WHERE cache_key = ?", now.UTC().Format(time.RFC3339Nano), cacheRange.Key); errorValue != nil {
+	if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_window_cache_entries SET last_used_at = ? WHERE cache_key = ?", formatCalendarEventWindowCacheTimestamp(now), cacheRange.Key); errorValue != nil {
 		return nil, false, fmt.Errorf("touch calendar event window cache entry: %w", errorValue)
 	}
 	return payload.Events, true, nil
@@ -48,7 +48,7 @@ func writeCalendarEventWindowCacheEntryIfCurrent(ctx context.Context, database *
 	if errorValue != nil {
 		return false, fmt.Errorf("encode calendar event window cache payload: %w", errorValue)
 	}
-	timestamp := now.UTC().Format(time.RFC3339Nano)
+	timestamp := formatCalendarEventWindowCacheTimestamp(now)
 	result, errorValue := database.ExecContext(ctx, `
 		INSERT INTO calendar_event_window_cache_entries (
 			cache_key, start_at, end_at, source_revision, schema_version, payload_json, cached_at, last_used_at

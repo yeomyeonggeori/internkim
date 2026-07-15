@@ -36,5 +36,8 @@ func ensureCalendarEventWindowCacheSchema(ctx context.Context, database *sql.DB)
 			return fmt.Errorf("ensure calendar event window cache schema: %w", errorValue)
 		}
 	}
+	if _, errorValue := database.ExecContext(ctx, "DELETE FROM calendar_event_window_cache_entries"); errorValue != nil {
+		return fmt.Errorf("reset calendar event window cache entries: %w", errorValue)
+	}
 	return nil
 }

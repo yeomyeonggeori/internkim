@@ -33,8 +33,30 @@ func TestCalendarEventWindowCacheRangeNormalizesUTC(t *testing.T) {
 	if seoulRange != utcRange {
 		t.Fatalf("Seoul range = %+v, UTC range = %+v", seoulRange, utcRange)
 	}
-	if utcRange.Key != "2026-07-15T00:00:00Z/2026-07-16T00:00:00Z" {
+	if utcRange.Key != "2026-07-15T00:00:00.000000000Z/2026-07-16T00:00:00.000000000Z" {
 		t.Fatalf("cache key = %q", utcRange.Key)
+	}
+}
+
+func TestCalendarEventWindowCachePurgesEntriesForNewService(t *testing.T) {
+	service := newCalendarTestService(t)
+	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(24 * time.Hour)
+	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	restartedService := NewService(service.Configuration)
+	database, errorValue := restartedService.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var cacheEntryCount int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM calendar_event_window_cache_entries").Scan(&cacheEntryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if cacheEntryCount != 0 {
+		t.Fatalf("cache entries after restart = %d, want 0", cacheEntryCount)
 	}
 }
 

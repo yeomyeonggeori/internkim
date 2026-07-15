@@ -138,3 +138,51 @@ func TestCalendarEventWindowCacheInvalidatesDeletedEventRange(t *testing.T) {
 		t.Fatalf("cache entries after delete = %d, want 0", cacheEntryCount)
 	}
 }
+
+func TestCalendarEventWindowCacheInvalidatesFractionalOverlap(t *testing.T) {
+	service := newCalendarTestService(t)
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
+	cacheRange, cacheable := calendarEventWindowCacheRangeFor(startTime, startTime.Add(500*time.Millisecond))
+	if !cacheable {
+		t.Fatal("fractional cache range is not cacheable")
+	}
+	revision, errorValue := readCalendarEventWindowSourceRevision(context.Background(), database)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	stored, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(context.Background(), database, cacheRange, revision, nil, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !stored {
+		t.Fatal("fractional cache range was not stored")
+	}
+	transaction, errorValue := database.BeginTx(context.Background(), nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event := calendarEvent{
+		ID:       "fractional-overlap",
+		StartISO: startTime.Format(time.RFC3339Nano),
+		EndISO:   startTime.Add(time.Second).Format(time.RFC3339Nano),
+	}
+	if errorValue := invalidateCalendarEventWindowCache(context.Background(), transaction, event); errorValue != nil {
+		_ = transaction.Rollback()
+		t.Fatal(errorValue)
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var cacheEntryCount int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM calendar_event_window_cache_entries WHERE cache_key = ?", cacheRange.Key).Scan(&cacheEntryCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if cacheEntryCount != 0 {
+		t.Fatalf("fractional overlap cache entries = %d, want 0", cacheEntryCount)
+	}
+}
