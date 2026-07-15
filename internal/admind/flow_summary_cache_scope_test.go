@@ -1,9 +1,37 @@
 package admind
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
+
+func TestFlowTaskSummarySourceKeysUsesWeekAndEndpointMonths(t *testing.T) {
+	task := flowTask{ID: "task-1", WeekCode: "26W28", StartDate: "2026-06-30", EndDate: "2026-07-02"}
+	keys, errorValue := flowTaskSummarySourceKeys(task)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	want := []flowSummarySourceKey{
+		{Kind: flowSummarySourceMonth, Key: "2026-06"},
+		{Kind: flowSummarySourceMonth, Key: "2026-07"},
+		{Kind: flowSummarySourceWeek, Key: "26W28"},
+	}
+	if !reflect.DeepEqual(keys, want) {
+		t.Fatalf("keys = %+v, want %+v", keys, want)
+	}
+}
+
+func TestFlowTaskSummarySourceKeysRejectsInvalidScope(t *testing.T) {
+	for _, task := range []flowTask{
+		{ID: "bad-week", WeekCode: "week", StartDate: "2026-07-01"},
+		{ID: "bad-date", WeekCode: "26W28", StartDate: "July"},
+	} {
+		if _, errorValue := flowTaskSummarySourceKeys(task); errorValue == nil {
+			t.Fatalf("task %+v did not fail", task)
+		}
+	}
+}
 
 func TestFlowSummaryDependencyKeysForWeek(t *testing.T) {
 	weekStart := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)

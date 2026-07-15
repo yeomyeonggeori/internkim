@@ -78,6 +78,31 @@ func TestFlowSummaryCacheTreatsDependencyMismatchAsMiss(t *testing.T) {
 	}
 }
 
+func TestFlowSummaryCacheConditionalDeletePreservesReplacement(t *testing.T) {
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	keys := flowSummaryCacheTestKeys()
+	snapshot := readFlowSummaryDependencySnapshotForTest(t, service, keys, "members-v1")
+	if stored, errorValue := service.writeFlowSummaryCacheEntryIfCurrent(ctx, "26W28", keys, snapshot, validFlowSummaryCachePayloadForTest(), time.Now()); errorValue != nil || !stored {
+		t.Fatalf("initial stored = %v error = %v", stored, errorValue)
+	}
+	initialEntry, _, found, errorValue := service.readFlowSummaryCacheSnapshot(ctx, "26W28", keys, "members-v1")
+	if errorValue != nil || !found {
+		t.Fatalf("initial found = %v error = %v", found, errorValue)
+	}
+	replacement := []byte(`{"version":1,"weeklyTasks":[{"id":"replacement"}],"metrics":{},"report":{}}`)
+	if stored, errorValue := service.writeFlowSummaryCacheEntryIfCurrent(ctx, "26W28", keys, snapshot, replacement, time.Now()); errorValue != nil || !stored {
+		t.Fatalf("replacement stored = %v error = %v", stored, errorValue)
+	}
+	if errorValue := service.deleteFlowSummaryCacheEntryIfUnchanged(ctx, initialEntry); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	reloadedEntry, _, found, errorValue := service.readFlowSummaryCacheSnapshot(ctx, "26W28", keys, "members-v1")
+	if errorValue != nil || !found || reloadedEntry.Payload != string(replacement) {
+		t.Fatalf("replacement found = %v entry = %+v error = %v", found, reloadedEntry, errorValue)
+	}
+}
+
 func TestFlowSummaryCacheCleansOnlyExpiredEntries(t *testing.T) {
 	service := newFlowSummaryCacheTestService(t)
 	ctx := context.Background()
