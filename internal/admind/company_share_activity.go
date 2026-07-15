@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -19,6 +21,7 @@ type companyShareActivityDay struct {
 	Date            string `json:"date"`
 	AttendanceCount int    `json:"attendanceCount"`
 	WorkCount       int    `json:"workCount"`
+	WorkMinutes     int    `json:"workMinutes"`
 }
 
 type companyShareWorkStatus struct {
@@ -75,9 +78,11 @@ type companyShareMemberSource struct {
 }
 
 func (service *Service) buildCompanyShareTeamActivity(ctx context.Context, now time.Time) (companyShareTeamActivity, error) {
-	startDate := now.AddDate(0, 0, -(companyShareActivityWindowDays - 1)).Format("2006-01-02")
-	endDate := now.Format("2006-01-02")
-	attendanceByDate, attendanceMembers, errorValue := service.readCompanyShareAttendanceActivity(ctx, startDate, endDate)
+	location, _ := service.workspaceTimeLocation()
+	localNow := now.In(location)
+	startDate := localNow.AddDate(0, 0, -(companyShareActivityWindowDays - 1)).Format("2006-01-02")
+	endDate := localNow.Format("2006-01-02")
+	attendanceByDate, workMinutesByDate, attendanceMembers, errorValue := service.readCompanyShareAttendanceActivity(ctx, startDate, endDate, now, location)
 	if errorValue != nil {
 		return companyShareTeamActivity{}, errorValue
 	}
@@ -92,7 +97,7 @@ func (service *Service) buildCompanyShareTeamActivity(ctx context.Context, now t
 	if errorValue != nil {
 		return companyShareTeamActivity{}, errorValue
 	}
-	days := buildCompanyShareActivityDays(now, attendanceByDate, workByDate)
+	days := buildCompanyShareActivityDays(localNow, attendanceByDate, workByDate, workMinutesByDate)
 	return companyShareTeamActivity{
 		WindowDays:      companyShareActivityWindowDays,
 		Members:         members,
@@ -104,10 +109,10 @@ func (service *Service) buildCompanyShareTeamActivity(ctx context.Context, now t
 	}, nil
 }
 
-func (service *Service) readCompanyShareAttendanceActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareMemberSource, error) {
+func (service *Service) readCompanyShareAttendanceActivity(ctx context.Context, startDate string, endDate string, now time.Time, location *time.Location) (map[string]int, map[string]int, []companyShareMemberSource, error) {
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return nil, nil, nil, errorValue
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
@@ -116,7 +121,7 @@ FROM attendance_events
 WHERE local_date >= ? AND local_date <= ? AND kind = ? AND canceled_at = ''
 GROUP BY local_date`, startDate, endDate, attendanceKindClockIn)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return nil, nil, nil, errorValue
 	}
 	defer rows.Close()
 	counts := map[string]int{}
@@ -124,19 +129,20 @@ GROUP BY local_date`, startDate, endDate, attendanceKindClockIn)
 		var date string
 		var count int
 		if errorValue := rows.Scan(&date, &count); errorValue != nil {
-			return nil, nil, errorValue
+			return nil, nil, nil, errorValue
 		}
 		counts[date] = count
 	}
 	if errorValue := rows.Err(); errorValue != nil {
-		return nil, nil, errorValue
+		return nil, nil, nil, errorValue
 	}
+	rows.Close()
 	memberRows, errorValue := database.QueryContext(ctx, `
 SELECT DISTINCT email, display_name
 FROM attendance_events
 WHERE local_date >= ? AND local_date <= ? AND kind = ? AND canceled_at = ''`, startDate, endDate, attendanceKindClockIn)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return nil, nil, nil, errorValue
 	}
 	defer memberRows.Close()
 	members := []companyShareMemberSource{}
@@ -144,11 +150,111 @@ WHERE local_date >= ? AND local_date <= ? AND kind = ? AND canceled_at = ''`, st
 		var email string
 		var name string
 		if errorValue := memberRows.Scan(&email, &name); errorValue != nil {
-			return nil, nil, errorValue
+			return nil, nil, nil, errorValue
 		}
 		members = append(members, companyShareMemberSource{MemberID: companySharePersonID(email), Name: name})
 	}
-	return counts, members, memberRows.Err()
+	if errorValue := memberRows.Err(); errorValue != nil {
+		return nil, nil, nil, errorValue
+	}
+	memberRows.Close()
+	events, errorValue := service.readCompanyShareAttendanceEvents(ctx, database)
+	if errorValue != nil {
+		return nil, nil, nil, errorValue
+	}
+	workMinutesByDate := buildCompanyShareWorkMinutesByDate(events, startDate, endDate, now, location)
+	return counts, workMinutesByDate, members, nil
+}
+
+func (service *Service) readCompanyShareAttendanceEvents(ctx context.Context, database *sql.DB) ([]attendanceEvent, error) {
+	rows, errorValue := database.QueryContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE canceled_at = ''
+ORDER BY occurred_at ASC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	events := []attendanceEvent{}
+	for rows.Next() {
+		event, scanError := scanAttendanceEvent(rows)
+		if scanError != nil {
+			rows.Close()
+			return nil, scanError
+		}
+		events = append(events, event)
+	}
+	errorValue = rows.Err()
+	rows.Close()
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return service.applyAttendanceEventOverrides(ctx, database, events)
+}
+
+func buildCompanyShareWorkMinutesByDate(events []attendanceEvent, startDate string, endDate string, now time.Time, location *time.Location) map[string]int {
+	windowStart, startError := time.ParseInLocation("2006-01-02", startDate, location)
+	windowEndDate, endError := time.ParseInLocation("2006-01-02", endDate, location)
+	if startError != nil || endError != nil {
+		return map[string]int{}
+	}
+	windowEnd := windowEndDate.AddDate(0, 0, 1)
+	orderedEvents := append([]attendanceEvent{}, events...)
+	sort.SliceStable(orderedEvents, func(leftIndex int, rightIndex int) bool {
+		return orderedEvents[leftIndex].OccurredAt < orderedEvents[rightIndex].OccurredAt
+	})
+	openByMemberID := map[string]time.Time{}
+	workMinutesByDate := map[string]int{}
+	for _, event := range orderedEvents {
+		occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
+		if errorValue != nil || occurredAt.After(now) {
+			continue
+		}
+		memberID := companySharePersonID(firstNonEmpty(event.Email, event.MattermostUserID))
+		if event.Kind == attendanceKindClockIn {
+			if startedAt, found := openByMemberID[memberID]; found {
+				addCompanyShareWorkMinutes(workMinutesByDate, startedAt, occurredAt, windowStart, windowEnd, location)
+			}
+			openByMemberID[memberID] = occurredAt
+			continue
+		}
+		startedAt, found := openByMemberID[memberID]
+		if event.Kind != attendanceKindClockOut || !found {
+			continue
+		}
+		addCompanyShareWorkMinutes(workMinutesByDate, startedAt, occurredAt, windowStart, windowEnd, location)
+		delete(openByMemberID, memberID)
+	}
+	for _, startedAt := range openByMemberID {
+		addCompanyShareWorkMinutes(workMinutesByDate, startedAt, now, windowStart, windowEnd, location)
+	}
+	return workMinutesByDate
+}
+
+func addCompanyShareWorkMinutes(workMinutesByDate map[string]int, startedAt time.Time, endedAt time.Time, windowStart time.Time, windowEnd time.Time, location *time.Location) {
+	segmentStart := maxTime(startedAt, windowStart)
+	segmentEnd := minTime(endedAt, windowEnd)
+	for segmentStart.Before(segmentEnd) {
+		localStart := segmentStart.In(location)
+		nextMidnight := time.Date(localStart.Year(), localStart.Month(), localStart.Day()+1, 0, 0, 0, 0, location)
+		dayEnd := minTime(segmentEnd, nextMidnight)
+		date := localStart.Format("2006-01-02")
+		workMinutesByDate[date] += int(math.Round(dayEnd.Sub(segmentStart).Minutes()))
+		segmentStart = dayEnd
+	}
+}
+
+func minTime(left time.Time, right time.Time) time.Time {
+	if left.Before(right) {
+		return left
+	}
+	return right
+}
+
+func maxTime(left time.Time, right time.Time) time.Time {
+	if left.After(right) {
+		return left
+	}
+	return right
 }
 
 func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareWorkRow, map[string]int, []companyShareMemberSource, error) {
@@ -192,11 +298,13 @@ ORDER BY updated_at DESC`, startDate, endDate)
 	return counts, workRows, statusCounts, members, rows.Err()
 }
 
-func buildCompanyShareActivityDays(now time.Time, attendanceByDate map[string]int, workByDate map[string]int) []companyShareActivityDay {
+func buildCompanyShareActivityDays(now time.Time, attendanceByDate map[string]int, workByDate map[string]int, workMinutesByDate map[string]int) []companyShareActivityDay {
 	days := make([]companyShareActivityDay, 0, companyShareActivityWindowDays)
 	for offset := companyShareActivityWindowDays - 1; offset >= 0; offset-- {
 		date := now.AddDate(0, 0, -offset).Format("2006-01-02")
-		days = append(days, companyShareActivityDay{Date: date, AttendanceCount: attendanceByDate[date], WorkCount: workByDate[date]})
+		days = append(days, companyShareActivityDay{
+			Date: date, AttendanceCount: attendanceByDate[date], WorkCount: workByDate[date], WorkMinutes: workMinutesByDate[date],
+		})
 	}
 	return days
 }

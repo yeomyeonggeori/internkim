@@ -7,6 +7,7 @@
 	import {
 		companyActivityIntensity,
 		companyWorkStatusPercentage,
+		formatCompanyActivityDuration,
 		type CompanyShareMember,
 		type CompanyShareTeamActivity,
 		type CompanyShareWorkStatus
@@ -23,6 +24,7 @@
 		activityRhythm: string;
 		activityGrid: string;
 		attendanceSignals: string;
+		workHours: string;
 		workSignals: string;
 		workDistribution: string;
 		recentWork: string;
@@ -35,8 +37,8 @@
 	let { activity, text, language }: { activity: CompanyShareTeamActivity; text: TeamActivityText; language: string } = $props();
 	const activityRhythmDays = 30;
 	const recentDays = $derived(activity.days.slice(-activityRhythmDays));
-	const recentAttendanceTotal = $derived(recentDays.reduce((total, day) => total + day.attendanceCount, 0));
 	const recentWorkTotal = $derived(recentDays.reduce((total, day) => total + day.workCount, 0));
+	const recentWorkMinutes = $derived(recentDays.reduce((total, day) => total + (day.workMinutes ?? 0), 0));
 	const recentActiveDays = $derived(recentDays.filter((day) => day.attendanceCount > 0 || day.workCount > 0).length);
 
 	function formatDay(date: string): string {
@@ -121,8 +123,8 @@
 				<div class="mb-3 flex items-center justify-between gap-4">
 					<h3 class="text-sm font-medium">{text.activityRhythm}</h3>
 					<div class="text-muted-foreground flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
-						<span>{text.checkIns} {recentAttendanceTotal}</span>
-						<span>{text.workSignals} {recentWorkTotal}</span>
+						<span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-blue-600"></span>{text.workSignals} {recentWorkTotal}</span>
+						<span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-blue-400"></span>{text.workHours} {formatCompanyActivityDuration(recentWorkMinutes, language)}</span>
 						<span>{formatActivityWindow(activityRhythmDays)}</span>
 					</div>
 				</div>

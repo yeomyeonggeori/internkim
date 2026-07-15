@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	companyActivityIntensity,
+	companyActivityNormalizedValue,
+	companyActivityScaleMaximum,
 	companyLocalCurrency,
 	companyMetricChangeAssessment,
 	companyMetricChangePercentage,
@@ -12,6 +14,7 @@ import {
 	companyRecordTitle,
 	companyRecordVisibleAttributes,
 	formatCompanyMetricValue,
+	formatCompanyActivityDuration,
 	formatCompanyRecordMoney,
 	formatCompanyRecordMoneyEquivalent,
 	companyWorkStatusPercentage,
@@ -118,6 +121,14 @@ describe('company page model', () => {
 		expect(companyActivityIntensity(days[0], days)).toBe(0);
 		expect(companyActivityIntensity(days[1], days)).toBe(2);
 		expect(companyActivityIntensity(days[2], days)).toBe(4);
+	});
+
+	test('normalizes each activity series to its own 30-day maximum', () => {
+		expect(companyActivityScaleMaximum([0, 3, 6, 4])).toBe(6);
+		expect(companyActivityNormalizedValue(3, 6)).toBe(50);
+		expect(companyActivityNormalizedValue(20, 40)).toBe(50);
+		expect(companyActivityNormalizedValue(0, 0)).toBe(0);
+		expect(formatCompanyActivityDuration(450, 'en')).toBe('7.5 h');
 	});
 
 	test('calculates work distribution from actual status counts', () => {
