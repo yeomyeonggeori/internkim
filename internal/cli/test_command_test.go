@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -33,6 +34,9 @@ func TestParseTestArgumentsUsesPromptAndDefaults(t *testing.T) {
 	}
 	if configuration.MaximumModelTier != "xlow" {
 		t.Fatalf("expected xlow maximum model tier by default: %+v", configuration)
+	}
+	if configuration.TimeoutSeconds != 0 {
+		t.Fatalf("expected no expensive-scenario deadline by default: %+v", configuration)
 	}
 }
 
@@ -90,6 +94,11 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 		"--scenario", "task-lifecycle",
 		"--scenario", "direct-message-send",
 		"--maximum-model-tier", "high",
+		"--llm-provider", "sdkd",
+		"--llm-endpoint", "http://sdkd.test",
+		"--llm-unix-socket", "/tmp/sdkd.sock",
+		"--llm-auth-key-path", "/tmp/sdkd-auth-key",
+		"--llm-execution-mode", "auto",
 		"--seed", "41",
 	}, time.Now())
 	if errorValue != nil {
@@ -100,6 +109,83 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	}
 	if len(configuration.ScenarioNames) != 2 || configuration.ScenarioNames[0] != "task-lifecycle" || configuration.ScenarioNames[1] != "direct-message-send" {
 		t.Fatalf("unexpected scenario selection: %+v", configuration.ScenarioNames)
+	}
+	if configuration.LanguageModelProvider != "sdkd" || configuration.LanguageModelEndpoint != "http://sdkd.test" || configuration.LanguageModelSocket != "/tmp/sdkd.sock" || configuration.LanguageModelAuthKeyPath != "/tmp/sdkd-auth-key" || configuration.LanguageModelExecutionMode != "auto" {
+		t.Fatalf("unexpected live LLM configuration: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsRejectsUnknownLanguageModelProvider(t *testing.T) {
+	_, errorValue := parseTestArguments([]string{"expensive", "--llm-provider", "unknown"}, time.Now())
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "llm provider must be") {
+		t.Fatalf("expected provider validation error, got %v", errorValue)
+	}
+}
+
+func TestParseTestArgumentsAcceptsZeroTimeout(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{"expensive", "--timeout", "0"}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.TimeoutSeconds != 0 {
+		t.Fatalf("expected zero timeout, got %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsRejectsNegativeTimeout(t *testing.T) {
+	_, errorValue := parseTestArguments([]string{"expensive", "--timeout", "-1"}, time.Now())
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "--timeout must be 0 or greater") {
+		t.Fatalf("expected negative timeout validation error, got %v", errorValue)
+	}
+}
+
+func TestExpensiveScenarioContextLeavesZeroTimeoutUnlimited(t *testing.T) {
+	scenarioContext, cancel := expensiveScenarioContext(context.Background(), 0)
+	defer cancel()
+	if _, hasDeadline := scenarioContext.Deadline(); hasDeadline {
+		t.Fatal("expected zero timeout to leave the scenario context without a deadline")
+	}
+}
+
+func TestExpensiveScenarioContextAppliesPositiveTimeout(t *testing.T) {
+	scenarioContext, cancel := expensiveScenarioContext(context.Background(), 1)
+	defer cancel()
+	if _, hasDeadline := scenarioContext.Deadline(); !hasDeadline {
+		t.Fatal("expected positive timeout to apply a scenario deadline")
+	}
+}
+
+func TestPromptTimeoutSecondsPreservesExistingDefault(t *testing.T) {
+	if timeoutSeconds := promptTimeoutSeconds(0); timeoutSeconds != defaultPromptTimeoutSeconds {
+		t.Fatalf("expected prompt timeout default %d, got %d", defaultPromptTimeoutSeconds, timeoutSeconds)
+	}
+	if timeoutSeconds := promptTimeoutSeconds(120); timeoutSeconds != 120 {
+		t.Fatalf("expected configured prompt timeout, got %d", timeoutSeconds)
+	}
+}
+
+func TestAppendExpensiveLanguageModelArgumentsPreservesSecretBoundaries(t *testing.T) {
+	arguments := appendExpensiveLanguageModelArguments([]string{"virtual-session"}, testCommandConfiguration{
+		LanguageModelProvider:      "sdkd",
+		LanguageModelEndpoint:      "http://sdkd.test",
+		LanguageModelSocket:        "/tmp/sdkd.sock",
+		LanguageModelAuthKeyPath:   "/tmp/sdkd-auth-key",
+		LanguageModelExecutionMode: "auto",
+	})
+	joinedArguments := strings.Join(arguments, " ")
+	for _, expectedArgument := range []string{
+		"--llm-provider sdkd",
+		"--llm-endpoint http://sdkd.test",
+		"--llm-unix-socket /tmp/sdkd.sock",
+		"--llm-auth-key-path /tmp/sdkd-auth-key",
+		"--llm-execution-mode auto",
+	} {
+		if !strings.Contains(joinedArguments, expectedArgument) {
+			t.Fatalf("expected %q in arguments %v", expectedArgument, arguments)
+		}
+	}
+	if strings.Contains(joinedArguments, "installation-key") {
+		t.Fatalf("expected no auth key value in arguments: %v", arguments)
 	}
 }
 

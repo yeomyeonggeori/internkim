@@ -288,7 +288,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"authKeyPath":           "",
 			"executionMode":         languageModelExecutionMode,
 			"localOnly":             options.LocalOnly,
-			"timeoutSecond":         60,
 			"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
 			"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_turn_router"},
 		}

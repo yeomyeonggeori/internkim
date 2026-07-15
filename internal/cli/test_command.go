@@ -21,30 +21,36 @@ import (
 )
 
 const (
-	testSuiteCheap     = "cheap"
-	testSuiteExpensive = "expensive"
-	testSuiteFull      = "full"
+	testSuiteCheap              = "cheap"
+	testSuiteExpensive          = "expensive"
+	testSuiteFull               = "full"
+	defaultPromptTimeoutSeconds = 900
 )
 
 type testCommandConfiguration struct {
-	Suite                 string
-	Prompt                string
-	DownloadDirectoryPath string
-	OutputFilePath        string
-	ResultJSONPath        string
-	RunID                 string
-	TimeoutSeconds        int
-	GenerationSeed        int64
-	GenerationTemperature float64
-	ExpectedTools         []string
-	ShouldExpectPublicURL bool
-	ShouldReuseFleet      bool
-	ShouldKeepArtifacts   bool
-	ShouldOpenFiles       bool
-	ShouldUseRealModels   bool
-	ShouldAutoConfirm     bool
-	MaximumModelTier      string
-	ScenarioNames         []string
+	Suite                      string
+	Prompt                     string
+	DownloadDirectoryPath      string
+	OutputFilePath             string
+	ResultJSONPath             string
+	RunID                      string
+	TimeoutSeconds             int
+	GenerationSeed             int64
+	GenerationTemperature      float64
+	ExpectedTools              []string
+	ShouldExpectPublicURL      bool
+	ShouldReuseFleet           bool
+	ShouldKeepArtifacts        bool
+	ShouldOpenFiles            bool
+	ShouldUseRealModels        bool
+	ShouldAutoConfirm          bool
+	MaximumModelTier           string
+	ScenarioNames              []string
+	LanguageModelProvider      string
+	LanguageModelEndpoint      string
+	LanguageModelSocket        string
+	LanguageModelAuthKeyPath   string
+	LanguageModelExecutionMode string
 }
 
 func runTest() {
@@ -76,11 +82,20 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
-	timeoutSeconds := flagSet.Int("timeout", 900, "Maximum seconds for the whole task or scenario; individual provider requests are not limited")
+	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds for the whole expensive scenario; 0 disables the deadline")
 	generationSeed := flagSet.Int64("seed", 41, "Generation seed to apply before the Mattermost prompt")
 	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL and remote desktop/mobile screenshot verification")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
+	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
+	if languageModelProviderDefault == "" {
+		languageModelProviderDefault = "openrouter"
+	}
+	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter, capability, or sdkd")
+	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
+	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM Unix socket; defaults to BLUECLAW_E2E_LLM_UNIX_SOCKET")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "SDKD installation auth key path; defaults to BLUECLAW_E2E_LLM_AUTH_KEY_PATH")
+	languageModelExecutionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode; defaults to BLUECLAW_E2E_LLM_EXECUTION_MODE")
 	expectedTools := repeatedStringFlag{}
 	scenarioNames := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event; repeat for multiple tools")
@@ -103,6 +118,11 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"expect-tool":        true,
 		"maximum-model-tier": true,
 		"scenario":           true,
+		"llm-provider":       true,
+		"llm-endpoint":       true,
+		"llm-unix-socket":    true,
+		"llm-auth-key-path":  true,
+		"llm-execution-mode": true,
 	})
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
 		return testCommandConfiguration{}, errorValue
@@ -111,8 +131,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if errorValue != nil {
 		return testCommandConfiguration{}, errorValue
 	}
-	if *timeoutSeconds <= 0 {
-		return testCommandConfiguration{}, errors.New("--timeout must be greater than 0")
+	if *timeoutSeconds < 0 {
+		return testCommandConfiguration{}, errors.New("--timeout must be 0 or greater")
 	}
 	if math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0 {
 		return testCommandConfiguration{}, errors.New("--temperature must be 0 or greater")
@@ -130,27 +150,46 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if !*useRealModels && normalizedMaximumModelTier == "" {
 		normalizedMaximumModelTier = "xlow"
 	}
+	normalizedLanguageModelProvider, errorValue := normalizeTestLanguageModelProvider(*languageModelProvider)
+	if errorValue != nil {
+		return testCommandConfiguration{}, errorValue
+	}
 	defaultDownloadDirectoryPath := filepath.Join("/tmp", "internkim-test-"+now.UTC().Format("20060102T150405"))
 	return testCommandConfiguration{
-		Suite:                 suite,
-		Prompt:                prompt,
-		DownloadDirectoryPath: defaultDownloadDirectoryPath,
-		OutputFilePath:        strings.TrimSpace(*outputFilePath),
-		ResultJSONPath:        strings.TrimSpace(*resultJSONPath),
-		RunID:                 strings.TrimSpace(*runID),
-		TimeoutSeconds:        *timeoutSeconds,
-		GenerationSeed:        *generationSeed,
-		GenerationTemperature: *generationTemperature,
-		ExpectedTools:         expectedTools.Values(),
-		ShouldExpectPublicURL: *expectPublicURL,
-		ShouldReuseFleet:      *reuseFleet,
-		ShouldKeepArtifacts:   *keepArtifacts,
-		ShouldOpenFiles:       !*noOpen,
-		ShouldUseRealModels:   *useRealModels,
-		ShouldAutoConfirm:     *autoConfirm,
-		MaximumModelTier:      normalizedMaximumModelTier,
-		ScenarioNames:         scenarioNames.Values(),
+		Suite:                      suite,
+		Prompt:                     prompt,
+		DownloadDirectoryPath:      defaultDownloadDirectoryPath,
+		OutputFilePath:             strings.TrimSpace(*outputFilePath),
+		ResultJSONPath:             strings.TrimSpace(*resultJSONPath),
+		RunID:                      strings.TrimSpace(*runID),
+		TimeoutSeconds:             *timeoutSeconds,
+		GenerationSeed:             *generationSeed,
+		GenerationTemperature:      *generationTemperature,
+		ExpectedTools:              expectedTools.Values(),
+		ShouldExpectPublicURL:      *expectPublicURL,
+		ShouldReuseFleet:           *reuseFleet,
+		ShouldKeepArtifacts:        *keepArtifacts,
+		ShouldOpenFiles:            !*noOpen,
+		ShouldUseRealModels:        *useRealModels,
+		ShouldAutoConfirm:          *autoConfirm,
+		MaximumModelTier:           normalizedMaximumModelTier,
+		ScenarioNames:              scenarioNames.Values(),
+		LanguageModelProvider:      normalizedLanguageModelProvider,
+		LanguageModelEndpoint:      strings.TrimSpace(*languageModelEndpoint),
+		LanguageModelSocket:        strings.TrimSpace(*languageModelSocket),
+		LanguageModelAuthKeyPath:   strings.TrimSpace(*languageModelAuthKeyPath),
+		LanguageModelExecutionMode: strings.TrimSpace(*languageModelExecutionMode),
 	}, nil
+}
+
+func normalizeTestLanguageModelProvider(provider string) (string, error) {
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	switch normalizedProvider {
+	case "openrouter", "capability", "sdkd":
+		return normalizedProvider, nil
+	default:
+		return "", fmt.Errorf("llm provider must be openrouter, capability, or sdkd: %s", provider)
+	}
 }
 
 func parseTestSuiteAndPrompt(positionalArguments []string) (string, string, error) {
@@ -262,6 +301,7 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 	} else {
 		fmt.Println("Maximum model tier: " + configuration.MaximumModelTier)
 	}
+	fmt.Println("LLM provider: " + configuration.LanguageModelProvider)
 	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
 		return runExpensiveScenario(contextValue, repositoryRootPath, configuration, scenario, embeddingService.endpoint)
 	})
@@ -326,7 +366,7 @@ func testStringSet(values []string) map[string]bool {
 
 func runExpensiveScenario(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration, scenario expensiveScenarioReference, embeddingEndpoint string) error {
 	timeout := time.Duration(configuration.TimeoutSeconds) * time.Second
-	scenarioContext, cancel := context.WithTimeout(contextValue, timeout)
+	scenarioContext, cancel := expensiveScenarioContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(scenario.Name))
 	arguments := []string{
@@ -343,6 +383,7 @@ func runExpensiveScenario(contextValue context.Context, repositoryRootPath strin
 	} else {
 		arguments = append(arguments, "--maximum-model-tier", configuration.MaximumModelTier)
 	}
+	arguments = appendExpensiveLanguageModelArguments(arguments, configuration)
 	command := exec.CommandContext(scenarioContext, "go", arguments...)
 	command.Dir = filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
 	command.Env = append(os.Environ(), "GOCACHE=/tmp/internkim-expensive-go-cache")
@@ -350,10 +391,38 @@ func runExpensiveScenario(contextValue context.Context, repositoryRootPath strin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	errorValue := command.Run()
-	if errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
+	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
 		return fmt.Errorf("timed out after %s", timeout)
 	}
 	return errorValue
+}
+
+func expensiveScenarioContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {
+	if timeoutSeconds <= 0 {
+		return parent, func() {}
+	}
+	return context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
+}
+
+func appendExpensiveLanguageModelArguments(arguments []string, configuration testCommandConfiguration) []string {
+	provider := strings.TrimSpace(configuration.LanguageModelProvider)
+	if provider == "" {
+		provider = "openrouter"
+	}
+	arguments = append(arguments, "--llm-provider", provider)
+	optionalArguments := [][2]string{
+		{"--llm-endpoint", configuration.LanguageModelEndpoint},
+		{"--llm-unix-socket", configuration.LanguageModelSocket},
+		{"--llm-auth-key-path", configuration.LanguageModelAuthKeyPath},
+		{"--llm-execution-mode", configuration.LanguageModelExecutionMode},
+	}
+	for _, optionalArgument := range optionalArguments {
+		if strings.TrimSpace(optionalArgument[1]) == "" {
+			continue
+		}
+		arguments = append(arguments, optionalArgument[0], optionalArgument[1])
+	}
+	return arguments
 }
 
 func safeTestScenarioName(name string) string {
@@ -375,8 +444,9 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	}
 	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
-	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, configuration.TimeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
-	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptScriptSSHTimeout(configuration.TimeoutSeconds, configuration.ShouldExpectPublicURL))
+	timeoutSeconds := promptTimeoutSeconds(configuration.TimeoutSeconds)
+	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, timeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
+	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptScriptSSHTimeout(timeoutSeconds, configuration.ShouldExpectPublicURL))
 	if errorValue != nil {
 		if strings.TrimSpace(output) != "" {
 			fmt.Print(redactDownloadedMattermostFiles(output))
@@ -407,6 +477,13 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	}
 	printTestResult(verificationOutput, downloadedFilePaths)
 	return openDownloadedTestFiles(downloadedFilePaths, configuration.ShouldOpenFiles)
+}
+
+func promptTimeoutSeconds(timeoutSeconds int) int {
+	if timeoutSeconds <= 0 {
+		return defaultPromptTimeoutSeconds
+	}
+	return timeoutSeconds
 }
 
 func fetchTestTaskDetailJSON(target verifyTarget, taskRunID string) (json.RawMessage, string) {
