@@ -73,7 +73,7 @@ func calendarEventWindowMutationRangeFor(event calendarEvent) (calendarEventWind
 		return calendarEventWindowMutationRange{}, fmt.Errorf("calendar event %s cache invalidation range is empty", event.ID)
 	}
 	return calendarEventWindowMutationRange{
-		StartISO: startTime.UTC().Format(time.RFC3339Nano),
-		EndISO:   endTime.UTC().Format(time.RFC3339Nano),
+		StartISO: formatCalendarEventWindowCacheTimestamp(startTime),
+		EndISO:   formatCalendarEventWindowCacheTimestamp(endTime),
 	}, nil
 }

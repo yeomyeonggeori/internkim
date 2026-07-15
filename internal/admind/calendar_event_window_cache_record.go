@@ -2,8 +2,9 @@ package admind
 
 import "time"
 
-const calendarEventWindowCacheSchemaVersion = 1
+const calendarEventWindowCacheSchemaVersion = 2
 const calendarEventWindowCacheMaximumEntries = 64
+const calendarEventWindowCacheTimestampLayout = "2006-01-02T15:04:05.000000000Z"
 
 type calendarEventWindowCacheRange struct {
 	Key      string
@@ -20,11 +21,15 @@ func calendarEventWindowCacheRangeFor(startTime time.Time, endTime time.Time) (c
 	if startTime.IsZero() || endTime.IsZero() || !startTime.Before(endTime) {
 		return calendarEventWindowCacheRange{}, false
 	}
-	startISO := startTime.UTC().Format(time.RFC3339Nano)
-	endISO := endTime.UTC().Format(time.RFC3339Nano)
+	startISO := formatCalendarEventWindowCacheTimestamp(startTime)
+	endISO := formatCalendarEventWindowCacheTimestamp(endTime)
 	return calendarEventWindowCacheRange{
 		Key:      startISO + "/" + endISO,
 		StartISO: startISO,
 		EndISO:   endISO,
 	}, true
+}
+
+func formatCalendarEventWindowCacheTimestamp(value time.Time) string {
+	return value.UTC().Format(calendarEventWindowCacheTimestampLayout)
 }
