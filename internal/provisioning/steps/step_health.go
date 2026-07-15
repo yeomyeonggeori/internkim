@@ -176,9 +176,9 @@ func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
 import json
 import sys
+import urllib.request
 
 state_path = "/root/.internkim/state/users-sync.json"
-policy_path = "/root/.blueclaw/config/policy.json"
 try:
     with open(state_path) as file:
         desired = set(json.load(file).get("users", []))
@@ -191,8 +191,8 @@ if not desired:
     raise SystemExit
 
 try:
-    with open(policy_path) as file:
-        policy = json.load(file)
+    with urllib.request.urlopen("http://127.0.0.1:8080/admin/api/policy") as response:
+        policy = json.load(response)
 except Exception:
     print("policy-missing")
     raise SystemExit(1)
