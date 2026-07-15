@@ -185,9 +185,8 @@ export class AttendanceState {
 		try {
 			const summary = await fetchAttendanceSummary({ month: this.selectedMonth });
 			const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
-			if (!serverClock) return false;
 			this.applyServerClock(serverClock, requestSequence);
-			return true;
+			return serverClock !== null;
 		} catch (error) {
 			if (error instanceof Error) return false;
 			throw error;
@@ -198,11 +197,11 @@ export class AttendanceState {
 		const requestSequence = ++this.serverClockRequestSequence;
 		const summary = await fetchAttendanceSummary({ month });
 		const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
-		if (serverClock) this.applyServerClock(serverClock, requestSequence);
+		this.applyServerClock(serverClock, requestSequence);
 		return summary;
 	}
 
-	private applyServerClock(serverClock: AttendanceServerClock, requestSequence: number): void {
+	private applyServerClock(serverClock: AttendanceServerClock | null, requestSequence: number): void {
 		if (requestSequence <= this.appliedServerClockRequestSequence) return;
 		this.serverClock = serverClock;
 		this.appliedServerClockRequestSequence = requestSequence;
