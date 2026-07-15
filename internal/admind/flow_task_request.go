@@ -69,9 +69,11 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		return flowTask{}, flowValidationError("size is not allowed")
 	}
 	now := flowDateNow()
-	if errorValue := validateFlowTaskWeekCode(payload.WeekCode, now); errorValue != nil {
+	canonicalWeekCode, errorValue := canonicalFlowTaskWeekCode(payload.WeekCode, now)
+	if errorValue != nil {
 		return flowTask{}, errorValue
 	}
+	payload.WeekCode = canonicalWeekCode
 	if errorValue := validateFlowTaskDateInput(payload.StartDate, payload.EndDate, now.Location()); errorValue != nil {
 		return flowTask{}, errorValue
 	}

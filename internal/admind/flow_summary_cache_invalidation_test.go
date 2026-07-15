@@ -49,7 +49,7 @@ func TestFlowSummaryCacheInvalidatesDeletedTaskScopes(t *testing.T) {
 func TestFlowSummaryCacheRepairsLegacyMalformedTask(t *testing.T) {
 	service := newFlowSummaryCacheTestService(t)
 	ctx := context.Background()
-	insertLegacyMalformedFlowTask(t, service, "legacy-update")
+	insertLegacyMalformedFlowTask(t, service, "legacy-update", "")
 	task := flowSummaryInvalidationTask("legacy-update", "26W28", "2026-07-06", "2026-07-07", flowStatusInProgress, 1024)
 
 	if errorValue := service.writeFlowTask(ctx, task); errorValue != nil {
@@ -68,7 +68,7 @@ func TestFlowSummaryCacheRepairsLegacyMalformedTask(t *testing.T) {
 func TestFlowSummaryCacheDeletesLegacyMalformedTask(t *testing.T) {
 	service := newFlowSummaryCacheTestService(t)
 	ctx := context.Background()
-	insertLegacyMalformedFlowTask(t, service, "legacy-delete")
+	insertLegacyMalformedFlowTask(t, service, "legacy-delete", "")
 
 	if errorValue := service.deleteFlowTaskByID(ctx, "legacy-delete"); errorValue != nil {
 		t.Fatal(errorValue)
@@ -166,6 +166,22 @@ func TestFlowSummaryCacheInvalidatesMattermostPostWeek(t *testing.T) {
 	assertFlowSummarySourceRevision(t, service, flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: "26W28"}, 3)
 }
 
+func TestFlowSummaryCacheClearsMattermostPostForLegacyMalformedWeek(t *testing.T) {
+	service := newFlowSummaryCacheTestService(t)
+	ctx := context.Background()
+	insertLegacyMalformedFlowTask(t, service, "legacy-post-clear", "legacy-post")
+
+	if errorValue := service.updateFlowTaskMattermostPostID(ctx, "legacy-post-clear", ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	task := readFlowTaskByIDForTest(t, service, "legacy-post-clear")
+	if task.MattermostPostID != "" {
+		t.Fatalf("mattermost post id = %q, want empty", task.MattermostPostID)
+	}
+	assertFlowSummarySourceRevisionRowCount(t, service, 0)
+}
+
 func TestFlowSummaryCacheInvalidatesDefinitions(t *testing.T) {
 	service := newFlowSummaryCacheTestService(t)
 	definitions := flowDefinitions{Types: []string{"회의"}, Sizes: defaultFlowSizeDefinitions()}
@@ -229,7 +245,7 @@ func assertFlowSummarySourceRevision(t *testing.T, service *Service, key flowSum
 	}
 }
 
-func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string) {
+func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string, mattermostPostID string) {
 	t.Helper()
 	database, errorValue := service.openFlowDatabase(context.Background())
 	if errorValue != nil {
@@ -258,7 +274,7 @@ func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string
 		0,
 		"",
 		"",
-		"",
+		mattermostPostID,
 		"2026-07-01T00:00:00Z",
 		"2026-07-01T00:00:00Z",
 	)
