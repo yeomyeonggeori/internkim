@@ -181,6 +181,10 @@ func TestMattermostScenarioOutputFragmentExcludesCapabilityRequestEcho(t *testin
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 1 {
 		t.Fatalf("expected output data to match, got %d", count)
 	}
+	events[0].Body = `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"summary":"고객지원 분기 결산 검토 완료"}`
+	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 0 {
+		t.Fatalf("expected summary text to be excluded, got %d", count)
+	}
 }
 
 func TestMattermostScenarioAnyToolExpectationNeedsOneCandidate(t *testing.T) {

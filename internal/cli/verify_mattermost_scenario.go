@@ -562,13 +562,12 @@ func countMattermostScenarioExpectedEvents(events []mattermostScenarioTaskEvent,
 
 func capabilityResultOutputContains(body string, fragment string) bool {
 	var result struct {
-		Output  json.RawMessage `json:"output"`
-		Summary json.RawMessage `json:"summary"`
+		Output json.RawMessage `json:"output"`
 	}
 	if json.Unmarshal([]byte(body), &result) != nil {
 		return false
 	}
-	return bytes.Contains(result.Output, []byte(fragment)) || bytes.Contains(result.Summary, []byte(fragment))
+	return bytes.Contains(result.Output, []byte(fragment))
 }
 
 func countMattermostScenarioToolEvents(events []mattermostScenarioTaskEvent, toolName string) int {
