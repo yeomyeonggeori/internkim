@@ -31,6 +31,10 @@ type mattermostScenarioToolDescriptor struct {
 	RequiresApproval bool   `json:"requiresApproval"`
 }
 
+type mattermostScenarioApprovalAction string
+
+const mattermostScenarioApprovalApprove mattermostScenarioApprovalAction = "approve"
+
 type mattermostScenarioStep struct {
 	Prompt                  string                            `json:"prompt"`
 	ExpectedToolCalls       []string                          `json:"expectedToolCalls"`
@@ -49,6 +53,7 @@ type mattermostScenarioStep struct {
 	RequiresPublicURL       bool                              `json:"requiresPublicURL"`
 	ExpectedPublicText      []string                          `json:"expectedPublicText"`
 	ExpectedPublicControls  []string                          `json:"expectedPublicControls"`
+	ApprovalAction          mattermostScenarioApprovalAction  `json:"approvalAction"`
 }
 
 type mattermostScenarioEventCount struct {
@@ -201,6 +206,9 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 	}
 	if step.MinimumReplyLength < 0 {
 		return fmt.Errorf("Mattermost scenario step %d minimumReplyLength cannot be negative", stepIndex)
+	}
+	if step.ApprovalAction != "" && step.ApprovalAction != mattermostScenarioApprovalApprove {
+		return fmt.Errorf("Mattermost scenario step %d approvalAction %q is unsupported", stepIndex, step.ApprovalAction)
 	}
 	for toolName, count := range step.ExpectedToolCallCounts {
 		if strings.TrimSpace(toolName) == "" || count < 0 {

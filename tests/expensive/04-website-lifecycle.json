@@ -58,17 +58,11 @@
     },
     {
       "prompt": "방금 배포한 '브릿지웍스 상담 안내' 웹사이트를 삭제해줘.",
-      "expectedEvents": ["confirmation.requested"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1}
-      ],
-      "expectedTaskStatus": "waiting_approval"
-    },
-    {
-      "prompt": "웹사이트 삭제 승인할게.",
+      "approvalAction": "approve",
       "expectedToolCalls": ["site.delete"],
-      "expectedEvents": ["approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1},
         {"name": "tool.capability.invoke.result", "outputFragment": "deleted", "count": 1}
       ],
       "forbiddenWorkspaceFiles": ["circles/staff/sites/*"],

@@ -38,18 +38,11 @@
     },
     {
       "prompt": "방금 수정한 '고객지원팀 분기 결산 검토'를 삭제해줘.",
+      "approvalAction": "approve",
       "expectedToolCalls": ["calendar.delete"],
-      "expectedEvents": ["confirmation.requested"],
+      "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1}
-      ],
-      "expectedTaskStatus": "waiting_approval"
-    },
-    {
-      "prompt": "회의 삭제 승인할게.",
-      "expectedToolCalls": ["calendar.delete"],
-      "expectedEvents": ["approval.executed"],
-      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1},
         {"name": "tool.capability.invoke.result", "outputFragment": "deleted", "count": 1}
       ],
       "expectedTaskStatus": "completed"

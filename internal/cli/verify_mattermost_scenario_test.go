@@ -164,6 +164,14 @@ func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioRejectsUnsupportedApprovalAction(t *testing.T) {
+	scenario := mattermostScenario{Name: "approval", Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: "accept"}}}
+	errorValue := validateMattermostScenario(scenario)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), `approvalAction "accept" is unsupported`) {
+		t.Fatalf("unexpected error: %v", errorValue)
+	}
+}
+
 func TestMattermostScenarioOutputFragmentExcludesCapabilityRequestEcho(t *testing.T) {
 	expectation := mattermostScenarioEventCount{
 		Name:           "tool.capability.invoke.result",
