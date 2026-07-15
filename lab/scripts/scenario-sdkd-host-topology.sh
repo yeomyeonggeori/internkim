@@ -45,6 +45,17 @@ replace_host_runtime_config() {
   fi
 }
 
+wait_for_blueclaw() {
+  for _ in $(seq 1 60); do
+    if curl --fail --silent --max-time 3 http://127.0.0.1:8080/admin/api/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+  systemctl status "$blueclaw_service_name" --no-pager >&2
+  return 1
+}
+
 sync_workspace_runtime_config() {
   systemctl stop "$blueclaw_service_name" >/dev/null 2>&1 || true
   for _ in $(seq 1 20); do
@@ -62,6 +73,7 @@ sync_workspace_runtime_config() {
     --source "$workspace_sync_source" || sync_status=$?
   systemctl start "$blueclaw_service_name"
   systemctl is-active "$blueclaw_service_name" 2>/dev/null
+  wait_for_blueclaw
   return "$sync_status"
 }
 
