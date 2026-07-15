@@ -14,6 +14,8 @@ type fakeMattermostProbeAPI struct {
 	fileContents     map[string][]byte
 	deletedPostIDs   []string
 	deletedUserIDs   []string
+	deletePostError  error
+	deleteUserError  error
 }
 
 func (fake *fakeMattermostProbeAPI) Login(context.Context, string, string) (string, error) {
@@ -58,12 +60,12 @@ func (fake *fakeMattermostProbeAPI) DownloadFile(_ context.Context, _ string, fi
 
 func (fake *fakeMattermostProbeAPI) DeletePost(_ context.Context, _ string, postID string) error {
 	fake.deletedPostIDs = append(fake.deletedPostIDs, postID)
-	return nil
+	return fake.deletePostError
 }
 
-func (fake *fakeMattermostProbeAPI) DeleteUserPermanently(_ context.Context, _ string, userID string) error {
+func (fake *fakeMattermostProbeAPI) DeleteUser(_ context.Context, _ string, userID string) error {
 	fake.deletedUserIDs = append(fake.deletedUserIDs, userID)
-	return nil
+	return fake.deleteUserError
 }
 
 type fakeMattermostScenarioAdminAPI struct {
@@ -73,6 +75,7 @@ type fakeMattermostScenarioAdminAPI struct {
 	workspaceFileError error
 	conversationIDs    []string
 	cleanupCount       int
+	cleanupError       error
 }
 
 func (fake *fakeMattermostScenarioAdminAPI) readSecret(context.Context, string) (string, error) {
@@ -104,7 +107,7 @@ func (fake *fakeMattermostScenarioAdminAPI) workspaceFiles(_ context.Context, st
 
 func (fake *fakeMattermostScenarioAdminAPI) cleanup(context.Context, mattermostScenarioResult, string) error {
 	fake.cleanupCount++
-	return nil
+	return fake.cleanupError
 }
 
 func newTestMattermostScenarioSession(scenario mattermostScenario, mattermost mattermostProbeAPI, admin mattermostScenarioAdminAPI) *mattermostScenarioSession {
@@ -402,6 +405,24 @@ func TestMattermostScenarioCleanupIsIdempotent(t *testing.T) {
 	}
 	if errorValue := session.cleanup(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 1 || len(mattermost.deletedPostIDs) != 2 || len(mattermost.deletedUserIDs) != 1 {
+		t.Fatalf("admin=%d posts=%v users=%v", admin.cleanupCount, mattermost.deletedPostIDs, mattermost.deletedUserIDs)
+	}
+}
+
+func TestMattermostScenarioCleanupAttemptsEveryResourceAfterFailures(t *testing.T) {
+	postError := errors.New("post cleanup failed")
+	userError := errors.New("user cleanup failed")
+	adminError := errors.New("workspace cleanup failed")
+	mattermost := &fakeMattermostProbeAPI{deletePostError: postError, deleteUserError: userError}
+	admin := &fakeMattermostScenarioAdminAPI{cleanupError: adminError}
+	session := newTestMattermostScenarioSession(mattermostScenario{}, mattermost, admin)
+	session.result.Posts = []mattermostScenarioPost{{ID: "user-post"}, {ID: "bot-post"}}
+
+	errorValue := session.cleanup(context.Background())
+	if !errors.Is(errorValue, adminError) || !errors.Is(errorValue, postError) || !errors.Is(errorValue, userError) {
+		t.Fatalf("cleanup error = %v", errorValue)
 	}
 	if admin.cleanupCount != 1 || len(mattermost.deletedPostIDs) != 2 || len(mattermost.deletedUserIDs) != 1 {
 		t.Fatalf("admin=%d posts=%v users=%v", admin.cleanupCount, mattermost.deletedPostIDs, mattermost.deletedUserIDs)

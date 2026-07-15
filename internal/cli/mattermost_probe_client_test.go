@@ -111,7 +111,7 @@ func TestMattermostProbeClientLifecycle(t *testing.T) {
 	if errorValue := client.DeletePost(contextValue, token, post.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := client.DeleteUserPermanently(contextValue, token, createdUser.ID); errorValue != nil {
+	if errorValue := client.DeleteUser(contextValue, token, createdUser.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	expectedRequests := []string{
@@ -130,6 +130,50 @@ func TestMattermostProbeClientLifecycle(t *testing.T) {
 	}
 	if !reflect.DeepEqual(requests, expectedRequests) {
 		t.Fatalf("requests = %#v", requests)
+	}
+}
+
+func TestMattermostProbeClientDeactivatesUserWhenPermanentDeletionRejectsDirectChannel(t *testing.T) {
+	requests := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.Method+" "+request.URL.RequestURI())
+		if request.URL.Query().Get("permanent") == "true" {
+			writeJSONDocument(t, responseWriter, http.StatusBadRequest, `{"message":"Cannot delete a direct message channel"}`)
+			return
+		}
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	client, errorValue := newMattermostProbeClient(server.URL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := client.DeleteUser(context.Background(), "token", "probe/id"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedRequests := []string{
+		"DELETE /api/v4/users/probe%2Fid?permanent=true",
+		"DELETE /api/v4/users/probe%2Fid",
+	}
+	if !reflect.DeepEqual(requests, expectedRequests) {
+		t.Fatalf("requests = %#v", requests)
+	}
+}
+
+func TestMattermostProbeClientReportsBothUserDeletionFailures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		writeJSONDocument(t, responseWriter, http.StatusForbidden, `{"message":"deletion denied"}`)
+	}))
+	defer server.Close()
+	client, errorValue := newMattermostProbeClient(server.URL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue = client.DeleteUser(context.Background(), "token", "probe")
+	if errorValue == nil || strings.Count(errorValue.Error(), "returned HTTP 403") != 2 {
+		t.Fatalf("error = %v", errorValue)
 	}
 }
 
