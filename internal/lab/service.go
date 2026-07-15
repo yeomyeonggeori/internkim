@@ -220,6 +220,8 @@ func (service Service) VirtualMachineSSH(ctx context.Context, remoteArguments []
 		"StrictHostKeyChecking=no",
 		"-o",
 		"UserKnownHostsFile=/dev/null",
+		"-o",
+		"LogLevel=ERROR",
 		service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress,
 	}
 	commandArguments = append(commandArguments, remoteArguments...)
