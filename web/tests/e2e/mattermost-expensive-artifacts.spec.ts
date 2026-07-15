@@ -14,6 +14,7 @@ const expectedPublicURL = process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL?.tr
 const siteProxyURL = process.env.INTERNKIM_SITE_PROXY_URL?.trim() ?? '';
 const expectedPublicText = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT);
 const expectedPublicControls = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS);
+const approvalAction = process.env.INTERNKIM_MATTERMOST_APPROVAL_ACTION?.trim() ?? '';
 const teamName = process.env.INTERNKIM_MATTERMOST_TEAM_NAME?.trim() || 'internkim';
 const verify = expect.configure({ timeout: 0 });
 
@@ -31,6 +32,9 @@ test('captures real Mattermost expensive scenario artifacts', async ({ page }) =
 	await verify(botReply).toBeVisible();
 	await verify(botReply).not.toBeEmpty();
 	await page.screenshot({ path: join(artifactDirectory, 'mattermost-dm.png'), fullPage: true });
+	if (approvalAction !== '') {
+		await performApprovalAction(botReply, page);
+	}
 
 	for (const expectedAttachment of expectedAttachments) {
 		await saveAttachment(page, expectedAttachment);
@@ -39,6 +43,21 @@ test('captures real Mattermost expensive scenario artifacts', async ({ page }) =
 		await verifyPublicSite(botReply, page);
 	}
 });
+
+async function performApprovalAction(botReply: Locator, page: Page): Promise<void> {
+	if (approvalAction !== 'approve') {
+		throw new Error(`Unsupported Mattermost approval action: ${approvalAction}`);
+	}
+	const approvalButton = botReply.getByRole('button', { name: /approve|confirm|승인|확인/i }).first();
+	await verify(approvalButton).toBeVisible();
+	await page.screenshot({ path: join(artifactDirectory, 'approval-before.png'), fullPage: true });
+	const actionResponse = page.waitForResponse((response) =>
+		/\/api\/v4\/posts\/[^/]+\/actions\/[^/]+/.test(new URL(response.url()).pathname) && response.ok(),
+	);
+	await approvalButton.click();
+	await actionResponse;
+	await page.screenshot({ path: join(artifactDirectory, 'approval-after.png'), fullPage: true });
+}
 
 function hasRequiredEnvironment(): boolean {
 	return mattermostURL !== '' && probeUsername !== '' && probePassword !== '' && artifactDirectory !== '' &&

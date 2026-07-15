@@ -46,6 +46,7 @@ type mattermostScenarioSession struct {
 	result            mattermostScenarioResult
 	startedAt         time.Time
 	poll              func(context.Context) error
+	shouldAutoConfirm bool
 	cleanupMutex      sync.Mutex
 	isCleanupFinished bool
 }
@@ -159,8 +160,20 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 		if errorValue := session.runStep(contextValue, stepIndex); errorValue != nil {
 			return errorValue
 		}
+		step := session.scenario.Steps[stepIndex]
+		if step.ApprovalAction != "" && !session.shouldAutoConfirm {
+			return errors.New("Mattermost scenario approval action requires --auto-confirm")
+		}
 		if hook != nil {
 			if errorValue := hook(contextValue, session.execution(), stepIndex); errorValue != nil {
+				return errorValue
+			}
+		}
+		if step.ApprovalAction != "" {
+			if errorValue := session.finishApprovalStep(contextValue, stepIndex); errorValue != nil {
+				return errorValue
+			}
+			if errorValue := validateMattermostScenarioStep(stepIndex, step, session.result.Steps[stepIndex], &session.result); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -210,10 +223,57 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 		return errorValue
 	}
 	stepResult.WorkspaceFiles = workspaceFiles
+	if step.ApprovalAction != "" {
+		return nil
+	}
 	return validateMattermostScenarioStep(stepIndex, step, *stepResult, &session.result)
 }
 
+func (session *mattermostScenarioSession) finishApprovalStep(contextValue context.Context, stepIndex int) error {
+	stepResult := &session.result.Steps[stepIndex]
+	detail, newEvents, errorValue := session.waitForApprovalCompletion(contextValue, stepResult.TaskRunID, stepResult.TaskEvents)
+	stepResult.TaskStatus = detail.TaskRun.Status
+	stepResult.TaskEvents = append(stepResult.TaskEvents, newEvents...)
+	setMattermostScenarioStepMetrics(stepResult)
+	stepResult.PublicURL = findMattermostScenarioEventPublicURL(stepResult.TaskEvents)
+	if errorValue != nil {
+		return errorValue
+	}
+	botPost, errorValue := session.waitForStepReply(contextValue, 0)
+	if errorValue != nil {
+		return errorValue
+	}
+	stepResult.BotMessage = botPost.Message
+	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(botPost))
+	stepResult.Attachments, errorValue = session.downloadAttachments(contextValue, botPost.FileIDs)
+	if errorValue != nil {
+		return errorValue
+	}
+	stepResult.WorkspaceFiles, errorValue = session.admin.workspaceFiles(contextValue, session.scenario.Steps[stepIndex])
+	return errorValue
+}
+
+func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue context.Context, taskRunID string, previousEvents []mattermostScenarioTaskEvent) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, error) {
+	previousEventIDs := mattermostScenarioEventIDSet(previousEvents)
+	for {
+		detail, errorValue := session.admin.taskDetail(contextValue, taskRunID)
+		if errorValue != nil {
+			return mattermostScenarioTaskDetail{}, nil, errorValue
+		}
+		newEvents := mattermostScenarioNewEvents(detail.TaskEvents, previousEventIDs)
+		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && len(newEvents) > 0 {
+			return detail, newEvents, nil
+		}
+		if errorValue := session.poll(contextValue); errorValue != nil {
+			return detail, newEvents, errorValue
+		}
+	}
+}
+
 func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {
+	result.LLMCallCount = 0
+	result.AgentStepCount = 0
+	result.ToolCallCount = 0
 	for _, event := range result.TaskEvents {
 		if event.Name == "llm.call" {
 			result.LLMCallCount++

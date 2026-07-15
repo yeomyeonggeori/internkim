@@ -5,8 +5,8 @@ Its steps share one virtual session, stop at the first failure, and pass only
 when every step satisfies its strict assertions.
 
 ```bash
-./internkim test expensive
-./internkim test expensive --scenario task-lifecycle
+./internkim test expensive --auto-confirm
+./internkim test expensive --scenario task-lifecycle --auto-confirm
 ./internkim test expensive --scenario document-lifecycle
 ./internkim test expensive --maximum-model-tier high
 ./internkim test expensive --real
@@ -22,3 +22,6 @@ ceiling.
 
 `cheap` runs only non-paid checks. `expensive` does not include `cheap`.
 `full` runs `cheap` first and then every expensive scenario.
+
+Task, calendar, and website lifecycle scenarios use `--auto-confirm` to click
+real Mattermost approval buttons and wait for the approved task to finish.

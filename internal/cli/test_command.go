@@ -457,11 +457,12 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if errorValue != nil {
 		return errorValue
 	}
+	session.shouldAutoConfirm = configuration.ShouldAutoConfirm
 	runError := session.run(scenarioContext, func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
 		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
 			return errorValue
 		}
-		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex)
+		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex, configuration.ShouldAutoConfirm)
 	})
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
 	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
