@@ -87,10 +87,11 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 			continue
 		}
 		if row.AttemptCount >= calendarOutboxMaxAttempts {
-			log.Printf("calendar outbox row %d (event %s) dropped after %d attempts: %s",
+			log.Printf("calendar outbox row %d (event %s) blocked after %d attempts: %s",
 				row.ID, row.EventUID, row.AttemptCount, row.LastError)
-			if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
-				log.Printf("outbox cap drop %d: %v", row.ID, errorValue)
+			failedAt := time.Now().UTC().Format(time.RFC3339Nano)
+			if errorValue := service.markCalendarOutboxBlocked(ctx, row.ID, failedAt, row.LastError); errorValue != nil {
+				log.Printf("outbox block %d: %v", row.ID, errorValue)
 			}
 			continue
 		}
@@ -132,7 +133,7 @@ func (service *Service) processCalendarOutboxRow(ctx context.Context, account re
 	case calendarOutboxOperationPut:
 		return service.pushCalendarOutboxPut(ctx, account, client, row)
 	case calendarOutboxOperationDelete:
-		return false, service.pushCalendarOutboxDelete(ctx, client, row)
+		return false, service.pushCalendarOutboxDelete(ctx, account, client, row)
 	}
 	return false, fmt.Errorf("unknown outbox operation %q", row.Operation)
 }
@@ -155,6 +156,9 @@ func (service *Service) pushCalendarOutboxPut(ctx context.Context, account remot
 		if isCalDAVPreconditionFailed(errorValue) {
 			return service.handleCalendarPushConflict(ctx, account, client, row, event, objectPath)
 		}
+		if isCalDAVObjectNotFound(errorValue) {
+			return service.reconcileCalendarRemoteDeletionDuringPush(ctx, account, client, row, event, time.Now().UTC())
+		}
 		return false, errorValue
 	}
 	return true, service.applyCalendarPushSuccess(ctx, event, objectPath, newETag, ics)
@@ -163,6 +167,9 @@ func (service *Service) pushCalendarOutboxPut(ctx context.Context, account remot
 func (service *Service) handleCalendarPushConflict(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, localEvent calendarEvent, objectPath string) (bool, error) {
 	remoteObject, errorValue := client.getCalendarObject(ctx, objectPath)
 	if errorValue != nil {
+		if isCalDAVObjectNotFound(errorValue) {
+			return service.reconcileCalendarRemoteDeletionDuringPush(ctx, account, client, row, localEvent, time.Now().UTC())
+		}
 		log.Printf("calendar push conflict fetch failed for %s: %v", localEvent.UID, errorValue)
 		return false, errorValue
 	}
@@ -174,8 +181,16 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	if errorValue := service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, row.ChangedFields); errorValue != nil {
 		return false, errorValue
 	}
-	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, row.ChangedFields)
-	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, row.ChangedFields)
+	previousRemote := decodeCalendarEventFromRawICS(localEvent.RawICS, localEvent.RemoteHref, localEvent.CreatedByEmail)
+	remoteChangedFields := diffCalendarEventFields(previousRemote, remoteEvent)
+	localChangedAt := parseCalendarConflictTime(row.CreatedAt)
+	fieldChangedAt := map[string]time.Time{}
+	for _, field := range row.ChangedFields {
+		fieldChangedAt[field] = localChangedAt
+	}
+	localWinningFields := selectCalendarLocalWinningFields(row.ChangedFields, remoteChangedFields, fieldChangedAt, parseCalendarConflictTime(remoteEvent.RemoteModifiedAt))
+	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, localWinningFields)
+	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, localWinningFields)
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
 	mergedEvent.CreatedByName = localEvent.CreatedByName
@@ -183,6 +198,9 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	mergedEvent.UpdatedByName = localEvent.UpdatedByName
 	mergedEvent.UpdatedByAt = localEvent.UpdatedByAt
 	mergedEvent.MattermostPostID = localEvent.MattermostPostID
+	if len(localWinningFields) == 0 {
+		return false, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, remoteObject.ETag, remoteObject.Data)
+	}
 	mergedICS, errorValue := encodeEventToICS(mergedEvent)
 	if errorValue != nil {
 		return false, errorValue
@@ -194,7 +212,7 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		}
 		return false, errorValue
 	}
-	log.Printf("calendar push conflict resolved for %s — merged %d local field(s) over remote update", localEvent.UID, len(row.ChangedFields))
+	log.Printf("calendar push conflict resolved for %s — merged %d local field(s) over remote update", localEvent.UID, len(localWinningFields))
 	return true, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, newETag, mergedICS)
 }
 
@@ -218,14 +236,13 @@ func (service *Service) applyCalendarPushSuccess(ctx context.Context, event cale
 	return service.writeCalendarEventWithSource(ctx, event, calendarSourcePull)
 }
 
-func (service *Service) pushCalendarOutboxDelete(ctx context.Context, client calDAVPushClient, row calendarOutboxRow) error {
+func (service *Service) pushCalendarOutboxDelete(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) error {
 	if strings.TrimSpace(row.RemoteHref) == "" {
 		return nil
 	}
 	errorValue := client.deleteCalendarObject(ctx, row.RemoteHref, row.IfMatchETag)
 	if errorValue != nil && isCalDAVPreconditionFailed(errorValue) {
-		log.Printf("calendar push delete conflict on event %s — google version wins on next pull", row.EventUID)
-		return nil
+		return service.reconcileCalendarLocalDeletionDuringPush(ctx, account, client, row, time.Now().UTC())
 	}
 	return errorValue
 }
