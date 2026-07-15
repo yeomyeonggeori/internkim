@@ -44,3 +44,29 @@ test('stops emitting after cleanup following a rescheduled tick', () => {
 	jest.advanceTimersByTime(180_000);
 	expect(emittedTimes.length).toBe(2);
 });
+
+test('schedules the next minute from the provided clock', () => {
+	jest.useFakeTimers();
+	jest.setSystemTime(new Date('2026-07-15T06:00:01.750Z'));
+	const emittedTimes: Date[] = [];
+	let providedTimeIndex = 0;
+	const getCurrentTime = () =>
+		providedTimeIndex++ === 0
+			? new Date('2026-07-15T06:00:00.000Z')
+			: new Date('2026-07-15T06:01:00.000Z');
+	const stopClock = startAttendanceMinuteClock(
+		(currentTime) => emittedTimes.push(currentTime),
+		getCurrentTime
+	);
+
+	expect(emittedTimes.map((time) => time.toISOString())).toEqual(['2026-07-15T06:00:00.000Z']);
+	jest.advanceTimersByTime(59_999);
+	expect(emittedTimes.length).toBe(1);
+	jest.advanceTimersByTime(1);
+	expect(emittedTimes.map((time) => time.toISOString())).toEqual([
+		'2026-07-15T06:00:00.000Z',
+		'2026-07-15T06:01:00.000Z'
+	]);
+
+	stopClock();
+});
