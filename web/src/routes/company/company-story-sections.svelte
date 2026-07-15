@@ -112,7 +112,7 @@
 	}
 
 	function displayRecordCategory(category: string): string {
-		return text.recordCategories[category] ?? category;
+		return text.recordCategories[category] ?? companyMetricLabel(category);
 	}
 
 	function displayDocumentType(documentType: string): string {
