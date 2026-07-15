@@ -3,9 +3,9 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -17,7 +17,7 @@ type adminDatabaseSchemas struct {
 }
 
 type sqliteDatabaseOptions struct {
-	dataSourceParameters []string
+	transactionLock string
 }
 
 func newAdminDatabaseSchemas() *adminDatabaseSchemas {
@@ -53,13 +53,15 @@ func sqliteDatabaseDSN(databasePath string) string {
 }
 
 func sqliteDatabaseDSNWithOptions(databasePath string, options sqliteDatabaseOptions) string {
-	parameters := []string{"_pragma=journal_mode(WAL)", "_pragma=busy_timeout(5000)", "_pragma=foreign_keys(on)"}
-	parameters = append(parameters, options.dataSourceParameters...)
-	separator := "?"
-	if strings.Contains(databasePath, "?") {
-		separator = "&"
+	query := url.Values{}
+	query.Add("_pragma", "journal_mode(WAL)")
+	query.Add("_pragma", "busy_timeout(5000)")
+	query.Add("_pragma", "foreign_keys(on)")
+	if options.transactionLock != "" {
+		query.Set("_txlock", options.transactionLock)
 	}
-	return databasePath + separator + strings.Join(parameters, "&")
+	databaseURL := url.URL{Scheme: "file", Path: databasePath, RawQuery: query.Encode()}
+	return databaseURL.String()
 }
 
 func configureSQLiteDatabase(database *sql.DB) {
