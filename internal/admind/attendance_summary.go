@@ -73,15 +73,17 @@ func (service *Service) writeAttendanceSummaryWithReaders(
 		}
 		visibleEvents = filtered
 	}
+	serverTime := time.Now().UTC()
 	service.writeJSON(responseWriter, attendanceSummaryResponse{
 		Month:                month,
+		ServerTime:           serverTime.Format(time.RFC3339Nano),
 		CurrentUserEmail:     actorEmail,
 		IsAdmin:              isAdmin,
 		TimeZone:             timeZoneName,
 		Events:               visibleEvents,
 		Absences:             projectAttendanceAbsences(absences, actorEmail, isAdmin),
 		Members:              members,
-		TodayStatus:          attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02"), time.Now().UTC()),
+		TodayStatus:          attendanceStatusForEvents(statusEvents, serverTime.In(location).Format("2006-01-02"), serverTime),
 		Locations:            locations,
 		TeamViewVisibleToAll: teamVisible,
 		TeamViewBlocked:      teamViewBlocked,
