@@ -153,7 +153,7 @@ func assertHostRuntimeCommands(t *testing.T, commands []ExecutableCommand) {
 		{"-c"},
 		{"-c"},
 		{"-c"},
-		{"sync-workspace", "--workspace-image"},
+		{"sync-workspace", "--atomic", "--preserve-guest-state", "--workspace-image"},
 		{"daemon-reload"},
 		{"enable", "internkim-tenant-graphiti-pilot-01.service"},
 		{"restart", "internkim-tenant-graphiti-pilot-01.service"},
