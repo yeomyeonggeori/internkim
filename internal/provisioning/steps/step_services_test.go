@@ -248,7 +248,7 @@ func TestCloudSharedServicesUseRemoteInferenceMode(t *testing.T) {
 func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 	command := blueclawServiceHealthReportCommand(&Context{
 		BoardType:    BoardJetsonOrinNano,
-		PlannedSteps: map[string]bool{"local-llm": true},
+		PlannedSteps: map[string]bool{"local-llm": true, "mattermost": true},
 	})
 
 	for _, expectedValue := range []string{
@@ -317,6 +317,60 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 
 	if !blueclawServicesAreHealthy(context) {
 		t.Fatal("expected graphiti to be skipped without local LLM")
+	}
+}
+
+func TestBlueclawServicesHealthSkipsMattermostCompositeHealthWithoutMattermost(t *testing.T) {
+	context := &Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{},
+		SSH: serviceHealthReportBoardConnection{
+			report: strings.Join([]string{
+				"blueclaw=active",
+				"capabilityd=active",
+				"sdkd=active",
+				"admind=active",
+				"blueclawHealth=ok",
+				"sdkdHealth=ok",
+			}, "\n"),
+		},
+	}
+
+	if !blueclawServicesAreHealthy(context) {
+		t.Fatal("expected Mattermost composite health to be skipped without Mattermost")
+	}
+}
+
+func TestBlueclawServicesHealthRequiresMattermostCompositeHealthWhenPlanned(t *testing.T) {
+	context := &Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"mattermost": true},
+		SSH: serviceHealthReportBoardConnection{
+			report: strings.Join([]string{
+				"blueclaw=active",
+				"capabilityd=active",
+				"sdkd=active",
+				"admind=active",
+				"blueclawHealth=ok",
+				"capabilitydHealth=no",
+				"sdkdHealth=ok",
+			}, "\n"),
+		},
+	}
+
+	if blueclawServicesAreHealthy(context) {
+		t.Fatal("expected planned Mattermost composite health failure to fail service health")
+	}
+}
+
+func TestServiceHealthReportSkipsMattermostCompositeHealthWithoutMattermost(t *testing.T) {
+	command := blueclawServiceHealthReportCommand(&Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{},
+	})
+
+	if strings.Contains(command, "capabilitydHealth") {
+		t.Fatalf("expected Mattermost composite health check to be omitted, got:\n%s", command)
 	}
 }
 

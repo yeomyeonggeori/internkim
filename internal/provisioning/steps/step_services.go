@@ -33,9 +33,9 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
+			capabilitydHealthIsReady(context) &&
 			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
+			mattermostServiceIsReady(context) &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
 	},
@@ -144,6 +144,20 @@ command -v git >/dev/null`
 
 func shouldReconcileMattermostSiteURL(context *Context) bool {
 	return context != nil && context.PlannedSteps["mattermost"]
+}
+
+func capabilitydHealthIsReady(context *Context) bool {
+	if !isPlannedStep(context, "mattermost") {
+		return true
+	}
+	return trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+}
+
+func mattermostServiceIsReady(context *Context) bool {
+	if !isPlannedStep(context, "mattermost") {
+		return true
+	}
+	return trimmedRun(context, "systemctl is-active mattermost") == "active"
 }
 
 func mattermostSiteURLReconcileCommand(deviceURL string) string {
@@ -277,7 +291,7 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
-	if report["capabilitydHealth"] != "ok" {
+	if isPlannedStep(context, "mattermost") && report["capabilitydHealth"] != "ok" {
 		return false
 	}
 	if context.BoardType != BoardSimulation && report["sdkdHealth"] != "ok" {
@@ -321,7 +335,9 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
-		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+	}
+	if isPlannedStep(context, "mattermost") {
+		checks = append(checks, serviceHealthCheck{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()})
 	}
 	if context.BoardType != BoardSimulation {
 		checks = append(checks,

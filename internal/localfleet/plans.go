@@ -88,7 +88,7 @@ func (service Service) upPlans(skipWeb bool) []CommandPlan {
 }
 
 func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
-	return []CommandPlan{
+	plans := []CommandPlan{
 		service.prepareContainerKernelPlan(),
 		service.prepareLocalEmbeddingPlan(),
 		service.labCommand("vm-up"),
@@ -97,8 +97,11 @@ func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkip
 		service.command("make", "build"),
 		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
 		service.configureLocalEmbeddingPlan(),
-		service.mattermostTestSettingsPlan(),
 	}
+	if slices.Contains(additionalSkippedSteps, "mattermost") {
+		return plans
+	}
+	return append(plans, service.mattermostTestSettingsPlan())
 }
 
 func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
@@ -107,7 +110,7 @@ func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
 
 func (service Service) configureLocalEmbeddingPlan() CommandPlan {
 	scriptPath := "/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath))
+	return service.labCommand("vm-ssh", "sudo bash "+quoteShell(scriptPath))
 }
 
 func (service Service) mattermostTestSettingsPlan() CommandPlan {
@@ -128,7 +131,8 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 
 func (service Service) sdkdHostTopologyScenarioPlans() []CommandPlan {
 	service.options.ShouldUseRealModels = true
-	plans := service.upPlans(true)
+	service.options.MaximumModelTier = ""
+	plans := service.upPlansWithSkippedSetupSteps(true, []string{"mattermost"})
 	for index := range plans {
 		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawSDKDModeEnvironment+"=authoritative")
 		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")

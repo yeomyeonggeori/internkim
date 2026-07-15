@@ -77,9 +77,69 @@ func TestBlueclawUsersPolicyHealthReportsUnavailableAPI(t *testing.T) {
 	}
 }
 
+func TestMattermostHealthSkipsAllChecksWithoutMattermost(t *testing.T) {
+	connection := &mattermostHealthBoardConnection{}
+	context := &Context{
+		SSH:          connection,
+		PlannedSteps: map[string]bool{},
+	}
+	failedChecks := []string{}
+
+	checkMattermostHealth(context, &failedChecks)
+
+	if len(failedChecks) != 0 {
+		t.Fatalf("expected skipped Mattermost health to pass, got %+v", failedChecks)
+	}
+	if len(connection.commands) != 0 {
+		t.Fatalf("expected skipped Mattermost health not to run commands, got %+v", connection.commands)
+	}
+}
+
+func TestMattermostHealthRunsChecksWhenMattermostIsPlanned(t *testing.T) {
+	connection := &mattermostHealthBoardConnection{}
+	context := &Context{
+		SSH:          connection,
+		PlannedSteps: map[string]bool{"mattermost": true},
+	}
+	failedChecks := []string{}
+
+	checkMattermostHealth(context, &failedChecks)
+
+	for _, expectedFailure := range []string{"mattermost", "capabilityd", "mattermost-ping", "mattermost-url", "mattermost-profile-lookup"} {
+		if !containsString(failedChecks, expectedFailure) {
+			t.Fatalf("expected planned Mattermost health failure %q, got %+v", expectedFailure, failedChecks)
+		}
+	}
+	if len(connection.commands) != 5 {
+		t.Fatalf("expected five planned Mattermost health commands, got %+v", connection.commands)
+	}
+}
+
 type blueclawUsersPolicyHealthBoardConnection struct {
 	output  string
 	command string
+}
+
+type mattermostHealthBoardConnection struct {
+	commands []string
+}
+
+func (connection *mattermostHealthBoardConnection) Run(command string) string {
+	connection.commands = append(connection.commands, command)
+	return ""
+}
+
+func (connection *mattermostHealthBoardConnection) SCP(localPath string, remotePath string) error {
+	return nil
+}
+
+func containsString(values []string, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
 }
 
 func (connection *blueclawUsersPolicyHealthBoardConnection) Run(command string) string {
