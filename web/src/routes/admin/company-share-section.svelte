@@ -272,6 +272,8 @@
 		isPublishing = true;
 		message = '';
 		try {
+			settings = await updateCompanyShareSettings(adminBaseURL, draft, text.companyShare.saveError);
+			draft = { ...draft, password: '' };
 			settings = await publishCompanyShare(adminBaseURL, text.companyShare.publishError);
 			message = text.companyShare.publishSuccess;
 		} catch (error) {
@@ -285,6 +287,12 @@
 		if (!settings?.publishedAt) return text.companyShare.notPublished;
 		const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(settings.publishedAt));
 		return text.companyShare.published.replace('{date}', date).replace('{revision}', String(settings.publicationRevision));
+	}
+
+	function canPublishSnapshot(): boolean {
+		if (!draft.enabled) return false;
+		if (settings?.hasPassword) return true;
+		return draft.password.trim().length >= 8;
 	}
 </script>
 
@@ -607,7 +615,7 @@
 					{#if isSaving}<Spinner data-icon="inline-start" />{/if}
 					{text.companyShare.save}
 				</Button>
-				<Button variant="outline" onclick={publishSnapshot} disabled={!isDeviceReachable || !settings?.enabled || !settings?.hasPassword || isLoading || isSaving || isPublishing}>
+				<Button variant="outline" onclick={publishSnapshot} disabled={!isDeviceReachable || !canPublishSnapshot() || isLoading || isSaving || isPublishing}>
 					{#if isPublishing}<Spinner data-icon="inline-start" />{:else}<SendIcon data-icon="inline-start" />{/if}
 					{text.companyShare.publish}
 				</Button>
