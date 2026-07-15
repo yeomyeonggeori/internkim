@@ -436,6 +436,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 
 func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent) error {
 	hasAuthoritativeCall := false
+	hasSuccessfulCall := false
 	for _, event := range events {
 		if event.Name != "llm.call" {
 			continue
@@ -446,6 +447,7 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 			Transport    string `json:"transport"`
 			Model        string `json:"model"`
 			UsedFallback bool   `json:"usedFallback"`
+			IsError      bool   `json:"isError"`
 		}
 		if json.Unmarshal([]byte(event.Body), &call) != nil || !isAuthoritativeSDKDCall(call.Kind, call.SchemaName) {
 			continue
@@ -457,12 +459,18 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		if call.UsedFallback {
 			return fmt.Errorf("Mattermost scenario step %d used legacy fallback for authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
-		if strings.TrimSpace(call.Model) == "" {
+		if !call.IsError && strings.TrimSpace(call.Model) == "" {
 			return fmt.Errorf("Mattermost scenario step %d has no model provenance for authoritative AI SDK call", stepIndex)
+		}
+		if !call.IsError {
+			hasSuccessfulCall = true
 		}
 	}
 	if !hasAuthoritativeCall {
 		return fmt.Errorf("Mattermost scenario step %d has no authoritative AI SDK call evidence", stepIndex)
+	}
+	if !hasSuccessfulCall {
+		return fmt.Errorf("Mattermost scenario step %d has no successful authoritative AI SDK call", stepIndex)
 	}
 	return nil
 }
