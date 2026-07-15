@@ -374,6 +374,24 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 	}
 }
 
+func TestPreparedFleetPlansOnlyRestoreConnectivity(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.preparedFleetPlans())
+	for _, expectedText := range []string{"vm-up", "test -d /mnt/shared/workspace", "ExitOnForwardFailure=yes"} {
+		if !strings.Contains(joinedPlans, expectedText) {
+			t.Fatalf("prepared Fleet plans are missing %q:\n%s", expectedText, joinedPlans)
+		}
+	}
+	for _, forbiddenText := range []string{"make build", "setup --board", "configure-local-embedding"} {
+		if strings.Contains(joinedPlans, forbiddenText) {
+			t.Fatalf("prepared Fleet plans contain %q:\n%s", forbiddenText, joinedPlans)
+		}
+	}
+}
+
 func TestMattermostDirectMessageScenarioCanKeepArtifacts(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {

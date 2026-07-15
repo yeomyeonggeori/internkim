@@ -87,6 +87,14 @@ func (service Service) upPlans(skipWeb bool) []CommandPlan {
 	return service.upPlansWithSkippedSetupSteps(skipWeb, nil)
 }
 
+func (service Service) preparedFleetPlans() []CommandPlan {
+	return []CommandPlan{
+		service.labCommand("vm-up"),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
+		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
+	}
+}
+
 func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
 	plans := []CommandPlan{
 		service.prepareContainerKernelPlan(),
