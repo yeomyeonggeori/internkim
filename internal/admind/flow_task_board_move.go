@@ -64,8 +64,7 @@ func (service *Service) writeFlowTaskBoardMove(ctx context.Context, request flow
 			return flowTask{}, errorValue
 		}
 	}
-	changedTasks := changedFlowTaskBoardMoveSources(tasks, move.updates)
-	sourceKeys, errorValue := flowTasksSummarySourceKeys(changedTasks)
+	sourceKeys, errorValue := flowTaskBoardMoveSummarySourceKeys(tasks, move.updates)
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -78,18 +77,6 @@ func (service *Service) writeFlowTaskBoardMove(ctx context.Context, request flow
 		return flowTask{}, errorValue
 	}
 	return move.movedTask, nil
-}
-
-func changedFlowTaskBoardMoveSources(previousTasks []flowTask, updates []flowTask) []flowTask {
-	sourceTasks := []flowTask{}
-	for _, updatedTask := range updates {
-		previousTask, found := flowTaskByID(previousTasks, updatedTask.ID)
-		if !found || (previousTask.Status == updatedTask.Status && previousTask.StatusRank == updatedTask.StatusRank) {
-			continue
-		}
-		sourceTasks = append(sourceTasks, previousTask, updatedTask)
-	}
-	return sourceTasks
 }
 
 func writeFlowTaskBoardMoveUpdateInTransaction(ctx context.Context, transaction *sql.Tx, movedTaskID string, task flowTask) error {

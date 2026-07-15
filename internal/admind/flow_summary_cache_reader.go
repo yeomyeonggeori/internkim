@@ -31,8 +31,16 @@ func (service *Service) readCachedFlowSummaryReadModel(ctx context.Context, week
 		payload, encodeError := encodeFlowSummaryCachePayload(readModel)
 		if encodeError != nil {
 			logFlowSummaryCacheFailure("encode", weekCode, encodeError)
-		} else if _, writeError := service.writeFlowSummaryCacheEntryIfCurrent(ctx, weekCode, keys, snapshot, payload, time.Now()); writeError != nil {
-			logFlowSummaryCacheFailure("write", weekCode, writeError)
+		} else {
+			now := time.Now()
+			stored, writeError := service.writeFlowSummaryCacheEntryIfCurrent(ctx, weekCode, keys, snapshot, payload, now)
+			if writeError != nil {
+				logFlowSummaryCacheFailure("write", weekCode, writeError)
+			} else if stored {
+				if cleanupError := service.cleanupFlowSummaryCacheEntries(ctx, now); cleanupError != nil {
+					logFlowSummaryCacheFailure("cleanup", weekCode, cleanupError)
+				}
+			}
 		}
 	}
 	return readModel, nil

@@ -40,7 +40,6 @@ type flowSummaryCacheEntry struct {
 	Dependencies  flowSummaryDependencySnapshot
 	SchemaVersion int
 	Payload       string
-	CachedAt      string
 }
 
 type flowSummaryCachePayload struct {
