@@ -140,6 +140,8 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	service.Configuration.MattermostAdminPasswordPath = writeTestFile(t, "admin-password")
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"people":[{"emails":["creator@example.com"]},{"emails":["editor@example.com"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token"):
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=editor-token"):
