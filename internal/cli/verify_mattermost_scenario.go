@@ -52,9 +52,10 @@ type mattermostScenarioStep struct {
 }
 
 type mattermostScenarioEventCount struct {
-	Name         string `json:"name"`
-	BodyFragment string `json:"bodyFragment"`
-	Count        int    `json:"count"`
+	Name           string `json:"name"`
+	BodyFragment   string `json:"bodyFragment"`
+	OutputFragment string `json:"outputFragment"`
+	Count          int    `json:"count"`
 }
 
 type mattermostScenarioWorkspaceFile struct {
@@ -209,6 +210,12 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 	for eventIndex, eventCount := range step.ExpectedEventCounts {
 		if strings.TrimSpace(eventCount.Name) == "" || eventCount.Count < 0 {
 			return fmt.Errorf("Mattermost scenario step %d event count %d is invalid", stepIndex, eventIndex)
+		}
+		if eventCount.OutputFragment != "" && eventCount.Name != "tool.capability.invoke.result" {
+			return fmt.Errorf("Mattermost scenario step %d event count %d outputFragment requires tool.capability.invoke.result", stepIndex, eventIndex)
+		}
+		if eventCount.BodyFragment != "" && eventCount.OutputFragment != "" {
+			return fmt.Errorf("Mattermost scenario step %d event count %d cannot combine bodyFragment and outputFragment", stepIndex, eventIndex)
 		}
 	}
 	return nil
@@ -429,7 +436,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 		}
 	}
 	for _, eventCount := range expected.ExpectedEventCounts {
-		observedCount := countMattermostScenarioEvents(events, eventCount.Name, eventCount.BodyFragment)
+		observedCount := countMattermostScenarioExpectedEvents(events, eventCount)
 		if errorValue := recordMattermostScenarioCount(result, stepIndex, "event", eventCount.Name, eventCount.Count, observedCount); errorValue != nil {
 			return errorValue
 		}
@@ -538,6 +545,30 @@ func countMattermostScenarioEvents(events []mattermostScenarioTaskEvent, expecte
 		}
 	}
 	return count
+}
+
+func countMattermostScenarioExpectedEvents(events []mattermostScenarioTaskEvent, expected mattermostScenarioEventCount) int {
+	if expected.OutputFragment == "" {
+		return countMattermostScenarioEvents(events, expected.Name, expected.BodyFragment)
+	}
+	count := 0
+	for _, event := range events {
+		if event.Name == expected.Name && capabilityResultOutputContains(event.Body, expected.OutputFragment) {
+			count++
+		}
+	}
+	return count
+}
+
+func capabilityResultOutputContains(body string, fragment string) bool {
+	var result struct {
+		Output  json.RawMessage `json:"output"`
+		Summary json.RawMessage `json:"summary"`
+	}
+	if json.Unmarshal([]byte(body), &result) != nil {
+		return false
+	}
+	return bytes.Contains(result.Output, []byte(fragment)) || bytes.Contains(result.Summary, []byte(fragment))
 }
 
 func countMattermostScenarioToolEvents(events []mattermostScenarioTaskEvent, toolName string) int {

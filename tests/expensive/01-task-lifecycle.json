@@ -13,7 +13,8 @@
       "prompt": "이번 주 금요일까지 고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무를 내 업무 목록에 추가해줘. 업무 제목은 '고객지원 분기 결산 누락 항목 확인'으로 해줘.",
       "expectedToolCalls": ["task.add"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 누락 항목 확인", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "\"content\":\"고객지원 분기 결산 누락 항목 확인\"", "count": 1},
+        {"name": "tool.capability.invoke.result", "outputFragment": "\"endDate\":\"2026-07-17\"", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -22,7 +23,7 @@
       "expectedToolCalls": ["task.update"],
       "expectedEventCounts": [
         {"name": "tool.capability.invoke.requested", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "\"content\":\"고객지원 분기 결산 검토 완료\"", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -30,7 +31,7 @@
       "prompt": "내 업무를 조회해서 방금 바꾼 고객지원 분기 결산 업무가 남아 있는지 알려줘.",
       "expectedToolCalls": ["task.list"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "\"content\":\"고객지원 분기 결산 검토 완료\"", "count": 1}
       ],
       "expectedReplyFragments": ["고객지원 분기 결산 검토 완료"],
       "expectedTaskStatus": "completed"
@@ -40,7 +41,7 @@
       "expectedToolCalls": ["task.delete"],
       "expectedEvents": ["confirmation.requested"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1}
       ],
       "expectedTaskStatus": "waiting_approval"
     },
@@ -49,7 +50,7 @@
       "expectedToolCalls": ["task.delete"],
       "expectedEvents": ["approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
+        {"name": "tool.capability.invoke.result", "outputFragment": "deleted", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -57,7 +58,7 @@
       "prompt": "내 업무를 다시 조회해서 삭제한 '고객지원 분기 결산 검토 완료' 업무가 남아 있지 않은지 확인해줘.",
       "expectedToolCalls": ["task.list"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 0}
+        {"name": "tool.capability.invoke.result", "outputFragment": "\"content\":\"고객지원 분기 결산 검토 완료\"", "count": 0}
       ],
       "expectedReplyFragments": ["없"],
       "expectedTaskStatus": "completed"
