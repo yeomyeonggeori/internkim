@@ -157,6 +157,32 @@ func TestFlowTaskSummarySourceKeysSkipsMalformedLegacyFragments(t *testing.T) {
 	}
 }
 
+func TestFlowTaskBoardMoveSummarySourceKeysIncludePreviousAndUpdatedScopes(t *testing.T) {
+	previousTasks := []flowTask{
+		{ID: "moved", WeekCode: "26W30", StartDate: "2026-07-20", EndDate: "2026-07-21", Status: flowStatusPlanned, StatusRank: 1024},
+		{ID: "reranked", WeekCode: "26W31", StartDate: "2026-08-01", EndDate: "2026-08-02", Status: flowStatusInProgress, StatusRank: 1024},
+	}
+	updates := []flowTask{
+		{ID: "moved", WeekCode: "26W31", StartDate: "2026-08-01", EndDate: "2026-08-02", Status: flowStatusInProgress, StatusRank: 512},
+		{ID: "reranked", WeekCode: "26W31", StartDate: "2026-08-01", EndDate: "2026-08-02", Status: flowStatusInProgress, StatusRank: 2048},
+	}
+
+	keys, errorValue := flowTaskBoardMoveSummarySourceKeys(previousTasks, updates)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	want := []flowSummarySourceKey{
+		{Kind: flowSummarySourceMonth, Key: "2026-07"},
+		{Kind: flowSummarySourceMonth, Key: "2026-08"},
+		{Kind: flowSummarySourceWeek, Key: "26W30"},
+		{Kind: flowSummarySourceWeek, Key: "26W31"},
+	}
+	if !reflect.DeepEqual(keys, want) {
+		t.Fatalf("keys = %+v, want %+v", keys, want)
+	}
+}
+
 func TestFlowSummaryDependencyKeysForWeek(t *testing.T) {
 	weekStart := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
 	keys := flowSummaryDependencyKeysForWeek("26W28", weekStart)
@@ -166,7 +192,7 @@ func TestFlowSummaryDependencyKeysForWeek(t *testing.T) {
 	if keys.PreviousWeek.Key != "26W27" || keys.CurrentMonth.Key != "2026-07" || keys.PreviousMonth.Key != "2026-06" {
 		t.Fatalf("dependency keys = %+v", keys)
 	}
-	if keys.Definitions != (flowSummarySourceKey{Kind: flowSummarySourceDefinitions, Key: "global"}) {
+	if keys.Definitions != flowSummaryDefinitionsSourceKey() {
 		t.Fatalf("definitions = %+v", keys.Definitions)
 	}
 }
