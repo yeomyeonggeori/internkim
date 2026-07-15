@@ -132,8 +132,7 @@ func (service *Service) writeFlowDefinitions(ctx context.Context, definitions fl
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	definitionsKey := flowSummarySourceKey{Kind: flowSummarySourceDefinitions, Key: "global"}
-	if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, []flowSummarySourceKey{definitionsKey}); errorValue != nil {
+	if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, []flowSummarySourceKey{flowSummaryDefinitionsSourceKey()}); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}

@@ -15,6 +15,10 @@ type flowSummaryMemberIdentity struct {
 	Name string `json:"name"`
 }
 
+func flowSummaryDefinitionsSourceKey() flowSummarySourceKey {
+	return flowSummarySourceKey{Kind: flowSummarySourceDefinitions, Key: "global"}
+}
+
 func flowSummaryDependencyKeysForWeek(weekCode string, weekStart time.Time) flowSummaryDependencyKeys {
 	currentMonthStart := startOfMonth(weekStart)
 	return flowSummaryDependencyKeys{
@@ -22,7 +26,7 @@ func flowSummaryDependencyKeysForWeek(weekCode string, weekStart time.Time) flow
 		PreviousWeek:  flowSummarySourceKey{Kind: flowSummarySourceWeek, Key: weekCodeForDate(weekStart.AddDate(0, 0, -7))},
 		CurrentMonth:  flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: currentMonthStart.Format("2006-01")},
 		PreviousMonth: flowSummarySourceKey{Kind: flowSummarySourceMonth, Key: currentMonthStart.AddDate(0, -1, 0).Format("2006-01")},
-		Definitions:   flowSummarySourceKey{Kind: flowSummarySourceDefinitions, Key: "global"},
+		Definitions:   flowSummaryDefinitionsSourceKey(),
 	}
 }
 
@@ -84,6 +88,22 @@ func flowTasksSummarySourceKeys(tasks []flowTask) ([]flowSummarySourceKey, error
 		}
 	}
 	return sortedFlowSummarySourceKeys(keySet), nil
+}
+
+func flowTaskBoardMoveSummarySourceKeys(previousTasks []flowTask, updates []flowTask) ([]flowSummarySourceKey, error) {
+	previousTasksByID := make(map[string]flowTask, len(previousTasks))
+	for _, task := range previousTasks {
+		previousTasksByID[strings.TrimSpace(task.ID)] = task
+	}
+	sourceTasks := []flowTask{}
+	for _, updatedTask := range updates {
+		previousTask, found := previousTasksByID[strings.TrimSpace(updatedTask.ID)]
+		if !found || (previousTask.Status == updatedTask.Status && previousTask.StatusRank == updatedTask.StatusRank) {
+			continue
+		}
+		sourceTasks = append(sourceTasks, previousTask, updatedTask)
+	}
+	return flowTasksSummarySourceKeys(sourceTasks)
 }
 
 func sortedFlowSummarySourceKeys(keySet map[flowSummarySourceKey]struct{}) []flowSummarySourceKey {
