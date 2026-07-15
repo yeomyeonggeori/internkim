@@ -102,6 +102,9 @@ func TestReleaseUpdateUploadAppliesThroughReleaseJob(t *testing.T) {
 	if !strings.Contains(joinedCommands, "blueclaw-supervisor sync-workspace") {
 		t.Fatalf("expected skills release to sync Blueclaw workspace, got %s", joinedCommands)
 	}
+	if !strings.Contains(joinedCommands, "sync-workspace --atomic") || !strings.Contains(joinedCommands, "--relative-target 'skills'") {
+		t.Fatalf("expected atomic skills-only workspace sync, got %s", joinedCommands)
+	}
 	if !strings.Contains(joinedCommands, "resize2fs") || !strings.Contains(joinedCommands, "68719476736") {
 		t.Fatalf("expected skills release to ensure Blueclaw workspace image capacity, got %s", joinedCommands)
 	}

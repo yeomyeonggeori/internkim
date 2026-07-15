@@ -301,6 +301,8 @@ func (service Service) syncHostRuntimeWorkspaceImage(ctx context.Context, paths 
 		ExecutableName: blueclaw.BlueclawSupervisorBinaryPath,
 		Arguments: []string{
 			"sync-workspace",
+			"--atomic",
+			"--preserve-guest-state",
 			"--workspace-image", configuration.WorkspaceImagePath,
 			"--source", paths.BlueclawWorkspacePath,
 		},
