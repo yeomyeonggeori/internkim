@@ -84,11 +84,10 @@ func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
 
 func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, request *http.Request) {
 	now := time.Now()
-	weekCode := strings.TrimSpace(request.URL.Query().Get("week"))
-	if weekCode == "" {
-		weekCode = weekCodeForDate(now)
-	} else if canonical := canonicalWeekCode(weekCode); canonical != "" {
-		weekCode = canonical
+	weekCode, errorValue := parseFlowSummaryWeekCode(request.URL.Query().Get("week"), now)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
 	}
 	weekStart := weekStartForCode(weekCode, now)
 	currentWeekCode := weekCodeForDate(now)
