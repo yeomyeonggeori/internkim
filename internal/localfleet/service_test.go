@@ -186,19 +186,40 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
 	}
+	if strings.Contains(joinedPlans, "--only blueclaw-runtime-base") {
+		t.Fatalf("expected disposable fleet setup to install the runtime in its single setup pass:\n%s", joinedPlans)
+	}
 }
 
-func TestUpPlanSkipsRuntimeBaseForReusableFleet(t *testing.T) {
+func TestReusableUpPlanEnsuresRuntimeBaseBeforeForcedSetup(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, "--force") {
-		t.Fatalf("expected reusable fleet setup to force small changed components:\n%s", joinedPlans)
+	plans := service.upPlans(true)
+	runtimeBasePlanIndex := planArgumentIndex(plans, "--only blueclaw-runtime-base")
+	forcedSetupPlanIndex := planArgumentIndex(plans, "--force --skip")
+	if runtimeBasePlanIndex < 0 || forcedSetupPlanIndex < 0 || runtimeBasePlanIndex >= forcedSetupPlanIndex {
+		t.Fatalf("expected runtime base ensure before forced setup:\n%s", joinedPlanArguments(plans))
 	}
-	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
-		t.Fatalf("expected reusable fleet setup to skip runtime base reinstall:\n%s", joinedPlans)
+	runtimeBasePlan := strings.Join(plans[runtimeBasePlanIndex].Arguments, " ")
+	if strings.Contains(runtimeBasePlan, "--force") {
+		t.Fatalf("expected runtime base ensure to honor its satisfied check:\n%s", runtimeBasePlan)
+	}
+	forcedSetupPlan := strings.Join(plans[forcedSetupPlanIndex].Arguments, " ")
+	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
+		t.Fatalf("expected forced reusable setup to skip the ensured runtime base:\n%s", forcedSetupPlan)
+	}
+}
+
+func TestReusableUpPlanHonorsExplicitRuntimeBaseSkip(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.upPlansWithSkippedSetupSteps(true, []string{"blueclaw-runtime-base"})
+	if planArgumentIndex(plans, "--only blueclaw-runtime-base") >= 0 {
+		t.Fatalf("expected explicit runtime base skip to omit the ensure pass:\n%s", joinedPlanArguments(plans))
 	}
 }
 
@@ -228,6 +249,44 @@ func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
 	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='high'") {
 		t.Fatalf("expected high maximum model tier:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanSetAuthoritativeSDKDMode(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		SDKDMode:           SDKDModeAuthoritative,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	expectedAssignment := blueclaw.BlueclawSDKDModeEnvironment + "='" + string(SDKDModeAuthoritative) + "'"
+	if !strings.Contains(joinedPlans, expectedAssignment) {
+		t.Fatalf("expected authoritative SDKD mode:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanOmitsUnspecifiedSDKDMode(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if strings.Contains(joinedPlans, blueclaw.BlueclawSDKDModeEnvironment) {
+		t.Fatalf("expected unspecified SDKD mode to remain absent:\n%s", joinedPlans)
+	}
+}
+
+func TestServiceRejectsUnsupportedSDKDMode(t *testing.T) {
+	_, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		SDKDMode:           "fallback",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported SDKD mode") {
+		t.Fatalf("expected unsupported SDKD mode error, got %v", errorValue)
 	}
 }
 
@@ -623,4 +682,13 @@ func joinedPlanArguments(plans []CommandPlan) string {
 		lines = append(lines, strings.Join(append([]string{plan.Name}, plan.Arguments...), " "))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func planArgumentIndex(plans []CommandPlan, expectedText string) int {
+	for planIndex, plan := range plans {
+		if strings.Contains(strings.Join(plan.Arguments, " "), expectedText) {
+			return planIndex
+		}
+	}
+	return -1
 }
