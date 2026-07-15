@@ -2,7 +2,7 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'network';
+export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'sharing' | 'network';
 export type AdminPageText = typeof adminText.ko;
 
 export type UserRecord = {
@@ -158,4 +158,97 @@ export type WifiProfile = {
 
 export type WifiProfilesResponse = {
 	profiles?: WifiProfile[];
+};
+
+export type CompanyMetric = {
+	metric: string;
+	year: number;
+	quarter?: number;
+	month?: number;
+	value: number;
+	currency?: CompanyMetricCurrency;
+	valueUSD?: number;
+	unit?: string;
+	note?: string;
+};
+
+export type CompanyMetricCurrency = 'USD' | 'KRW' | 'EUR' | 'JPY' | 'GBP' | 'CNY' | 'HKD' | 'SGD' | 'AUD' | 'CAD' | 'CHF' | 'INR';
+
+export type CompanyRecord = {
+	id: string;
+	category: string;
+	date?: string;
+	title: string;
+	detail?: string;
+	attributes?: Record<string, unknown>;
+};
+
+export type CompanyDocument = {
+	id: string;
+	documentType: string;
+	title: string;
+	language?: string;
+	summary?: string;
+	issuedAt?: string;
+};
+
+export type CompanyShareNarrative = {
+	highlights: string[];
+	businessModel: string;
+	customerEvidence: string;
+	marketOpportunity: string;
+	competitiveAdvantage: string;
+	roadmap: string;
+	fundingStage: string;
+	fundingTarget: string;
+	useOfFunds: string;
+};
+
+export type CompanyShareMetricContext = {
+	labels: Record<string, string>;
+	descriptions: Record<string, string>;
+	favorableDirection: 'increase' | 'decrease' | 'neutral';
+	evidenceRole: '' | 'growth' | 'efficiency' | 'scale' | 'quality' | 'reach' | 'capital';
+	showSource: boolean;
+};
+
+export type CompanyShareRecordContext = {
+	titles: Record<string, string>;
+	descriptions: Record<string, string>;
+	attributeKeys: string[];
+};
+
+export type CompanyShareSettings = {
+	enabled: boolean;
+	hasPassword: boolean;
+	sessionHours: number;
+	languages: string[];
+	profileFields: string[];
+	metricNames: string[];
+	primaryMetric?: string;
+	metricContexts: Record<string, CompanyShareMetricContext>;
+	recordIDs: string[];
+	recordContexts: Record<string, CompanyShareRecordContext>;
+	documentIDs: string[];
+	contactEmail?: string;
+	showTeamActivity: boolean;
+	narratives: Record<string, CompanyShareNarrative>;
+	publishedAt?: string;
+	publicationRevision: number;
+};
+
+export type CompanyShareSettingsUpdate = Omit<CompanyShareSettings, 'hasPassword' | 'publishedAt' | 'publicationRevision'> & {
+	password: string;
+};
+
+export type CompanyMetricsResponse = {
+	metrics?: CompanyMetric[];
+};
+
+export type CompanyRecordsResponse = {
+	records?: CompanyRecord[];
+};
+
+export type CompanyDocumentsResponse = {
+	documents?: CompanyDocument[];
 };

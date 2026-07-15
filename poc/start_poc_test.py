@@ -13,6 +13,13 @@ SPECIFICATION.loader.exec_module(START_POC)
 
 
 class WorkspaceSettingsTest(unittest.TestCase):
+    def test_tenant_image_includes_bot_verification_client(self):
+        dockerfile_path = os.path.join(os.path.dirname(__file__), 'tenant', 'Dockerfile')
+        with open(dockerfile_path) as dockerfile:
+            dockerfile_document = dockerfile.read()
+
+        self.assertIn('      curl \\\n', dockerfile_document)
+
     def test_tenant_entrypoint_routes_mattermost_actions_through_public_url(self):
         entrypoint_path = os.path.join(os.path.dirname(__file__), 'tenant', 'entrypoint.sh')
         with open(entrypoint_path) as entrypoint_file:
