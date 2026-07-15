@@ -7,7 +7,8 @@ import (
 )
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema)
+	options := sqliteDatabaseOptions{transactionLock: "immediate"}
+	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema, options)
 }
 
 func ensureFlowSchema(ctx context.Context, database *sql.DB) error {
@@ -86,6 +87,12 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 		return errorValue
 	}
 	if errorValue := ensureFlowChannelOutboxTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureFlowSummaryCacheSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := clearFlowSummaryCacheEntries(ctx, database); errorValue != nil {
 		return errorValue
 	}
 	return seedFlowDefinitions(ctx, database)

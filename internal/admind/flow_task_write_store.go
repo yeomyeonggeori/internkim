@@ -18,7 +18,7 @@ func (service *Service) writeFlowTask(ctx context.Context, task flowTask) error 
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeFlowTaskInTransaction(ctx, transaction, task); errorValue != nil {
+	if errorValue := writeFlowTaskAndInvalidateSummaryInTransaction(ctx, transaction, task); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -42,7 +42,7 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 	}
 	task.StatusRank = statusRank
 	task = flowTaskWithCreatedAt(task)
-	if errorValue := writeFlowTaskInTransaction(ctx, transaction, task); errorValue != nil {
+	if errorValue := writeFlowTaskAndInvalidateSummaryInTransaction(ctx, transaction, task); errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
 	}
@@ -50,6 +50,22 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 		return flowTask{}, errorValue
 	}
 	return task, nil
+}
+
+func writeFlowTaskAndInvalidateSummaryInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
+	existingTask, found, errorValue := readFlowTaskByIDInTransaction(ctx, transaction, task.ID)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeFlowTaskInTransaction(ctx, transaction, task); errorValue != nil {
+		return errorValue
+	}
+	sourceTasks := []flowTask{task}
+	if found {
+		sourceTasks = append(sourceTasks, existingTask)
+	}
+	sourceKeys := flowTasksSummarySourceKeys(sourceTasks)
+	return incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys)
 }
 
 func flowTaskWithCreatedAt(task flowTask) flowTask {
@@ -146,13 +162,37 @@ func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, task
 		return errorValue
 	}
 	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	existingTask, found, errorValue := readFlowTaskByIDInTransaction(ctx, transaction, taskID)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	trimmedPostID := strings.TrimSpace(postID)
+	if found && existingTask.MattermostPostID == trimmedPostID {
+		return transaction.Commit()
+	}
 	postCreatedAt := ""
 	if trimmedPostID != "" {
 		postCreatedAt = time.Now().UTC().Format(time.RFC3339)
 	}
-	_, errorValue = database.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339), taskID)
-	return errorValue
+	if _, errorValue = transaction.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339), taskID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if found && existingTask.MattermostPostID != trimmedPostID {
+		weekKey, errorValue := flowTaskWeekSummarySourceKey(existingTask)
+		if errorValue == nil {
+			if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, []flowSummarySourceKey{weekKey}); errorValue != nil {
+				_ = transaction.Rollback()
+				return errorValue
+			}
+		}
+	}
+	return transaction.Commit()
 }
 
 func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) error {
@@ -165,6 +205,11 @@ func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) e
 	if errorValue != nil {
 		return errorValue
 	}
+	existingTask, found, errorValue := readFlowTaskByIDInTransaction(ctx, transaction, taskID)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue = transaction.ExecContext(ctx, "DELETE FROM flow_channel_outbox WHERE task_id = ?", taskID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -172,6 +217,17 @@ func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) e
 	if _, errorValue = transaction.ExecContext(ctx, "DELETE FROM flow_tasks WHERE id = ?", taskID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
+	}
+	if found {
+		sourceKeys := flowTaskSummarySourceKeys(existingTask)
+		if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+		if errorValue := clearFlowSummaryCacheEntries(ctx, transaction); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
 	}
 	return transaction.Commit()
 }

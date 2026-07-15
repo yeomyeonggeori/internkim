@@ -3,9 +3,9 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -16,15 +16,23 @@ type adminDatabaseSchemas struct {
 	ready map[string]bool
 }
 
+type sqliteDatabaseOptions struct {
+	transactionLock string
+}
+
 func newAdminDatabaseSchemas() *adminDatabaseSchemas {
 	return &adminDatabaseSchemas{ready: map[string]bool{}}
 }
 
 func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath string, ensureSchema func(context.Context, *sql.DB) error) (*sql.DB, error) {
+	return service.openSQLiteDatabaseWithOptions(ctx, databasePath, ensureSchema, sqliteDatabaseOptions{})
+}
+
+func (service *Service) openSQLiteDatabaseWithOptions(ctx context.Context, databasePath string, ensureSchema func(context.Context, *sql.DB) error, options sqliteDatabaseOptions) (*sql.DB, error) {
 	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
-	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(databasePath))
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSNWithOptions(databasePath, options))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -41,11 +49,19 @@ func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath str
 }
 
 func sqliteDatabaseDSN(databasePath string) string {
-	separator := "?"
-	if strings.Contains(databasePath, "?") {
-		separator = "&"
+	return sqliteDatabaseDSNWithOptions(databasePath, sqliteDatabaseOptions{})
+}
+
+func sqliteDatabaseDSNWithOptions(databasePath string, options sqliteDatabaseOptions) string {
+	query := url.Values{}
+	query.Add("_pragma", "journal_mode(WAL)")
+	query.Add("_pragma", "busy_timeout(5000)")
+	query.Add("_pragma", "foreign_keys(on)")
+	if options.transactionLock != "" {
+		query.Set("_txlock", options.transactionLock)
 	}
-	return databasePath + separator + "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)"
+	databaseURL := url.URL{Scheme: "file", Path: databasePath, RawQuery: query.Encode(), OmitHost: true}
+	return databaseURL.String()
 }
 
 func configureSQLiteDatabase(database *sql.DB) {
