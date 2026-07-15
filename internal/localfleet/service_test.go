@@ -454,6 +454,9 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`.languageModel.defaultProvider == "sdkd"`,
 		`exec sudo bash "$0" "$@"`,
 		`conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
+		`requester_person_id=`,
+		`--arg requesterPersonID "$requester_person_id"`,
+		`requesterPersonID:$requesterPersonID`,
 		`conversationID:$conversationID`,
 		`taskDecisionPreset:$taskDecisionPreset`,
 		`task_decision_preset=${2-sdkd_topology}`,
@@ -488,6 +491,8 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]'`,
 		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config"`,
 		`enable_router_schema`,
+		`http://127.0.0.1:8080/admin/api/policy`,
+		`.people[0].personID | select(length > 0)`,
 		`router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')`,
 		`assert_guest_sdkd_router_transport "$router_task_run_id"`,
 		`response_path=$(mktemp)`,
@@ -529,6 +534,7 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 	for _, forbiddenFragment := range []string{
 		"--relative-target",
 		"--relative-target .blueclaw/config",
+		"00000000-0000-0000-0000-000000000001",
 	} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("did not expect %q in SDKD topology script", forbiddenFragment)
