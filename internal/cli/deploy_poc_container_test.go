@@ -127,6 +127,7 @@ func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {
 		"python3 start-poc.py \"$tenant_count\"",
 		"python3 restart-tunnel.py",
 		"TENANT_IMAGE='internkim-poc-tenant:flow'",
+		"PYTHONUNBUFFERED=1",
 		"base-before-deploy",
 	}
 	for _, fragment := range requiredFragments {
@@ -162,6 +163,11 @@ func TestPocContainerSSHUsesAskpassWithoutPasswordArguments(t *testing.T) {
 	joinedArguments := strings.Join(arguments, "\n")
 	if !strings.Contains(joinedArguments, "ProxyCommand=cloudflared access ssh --hostname %h") {
 		t.Fatalf("arguments missing proxy command: %v", arguments)
+	}
+	for _, expectedArgument := range []string{"ServerAliveInterval=15", "ServerAliveCountMax=12"} {
+		if !strings.Contains(joinedArguments, expectedArgument) {
+			t.Fatalf("arguments missing %q: %v", expectedArgument, arguments)
+		}
 	}
 	if strings.Contains(joinedArguments, "secret-password") || strings.Contains(joinedArguments, "-p") {
 		t.Fatalf("ssh arguments must not contain the password: %v", arguments)

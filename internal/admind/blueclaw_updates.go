@@ -350,13 +350,9 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", hostWorkspacePayloadSyncCommandForTarget(artifactPath, target)); errorValue != nil {
 		return fmt.Errorf("%s: sync blueclaw payload host workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
-	syncCommand := strings.Join([]string{
-		blueclawruntime.BlueclawSupervisorBinaryPath,
-		"sync-workspace",
-		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
-		"--source", quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "workspace")),
-	}, " ")
+	syncCommand := blueclawPayloadWorkspaceSyncCommand(target)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
 		return fmt.Errorf("%s: sync blueclaw payload workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	if matches, mismatchDetail := service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target); !matches {
@@ -371,6 +367,17 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 		return fmt.Errorf("%s: start blueclaw after payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
+}
+
+func blueclawPayloadWorkspaceSyncCommand(target blueclawPayloadInstallTarget) string {
+	return strings.Join([]string{
+		blueclawruntime.BlueclawSupervisorBinaryPath,
+		"sync-workspace",
+		"--atomic",
+		"--preserve-guest-state",
+		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
+		"--source", quoteBlueclawUpdateShellValue(target.HostWorkspacePath),
+	}, " ")
 }
 
 func (service *Service) drainBlueclawTasksBeforeStop(ctx context.Context, target blueclawPayloadInstallTarget, timeout time.Duration) {

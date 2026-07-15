@@ -10,6 +10,8 @@
 		locationID: string;
 		locations: AttendanceLocation[];
 		isSaving: boolean;
+		startMaximumTime?: string;
+		endMaximumTime?: string;
 		text: AttendanceText;
 		onStartTimeChange: (value: string) => void;
 		onEndTimeChange: (value: string) => void;
@@ -22,6 +24,8 @@
 		locationID,
 		locations,
 		isSaving,
+		startMaximumTime,
+		endMaximumTime,
 		text,
 		onStartTimeChange,
 		onEndTimeChange,
@@ -44,6 +48,7 @@
 			<Input
 				type="time"
 				value={startTime}
+				max={startMaximumTime}
 				disabled={isSaving}
 				oninput={(event) => onStartTimeChange(inputValue(event))}
 				class="w-full"
@@ -55,6 +60,7 @@
 				<Input
 					type="time"
 					value={endTime}
+					max={endMaximumTime}
 					disabled={isSaving}
 					oninput={(event) => onEndTimeChange(inputValue(event))}
 					class="w-full"
