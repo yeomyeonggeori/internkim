@@ -5,8 +5,10 @@
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
+	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
+	import type { Snippet } from 'svelte';
 
 	type Props = {
 		task: FlowTask;
@@ -19,6 +21,8 @@
 		onTaskDragEnd?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragOver?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDrop?: (event: DragEvent, task: FlowTask) => void;
+		ownerChip?: Snippet;
+		isInteractive?: boolean;
 	};
 
 	let {
@@ -31,16 +35,20 @@
 		onTaskDragStart,
 		onTaskDragEnd,
 		onTaskDragOver,
-		onTaskDrop
+		onTaskDrop,
+		ownerChip,
+		isInteractive = true
 	}: Props = $props();
 
-	let canDrag = $derived(isDraggable && !isPending && !isReadOnly);
+	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
 	let isDragging = $state(false);
 	let cardClass = $derived([
 		'flow-task-board-card gap-0 rounded-md border border-border/80 bg-card p-0',
 		'outline-none ring-0 shadow-xs transition-[background-color,box-shadow,opacity]',
 		isPending
 			? 'cursor-progress opacity-60 ring-1 ring-primary/20'
+			: !isInteractive
+				? 'cursor-default'
 			: canDrag
 				? 'cursor-grab hover:bg-muted/30 hover:shadow-sm active:cursor-grabbing active:bg-muted/40'
 				: 'cursor-pointer hover:bg-muted/30 hover:shadow-sm',
@@ -54,7 +62,7 @@
 	let additionalParticipantCount = $derived(Math.max(display.participantNames.length - 1, 0));
 
 	function openCurrentTask(): void {
-		if (isPending) return;
+		if (isPending || !isInteractive) return;
 		openTask(task);
 	}
 
@@ -97,8 +105,8 @@
 
 <Card.Root
 		class={cardClass}
-		role="button"
-		tabindex={isPending ? -1 : 0}
+		role={isInteractive ? 'button' : undefined}
+		tabindex={isInteractive && !isPending ? 0 : undefined}
 		draggable={canDrag}
 		aria-disabled={isPending}
 		data-flow-board-card={task.id}
@@ -119,10 +127,11 @@
 	<div class="space-y-1 px-3 py-2">
 		<div class="flex min-w-0 items-center justify-between gap-2">
 			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-				<span class="inline-flex min-w-0 max-w-28 items-center gap-1.5">
-					<PersonAvatar name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} class="size-4 ring-1 ring-border/70" />
-					<span class="truncate">{display.ownerName}</span>
-				</span>
+				{#if ownerChip}
+					{@render ownerChip()}
+				{:else}
+					<FlowTaskPersonChip name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
+				{/if}
 				{#if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
 						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />

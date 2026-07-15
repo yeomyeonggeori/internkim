@@ -16,6 +16,12 @@
 	import { flowText } from '../../flow/text';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
+	import {
+		fallbackFutureAttendanceLocalTime,
+		timeInTimeZone,
+		todayDateInTimeZone
+	} from '../shared/attendance-date';
+	import { startAttendanceMinuteClock } from '../shared/attendance-minute-clock';
 	import { absenceDisplayClass } from '../shared/color-tokens';
 	import { localTimeMinutes } from '../shared/day-timeline';
 	import DurationText from '../shared/duration-text.svelte';
@@ -48,6 +54,7 @@
 	let workEditReason = $state('');
 	let isSavingWorkRecords = $state(false);
 	let workEditError = $state('');
+	let workEditNow = $state(new Date());
 	const sectionCountBadgeClass = 'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground';
 
 	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
@@ -68,6 +75,21 @@
 			(draft) => draft.localTime !== draft.originalLocalTime || draft.locationID !== draft.originalLocationID
 		)
 	);
+	const hasValidWorkEventTimes = $derived(
+		Object.values(workEventDrafts).every((draft) => draft.localTime !== '')
+	);
+	const canSaveWorkRecords = $derived(
+		hasWorkRecordChanges && hasValidWorkEventTimes && workEditReason.trim() !== '' && !isSavingWorkRecords
+	);
+	const currentWorkEditDate = $derived(todayDateInTimeZone(attendance.summary?.timeZone, workEditNow));
+	const currentWorkEditTime = $derived(timeInTimeZone(attendance.summary?.timeZone, workEditNow));
+
+	$effect(() => {
+		if (!isEditingWorkRecords) return;
+		return startAttendanceMinuteClock((currentTime) => {
+			workEditNow = currentTime;
+		});
+	});
 
 	async function deleteAbsence(absenceID: string) {
 		if (deletingAbsenceID) return;
@@ -85,6 +107,7 @@
 	}
 
 	function openWorkRecordEditor(): void {
+		workEditNow = new Date();
 		workEventDrafts = createWorkEventDrafts(attendance.summary?.events ?? []);
 		workEditReason = '';
 		workEditError = '';
@@ -110,11 +133,12 @@
 		for (const event of events) {
 			if (!eventIDs.has(event.id)) continue;
 			const locationID = event.locationID || fallbackLocationID;
+			const originalLocalTime = shortTime(event.localTime);
 			drafts[event.id] = {
 				eventID: event.id,
 				localDate: event.localDate,
-				originalLocalTime: shortTime(event.localTime),
-				localTime: shortTime(event.localTime),
+				originalLocalTime,
+				localTime: originalLocalTime,
 				originalLocationID: locationID,
 				locationID
 			};
@@ -147,7 +171,15 @@
 	function updateEventTime(eventID: string | undefined, localTime: string): void {
 		if (!eventID) return;
 		const draft = workEventDrafts[eventID];
-		if (draft) draft.localTime = localTime;
+		if (!draft) return;
+		const currentTime = new Date();
+		workEditNow = currentTime;
+		draft.localTime = fallbackFutureAttendanceLocalTime(
+			draft.localDate,
+			localTime,
+			attendance.summary?.timeZone,
+			currentTime
+		);
 	}
 
 	function updateSegmentLocation(segment: TeamStatusDayDetail['day']['segments'][number], locationID: string): void {
@@ -159,7 +191,7 @@
 	}
 
 	async function saveWorkRecordChanges(): Promise<void> {
-		if (!hasWorkRecordChanges || !workEditReason.trim() || isSavingWorkRecords) return;
+		if (!canSaveWorkRecords) return;
 		isSavingWorkRecords = true;
 		workEditError = '';
 		try {
@@ -176,8 +208,8 @@
 				}));
 			await attendance.updateEvents(updates);
 			resetWorkRecordEditor();
-		} catch (error) {
-			workEditError = error instanceof Error ? error.message : text.processingFailed;
+		} catch {
+			workEditError = text.processingFailed;
 		} finally {
 			isSavingWorkRecords = false;
 		}
@@ -287,6 +319,8 @@
 									locationID={startDraft.locationID}
 									locations={attendanceLocations}
 									isSaving={isSavingWorkRecords}
+									startMaximumTime={startDraft.localDate === currentWorkEditDate ? currentWorkEditTime : undefined}
+									endMaximumTime={endDraft?.localDate === currentWorkEditDate ? currentWorkEditTime : undefined}
 									{text}
 									onStartTimeChange={(value) => updateEventTime(segment.startEventID, value)}
 									onEndTimeChange={(value) => updateEventTime(segment.endEventID, value)}
@@ -320,7 +354,7 @@
 					<Button type="button" variant="outline" size="sm" disabled={isSavingWorkRecords} onclick={closeWorkRecordEditor}>
 						{text.cancel}
 					</Button>
-					<Button type="button" size="sm" disabled={!hasWorkRecordChanges || !workEditReason.trim() || isSavingWorkRecords} onclick={saveWorkRecordChanges}>
+					<Button type="button" size="sm" disabled={!canSaveWorkRecords} onclick={saveWorkRecordChanges}>
 						{text.save}
 					</Button>
 				</div>

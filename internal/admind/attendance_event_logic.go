@@ -230,26 +230,11 @@ func (service *Service) createAttendanceEventFromExistingResultPostForKind(ctx c
 
 func (service *Service) insertAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, resultPostID string) (attendanceActionResult, error) {
 	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
-	var errorValue error
-	if kind == attendanceKindClockOut {
-		event.LocalDate, errorValue = service.attendanceClockOutLocalDate(ctx, database, userRecord.ID, occurredAt, event.LocalDate)
-		if errorValue != nil {
-			return attendanceActionResult{}, errorValue
-		}
-	}
 	if errorValue := service.insertAttendanceEvent(ctx, database, event); errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
 	service.syncMattermostCustomStatusToAttendance(ctx, userToken, kind, eventLocation)
 	return createdAttendanceActionResult(resultPostID), nil
-}
-
-func (service *Service) attendanceClockOutLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, occurredAt time.Time, fallbackLocalDate string) (string, error) {
-	event, found, errorValue := service.latestActiveAttendanceEventBefore(ctx, database, mattermostUserID, attendanceKindClockIn, occurredAt)
-	if errorValue != nil || !found || strings.TrimSpace(event.LocalDate) == "" {
-		return fallbackLocalDate, errorValue
-	}
-	return event.LocalDate, nil
 }
 
 func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx context.Context, database *sql.DB, adminToken string, mattermostUserID string, kind string) error {

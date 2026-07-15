@@ -210,7 +210,7 @@ func isAdminControlPath(path string) bool {
 
 func isAdminStaticPath(path string) bool {
 	switch path {
-	case "/admin", "/flow", "/memory", "/calendar", "/mail", "/attendance", "/tasks", "/poc-admin", "/logo.svg":
+	case "/admin", "/flow", "/memory", "/calendar", "/mail", "/attendance", "/tasks", "/company", "/poc-admin", "/logo.svg":
 		return true
 	default:
 		return strings.HasPrefix(path, "/_app/") ||
@@ -221,6 +221,7 @@ func isAdminStaticPath(path string) bool {
 			strings.HasPrefix(path, "/mail/") && !strings.HasPrefix(path, "/mail/api/") ||
 			strings.HasPrefix(path, "/attendance/") && !strings.HasPrefix(path, "/attendance/api/") ||
 			strings.HasPrefix(path, "/tasks/") && !strings.HasPrefix(path, "/tasks/api/") ||
+			strings.HasPrefix(path, "/company/") && !strings.HasPrefix(path, "/company/api/") ||
 			strings.HasPrefix(path, "/poc-admin/")
 	}
 }
@@ -233,6 +234,7 @@ func isInternKimAPIPath(path string) bool {
 		strings.HasPrefix(path, "/mail/api/") ||
 		strings.HasPrefix(path, "/attendance/api/") ||
 		strings.HasPrefix(path, "/tasks/api/") ||
+		strings.HasPrefix(path, "/company/api/") ||
 		strings.HasPrefix(path, "/_internkim/companion/") ||
 		strings.HasPrefix(path, "/_internkim/runtime/")
 }
