@@ -345,7 +345,8 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 	}
 	var runError error
 	if configuration.ShouldSkipProvisioning {
-		fmt.Println("Provisioning: skipped (using prepared Local Fleet)")
+		fmt.Println("Provisioning: skipped (restoring prepared Local Fleet connectivity)")
+		runError = service.ConnectPreparedFleet(contextValue, logger)
 	} else {
 		runError = service.Run(contextValue, logger, localfleet.JobRequest{Action: localfleet.ActionUp, KeepArtifacts: true, SkipWeb: false})
 	}
