@@ -1,15 +1,11 @@
 ---
 name: direct-message
 description: Send or schedule direct messages to approved workspace people through message.send.
-when_to_use: Use when the user asks the assistant to send, DM, message, tell, or notify a named person such as 샘플에게 보내줘, DM 보내, 메시지 보내, 알려줘, 전달해줘, or says to send something to a person rather than the current conversation. Do not use when the target is a channel such as 광장 채널, town-square, off-topic, or another Mattermost channel.
-completion:
-  requiredEvidenceTools:
-    - message.send
 ---
 
 # Direct Message
 
-Use `capability.invoke` with `operation: message.send` and `recipientHint` in the input to send a direct message to a named approved workspace person.
+Use `capability.invoke` with `operation: message.send`, `targetType: directMessage`, and `personHint` in the input to send a direct message to a named approved workspace person.
 
 The task is complete after one successful `message.send` observation. Do not send another direct message in the same task after `message.send` succeeds; use that successful observation as completion evidence and reply.
 
@@ -34,7 +30,8 @@ For immediate "샘플에게 테스트라고 보내줘", use:
 
 ```json
 {
-  "recipientHint": "샘플",
+  "targetType": "directMessage",
+  "personHint": "샘플",
   "message": "테스트"
 }
 ```

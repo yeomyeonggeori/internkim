@@ -4,6 +4,7 @@ set -e
 postgresHost="${POSTGRES_HOST:-postgres}"
 mattermostHost="${MATTERMOST_HOST:-mattermost}"
 flowPublicURL="$(cat /root/.internkim/env/flow-public-url 2>/dev/null | tr -d '[:space:]')"
+mattermostInteractiveTokenPath="/workspace/.admind/state/mattermost-interactive-token"
 
 echo "[tenant] waiting for postgres at ${postgresHost}:5432"
 until pg_isready -h "${postgresHost}" -p 5432 >/dev/null 2>&1; do sleep 1; done
@@ -16,6 +17,7 @@ internkim-capabilityd \
   --socket /run/internkim/capability.sock \
   --mattermost-url "http://${mattermostHost}:8065" \
   --mattermost-token /secrets/mattermost-bot-token \
+  --mattermost-interactive-token "${mattermostInteractiveTokenPath}" \
   --mattermost-interactive-base-url "${flowPublicURL:-}" \
   --openrouter-key /secrets/openrouter-key \
   --local-inference-mode remote \
@@ -41,6 +43,7 @@ if [ -x /usr/local/bin/internkim-admind ] && [ "${ENABLE_ADMIND:-0}" = "1" ]; th
     --mattermost-url "http://${mattermostHost}:8065" \
     --mattermost-public-url "${publicMattermostURL}" \
     --flow-public-url "${flowPublicURL:-}" \
+    --mattermost-interactive-token "${mattermostInteractiveTokenPath}" \
     --mattermost-interactive-base-url "${flowPublicURL:-}" \
     --mattermost-team "${MATTERMOST_TEAM:-internkim}" \
     --bot-username "${BOT_USERNAME:-internkim}" \

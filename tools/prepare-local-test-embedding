@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+cacheDirectory="$repositoryRoot/.dependency/local-fleet-embedding"
+modelPath="$cacheDirectory/bge-m3-Q8_0.gguf"
+modelURL="https://huggingface.co/gpustack/bge-m3-GGUF/resolve/2d48f1737679ad900d5c26c5aad5410e9c70fdca/bge-m3-Q8_0.gguf"
+systemName="$(uname -s)"
+architecture="$(uname -m)"
+
+case "$systemName-$architecture" in
+  Darwin-arm64)
+    archiveName="llama-b9660-bin-macos-arm64.tar.gz"
+    ;;
+  Linux-aarch64|Linux-arm64)
+    archiveName="llama-b9660-bin-ubuntu-arm64.tar.gz"
+    ;;
+  *)
+    echo "unsupported local embedding host: $systemName $architecture" >&2
+    exit 1
+    ;;
+esac
+
+archivePath="$cacheDirectory/$archiveName"
+runtimeDirectory="$cacheDirectory/runtime-$systemName-$architecture"
+serverPath="$runtimeDirectory/llama-b9660/llama-server"
+archiveURL="https://github.com/ggml-org/llama.cpp/releases/download/b9660/$archiveName"
+
+mkdir -p "$cacheDirectory"
+if [ ! -s "$archivePath" ]; then
+  curl -fL --progress-bar -o "$archivePath.tmp" "$archiveURL"
+  mv "$archivePath.tmp" "$archivePath"
+fi
+if [ ! -x "$serverPath" ]; then
+  rm -rf "$runtimeDirectory"
+  mkdir -p "$runtimeDirectory"
+  tar -xzf "$archivePath" -C "$runtimeDirectory"
+fi
+if [ ! -s "$modelPath" ]; then
+  curl -fL --progress-bar -o "$modelPath.tmp" "$modelURL"
+  mv "$modelPath.tmp" "$modelPath"
+fi
+
+printf '%s\n%s\n' "$serverPath" "$modelPath"

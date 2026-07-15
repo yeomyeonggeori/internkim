@@ -494,6 +494,13 @@ func (service Service) companionProvider() companionProvider {
 	}
 }
 
+func (service Service) companionInferenceProvider() companionProvider {
+	return companionProvider{
+		BaseURL:    strings.TrimRight(strings.TrimSpace(service.Configuration.CompanionBaseURL), "/"),
+		HTTPClient: service.providerHTTPClient(),
+	}
+}
+
 func (provider companionProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	document, errorValue := json.Marshal(request)
 	if errorValue != nil {

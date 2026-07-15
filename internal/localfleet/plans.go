@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -83,14 +84,36 @@ func scanPlanOutput(pipe interface{ Read([]byte) (int, error) }, logger Logger, 
 }
 
 func (service Service) upPlans(skipWeb bool) []CommandPlan {
+	return service.upPlansWithSkippedSetupSteps(skipWeb, nil)
+}
+
+func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
 	return []CommandPlan{
 		service.prepareContainerKernelPlan(),
+		service.prepareLocalEmbeddingPlan(),
 		service.labCommand("vm-up"),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
 		service.command("make", "build"),
-		service.shellPlan("setup local fleet", service.setupCommand(skipWeb)),
+		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
+		service.configureLocalEmbeddingPlan(),
+		service.mattermostTestSettingsPlan(),
 	}
+}
+
+func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
+	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-local-fleet-embedding"))
+}
+
+func (service Service) configureLocalEmbeddingPlan() CommandPlan {
+	scriptPath := "/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh"
+	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath))
+}
+
+func (service Service) mattermostTestSettingsPlan() CommandPlan {
+	workspacePath := "/mnt/shared/workspace"
+	scriptPath := workspacePath + "/lab/scripts/configure-mattermost-test-settings.sh"
+	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065")
 }
 
 func (service Service) withoutMattermostScenarioPlans(scenario string) []CommandPlan {
@@ -150,6 +173,29 @@ func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) 
 		verificationKind += " --keep"
 	}
 	return append(service.upPlans(false), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
+}
+
+func (service Service) mattermostManualScenarioPlans() []CommandPlan {
+	workspacePath := "/mnt/shared/workspace"
+	scriptPath := workspacePath + "/lab/scripts/prepare-mattermost-manual-test.sh"
+	return append(service.upPlans(false), service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065"))
+}
+
+func (service Service) mattermostAskEphemeralScenarioPlans() []CommandPlan {
+	scriptPath := filepath.Join(service.options.RepositoryRootPath, "lab", "scripts", "run-smoke-mattermost-ask-ephemeral-container.sh")
+	skippedSteps := []string{
+		"blueclaw-runtime-base",
+		"skills",
+		"blueclaw-config",
+		"blueclaw-payload",
+		"blueclaw-payload-direct",
+		"openrouter",
+		"staging",
+		"services",
+		"users-sync",
+		"health",
+	}
+	return append(service.upPlansWithSkippedSetupSteps(true, skippedSteps), service.command(scriptPath, service.options.VirtualMachineName))
 }
 
 func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool) []CommandPlan {
@@ -224,7 +270,7 @@ func (service Service) checkSharedWorkspaceCommand() string {
 	return "for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do " + command + " && exit 0; sleep 2; done; " + command
 }
 
-func (service Service) setupCommand(skipWeb bool) string {
+func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...string) string {
 	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	skippedSteps := []string{"wifi", "local-llm", "cloudflare-access", "tunnel", "google", "slack"}
 	if skipWeb {
@@ -233,11 +279,16 @@ func (service Service) setupCommand(skipWeb bool) string {
 	if !service.options.IsEphemeral {
 		skippedSteps = append(skippedSteps, "blueclaw-runtime-base")
 	}
+	for _, skippedStep := range additionalSkippedSteps {
+		if !slices.Contains(skippedSteps, skippedStep) {
+			skippedSteps = append(skippedSteps, skippedStep)
+		}
+	}
 	setupCommandParts := append(service.setupEnvironmentAssignments(), quoteShell(service.options.ExecutablePath))
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --force --skip " + strings.Join(skippedSteps, ","),
+		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force --skip " + strings.Join(skippedSteps, ","),
 	}, " && ")
 }
 
@@ -246,10 +297,11 @@ func (service Service) setupEnvironmentAssignments() []string {
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
 	}
-	if pinnedModelName := strings.TrimSpace(os.Getenv(blueclaw.BlueclawTestModelEnvironment)); pinnedModelName != "" {
+	if pinnedModelName := strings.TrimSpace(os.Getenv(blueclaw.BlueclawTestModelEnvironment)); !service.options.ShouldUseRealModels && pinnedModelName != "" {
 		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(pinnedModelName))
-	} else if !service.options.ShouldUseRealModels {
-		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(blueclaw.BlueclawTestModelName))
+	}
+	if maximumModelTier := strings.TrimSpace(service.options.MaximumModelTier); maximumModelTier != "" {
+		assignments = append(assignments, blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+quoteShell(maximumModelTier))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))

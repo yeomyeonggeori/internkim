@@ -938,10 +938,6 @@ func (database containerTenantPostgresDatabase) ExecutePostgres(ctx context.Cont
 
 func (runtime ContainerRuntime) ensureTenantMattermost(options ContainerTenantAddOptions, tenant ContainerTenant, operatorAdminPassword containerStoredPassword, companyAdminPassword containerStoredPassword) (string, error) {
 	adminUsername := containerCompanyAdminUsername(tenant)
-	agentPassword, errorValue := generateTenantLoginPassword()
-	if errorValue != nil {
-		return "", errorValue
-	}
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", "admin@example.test", "--username", "admin", "--password", operatorAdminPassword.Value, "--system-admin"})
 	if operatorAdminPassword.IsNew {
 		_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "change-password", "admin", "--password", operatorAdminPassword.Value})
@@ -951,7 +947,8 @@ func (runtime ContainerRuntime) ensureTenantMattermost(options ContainerTenantAd
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"config", "set", "LocalizationSettings.DefaultServerLocale", containerMattermostDefaultLocale})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "create", "--name", tenant.TeamName, "--display-name", tenant.DisplayName})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "users", "add", tenant.TeamName, "admin"})
-	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", tenant.AgentUsername + "@example.test", "--username", tenant.AgentUsername, "--password", agentPassword})
+	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"bot", "create", tenant.AgentUsername, "--display-name", defaultMattermostBotDisplayName})
+	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "convert", tenant.AgentUsername, "--bot"})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"team", "users", "add", tenant.TeamName, tenant.AgentUsername})
 	_ = runtime.runMattermostCommand(options.WorkDirectoryPath, []string{"user", "create", "--email", options.AdminEmail, "--username", adminUsername, "--password", companyAdminPassword.Value})
 	if companyAdminPassword.IsNew {

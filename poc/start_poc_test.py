@@ -20,6 +20,7 @@ class WorkspaceSettingsTest(unittest.TestCase):
 
         self.assertIn('flowPublicURL="$(cat /root/.internkim/env/flow-public-url', entrypoint)
         self.assertEqual(entrypoint.count('--mattermost-interactive-base-url "${flowPublicURL:-}"'), 2)
+        self.assertEqual(entrypoint.count('--mattermost-interactive-token "${mattermostInteractiveTokenPath}"'), 2)
 
     def test_refreshes_capability_contract_before_resolving_container_ips(self):
         with mock.patch.object(START_POC, 'refresh_capability_contract') as refresh_contract:

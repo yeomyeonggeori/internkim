@@ -1,7 +1,6 @@
 ---
 name: company-data
 description: Record and look up company master data — metrics time series (연매출, 영업이익, MAU, 직원 수), history and assets (연혁, 투자 유치, 제품 출시, 특허, 인증, 수상, 레퍼런스), and the company document ledger. Use for 매출 기록, 지표 기록, 연혁 추가, 투자 이력, 회사 정보 수정, 우리가 보낸 계약서/견적서 조회, revenue record, funding history, company timeline requests. Do not use for creating documents — the paperwork skill owns document generation.
-when_to_use: Use when the user records or asks about company facts — "작년 매출 12억 기록해둬", "시드 투자 받은 거 등록", "우리 연혁 보여줘", "직원 수 업데이트", "ABC랑 맺은 계약 내용이 뭐였지", "회사 주소 바뀌었어", record revenue, funding round, company history, past documents.
 ---
 
 # Company Data

@@ -6,10 +6,6 @@ description:
   documents — including PDF deliverables — use the document skill, which authors markdown and exports
   docx or pdf. Do not use for standardized company letterhead forms (견적서, 청구서, 발주서, 품의서,
   증명서, quotation, invoice, purchase order, certificate) — the paperwork skill owns those layouts."
-when_to_use: Use for 기존 PDF 읽기/요약/병합/분할/편집 or layout-critical PDF composition. For new content-first documents (보고서, 회의록, 메모) delivered as PDF, use the document skill instead.
-completion:
-  requiredEvidenceTools:
-    - file.deliver
 ---
 
 # Generating PDFs with fpdf2

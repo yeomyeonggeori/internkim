@@ -1,7 +1,6 @@
 ---
 name: skill-management
 description: Create, add, update, or remove user-managed Blueclaw skills. Use for requests about making a new skill, writing SKILL.md, adding a skill, deleting a skill, removing a skill, or managing skills.
-when_to_use: Use when the user asks to create a skill, add a skill, update a skill, remove a skill, delete a skill, write SKILL.md, 스킬 만들기, 스킬 추가, 스킬 삭제, 스킬 제거, 스킬 관리, or /skill-management.
 ---
 
 # Skill Management
@@ -16,7 +15,7 @@ Before writing a skill, capture the intent:
 - Which runtime capabilities it needs.
 - Two or three realistic test prompts the user can try after creation.
 
-Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only standard frontmatter fields. Do not invent custom fields, summaries, tags, trigger hints, custom capability dependency fields, allowed profiles, generated indexes, or full-body embeddings. Prefer `name`, `description`, and `when_to_use`.
+Write standard-compatible `SKILL.md` content directly in the `content` argument. Use only `name`, `description`, `license`, `compatibility`, `metadata`, and `allowed-tools` frontmatter fields. Put trigger scope in `description`; do not invent custom fields, summaries, tags, trigger hints, capability dependency fields, allowed profiles, generated indexes, or full-body embeddings.
 
 Keep `SKILL.md` concise. Put essential workflow in the body. Put long domain knowledge in `references/`, deterministic repeated logic in `scripts/`, and output resources in `assets/`. When adding bundled resources, pass them through the `resources` argument to `skill.add` and mention each referenced resource from `SKILL.md`.
 

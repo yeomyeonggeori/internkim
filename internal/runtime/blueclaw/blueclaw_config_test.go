@@ -340,6 +340,7 @@ func TestBlueclawRuntimeConfigCanIncludeGenerationOptions(t *testing.T) {
 
 func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *testing.T) {
 	t.Setenv(BlueclawTestModelEnvironment, "google/test-model")
+	t.Setenv(BlueclawTestMaximumModelTierEnvironment, "xlow")
 	t.Setenv(BlueclawTestGenerationSeedEnvironment, "41")
 	t.Setenv(BlueclawTestGenerationTemperatureEnvironment, "0")
 
@@ -353,11 +354,38 @@ func TestBlueclawRuntimeConfigOptionsCanLoadGenerationOptionsFromEnvironment(t *
 	if !options.ShouldUseModelForAllTiers {
 		t.Fatalf("expected environment model to apply to all model tiers, got %+v", options)
 	}
+	if options.MaximumModelTier != "xlow" {
+		t.Fatalf("expected maximum model tier from environment, got %+v", options)
+	}
 	if options.GenerationSeed == nil || *options.GenerationSeed != 41 {
 		t.Fatalf("expected seed from environment, got %+v", options)
 	}
 	if options.GenerationTemperature == nil || *options.GenerationTemperature != 0 {
 		t.Fatalf("expected temperature from environment, got %+v", options)
+	}
+}
+
+func TestBlueclawRuntimeConfigIncludesMaximumModelTier(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{MaximumModelTier: "low"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	capabilityLanguageModel := languageModel["capability"].(map[string]any)
+	if capabilityLanguageModel["maximumModelTier"] != "low" {
+		t.Fatalf("expected low maximum model tier, got %+v", capabilityLanguageModel)
+	}
+}
+
+func TestBlueclawRuntimeConfigRejectsInvalidMaximumModelTierEnvironment(t *testing.T) {
+	t.Setenv(BlueclawTestMaximumModelTierEnvironment, "coding")
+	_, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "maximum model tier") {
+		t.Fatalf("expected maximum model tier error, got %v", errorValue)
 	}
 }
 
@@ -774,7 +802,7 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		"--host " + locallm.LlamaCppHost,
 		"--port " + locallm.LlamaCppEmbeddingPort,
 		"--embeddings",
-		"--pooling mean",
+		"--pooling cls",
 		"--batch-size " + locallm.LlamaCppEmbeddingBatchSize,
 		"--ubatch-size " + locallm.LlamaCppEmbeddingUBatchSize,
 		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
