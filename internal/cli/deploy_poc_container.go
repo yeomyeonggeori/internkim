@@ -283,7 +283,7 @@ func pocContainerRecreateCommand(target deployops.Target) string {
 		pocContainerTagExistingImageCommand(target),
 		pocContainerBuildImageCommand(target, overlayPath),
 		pocContainerTenantCountCommand(),
-		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " python3 start-poc.py \"$tenant_count\"",
+		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " PYTHONUNBUFFERED=1 python3 start-poc.py \"$tenant_count\"",
 		"[ ! -f cf.env ] || python3 restart-tunnel.py",
 	}, "\n")
 }
@@ -354,6 +354,8 @@ func pocContainerSSHBaseArguments(target deployops.Target) []string {
 		"-o", "PubkeyAuthentication=no",
 		"-o", "IdentitiesOnly=yes",
 		"-o", "ConnectTimeout=20",
+		"-o", "ServerAliveInterval=15",
+		"-o", "ServerAliveCountMax=12",
 	}
 	if target.SSHProxyCommand != "" {
 		arguments = append(arguments, "-o", "ProxyCommand="+target.SSHProxyCommand)
