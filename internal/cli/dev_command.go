@@ -181,19 +181,24 @@ func runDevFleetReprovision(arguments []string) error {
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
 		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
-	command.Env = append(os.Environ(),
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL_TIER=xlow",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=xlow",
-		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
-	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
-		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
-	}
+	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath())
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	return command.Run()
+}
+
+func devFleetReprovisionEnvironment(environment []string, moduleCachePath string) []string {
+	environment = append(environment,
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
+		"INTERNKIM_TEST_MODEL_TIER=low",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=low",
+		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
+	if moduleCachePath == "" {
+		return environment
+	}
+	return append(environment, "GO_MOD_CACHE="+moduleCachePath)
 }
 
 func latestLocalFleetConfigurationPath(repositoryRootPath string) (string, error) {
