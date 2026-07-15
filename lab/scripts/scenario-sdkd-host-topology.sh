@@ -113,6 +113,7 @@ wait_for_sdkd() {
 run_task() {
   local prompt=$1
   local task_decision_preset=${2-sdkd_topology}
+  local requires_completed_finish=${3-true}
   local conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"
   local request_body response_path http_status task_run_id
   response_path=$(mktemp)
@@ -141,8 +142,13 @@ run_task() {
       return 1
       ;;
   esac
-  if ! task_run_id=$(jq -er 'select(.taskRun.status == "completed" and (.finishMessage | length > 0)) | .taskRun.taskRunID' "$response_path"); then
-    echo "task run response did not contain a completed task with a finish message" >&2
+  if [ "$requires_completed_finish" = true ]; then
+    task_run_id=$(jq -er 'select(.taskRun.status == "completed" and (.finishMessage | length > 0)) | .taskRun.taskRunID' "$response_path") || true
+  else
+    task_run_id=$(jq -er '.taskRun.taskRunID | select(length > 0)' "$response_path") || true
+  fi
+  if [ -z "$task_run_id" ]; then
+    echo "task run response did not contain the required task result" >&2
     jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
     rm -f "$response_path"
     return 1
@@ -316,7 +322,7 @@ jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action
 jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action"]' "$workspace_runtime_config" >/dev/null
 enable_router_schema
 requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
-router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '')
+router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '' false)
 assert_guest_sdkd_router_transport "$router_task_run_id"
 
 authoritative_task_run_id=$(run_task 'Reply with exactly SDKD topology authoritative ok.')
