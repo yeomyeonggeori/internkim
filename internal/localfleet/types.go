@@ -14,7 +14,12 @@ const (
 	ActionRunRecipe        = "runRecipe"
 	ActionRunScenario      = "runScenario"
 	ActionVerifyRegression = "verifyRegression"
+
+	SDKDModeShadow        SDKDMode = "shadow"
+	SDKDModeAuthoritative SDKDMode = "authoritative"
 )
+
+type SDKDMode string
 
 type Options struct {
 	RepositoryRootPath    string
@@ -27,6 +32,7 @@ type Options struct {
 	GenerationSeed        string
 	GenerationTemperature string
 	MaximumModelTier      string
+	SDKDMode              SDKDMode
 	IsEphemeral           bool
 	ShouldUseRealModels   bool
 }

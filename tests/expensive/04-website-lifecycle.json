@@ -1,5 +1,6 @@
 {
   "name": "website-lifecycle",
+  "requiresSDKD": true,
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/website"],
   "allowedTools": ["conversation.history", "memory.search", "capability.invoke", "terminal.run", "file.read", "file.write", "file.edit"],
   "capabilityToolNames": ["site.create", "site.status", "site.publish", "site.delete"],
@@ -9,21 +10,21 @@
   "initialToolNames": ["capability.invoke"],
   "steps": [
     {
-      "prompt": "'비용 테스트 스튜디오'라는 단일 페이지 웹사이트를 만들어줘. 아직 배포하지는 마.",
+      "prompt": "우리 회사 '브릿지웍스'가 처음 문의하는 소상공인을 위한 '브릿지웍스 상담 안내' 한 페이지 웹사이트를 초안으로 만들어줘. 어떤 상담을 받을 수 있는지, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 공개하지는 말아줘.",
       "expectedToolCalls": ["site.create"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 스튜디오", "count": 1}
+        {"name": "tool.capability.invoke.result", "bodyFragment": "브릿지웍스 상담 안내", "count": 1}
       ],
       "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["비용 테스트 스튜디오"]}
+        {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["브릿지웍스 상담 안내"]}
       ],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 만든 웹사이트 첫 화면에 '고정 시드 기반 검증' 문구를 추가해줘. 아직 배포하지 마.",
-      "expectedToolCalls": ["file.write"],
+      "prompt": "방금 만든 웹사이트 첫 화면에 '첫 상담은 30분 무료입니다'라는 안내를 추가해줘. 아직 공개하지는 마.",
+      "expectedAnyToolCalls": ["file.edit", "file.write"],
       "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 기반 검증"]}
+        {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["첫 상담은 30분 무료입니다"]}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -31,22 +32,32 @@
       "prompt": "방금 수정한 웹사이트를 배포해줘.",
       "expectedToolCalls": ["site.publish", "site.status"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "https://demo.device.example.test", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "https://", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "sourceSHA256", "count": 1},
         {"name": "tool.capability.invoke.result", "bodyFragment": "published", "count": 2}
       ],
+      "requiresPublicURL": true,
+      "expectedPublicText": ["브릿지웍스 상담 안내", "첫 상담은 30분 무료입니다"],
+      "expectedPublicControls": ["상담 신청"],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "배포한 웹사이트의 문구를 '고정 시드 41 검증 완료'로 바꾸고 다시 배포해줘.",
+      "prompt": "배포한 웹사이트의 상담 안내 문구를 '상담 신청은 평일 오전에 접수합니다'로 바꾸고 다시 배포해줘.",
       "expectedToolCalls": ["site.publish", "site.status"],
       "expectedAnyToolCalls": ["file.edit", "file.write"],
       "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 41 검증 완료"]}
+        {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["상담 신청은 평일 오전에 접수합니다"]}
       ],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "sourceSHA256", "count": 1}
+      ],
+      "requiresPublicURL": true,
+      "expectedPublicText": ["브릿지웍스 상담 안내", "상담 신청은 평일 오전에 접수합니다"],
+      "expectedPublicControls": ["상담 신청"],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 배포한 '비용 테스트 스튜디오' 웹사이트를 삭제해줘.",
+      "prompt": "방금 배포한 '브릿지웍스 상담 안내' 웹사이트를 삭제해줘.",
       "expectedEvents": ["confirmation.requested"],
       "expectedEventCounts": [
         {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
@@ -60,7 +71,7 @@
       "expectedEventCounts": [
         {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
       ],
-      "forbiddenWorkspaceFiles": ["circles/staff/sites/demo"],
+      "forbiddenWorkspaceFiles": ["circles/staff/sites/*"],
       "expectedTaskStatus": "completed"
     }
   ]

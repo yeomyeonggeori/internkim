@@ -1,5 +1,6 @@
 {
   "name": "task-lifecycle",
+  "requiresSDKD": true,
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/internkim-flow"],
   "allowedTools": ["conversation.history", "memory.search", "capability.invoke"],
   "capabilityToolNames": ["task.add", "task.list", "task.update", "task.delete"],
@@ -9,30 +10,33 @@
   "initialToolNames": ["capability.invoke"],
   "steps": [
     {
-      "prompt": "내 업무로 '비용 테스트 회귀 확인'을 이번 주 금요일 마감으로 추가해줘.",
+      "prompt": "이번 주 금요일까지 고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무를 내 업무 목록에 추가해줘. 업무 제목은 '고객지원 분기 결산 누락 항목 확인'으로 해줘.",
       "expectedToolCalls": ["task.add"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 회귀 확인", "count": 1}
+        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 누락 항목 확인", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 추가한 업무 제목을 '비용 테스트 회귀 확인 완료 준비'로 수정해줘.",
+      "prompt": "방금 추가한 업무 제목을 '고객지원 분기 결산 검토 완료'로 바꿔줘. 금요일까지 확인을 끝내는 목표는 그대로 유지해줘.",
       "expectedToolCalls": ["task.update"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.requested", "bodyFragment": "비용 테스트 회귀 확인 완료 준비", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 회귀 확인 완료 준비", "count": 1}
+        {"name": "tool.capability.invoke.requested", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1},
+        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "내 업무를 조회해서 방금 수정한 업무가 있는지 알려줘.",
+      "prompt": "내 업무를 조회해서 방금 바꾼 고객지원 분기 결산 업무가 남아 있는지 알려줘.",
       "expectedToolCalls": ["task.list"],
-      "expectedReplyFragments": ["비용 테스트 회귀 확인 완료 준비"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1}
+      ],
+      "expectedReplyFragments": ["고객지원 분기 결산 검토 완료"],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 확인한 '비용 테스트 회귀 확인 완료 준비' 업무를 삭제해줘.",
+      "prompt": "방금 확인한 '고객지원 분기 결산 검토 완료' 업무를 삭제해줘.",
       "expectedToolCalls": ["task.delete"],
       "expectedEvents": ["confirmation.requested"],
       "expectedEventCounts": [
@@ -47,6 +51,15 @@
       "expectedEventCounts": [
         {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
       ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "내 업무를 다시 조회해서 삭제한 '고객지원 분기 결산 검토 완료' 업무가 남아 있지 않은지 확인해줘.",
+      "expectedToolCalls": ["task.list"],
+      "expectedEventCounts": [
+        {"name": "tool.capability.invoke.result", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 0}
+      ],
+      "expectedReplyFragments": ["없"],
       "expectedTaskStatus": "completed"
     }
   ]
