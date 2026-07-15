@@ -92,7 +92,7 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"prepare-local-fleet-embedding",
 		"make build",
 		"setup --board lab",
-		"configure-local-embedding.sh",
+		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
 		"configure-mattermost-test-settings.sh",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
@@ -409,14 +409,14 @@ func TestSDKDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
 		"vm-up --config",
 		"make build",
 		"setup --board lab",
-		"--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web",
+		"--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,mattermost",
 		"sudo bash '/mnt/shared/workspace/lab/scripts/scenario-sdkd-host-topology.sh'",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
-	if strings.Contains(joinedPlans, "virtual-session") || strings.Contains(joinedPlans, "verify mattermost") {
+	if strings.Contains(joinedPlans, "virtual-session") || strings.Contains(joinedPlans, "verify mattermost") || strings.Contains(joinedPlans, "configure-mattermost-test-settings.sh") {
 		t.Fatalf("SDKD topology should run against provisioned host services:\n%s", joinedPlans)
 	}
 	for _, plan := range plans {
@@ -426,6 +426,12 @@ func TestSDKDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
 			}
 			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestModelTierEnvironment) {
 				t.Fatalf("expected SDKD scenario to preserve production task level, got %v", plan.Environment)
+			}
+			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
+				t.Fatalf("expected SDKD scenario to omit the test maximum model tier for production task-level intent, got %v", plan.Environment)
+			}
+			if strings.Contains(strings.Join(plan.Arguments, " "), blueclaw.BlueclawTestMaximumModelTierEnvironment+"=") {
+				t.Fatalf("expected SDKD setup command to omit the test maximum model tier for production task-level intent, got %v", plan.Arguments)
 			}
 			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true") {
 				t.Fatalf("expected SDKD diagnostic preset environment, got %v", plan.Environment)
@@ -450,15 +456,29 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
 		`conversationID:$conversationID`,
 		`taskDecisionPreset:"sdkd_topology"`,
+		`response_path=$(mktemp)`,
+		`--connect-timeout 10 --max-time 300`,
+		`task run response did not contain a completed task with a finish message`,
+		`capability_socket_path=/run/internkim/capability.sock`,
+		`chat_bridge_path=/_internkim/sdkd/v1/llm/chat`,
+		`Authorization: Bearer $(cat "$auth_key_path")`,
+		`--unix-socket "$capability_socket_path"`,
+		`http://internkim-capability$chat_bridge_path`,
+		`invalid_chat_request=`,
+		`run_host_chat_bridge_request()`,
+		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
+		`assert_guest_sdkd_structured_transport "$authoritative_task_run_id" false`,
 		`.taskRun.taskRunID`,
 		`/admin/api/task/detail?taskRunID=`,
 		`select(.schemaName == "blueclaw_agent_turn_action")`,
 		`select(.isIntakePrecomputed == true)`,
-		`assert_task_fallback "$authoritative_task_run_id" false`,
 		`systemctl stop "$service_name"`,
-		`assert_task_fallback "$fallback_task_run_id" true`,
+		`assert_host_chat_bridge_response 503 sdkd_bridge_unavailable true`,
+		`host chat bridge returned an unexpected error envelope`,
+		`assert_guest_sdkd_structured_transport "$fallback_task_run_id" true`,
 		`systemctl restart "$service_name"`,
-		`assert_task_fallback "$recovered_task_run_id" false`,
+		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
+		`assert_guest_sdkd_structured_transport "$recovered_task_run_id" false`,
 		`trap restore_sdkd EXIT`,
 	} {
 		if !strings.Contains(script, expectedFragment) {
