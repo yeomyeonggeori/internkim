@@ -59,6 +59,7 @@ type calendarEvent struct {
 	RemoteSource      string                `json:"remoteSource,omitempty"`
 	RemoteETag        string                `json:"remoteETag,omitempty"`
 	RemoteHref        string                `json:"remoteHref,omitempty"`
+	RemoteModifiedAt  string                `json:"-"`
 	RawICS            string                `json:"-"`
 }
 
