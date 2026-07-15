@@ -8,8 +8,12 @@ import {
 	companyMetricLabel,
 	companyMetricPeriodLabel,
 	companyRecordDescription,
+	companyRecordMoney,
 	companyRecordTitle,
+	companyRecordVisibleAttributes,
 	formatCompanyMetricValue,
+	formatCompanyRecordMoney,
+	formatCompanyRecordMoneyEquivalent,
 	companyWorkStatusPercentage,
 	latestCompanyMetrics,
 	type CompanyShareMetric
@@ -62,6 +66,30 @@ describe('company page model', () => {
 			{ metric: 'arr', year: 2025, value: 1, currency: 'KRW', valueUSD: 1 },
 			{ metric: 'gmv', year: 2025, value: 1, currency: 'JPY', valueUSD: 1 }
 		])).toBe(undefined);
+		expect(companyLocalCurrency([], [{
+			category: 'funding', title: 'TIPS', attributes: { amount: '500000000', currency: 'KRW', valueUSD: '360000' }
+		}])).toBe('KRW');
+	});
+
+	test('presents record money as compact USD and local equivalents', () => {
+		const record = {
+			category: 'funding', title: 'TIPS',
+			attributes: { amount: '500,000,000', currency: 'krw', valueUSD: '360000', program: 'TIPS' }
+		};
+		const money = companyRecordMoney(record);
+		expect(money).toEqual({ amount: 500000000, currency: 'KRW', valueUSD: 360000 });
+		if (!money) return;
+		expect(formatCompanyRecordMoney(money, 'USD')).toBe('$360K');
+		expect(formatCompanyRecordMoneyEquivalent(money, 'USD')).toBe('₩500M');
+		expect(formatCompanyRecordMoney(money, 'local')).toBe('₩500M');
+		expect(formatCompanyRecordMoneyEquivalent(money, 'local')).toBe('$360K');
+		expect(companyRecordVisibleAttributes(record)).toEqual([['program', 'TIPS']]);
+	});
+
+	test('keeps malformed money attributes visible instead of hiding data', () => {
+		const record = { category: 'funding', title: 'Funding', attributes: { amount: 'undisclosed', currency: 'KRW' } };
+		expect(companyRecordMoney(record)).toBe(undefined);
+		expect(companyRecordVisibleAttributes(record)).toEqual([['amount', 'undisclosed'], ['currency', 'KRW']]);
 	});
 
 	test('leaves non-monetary and legacy values unchanged', () => {
