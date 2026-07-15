@@ -10,8 +10,11 @@ import (
 )
 
 type attendanceEventsCachePayload struct {
-	Events []attendanceEvent `json:"events"`
+	Version int               `json:"version"`
+	Events  []attendanceEvent `json:"events"`
 }
+
+const attendanceEventsCacheVersion = 2
 
 type attendanceAbsencesCachePayload struct {
 	Absences []attendanceAbsence `json:"absences"`
@@ -27,7 +30,7 @@ func (service *Service) readCachedAttendanceEvents(ctx context.Context, month st
 		logAttendanceSummaryCacheFailure("read", attendanceSummaryCacheKindEvents, month, email, cacheError)
 	} else if found {
 		var cachedPayload attendanceEventsCachePayload
-		if errorValue := json.Unmarshal(payload, &cachedPayload); errorValue == nil && cachedPayload.Events != nil {
+		if errorValue := json.Unmarshal(payload, &cachedPayload); errorValue == nil && cachedPayload.Version == attendanceEventsCacheVersion && cachedPayload.Events != nil {
 			return cachedPayload.Events, nil
 		}
 		if errorValue := service.deleteAttendanceSummaryCachePayloadIfUnchanged(ctx, attendanceSummaryCacheKindEvents, month, revision, payload); errorValue != nil {
@@ -53,7 +56,7 @@ func (service *Service) storeAttendanceEventsCachePayload(
 	events []attendanceEvent,
 	now time.Time,
 ) error {
-	payload, errorValue := json.Marshal(attendanceEventsCachePayload{Events: events})
+	payload, errorValue := json.Marshal(attendanceEventsCachePayload{Version: attendanceEventsCacheVersion, Events: events})
 	if errorValue != nil {
 		return fmt.Errorf("encode attendance events cache payload: %w", errorValue)
 	}

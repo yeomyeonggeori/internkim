@@ -1277,6 +1277,8 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-value" {
 				t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
@@ -1449,6 +1451,8 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		switch {
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -1555,6 +1559,8 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		switch {
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -1619,6 +1625,8 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 		switch {
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"owner@example.com","role":"admin"},{"email":"admin@example.com","role":"admin","mattermostUserID":"admin-id","mattermostUsername":"admin"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin-id"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -3198,7 +3206,7 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "me@example.com")
+	request.Header.Set(flowResolvedActorHeader, "me@example.com")
 	task, errorValue := service.flowTaskFromRequest(request, members, flowDefinitions{
 		Types: []string{"회의"},
 		Sizes: defaultFlowSizeDefinitions(),

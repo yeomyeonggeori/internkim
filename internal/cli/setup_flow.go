@@ -1582,8 +1582,10 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	syncCommand := strings.Join([]string{
 		blueclaw.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
+		"--atomic",
+		"--preserve-guest-state",
 		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
-		"--source", quoteShellValue(temporaryPayloadPath + "/workspace"),
+		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
 	}, " ")
 	output, errorValue = state.sshClient.runResult(syncCommand)
 	if errorValue != nil {

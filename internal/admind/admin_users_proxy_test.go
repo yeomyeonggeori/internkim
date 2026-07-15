@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -65,19 +66,102 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 	}
 }
 
+func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		order []bool
+	}{
+		{name: "included then excluded", order: []bool{true, false}},
+		{name: "excluded then included", order: []bool{false, true}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+				if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+					return response, nil
+				}
+				switch {
+				case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+					return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+				case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+				case isBlueclawPolicyGet(request):
+					return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+				default:
+					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+					return nil, nil
+				}
+			})
+
+			for _, includePolicy := range testCase.order {
+				usersResponse := requestAdminUsersForPolicyScope(t, service, includePolicy)
+				record := usersResponse.Records[0]
+				if record.Role != "member" || record.MattermostUserID != "user-1" || record.MattermostUsername != "member" {
+					t.Fatalf("authoritative record fields = %#v", record)
+				}
+				if includePolicy {
+					if len(record.Circles) != 1 || record.Circles[0] != "staff" || record.Note != "Existing member note" {
+						t.Fatalf("included policy record = %#v", record)
+					}
+					continue
+				}
+				if len(record.Circles) != 0 || record.Note != "" {
+					t.Fatalf("excluded policy record = %#v", record)
+				}
+			}
+		})
+	}
+}
+
+func requestAdminUsersForPolicyScope(t *testing.T, service *Service, includePolicy bool) pagesUsersResponse {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/users?includePolicy="+strconv.FormatBool(includePolicy), nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("user list status = %d body = %s", response.Code, response.Body.String())
+	}
+	var usersResponse pagesUsersResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &usersResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(usersResponse.Records) != 1 {
+		t.Fatalf("records = %d; want 1", len(usersResponse.Records))
+	}
+	return usersResponse
+}
+
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	var pagesPayload map[string]any
 	var mattermostPatch map[string]string
-	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+	var service *Service
+	checkedDirty := false
+	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
 		}
 		switch {
 		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
+			listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
+			personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-member"}
+			keys := []orgchartPeopleCacheKey{listKey, personKey}
+			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(request.Context(), keys)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if !snapshots[listKey].IsDirty || snapshots[listKey].ActiveMutations != 1 {
+				t.Fatalf("list cache state before remote write = %#v", snapshots[listKey])
+			}
+			if snapshots[personKey].IsDirty || snapshots[personKey].ActiveMutations != 0 || snapshots[personKey].Found {
+				t.Fatalf("unknown person cache state before remote write = %#v", snapshots[personKey])
+			}
+			checkedDirty = true
 			if errorValue := json.NewDecoder(request.Body).Decode(&mattermostPatch); errorValue != nil {
 				t.Fatal(errorValue)
 			}
@@ -101,6 +185,9 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("user save status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !checkedDirty {
+		t.Fatal("expected dirty cache check before remote write")
 	}
 	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
 		t.Fatalf("mattermost patch = %#v", mattermostPatch)
@@ -167,6 +254,42 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 	}
 	if savedPerson["note"] != "Needs HR compensation follow-up" {
 		t.Fatalf("Blueclaw note = %#v; person = %#v", savedPerson["note"], savedPerson)
+	}
+}
+
+func TestOrgchartUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
+	sourceResponseBody := `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
+	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
+			return response, nil
+		}
+		switch {
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
+		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusAccepted, sourceResponseBody, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		case isBlueclawInviteRequest(t, request, "member@example.com"):
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})
+	failOrgchartUserMutationCompletion(t, service)
+
+	requestBody := strings.NewReader(`{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}`)
+	responseRecorder := httptest.NewRecorder()
+	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
+
+	expectedBody := string(usersResponseBodyWithProfileImages([]byte(sourceResponseBody)))
+	if responseRecorder.Code != http.StatusAccepted || responseRecorder.Body.String() != expectedBody {
+		t.Fatalf("status = %d body = %s; want status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String(), http.StatusAccepted, expectedBody)
 	}
 }
 

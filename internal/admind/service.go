@@ -114,6 +114,8 @@ type Service struct {
 	recentCalendarPushUIDs  map[string]time.Time
 	calendarActorCacheMutex sync.Mutex
 	calendarActorCache      map[string]calendarActorProfileCacheEntry
+	companyShareMutex       sync.Mutex
+	companyShareAttempts    map[string]companyShareAttempt
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
 	mattermostSessions      *mattermostSessionCache
@@ -296,6 +298,7 @@ func NewService(configuration Configuration) *Service {
 		mailBackend:           standardMailBackend{},
 		calendarSyncWakeUp:    make(chan struct{}, 1),
 		calendarActorCache:    map[string]calendarActorProfileCacheEntry{},
+		companyShareAttempts:  map[string]companyShareAttempt{},
 		requestMetrics:        newAdminRequestMetrics(),
 		databaseSchemas:       newAdminDatabaseSchemas(),
 		mattermostSessions:    newMattermostSessionCache(),
@@ -316,6 +319,11 @@ func (service *Service) Run(ctx context.Context) error {
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
 		log.Printf("attendance future event repair failed: %v", errorValue)
+	}
+	if repairedCount, errorValue := service.repairAttendanceClockOutDates(ctx); errorValue != nil {
+		log.Printf("attendance clock-out date repair failed: %v", errorValue)
+	} else if repairedCount > 0 {
+		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
 	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
@@ -480,6 +488,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/tasks", service.serveTasksPage)
 	multiplexer.HandleFunc("/tasks/api/", service.handleTasks)
 	multiplexer.HandleFunc("/tasks/", service.serveTasksPage)
+	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
+	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
+	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
@@ -872,6 +883,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company-share":
+		service.writeCompanyShareSettings(responseWriter)
+	case request.Method == http.MethodPut && path == "/company-share":
+		service.updateCompanyShareSettings(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/company-share/publish":
+		service.publishCompanyShareSnapshot(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/company-info":
 		service.writeCompanyInfo(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/company-info":
