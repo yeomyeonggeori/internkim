@@ -77,6 +77,7 @@ export type CompanyShareActivityDay = {
 	date: string;
 	attendanceCount: number;
 	workCount: number;
+	workMinutes?: number;
 };
 
 export type CompanyShareWorkStatus = {
@@ -188,6 +189,20 @@ export function companyActivityIntensity(day: CompanyShareActivityDay, days: Com
 	const maximum = Math.max(...days.map((candidate) => candidate.attendanceCount + candidate.workCount), 0);
 	if (value === 0 || maximum === 0) return 0;
 	return Math.max(1, Math.ceil(value / maximum * 4));
+}
+
+export function companyActivityScaleMaximum(values: number[]): number {
+	return Math.max(...values, 0);
+}
+
+export function companyActivityNormalizedValue(value: number, maximum: number): number {
+	if (value <= 0 || maximum <= 0) return 0;
+	return value / maximum * 100;
+}
+
+export function formatCompanyActivityDuration(minutes: number, language: string): string {
+	const hours = minutes / 60;
+	return `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(hours)} h`;
 }
 
 export function companyWorkStatusPercentage(count: number, statuses: CompanyShareWorkStatus[]): number {
