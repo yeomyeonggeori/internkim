@@ -41,12 +41,12 @@ func (service *Service) readCalendarEventWindowWithSourceReader(ctx context.Cont
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		stored, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(ctx, database, cacheRange, revision, events, time.Now())
+		writeResult, errorValue := writeCalendarEventWindowCacheEntryIfCurrent(ctx, database, cacheRange, revision, events, time.Now())
 		if errorValue != nil {
 			logCalendarEventWindowCacheFailure("write", cacheRange.Key, errorValue)
 			return events, nil
 		}
-		if stored {
+		if writeResult == calendarEventWindowCacheWriteSkipped || writeResult == calendarEventWindowCacheWriteStored {
 			return events, nil
 		}
 	}
