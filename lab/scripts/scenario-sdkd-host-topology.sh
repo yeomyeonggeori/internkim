@@ -10,6 +10,9 @@ runtime_directory=/run/blueclaw-sdkd
 socket_path=$runtime_directory/sdkd.sock
 auth_key_path=/root/.internkim/secrets/sdkd-auth-key
 runtime_config=/root/.blueclaw/config/runtime.json
+capability_socket_path=/run/internkim/capability.sock
+chat_bridge_path=/_internkim/sdkd/v1/llm/chat
+invalid_chat_request='{"executionMode":"auto","messages":[],"parallelToolCalls":"invalid"}'
 
 restore_sdkd() {
   systemctl start "$service_name" >/dev/null 2>&1 || true
@@ -29,19 +32,53 @@ wait_for_sdkd() {
 run_task() {
   local prompt=$1
   local conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"
-  curl --fail --silent --show-error --max-time 180 \
+  local request_body response_path http_status task_run_id
+  response_path=$(mktemp)
+  request_body=$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:"00000000-0000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:"sdkd_topology"}')
+  if ! http_status=$(curl --silent --show-error --connect-timeout 10 --max-time 300 \
     -H 'Content-Type: application/json' \
-    -d "$(jq -cn --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:"00000000-0000-0000-0000-000000000001",conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:"sdkd_topology"}')" \
-    http://127.0.0.1:8080/admin/api/task/run |
-    jq -er 'select(.taskRun.status == "completed" and (.finishMessage | length > 0)) | .taskRun.taskRunID'
+    -d "$request_body" \
+    --output "$response_path" \
+    --write-out '%{http_code}' \
+    http://127.0.0.1:8080/admin/api/task/run); then
+    echo "task run request failed (curl status $http_status)" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  case "$http_status" in
+    2??) ;;
+    *)
+      echo "task run request returned HTTP $http_status" >&2
+      sed -n '1,120p' "$response_path" >&2 || true
+      rm -f "$response_path"
+      return 1
+      ;;
+  esac
+  if ! task_run_id=$(jq -er 'select(.taskRun.status == "completed" and (.finishMessage | length > 0)) | .taskRun.taskRunID' "$response_path"); then
+    echo "task run response did not contain a completed task with a finish message" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
+  printf '%s\n' "$task_run_id"
 }
 
-assert_task_fallback() {
+assert_guest_sdkd_structured_transport() {
   local task_run_id=$1
   local expected_fallback=$2
-  curl --fail --silent --show-error --max-time 10 \
-    "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" |
-    jq -e --argjson expectedFallback "$expected_fallback" '
+  local response_path
+  response_path=$(mktemp)
+  if ! curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$response_path" \
+    "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id"; then
+    echo "task detail request failed for $task_run_id" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  if ! jq -e --argjson expectedFallback "$expected_fallback" '
       [.taskEvents[] |
         select(.name == "llm.call") |
         (.body | fromjson) |
@@ -55,7 +92,47 @@ assert_task_fallback() {
       ($calls | length) > 0 and
       ($diagnostic_launches | length) == 1 and
       all($calls[]; (.usedFallback // false) == $expectedFallback)
-    ' >/dev/null
+    ' "$response_path" >/dev/null; then
+    echo "task detail did not prove SDKD structured transport for $task_run_id (expected fallback: $expected_fallback)" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
+}
+
+run_host_chat_bridge_request() {
+  curl --silent --show-error --max-time 10 \
+    --unix-socket "$capability_socket_path" \
+    -H "Authorization: Bearer $(cat "$auth_key_path")" \
+    -H 'Content-Type: application/json' \
+    -d "$invalid_chat_request" \
+    -w '\n%{http_code}' \
+    "http://internkim-capability$chat_bridge_path"
+}
+
+assert_host_chat_bridge_response() {
+  local expected_status=$1
+  local expected_code=$2
+  local expected_fallback=$3
+  local response status body
+  if ! response="$(run_host_chat_bridge_request)"; then
+    echo "host chat bridge request failed (expected HTTP $expected_status)" >&2
+    return 1
+  fi
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+  if [ "$status" != "$expected_status" ]; then
+    echo "host chat bridge returned HTTP $status, expected $expected_status" >&2
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
+  if ! jq -e --arg expectedCode "$expected_code" --argjson expectedFallback "$expected_fallback" \
+    '.error.code == $expectedCode and .error.allowLegacyFallback == $expectedFallback' <<<"$body" >/dev/null; then
+    echo "host chat bridge returned an unexpected error envelope" >&2
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
 }
 
 trap restore_sdkd EXIT
@@ -82,13 +159,16 @@ if grep -qE '/run/blueclaw-sdkd|sdkd-auth-key' "$runtime_config"; then
 fi
 
 authoritative_task_run_id=$(run_task 'Reply with exactly SDKD topology authoritative ok.')
-assert_task_fallback "$authoritative_task_run_id" false
+assert_host_chat_bridge_response 400 invalid_chat_completion_request false
+assert_guest_sdkd_structured_transport "$authoritative_task_run_id" false
 
 systemctl stop "$service_name"
+assert_host_chat_bridge_response 503 sdkd_bridge_unavailable true
 fallback_task_run_id=$(run_task 'Reply with exactly SDKD topology fallback ok.')
-assert_task_fallback "$fallback_task_run_id" true
+assert_guest_sdkd_structured_transport "$fallback_task_run_id" true
 
 systemctl restart "$service_name"
 wait_for_sdkd
+assert_host_chat_bridge_response 400 invalid_chat_completion_request false
 recovered_task_run_id=$(run_task 'Reply with exactly SDKD topology recovered ok.')
-assert_task_fallback "$recovered_task_run_id" false
+assert_guest_sdkd_structured_transport "$recovered_task_run_id" false

@@ -27,7 +27,7 @@ var StepHealth = Step{
 		}
 
 		var failedChecks []string
-		checkService(context, "mattermost", &failedChecks)
+		checkMattermostHealth(context, &failedChecks)
 		if isPlannedStep(context, "tunnel") && trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
 			checkService(context, "cloudflared", &failedChecks)
 		} else {
@@ -43,12 +43,9 @@ var StepHealth = Step{
 		checkBlueclawFirecrackerRuntime(context, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
-		checkCapabilityHealth(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
 		checkFirstAdminBootstrap(context, &failedChecks)
-		checkMattermostPing(context, &failedChecks)
-		checkMattermostURL(context, &failedChecks)
-		if isPlannedStep(context, "tunnel") {
+		if isPlannedStep(context, "mattermost") && isPlannedStep(context, "tunnel") {
 			checkMattermostPublic(context, &failedChecks)
 		} else {
 			fmt.Println("  mattermost public: skipped")
@@ -56,7 +53,6 @@ var StepHealth = Step{
 		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
-		checkMattermostProfileLookup(context, &failedChecks)
 		checkLLMCapability(context, &failedChecks)
 		checkLiteRTCapability(context, &failedChecks)
 		checkSlackProfileLookup(context, &failedChecks)
@@ -69,6 +65,22 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
+}
+
+func checkMattermostHealth(context *Context, failedChecks *[]string) {
+	if !isPlannedStep(context, "mattermost") {
+		fmt.Println("  mattermost: skipped")
+		fmt.Println("  capabilityd composite health: skipped")
+		fmt.Println("  mattermost ping: skipped")
+		fmt.Println("  mattermost url: skipped")
+		fmt.Println("  mattermost profile lookup: skipped")
+		return
+	}
+	checkService(context, "mattermost", failedChecks)
+	checkCapabilityHealth(context, failedChecks)
+	checkMattermostPing(context, failedChecks)
+	checkMattermostURL(context, failedChecks)
+	checkMattermostProfileLookup(context, failedChecks)
 }
 
 func checkFirstAdminBootstrap(context *Context, failedChecks *[]string) {
