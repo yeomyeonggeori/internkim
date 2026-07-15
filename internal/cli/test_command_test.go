@@ -177,6 +177,24 @@ func TestLoadExpensiveScenarioReferencesRejectsUnsupportedTopology(t *testing.T)
 	}
 }
 
+func TestLocalFleetScenarioTargetUsesFlexibleSSHAuthentication(t *testing.T) {
+	target := newLocalFleetTestTarget("/repo", "192.168.64.20")
+
+	if target.sshClient == nil {
+		t.Fatal("expected SSH client")
+	}
+	if target.host != "192.168.64.20" || target.user != "admin" {
+		t.Fatalf("unexpected target: %#v", target)
+	}
+	if target.password != "admin" || target.sshClient.pass != "admin" || !target.sshClient.shouldUseFlexibleAuthentication {
+		t.Fatalf("Local Fleet scenario must preserve flexible SSH authentication: %#v", target.sshClient)
+	}
+	arguments := strings.Join(target.sshClient.sshArgs(), " ")
+	if strings.Contains(arguments, "PreferredAuthentications=password") || strings.Contains(arguments, "PubkeyAuthentication=no") {
+		t.Fatalf("Local Fleet scenario forced password-only authentication: %s", arguments)
+	}
+}
+
 func TestPromptTimeoutSecondsPreservesExistingDefault(t *testing.T) {
 	if timeoutSeconds := promptTimeoutSeconds(0); timeoutSeconds != defaultPromptTimeoutSeconds {
 		t.Fatalf("expected prompt timeout default %d, got %d", defaultPromptTimeoutSeconds, timeoutSeconds)
