@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -93,7 +94,15 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)
-	readModel, errorValue := service.buildFlowSummaryReadModel(request.Context(), weekCode, weekStart, members)
+	memberFingerprint, errorValue := flowSummaryMemberFingerprint(members)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	dependencyKeys := flowSummaryDependencyKeysForWeek(weekCode, weekStart)
+	readModel, errorValue := service.readCachedFlowSummaryReadModel(request.Context(), weekCode, dependencyKeys, memberFingerprint, func(ctx context.Context) (flowSummaryReadModel, error) {
+		return service.buildFlowSummaryReadModel(ctx, weekCode, weekStart, members)
+	})
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
