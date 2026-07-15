@@ -58,6 +58,7 @@ func TestMailAccountIgnoresRequesterHeaderForRemoteRequests(t *testing.T) {
 
 func TestMailAccountUsesWebSessionForRemoteRequests(t *testing.T) {
 	service := newMailTestService(t)
+	writeUsersSyncTestCache(t, service, "staff@example.com")
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
 	request.RemoteAddr = "203.0.113.10:12345"

@@ -11,10 +11,14 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deployops"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const pocContainerLinuxGoCachePath = "/tmp/internkim-go-cache-linux-arm64"
 const pocContainerRemoteEnvironmentPrefix = "export PATH=\"/opt/homebrew/bin:$PATH\"; "
+const pocContainerCapabilityContractFilename = "capability-contract.json"
+
+var pocContainerCapabilityContractComponents = []string{"admind", "capabilityd", "blueclaw", "skills"}
 
 func deployPocContainer(target deployops.Target, components []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
@@ -33,6 +37,13 @@ func deployPocContainer(target deployops.Target, components []string) error {
 	if errorValue := runRemote(target, "mkdir -p tenant/bin"); errorValue != nil {
 		return errorValue
 	}
+	remoteContractPath, errorValue := stagePocContainerCapabilityContract(target, temporaryDirectoryPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := runRemote(target, pocContainerCapabilityContractCheckCommand(remoteContractPath, components)); errorValue != nil {
+		return errorValue
+	}
 	for _, component := range components {
 		if errorValue := deployPocContainerComponent(target, repositoryRootPath, temporaryDirectoryPath, component); errorValue != nil {
 			return errorValue
@@ -41,7 +52,56 @@ func deployPocContainer(target deployops.Target, components []string) error {
 	if errorValue := syncPocContainerRuntimeScripts(target, repositoryRootPath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := installPocContainerCapabilityContract(target, remoteContractPath); errorValue != nil {
+		return errorValue
+	}
 	return recreatePocContainer(target)
+}
+
+func stagePocContainerCapabilityContract(target deployops.Target, temporaryDirectoryPath string) (string, error) {
+	document, errorValue := blueclawruntime.CapabilityContractDocument()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	localPath := filepath.Join(temporaryDirectoryPath, pocContainerCapabilityContractFilename)
+	if errorValue := os.WriteFile(localPath, []byte(document), 0o600); errorValue != nil {
+		return "", errorValue
+	}
+	remotePath := path.Join("/tmp", pocContainerCapabilityContractFilename)
+	if errorValue := scpToTarget(target, localPath, remotePath); errorValue != nil {
+		return "", errorValue
+	}
+	return remotePath, nil
+}
+
+func installPocContainerCapabilityContract(target deployops.Target, remoteContractPath string) error {
+	command := "install -m 600 " + quoteShellValue(remoteContractPath) + " " + quoteShellValue(pocContainerCapabilityContractFilename) +
+		" && rm -f " + quoteShellValue(remoteContractPath)
+	return runRemote(target, command)
+}
+
+func pocContainerCapabilityContractComponentsIncluded(components []string) bool {
+	selectedComponents := map[string]bool{}
+	for _, component := range components {
+		selectedComponents[component] = true
+	}
+	for _, component := range pocContainerCapabilityContractComponents {
+		if !selectedComponents[component] {
+			return false
+		}
+	}
+	return true
+}
+
+func pocContainerCapabilityContractCheckCommand(remoteContractPath string, components []string) string {
+	if pocContainerCapabilityContractComponentsIncluded(components) {
+		return "true"
+	}
+	requiredComponents := strings.Join(pocContainerCapabilityContractComponents, ",")
+	errorMessage := "capability contract changed; deploy coupled components: " + requiredComponents
+	return "if [ ! -f " + quoteShellValue(pocContainerCapabilityContractFilename) + "] || " +
+		"! cmp -s " + quoteShellValue(remoteContractPath) + " " + quoteShellValue(pocContainerCapabilityContractFilename) + "; then " +
+		"rm -f " + quoteShellValue(remoteContractPath) + "; echo " + quoteShellValue(errorMessage) + " >&2; exit 1; fi"
 }
 
 func validatePocContainerTarget(target deployops.Target, components []string) error {
@@ -193,10 +253,11 @@ func syncMigrations(target deployops.Target, repositoryRootPath string, temporar
 
 func syncPocContainerRuntimeScripts(target deployops.Target, repositoryRootPath string) error {
 	pathsToSync := map[string]string{
-		filepath.Join("poc", "start-poc.py"):            "start-poc.py",
-		filepath.Join("poc", "restart-tunnel.py"):       "restart-tunnel.py",
-		filepath.Join("poc", "tenant", "Dockerfile"):    filepath.Join("tenant", "Dockerfile"),
-		filepath.Join("poc", "tenant", "entrypoint.sh"): filepath.Join("tenant", "entrypoint.sh"),
+		filepath.Join("poc", "start-poc.py"):                   "start-poc.py",
+		filepath.Join("poc", "restart-tunnel.py"):              "restart-tunnel.py",
+		filepath.Join("poc", "refresh_capability_contract.py"): "refresh_capability_contract.py",
+		filepath.Join("poc", "tenant", "Dockerfile"):           filepath.Join("tenant", "Dockerfile"),
+		filepath.Join("poc", "tenant", "entrypoint.sh"):        filepath.Join("tenant", "entrypoint.sh"),
 	}
 	for localRelativePath, remoteRelativePath := range pathsToSync {
 		localPath := filepath.Join(repositoryRootPath, localRelativePath)
@@ -205,7 +266,7 @@ func syncPocContainerRuntimeScripts(target deployops.Target, repositoryRootPath 
 			return errorValue
 		}
 	}
-	return runRemote(target, "chmod +x start-poc.py restart-tunnel.py tenant/entrypoint.sh")
+	return runRemote(target, "chmod +x start-poc.py restart-tunnel.py refresh_capability_contract.py tenant/entrypoint.sh")
 }
 
 func recreatePocContainer(target deployops.Target) error {
@@ -217,12 +278,12 @@ func pocContainerRecreateCommand(target deployops.Target) string {
 	return strings.Join([]string{
 		"set -eu",
 		"trap " + quoteShellValue("rm -f "+overlayPath) + " EXIT",
-		"chmod +x tenant/bin/* start-poc.py restart-tunnel.py",
+		"chmod +x tenant/bin/* start-poc.py restart-tunnel.py refresh_capability_contract.py",
 		"rm -f " + quoteShellValue(overlayPath),
 		pocContainerTagExistingImageCommand(target),
 		pocContainerBuildImageCommand(target, overlayPath),
 		pocContainerTenantCountCommand(),
-		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " python3 start-poc.py \"$tenant_count\"",
+		"TENANT_IMAGE=" + quoteShellValue(target.ImageTag) + " PYTHONUNBUFFERED=1 python3 start-poc.py \"$tenant_count\"",
 		"[ ! -f cf.env ] || python3 restart-tunnel.py",
 	}, "\n")
 }
@@ -275,31 +336,50 @@ func pocContainerBaseImageTag(imageTag string) string {
 
 func scpToTarget(target deployops.Target, localPath string, remotePath string) error {
 	destination := pocContainerSSHDestination(target) + ":" + remotePath
-	arguments := append(pocContainerSSHBaseArguments(target, "scp"), localPath, destination)
-	return runPocCommand("", nil, filepath.Join(pocContainerRepositoryRootPath(), "bin", "sshpass"), arguments...)
+	arguments := append(pocContainerSSHBaseArguments(target), localPath, destination)
+	return runPocCommand("", pocContainerSSHEnvironment(), "scp", arguments...)
 }
 
 func runRemote(target deployops.Target, remoteCommand string) error {
 	command := pocContainerRemoteEnvironmentPrefix + "cd " + quoteShellValue(target.Workdir) + " && " + remoteCommand
-	arguments := append(pocContainerSSHBaseArguments(target, "ssh"), pocContainerSSHDestination(target), command)
-	return runPocCommand("", nil, filepath.Join(pocContainerRepositoryRootPath(), "bin", "sshpass"), arguments...)
+	arguments := append(pocContainerSSHBaseArguments(target), pocContainerSSHDestination(target), command)
+	return runPocCommand("", pocContainerSSHEnvironment(), "ssh", arguments...)
 }
 
-func pocContainerSSHBaseArguments(target deployops.Target, commandName string) []string {
+func pocContainerSSHBaseArguments(target deployops.Target) []string {
 	arguments := []string{
-		"-p", os.Getenv("INTERNKIM_POC_SSH_PASSWORD"),
-		commandName,
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "PreferredAuthentications=password",
 		"-o", "PubkeyAuthentication=no",
 		"-o", "IdentitiesOnly=yes",
 		"-o", "ConnectTimeout=20",
+		"-o", "ServerAliveInterval=15",
+		"-o", "ServerAliveCountMax=12",
 	}
 	if target.SSHProxyCommand != "" {
 		arguments = append(arguments, "-o", "ProxyCommand="+target.SSHProxyCommand)
 	}
 	return arguments
+}
+
+func pocContainerSSHEnvironment() []string {
+	overrides := map[string]string{
+		"DISPLAY":             "internkim-poc-ssh",
+		"SSH_ASKPASS":         filepath.Join(pocContainerRepositoryRootPath(), "tools", "poc-ssh-askpass"),
+		"SSH_ASKPASS_REQUIRE": "force",
+	}
+	environment := []string{}
+	for _, entry := range os.Environ() {
+		key := strings.SplitN(entry, "=", 2)[0]
+		if _, isOverridden := overrides[key]; !isOverridden {
+			environment = append(environment, entry)
+		}
+	}
+	for key, value := range overrides {
+		environment = append(environment, key+"="+value)
+	}
+	return environment
 }
 
 func pocContainerSSHDestination(target deployops.Target) string {

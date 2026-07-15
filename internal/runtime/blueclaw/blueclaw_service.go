@@ -127,7 +127,7 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --host %s --port %s -ngl 0 --embeddings --pooling mean --batch-size %s --ubatch-size %s --log-disable
+ExecStart=%s -m %s --host %s --port %s -ngl 0 --embeddings --pooling cls --batch-size %s --ubatch-size %s --log-disable
 Restart=on-failure
 RestartSec=2
 TimeoutStartSec=120

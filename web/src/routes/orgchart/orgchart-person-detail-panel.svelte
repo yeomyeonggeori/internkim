@@ -2,8 +2,9 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import XIcon from '@lucide/svelte/icons/x';
-	import type { AdminPageText, OrgGroup, UserRecord } from '../admin/admin-types';
+	import type { AdminPageText } from '../admin/admin-types';
 	import OrgchartProfileFields from '../admin/orgchart-profile-fields.svelte';
+	import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 	import type { orgchartDirectoryText } from './text';
 
 	type OrgchartPersonDetailPanelVariant = 'side' | 'compact' | 'sheet';

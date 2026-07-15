@@ -546,7 +546,10 @@ func (client mattermostBootstrapClient) ensureBot(adminToken string, teamID stri
 	if errorValue != nil {
 		return "", "", errorValue
 	}
-	botUserID := response.stringField("user_id")
+	botUserID := ""
+	if isSuccessStatus(response.StatusCode) {
+		botUserID = response.stringField("user_id")
+	}
 	if botUserID == "" {
 		response, errorValue = client.request(http.MethodGet, "/api/v4/users/username/"+url.PathEscape(defaultMattermostBotUsername), adminToken, nil)
 		if errorValue != nil {
@@ -556,6 +559,13 @@ func (client mattermostBootstrapClient) ensureBot(adminToken string, teamID stri
 	}
 	if botUserID == "" {
 		return "", "", errors.New("Mattermost bot create failed")
+	}
+	userResponse, errorValue := client.request(http.MethodGet, "/api/v4/users/"+url.PathEscape(botUserID), adminToken, nil)
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	if !isSuccessStatus(userResponse.StatusCode) || !userResponse.boolField("is_bot") {
+		return "", "", errors.New("Mattermost InternKim account exists but is not a bot")
 	}
 	if errorValue := client.patchBotProfile(adminToken, botUserID); errorValue != nil {
 		return "", "", errorValue
@@ -821,6 +831,15 @@ func (response mattermostBootstrapResponse) stringField(name string) string {
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+func (response mattermostBootstrapResponse) boolField(name string) bool {
+	document := map[string]any{}
+	if json.Unmarshal(response.Document, &document) != nil {
+		return false
+	}
+	value, isBoolean := document[name].(bool)
+	return isBoolean && value
 }
 
 func (response mattermostBootstrapResponse) errorMessage() string {

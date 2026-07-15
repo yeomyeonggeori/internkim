@@ -189,8 +189,8 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 		ToolName: "message.send",
 		Input: mustJSON(t, map[string]any{
 			"targetType": "channel", "channelName": "random",
-			"message":        "hello",
-			"pin":            true,
+			"message": "hello",
+			"pin":     true,
 		}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:          "staff@example.com",
@@ -223,7 +223,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "staff-1"}), nil
 		default:
@@ -235,10 +235,10 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
-			"scope":          "channel",
+			"scope":      "channel",
 			"targetType": "channel", "channelID": "channel-1",
-			"authoredBy":     "assistant",
-			"limit":          3,
+			"authoredBy": "assistant",
+			"limit":      3,
 		}),
 		Context: capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com", RequesterPlatformUserID: "staff-1"},
 	})
@@ -274,7 +274,7 @@ func TestPlatformMessageSearchMatchesAnyQuery(t *testing.T) {
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -328,7 +328,7 @@ func TestPlatformMessageSearchPaginatesCandidates(t *testing.T) {
 			page := mattermostToolPostsResponse{Order: posts.Order[100:], Posts: posts.Posts}
 			return testJSONResponse(http.StatusOK, page), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -403,7 +403,7 @@ func TestPlatformMessageSearchScansUntilLimitMatches(t *testing.T) {
 		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=1&per_page=100":
 			return testJSONResponse(http.StatusOK, secondPage), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -457,7 +457,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 		case request.URL.String() == "http://mattermost.test/api/v4/posts/protected-flow-post":
 			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "protected-flow-post", UserID: "bot-1", Props: map[string]any{"internkim_flow_task": true}}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/posts/user-post/pin":
 			userPostPinned = true
 			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
@@ -562,7 +562,7 @@ func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T
 		case request.URL.String() == "http://mattermost.test/api/v4/posts/user-post" && request.Method == http.MethodGet:
 			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "user-post", UserID: "user-1"}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		case strings.HasPrefix(request.URL.String(), "http://mattermost.test/api/v4/posts/bot-post-") && request.Method == http.MethodDelete:
 			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
 			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
@@ -703,7 +703,7 @@ func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -750,7 +750,7 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("currentChannel must read only the current channel: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -760,10 +760,10 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
-			"scope":          "currentChannel",
+			"scope":      "currentChannel",
 			"targetType": "currentChannel", "channelID": "circle-secret",
-			"authoredBy":     "assistant",
-			"queries":        []string{"비밀"},
+			"authoredBy": "assistant",
+			"queries":    []string{"비밀"},
 		}),
 		Context: capabilities.ToolInvokeContext{
 			Platform:                "mattermost",
@@ -826,7 +826,7 @@ func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
 		case "http://mattermost.test/api/v4/posts/user-post":
 			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "user-post", UserID: "user-1"}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -859,7 +859,7 @@ func TestMattermostContextInspectReturnsCurrentMattermostContext(t *testing.T) {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
 		if request.URL.String() == "http://mattermost.test/api/v4/users/me" {
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		}
 		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 		return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -902,7 +902,7 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -956,7 +956,7 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 				},
 			}), nil
 		case "http://mattermost.test/api/v4/users/me":
-			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		case "http://mattermost.test/api/v4/users/me/channels?per_page=200":
 			return testJSONResponse(http.StatusOK, []mattermostToolChannel{{ID: "dm-1", Name: "alice-1__bot-1", Type: "D"}}), nil
 		case "http://mattermost.test/api/v4/channels/dm-1/posts?page=0&per_page=100":
@@ -975,9 +975,9 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
-			"scope":          "directMessage",
+			"scope":      "directMessage",
 			"targetType": "directMessage", "personHint": "alice@example.com",
-			"authoredBy":     "assistant",
+			"authoredBy": "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
 			Platform:                "mattermost",
@@ -1028,9 +1028,9 @@ func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
-			"scope":          "directMessage",
+			"scope":      "directMessage",
 			"targetType": "directMessage", "personHint": "alice@example.com",
-			"authoredBy":     "assistant",
+			"authoredBy": "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
 			Platform:                "mattermost",
@@ -1072,9 +1072,9 @@ func TestMattermostPostSearchDirectMessageDeniedForAdmin(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
-			"scope":          "directMessage",
+			"scope":      "directMessage",
 			"targetType": "directMessage", "personHint": "alice@example.com",
-			"authoredBy":     "assistant",
+			"authoredBy": "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
 			Platform:                "mattermost",

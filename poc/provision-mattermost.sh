@@ -46,9 +46,9 @@ for number in $(seq 1 "${tenantCount}"); do
   mmctl team modify "${teamName}" --private 2>/dev/null || true
   mmctl team users add "${teamName}" admin 2>/dev/null || true
 
-  agentPassword="$(generatePassword)"
-  mmctl user create --email "${agentName}@example.test" --username "${agentName}" --password "${agentPassword}" 2>/dev/null \
-    || echo "[provision]   agent user exists"
+  mmctl bot create "${agentName}" --display-name "김인턴" 2>/dev/null \
+    || mmctl user convert "${agentName}" --bot 2>/dev/null \
+    || echo "[provision]   agent bot exists"
   mmctl team users add "${teamName}" "${agentName}" 2>/dev/null || true
 
   tokenOutput="$(mmctl token generate "${agentName}" poc-token --json 2>/dev/null || true)"

@@ -1,7 +1,6 @@
 ---
 name: create-gws-file
-description: Create Google Docs, Sheets, or Gmail messages through typed Google Workspace capability operations. Use presentation for slide decks.
-when_to_use: Use when the user asks for Google Docs, Google Sheets, spreadsheets, Gmail, 구글 문서, 구글 시트, 스프레드시트, or 지메일 work. Do not use for slide decks.
+description: Create Google Docs, Sheets, or Gmail messages through typed Google Workspace capability operations for Google Docs, Google Sheets, spreadsheets, Gmail, 구글 문서, 구글 시트, 스프레드시트, or 지메일 requests. Use presentation for slide decks.
 ---
 
 # Google Workspace Files

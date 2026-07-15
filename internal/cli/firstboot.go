@@ -398,12 +398,12 @@ if [ -f "$STAGE/models/gemma-4-E4B-it.litertlm" ]; then
   chown root:root /root/.internkim/models/gemma-4-E4B-it.litertlm
   chmod 600 /root/.internkim/models/gemma-4-E4B-it.litertlm
 fi
-if [ ! -s /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf ]; then
-  curl -L --fail --retry 3 --output /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf.tmp https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf
-  mv /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf.tmp /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf
+if [ ! -s /root/.internkim/models/bge-m3-Q8_0.gguf ]; then
+  curl -L --fail --retry 3 --output /root/.internkim/models/bge-m3-Q8_0.gguf.tmp https://huggingface.co/gpustack/bge-m3-GGUF/resolve/2d48f1737679ad900d5c26c5aad5410e9c70fdca/bge-m3-Q8_0.gguf
+  mv /root/.internkim/models/bge-m3-Q8_0.gguf.tmp /root/.internkim/models/bge-m3-Q8_0.gguf
 fi
-chown root:root /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf 2>/dev/null || true
-chmod 600 /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf 2>/dev/null || true
+chown root:root /root/.internkim/models/bge-m3-Q8_0.gguf 2>/dev/null || true
+chmod 600 /root/.internkim/models/bge-m3-Q8_0.gguf 2>/dev/null || true
 mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads
 chown -R blueclaw:blueclaw /root/.blueclaw
 chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true

@@ -16,6 +16,8 @@ NETWORK = 'internkim-poc'
 TENANT_IMAGE = os.environ.get('TENANT_IMAGE', 'internkim-poc-tenant:flow')
 FALLBACK_TENANT_COUNT = 10
 DEFAULT_WORKSPACE_SETTINGS = {'timeZone': 'Asia/Seoul', 'language': 'ko'}
+CAPABILITY_CONTRACT_FILENAME = 'capability-contract.json'
+CAPABILITY_CONTRACT_REFRESH_SCRIPT = 'refresh_capability_contract.py'
 
 
 def run(cmd, check=True):
@@ -43,6 +45,23 @@ def patch_ips_in_configs(pg_ip, mm_ip):
             print(f'Patched IPs in {tenant}/runtime.json')
 
 
+def refresh_capability_contract():
+    contract_path = os.path.join(BASE, CAPABILITY_CONTRACT_FILENAME)
+    if not os.path.isfile(contract_path):
+        return
+    script_path = os.path.join(BASE, CAPABILITY_CONTRACT_REFRESH_SCRIPT)
+    if not os.path.isfile(script_path):
+        raise FileNotFoundError(f'capability contract refresh script is missing: {script_path}')
+    subprocess.run([
+        sys.executable,
+        script_path,
+        '--contract',
+        contract_path,
+        '--config-root',
+        os.path.join(BASE, 'config'),
+    ], check=True)
+
+
 def initialize_workspace_settings(workspace):
     state_directory = os.path.join(workspace, '.admind', 'state')
     settings_path = os.path.join(state_directory, 'workspace-settings.json')
@@ -68,6 +87,40 @@ def migrate_flow_database(name, workspace):
     subprocess.run([CONTAINER, 'cp', f'{name}:{source_path}', destination_path], check=True)
 
 
+def ensure_mattermost_bot(number):
+    username = f'internkim{number:02d}'
+    subprocess.run([
+        CONTAINER,
+        'exec',
+        'poc-mattermost',
+        'mmctl',
+        '--local',
+        'user',
+        'convert',
+        username,
+        '--bot',
+    ], capture_output=True, text=True)
+
+
+def verify_mattermost_bot(container_name, expected_username):
+    shell_command = (
+        'token="$(cat /secrets/mattermost-bot-token)"; '
+        'curl --silent --show-error --fail '
+        '-H "Authorization: Bearer $token" '
+        '"http://${MATTERMOST_HOST}:8065/api/v4/users/me"'
+    )
+    result = subprocess.run(
+        [CONTAINER, 'exec', container_name, 'sh', '-c', shell_command],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f'Mattermost bot verification failed for {expected_username}: {result.stderr.strip()}')
+    user_document = json.loads(result.stdout)
+    if user_document.get('username') != expected_username or user_document.get('is_bot') is not True:
+        raise RuntimeError(f'Mattermost account is not a bot: {expected_username}')
+
+
 def start_tenant(n, pg_ip, mm_ip):
     name = f'poc-tenant-{n:02d}'
     tenant_id = f'tenant_{n:02d}'
@@ -78,6 +131,7 @@ def start_tenant(n, pg_ip, mm_ip):
     openrouter = os.path.join(BASE, 'secrets', 'openrouter-key')
     os.makedirs(workspace, exist_ok=True)
     initialize_workspace_settings(workspace)
+    ensure_mattermost_bot(n)
 
     existing = run([CONTAINER, 'inspect', name], check=False)
     if existing:
@@ -100,6 +154,7 @@ def start_tenant(n, pg_ip, mm_ip):
         TENANT_IMAGE]
     print(f'Starting {name}...')
     run(cmd)
+    verify_mattermost_bot(name, f'internkim{n:02d}')
 
 
 def default_tenant_count():
@@ -116,8 +171,8 @@ def default_tenant_count():
     return FALLBACK_TENANT_COUNT
 
 
-if __name__ == '__main__':
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else default_tenant_count()
+def start_all_tenants(count):
+    refresh_capability_contract()
     pg_ip = container_ip('poc-postgres')
     mm_ip = container_ip('poc-mattermost')
     print(f'Postgres: {pg_ip}, Mattermost: {mm_ip}')
@@ -125,3 +180,8 @@ if __name__ == '__main__':
     for n in range(1, count + 1):
         start_tenant(n, pg_ip, mm_ip)
     print(f'All {count} tenants started')
+
+
+if __name__ == '__main__':
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else default_tenant_count()
+    start_all_tenants(count)

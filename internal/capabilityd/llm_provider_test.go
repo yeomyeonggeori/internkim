@@ -181,9 +181,9 @@ func TestOpenRouterBackendCompleteTextDoesNotRequestStructuredOutput(t *testing.
 	}
 }
 
-func TestDefaultProviderAttemptTimeoutAllowsRemoteStructuredResponses(t *testing.T) {
-	if DefaultConfiguration().ProviderAttemptTimeout < 90*time.Second {
-		t.Fatalf("expected remote provider attempt timeout to allow structured responses, got %s", DefaultConfiguration().ProviderAttemptTimeout)
+func TestDefaultProviderAttemptHasNoArbitraryTimeout(t *testing.T) {
+	if DefaultConfiguration().ProviderAttemptTimeout != 0 {
+		t.Fatalf("expected no default provider attempt timeout, got %s", DefaultConfiguration().ProviderAttemptTimeout)
 	}
 }
 

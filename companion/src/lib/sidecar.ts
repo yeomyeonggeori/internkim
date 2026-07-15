@@ -92,7 +92,7 @@ function localLLMSidecarArguments(settings: CompanionSettings): string[] {
 	}
 	flags.push('--llamacpp-base-url', settings.llamacpp.baseURL);
 	flags.push('--llamacpp-embedding-base-url', settings.llamacpp.baseURL);
-	flags.push('--llamacpp-embedding-model', settings.llamacpp.embeddingModel || 'embeddinggemma');
+	flags.push('--llamacpp-embedding-model', settings.llamacpp.embeddingModel || 'baai/bge-m3');
 	if (settings.llamacpp.model) {
 		flags.push('--llamacpp-model', settings.llamacpp.model);
 	}

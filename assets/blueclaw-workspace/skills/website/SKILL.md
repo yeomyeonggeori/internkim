@@ -1,13 +1,6 @@
 ---
 name: website
-description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through site capability operations.
-when_to_use: Use when the user asks the assistant to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
-completion:
-  requiredEvidenceTools:
-    - site.status
-    - terminal.run
-    - artifact.review
-    - site.publish
+description: Create, publish, update, take down, restore, or delete dependency-light websites, web apps, prototypes, demos, landing pages, dashboards, and app ideas through site capability operations.
 ---
 
 # Site Prototype

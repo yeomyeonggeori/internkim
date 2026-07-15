@@ -28,6 +28,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	var removedUser *adminUserMutation
 	var upsertedEmail string
+	var orgchartMutationIdentities []orgchartPersonIdentity
+	var orgchartMutation *orgchartUserMutation
 	if request.Method == http.MethodDelete {
 		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
@@ -35,6 +37,20 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		removedUser = userRecord
+		if removedUser != nil {
+			identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), removedUser.Email, removedUser.UserID)
+			if errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+				return
+			}
+			orgchartMutationIdentities = orgchartProxyMutationIdentities(removedUser.UserID, identity)
+			orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+			if errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer orgchartMutation.completeAfterRequest(request.Context())
+		}
 		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
 			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -56,6 +72,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var upsertedCircles []string
 	var upsertedMattermostUserID string
 	var upsertedUserID string
+	var upsertedBlueclawUserID string
 	var hasExplicitCircleMutation bool
 	if request.Method == http.MethodPost {
 		var rawPayload adminUserMutation
@@ -76,6 +93,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		payload.UserID = userID
+		_, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		upsertedBlueclawUserID = identity.UserID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		upsertedNote = payload.Note
@@ -105,6 +128,13 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
+		orgchartMutationIdentities = orgchartProxyMutationIdentities(payload.UserID, identity)
+		orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer orgchartMutation.completeAfterRequest(request.Context())
 		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -178,9 +208,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		if upsertedEmail != "" {
 			var errorValue error
 			if hasExplicitCircleMutation {
-				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
+				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
 			} else {
-				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName)
+				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName)
 			}
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -205,6 +235,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				return
 			}
 			service.triggerUsersSync(request.Context())
+		}
+		if len(orgchartMutationIdentities) > 0 {
+			orgchartMutation.completeAfterSourceMutation(request.Context())
 		}
 		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {

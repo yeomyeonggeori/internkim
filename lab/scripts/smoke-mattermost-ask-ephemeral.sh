@@ -29,8 +29,6 @@ def read_trimmed(path):
 
 
 bot_token = read_trimmed(bot_token_path)
-channel_id = read_trimmed(channel_id_path)
-interactive_token = read_trimmed(interactive_token_path)
 
 
 def mattermost_request(method, path, body=None):
@@ -49,6 +47,22 @@ def mattermost_request(method, path, body=None):
     except urllib.error.HTTPError as error:
         response_body = error.read().decode("utf-8")
         raise RuntimeError(f"{method} {path} failed {error.code}: {response_body}") from error
+
+
+def resolve_channel_id():
+    configured_channel_id = os.environ.get("MATTERMOST_FLOW_CHANNEL_ID", "").strip()
+    if configured_channel_id != "":
+        return configured_channel_id
+    if os.path.isfile(channel_id_path):
+        return read_trimmed(channel_id_path)
+    _, team_records = mattermost_request("GET", "/api/v4/users/me/teams")
+    for team_record in team_records:
+        try:
+            _, channel_record = mattermost_request("GET", "/api/v4/teams/" + team_record["id"] + "/channels/name/flow")
+            return channel_record["id"]
+        except RuntimeError:
+            continue
+    raise RuntimeError("Mattermost flow channel could not be resolved")
 
 
 def post_json(url, body):
@@ -70,9 +84,10 @@ def capability_reply_send(body):
         "curl",
         "--silent",
         "--show-error",
-        "--fail",
         "--unix-socket",
         capability_socket_path,
+        "--write-out",
+        "\n%{http_code}",
         "-H",
         "Content-Type: application/json",
         "-d",
@@ -82,7 +97,13 @@ def capability_reply_send(body):
     result = subprocess.run(command, input=json.dumps(body), text=True, capture_output=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "reply.send failed")
-    return json.loads(result.stdout)
+    response_document, separator, status_code_text = result.stdout.rpartition("\n")
+    if separator == "" or not status_code_text.isdigit():
+        raise RuntimeError("reply.send returned an invalid HTTP response: " + result.stdout.strip())
+    status_code = int(status_code_text)
+    if status_code < 200 or status_code >= 300:
+        raise RuntimeError(f"reply.send failed {status_code}: {response_document.strip()}")
+    return json.loads(response_document)
 
 
 def encoded_reply_target_id():
@@ -96,19 +117,37 @@ def encoded_reply_target_id():
     return base64.urlsafe_b64encode(document).decode("ascii").rstrip("=")
 
 
-def assert_deleted_ack(response):
-    update = response.get("update")
-    if not isinstance(update, dict):
-        raise RuntimeError("ask ACK did not include update")
+def assert_acknowledged_response(response):
     if "ephemeral_text" in response:
         raise RuntimeError("ask ACK returned ephemeral_text")
-    if update.get("message") != "":
-        raise RuntimeError("ask ACK update message was not empty")
-    if int(update.get("delete_at") or 0) <= 0:
-        raise RuntimeError("ask ACK update did not include delete_at")
-    properties = update.get("props") or {}
-    if properties.get("attachments") != []:
-        raise RuntimeError("ask ACK update did not clear attachments")
+    if "error" in response:
+        raise RuntimeError("ask ACK returned error")
+    if "update" in response:
+        raise RuntimeError("ask ACK returned an inline update")
+
+
+def send_ask_action(action, timestamp, selected_option=""):
+    context = {
+        "action": action,
+        "token": interactive_token,
+        "interactionID": "codex-smoke-interaction-" + timestamp,
+        "taskRunID": "codex-smoke-task-" + timestamp,
+        "conversationID": "channel:" + channel_id,
+        "replyTargetID": reply_target_id,
+        "responseLanguage": "ko",
+        "targetUserID": bot_user["id"],
+    }
+    body = {
+        "user_id": bot_user["id"],
+        "post_id": "codex-smoke-ephemeral-post-" + action + "-" + timestamp,
+        "channel_id": channel_id,
+        "context": context,
+    }
+    if selected_option != "":
+        body["selected_option"] = selected_option
+    response = post_json(admind_url + "/_internkim/mattermost/actions", body)
+    assert_acknowledged_response(response)
+    return response
 
 
 def cleanup_public_post():
@@ -122,6 +161,9 @@ def cleanup_public_post():
 
 try:
     _, bot_user = mattermost_request("GET", "/api/v4/users/me")
+    if bot_user.get("is_bot") is not True:
+        raise RuntimeError("Mattermost authentication user is not a bot")
+    channel_id = resolve_channel_id()
     reply_target_id = encoded_reply_target_id()
     timestamp = str(int(time.time()))
     reply_body = {
@@ -153,31 +195,25 @@ try:
     public_post_has_attachments = bool(public_post_properties.get("attachments"))
     if public_post_has_attachments:
         raise RuntimeError("public Mattermost post included ask attachments")
-    ack_response = post_json(admind_url + "/_internkim/mattermost/actions", {
-        "user_id": bot_user["id"],
-        "post_id": "codex-smoke-ephemeral-post-" + timestamp,
-        "channel_id": channel_id,
-        "context": {
-            "action": "ask.confirm",
-            "token": interactive_token,
-            "interactionID": "codex-smoke-interaction-" + timestamp,
-            "taskRunID": "codex-smoke-task-" + timestamp,
-            "conversationID": "channel:" + channel_id,
-            "replyTargetID": reply_target_id,
-            "responseLanguage": "ko",
-        },
-    })
-    assert_deleted_ack(ack_response)
+    interactive_token = read_trimmed(interactive_token_path)
+    action_responses = {
+        "ask.confirm": send_ask_action("ask.confirm", timestamp),
+        "ask.cancel": send_ask_action("ask.cancel", timestamp),
+        "ask.choice": send_ask_action(
+            "ask.choice",
+            timestamp,
+            json.dumps({"key": "confirm", "label": "확인"}, ensure_ascii=False),
+        ),
+    }
     public_post_deleted = cleanup_public_post()
     print(json.dumps({
         "ok": True,
+        "isBot": bot_user.get("is_bot") is True,
         "botRoles": bot_user.get("roles", ""),
         "publicPostDeleted": public_post_deleted,
         "publicPostHasAttachments": public_post_has_attachments,
         "replySendDispatchID": reply_send_dispatch_id,
-        "ackHasEphemeralText": "ephemeral_text" in ack_response,
-        "ackDeleteAtPresent": int(ack_response["update"].get("delete_at") or 0) > 0,
-        "ackAttachments": ack_response["update"].get("props", {}).get("attachments"),
+        "acknowledgedActions": sorted(action_responses.keys()),
     }, ensure_ascii=False, sort_keys=True))
 finally:
     if public_post_id != "":

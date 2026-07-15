@@ -2,7 +2,7 @@
   "id": "com.internkim.ephemeral",
   "name": "InternKim",
   "description": "InternKim boards inside Mattermost and ephemeral post updates.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "min_server_version": "7.0.0",
   "server": {
     "executables": {

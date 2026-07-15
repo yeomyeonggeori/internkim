@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -62,7 +61,7 @@ func (service *Service) callCapabilityStructuredLLM(ctx context.Context, request
 			return dialer.DialContext(ctx, "unix", blueclawruntime.CapabilitySocketPath)
 		},
 	}
-	client := http.Client{Transport: transport, Timeout: 45 * time.Second}
+	client := http.Client{Transport: transport}
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, "http://internkim/v1/llm/structured", bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return nil, errorValue
