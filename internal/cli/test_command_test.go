@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,9 @@ func TestParseTestArgumentsUsesPromptAndDefaults(t *testing.T) {
 	}
 	if configuration.ShouldReuseFleet || configuration.ShouldKeepArtifacts {
 		t.Fatalf("unexpected reuse/keep defaults: %+v", configuration)
+	}
+	if configuration.MaximumModelTier != "xlow" {
+		t.Fatalf("expected xlow maximum model tier by default: %+v", configuration)
 	}
 }
 
@@ -72,8 +76,71 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if !configuration.ShouldUseRealModels || !configuration.ShouldAutoConfirm {
 		t.Fatalf("expected real model and auto confirm options: %+v", configuration)
 	}
+	if configuration.MaximumModelTier != "" {
+		t.Fatalf("expected real mode to omit model ceiling: %+v", configuration)
+	}
 	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.publish" {
 		t.Fatalf("unexpected site verification flags: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{
+		"expensive",
+		"--scenario", "task-lifecycle",
+		"--scenario", "direct-message-send",
+		"--maximum-model-tier", "high",
+		"--seed", "41",
+	}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.Suite != testSuiteExpensive || configuration.Prompt != "" || configuration.MaximumModelTier != "high" {
+		t.Fatalf("unexpected expensive suite configuration: %+v", configuration)
+	}
+	if len(configuration.ScenarioNames) != 2 || configuration.ScenarioNames[0] != "task-lifecycle" || configuration.ScenarioNames[1] != "direct-message-send" {
+		t.Fatalf("unexpected scenario selection: %+v", configuration.ScenarioNames)
+	}
+}
+
+func TestRunTestArgumentsAcceptsHelpWithoutStartingFleet(t *testing.T) {
+	if errorValue := runTestArguments([]string{"--help"}); errorValue != nil {
+		t.Fatalf("expected help to exit successfully, got %v", errorValue)
+	}
+}
+
+func TestParseTestArgumentsRealModeRemovesTierCeiling(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{"full", "--real"}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.Suite != testSuiteFull || !configuration.ShouldUseRealModels || configuration.MaximumModelTier != "" {
+		t.Fatalf("unexpected real suite configuration: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsRejectsRealModeWithTierCeiling(t *testing.T) {
+	_, errorValue := parseTestArguments([]string{"expensive", "--real", "--maximum-model-tier", "low"}, time.Now())
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "cannot be combined") {
+		t.Fatalf("expected real model tier conflict, got %v", errorValue)
+	}
+}
+
+func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
+	scenarios := []expensiveScenarioReference{{Name: "first"}, {Name: "second"}, {Name: "third"}}
+	runNames := []string{}
+	errorValue := runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
+		runNames = append(runNames, scenario.Name)
+		if scenario.Name == "second" {
+			return errors.New("step failed")
+		}
+		return nil
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "second") {
+		t.Fatalf("expected second scenario failure, got %v", errorValue)
+	}
+	if strings.Join(runNames, ",") != "first,second" {
+		t.Fatalf("expected fail-fast execution, got %v", runNames)
 	}
 }
 

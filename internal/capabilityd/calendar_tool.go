@@ -49,6 +49,7 @@ type calendarEventDeleteInput struct {
 type calendarEventTarget struct {
 	EventID string `json:"eventID"`
 	Query   string `json:"query"`
+	Title   string `json:"title"`
 }
 
 type calendarToolPeopleInput []string
@@ -170,11 +171,15 @@ func (service Service) resolveCalendarEventTarget(ctx context.Context, request c
 	_ = json.Unmarshal(request.Input, &target)
 	target.EventID = strings.TrimSpace(target.EventID)
 	target.Query = strings.TrimSpace(target.Query)
+	target.Title = strings.TrimSpace(target.Title)
 	if target.EventID != "" {
 		return target.EventID, nil, nil
 	}
 	if target.Query == "" {
-		return "", nil, fmt.Errorf("eventID or query is required")
+		target.Query = target.Title
+	}
+	if target.Query == "" {
+		return "", nil, fmt.Errorf("eventID, query, or unchanged title is required")
 	}
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, "/calendar/api/events", nil, request.Context.RequesterEmail)
 	if errorValue != nil {

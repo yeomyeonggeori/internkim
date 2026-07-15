@@ -1,10 +1,6 @@
 ---
 name: web-search
 description: Search the public web or fetch a specific URL when the user's request needs external or current information that is not already available in the conversation, an attachment, or another skill. Use for news, prices, schedules, documentation, or any fact you cannot already answer from provided context.
-when_to_use: Use when the answer requires information from the open web that is not already present in the conversation, an attachment, or a more specific skill (Mattermost, calendar, flow, weather, etc). Do not use when the attached image, file, or message already contains the answer.
-completion:
-  requiredEvidenceTools:
-    - web.search
 ---
 
 # Web Search

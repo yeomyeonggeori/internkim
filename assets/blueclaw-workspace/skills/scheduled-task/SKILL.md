@@ -1,7 +1,6 @@
 ---
 name: scheduled-task
-description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks through Blueclaw schedule capability operations.
-when_to_use: Use when the user asks to schedule, remind, repeat, send something every minute, hour, day, week, or month, repeat N times, cancel schedules, stop reminders, or says 예약, 알림, 리마인드, 취소, 중지, 마다, 분마다, 시간마다, 한 번씩, 1분에 한 번씩, 10번, 매일, 매주, or 매월.
+description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks when the user asks to schedule, remind, repeat, cancel, or stop them.
 ---
 
 # Scheduled Task

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -65,8 +64,7 @@ func TestOpenRouterLiveNativeToolArgumentsAreFilledFromEnv(t *testing.T) {
 	for _, modelName := range toolContractModelsFromEnv() {
 		for _, contractCase := range toolArgumentContractCases(t) {
 			t.Run(modelName+"/"+contractCase.Name, func(t *testing.T) {
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				defer cancel()
+				ctx := context.Background()
 				request := StructuredRequest{
 					Model:    modelName,
 					Messages: []Message{{Role: "user", Content: contractCase.Prompt}},
@@ -100,8 +98,7 @@ func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.
 
 	for _, modelName := range toolContractModelsFromEnv() {
 		t.Run(modelName, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
+			ctx := context.Background()
 			request := StructuredRequest{
 				Model:    modelName,
 				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},
@@ -130,8 +127,7 @@ func TestOpenRouterLiveFullDeviceToolSetFitsAndFillsFromEnv(t *testing.T) {
 
 	for _, modelName := range toolContractModelsFromEnv() {
 		t.Run(modelName, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
+			ctx := context.Background()
 			request := StructuredRequest{
 				Model:    modelName,
 				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},

@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const DefaultEmbeddingGemmaModel = "embeddinggemma"
+const (
+	EmbeddingGemmaModelName   = "embeddinggemma"
+	DefaultEmbeddingModelName = "baai/bge-m3"
+)
 
 type EmbeddingRequest struct {
 	Input            any    `json:"input"`
@@ -53,17 +56,10 @@ type AutoEmbeddingProvider struct {
 
 func (provider AutoEmbeddingProvider) CreateEmbedding(ctx context.Context, request EmbeddingRequest) (EmbeddingResponse, error) {
 	return createWithEmbeddingProviderChain(provider.Providers, func(candidate EmbeddingProvider) (EmbeddingResponse, error) {
-		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		attemptContext, cancel := providerAttemptContext(ctx, provider.AttemptTimeout)
 		defer cancel()
 		return candidate.CreateEmbedding(attemptContext, request)
 	})
-}
-
-func (provider AutoEmbeddingProvider) attemptTimeout() time.Duration {
-	if provider.AttemptTimeout <= 0 {
-		return DefaultAttemptTimeout
-	}
-	return provider.AttemptTimeout
 }
 
 func createWithEmbeddingProviderChain(providers []EmbeddingProvider, create func(EmbeddingProvider) (EmbeddingResponse, error)) (EmbeddingResponse, error) {
@@ -126,7 +122,10 @@ func embeddingInputString(input any) string {
 	return string(document)
 }
 
-func applyEmbeddingGemmaPrompts(inputs []string, request EmbeddingRequest, isBatch bool) []string {
+func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string, isBatch bool) []string {
+	if !strings.EqualFold(strings.TrimSpace(modelName), EmbeddingGemmaModelName) {
+		return inputs
+	}
 	promptedInputs := make([]string, 0, len(inputs))
 	for _, input := range inputs {
 		promptedInputs = append(promptedInputs, applyEmbeddingGemmaPrompt(input, request, isBatch))

@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,6 +40,7 @@ type Configuration struct {
 	MattermostBaseURL              string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
+	MattermostInteractiveBaseURL   string
 	SlackTokenPath                 string
 	SlackAppTokenPath              string
 	SignalJSONRPCURL               string
@@ -219,7 +219,7 @@ func DefaultConfiguration() Configuration {
 		GoogleWorkspaceWebhookPath:     "/root/.internkim/secrets/gas-webhook-url",
 		MattermostBaseURL:              "http://localhost:8065",
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-action-token",
+		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
 		SlackTokenPath:                 "/root/.internkim/secrets/slack-bot-token",
 		SlackAppTokenPath:              "/root/.internkim/secrets/slack-app-token",
 		SignalJSONRPCURLPath:           "/root/.internkim/config/signal-jsonrpc-url",
@@ -231,7 +231,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterGatewaySecretHeader:  "X-InternKim-Gateway-Secret",
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:       "openai/text-embedding-3-small",
+		OpenRouterEmbeddingModel:       llmbackend.DefaultEmbeddingModelName,
 		OpenRouterImageModel:           "google/gemini-3.1-flash-lite-image",
 		EmbeddingProviderOrder:         llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:                  "http://127.0.0.1:11434",
@@ -239,7 +239,7 @@ func DefaultConfiguration() Configuration {
 		LlamaCppBaseURL:                locallm.LlamaCppBaseURL,
 		LlamaCppModel:                  "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
 		LlamaCppEmbeddingBaseURL:       locallm.LlamaCppEmbeddingBaseURL,
-		LlamaCppEmbeddingModel:         llmbackend.DefaultEmbeddingGemmaModel,
+		LlamaCppEmbeddingModel:         llmbackend.DefaultEmbeddingModelName,
 		SocketGroupName:                "blueclaw",
 		LiteRTModelPath:                locallm.ModelPath(),
 		LocalLLMRunnerPath:             "/usr/local/bin/internkim-local-llm-runner",
@@ -247,7 +247,7 @@ func DefaultConfiguration() Configuration {
 		PreferCompanionLLM:             false,
 		LocalInferenceMode:             "",
 		LocalOnly:                      false,
-		ProviderAttemptTimeout:         5 * time.Minute,
+		ProviderAttemptTimeout:         0,
 		AgentBrowserPath:               "agent-browser",
 		DeviceBrowserPath:              browserruntime.DeviceBrowserExecutablePath,
 		DeviceBrowserProfilePath:       "",
@@ -355,10 +355,13 @@ func (service Service) mattermostHealth(ctx context.Context) map[string]any {
 	state.MattermostTokenConfigured = readSecretValue(service.Configuration.MattermostTokenPath) != ""
 	if state.MattermostTokenConfigured {
 		var botUser struct {
-			ID string `json:"id"`
+			ID    string `json:"id"`
+			IsBot bool   `json:"is_bot"`
 		}
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue == nil && strings.TrimSpace(botUser.ID) != "" {
+		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue == nil && strings.TrimSpace(botUser.ID) != "" && botUser.IsBot {
 			state.MattermostBotUserResolved = true
+		} else {
+			state.MattermostBotUserResolved = false
 		}
 	}
 	return map[string]any{
@@ -800,41 +803,52 @@ func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context,
 	if attachment == nil {
 		return nil
 	}
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"props": map[string]any{
-			"internkim_raw_event_id": request.RawEventID,
-			"internkim_outbox_id":    request.OutboxID,
-			"attachments":            []any{attachment},
-		},
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return errorValue
 	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
+	post["props"] = map[string]any{
+		"internkim_raw_event_id": request.RawEventID,
+		"internkim_outbox_id":    request.OutboxID,
+		"attachments":            []any{attachment},
 	}
 	body := map[string]any{"user_id": targetUserID, "post": post}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil)
 }
 
 func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"message":    strings.TrimSpace(message),
-		"props": map[string]any{
-			"internkim_raw_event_id": request.RawEventID,
-			"internkim_outbox_id":    request.OutboxID,
-		},
+	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
+	post["message"] = strings.TrimSpace(message)
+	post["props"] = map[string]any{
+		"internkim_raw_event_id": request.RawEventID,
+		"internkim_outbox_id":    request.OutboxID,
 	}
 	body := map[string]any{
 		"user_id": strings.TrimSpace(request.EphemeralUserID),
 		"post":    post,
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
+	if errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
 		return nil, errorValue
 	}
 	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
+}
+
+func (service Service) mattermostEphemeralPost(ctx context.Context, handle platformHandle) (map[string]any, error) {
+	botUser, errorValue := service.resolveMattermostBotUser(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	post := map[string]any{
+		"channel_id": handle.ChannelID,
+		"user_id":    botUser.ID,
+	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		post["root_id"] = handle.RootID
+	}
+	return post, nil
 }
 
 func (request replyRequest) mattermostAskTargetUserID() string {
@@ -886,10 +900,9 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 		Fallback: strings.TrimSpace(request.Message),
 		Text:     mattermostChoiceAttachmentText(request.Interaction),
 		Actions: []mattermostinteractive.Action{
-			mattermostinteractive.Select(
+			service.mattermostAskActionBuilder().Select(
 				"askChoiceMenu",
 				"선택",
-				service.mattermostAskActionURL(),
 				service.mattermostAskActionContext(request, handle, "ask.choice", "", ""),
 				mattermostAskMenuOptions(options),
 			),
@@ -958,7 +971,15 @@ func truncateMattermostChoiceLabel(label string, maximumLength int) string {
 
 func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Action {
 	context := service.mattermostAskActionContext(request, handle, action, choiceKey, choiceLabel)
-	return mattermostinteractive.Button(id, name, "", style, service.mattermostAskActionURL(), context)
+	return service.mattermostAskActionBuilder().Button(id, name, "", style, context)
+}
+
+func (service Service) mattermostAskActionBuilder() mattermostinteractive.ActionBuilder {
+	return mattermostinteractive.NewActionBuilder(
+		service.ensureMattermostInteractiveActionToken(),
+		service.Configuration.MattermostInteractiveBaseURL,
+		service.Configuration.AdmindBaseURL,
+	)
 }
 
 func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Context {
@@ -972,7 +993,6 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 		ChoiceLabel:      choiceLabel,
 		ResponseLanguage: request.Interaction.ResponseLanguage,
 		TargetUserID:     request.mattermostAskTargetUserID(),
-		Token:            service.ensureMattermostInteractiveActionToken(),
 	}
 }
 
@@ -1020,22 +1040,12 @@ func trimNonEmptyPlatformStrings(values []string) []string {
 	return trimmedValues
 }
 
-func (service Service) mattermostAskActionURL() string {
-	return strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + "/_internkim/mattermost/actions"
-}
-
 func (service Service) ensureMattermostInteractiveActionToken() string {
 	path := strings.TrimSpace(service.Configuration.MattermostInteractiveTokenPath)
-	token := strings.TrimSpace(readOptionalFileValue(path))
-	if token != "" {
-		return token
-	}
-	token = randomCapabilityHex(32)
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
-		return token
-	}
-	if errorValue := os.WriteFile(path, []byte(token+"\n"), 0o600); errorValue != nil {
-		return token
+	token, errorValue := mattermostinteractive.LoadOrCreateToken(path, 32)
+	if errorValue != nil {
+		log.Printf("mattermost interactive token unavailable: %v", errorValue)
+		return ""
 	}
 	return token
 }
@@ -1381,6 +1391,16 @@ func (service Service) httpClient() *http.Client {
 	return &http.Client{Timeout: service.httpClientTimeout()}
 }
 
+func (service Service) providerHTTPClient() *http.Client {
+	if service.HTTPClient != nil {
+		return service.HTTPClient
+	}
+	if service.Configuration.ProviderAttemptTimeout <= 0 {
+		return &http.Client{}
+	}
+	return &http.Client{Timeout: service.Configuration.ProviderAttemptTimeout + 30*time.Second}
+}
+
 func (service Service) httpClientTimeout() time.Duration {
 	providerTimeout := service.Configuration.ProviderAttemptTimeout
 	if providerTimeout <= 0 {
@@ -1568,6 +1588,7 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 	var botUser struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
+		IsBot    bool   `json:"is_bot"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
 		service.healthState().Update(func(state *platformHealthState) {
@@ -1578,8 +1599,17 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 		log.Printf("mattermost websocket forwarder disabled: bot lookup failed: %v", errorValue)
 		return
 	}
+	if strings.TrimSpace(botUser.ID) == "" || !botUser.IsBot {
+		service.healthState().Update(func(state *platformHealthState) {
+			state.MattermostBotUserResolved = false
+			state.MattermostForwarderRunning = false
+			state.LastForwardError = "mattermost token user is not a bot"
+		})
+		log.Print("mattermost websocket forwarder disabled: token user is not a bot")
+		return
+	}
 	service.healthState().Update(func(state *platformHealthState) {
-		state.MattermostBotUserResolved = strings.TrimSpace(botUser.ID) != ""
+		state.MattermostBotUserResolved = true
 		state.MattermostForwarderRunning = true
 		state.LastForwardError = ""
 	})
@@ -1993,9 +2023,6 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.LocalLLMRunnerPath == "" {
 		configuration.LocalLLMRunnerPath = defaultConfiguration.LocalLLMRunnerPath
-	}
-	if configuration.ProviderAttemptTimeout <= 0 {
-		configuration.ProviderAttemptTimeout = defaultConfiguration.ProviderAttemptTimeout
 	}
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath

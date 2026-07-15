@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,7 +14,7 @@ import (
 func TestLlamaCppEmbeddingBackendUsesEmbeddingGemmaPrompt(t *testing.T) {
 	backend := LlamaCppEmbeddingBackend{
 		BaseURL:   "https://llamacpp.test",
-		ModelName: DefaultEmbeddingGemmaModel,
+		ModelName: EmbeddingGemmaModelName,
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			if request.URL.Path != "/v1/embeddings" {
 				t.Fatalf("unexpected path: %s", request.URL.Path)
@@ -21,7 +23,7 @@ func TestLlamaCppEmbeddingBackendUsesEmbeddingGemmaPrompt(t *testing.T) {
 			if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if document["model"] != DefaultEmbeddingGemmaModel {
+			if document["model"] != EmbeddingGemmaModelName {
 				t.Fatalf("unexpected model: %v", document["model"])
 			}
 			if document["input"] != "task: search result | query: hello" {
@@ -39,7 +41,7 @@ func TestLlamaCppEmbeddingBackendUsesEmbeddingGemmaPrompt(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected embedding to succeed: %v", errorValue)
 	}
-	if response.Provider != "llamacpp" || response.Model != DefaultEmbeddingGemmaModel {
+	if response.Provider != "llamacpp" || response.Model != EmbeddingGemmaModelName {
 		t.Fatalf("unexpected provider response: %+v", response)
 	}
 	if len(response.Embedding) != 2 || response.Embedding[0] != 0.3 || len(response.Embeddings) != 0 {
@@ -50,7 +52,7 @@ func TestLlamaCppEmbeddingBackendUsesEmbeddingGemmaPrompt(t *testing.T) {
 func TestLlamaCppEmbeddingBackendPromptsBatchAsDocuments(t *testing.T) {
 	backend := LlamaCppEmbeddingBackend{
 		BaseURL:   "https://llamacpp.test",
-		ModelName: DefaultEmbeddingGemmaModel,
+		ModelName: EmbeddingGemmaModelName,
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			var document map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
@@ -77,6 +79,42 @@ func TestLlamaCppEmbeddingBackendPromptsBatchAsDocuments(t *testing.T) {
 	}
 	if len(response.Embeddings) != 2 || len(response.Embedding) != 0 {
 		t.Fatalf("unexpected batch response: %+v", response)
+	}
+}
+
+func TestEmbeddingInputsRemainUnchangedForOtherModels(t *testing.T) {
+	inputs := []string{"hello"}
+	preparedInputs := prepareEmbeddingInputs(inputs, EmbeddingRequest{InputType: "query"}, "baai/bge-m3", false)
+
+	if len(preparedInputs) != 1 || preparedInputs[0] != "hello" {
+		t.Fatalf("expected unchanged input, got %+v", preparedInputs)
+	}
+}
+
+func TestOpenRouterEmbeddingBackendKeepsCanonicalModelName(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-key")
+	if errorValue := os.WriteFile(secretPath, []byte("test-key"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterEmbeddingBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/embeddings",
+		ModelName: "baai/bge-m3",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"model":"parasail-bge-m3","data":[{"embedding":[0.1,0.2]}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CreateEmbedding(context.Background(), EmbeddingRequest{Input: "hello"})
+	if errorValue != nil {
+		t.Fatalf("expected embedding to succeed: %v", errorValue)
+	}
+	if response.Model != "baai/bge-m3" {
+		t.Fatalf("expected canonical model name, got %q", response.Model)
 	}
 }
 

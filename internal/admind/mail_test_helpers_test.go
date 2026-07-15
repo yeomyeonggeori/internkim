@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,11 +12,24 @@ import (
 
 func newMailTestService(t *testing.T) *Service {
 	t.Helper()
+	stateDirectory := t.TempDir()
 	return NewService(Configuration{
-		StateDirectory:   t.TempDir(),
-		MailDatabasePath: filepath.Join(t.TempDir(), "mail.sqlite"),
+		StateDirectory:   stateDirectory,
+		FlowDatabasePath: filepath.Join(stateDirectory, "flow.sqlite"),
+		MailDatabasePath: filepath.Join(stateDirectory, "mail.sqlite"),
 		AdminEmailPath:   writeTestFile(t, "admin@example.com"),
 	})
+}
+
+func writeUsersSyncTestCache(t *testing.T, service *Service, email string) {
+	t.Helper()
+	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	if errorValue := os.MkdirAll(stateDirectory, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(stateDirectory, "users-sync.json"), []byte(`{"users":["`+email+`"]}`), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }
 
 func saveConfiguredMailTestAccount(t *testing.T, service *Service) {

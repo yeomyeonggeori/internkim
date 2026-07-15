@@ -370,9 +370,7 @@ func (service Service) companyTextEmbedding(ctx context.Context, text string) []
 	if text == "" {
 		return nil
 	}
-	embeddingContext, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	response, errorValue := service.createEmbedding(embeddingContext, EmbeddingRequest{Input: text})
+	response, errorValue := service.createEmbedding(ctx, EmbeddingRequest{Input: text})
 	if errorValue != nil {
 		return nil
 	}
