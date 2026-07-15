@@ -11,8 +11,12 @@
 		companyMetricPeriodLabel,
 		companyMetricSeries,
 		companyRecordDescription,
+		companyRecordMoney,
 		companyRecordTitle,
+		companyRecordVisibleAttributes,
 		formatCompanyMetricValue,
+		formatCompanyRecordMoney,
+		formatCompanyRecordMoneyEquivalent,
 		latestCompanyMetrics,
 		type CompanyMetricCurrency,
 		type CompanyMetricDisplayCurrency,
@@ -264,14 +268,25 @@
 				<h2 class="text-2xl font-semibold">{text.milestones}</h2>
 				<ol class="mt-7 grid gap-7">
 					{#each records as record}
+						{@const money = companyRecordMoney(record)}
+						{@const moneyEquivalent = money ? formatCompanyRecordMoneyEquivalent(money, displayCurrency) : undefined}
+						{@const visibleAttributes = companyRecordVisibleAttributes(record)}
 						<li class="grid grid-cols-[5.5rem_1fr] gap-5">
 							<time class="text-muted-foreground text-sm tabular-nums">{record.date ? formatDate(record.date) : record.category}</time>
 							<div>
 								<div class="flex flex-wrap items-center gap-2"><h3 class="font-semibold">{companyRecordTitle(record, language)}</h3><Badge variant="secondary">{displayRecordCategory(record.category)}</Badge></div>
 								{#if companyRecordDescription(record, language)}<p class="text-muted-foreground mt-2 leading-7 text-pretty">{companyRecordDescription(record, language)}</p>{/if}
-								{#if Object.keys(record.attributes ?? {}).length > 0}
+								{#if money}
+									<div class="mt-4">
+										<p class="text-2xl font-semibold tracking-tight tabular-nums">{formatCompanyRecordMoney(money, displayCurrency)}</p>
+										{#if moneyEquivalent}
+											<p class="text-muted-foreground mt-1 text-sm tabular-nums">≈ {moneyEquivalent}</p>
+										{/if}
+									</div>
+								{/if}
+								{#if visibleAttributes.length > 0}
 									<dl class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-										{#each Object.entries(record.attributes ?? {}) as [attributeKey, attributeValue]}
+										{#each visibleAttributes as [attributeKey, attributeValue]}
 											<div class="flex gap-2"><dt class="text-muted-foreground">{attributeKey}</dt><dd class="font-medium">{attributeValue}</dd></div>
 										{/each}
 									</dl>
