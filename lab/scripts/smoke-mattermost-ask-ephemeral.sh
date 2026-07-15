@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 tenant = os.environ.get("INTERNKIM_TENANT", "pilot-01")
@@ -18,7 +19,6 @@ tenant_root_path = os.environ.get("INTERNKIM_TENANT_ROOT", f"/srv/internkim/tena
 capability_socket_path = os.environ.get("INTERNKIM_CAPABILITY_SOCKET", f"{tenant_root_path}/run/capability.sock")
 bot_token_path = os.environ.get("MATTERMOST_BOT_TOKEN_PATH", f"{tenant_root_path}/secrets/mattermost-bot-token")
 channel_id_path = os.environ.get("MATTERMOST_FLOW_CHANNEL_ID_PATH", f"{tenant_root_path}/state/admin/mattermost-flow-channel-id")
-interactive_token_path = os.environ.get("MATTERMOST_INTERACTIVE_TOKEN_PATH", f"{tenant_root_path}/state/admin/mattermost-interactive-token")
 
 public_post_id = ""
 
@@ -117,37 +117,41 @@ def encoded_reply_target_id():
     return base64.urlsafe_b64encode(document).decode("ascii").rstrip("=")
 
 
-def assert_acknowledged_response(response):
-    if "ephemeral_text" in response:
-        raise RuntimeError("ask ACK returned ephemeral_text")
-    if "error" in response:
-        raise RuntimeError("ask ACK returned error")
-    if "update" in response:
-        raise RuntimeError("ask ACK returned an inline update")
+def local_action_url(integration_url):
+    parsed_url = urllib.parse.urlparse(integration_url)
+    if parsed_url.path != "/_internkim/mattermost/actions":
+        raise RuntimeError("ask button has an invalid integration URL: " + integration_url)
+    return admind_url + parsed_url.path
 
 
-def send_ask_action(action, timestamp, selected_option=""):
-    context = {
-        "action": action,
-        "token": interactive_token,
-        "interactionID": "codex-smoke-interaction-" + timestamp,
-        "taskRunID": "codex-smoke-task-" + timestamp,
-        "conversationID": "channel:" + channel_id,
-        "replyTargetID": reply_target_id,
-        "responseLanguage": "ko",
-        "targetUserID": bot_user["id"],
-    }
-    body = {
-        "user_id": bot_user["id"],
-        "post_id": "codex-smoke-ephemeral-post-" + action + "-" + timestamp,
+def assert_wrong_user_is_rejected(action):
+    integration = action.get("integration") or {}
+    context = integration.get("context") or {}
+    response = post_json(local_action_url(integration.get("url", "")), {
+        "user_id": "wrong-user-" + bot_user["id"],
+        "post_id": public_post_id,
         "channel_id": channel_id,
         "context": context,
-    }
-    if selected_option != "":
-        body["selected_option"] = selected_option
-    response = post_json(admind_url + "/_internkim/mattermost/actions", body)
-    assert_acknowledged_response(response)
-    return response
+    })
+    if not response or not response.get("ephemeral_text") or response.get("update"):
+        raise RuntimeError("ask button did not reject a non-target user")
+
+
+def click_mattermost_action(action):
+    action_id = str(action.get("id", "")).strip()
+    if action_id == "":
+        raise RuntimeError("ask button has no action id")
+    mattermost_request("POST", "/api/v4/posts/" + public_post_id + "/actions/" + action_id, {})
+    return action_id
+
+
+def wait_for_attachments_to_clear():
+    for _ in range(20):
+        _, post = mattermost_request("GET", "/api/v4/posts/" + public_post_id)
+        if not (post.get("props") or {}).get("attachments"):
+            return True
+        time.sleep(0.25)
+    return False
 
 
 def cleanup_public_post():
@@ -168,10 +172,9 @@ try:
     timestamp = str(int(time.time()))
     reply_body = {
         "replyTargetID": reply_target_id,
-        "message": "codex mattermost ask ephemeral smoke " + timestamp,
+        "message": "codex mattermost inline ask smoke " + timestamp,
         "rawEventID": "codex-smoke-event-" + timestamp,
         "outboxID": "codex-smoke-outbox-" + timestamp,
-        "ephemeralUserID": bot_user["id"],
         "interaction": {
             "interactionID": "codex-smoke-interaction-" + timestamp,
             "taskRunID": "codex-smoke-task-" + timestamp,
@@ -183,6 +186,7 @@ try:
             ],
             "selectionMode": "single",
             "responseLanguage": "ko",
+            "targetPlatformUserID": bot_user["id"],
         },
     }
     reply_response = capability_reply_send(reply_body)
@@ -192,28 +196,32 @@ try:
         raise RuntimeError("reply.send did not return dispatchID")
     _, public_post = mattermost_request("GET", "/api/v4/posts/" + public_post_id)
     public_post_properties = public_post.get("props") or {}
-    public_post_has_attachments = bool(public_post_properties.get("attachments"))
-    if public_post_has_attachments:
-        raise RuntimeError("public Mattermost post included ask attachments")
-    interactive_token = read_trimmed(interactive_token_path)
-    action_responses = {
-        "ask.confirm": send_ask_action("ask.confirm", timestamp),
-        "ask.cancel": send_ask_action("ask.cancel", timestamp),
-        "ask.choice": send_ask_action(
-            "ask.choice",
-            timestamp,
-            json.dumps({"key": "confirm", "label": "확인"}, ensure_ascii=False),
-        ),
-    }
+    attachments = public_post_properties.get("attachments") or []
+    if len(attachments) != 1:
+        raise RuntimeError("public Mattermost post did not include one ask attachment")
+    actions = attachments[0].get("actions") or []
+    if len(actions) != 2:
+        raise RuntimeError("public Mattermost ask did not include two choice buttons")
+    selected_action = actions[0]
+    selected_context = (selected_action.get("integration") or {}).get("context") or {}
+    if selected_context.get("action") != "ask.choice" or selected_context.get("choiceKey") != "confirm":
+        raise RuntimeError("public Mattermost ask button has the wrong action context")
+    assert_wrong_user_is_rejected(selected_action)
+    selected_action_id = click_mattermost_action(selected_action)
+    attachments_cleared = wait_for_attachments_to_clear()
+    if not attachments_cleared:
+        raise RuntimeError("Mattermost ask buttons remained after a valid click")
     public_post_deleted = cleanup_public_post()
     print(json.dumps({
         "ok": True,
         "isBot": bot_user.get("is_bot") is True,
         "botRoles": bot_user.get("roles", ""),
         "publicPostDeleted": public_post_deleted,
-        "publicPostHasAttachments": public_post_has_attachments,
+        "publicPostInitialAttachmentCount": len(attachments),
+        "publicPostAttachmentsCleared": attachments_cleared,
         "replySendDispatchID": reply_send_dispatch_id,
-        "acknowledgedActions": sorted(action_responses.keys()),
+        "selectedActionID": selected_action_id,
+        "targetMismatchRejected": True,
     }, ensure_ascii=False, sort_keys=True))
 finally:
     if public_post_id != "":
