@@ -234,67 +234,6 @@ func TestRunGoogleCalendarPullSoftDeletesMissingRemoteEvent(t *testing.T) {
 	}
 }
 
-func TestRunGoogleCalendarPullProtectsCurrentCyclePushedEvent(t *testing.T) {
-	service := newCalendarTestService(t)
-	ctx := context.Background()
-	account := seedAccountWithDiscovery(t, service)
-
-	client := &fakeCalDAVPullClient{
-		objects: []calDAVCalendarObject{
-			fakeRemoteObject(t, "evt-fresh@google", `"etag-1"`, "Fresh"),
-		},
-	}
-	if _, errorValue := service.runGoogleCalendarPull(ctx, account, client); errorValue != nil {
-		t.Fatalf("seed pull: %v", errorValue)
-	}
-
-	protectedUIDs := map[string]struct{}{"evt-fresh@google": {}}
-	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, nil, protectedUIDs); errorValue != nil {
-		t.Fatalf("missing reconcile: %v", errorValue)
-	}
-	active, _ := service.readRemoteCalendarEventsByProvider(ctx, remoteCalendarProviderGoogle)
-	if len(active) != 1 {
-		t.Fatalf("recently-pushed event was soft-deleted: %d remain", len(active))
-	}
-	if active[0].UID != "evt-fresh@google" {
-		t.Errorf("wrong event survived: %q", active[0].UID)
-	}
-}
-
-func TestRecentlyPushedCalendarUIDProtectionPersistsUntilObserved(t *testing.T) {
-	service := newCalendarTestService(t)
-	ctx := context.Background()
-	account := seedAccountWithDiscovery(t, service)
-	now := time.Unix(1000, 0).UTC()
-
-	event := newLocalTestCalendarEvent("recent-push", "Recent Push")
-	event.RemoteSource = remoteCalendarProviderGoogle
-	event.RemoteETag = `"etag-pushed"`
-	event.RemoteHref = "/calendars/me/recent-push.ics"
-	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
-		t.Fatalf("seed: %v", errorValue)
-	}
-
-	service.recordRecentlyPushedCalendarUIDs(now, map[string]struct{}{event.UID: {}})
-	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, nil, service.recentlyPushedCalendarUIDs(now.Add(time.Minute))); errorValue != nil {
-		t.Fatalf("missing pull while protected: %v", errorValue)
-	}
-	if _, found, _ := service.readCalendarEventByID(ctx, event.ID); !found {
-		t.Fatal("recently pushed event should survive missing remote LIST")
-	}
-
-	observedObject := fakeRemoteObject(t, event.UID, `"etag-observed"`, event.Title)
-	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, []calDAVCalendarObject{observedObject}, service.recentlyPushedCalendarUIDs(now.Add(2*time.Minute))); errorValue != nil {
-		t.Fatalf("observed pull: %v", errorValue)
-	}
-	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, nil, service.recentlyPushedCalendarUIDs(now.Add(3*time.Minute))); errorValue != nil {
-		t.Fatalf("missing pull after observed: %v", errorValue)
-	}
-	if _, found, _ := service.readCalendarEventByID(ctx, event.ID); found {
-		t.Fatal("observed then deleted Google event should be removed locally")
-	}
-}
-
 func TestRunGoogleCalendarPullResurrectsSoftDeletedRowOnUIDMatch(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()

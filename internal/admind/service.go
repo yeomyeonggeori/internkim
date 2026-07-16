@@ -114,8 +114,6 @@ type Service struct {
 	calendarCandidateClock  calendarConflictCandidateClock
 	calendarPullCacheMutex  sync.Mutex
 	lastCalendarPullAt      time.Time
-	calendarRecentPushMutex sync.Mutex
-	recentCalendarPushUIDs  map[string]time.Time
 	calendarActorCacheMutex sync.Mutex
 	calendarActorCache      map[string]calendarActorProfileCacheEntry
 	companyShareMutex       sync.Mutex

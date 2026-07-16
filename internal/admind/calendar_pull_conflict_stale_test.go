@@ -98,7 +98,7 @@ func TestPullConflictStaleMissingRemotePreservesLatePendingLocalEdit(t *testing.
 		t.Fatalf("late local update: %v", errorValue)
 	}
 
-	_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(ctx, account, activeRemoteCalendarTarget(account), nil, nil, "", pullStartedAt)
+	_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(ctx, account, activeRemoteCalendarTarget(account), nil, "", pullStartedAt)
 	if errorValue != nil || !isCurrentTarget {
 		t.Fatalf("apply pull cycle current=%v error=%v", isCurrentTarget, errorValue)
 	}
@@ -155,7 +155,7 @@ func TestPullConflictWallClockRollbackPreservesLocalWriteAfterSnapshotCompletion
 	if !localChangedAt.After(reservedSnapshotBoundary) {
 		t.Fatalf("local changed at=%s snapshot boundary=%s", localChangedAt, reservedSnapshotBoundary)
 	}
-	_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, activeRemoteCalendarTarget(account), nil, nil, "", reservedSnapshotBoundary)
+	_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, activeRemoteCalendarTarget(account), nil, "", reservedSnapshotBoundary)
 	if errorValue != nil || !isCurrentTarget {
 		t.Fatalf("apply pull cycle current=%v error=%v", isCurrentTarget, errorValue)
 	}
@@ -210,7 +210,7 @@ func TestPullPresentSnapshotKeepsLastSeenBeforeLaterLocalWrite(t *testing.T) {
 		Path: baselineEvent.RemoteHref,
 		ETag: baselineEvent.RemoteETag,
 		Data: baselineICS,
-	}}, nil, "", reservedSnapshotBoundary)
+	}}, "", reservedSnapshotBoundary)
 	if errorValue != nil || !isCurrentTarget {
 		t.Fatalf("apply pull cycle current=%v error=%v", isCurrentTarget, errorValue)
 	}
@@ -266,7 +266,7 @@ func TestPullConflictMissingSnapshotBoundaryPrefersDeletionAtOrBeforeCompletion(
 				t.Fatal(errorValue)
 			}
 			snapshotCompletedAt := testCase.snapshotCompletedAt(localChangedAt)
-			_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, activeRemoteCalendarTarget(account), nil, nil, "", snapshotCompletedAt)
+			_, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, activeRemoteCalendarTarget(account), nil, "", snapshotCompletedAt)
 			if errorValue != nil || !isCurrentTarget {
 				t.Fatalf("apply pull cycle current=%v error=%v", isCurrentTarget, errorValue)
 			}

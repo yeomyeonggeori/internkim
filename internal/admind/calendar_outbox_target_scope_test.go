@@ -114,7 +114,7 @@ func TestSelectedTargetPullPreservesStaleAndBlockedOutboxRows(t *testing.T) {
 		t.Fatalf("stale target put was mutated: before=%+v after=%+v", stalePut, storedStalePut)
 	}
 	storedBlockedPut, found := rowsByID[blockedNewTargetPut.ID]
-	if !found || storedBlockedPut.Status != calendarOutboxStatusBlocked || storedBlockedPut.RemoteHref != "" || storedBlockedPut.IfMatchETag != "" {
+	if !found || storedBlockedPut.Status != calendarOutboxStatusBlocked || storedBlockedPut.RemoteHref != remoteObject.Path || storedBlockedPut.IfMatchETag != remoteObject.ETag {
 		t.Fatalf("blocked target put was mutated: %+v", storedBlockedPut)
 	}
 }
