@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -163,12 +163,12 @@ func (service *Service) serveCalendarConflicts(writer http.ResponseWriter, reque
 	conflicts, errorValue := service.listActiveCalendarConflicts(request.Context())
 	if errorValue != nil {
 		http.Error(writer, "failed to list calendar conflicts", http.StatusInternalServerError)
-		log.Printf("calendar conflicts list: %v", errorValue)
+		slog.WarnContext(request.Context(), "calendar conflicts list failed", "error", errorValue)
 		return
 	}
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if errorValue := json.NewEncoder(writer).Encode(calendarConflictsResponse{Conflicts: conflicts}); errorValue != nil {
-		log.Printf("calendar conflicts encode: %v", errorValue)
+		slog.WarnContext(request.Context(), "calendar conflicts response encode failed", "error", errorValue)
 	}
 }
 
@@ -180,7 +180,7 @@ func (service *Service) dismissCalendarConflictRequest(writer http.ResponseWrite
 	}
 	if errorValue := service.dismissCalendarConflict(request.Context(), conflictID); errorValue != nil {
 		http.Error(writer, "failed to dismiss conflict", http.StatusInternalServerError)
-		log.Printf("calendar conflict dismiss %d: %v", conflictID, errorValue)
+		slog.WarnContext(request.Context(), "calendar conflict dismiss failed", "conflict_id", conflictID, "error", errorValue)
 		return
 	}
 	writer.WriteHeader(http.StatusNoContent)

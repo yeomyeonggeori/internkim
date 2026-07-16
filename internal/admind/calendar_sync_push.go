@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"strings"
 	"time"
@@ -172,12 +171,12 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		if isCalDAVObjectNotFound(errorValue) {
 			return service.reconcileCalendarRemoteDeletionDuringPush(ctx, account, client, row, localEvent, time.Now().UTC())
 		}
-		log.Printf("calendar push conflict fetch failed for %s: %v", localEvent.UID, errorValue)
+		slog.WarnContext(ctx, "calendar push conflict fetch failed", "event_uid", localEvent.UID, "error", errorValue)
 		return false, errorValue
 	}
 	remoteEvent, errorValue := decodeRemoteCalendarObject(remoteObject, account.AccountEmail)
 	if errorValue != nil {
-		log.Printf("calendar push conflict decode failed for %s: %v", localEvent.UID, errorValue)
+		slog.WarnContext(ctx, "calendar push conflict decode failed", "event_uid", localEvent.UID, "error", errorValue)
 		return false, errorValue
 	}
 	if errorValue := service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, row.ChangedFields); errorValue != nil {
@@ -209,7 +208,7 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	newETag, errorValue := service.guardedCalendarPut(ctx, client, row, remoteObject.Path, mergedICS, remoteObject.ETag, "")
 	if errorValue != nil {
 		if isCalDAVPreconditionFailed(errorValue) {
-			log.Printf("calendar push retry precondition failed for %s — outbox row will retry", localEvent.UID)
+			slog.WarnContext(ctx, "calendar push retry precondition failed", "event_uid", localEvent.UID)
 		}
 		return false, errorValue
 	}
