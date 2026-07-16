@@ -13,6 +13,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 )
 
 type mattermostScenario struct {
@@ -24,6 +25,24 @@ type mattermostScenario struct {
 	CapabilityToolDescriptors []mattermostScenarioToolDescriptor `json:"capabilityToolDescriptors"`
 	InitialToolNames          []string                           `json:"initialToolNames"`
 	Steps                     []mattermostScenarioStep           `json:"steps"`
+	RequiredModelTier         string                             `json:"-"`
+}
+
+type mattermostScenarioExposureEvidence struct {
+	ExposedToolIDs       []string `json:"exposedToolIDs"`
+	SelectedSkillToolIDs []string `json:"selectedSkillToolIDs"`
+	PinnedGroupToolIDs   []string `json:"pinnedGroupToolIDs"`
+	SelectionSource      string   `json:"selectionSource"`
+	UsedFallbackGroups   bool     `json:"usedFallbackGroups"`
+}
+
+type mattermostScenarioInstructionEvidence struct {
+	ExposedToolNames          []string            `json:"exposedToolNames"`
+	SelectedSkillAllowedTools map[string][]string `json:"selectedSkillAllowedTools"`
+}
+
+type mattermostScenarioWorkingSetEvidence struct {
+	Exposure mattermostScenarioExposureEvidence `json:"exposure"`
 }
 
 type mattermostScenarioToolDescriptor struct {
@@ -36,24 +55,25 @@ type mattermostScenarioApprovalAction string
 const mattermostScenarioApprovalApprove mattermostScenarioApprovalAction = "approve"
 
 type mattermostScenarioStep struct {
-	Prompt                  string                            `json:"prompt"`
-	ExpectedToolCalls       []string                          `json:"expectedToolCalls"`
-	ExpectedAnyToolCalls    []string                          `json:"expectedAnyToolCalls"`
-	ExpectedEvents          []string                          `json:"expectedEvents"`
-	ExpectedToolCallCounts  map[string]int                    `json:"expectedToolCallCounts"`
-	ExpectedEventCounts     []mattermostScenarioEventCount    `json:"expectedEventCounts"`
-	ExpectedAttachments     []string                          `json:"expectedAttachments"`
-	ExpectedDocumentText    []string                          `json:"expectedDocumentText"`
-	ExpectedWorkspaceFiles  []mattermostScenarioWorkspaceFile `json:"expectedWorkspaceFiles"`
-	ForbiddenWorkspaceFiles []string                          `json:"forbiddenWorkspaceFiles"`
-	ExpectedReplyFragments  []string                          `json:"expectedReplyFragments"`
-	ForbiddenReplyFragments []string                          `json:"forbiddenReplyFragments"`
-	MinimumReplyLength      int                               `json:"minimumReplyLength"`
-	ExpectedTaskStatus      string                            `json:"expectedTaskStatus"`
-	RequiresPublicURL       bool                              `json:"requiresPublicURL"`
-	ExpectedPublicText      []string                          `json:"expectedPublicText"`
-	ExpectedPublicControls  []string                          `json:"expectedPublicControls"`
-	ApprovalAction          mattermostScenarioApprovalAction  `json:"approvalAction"`
+	Prompt                      string                            `json:"prompt"`
+	ExpectedToolCalls           []string                          `json:"expectedToolCalls"`
+	ExpectedAnyToolCalls        []string                          `json:"expectedAnyToolCalls"`
+	ExpectedEvents              []string                          `json:"expectedEvents"`
+	ExpectedToolCallCounts      map[string]int                    `json:"expectedToolCallCounts"`
+	ExpectedExactToolCallCounts map[string]int                    `json:"expectedExactToolCallCounts"`
+	ExpectedEventCounts         []mattermostScenarioEventCount    `json:"expectedEventCounts"`
+	ExpectedAttachments         []string                          `json:"expectedAttachments"`
+	ExpectedDocumentText        []string                          `json:"expectedDocumentText"`
+	ExpectedWorkspaceFiles      []mattermostScenarioWorkspaceFile `json:"expectedWorkspaceFiles"`
+	ForbiddenWorkspaceFiles     []string                          `json:"forbiddenWorkspaceFiles"`
+	ExpectedReplyFragments      []string                          `json:"expectedReplyFragments"`
+	ForbiddenReplyFragments     []string                          `json:"forbiddenReplyFragments"`
+	MinimumReplyLength          int                               `json:"minimumReplyLength"`
+	ExpectedTaskStatus          string                            `json:"expectedTaskStatus"`
+	RequiresPublicURL           bool                              `json:"requiresPublicURL"`
+	ExpectedPublicText          []string                          `json:"expectedPublicText"`
+	ExpectedPublicControls      []string                          `json:"expectedPublicControls"`
+	ApprovalAction              mattermostScenarioApprovalAction  `json:"approvalAction"`
 }
 
 type mattermostScenarioEventCount struct {
@@ -61,6 +81,7 @@ type mattermostScenarioEventCount struct {
 	BodyFragment   string `json:"bodyFragment"`
 	OutputFragment string `json:"outputFragment"`
 	Count          int    `json:"count"`
+	Exact          bool   `json:"exact"`
 }
 
 type mattermostScenarioWorkspaceFile struct {
@@ -169,10 +190,25 @@ func loadMattermostScenario(filePath string) (mattermostScenario, error) {
 	if errorValue := requireJSONEnd(decoder); errorValue != nil {
 		return mattermostScenario{}, errorValue
 	}
+	resolveMattermostScenarioRuntimeValues(&scenario, time.Now())
 	if errorValue := validateMattermostScenario(scenario); errorValue != nil {
 		return mattermostScenario{}, errorValue
 	}
 	return scenario, nil
+}
+
+func resolveMattermostScenarioRuntimeValues(scenario *mattermostScenario, currentTime time.Time) {
+	if scenario == nil {
+		return
+	}
+	nextFriday := currentTime.AddDate(0, 0, (int(time.Friday)-int(currentTime.Weekday())+7)%7).Format("2006-01-02")
+	for stepIndex := range scenario.Steps {
+		for eventIndex := range scenario.Steps[stepIndex].ExpectedEventCounts {
+			eventCount := &scenario.Steps[stepIndex].ExpectedEventCounts[eventIndex]
+			eventCount.BodyFragment = strings.ReplaceAll(eventCount.BodyFragment, "{{nextFriday}}", nextFriday)
+			eventCount.OutputFragment = strings.ReplaceAll(eventCount.OutputFragment, "{{nextFriday}}", nextFriday)
+		}
+	}
 }
 
 func requireJSONEnd(decoder *json.Decoder) error {
@@ -215,6 +251,11 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 			return fmt.Errorf("Mattermost scenario step %d has invalid tool call count", stepIndex)
 		}
 	}
+	for toolName, count := range step.ExpectedExactToolCallCounts {
+		if strings.TrimSpace(toolName) == "" || count < 0 {
+			return fmt.Errorf("Mattermost scenario step %d has invalid exact tool call count", stepIndex)
+		}
+	}
 	for eventIndex, eventCount := range step.ExpectedEventCounts {
 		if strings.TrimSpace(eventCount.Name) == "" || eventCount.Count < 0 {
 			return fmt.Errorf("Mattermost scenario step %d event count %d is invalid", stepIndex, eventIndex)
@@ -238,20 +279,25 @@ func validateMattermostScenarioResult(scenario mattermostScenario, result *matte
 	}
 	for stepIndex, expectedStep := range scenario.Steps {
 		if scenario.RequiresSDKD {
-			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents); errorValue != nil {
+			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario.RequiredModelTier); errorValue != nil {
 				return errorValue
 			}
 		}
-		if errorValue := validateMattermostScenarioStep(stepIndex, expectedStep, result.Steps[stepIndex], result); errorValue != nil {
+		if errorValue := validateMattermostScenarioStep(stepIndex, scenario, expectedStep, result.Steps[stepIndex], result); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
 }
 
-func validateMattermostScenarioStep(stepIndex int, expected mattermostScenarioStep, actual mattermostScenarioStepResult, result *mattermostScenarioResult) error {
+func validateMattermostScenarioStep(stepIndex int, scenario mattermostScenario, expected mattermostScenarioStep, actual mattermostScenarioStepResult, result *mattermostScenarioResult) error {
 	if actual.Prompt != expected.Prompt {
 		return fmt.Errorf("Mattermost scenario step %d prompt does not match", stepIndex)
+	}
+	if scenarioHasExposureExpectations(scenario) {
+		if errorValue := validateMattermostScenarioExposure(stepIndex, scenario, expected, actual.TaskEvents); errorValue != nil {
+			return errorValue
+		}
 	}
 	if expected.ExpectedTaskStatus != "" && actual.TaskStatus != expected.ExpectedTaskStatus {
 		return fmt.Errorf("Mattermost scenario step %d status %q does not match %q", stepIndex, actual.TaskStatus, expected.ExpectedTaskStatus)
@@ -277,6 +323,103 @@ func validateMattermostScenarioStep(stepIndex int, expected mattermostScenarioSt
 		return errorValue
 	}
 	return validateMattermostScenarioEvents(stepIndex, expected, actual.TaskEvents, result)
+}
+
+func scenarioHasExposureExpectations(scenario mattermostScenario) bool {
+	return len(scenario.AllowedTools) > 0 || len(scenario.InitialToolNames) > 0 || len(scenario.SkillDirectoryPaths) > 0
+}
+
+func validateMattermostScenarioExposure(stepIndex int, scenario mattermostScenario, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
+	var instruction mattermostScenarioInstructionEvidence
+	var workingSet mattermostScenarioWorkingSetEvidence
+	hasInstruction := false
+	hasWorkingSet := false
+	for _, event := range events {
+		switch event.Name {
+		case "agent.instructions_loaded":
+			if errorValue := json.Unmarshal([]byte(event.Body), &instruction); errorValue != nil {
+				return fmt.Errorf("Mattermost scenario step %d has invalid instruction exposure evidence: %w", stepIndex, errorValue)
+			}
+			hasInstruction = true
+		case "agent.step_working_set":
+			if errorValue := json.Unmarshal([]byte(event.Body), &workingSet); errorValue != nil {
+				return fmt.Errorf("Mattermost scenario step %d has invalid working set exposure evidence: %w", stepIndex, errorValue)
+			}
+			hasWorkingSet = true
+		}
+	}
+	if !hasInstruction || !hasWorkingSet {
+		return fmt.Errorf("Mattermost scenario step %d is missing direct-tool exposure evidence", stepIndex)
+	}
+	if errorValue := validateMattermostScenarioForbiddenTools(stepIndex, instruction.ExposedToolNames, workingSet.Exposure.ExposedToolIDs); errorValue != nil {
+		return errorValue
+	}
+	if workingSet.Exposure.UsedFallbackGroups || workingSet.Exposure.SelectionSource == "deterministic_palette" {
+		return fmt.Errorf("Mattermost scenario step %d used fallback or deterministic tool exposure", stepIndex)
+	}
+	if stepIndex == 0 {
+		if errorValue := validateMattermostScenarioInitialTools(stepIndex, scenario, workingSet.Exposure); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := validateMattermostScenarioSelectedSkills(stepIndex, scenario, instruction); errorValue != nil {
+			return errorValue
+		}
+	}
+	for _, toolName := range append(append([]string{}, expected.ExpectedToolCalls...), expected.ExpectedAnyToolCalls...) {
+		if len(scenario.AllowedTools) > 0 && !containsMattermostScenarioString(scenario.AllowedTools, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d expected tool %q is not in allowedTools", stepIndex, toolName)
+		}
+		if !containsMattermostScenarioString(workingSet.Exposure.ExposedToolIDs, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d expected tool %q was not exposed", stepIndex, toolName)
+		}
+	}
+	return nil
+}
+
+func validateMattermostScenarioForbiddenTools(stepIndex int, instructionTools []string, workingSetTools []string) error {
+	for _, toolName := range append(append([]string{}, instructionTools...), workingSetTools...) {
+		if toolName == "capability.invoke" || toolName == "task.history" {
+			return fmt.Errorf("Mattermost scenario step %d exposed internal tool %q", stepIndex, toolName)
+		}
+	}
+	return nil
+}
+
+func validateMattermostScenarioInitialTools(stepIndex int, scenario mattermostScenario, exposure mattermostScenarioExposureEvidence) error {
+	for _, toolName := range scenario.InitialToolNames {
+		if len(scenario.AllowedTools) > 0 && !containsMattermostScenarioString(scenario.AllowedTools, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d initial tool %q is not in allowedTools", stepIndex, toolName)
+		}
+		if !containsMattermostScenarioString(exposure.ExposedToolIDs, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d did not expose initial tool %q", stepIndex, toolName)
+		}
+		if !containsMattermostScenarioString(exposure.PinnedGroupToolIDs, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d did not pin initial tool %q", stepIndex, toolName)
+		}
+	}
+	return nil
+}
+
+func validateMattermostScenarioSelectedSkills(stepIndex int, scenario mattermostScenario, instruction mattermostScenarioInstructionEvidence) error {
+	for _, skillPath := range scenario.SkillDirectoryPaths {
+		skillName := path.Base(path.Clean(skillPath))
+		if skillName == "." || skillName == "/" || skillName == "" {
+			continue
+		}
+		if _, isSelected := instruction.SelectedSkillAllowedTools[skillName]; !isSelected {
+			return fmt.Errorf("Mattermost scenario step %d did not select skill %q", stepIndex, skillName)
+		}
+	}
+	return nil
+}
+
+func containsMattermostScenarioString(values []string, expected string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == strings.TrimSpace(expected) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateMattermostScenarioDocuments(stepIndex int, expected mattermostScenarioStep, files []downloadedMattermostFile) error {
@@ -439,65 +582,72 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 	}
 	for toolName, expectedCount := range expected.ExpectedToolCallCounts {
 		observedCount := countMattermostScenarioToolEvents(events, toolName)
-		if errorValue := recordMattermostScenarioCount(result, stepIndex, "tool", toolName, expectedCount, observedCount); errorValue != nil {
+		if errorValue := recordMattermostScenarioCount(result, stepIndex, "tool", toolName, expectedCount, observedCount, false); errorValue != nil {
+			return errorValue
+		}
+	}
+	for toolName, expectedCount := range expected.ExpectedExactToolCallCounts {
+		observedCount := countMattermostScenarioToolEvents(events, toolName)
+		if errorValue := recordMattermostScenarioCount(result, stepIndex, "tool", toolName, expectedCount, observedCount, true); errorValue != nil {
 			return errorValue
 		}
 	}
 	for _, eventCount := range expected.ExpectedEventCounts {
 		observedCount := countMattermostScenarioExpectedEvents(events, eventCount)
-		if errorValue := recordMattermostScenarioCount(result, stepIndex, "event", eventCount.Name, eventCount.Count, observedCount); errorValue != nil {
+		if errorValue := recordMattermostScenarioCount(result, stepIndex, "event", eventCount.Name, eventCount.Count, observedCount, eventCount.Exact); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
 }
 
-func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent) error {
-	hasAuthoritativeCall := false
-	hasSuccessfulCall := false
+func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, requiredModelTier string) error {
+	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
+	requiredSchemaNameSet := testStringSet(requiredSchemaNames)
+	successfulSchemaNames := map[string]bool{}
 	for _, event := range events {
 		if event.Name != "llm.call" {
 			continue
 		}
 		var call struct {
-			Kind         string `json:"kind"`
-			SchemaName   string `json:"schemaName"`
-			Transport    string `json:"transport"`
-			Model        string `json:"model"`
-			UsedFallback bool   `json:"usedFallback"`
-			IsError      bool   `json:"isError"`
+			SchemaName      string `json:"schemaName"`
+			Transport       string `json:"transport"`
+			Provider        string `json:"provider"`
+			Model           string `json:"model"`
+			ModelTier       string `json:"modelTier"`
+			SelectedBackend string `json:"selectedBackend"`
+			UsedFallback    bool   `json:"usedFallback"`
+			IsError         bool   `json:"isError"`
 		}
-		if json.Unmarshal([]byte(event.Body), &call) != nil || !isAuthoritativeSDKDCall(call.Kind, call.SchemaName) {
+		if json.Unmarshal([]byte(event.Body), &call) != nil {
 			continue
 		}
-		hasAuthoritativeCall = true
+		if !requiredSchemaNameSet[call.SchemaName] {
+			continue
+		}
 		if call.Transport != "sdkd" {
 			return fmt.Errorf("Mattermost scenario step %d used %s transport for authoritative AI SDK call %s", stepIndex, call.Transport, call.SchemaName)
 		}
 		if call.UsedFallback {
 			return fmt.Errorf("Mattermost scenario step %d used legacy fallback for authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
-		if !call.IsError && strings.TrimSpace(call.Model) == "" {
-			return fmt.Errorf("Mattermost scenario step %d has no model provenance for authoritative AI SDK call", stepIndex)
+		if call.IsError {
+			continue
 		}
-		if !call.IsError {
-			hasSuccessfulCall = true
+		if strings.TrimSpace(call.Provider) == "" || strings.TrimSpace(call.Model) == "" || strings.TrimSpace(call.SelectedBackend) == "" {
+			return fmt.Errorf("Mattermost scenario step %d has incomplete model provenance for authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
+		if strings.TrimSpace(requiredModelTier) != "" && !strings.EqualFold(strings.TrimSpace(call.ModelTier), strings.TrimSpace(requiredModelTier)) {
+			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s reported model tier %q, expected %q", stepIndex, call.SchemaName, call.ModelTier, requiredModelTier)
+		}
+		successfulSchemaNames[call.SchemaName] = true
 	}
-	if !hasAuthoritativeCall {
-		return fmt.Errorf("Mattermost scenario step %d has no authoritative AI SDK call evidence", stepIndex)
-	}
-	if !hasSuccessfulCall {
-		return fmt.Errorf("Mattermost scenario step %d has no successful authoritative AI SDK call", stepIndex)
+	for _, schemaName := range requiredSchemaNames {
+		if !successfulSchemaNames[schemaName] {
+			return fmt.Errorf("Mattermost scenario step %d has no successful authoritative AI SDK call for %s", stepIndex, schemaName)
+		}
 	}
 	return nil
-}
-
-func isAuthoritativeSDKDCall(kind string, schemaName string) bool {
-	if kind == "chat" || kind == "recovery_chat" || kind == "local_recovery_chat" {
-		return true
-	}
-	return schemaName == "blueclaw_agent_turn_action" || schemaName == "blueclaw_turn_router"
 }
 
 func hasAnyMattermostScenarioToolEvent(events []mattermostScenarioTaskEvent, toolNames []string) bool {
@@ -509,31 +659,47 @@ func hasAnyMattermostScenarioToolEvent(events []mattermostScenarioTaskEvent, too
 	return false
 }
 
-func recordMattermostScenarioCount(result *mattermostScenarioResult, stepIndex int, kind string, name string, expected int, observed int) error {
+func recordMattermostScenarioCount(result *mattermostScenarioResult, stepIndex int, kind string, name string, expected int, observed int, isExact bool) error {
 	if expected == 0 && observed != 0 {
-		return fmt.Errorf("Mattermost scenario step %d has forbidden %s %q count %d", stepIndex, kind, name, observed)
-	}
-	if expected > 0 && observed == 0 {
-		return fmt.Errorf("Mattermost scenario step %d is missing %s %q", stepIndex, kind, name)
-	}
-	if expected > 0 && observed != expected {
-		observation := mattermostScenarioEfficiencyObservation{
+		if isExact {
+			return fmt.Errorf("Mattermost scenario step %d has forbidden %s %q count %d", stepIndex, kind, name, observed)
+		}
+		recordMattermostScenarioEfficiencyObservation(result, mattermostScenarioEfficiencyObservation{
 			StepIndex: stepIndex,
 			Kind:      kind,
 			Name:      name,
 			Expected:  expected,
 			Observed:  observed,
+		})
+		return nil
+	}
+	if expected > 0 && observed == 0 {
+		return fmt.Errorf("Mattermost scenario step %d is missing %s %q", stepIndex, kind, name)
+	}
+	if expected > 0 && observed != expected {
+		if isExact {
+			return fmt.Errorf("Mattermost scenario step %d has exact %s %q count %d, expected %d", stepIndex, kind, name, observed, expected)
 		}
-		for observationIndex := range result.EfficiencyObservations {
-			existing := result.EfficiencyObservations[observationIndex]
-			if existing.StepIndex == stepIndex && existing.Kind == kind && existing.Name == name {
-				result.EfficiencyObservations[observationIndex] = observation
-				return nil
-			}
-		}
-		result.EfficiencyObservations = append(result.EfficiencyObservations, observation)
+		recordMattermostScenarioEfficiencyObservation(result, mattermostScenarioEfficiencyObservation{
+			StepIndex: stepIndex,
+			Kind:      kind,
+			Name:      name,
+			Expected:  expected,
+			Observed:  observed,
+		})
 	}
 	return nil
+}
+
+func recordMattermostScenarioEfficiencyObservation(result *mattermostScenarioResult, observation mattermostScenarioEfficiencyObservation) {
+	for observationIndex := range result.EfficiencyObservations {
+		existing := result.EfficiencyObservations[observationIndex]
+		if existing.StepIndex == observation.StepIndex && existing.Kind == observation.Kind && existing.Name == observation.Name {
+			result.EfficiencyObservations[observationIndex] = observation
+			return
+		}
+	}
+	result.EfficiencyObservations = append(result.EfficiencyObservations, observation)
 }
 
 func hasMattermostScenarioAttachment(files []downloadedMattermostFile, expectedName string) bool {
