@@ -607,6 +607,13 @@ func TestFlowTaskListAllScopeListsEveryone(t *testing.T) {
 	}
 }
 
+func TestDecodeFlowTaskListInputRejectsTaskAddFields(t *testing.T) {
+	_, errorValue := decodeFlowTaskListInput([]byte(`{"prompt":"업무 추가","title":"분기 결산","endDate":"2026-07-17"}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
+		t.Fatalf("expected task.add fields to fail task.list validation, got %v", errorValue)
+	}
+}
+
 func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{

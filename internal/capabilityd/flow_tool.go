@@ -347,7 +347,7 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error) {
 	var input flowTaskListInput
 	if len(bytes.TrimSpace(document)) > 0 {
-		if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 			return flowTaskListInput{}, errorValue
 		}
 	}
