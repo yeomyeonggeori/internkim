@@ -130,7 +130,7 @@ function findBotPosts(page: Page): Locator {
 	if (botReplyPostID === '') {
 		throw new Error('Mattermost bot reply post ID is required for exact UI evidence');
 	}
-	return page.locator(`#post_${botReplyPostID}`);
+	return page.locator(`#post_${botReplyPostID}, #rhsPost_${botReplyPostID}`);
 }
 
 async function saveAttachment(page: Page, expectedAttachment: string): Promise<void> {

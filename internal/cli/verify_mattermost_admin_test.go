@@ -138,6 +138,14 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 				Name: "tool.capability.invoke.result",
 				Body: `{"tool":"calendar.add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
 			},
+			{
+				Name: "tool.task.add.result",
+				Body: `{"tool":"task.add","output":{"data":{"id":"task-2"}}}`,
+			},
+			{
+				Name: "tool.calendar.add.result",
+				Body: `{"tool":"calendar.add","output":{"data":{"eventID":"event-2"}}}`,
+			},
 		}},
 		{TaskEvents: []mattermostScenarioTaskEvent{
 			{
@@ -147,6 +155,18 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 			{
 				Name: "tool.capability.invoke.result",
 				Body: `{"tool":"task.list","output":{"data":{"id":"must-not-delete"}}}`,
+			},
+			{
+				Name: "tool.task.add.requested",
+				Body: `{"tool":"task.add","output":{"data":{"id":"requested-task"}}}`,
+			},
+			{
+				Name: "tool.task.list.result",
+				Body: `{"tool":"task.list","output":{"data":{"id":"listed-task"}}}`,
+			},
+			{
+				Name: "tool.task.add.result",
+				Body: `{"tool":"task.update","output":{"data":{"id":"mismatched-task"}}}`,
 			},
 		}},
 	}}
@@ -158,10 +178,19 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 	if strings.Count(joinedScripts, "/flow/api/tasks/task-1") != 1 {
 		t.Fatalf("task resource was not deleted exactly once:\n%s", joinedScripts)
 	}
+	if strings.Count(joinedScripts, "/flow/api/tasks/task-2") != 1 {
+		t.Fatalf("direct task resource was not deleted exactly once:\n%s", joinedScripts)
+	}
 	if strings.Count(joinedScripts, "/calendar/api/events/event-1") != 1 {
 		t.Fatalf("calendar resource was not deleted exactly once:\n%s", joinedScripts)
 	}
-	if strings.Contains(joinedScripts, "ignored-task") || strings.Contains(joinedScripts, "must-not-delete") {
+	if strings.Count(joinedScripts, "/calendar/api/events/event-2") != 1 {
+		t.Fatalf("direct calendar resource was not deleted exactly once:\n%s", joinedScripts)
+	}
+	for _, unexpectedResourceID := range []string{"ignored-task", "must-not-delete", "requested-task", "listed-task", "mismatched-task"} {
+		if !strings.Contains(joinedScripts, unexpectedResourceID) {
+			continue
+		}
 		t.Fatalf("cleanup selected an unrelated resource:\n%s", joinedScripts)
 	}
 	for _, fragment := range []string{
