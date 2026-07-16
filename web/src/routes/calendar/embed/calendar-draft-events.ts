@@ -33,6 +33,11 @@ export class CalendarDraftEventState {
 		this.draftEventOriginalTitles.delete(eventID);
 	}
 
+	retainDraftEvent(event: DayFlowEvent): void {
+		if (!this.isDraftEvent(event.id)) return;
+		this.draftEventsByID.set(event.id, event);
+	}
+
 	createdEvents(): DayFlowEvent[] {
 		return Array.from(this.draftEventsByID.values());
 	}

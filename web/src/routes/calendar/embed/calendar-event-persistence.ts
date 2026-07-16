@@ -39,6 +39,20 @@ type CalendarEventsResponse = {
 	events: CalendarEvent[];
 };
 
+const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
+
+export type CalendarPersistenceErrorCode = typeof calendarTargetUnavailableErrorCode | 'unknown';
+
+export class CalendarPersistenceError extends Error {
+	constructor(
+		readonly code: CalendarPersistenceErrorCode,
+		message: string
+	) {
+		super(message);
+		this.name = 'CalendarPersistenceError';
+	}
+}
+
 export async function fetchCalendarEvents(startDate: Date, endDate: Date, errorFallback: string): Promise<CalendarEvent[]> {
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
@@ -62,7 +76,7 @@ export async function writeCalendarEvent(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
 	});
-	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
+	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
 	return (await response.json()) as CalendarEvent;
 }
 
@@ -71,7 +85,7 @@ export async function deletePersistedCalendarEvent(eventID: string, errorFallbac
 		method: 'DELETE',
 		credentials: 'include'
 	});
-	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
+	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
 }
 
 export function deletePersistedCalendarEventOnPageHide(eventID: string): void {
@@ -85,7 +99,36 @@ export function deletePersistedCalendarEventOnPageHide(eventID: string): void {
 }
 
 export async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
-	const message = (await response.text()).trim();
+	return responseBodyErrorMessage((await response.text()).trim(), fallback);
+}
+
+export async function calendarPersistenceErrorFromResponse(
+	response: Response,
+	fallback: string
+): Promise<CalendarPersistenceError> {
+	const responseBody = (await response.text()).trim();
+	const isJSONResponse = response.headers.get('Content-Type')?.toLowerCase().includes('application/json') === true;
+	const code = decodeCalendarPersistenceErrorCode(responseBody);
+	const message = isJSONResponse || responseBody.startsWith('{')
+		? fallback
+		: responseBodyErrorMessage(responseBody, fallback);
+	return new CalendarPersistenceError(code, message);
+}
+
+function decodeCalendarPersistenceErrorCode(responseBody: string): CalendarPersistenceErrorCode {
+	if (!responseBody.startsWith('{')) return 'unknown';
+	let document: unknown;
+	try {
+		document = JSON.parse(responseBody);
+	} catch (error: unknown) {
+		if (!(error instanceof SyntaxError)) throw error;
+		return 'unknown';
+	}
+	if (!document || typeof document !== 'object' || !('code' in document)) return 'unknown';
+	return document.code === calendarTargetUnavailableErrorCode ? calendarTargetUnavailableErrorCode : 'unknown';
+}
+
+function responseBodyErrorMessage(message: string, fallback: string): string {
 	if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
 	return message;
 }
