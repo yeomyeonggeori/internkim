@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -107,6 +108,8 @@ type Service struct {
 	webOAuthStates          sync.Map
 	calendarSyncWakeUp      chan struct{}
 	calendarSyncCycleMutex  sync.Mutex
+	calendarRemoteMutex     sync.Mutex
+	calendarSwitchWaiters   atomic.Int64
 	calendarStoreWriteMutex sync.Mutex
 	calendarPullCacheMutex  sync.Mutex
 	lastCalendarPullAt      time.Time
