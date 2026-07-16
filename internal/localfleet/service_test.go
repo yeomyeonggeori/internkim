@@ -367,6 +367,7 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 	for _, expectedFragment := range []string{
 		"-L '127.0.0.1:19080:127.0.0.1:18080'",
 		"-L '127.0.0.1:19065:127.0.0.1:8065'",
+		"nc -z 127.0.0.1 19080 && nc -z 127.0.0.1 19065",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected %q in tunnel command:\n%s", expectedFragment, command)
