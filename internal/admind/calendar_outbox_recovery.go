@@ -70,6 +70,29 @@ func (service *Service) deleteCalendarOutboxBatch(ctx context.Context, row calen
 	return transaction.Commit()
 }
 
+func (service *Service) deleteCompletedCalendarDeleteOutboxBatch(ctx context.Context, row calendarOutboxRow) error {
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := deleteCalendarOutboxBatchWithRunner(ctx, transaction, row); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := deleteCalendarPushObservationFenceWithRunner(ctx, transaction, row.AccountID, row.TargetCalendarURL, row.EventUID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
 func deleteCalendarOutboxBatchWithRunner(ctx context.Context, queryRunner calendarSQLRunner, row calendarOutboxRow) error {
 	for _, rowID := range calendarOutboxBatchRowIDs(row) {
 		if _, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE id = ?`, rowID); errorValue != nil {

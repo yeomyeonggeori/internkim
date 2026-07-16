@@ -129,7 +129,11 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 		if pushed || (row.Operation == calendarOutboxOperationDelete && strings.TrimSpace(row.RemoteHref) != "") {
 			hasSuccessfulRemoteOperation = true
 		}
-		if errorValue := service.deleteCalendarOutboxBatch(ctx, row); errorValue != nil {
+		if row.Operation == calendarOutboxOperationDelete {
+			if errorValue := service.deleteCompletedCalendarDeleteOutboxBatch(ctx, row); errorValue != nil {
+				return pushedUIDs, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)
+			}
+		} else if errorValue := service.deleteCalendarOutboxBatch(ctx, row); errorValue != nil {
 			return pushedUIDs, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)
 		}
 		if pushed && row.Operation == calendarOutboxOperationPut && strings.TrimSpace(row.EventUID) != "" {
