@@ -167,6 +167,10 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 }
 
 func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, accountID string) error {
+	service.calendarRemoteMutex.Lock()
+	defer service.calendarRemoteMutex.Unlock()
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -177,6 +181,18 @@ func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, account
 		return errorValue
 	}
 	trimmedAccountID := strings.TrimSpace(accountID)
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_outbox WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_remote_event_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
