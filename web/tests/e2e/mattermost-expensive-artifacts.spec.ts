@@ -8,6 +8,7 @@ const probePassword = process.env.INTERNKIM_MATTERMOST_PROBE_PASSWORD ?? '';
 const directMessageChannelID = process.env.INTERNKIM_MATTERMOST_DM_CHANNEL_ID?.trim() ?? '';
 const rootPostID = process.env.INTERNKIM_MATTERMOST_ROOT_POST_ID?.trim() ?? '';
 const botUsername = process.env.INTERNKIM_MATTERMOST_BOT_USERNAME?.trim() ?? '';
+const botReplyPostID = process.env.INTERNKIM_MATTERMOST_BOT_REPLY_POST_ID?.trim() ?? '';
 const artifactDirectory = process.env.INTERNKIM_MATTERMOST_ARTIFACT_DIR?.trim() ?? '';
 const expectedAttachments = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS);
 const expectedPublicURL = process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL?.trim() ?? '';
@@ -48,7 +49,7 @@ async function performApprovalAction(botReply: Locator, page: Page): Promise<voi
 	if (approvalAction !== 'approve') {
 		throw new Error(`Unsupported Mattermost approval action: ${approvalAction}`);
 	}
-	const approvalButton = botReply.getByRole('button', { name: /approve|confirm|승인|확인/i }).first();
+	const approvalButton = await findVisibleButton(botReply);
 	await verify(approvalButton).toBeVisible();
 	await page.screenshot({ path: join(artifactDirectory, 'approval-before.png'), fullPage: true });
 	const actionResponse = page.waitForResponse((response) =>
@@ -57,6 +58,22 @@ async function performApprovalAction(botReply: Locator, page: Page): Promise<voi
 	await approvalButton.click();
 	await actionResponse;
 	await page.screenshot({ path: join(artifactDirectory, 'approval-after.png'), fullPage: true });
+}
+
+async function findVisibleButton(container: Locator): Promise<Locator> {
+	const buttons = container.getByRole('button');
+	await verify.poll(async () => {
+		const buttonCount = await buttons.count();
+		for (let index = 0; index < buttonCount; index += 1) {
+			if (await buttons.nth(index).isVisible()) return true;
+		}
+		return false;
+	}).toBe(true);
+	const buttonCount = await buttons.count();
+	for (let index = 0; index < buttonCount; index += 1) {
+		if (await buttons.nth(index).isVisible()) return buttons.nth(index);
+	}
+	throw new Error('Expected a visible Mattermost approval button');
 }
 
 function hasRequiredEnvironment(): boolean {
@@ -93,6 +110,11 @@ async function openDirectMessage(page: Page): Promise<void> {
 	await page.goto(mattermostPath(directMessagePath), { waitUntil: 'domcontentloaded' });
 	await dismissLandingPage(page);
 	await verify(page).toHaveURL(new RegExp(`/${teamName}/`));
+	if (rootPostID !== '') {
+		const rootPost = page.locator(`#post_${rootPostID}`);
+		await verify(rootPost).toBeVisible();
+		await rootPost.locator('.ThreadFooter').click();
+	}
 }
 
 async function waitForLatestBotReply(page: Page): Promise<Locator> {
@@ -104,6 +126,9 @@ async function waitForLatestBotReply(page: Page): Promise<Locator> {
 }
 
 function findBotPosts(page: Page): Locator {
+	if (botReplyPostID !== '') {
+		return page.locator(`#post_${botReplyPostID}`);
+	}
 	const expectedAuthor = botUsername !== '' ? escapeRegularExpression(botUsername) : 'InternKim|김인턴';
 	return page.getByTestId('postView').filter({ hasText: new RegExp(expectedAuthor, 'i') });
 }
