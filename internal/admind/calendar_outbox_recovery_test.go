@@ -195,6 +195,10 @@ func TestPushCalendarOutboxRecoversMissingDeleteRemoteStateAfterConcurrentCreate
 	if errorValue := <-pushResult; errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	fencedUIDs := readCalendarPushObservationFenceUIDsForTest(t, service, account.ID, account.DefaultCalendarURL)
+	if _, found := fencedUIDs[event.UID]; !found {
+		t.Fatal("concurrent create did not persist observation fence")
+	}
 	database, errorValue = service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -231,6 +235,10 @@ func TestPushCalendarOutboxRecoversMissingDeleteRemoteStateAfterConcurrentCreate
 	remainingRows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil || len(remainingRows) != 0 {
 		t.Fatalf("remaining rows=%+v error=%v", remainingRows, errorValue)
+	}
+	fencedUIDs = readCalendarPushObservationFenceUIDsForTest(t, service, account.ID, account.DefaultCalendarURL)
+	if _, found := fencedUIDs[event.UID]; found {
+		t.Fatal("completed DELETE left PUT observation fence")
 	}
 	account, _, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
