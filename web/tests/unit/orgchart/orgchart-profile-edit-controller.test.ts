@@ -5,6 +5,7 @@ import {
 	clearOrgchartProfileSaving,
 	hasUnsavedOrgchartProfileEdits,
 	markOrgchartProfileSaving,
+	normalizedOrgchartRecords,
 	orgchartProfileSavePayload,
 	orgchartProfileSnapshots,
 	removeOrgchartProfileEdit
@@ -21,6 +22,18 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 }
 
 describe('orgchart profile edit controller', () => {
+	test('preserves every organization membership while normalizing directory records', () => {
+		const [record] = normalizedOrgchartRecords([
+			userRecord({
+				userID: 'ceo',
+				primaryGroupID: 'leadership',
+				groupIDs: ['leadership', 'product', 'product']
+			})
+		]) ?? [];
+
+		expect(record.groupIDs).toEqual(['leadership', 'product']);
+	});
+
 	test('tracks a copied editing draft against original profile snapshots', () => {
 		const record = userRecord({
 			userID: 'dabin',
@@ -45,6 +58,22 @@ describe('orgchart profile edit controller', () => {
 			groupIDs: ['product'],
 			supervisorID: ''
 		});
+	});
+
+	test('keeps secondary organizations when only the job title changes', () => {
+		const record = userRecord({
+			userID: 'dabin',
+			email: 'dabin@example.com',
+			jobTitle: '프론트엔드 개발자',
+			primaryGroupID: 'product',
+			group: 'product',
+			groupIDs: ['product', 'platform']
+		});
+		const editingRecord = beginOrgchartProfileEdit({}, record).dabin;
+
+		editingRecord.jobTitle = '제품 개발자';
+
+		expect(orgchartProfileSavePayload(editingRecord).groupIDs).toEqual(['product', 'platform']);
 	});
 
 	test('removes editing and saving entries by user id', () => {
