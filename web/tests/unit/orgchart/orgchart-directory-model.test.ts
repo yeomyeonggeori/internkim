@@ -62,4 +62,18 @@ describe('orgchart directory model', () => {
 		expect(options.groups.map((group) => group.id)).toEqual(['engineering', 'operations']);
 		expect(options.hasUnassigned).toBe(true);
 	});
+
+	test('normalizes legacy memberships consistently for filters and assignment state', () => {
+		const groups: OrgGroup[] = [{ id: 'engineering', name: '엔지니어링' }];
+		const records = [
+			userRecord({
+				userID: 'ada',
+				groupIDs: [' engineering ', 'engineering']
+			})
+		];
+
+		expect(filterOrgchartRecords(records, { query: '', groupID: 'engineering' }).map((record) => record.userID)).toEqual(['ada']);
+		expect(filterOrgchartRecords(records, { query: '', groupID: '__unassigned__' })).toEqual([]);
+		expect(orgchartFilterOptions(records, groups)).toEqual({ groups, hasUnassigned: false });
+	});
 });
