@@ -199,13 +199,12 @@ func (service *Service) markCalendarRemoteTargetLastSeen(ctx context.Context, ac
 	if errorValue != nil {
 		return errorValue
 	}
+	observedEvents := make([]calendarEvent, 0, len(events))
 	for _, event := range events {
 		if !remoteCalendarEventBelongsToTarget(event, target) {
 			continue
 		}
-		if errorValue := service.markCalendarRemoteEventObservedAtReservedBoundary(ctx, account.ID, target.CalendarURL, event, reservedObservedAt); errorValue != nil {
-			return errorValue
-		}
+		observedEvents = append(observedEvents, event)
 	}
-	return nil
+	return service.persistObservedCalendarRemoteEventStateBatch(ctx, account.ID, target.CalendarURL, observedEvents, reservedObservedAt)
 }
