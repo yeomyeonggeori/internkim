@@ -8,6 +8,10 @@ import (
 )
 
 func (service *Service) applyCalendarDeleteConflictResolution(ctx context.Context, account remoteCalendarAccount, row calendarOutboxRow, remoteEvent calendarEvent, observedAt time.Time) (bool, error) {
+	reservedObservedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, observedAt)
+	if errorValue != nil {
+		return false, errorValue
+	}
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
 	isActiveTarget, errorValue := service.calendarOutboxTargetIsActive(ctx, row)
@@ -24,7 +28,7 @@ func (service *Service) applyCalendarDeleteConflictResolution(ctx context.Contex
 		currentEvent.RemoteHref = remoteEvent.RemoteHref
 		currentEvent.RemoteETag = remoteEvent.RemoteETag
 		currentEvent.RawICS = remoteEvent.RawICS
-		return false, service.persistCalendarDeleteConflictResolutionLocked(ctx, account, row, currentEvent, remoteEvent, observedAt, true)
+		return false, service.persistCalendarDeleteConflictResolutionLocked(ctx, account, row, currentEvent, remoteEvent, reservedObservedAt, true)
 	}
 	localDeletedAt := parseCalendarConflictTime(projection.DeletedAt)
 	remoteModifiedAt := parseCalendarConflictTime(remoteEvent.RemoteModifiedAt)
@@ -32,14 +36,10 @@ func (service *Service) applyCalendarDeleteConflictResolution(ctx context.Contex
 		return true, nil
 	}
 	restoredEvent := restoreCalendarRemoteEventFromProjection(remoteEvent, projection.Event)
-	return false, service.persistCalendarDeleteConflictResolutionLocked(ctx, account, row, restoredEvent, remoteEvent, observedAt, false)
+	return false, service.persistCalendarDeleteConflictResolutionLocked(ctx, account, row, restoredEvent, remoteEvent, reservedObservedAt, false)
 }
 
 func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx context.Context, account remoteCalendarAccount, row calendarOutboxRow, event calendarEvent, observedEvent calendarEvent, observedAt time.Time, retainPendingLocalWrite bool) error {
-	remoteState, errorValue := service.prepareObservedCalendarRemoteEventState(ctx, account.ID, row.TargetCalendarURL, observedEvent, observedAt)
-	if errorValue != nil {
-		return errorValue
-	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -49,8 +49,13 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 	if errorValue != nil {
 		return errorValue
 	}
-	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	if errorValue := persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, remoteState, updatedAt, retainPendingLocalWrite); errorValue != nil {
+	remoteState, errorValue := service.persistObservedCalendarRemoteEventStateWithTransaction(ctx, transaction, account.ID, row.TargetCalendarURL, observedEvent, observedAt)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	updatedAt := remoteState.LastSeenAt
+	if errorValue := persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, updatedAt, retainPendingLocalWrite); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -64,11 +69,8 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 	return nil
 }
 
-func persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, remoteState calendarRemoteEventState, updatedAt string, retainPendingLocalWrite bool) error {
+func persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, updatedAt string, retainPendingLocalWrite bool) error {
 	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := upsertCalendarRemoteEventStateWithRunner(ctx, transaction, remoteState, updatedAt); errorValue != nil {
 		return errorValue
 	}
 	if retainPendingLocalWrite {

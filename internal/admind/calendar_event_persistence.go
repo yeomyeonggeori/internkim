@@ -13,12 +13,20 @@ func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEv
 }
 
 func (service *Service) writeCalendarEventWithSource(ctx context.Context, event calendarEvent, source string) error {
+	candidateUpdatedAt := time.Now().UTC()
+	if source == calendarSourceLocal {
+		reservedUpdatedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, candidateUpdatedAt)
+		if errorValue != nil {
+			return errorValue
+		}
+		candidateUpdatedAt = reservedUpdatedAt
+	}
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
-	return service.writeCalendarEventWithSourceLocked(ctx, event, source)
+	return service.writeCalendarEventWithSourceLocked(ctx, event, source, candidateUpdatedAt)
 }
 
-func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, event calendarEvent, source string) error {
+func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, event calendarEvent, source string, candidateUpdatedAt time.Time) error {
 	var previousEvent calendarEvent
 	if source == calendarSourceLocal {
 		existing, found, _ := service.readCalendarEventByID(ctx, event.ID)
@@ -26,8 +34,7 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 			previousEvent = existing
 		}
 	}
-	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	event.UpdatedAt = updatedAt
+	updatedAt := candidateUpdatedAt.Format(time.RFC3339Nano)
 	var outboxRow calendarOutboxRow
 	shouldSignalSync := false
 	if source == calendarSourceLocal {
@@ -47,6 +54,15 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
+	if source == calendarSourceLocal {
+		logicalTime, errorValue := service.allocateCalendarConflictTime(ctx, transaction, event.UID, candidateUpdatedAt)
+		if errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+		updatedAt = logicalTime.Format(time.RFC3339Nano)
+	}
+	event.UpdatedAt = updatedAt
 	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -139,12 +155,20 @@ func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID str
 }
 
 func (service *Service) softDeleteCalendarEventWithSource(ctx context.Context, eventID string, source string) error {
+	candidateDeletedAt := time.Now().UTC()
+	if source == calendarSourceLocal {
+		reservedDeletedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, candidateDeletedAt)
+		if errorValue != nil {
+			return errorValue
+		}
+		candidateDeletedAt = reservedDeletedAt
+	}
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
-	return service.softDeleteCalendarEventWithSourceLocked(ctx, eventID, source)
+	return service.softDeleteCalendarEventWithSourceLocked(ctx, eventID, source, candidateDeletedAt)
 }
 
-func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Context, eventID string, source string) error {
+func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Context, eventID string, source string, candidateDeletedAt time.Time) error {
 	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
 	if errorValue != nil {
 		return errorValue
@@ -152,7 +176,6 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	if !found {
 		return sql.ErrNoRows
 	}
-	deletedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	var outboxRow calendarOutboxRow
 	shouldSignalSync := false
 	if source == calendarSourceLocal {
@@ -169,6 +192,15 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return errorValue
+	}
+	deletedAt := candidateDeletedAt.Format(time.RFC3339Nano)
+	if source == calendarSourceLocal {
+		logicalTime, errorValue := service.allocateCalendarConflictTime(ctx, transaction, event.UID, candidateDeletedAt)
+		if errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+		deletedAt = logicalTime.Format(time.RFC3339Nano)
 	}
 	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", deletedAt, deletedAt, strings.TrimSpace(eventID))
 	if errorValue != nil {

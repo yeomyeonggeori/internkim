@@ -17,6 +17,11 @@ type calendarRemoteEventState struct {
 	MissingDetectedAt string
 }
 
+type calendarRemoteEventStateQueryRunner interface {
+	calendarSQLRunner
+	QueryRowContext(ctx context.Context, query string, arguments ...any) *sql.Row
+}
+
 func (service *Service) upsertCalendarRemoteEventState(ctx context.Context, state calendarRemoteEventState) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -52,8 +57,12 @@ func (service *Service) readCalendarRemoteEventState(ctx context.Context, accoun
 		return calendarRemoteEventState{}, false, errorValue
 	}
 	defer database.Close()
+	return readCalendarRemoteEventStateWithRunner(ctx, database, accountID, calendarURL, eventUID)
+}
+
+func readCalendarRemoteEventStateWithRunner(ctx context.Context, queryRunner calendarRemoteEventStateQueryRunner, accountID string, calendarURL string, eventUID string) (calendarRemoteEventState, bool, error) {
 	state := calendarRemoteEventState{}
-	errorValue = database.QueryRowContext(ctx, `
+	errorValue := queryRunner.QueryRowContext(ctx, `
 SELECT account_id, calendar_url, event_uid, remote_modified_at, last_seen_at, missing_detected_at
 FROM calendar_remote_event_sync_state
 WHERE account_id = ? AND calendar_url = ? AND event_uid = ?`,
@@ -77,15 +86,36 @@ WHERE account_id = ? AND calendar_url = ? AND event_uid = ?`,
 }
 
 func (service *Service) markCalendarRemoteEventObserved(ctx context.Context, accountID string, calendarURL string, event calendarEvent, observedAt time.Time) error {
-	state, errorValue := service.prepareObservedCalendarRemoteEventState(ctx, accountID, calendarURL, event, observedAt)
+	reservedObservedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, observedAt)
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.upsertCalendarRemoteEventState(ctx, state)
+	return service.markCalendarRemoteEventObservedAtReservedBoundary(ctx, accountID, calendarURL, event, reservedObservedAt)
 }
 
-func (service *Service) prepareObservedCalendarRemoteEventState(ctx context.Context, accountID string, calendarURL string, event calendarEvent, observedAt time.Time) (calendarRemoteEventState, error) {
-	state, found, errorValue := service.readCalendarRemoteEventState(ctx, accountID, calendarURL, event.UID)
+func (service *Service) markCalendarRemoteEventObservedAtReservedBoundary(ctx context.Context, accountID string, calendarURL string, event calendarEvent, reservedObservedAt time.Time) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := service.persistObservedCalendarRemoteEventStateWithTransaction(ctx, transaction, accountID, calendarURL, event, reservedObservedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
+func (service *Service) persistObservedCalendarRemoteEventStateWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, calendarURL string, event calendarEvent, reservedObservedAt time.Time) (calendarRemoteEventState, error) {
+	_, errorValue := service.allocateCalendarConflictTime(ctx, transaction, event.UID, reservedObservedAt)
+	if errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
+	state, found, errorValue := readCalendarRemoteEventStateWithRunner(ctx, transaction, accountID, calendarURL, event.UID)
 	if errorValue != nil {
 		return calendarRemoteEventState{}, errorValue
 	}
@@ -95,29 +125,76 @@ func (service *Service) prepareObservedCalendarRemoteEventState(ctx context.Cont
 	if strings.TrimSpace(event.RemoteModifiedAt) != "" {
 		state.RemoteModifiedAt = event.RemoteModifiedAt
 	}
-	state.LastSeenAt = observedAt.UTC().Format(time.RFC3339Nano)
+	state.LastSeenAt = latestCalendarRemoteStateBoundary(state, reservedObservedAt).Format(time.RFC3339Nano)
 	state.MissingDetectedAt = ""
+	if errorValue := upsertCalendarRemoteEventStateWithRunner(ctx, transaction, state, state.LastSeenAt); errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
 	return state, nil
 }
 
 func (service *Service) markCalendarRemoteEventMissing(ctx context.Context, accountID string, calendarURL string, eventUID string, detectedAt time.Time) (calendarRemoteEventState, error) {
-	state, found, errorValue := service.readCalendarRemoteEventState(ctx, accountID, calendarURL, eventUID)
+	reservedDetectedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, detectedAt)
 	if errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
+	return service.markCalendarRemoteEventMissingAtReservedBoundary(ctx, accountID, calendarURL, eventUID, reservedDetectedAt)
+}
+
+func (service *Service) markCalendarRemoteEventMissingAtReservedBoundary(ctx context.Context, accountID string, calendarURL string, eventUID string, reservedDetectedAt time.Time) (calendarRemoteEventState, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
+	_, errorValue = service.allocateCalendarConflictTime(ctx, transaction, eventUID, reservedDetectedAt)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return calendarRemoteEventState{}, errorValue
+	}
+	state, found, errorValue := readCalendarRemoteEventStateWithRunner(ctx, transaction, accountID, calendarURL, eventUID)
+	if errorValue != nil {
+		_ = transaction.Rollback()
 		return calendarRemoteEventState{}, errorValue
 	}
 	if !found {
 		state = calendarRemoteEventState{AccountID: accountID, CalendarURL: canonicalCalendarTargetURL(calendarURL), EventUID: eventUID}
 	}
-	if strings.TrimSpace(state.MissingDetectedAt) == "" {
-		state.MissingDetectedAt = detectedAt.UTC().Format(time.RFC3339Nano)
+	if strings.TrimSpace(state.MissingDetectedAt) != "" {
+		_ = transaction.Rollback()
+		return state, nil
 	}
-	if errorValue := service.upsertCalendarRemoteEventState(ctx, state); errorValue != nil {
+	state.MissingDetectedAt = latestCalendarRemoteStateBoundary(state, reservedDetectedAt).Format(time.RFC3339Nano)
+	if errorValue := upsertCalendarRemoteEventStateWithRunner(ctx, transaction, state, state.MissingDetectedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return calendarRemoteEventState{}, errorValue
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
 		return calendarRemoteEventState{}, errorValue
 	}
 	return state, nil
 }
 
+func latestCalendarRemoteStateBoundary(state calendarRemoteEventState, candidate time.Time) time.Time {
+	latest := candidate.UTC()
+	for _, rawTime := range []string{state.LastSeenAt, state.MissingDetectedAt} {
+		parsedTime := parseCalendarConflictTime(rawTime)
+		if parsedTime.After(latest) {
+			latest = parsedTime
+		}
+	}
+	return latest
+}
+
 func (service *Service) markCalendarRemoteTargetLastSeen(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, observedAt time.Time) error {
+	reservedObservedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, observedAt)
+	if errorValue != nil {
+		return errorValue
+	}
 	events, errorValue := service.readRemoteCalendarEventsByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
 		return errorValue
@@ -126,7 +203,7 @@ func (service *Service) markCalendarRemoteTargetLastSeen(ctx context.Context, ac
 		if !remoteCalendarEventBelongsToTarget(event, target) {
 			continue
 		}
-		if errorValue := service.markCalendarRemoteEventObserved(ctx, account.ID, target.CalendarURL, event, observedAt); errorValue != nil {
+		if errorValue := service.markCalendarRemoteEventObservedAtReservedBoundary(ctx, account.ID, target.CalendarURL, event, reservedObservedAt); errorValue != nil {
 			return errorValue
 		}
 	}
