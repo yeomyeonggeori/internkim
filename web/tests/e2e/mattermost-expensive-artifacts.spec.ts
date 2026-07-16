@@ -25,6 +25,7 @@ test('captures real Mattermost expensive scenario artifacts', async ({ page }) =
 	test.setTimeout(0);
 	page.setDefaultTimeout(0);
 	page.setDefaultNavigationTimeout(0);
+	await dismissMattermostWelcomeWhenVisible(page);
 
 	await mkdir(artifactDirectory, { recursive: true });
 	await signIn(page);
@@ -289,6 +290,11 @@ async function dismissLandingPage(page: Page): Promise<void> {
 		await browserLink.click();
 		await page.waitForLoadState('domcontentloaded');
 	}
+}
+
+async function dismissMattermostWelcomeWhenVisible(page: Page): Promise<void> {
+	const dismissal = page.getByText(/no thanks|figure it out myself|건너뛰기|나중에/i).first();
+	await page.addLocatorHandler(dismissal, async () => dismissal.click());
 }
 
 function mattermostPath(path: string): string {
