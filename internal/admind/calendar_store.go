@@ -10,7 +10,8 @@ import (
 )
 
 func (service *Service) openCalendarDatabase(ctx context.Context) (*sql.DB, error) {
-	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema)
+	options := sqliteDatabaseOptions{transactionLock: "immediate"}
+	database, errorValue := service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema, options)
 	if errorValue != nil {
 		return nil, errorValue
 	}
