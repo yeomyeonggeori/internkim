@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -157,6 +158,20 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	}
 	if len(requests.deletedPostIDs) != 1 || requests.deletedPostIDs[0] != "calendar-post-1" {
 		t.Fatalf("deleted posts = %+v", requests.deletedPostIDs)
+	}
+	projection, found, errorValue := service.readCalendarEventProjectionByID(context.Background(), reloadedEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("expected deleted projection: found=%v error=%v", found, errorValue)
+	}
+	if !projection.IsDeleted || projection.Event.MattermostPostID != "" {
+		t.Fatalf("deleted projection = %+v", projection)
+	}
+	eventIDs, errorValue := service.readCalendarEventIDsRequiringMattermostProjection(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if slices.Contains(eventIDs, reloadedEvent.ID) {
+		t.Fatalf("deleted event remained in projection queue: %v", eventIDs)
 	}
 }
 
