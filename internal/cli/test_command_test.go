@@ -74,7 +74,7 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if configuration.OutputFilePath != "/tmp/custom.docx" || configuration.ResultJSONPath != "/tmp/result.json" || configuration.TimeoutSeconds != 120 {
 		t.Fatalf("unexpected value flags: %+v", configuration)
 	}
-	if configuration.GenerationSeed != 7 || configuration.GenerationTemperature != 0.2 {
+	if configuration.GenerationSeed == nil || *configuration.GenerationSeed != 7 || configuration.GenerationTemperature == nil || *configuration.GenerationTemperature != 0.2 {
 		t.Fatalf("unexpected generation flags: %+v", configuration)
 	}
 	if !configuration.ShouldUseRealModels || !configuration.ShouldAutoConfirm {
@@ -270,12 +270,12 @@ func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
 	}
 }
 
-func TestParseTestArgumentsDefaultsToFixedGenerationOptions(t *testing.T) {
+func TestParseTestArgumentsUsesProviderGenerationDefaults(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{"보고서 만들어줘"}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if configuration.GenerationSeed != 41 || configuration.GenerationTemperature != 0 {
+	if configuration.GenerationSeed != nil || configuration.GenerationTemperature != nil {
 		t.Fatalf("unexpected default generation options: %+v", configuration)
 	}
 	if configuration.ShouldUseRealModels {

@@ -35,8 +35,8 @@ type testCommandConfiguration struct {
 	ResultJSONPath             string
 	RunID                      string
 	TimeoutSeconds             int
-	GenerationSeed             int64
-	GenerationTemperature      float64
+	GenerationSeed             *int64
+	GenerationTemperature      *float64
 	ExpectedTools              []string
 	ShouldExpectPublicURL      bool
 	ShouldReuseFleet           bool
@@ -85,7 +85,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
 	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds for the whole expensive scenario; 0 disables the deadline")
-	generationSeed := flagSet.Int64("seed", 41, "Generation seed to apply before the Mattermost prompt")
+	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
 	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL and remote desktop/mobile screenshot verification")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
@@ -130,6 +130,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
 		return testCommandConfiguration{}, errorValue
 	}
+	providedFlags := visitedFlagNames(flagSet)
 	suite, prompt, errorValue := parseTestSuiteAndPrompt(positionalArguments)
 	if errorValue != nil {
 		return testCommandConfiguration{}, errorValue
@@ -137,7 +138,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if *timeoutSeconds < 0 {
 		return testCommandConfiguration{}, errors.New("--timeout must be 0 or greater")
 	}
-	if math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0 {
+	if providedFlags["temperature"] && (math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0) {
 		return testCommandConfiguration{}, errors.New("--temperature must be 0 or greater")
 	}
 	if *reuseFleet && strings.TrimSpace(*runID) != "" {
@@ -172,8 +173,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ResultJSONPath:             strings.TrimSpace(*resultJSONPath),
 		RunID:                      strings.TrimSpace(*runID),
 		TimeoutSeconds:             *timeoutSeconds,
-		GenerationSeed:             *generationSeed,
-		GenerationTemperature:      *generationTemperature,
+		GenerationSeed:             optionalInt64(providedFlags["seed"], *generationSeed),
+		GenerationTemperature:      optionalFloat64(providedFlags["temperature"], *generationTemperature),
 		ExpectedTools:              expectedTools.Values(),
 		ShouldExpectPublicURL:      *expectPublicURL,
 		ShouldReuseFleet:           *reuseFleet,
@@ -190,6 +191,56 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		LanguageModelAuthKeyPath:   strings.TrimSpace(*languageModelAuthKeyPath),
 		LanguageModelExecutionMode: strings.TrimSpace(*languageModelExecutionMode),
 	}, nil
+}
+
+func visitedFlagNames(flagSet *flag.FlagSet) map[string]bool {
+	flagNames := map[string]bool{}
+	flagSet.Visit(func(flagValue *flag.Flag) {
+		flagNames[flagValue.Name] = true
+	})
+	return flagNames
+}
+
+func optionalInt64(isProvided bool, value int64) *int64 {
+	if !isProvided {
+		return nil
+	}
+	return &value
+}
+
+func optionalFloat64(isProvided bool, value float64) *float64 {
+	if !isProvided {
+		return nil
+	}
+	return &value
+}
+
+func formatOptionalInt64(value *int64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatInt(*value, 10)
+}
+
+func formatOptionalFloat64(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return formatTestFloat(*value)
+}
+
+func describeGenerationOptions(configuration testCommandConfiguration) string {
+	options := []string{}
+	if configuration.GenerationSeed != nil {
+		options = append(options, "seed="+formatOptionalInt64(configuration.GenerationSeed))
+	}
+	if configuration.GenerationTemperature != nil {
+		options = append(options, "temperature="+formatOptionalFloat64(configuration.GenerationTemperature))
+	}
+	if len(options) == 0 {
+		return "provider defaults"
+	}
+	return strings.Join(options, " ")
 }
 
 func normalizeTestLanguageModelProvider(provider string) (string, error) {
@@ -232,8 +283,8 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		RepositoryRootPath:    repositoryRootPath,
 		ExecutablePath:        executablePath,
 		RunID:                 configuration.RunID,
-		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
-		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
+		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
+		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
 		SDKDMode:              testSDKDMode(configuration.LanguageModelProvider),
 		ShouldUseRealModels:   configuration.ShouldUseRealModels,
@@ -322,8 +373,8 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 		RepositoryRootPath:    repositoryRootPath,
 		ExecutablePath:        executablePath,
 		RunID:                 runID,
-		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
-		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
+		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
+		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
 		SDKDMode:              localfleet.SDKDModeAuthoritative,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
@@ -337,7 +388,7 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 	fmt.Println("Test suite: expensive")
 	fmt.Println("Environment: Local Fleet Mattermost DM")
 	fmt.Println("LLM runtime: SDKD authoritative")
-	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
+	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	if configuration.ShouldUseRealModels {
 		fmt.Println("Model tiers: production (--real)")
 	} else {
@@ -525,7 +576,7 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
+	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
 	timeoutSeconds := promptTimeoutSeconds(configuration.TimeoutSeconds)
 	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, timeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
