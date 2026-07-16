@@ -10,7 +10,7 @@ import (
 )
 
 type calendarOutboxRemoteMutationResult struct {
-	targetChanged             bool
+	shouldStop                bool
 	pushed                    bool
 	successfulRemoteOperation bool
 	authenticationError       bool
@@ -25,12 +25,16 @@ func (service *Service) executeCalendarOutboxRemoteMutation(ctx context.Context,
 	service.calendarRemoteMutex.Lock()
 	defer service.calendarRemoteMutex.Unlock()
 	result := calendarOutboxRemoteMutationResult{}
+	if service.calendarTargetSwitchIsWaiting() {
+		result.shouldStop = true
+		return result, nil
+	}
 	isCurrentTarget, errorValue := service.calendarPushTargetIsCurrent(ctx, row)
 	if errorValue != nil {
 		return result, errorValue
 	}
 	if !isCurrentTarget {
-		result.targetChanged = true
+		result.shouldStop = true
 		return result, nil
 	}
 	if row.Status != calendarOutboxStatusBlocked && row.AttemptCount >= calendarOutboxMaxAttempts {
@@ -47,7 +51,7 @@ func (service *Service) executeCalendarOutboxRemoteMutation(ctx context.Context,
 	pushed, errorValue := service.processCalendarOutboxRow(ctx, account, client, row)
 	if errorValue != nil {
 		if errors.Is(errorValue, errCalendarPushTargetChanged) {
-			result.targetChanged = true
+			result.shouldStop = true
 			return result, nil
 		}
 		result.operationError = errorValue

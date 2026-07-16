@@ -221,6 +221,9 @@ func TestSelectedCalendarSwitchWaitsForInFlightUIDQueryCleanup(t *testing.T) {
 	if selectedResult.error != nil {
 		t.Fatal(selectedResult.error)
 	}
+	if len(client.getCalls) != 1 || client.getCalls[0] != canonicalPath {
+		t.Fatalf("calendar object GET calls=%v, want [%s]", client.getCalls, canonicalPath)
+	}
 	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil || len(rows) != 0 {
 		t.Fatalf("remaining outbox rows=%+v error=%v", rows, errorValue)
@@ -228,6 +231,33 @@ func TestSelectedCalendarSwitchWaitsForInFlightUIDQueryCleanup(t *testing.T) {
 	fencedUIDs := readCalendarPushObservationFenceUIDsForTest(t, service, account.ID, account.DefaultCalendarURL)
 	if _, found := fencedUIDs[eventUID]; found {
 		t.Fatal("authoritative UID absence left an observation fence")
+	}
+}
+
+func TestRemoteMutationDoesNotStartWhileTargetSwitchIsWaiting(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("waiting-target-switch", "Waiting Switch")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil || len(rows) != 1 {
+		t.Fatalf("outbox rows=%+v error=%v", rows, errorValue)
+	}
+	client := &fakeCalDAVPushClient{}
+	service.calendarSwitchWaiters.Add(1)
+	defer service.calendarSwitchWaiters.Add(-1)
+	result, errorValue := service.executeCalendarOutboxRemoteMutation(ctx, account, client, rows[0])
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !result.shouldStop {
+		t.Fatal("remote mutation did not yield to the waiting target switch")
+	}
+	if len(client.putCalls) != 0 || len(client.getCalls) != 0 || len(client.deleteCalls) != 0 {
+		t.Fatalf("remote calls started while target switch waited: put=%+v get=%+v delete=%+v", client.putCalls, client.getCalls, client.deleteCalls)
 	}
 }
 

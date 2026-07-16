@@ -96,7 +96,7 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 		if errorValue != nil {
 			return pushedUIDs, errorValue
 		}
-		if mutationResult.targetChanged {
+		if mutationResult.shouldStop {
 			break
 		}
 		if mutationResult.operationError != nil {

@@ -161,7 +161,7 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 	if account.LastAuthError == "" {
 		return
 	}
-	if errorValue := service.updateRemoteCalendarAccountAuthState(ctx, account.ID, "", ""); errorValue != nil {
+	if errorValue := service.clearRemoteCalendarAccountAuthStateIfUnchanged(ctx, account); errorValue != nil {
 		log.Printf("clear calendar auth error: %v", errorValue)
 	}
 }

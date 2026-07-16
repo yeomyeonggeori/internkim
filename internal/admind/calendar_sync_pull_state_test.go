@@ -48,6 +48,28 @@ func TestClearRemoteCalendarAccountAuthErrorWipesMarker(t *testing.T) {
 	}
 }
 
+func TestClearRemoteCalendarAccountAuthErrorPreservesNewerFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account.LastAuthError = "previous failure"
+	account.LastAuthErrorAt = "2026-05-15T10:00:00Z"
+	operationSnapshot, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	newFailure := errors.New("invalid_grant: newer failure")
+	service.markRemoteCalendarAccountAuthError(ctx, operationSnapshot, newFailure)
+	service.clearRemoteCalendarAccountAuthError(ctx, operationSnapshot)
+	reloaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found {
+		t.Fatalf("account found=%v error=%v", found, errorValue)
+	}
+	if reloaded.LastAuthError != newFailure.Error() || reloaded.LastAuthErrorAt == "" {
+		t.Fatalf("newer auth failure was cleared: %+v", reloaded)
+	}
+}
+
 func TestIsCalendarAuthErrorDetectsOAuthFailures(t *testing.T) {
 	cases := []struct {
 		message  string

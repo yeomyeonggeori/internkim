@@ -86,11 +86,11 @@ func (client *blockingCalendarPushClient) getCalendarObject(context.Context, str
 	return calDAVCalendarObject{}, errCalDAVObjectNotFound
 }
 
-func TestCalendarPushAuthFailureAfterTargetSwitchPreservesNewTarget(t *testing.T) {
+func TestSelectedCalendarSwitchAfterPushAuthFailurePreservesNewTarget(t *testing.T) {
 	testCalendarPushCompletionAfterTargetSwitch(t, errors.New("caldav put status 401: Unauthorized"))
 }
 
-func TestCalendarPushSuccessAfterTargetSwitchPreservesNewTarget(t *testing.T) {
+func TestSelectedCalendarSwitchAfterPushSuccessPreservesNewTarget(t *testing.T) {
 	testCalendarPushCompletionAfterTargetSwitch(t, nil)
 }
 
@@ -163,7 +163,7 @@ func TestCalendarPushWithStaleAccountSnapshotPreservesNewTargetRows(t *testing.T
 	}
 }
 
-func TestCalendarPushStopsRemainingBatchesAfterTargetSwitchDuringFirstRequest(t *testing.T) {
+func TestSelectedCalendarSwitchStopsRemainingBatchesAfterInFlightRequest(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -299,7 +299,7 @@ func TestSelectedCalendarSwitchWaitsForConflictRecoveryAfterPut(t *testing.T) {
 	}
 }
 
-func TestCalendarPushSkipsLaterDeleteAfterTargetSwitchDuringFirstPut(t *testing.T) {
+func TestSelectedCalendarSwitchSkipsLaterDeleteAfterInFlightPut(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -352,7 +352,7 @@ func TestCalendarPushSkipsLaterDeleteAfterTargetSwitchDuringFirstPut(t *testing.
 	}
 }
 
-func TestCalendarPushSkipsETagRecoveryGetAfterTargetSwitchDuringPut(t *testing.T) {
+func TestSelectedCalendarSwitchWaitsForETagRecoveryAfterPut(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -536,6 +536,13 @@ func testCalendarPushCompletionAfterTargetSwitch(t *testing.T, pushError error) 
 	}
 	if storedAccount.SelectedCalendarID != selectedAccount.SelectedCalendarID || storedAccount.SelectedCalendarURL != selectedAccount.SelectedCalendarURL {
 		t.Fatalf("selected calendar reverted: id=%q url=%q", storedAccount.SelectedCalendarID, storedAccount.SelectedCalendarURL)
+	}
+	if pushError == nil {
+		if storedAccount.LastAuthError != "" || storedAccount.LastAuthErrorAt != "" {
+			t.Fatalf("successful push restored stale auth error: %+v", storedAccount)
+		}
+	} else if storedAccount.LastAuthError != pushError.Error() || storedAccount.LastAuthErrorAt == "" {
+		t.Fatalf("failed push auth state=%q at %q want %q", storedAccount.LastAuthError, storedAccount.LastAuthErrorAt, pushError.Error())
 	}
 	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil {
