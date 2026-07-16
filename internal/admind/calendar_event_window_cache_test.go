@@ -224,7 +224,7 @@ func TestCalendarEventWindowCacheKeepsMostRecentlyUsedEntries(t *testing.T) {
 			t.Fatalf("cache entry %d was not stored", index)
 		}
 	}
-	if _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, oldestRange, baseTime.Add(time.Hour)); errorValue != nil {
+	if _, _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, oldestRange, baseTime.Add(time.Hour)); errorValue != nil {
 		t.Fatal(errorValue)
 	} else if !found {
 		t.Fatal("oldest cache entry was not found")
@@ -294,7 +294,7 @@ func TestCalendarEventWindowCacheThrottlesLRUTouch(t *testing.T) {
 	} else if writeResult != calendarEventWindowCacheWriteStored {
 		t.Fatal("cache entry was not stored")
 	}
-	if _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, baseTime.Add(30*time.Second)); errorValue != nil {
+	if _, _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, baseTime.Add(30*time.Second)); errorValue != nil {
 		t.Fatal(errorValue)
 	} else if !found {
 		t.Fatal("cache entry was not found")
@@ -307,7 +307,7 @@ func TestCalendarEventWindowCacheThrottlesLRUTouch(t *testing.T) {
 		t.Fatalf("last used at after early hit = %q", lastUsedAt)
 	}
 	lateTouchTime := baseTime.Add(2 * time.Minute)
-	if _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, lateTouchTime); errorValue != nil {
+	if _, _, found, errorValue := readCalendarEventWindowCacheEntry(context.Background(), database, cacheRange, lateTouchTime); errorValue != nil {
 		t.Fatal(errorValue)
 	} else if !found {
 		t.Fatal("cache entry was not found")
