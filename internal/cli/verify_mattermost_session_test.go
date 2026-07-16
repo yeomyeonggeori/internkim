@@ -122,6 +122,14 @@ func newTestMattermostScenarioSession(scenario mattermostScenario, mattermost ma
 	return session
 }
 
+func testMattermostSourceEvent(identifier string, postID string) mattermostScenarioTaskEvent {
+	return mattermostScenarioTaskEvent{TaskEventID: identifier, Name: "agent.task_source", Body: `{"sourceReference":"mattermost:thread:channel:user-post:` + postID + `"}`}
+}
+
+func testMattermostReplyEvent(identifier string, replyKind string, postID string, sourcePostID string) mattermostScenarioTaskEvent {
+	return mattermostScenarioTaskEvent{TaskEventID: identifier, Name: "connector.reply.sent", Body: `{"dispatchID":"` + postID + `","messageID":"mattermost:thread:channel:user-post:` + sourcePostID + `","replyKind":"` + replyKind + `"}`}
+}
+
 func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapshot(t *testing.T) {
 	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "tool.calendar.delete.requested"}
 	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "approval.granted"}
@@ -134,7 +142,7 @@ func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapsh
 			detailCalls++
 			events := []mattermostScenarioTaskEvent{oldEvent}
 			if detailCalls > 1 {
-				events = append(events, newEvent)
+				events = append(events, testMattermostSourceEvent("source", "user-post"), newEvent, testMattermostReplyEvent("reply", "success", "bot-post", "user-post"))
 			}
 			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"}, TaskEvents: events}
 		},
@@ -153,7 +161,7 @@ func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapsh
 	if errorValue := session.runStep(context.Background(), 0); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(session.result.Steps[0].TaskEvents) != 1 || session.result.Steps[0].TaskEvents[0].TaskEventID != "new" {
+	if len(session.result.Steps[0].TaskEvents) != 3 || session.result.Steps[0].TaskEvents[1].TaskEventID != "new" {
 		t.Fatalf("unexpected step events: %#v", session.result.Steps[0].TaskEvents)
 	}
 	expectedConversationIDs := []string{"channel", "thread:channel:user-post"}
@@ -184,7 +192,17 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 			return tasks
 		},
 		taskDetailValue: func(taskRunID string) mattermostScenarioTaskDetail {
-			events := []mattermostScenarioTaskEvent{{TaskEventID: "event-" + taskRunID, Name: "task.completed"}}
+			stepNumber := "1"
+			botPostID := "bot-post-1"
+			if taskRunID == "task-2" {
+				stepNumber = "2"
+				botPostID = "bot-post-2"
+			}
+			events := []mattermostScenarioTaskEvent{
+				{TaskEventID: "source-" + taskRunID, Name: "agent.task_source", Body: `{"sourceReference":"mattermost:thread:channel:user-post-1:user-post-` + stepNumber + `"}`},
+				{TaskEventID: "event-" + taskRunID, Name: "task.completed"},
+				{TaskEventID: "reply-" + taskRunID, Name: "connector.reply.sent", Body: `{"dispatchID":"` + botPostID + `","messageID":"mattermost:thread:channel:user-post-1:user-post-` + stepNumber + `","replyKind":"success"}`},
+			}
 			if taskRunID == "task-1" {
 				events = append(events, mattermostScenarioTaskEvent{TaskEventID: "site-" + taskRunID, Name: "tool.site.publish.result", Body: `{"url":"https://preview.example.test/site"}`})
 			}
@@ -227,11 +245,78 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioCorrelatesTaskAndFinalReplyToCurrentPost(t *testing.T) {
+	phase := 0
+	oldSource := `{"sourceReference":"mattermost:thread:channel:root-post:user-post-1"}`
+	newSource := `{"sourceReference":"mattermost:thread:channel:root-post:user-post-2"}`
+	admin := &fakeMattermostScenarioAdminAPI{
+		listTasksValue: func() []mattermostScenarioTaskSummary {
+			tasks := []mattermostScenarioTaskSummary{{TaskRunID: "old-task", UpdatedAt: "1"}}
+			if phase > 0 {
+				tasks[0].UpdatedAt = "2"
+			}
+			if phase > 1 {
+				tasks = append(tasks, mattermostScenarioTaskSummary{TaskRunID: "new-task", UpdatedAt: "3"})
+			}
+			return tasks
+		},
+		taskDetailValue: func(taskRunID string) mattermostScenarioTaskDetail {
+			if taskRunID == "old-task" {
+				events := []mattermostScenarioTaskEvent{{TaskEventID: "old-source", Name: "agent.task_source", Body: oldSource}, {TaskEventID: "old-completed", Name: "task.completed"}}
+				if phase > 0 {
+					events = append(events, mattermostScenarioTaskEvent{TaskEventID: "old-reply", Name: "connector.reply.sent", Body: `{"dispatchID":"old-bot-post","messageID":"mattermost:thread:channel:root-post:user-post-1","replyKind":"success"}`})
+				}
+				return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: taskRunID, Status: "completed"}, TaskEvents: events}
+			}
+			return mattermostScenarioTaskDetail{
+				TaskRun: mattermostScenarioTaskRun{TaskRunID: taskRunID, Status: "completed"},
+				TaskEvents: []mattermostScenarioTaskEvent{
+					{TaskEventID: "new-source", Name: "agent.task_source", Body: newSource},
+					{TaskEventID: "new-completed", Name: "task.completed"},
+					{TaskEventID: "new-reply", Name: "connector.reply.sent", Body: `{"dispatchID":"new-bot-post","messageID":"mattermost:thread:channel:root-post:user-post-2","replyKind":"success"}`},
+				},
+			}
+		},
+	}
+	mattermost := &fakeMattermostProbeAPI{
+		postMessage: func(message mattermostProbeMessage) mattermostProbePost {
+			phase = 1
+			return mattermostProbePost{ID: "user-post-2", RootID: message.RootID, UserID: "user", CreatedAt: 20}
+		},
+		listChannelPosts: func() []mattermostProbePost {
+			return []mattermostProbePost{
+				{ID: "old-bot-post", RootID: "root-post", UserID: "bot", Message: "이전 요청을 완료했습니다.", CreatedAt: 21},
+				{ID: "new-bot-post", RootID: "root-post", UserID: "bot", Message: "현재 요청을 완료했습니다.", CreatedAt: 22},
+			}
+		},
+	}
+	session := newTestMattermostScenarioSession(mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "현재 업무를 처리해줘", ExpectedTaskStatus: "completed"}}}, mattermost, admin)
+	session.rootPostID = "root-post"
+	session.poll = func(context.Context) error {
+		phase = 2
+		return nil
+	}
+
+	if errorValue := session.runStep(context.Background(), 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := session.result.Steps[0]
+	if result.TaskRunID != "new-task" || result.BotMessage != "현재 요청을 완료했습니다." {
+		t.Fatalf("current post received mismatched evidence: %#v", result)
+	}
+	if session.seenBotPostIDs["old-bot-post"] {
+		t.Fatal("delayed previous reply was consumed by the current step")
+	}
+}
+
 func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
 	isApproved := false
 	listCalls := 0
 	initialEvent := mattermostScenarioTaskEvent{TaskEventID: "requested", Name: "confirmation.requested"}
 	completedEvent := mattermostScenarioTaskEvent{TaskEventID: "executed", Name: "approval.executed"}
+	sourceEvent := testMattermostSourceEvent("source", "user-post")
+	approvalReplyEvent := testMattermostReplyEvent("approval-reply", "user_notice", "approval-post", "user-post")
+	completedReplyEvent := testMattermostReplyEvent("completed-reply", "success", "completed-post", "user-post")
 	admin := &fakeMattermostScenarioAdminAPI{
 		listTasksValue: func() []mattermostScenarioTaskSummary {
 			listCalls++
@@ -242,9 +327,9 @@ func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
 		},
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
 			if !isApproved {
-				return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{initialEvent}}
+				return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{sourceEvent, initialEvent, approvalReplyEvent}}
 			}
-			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"}, TaskEvents: []mattermostScenarioTaskEvent{initialEvent, completedEvent}}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"}, TaskEvents: []mattermostScenarioTaskEvent{sourceEvent, initialEvent, approvalReplyEvent, completedEvent, completedReplyEvent}}
 		},
 	}
 	mattermost := &fakeMattermostProbeAPI{
@@ -282,7 +367,7 @@ func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
 	if result.TaskRunID != "task" || result.TaskStatus != "completed" || result.BotMessage != "삭제했습니다." {
 		t.Fatalf("unexpected approval result: %#v", result)
 	}
-	if len(result.TaskEvents) != 2 || len(session.result.Posts) != 3 {
+	if len(result.TaskEvents) != 5 || len(session.result.Posts) != 3 {
 		t.Fatalf("events=%#v posts=%#v", result.TaskEvents, session.result.Posts)
 	}
 }
@@ -298,7 +383,7 @@ func TestMattermostScenarioApprovalRequiresAutoConfirmation(t *testing.T) {
 			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
 		},
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
-			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{{TaskEventID: "requested", Name: "confirmation.requested"}}}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}, TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "user-post"), {TaskEventID: "requested", Name: "confirmation.requested"}, testMattermostReplyEvent("reply", "user_notice", "approval-post", "user-post")}}
 		},
 	}
 	mattermost := &fakeMattermostProbeAPI{
@@ -338,7 +423,7 @@ func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 			detailCalls++
 			events := []mattermostScenarioTaskEvent{oldEvent}
 			if detailCalls > 1 {
-				events = append(events, newEvent)
+				events = append(events, testMattermostSourceEvent("source", "user-post"), newEvent)
 			}
 			return mattermostScenarioTaskDetail{
 				TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "running"},
@@ -372,7 +457,7 @@ func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 	if stepResult.TaskRunID != "task" || stepResult.TaskStatus != "running" {
 		t.Fatalf("unexpected partial task evidence: %#v", stepResult)
 	}
-	if len(stepResult.TaskEvents) != 1 || stepResult.TaskEvents[0].TaskEventID != "new" {
+	if len(stepResult.TaskEvents) != 2 || stepResult.TaskEvents[1].TaskEventID != "new" {
 		t.Fatalf("unexpected partial task events: %#v", stepResult.TaskEvents)
 	}
 	if stepResult.ProcessingMS <= 0 || len(session.result.Posts) != 1 {
@@ -394,7 +479,7 @@ func TestMattermostScenarioPreservesReplyEvidenceWhenWorkspaceInspectionFails(t 
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
 			return mattermostScenarioTaskDetail{
 				TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"},
-				TaskEvents: []mattermostScenarioTaskEvent{{TaskEventID: "completed", Name: "task.completed"}},
+				TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "user-post"), {TaskEventID: "completed", Name: "task.completed"}, testMattermostReplyEvent("reply", "success", "bot-post", "user-post")},
 			}
 		},
 		workspaceFileError: workspaceError,
@@ -418,7 +503,7 @@ func TestMattermostScenarioPreservesReplyEvidenceWhenWorkspaceInspectionFails(t 
 		t.Fatalf("expected workspace failure, got %v", errorValue)
 	}
 	stepResult := session.result.Steps[0]
-	if stepResult.TaskRunID != "task" || stepResult.BotMessage != "완료했습니다." || len(stepResult.TaskEvents) != 1 {
+	if stepResult.TaskRunID != "task" || stepResult.BotMessage != "완료했습니다." || len(stepResult.TaskEvents) != 3 {
 		t.Fatalf("unexpected partial reply evidence: %#v", stepResult)
 	}
 	if len(session.result.Posts) != 2 {
@@ -440,7 +525,7 @@ func TestMattermostScenarioRecordsDurationWhenHookFails(t *testing.T) {
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
 			return mattermostScenarioTaskDetail{
 				TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"},
-				TaskEvents: []mattermostScenarioTaskEvent{{TaskEventID: "completed", Name: "task.completed"}},
+				TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "user-post"), {TaskEventID: "completed", Name: "task.completed"}, testMattermostReplyEvent("reply", "success", "bot-post", "user-post")},
 			}
 		},
 	}
@@ -476,14 +561,14 @@ func TestMattermostScenarioUnexpectedTerminalStatusReturnsWithoutPolling(t *test
 			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "now"}}
 		},
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
-			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "failed"}, TaskEvents: []mattermostScenarioTaskEvent{{TaskEventID: "failed", Name: "task.failed"}}}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "failed"}, TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "post"), {TaskEventID: "failed", Name: "task.failed"}, testMattermostReplyEvent("reply", "user_notice", "bot-post", "post")}}
 		},
 	}
 	session := newTestMattermostScenarioSession(mattermostScenario{}, &fakeMattermostProbeAPI{}, admin)
 	pollCount := 0
 	session.poll = func(context.Context) error { pollCount++; return nil }
 
-	detail, _, errorValue := session.waitForStepTask(context.Background(), map[string]mattermostScenarioTaskSnapshot{})
+	detail, _, _, errorValue := session.waitForStepTask(context.Background(), map[string]mattermostScenarioTaskSnapshot{}, "mattermost:thread:channel:user-post:post")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -537,7 +622,7 @@ func TestMattermostScenarioPollingStopsWhenContextIsCancelled(t *testing.T) {
 	contextValue, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, errorValue := session.waitForStepTask(contextValue, nil)
+	_, _, _, errorValue := session.waitForStepTask(contextValue, nil, "source")
 	if !errors.Is(errorValue, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", errorValue)
 	}
