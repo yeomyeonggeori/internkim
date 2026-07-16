@@ -465,7 +465,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if errorValue != nil {
 		return errorValue
 	}
-	scenario.RequiredModelTier = requiredMattermostScenarioModelTier(configuration)
+	scenario.MaximumModelTier = maximumMattermostScenarioModelTier(configuration)
 	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
 	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
 		return errorValue
@@ -491,7 +491,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	return errors.Join(runError, writeError, cleanupError)
 }
 
-func requiredMattermostScenarioModelTier(configuration testCommandConfiguration) string {
+func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) string {
 	if configuration.ShouldUseRealModels {
 		return ""
 	}
