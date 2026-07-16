@@ -26,6 +26,9 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarRemoteEventStateTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarEventLogicalClocksTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarPushObservationFencesTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
@@ -33,6 +36,15 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 		return errorValue
 	}
 	return ensureCalendarConflictsTable(ctx, database)
+}
+
+func ensureCalendarEventLogicalClocksTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_event_logical_clocks (
+	event_uid TEXT PRIMARY KEY,
+	logical_time_unix_nano INTEGER NOT NULL
+)`)
+	return errorValue
 }
 
 func ensureCalendarPushObservationFencesTable(ctx context.Context, database *sql.DB) error {

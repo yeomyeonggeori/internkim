@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -11,7 +12,7 @@ type calendarBackfillEvent struct {
 	RemoteHref string
 }
 
-func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner calendarSQLRunner, account remoteCalendarAccount) (bool, error) {
+func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, transaction *sql.Tx, candidateClock *calendarConflictCandidateClock, account remoteCalendarAccount, candidate time.Time) (bool, error) {
 	if !remoteCalendarAccountCanWrite(account) {
 		return false, nil
 	}
@@ -19,30 +20,33 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner ca
 	if target.CalendarURL == "" {
 		return false, nil
 	}
-	events, errorValue := readCalendarBackfillEvents(ctx, queryRunner)
+	events, errorValue := readCalendarBackfillEvents(ctx, transaction)
 	if errorValue != nil {
 		return false, errorValue
 	}
 	shouldSignalSync := false
-	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
 	for _, event := range events {
 		if remoteCalendarHrefBelongsToTarget(event.RemoteHref, target) {
 			continue
 		}
-		hasPendingPut, errorValue := hasPendingCalendarPutForTargetWithRunner(ctx, queryRunner, account.ID, event.UID, target)
+		hasPendingPut, errorValue := hasPendingCalendarPutForTargetWithRunner(ctx, transaction, account.ID, event.UID, target)
 		if errorValue != nil {
 			return false, errorValue
 		}
 		if hasPendingPut {
 			continue
 		}
-		if errorValue := enqueueCalendarOutboxWithRunner(ctx, queryRunner, calendarOutboxRow{
+		logicalTime, errorValue := allocateCalendarConflictTimeWithCandidateClock(ctx, transaction, candidateClock, event.UID, candidate)
+		if errorValue != nil {
+			return false, errorValue
+		}
+		if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, calendarOutboxRow{
 			AccountID:     account.ID,
 			EventID:       event.ID,
 			EventUID:      event.UID,
 			Operation:     calendarOutboxOperationPut,
 			ChangedFields: calendarAllUserEditableFields(),
-		}, createdAt); errorValue != nil {
+		}, logicalTime.Format(time.RFC3339Nano)); errorValue != nil {
 			return false, errorValue
 		}
 		shouldSignalSync = true

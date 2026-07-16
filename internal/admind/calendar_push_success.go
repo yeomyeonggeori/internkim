@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"strings"
+	"time"
 )
 
 func (service *Service) applyCalendarPushSuccess(ctx context.Context, row calendarOutboxRow, snapshotEvent calendarEvent, pushedEvent calendarEvent, objectPath string, newETag string, rawICS []byte) error {
@@ -24,14 +25,14 @@ func (service *Service) applyCalendarPushSuccess(ctx context.Context, row calend
 	pushedEvent.RemoteETag = newETag
 	pushedEvent.RawICS = string(rawICS)
 	if calendarEventRevisionMatches(projection.Event, snapshotEvent) {
-		return service.writeCalendarEventWithSourceLocked(ctx, pushedEvent, calendarSourcePull)
+		return service.writeCalendarEventWithSourceLocked(ctx, pushedEvent, calendarSourcePull, time.Now().UTC())
 	}
 	currentEvent := projection.Event
 	currentEvent.RemoteSource = pushedEvent.RemoteSource
 	currentEvent.RemoteHref = pushedEvent.RemoteHref
 	currentEvent.RemoteETag = pushedEvent.RemoteETag
 	currentEvent.RawICS = pushedEvent.RawICS
-	if errorValue := service.writeCalendarEventWithSourceLocked(ctx, currentEvent, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEventWithSourceLocked(ctx, currentEvent, calendarSourcePull, time.Now().UTC()); errorValue != nil {
 		return errorValue
 	}
 	return service.updatePendingCalendarOutboxRemoteState(ctx, row.AccountID, row.TargetCalendarURL, currentEvent.UID, objectPath, newETag)
@@ -68,7 +69,7 @@ func (service *Service) softDeleteCalendarEventIfRevisionMatches(ctx context.Con
 	if !calendarEventRevisionMatches(currentEvent, snapshotEvent) {
 		return false, nil
 	}
-	if errorValue := service.softDeleteCalendarEventWithSourceLocked(ctx, currentEvent.ID, source); errorValue != nil {
+	if errorValue := service.softDeleteCalendarEventWithSourceLocked(ctx, currentEvent.ID, source, time.Now().UTC()); errorValue != nil {
 		return false, errorValue
 	}
 	return true, nil
