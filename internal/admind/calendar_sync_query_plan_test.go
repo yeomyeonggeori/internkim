@@ -49,7 +49,7 @@ func TestCalendarActiveRemoteSourceQueryUsesRemoteSourceUIDIndex(t *testing.T) {
 		t,
 		database,
 		`SELECT id, uid FROM calendar_events WHERE deleted_at = '' AND remote_source = ? ORDER BY uid`,
-		"calendar_events_active_remote_source_uid_idx",
+		"calendar_events_remote_source_uid_deleted_idx",
 		remoteCalendarProviderGoogle,
 	)
 }

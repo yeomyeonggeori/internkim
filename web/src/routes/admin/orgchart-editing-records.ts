@@ -1,3 +1,4 @@
+import { orgchartGroupMembership, replaceOrgchartPrimaryGroup } from '../../lib/orgchart/group-membership';
 import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export function copyUserRecord(record: UserRecord): UserRecord {
@@ -20,11 +21,14 @@ export function reconcileEditingRecords(editingRecords: Record<string, UserRecor
 }
 
 function reconcileEditingRecordGroups(editingRecord: UserRecord, responseRecord: UserRecord, availableGroupIDs: Set<string>): UserRecord {
-	const primaryGroupID = editingRecord.primaryGroupID && availableGroupIDs.has(editingRecord.primaryGroupID) ? editingRecord.primaryGroupID : responseRecord.primaryGroupID ?? '';
+	const editingMembership = orgchartGroupMembership(editingRecord);
+	const responseMembership = orgchartGroupMembership(responseRecord);
+	const primaryGroupID = availableGroupIDs.has(editingMembership.primaryGroupID) ? editingMembership.primaryGroupID : responseMembership.primaryGroupID;
+	const membership = replaceOrgchartPrimaryGroup(editingRecord, primaryGroupID);
 	return {
 		...editingRecord,
 		group: primaryGroupID,
 		primaryGroupID,
-		groupIDs: primaryGroupID ? [primaryGroupID] : []
+		groupIDs: membership.groupIDs
 	};
 }

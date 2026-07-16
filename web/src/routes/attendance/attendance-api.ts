@@ -25,7 +25,7 @@ export type UpdateAttendanceEventRequest = {
 
 export async function fetchAttendanceSummary(request: AttendanceSummaryRequest): Promise<AttendanceSummary> {
 	const path = attendanceSummaryPath(request);
-	const response = await fetch(path, { credentials: 'include' });
+	const response = await fetch(path, { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
 	return (await response.json()) as AttendanceSummary;
 }

@@ -74,13 +74,13 @@ test.describe('attendance personal tools', () => {
 
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-01').click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00-24:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 
 		await page.keyboard.press('Escape');
 		await page.getByTestId('team-status-cell-kim@example.com-2026-06-02').click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByLabel('00:00:00-02:00:00')).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00-02:00')).toBeVisible();
 		await expect(secondDayDialog.getByText('진행 중')).toHaveCount(0);
 	});
 
@@ -99,13 +99,13 @@ test.describe('attendance personal tools', () => {
 		await expect(page.getByRole('button', { name: '퇴근' })).toBeVisible();
 		await page.getByTestId(`team-status-cell-kim@example.com-${previousDate}`).click();
 		const firstDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(firstDayDialog.getByLabel('22:00:00-24:00:00')).toBeVisible();
+		await expect(firstDayDialog.getByLabel('22:00-24:00')).toBeVisible();
 		await expect(firstDayDialog.getByText('진행 중')).toHaveCount(0);
 		await page.keyboard.press('Escape');
 
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
 		const secondDayDialog = page.getByTestId('team-status-day-detail-dialog');
-		await expect(secondDayDialog.getByLabel('00:00:00-01:00')).toBeVisible();
+		await expect(secondDayDialog.getByLabel('00:00-01:00')).toBeVisible();
 		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByLabel('01시간 00분')).toBeVisible();
 	});
 
@@ -168,8 +168,9 @@ test.describe('attendance personal tools', () => {
 
 	test('updates an attendance event only after saving an override reason', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
-		await page.clock.setFixedTime(new Date(`${todayDate}T15:00:00+09:00`));
-		let summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		await page.clock.setFixedTime(currentTime);
+		let summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
 		const targetEvent = currentUserEvent(summary, todayDate, 'clock_in');
 		if (!targetEvent) throw new Error('Expected a current user clock-in event fixture');
 
@@ -218,8 +219,9 @@ test.describe('attendance personal tools', () => {
 
 	test('shows a localized error when saving attendance changes fails', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
-		await page.clock.setFixedTime(new Date(`${todayDate}T15:00:00+09:00`));
-		const summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		await page.clock.setFixedTime(currentTime);
+		const summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
 		const serverErrorMessage = 'attendance event time cannot be in future';
 
 		await page.route('**/attendance/api/events/*', async (route) => {
@@ -239,8 +241,9 @@ test.describe('attendance personal tools', () => {
 
 	test('keeps save disabled while an attendance time input is empty', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
-		await page.clock.setFixedTime(new Date(`${todayDate}T15:00:00+09:00`));
-		const summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		await page.clock.setFixedTime(currentTime);
+		const summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
 		const detailDialog = await openWorkRecordEditor(page, summary, todayDate);
 		const clockInInput = detailDialog.getByTestId('team-status-day-segment').first().getByLabel('출근');
 		const editActions = detailDialog.getByTestId('work-record-edit-actions');
@@ -255,9 +258,9 @@ test.describe('attendance personal tools', () => {
 		await expect(saveButton).toBeEnabled();
 	});
 
-	test('falls back future attendance input to the current workspace minute', async ({ page }) => {
+	test('uses server time when the browser clock is ahead', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
-		await page.clock.setFixedTime(new Date(`${todayDate}T15:00:00+09:00`));
+		await page.clock.setFixedTime(new Date(`${todayDate}T16:00:00+09:00`));
 		const baseSummary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
 		const openClockInEvent = baseSummary.events
 			.filter(
@@ -268,6 +271,7 @@ test.describe('attendance personal tools', () => {
 		if (!openClockInEvent) throw new Error('Expected an open current user clock-in event fixture');
 		const summary: AttendanceSummary = {
 			...baseSummary,
+			serverTime: `${todayDate}T15:00:00+09:00`,
 			events: [
 				...baseSummary.events,
 				{
@@ -308,6 +312,8 @@ test.describe('attendance personal tools', () => {
 		await expect(clockOutInput).toHaveAttribute('max', '15:00');
 		await clockOutInput.fill('16:30');
 		await expect(clockOutInput).toHaveValue('15:00');
+		await clockOutInput.fill('17:30');
+		await expect(clockOutInput).toHaveValue('15:00');
 		await expect(detailDialog.getByText('현재보다 미래 시각으로 근태를 수정할 수 없습니다.')).toHaveCount(0);
 		await editActions.getByLabel('수정 사유').fill('미래 시각 보정');
 		await editActions.getByRole('button', { name: '저장' }).click();
@@ -325,9 +331,130 @@ test.describe('attendance personal tools', () => {
 		await expect(detailDialog.getByTestId('work-record-edit-actions')).toHaveCount(0);
 	});
 
+	test('uses server time when the browser clock is behind', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		await page.clock.setFixedTime(new Date(`${todayDate}T14:00:00+09:00`));
+		const summary = {
+			...buildAttendanceSummaryFixture(todayDate.slice(0, 7)),
+			serverTime: `${todayDate}T15:00:00+09:00`
+		};
+		const detailDialog = await openWorkRecordEditor(page, summary, todayDate);
+		const clockOutInput = detailDialog
+			.getByTestId('team-status-day-segment')
+			.nth(1)
+			.getByLabel('퇴근');
+
+		await expect(clockOutInput).toHaveAttribute('max', '15:00');
+		await clockOutInput.fill('14:30');
+		await expect(clockOutInput).toHaveValue('14:30');
+	});
+
+	test('resynchronizes server time after the browser clock changes and regains focus', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		await page.clock.install({ time: new Date(`${todayDate}T14:00:00+09:00`) });
+		let summary = {
+			...buildAttendanceSummaryFixture(todayDate.slice(0, 7)),
+			serverTime: `${todayDate}T15:00:00+09:00`
+		};
+		let summaryRequestCount = 0;
+
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			summaryRequestCount += 1;
+			await route.fulfill({ json: summary });
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
+
+		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
+		await detailDialog.getByTestId('work-record-edit-button').click();
+		const clockOutInput = detailDialog
+			.getByTestId('team-status-day-segment')
+			.nth(1)
+			.getByLabel('퇴근');
+		await expect(clockOutInput).toHaveAttribute('max', '15:00');
+
+		await page.clock.setSystemTime(new Date(`${todayDate}T18:00:00+09:00`));
+		await expect(clockOutInput).toHaveAttribute('max', '15:00');
+
+		const initialRequestCount = summaryRequestCount;
+		summary = { ...summary, serverTime: `${todayDate}T16:00:00+09:00` };
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+		await expect.poll(() => summaryRequestCount).toBe(initialRequestCount + 1);
+		await expect(clockOutInput).toHaveAttribute('max', '16:00');
+	});
+
+	test('closes attendance editing when a refreshed server clock is invalid', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		let summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
+		let summaryRequestCount = 0;
+
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			summaryRequestCount += 1;
+			await route.fulfill({ json: summary });
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
+
+		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
+		const editButton = detailDialog.getByTestId('work-record-edit-button');
+		await editButton.click();
+		const editActions = detailDialog.getByTestId('work-record-edit-actions');
+		await detailDialog.getByTestId('team-status-day-segment').first().getByLabel('출근').fill('08:40');
+		await editActions.getByLabel('수정 사유').fill('서버 시각 무효화 검증');
+		await expect(editActions.getByRole('button', { name: '저장' })).toBeEnabled();
+		await expect(editButton).toHaveAccessibleName('취소');
+		await expect(editButton).toBeEnabled();
+
+		const initialRequestCount = summaryRequestCount;
+		summary = { ...summary, serverTime: 'invalid' };
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+		await expect.poll(() => summaryRequestCount).toBe(initialRequestCount + 1);
+		await expect(detailDialog.getByTestId('work-record-edit-actions')).toHaveCount(0);
+		await expect(editButton).toHaveAccessibleName('수정');
+		await expect(editButton).toBeDisabled();
+	});
+
+	test('recovers attendance editing after a legacy server is replaced', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		const currentSummary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
+		const { serverTime: _serverTime, ...legacySummary } = currentSummary;
+		let summary: Omit<AttendanceSummary, 'serverTime'> | AttendanceSummary = legacySummary;
+		let summaryRequestCount = 0;
+
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			summaryRequestCount += 1;
+			await route.fulfill({ json: summary });
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
+
+		const editButton = page.getByTestId('team-status-day-detail-dialog').getByTestId('work-record-edit-button');
+		await expect(editButton).toBeDisabled();
+
+		const initialRequestCount = summaryRequestCount;
+		summary = currentSummary;
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+		await expect.poll(() => summaryRequestCount).toBe(initialRequestCount + 1);
+		await expect(editButton).toBeEnabled();
+	});
+
 	test('limits overnight event times by each event date', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-02T15:00:00+09:00'));
-		const summary = buildOvernightAttendanceSummary('2026-06');
+		const summary = {
+			...buildOvernightAttendanceSummary('2026-06'),
+			serverTime: '2026-06-02T15:00:00+09:00'
+		};
 		const detailDialog = await openWorkRecordEditor(page, summary, '2026-06-02');
 		const segment = detailDialog.getByTestId('team-status-day-segment');
 		const clockInInput = segment.getByLabel('출근');
@@ -342,7 +469,10 @@ test.describe('attendance personal tools', () => {
 		const todayDate = todayDateInSeoul();
 		await page.clock.install({ time: new Date(`${todayDate}T15:58:00+09:00`) });
 		await page.clock.setSystemTime(new Date(`${todayDate}T15:59:00+09:00`));
-		const summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
+		const summary = buildAttendanceSummaryFixture(
+			todayDate.slice(0, 7),
+			new Date(`${todayDate}T15:59:00+09:00`)
+		);
 		const detailDialog = await openWorkRecordEditor(page, summary, todayDate);
 		const clockOutInput = detailDialog
 			.getByTestId('team-status-day-segment')
@@ -356,8 +486,9 @@ test.describe('attendance personal tools', () => {
 
 	test('keeps an existing attendance time until the user edits it', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
-		await page.clock.setFixedTime(new Date(`${todayDate}T15:00:00+09:00`));
-		const baseSummary = buildAttendanceSummaryFixture(todayDate.slice(0, 7));
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		await page.clock.setFixedTime(currentTime);
+		const baseSummary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
 		const futureEvent = baseSummary.events
 			.filter(
 				(event) =>

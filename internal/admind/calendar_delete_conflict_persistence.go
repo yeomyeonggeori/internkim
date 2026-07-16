@@ -55,7 +55,7 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 		return errorValue
 	}
 	updatedAt := remoteState.LastSeenAt
-	if errorValue := persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, updatedAt, retainPendingLocalWrite); errorValue != nil {
+	if errorValue := service.persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, updatedAt, retainPendingLocalWrite); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -69,8 +69,8 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 	return nil
 }
 
-func persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, updatedAt string, retainPendingLocalWrite bool) error {
-	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+func (service *Service) persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, updatedAt string, retainPendingLocalWrite bool) error {
+	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		return errorValue
 	}
 	if retainPendingLocalWrite {
