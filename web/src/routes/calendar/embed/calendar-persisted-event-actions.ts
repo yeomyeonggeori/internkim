@@ -20,9 +20,14 @@ type CalendarPersistedEventActionsContext = {
 };
 
 export type CalendarPersistedEventActions = {
-	writeEvent: (path: string, method: 'POST' | 'PUT', event: DayFlowEvent) => Promise<CalendarEvent>;
-	deleteEvent: (eventID: string) => Promise<void>;
-	deleteEventOnPageHide: (eventID: string) => void;
+	writeEvent: (
+		path: string,
+		method: 'POST' | 'PUT',
+		event: DayFlowEvent,
+		expectedUpdatedAt?: string
+	) => Promise<CalendarEvent>;
+	deleteEvent: (eventID: string, expectedUpdatedAt?: string) => Promise<void>;
+	deleteEventOnPageHide: (eventID: string, expectedUpdatedAt?: string) => void;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -30,18 +35,30 @@ export function createCalendarPersistedEventActions(
 	context: CalendarPersistedEventActionsContext,
 	programmaticUpdates: CalendarProgrammaticUpdateState
 ): CalendarPersistedEventActions {
-	async function writeEvent(path: string, method: 'POST' | 'PUT', event: DayFlowEvent): Promise<CalendarEvent> {
+	async function writeEvent(
+		path: string,
+		method: 'POST' | 'PUT',
+		event: DayFlowEvent,
+		expectedUpdatedAt?: string
+	): Promise<CalendarEvent> {
 		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-		const payload = calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone);
+		const currentExpectedUpdatedAt = expectedUpdatedAt
+			?? (typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined);
+		const payload = {
+			...calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone),
+			...(method === 'PUT' && currentExpectedUpdatedAt !== undefined
+				? { expectedUpdatedAt: currentExpectedUpdatedAt }
+				: {})
+		};
 		return writeCalendarEvent(path, method, payload, context.text.saveError);
 	}
 
-	async function deleteEvent(eventID: string): Promise<void> {
-		await deletePersistedCalendarEvent(eventID, context.text.deleteError);
+	async function deleteEvent(eventID: string, expectedUpdatedAt?: string): Promise<void> {
+		await deletePersistedCalendarEvent(eventID, expectedUpdatedAt, context.text.deleteError);
 	}
 
-	function deleteEventOnPageHide(eventID: string): void {
-		deletePersistedCalendarEventOnPageHide(eventID);
+	function deleteEventOnPageHide(eventID: string, expectedUpdatedAt?: string): void {
+		deletePersistedCalendarEventOnPageHide(eventID, expectedUpdatedAt);
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {

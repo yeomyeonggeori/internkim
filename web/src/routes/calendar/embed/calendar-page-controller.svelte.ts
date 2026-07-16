@@ -127,10 +127,17 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 				calendar.app.onMobileEventDetailToggle(event);
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
+			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
 			refreshCalendar: async () => {
 				await renderSync.refreshCalendar();
 			},
 			text: {
+				get calendarDeleteVersionConflictError() {
+					return context.text.calendarDeleteVersionConflictError;
+				},
+				get calendarEventVersionConflictError() {
+					return context.text.calendarEventVersionConflictError;
+				},
 				get calendarTargetUnavailableError() {
 					return context.text.calendarTargetUnavailableError;
 				},
