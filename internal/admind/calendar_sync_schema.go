@@ -35,7 +35,12 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := migrateCalendarTargetIdentityKeys(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	return ensureCalendarConflictsTable(ctx, database)
+	if errorValue := ensureCalendarConflictsTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_events_active_remote_source_uid_idx ON calendar_events(remote_source, uid) WHERE deleted_at = ''")
+	return errorValue
 }
 
 func ensureCalendarEventLogicalClocksTable(ctx context.Context, database *sql.DB) error {
@@ -89,8 +94,12 @@ CREATE TABLE IF NOT EXISTS calendar_conflicts (
 	if errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_conflicts_event_active_idx ON calendar_conflicts(event_id, dismissed_at)"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_conflicts_event_active_idx ON calendar_conflicts(event_id, dismissed_at)")
+		"CREATE INDEX IF NOT EXISTS calendar_conflicts_active_identity_idx ON calendar_conflicts(event_uid, field, local_value, remote_value) WHERE dismissed_at = ''")
 	return errorValue
 }
 
@@ -216,7 +225,11 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	if errorValue := backfillLegacyCalendarOutboxTargets(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_created_idx ON calendar_outbox(account_id, created_at)"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_created_idx ON calendar_outbox(account_id, created_at)")
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_event_idx ON calendar_outbox(account_id, target_calendar_url, event_uid, id)")
 	return errorValue
 }
