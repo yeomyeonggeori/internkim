@@ -14,6 +14,10 @@ func (service *Service) saveCalendarDiscovery(ctx context.Context, account remot
 }
 
 func (service *Service) saveSelectedCalendar(ctx context.Context, account remoteCalendarAccount, calendarID string, summary string, accessRole string, calendarURL string, selectedAt time.Time) (remoteCalendarAccount, error) {
+	service.calendarSwitchWaiters.Add(1)
+	service.calendarRemoteMutex.Lock()
+	service.calendarSwitchWaiters.Add(-1)
+	defer service.calendarRemoteMutex.Unlock()
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
 	selectedCalendarID := strings.TrimSpace(calendarID)
