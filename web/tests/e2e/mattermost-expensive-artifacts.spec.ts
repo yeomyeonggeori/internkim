@@ -183,12 +183,52 @@ async function verifyPublicSiteContent(sitePage: Page): Promise<void> {
 		const control = sitePage.getByRole('link', { name: new RegExp(escapeRegularExpression(label), 'i') })
 			.or(sitePage.getByRole('button', { name: new RegExp(escapeRegularExpression(label), 'i') }))
 			.first();
-		await verify(control).toBeVisible();
-		await control.click();
-		await verify(sitePage.locator('body')).toBeVisible();
-		await verify(sitePage.locator('body')).not.toContainText(/bad gateway|not found|application error/i);
+		await verifyPublicControlEffect(control, sitePage, label);
 		await sitePage.screenshot({ path: join(artifactDirectory, `site-control-${safeFilename(label)}.png`), fullPage: true });
 	}
+}
+
+async function verifyPublicControlEffect(control: Locator, sitePage: Page, label: string): Promise<void> {
+	await verify(control).toBeVisible();
+	await verify(control).toBeEnabled();
+	const beforeURL = new URL(sitePage.url());
+	const href = await control.getAttribute('href');
+	if (href !== null) {
+		const expectedURL = new URL(href, beforeURL);
+		if (href.trim() === '' || href.trim() === '#') {
+			throw new Error(`Expected public control ${label} to navigate or change state`);
+		}
+		if (await control.getAttribute('target') === '_blank') {
+			const [openedPage] = await Promise.all([sitePage.waitForEvent('popup'), control.click()]);
+			await openedPage.waitForLoadState('domcontentloaded');
+			await verify.poll(() => openedPage.url()).toBe(expectedURL.href);
+			await verifyPublicSitePageHealthy(openedPage);
+			return;
+		}
+		await control.click();
+		await verify.poll(async () => {
+			const actualURL = new URL(sitePage.url());
+			return actualURL.origin === expectedURL.origin && actualURL.pathname === expectedURL.pathname &&
+				actualURL.search === expectedURL.search && actualURL.hash === expectedURL.hash;
+		}).toBe(true);
+		await verifyPublicSitePageHealthy(sitePage);
+		return;
+	}
+	const beforeText = await sitePage.locator('body').innerText();
+	const beforeExpanded = await control.getAttribute('aria-expanded');
+	await control.click();
+	await verify.poll(async () => {
+		const currentURL = new URL(sitePage.url());
+		const currentText = await sitePage.locator('body').innerText();
+		const currentExpanded = await control.getAttribute('aria-expanded');
+		return currentURL.href !== beforeURL.href || currentText !== beforeText || currentExpanded !== beforeExpanded;
+	}).toBe(true);
+	await verifyPublicSitePageHealthy(sitePage);
+}
+
+async function verifyPublicSitePageHealthy(sitePage: Page): Promise<void> {
+	await verify(sitePage.locator('body')).toBeVisible();
+	await verify(sitePage.locator('body')).not.toContainText(/bad gateway|not found|application error/i);
 }
 
 function parseStringArray(value: string | undefined): string[] {

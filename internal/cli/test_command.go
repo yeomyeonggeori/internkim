@@ -465,6 +465,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if errorValue != nil {
 		return errorValue
 	}
+	scenario.RequiredModelTier = requiredMattermostScenarioModelTier(configuration)
 	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
 	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
 		return errorValue
@@ -488,6 +489,16 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
 	return errors.Join(runError, writeError, cleanupError)
+}
+
+func requiredMattermostScenarioModelTier(configuration testCommandConfiguration) string {
+	if configuration.ShouldUseRealModels {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(configuration.MaximumModelTier), "low") {
+		return "low"
+	}
+	return ""
 }
 
 func expensiveScenarioContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {

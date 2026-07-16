@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
@@ -30,15 +31,84 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
 	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
-		Prompt:     "work",
-		TaskEvents: []mattermostScenarioTaskEvent{{Name: "llm.call", Body: `{"kind":"chat","transport":"sdkd","model":"low-model"}`}},
+		Prompt: "work",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("validate SDKD provenance: %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[0].Body = `{"kind":"chat","transport":"capability","model":"low-model","usedFallback":true}`
+	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"capability","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected legacy fallback provenance to fail")
+	}
+}
+
+func TestMattermostScenarioRequiresRequestedModelTier(t *testing.T) {
+	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, RequiredModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+		Prompt: "work",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
+		},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("validate requested model tier: %v", errorValue)
+	}
+	result.Steps[0].TaskEvents[0].Body = strings.Replace(result.Steps[0].TaskEvents[0].Body, `"modelTier":"low"`, `"modelTier":"xlow"`, 1)
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "model tier") {
+		t.Fatalf("expected model tier failure, got %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
+	scenario := mattermostScenario{
+		Name:                "exposure",
+		AllowedTools:        []string{"task.add"},
+		InitialToolNames:    []string{"task.add"},
+		SkillDirectoryPaths: []string{"skills/internkim-flow"},
+		Steps:               []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task.add"}}},
+	}
+	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
+		Prompt: "work",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task.add"],"selectedSkillAllowedTools":{"internkim-flow":["task.add"]}}`},
+			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task.add"],"pinnedGroupToolIDs":["task.add"],"selectionSource":"fixed_kernel","usedFallbackGroups":false}}`},
+			{Name: "tool.task.add.requested"},
+		},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("validate direct exposure evidence: %v", errorValue)
+	}
+	result.Steps[0].TaskEvents[1].Body = `{"exposure":{"exposedToolIDs":["task.add"],"pinnedGroupToolIDs":["task.add"],"selectionSource":"deterministic_palette","usedFallbackGroups":true}}`
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
+		t.Fatal("expected fallback exposure evidence to fail")
+	}
+}
+
+func TestResolveMattermostScenarioRuntimeValuesUsesNextFriday(t *testing.T) {
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{ExpectedEventCounts: []mattermostScenarioEventCount{{BodyFragment: "{{nextFriday}}"}}}}}
+	resolveMattermostScenarioRuntimeValues(&scenario, time.Date(2026, time.July, 16, 12, 0, 0, 0, time.UTC))
+	if got := scenario.Steps[0].ExpectedEventCounts[0].BodyFragment; got != "2026-07-17" {
+		t.Fatalf("expected next Friday, got %q", got)
+	}
+}
+
+func TestMattermostScenarioDoesNotAcceptRecoveryChatInsteadOfAgentAction(t *testing.T) {
+	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+		Prompt: "work",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"sdkd","isError":true}`},
+			{Name: "llm.call", Body: `{"kind":"recovery_chat","transport":"sdkd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+		},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "blueclaw_agent_turn_action") {
+		t.Fatalf("expected failed agent action to remain a failure, got %v", errorValue)
 	}
 }
 
@@ -139,15 +209,16 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 
 func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
-		Prompt:                 "count",
-		ExpectedToolCallCounts: map[string]int{"task.add": 2, "task.update": 0},
-		ExpectedEventCounts:    []mattermostScenarioEventCount{{Name: "task.completed", Count: 2}},
+		Prompt:                      "count",
+		ExpectedToolCallCounts:      map[string]int{"task.list": 2},
+		ExpectedExactToolCallCounts: map[string]int{"task.update": 0},
+		ExpectedEventCounts:         []mattermostScenarioEventCount{{Name: "task.completed", Count: 2}},
 	}}}
 	result := mattermostScenarioResult{
 		ScenarioName: "counts", ChannelID: "channel", UserID: "user",
 		Steps: []mattermostScenarioStepResult{{
 			Prompt: "count", TaskStatus: "completed", TaskEvents: []mattermostScenarioTaskEvent{
-				{Name: "tool.task.add.requested"},
+				{Name: "tool.task.list.requested"},
 				{Name: "task.completed"},
 			},
 		}},
@@ -161,6 +232,53 @@ func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task.update.requested"})
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected forbidden zero count to fail")
+	}
+}
+
+func TestMattermostScenarioRejectsDuplicateMutatingCount(t *testing.T) {
+	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
+		Prompt:                      "count",
+		ExpectedExactToolCallCounts: map[string]int{"task.add": 1},
+	}}}
+	result := mattermostScenarioResult{ScenarioName: "counts", Steps: []mattermostScenarioStepResult{{
+		Prompt: "count",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "tool.task.add.requested"},
+			{Name: "tool.task.add.result"},
+		},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("expected one mutation to pass: %v", errorValue)
+	}
+	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task.add.requested"})
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "exact tool") {
+		t.Fatalf("expected duplicate mutation to fail, got %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioTreatsReadCountMismatchAsObservation(t *testing.T) {
+	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
+		Prompt:                 "count",
+		ExpectedToolCallCounts: map[string]int{"task.list": 0},
+	}}}
+	result := mattermostScenarioResult{ScenarioName: "counts", Steps: []mattermostScenarioStepResult{{
+		Prompt:     "count",
+		TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.task.list.requested"}},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("expected read count mismatch to remain observational: %v", errorValue)
+	}
+	if len(result.EfficiencyObservations) != 1 || result.EfficiencyObservations[0].Observed != 1 {
+		t.Fatalf("expected read mismatch observation, got %#v", result.EfficiencyObservations)
+	}
+}
+
+func TestRequiredMattermostScenarioModelTierPreservesProductionMode(t *testing.T) {
+	if got := requiredMattermostScenarioModelTier(testCommandConfiguration{MaximumModelTier: "low"}); got != "low" {
+		t.Fatalf("expected low model requirement, got %q", got)
+	}
+	if got := requiredMattermostScenarioModelTier(testCommandConfiguration{ShouldUseRealModels: true}); got != "" {
+		t.Fatalf("expected production mode to remain unrestricted, got %q", got)
 	}
 }
 
