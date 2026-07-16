@@ -13,7 +13,7 @@
       "prompt": "내일 오전 10시부터 11시까지 고객지원팀과 분기 결산 누락 항목을 검토하는 회의를 잡아줘. 회의 제목은 '고객지원팀 분기 결산 검토'로 해줘.",
       "expectedToolCalls": ["calendar.add"],
       "expectedEventCounts": [
-        {"name": "tool.calendar.add.result", "bodyFragment": "고객지원팀 분기 결산 검토", "count": 1, "exact": true}
+        {"name": "tool.calendar.add.result", "outputFragment": "고객지원팀 분기 결산 검토", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -22,7 +22,7 @@
       "expectedToolCalls": ["calendar.update"],
       "expectedEventCounts": [
         {"name": "tool.calendar.update.requested", "bodyFragment": "T14:00:00+09:00", "count": 1, "exact": true},
-        {"name": "tool.calendar.update.result", "bodyFragment": "T14:00:00+09:00", "count": 1, "exact": true}
+        {"name": "tool.calendar.update.result", "outputFragment": "T14:00:00+09:00", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -31,7 +31,7 @@
       "expectedToolCalls": ["calendar.list"],
       "expectedEventCounts": [
         {"name": "tool.calendar.list.requested", "bodyFragment": "고객지원팀 분기 결산 검토", "count": 1},
-        {"name": "tool.calendar.list.result", "bodyFragment": "T14:00:00+09:00", "count": 1}
+        {"name": "tool.calendar.list.result", "outputFragment": "T14:00:00+09:00", "count": 1}
       ],
       "expectedReplyFragments": ["고객지원팀 분기 결산 검토", "14:00"],
       "expectedTaskStatus": "completed"
@@ -42,8 +42,8 @@
       "expectedToolCalls": ["calendar.delete"],
       "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.calendar.delete.result", "bodyFragment": "approval_required", "count": 1, "exact": true},
-        {"name": "tool.calendar.delete.result", "bodyFragment": "deleted", "count": 1, "exact": true}
+        {"name": "tool.calendar.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
+        {"name": "tool.calendar.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
     },
@@ -51,7 +51,7 @@
       "prompt": "내 캘린더를 다시 조회해서 삭제한 '고객지원팀 분기 결산 검토'가 남아 있지 않은지 확인해줘.",
       "expectedToolCalls": ["calendar.list"],
       "expectedEventCounts": [
-        {"name": "tool.calendar.list.result", "bodyFragment": "고객지원팀 분기 결산 검토", "count": 0}
+        {"name": "tool.calendar.list.result", "outputFragment": "고객지원팀 분기 결산 검토", "count": 0, "exact": true}
       ],
       "expectedReplyFragments": ["없"],
       "expectedTaskStatus": "completed"

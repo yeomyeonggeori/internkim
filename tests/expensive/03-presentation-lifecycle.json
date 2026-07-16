@@ -48,7 +48,7 @@
       "expectedToolCalls": ["file.delete"],
       "expectedEvents": ["approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.file.delete.result", "bodyFragment": "deleted", "count": 1}
+        {"name": "tool.file.delete.result", "outputFragment": "deleted", "count": 1}
       ],
       "forbiddenWorkspaceFiles": ["circles/staff/tmp/*"],
       "expectedTaskStatus": "completed"
