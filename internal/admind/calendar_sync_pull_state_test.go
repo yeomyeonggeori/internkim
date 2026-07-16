@@ -238,56 +238,6 @@ func TestRunGoogleCalendarPullDoesNotSoftDeleteLocalOnlyEvents(t *testing.T) {
 	}
 }
 
-func TestRunCalendarPullQueriesAgainAfterProtectedMissingUIDExpires(t *testing.T) {
-	service := newCalendarTestService(t)
-	ctx := context.Background()
-	account := seedAccountWithDiscovery(t, service)
-	account.DefaultCalendarCTag = "ctag-old"
-	account, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
-	if errorValue != nil {
-		t.Fatalf("seed account ctag: %v", errorValue)
-	}
-
-	event := newLocalTestCalendarEvent("protected-missing", "Protected Missing")
-	event.RemoteSource = remoteCalendarProviderGoogle
-	event.RemoteETag = `"etag-protected"`
-	event.RemoteHref = account.DefaultCalendarURL + event.UID + ".ics"
-	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
-		t.Fatalf("seed remote event: %v", errorValue)
-	}
-
-	client := &fakeCalDAVPullClient{ctag: "ctag-new"}
-	protectedUIDs := map[string]struct{}{event.UID: {}}
-	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, protectedUIDs); errorValue != nil {
-		t.Fatalf("protected pull: %v", errorValue)
-	}
-	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
-		t.Fatalf("read protected event: %v", errorValue)
-	} else if !found {
-		t.Fatal("protected missing event should remain")
-	}
-
-	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
-	if errorValue != nil || !found {
-		t.Fatalf("read account after protected pull: found=%v error=%v", found, errorValue)
-	}
-	if account.DefaultCalendarCTag != "ctag-old" {
-		t.Errorf("incomplete protected snapshot persisted ctag: got %q", account.DefaultCalendarCTag)
-	}
-
-	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
-		t.Fatalf("pull after protection expiry: %v", errorValue)
-	}
-	if client.queryCalls != 2 {
-		t.Errorf("calendar query calls: got %d, want 2", client.queryCalls)
-	}
-	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
-		t.Fatalf("read event after protection expiry: %v", errorValue)
-	} else if found {
-		t.Error("missing event should be deleted after protection expires")
-	}
-}
-
 func TestRunCalendarPullDoesNotDeleteMissingEventsOrPersistCTagAfterDecodeFailure(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -312,7 +262,7 @@ func TestRunCalendarPullDoesNotDeleteMissingEventsOrPersistCTagAfterDecodeFailur
 			{Path: account.DefaultCalendarURL + "undecodable.ics", ETag: `"etag-undecodable"`},
 		},
 	}
-	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false); errorValue != nil {
 		t.Fatalf("pull with decode failure: %v", errorValue)
 	}
 
@@ -358,7 +308,7 @@ func TestRunCalendarPullDoesNotDeleteMissingEventsOrPersistCTagAfterCalDAVConver
 			},
 		},
 	}
-	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false); errorValue != nil {
 		t.Fatalf("pull with conversion failure: %v", errorValue)
 	}
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -18,14 +18,10 @@ type calDAVPullClient interface {
 }
 
 func (service *Service) pullGoogleCalendarChanges(ctx context.Context) (bool, error) {
-	return service.pullCalendarChangesForProvider(ctx, googleCalendarProvider{}, false, nil)
+	return service.pullCalendarChangesForProvider(ctx, googleCalendarProvider{}, false)
 }
 
-func (service *Service) pullGoogleCalendarChangesWithProtection(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
-	return service.pullCalendarChangesForProvider(ctx, googleCalendarProvider{}, false, protectedUIDs)
-}
-
-func (service *Service) pullCalendarChangesForProvider(ctx context.Context, provider calendarProvider, forceQuery bool, protectedUIDs map[string]struct{}) (bool, error) {
+func (service *Service) pullCalendarChangesForProvider(ctx context.Context, provider calendarProvider, forceQuery bool) (bool, error) {
 	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, provider.Name())
 	if errorValue != nil {
 		return false, errorValue
@@ -45,7 +41,7 @@ func (service *Service) pullCalendarChangesForProvider(ctx context.Context, prov
 	if errorValue != nil {
 		return false, errorValue
 	}
-	changed, errorValue := service.runCalendarPull(ctx, provider, account, client, forceQuery, protectedUIDs)
+	changed, errorValue := service.runCalendarPull(ctx, provider, account, client, forceQuery)
 	if errorValue != nil {
 		if isCalendarAuthError(errorValue) {
 			service.markRemoteCalendarAccountAuthError(ctx, account, errorValue)
@@ -57,10 +53,10 @@ func (service *Service) pullCalendarChangesForProvider(ctx context.Context, prov
 }
 
 func (service *Service) runGoogleCalendarPull(ctx context.Context, account remoteCalendarAccount, client calDAVPullClient) (bool, error) {
-	return service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil)
+	return service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false)
 }
 
-func (service *Service) runCalendarPull(ctx context.Context, provider calendarProvider, account remoteCalendarAccount, client calDAVPullClient, forceQuery bool, protectedUIDs map[string]struct{}) (bool, error) {
+func (service *Service) runCalendarPull(ctx context.Context, provider calendarProvider, account remoteCalendarAccount, client calDAVPullClient, forceQuery bool) (bool, error) {
 	if strings.TrimSpace(account.DefaultCalendarURL) == "" && strings.TrimSpace(account.SelectedCalendarURL) == "" {
 		discovered, errorValue := provider.Discover(ctx, service, account)
 		if errorValue != nil {
@@ -97,7 +93,7 @@ func (service *Service) runCalendarPull(ctx context.Context, provider calendarPr
 	if errorValue != nil {
 		return false, fmt.Errorf("reserve calendar pull snapshot boundary: %w", errorValue)
 	}
-	reconciliationResult, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(ctx, account, target, objects, protectedUIDs, serverCTag, snapshotCompletedAt)
+	reconciliationResult, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(ctx, account, target, objects, serverCTag, snapshotCompletedAt)
 	if errorValue != nil {
 		return false, errorValue
 	}
@@ -130,18 +126,18 @@ func (service *Service) finishUnchangedCalendarPullIfCurrent(ctx context.Context
 	return true, nil
 }
 
-func (service *Service) applyCalendarPullCycleIfCurrent(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, protectedUIDs map[string]struct{}, serverCTag string, snapshotCompletedAt time.Time) (calendarPullReconciliationResult, bool, error) {
+func (service *Service) applyCalendarPullCycleIfCurrent(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, serverCTag string, snapshotCompletedAt time.Time) (calendarPullReconciliationResult, bool, error) {
 	deferredProjections := &calendarPullDeferredProjectionQueue{}
 	var reconciliationResult calendarPullReconciliationResult
 	var isCurrentTarget bool
 	var errorValue error
 	service.runCalendarPullLocked(ctx, deferredProjections, func() {
-		reconciliationResult, isCurrentTarget, errorValue = service.applyCalendarPullCycleLocked(ctx, account, target, objects, protectedUIDs, serverCTag, snapshotCompletedAt, deferredProjections)
+		reconciliationResult, isCurrentTarget, errorValue = service.applyCalendarPullCycleLocked(ctx, account, target, objects, serverCTag, snapshotCompletedAt, deferredProjections)
 	})
 	return reconciliationResult, isCurrentTarget, errorValue
 }
 
-func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, protectedUIDs map[string]struct{}, serverCTag string, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, bool, error) {
+func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, serverCTag string, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, bool, error) {
 	isCurrentTarget, errorValue := service.calendarPullTargetIsCurrentLocked(ctx, account, target)
 	if errorValue != nil || !isCurrentTarget {
 		return calendarPullReconciliationResult{}, isCurrentTarget, errorValue
@@ -150,7 +146,7 @@ func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, accoun
 	if errorValue != nil {
 		return calendarPullReconciliationResult{}, false, fmt.Errorf("list calendar push observation fences: %w", errorValue)
 	}
-	reconciliationResult, errorValue := service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, objects, protectedUIDs, fencedUIDs, snapshotCompletedAt, deferredProjections)
+	reconciliationResult, errorValue := service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, objects, fencedUIDs, snapshotCompletedAt, deferredProjections)
 	if errorValue != nil || !reconciliationResult.IsComplete {
 		return reconciliationResult, true, errorValue
 	}
@@ -166,7 +162,7 @@ func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, accoun
 		if target.NeedsInitialSyncCompletion {
 			return calendarPullReconciliationResult{}, true, fmt.Errorf("update calendar pull state: %w", errorValue)
 		}
-		log.Printf("update calendar ctag: %v", errorValue)
+		slog.WarnContext(ctx, "calendar ctag update failed", "account_id", account.ID, "calendar_url", target.CalendarURL, "error", errorValue)
 	}
 	return reconciliationResult, true, nil
 }
@@ -184,8 +180,8 @@ func (service *Service) calendarPullTargetIsCurrentLocked(ctx context.Context, a
 	return persistedTarget == canonicalCalendarTargetURL(target.CalendarURL), nil
 }
 
-func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}) error {
-	_, errorValue := service.reconcileCalendarPullSnapshot(ctx, account, remoteObjects, protectedUIDs)
+func (service *Service) reconcileGoogleCalendarPull(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, _ map[string]struct{}) error {
+	_, errorValue := service.reconcileCalendarPullSnapshot(ctx, account, remoteObjects)
 	return errorValue
 }
 
@@ -364,10 +360,7 @@ func (service *Service) softDeleteMissingRemoteEventLocked(ctx context.Context, 
 		if winner == calendarConflictWinnerLocal {
 			return service.updatePendingCalendarOutboxRemoteState(ctx, accountID, target.CalendarURL, currentEvent.UID, "", "")
 		}
-		if errorValue := service.softDeleteCalendarEventForPullLocked(ctx, currentEvent.ID, deferredProjections); errorValue != nil {
-			return errorValue
-		}
-		return service.deleteCalendarOutboxForEventUID(ctx, accountID, target.CalendarURL, currentEvent.UID)
+		return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent, deferredProjections)
 	}
-	return service.softDeleteCalendarEventForPullLocked(ctx, currentEvent.ID, deferredProjections)
+	return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent, deferredProjections)
 }

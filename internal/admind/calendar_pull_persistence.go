@@ -83,14 +83,7 @@ func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx contex
 	return nil
 }
 
-func (service *Service) softDeleteCalendarEventForPullLocked(ctx context.Context, eventID string, deferredProjections *calendarPullDeferredProjectionQueue) error {
-	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found {
-		return sql.ErrNoRows
-	}
+func (service *Service) acceptMissingCalendarRemoteDeletionLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
 	deletedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -101,7 +94,10 @@ func (service *Service) softDeleteCalendarEventForPullLocked(ctx context.Context
 	if errorValue != nil {
 		return errorValue
 	}
-	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", deletedAt, deletedAt, strings.TrimSpace(eventID))
+	result, errorValue := transaction.ExecContext(ctx, `
+UPDATE calendar_events
+SET deleted_at = ?, updated_at = ?
+WHERE id = ? AND updated_at = ? AND deleted_at = ''`, deletedAt, deletedAt, strings.TrimSpace(event.ID), strings.TrimSpace(event.UpdatedAt))
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -115,7 +111,15 @@ func (service *Service) softDeleteCalendarEventForPullLocked(ctx context.Context
 		_ = transaction.Rollback()
 		return sql.ErrNoRows
 	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, eventID); errorValue != nil {
+	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := deleteCalendarOutboxForEventUIDWithRunner(ctx, transaction, accountID, targetCalendarURL, event.UID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := deleteCalendarPushObservationFenceWithRunner(ctx, transaction, accountID, targetCalendarURL, event.UID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}

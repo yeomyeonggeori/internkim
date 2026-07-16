@@ -7,25 +7,26 @@ import (
 	"time"
 )
 
-func (service *Service) persistCalendarPushObservationFence(ctx context.Context, accountID string, calendarURL string, eventUID string, createdAt time.Time) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	return persistCalendarPushObservationFenceWithRunner(ctx, database, accountID, calendarURL, eventUID, createdAt)
-}
-
 func persistCalendarPushObservationFenceWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, calendarURL string, eventUID string, createdAt time.Time) error {
-	_, errorValue := queryRunner.ExecContext(ctx, `
+	trimmedAccountID := strings.TrimSpace(accountID)
+	canonicalCalendarURL := canonicalCalendarTargetURL(calendarURL)
+	trimmedEventUID := strings.TrimSpace(eventUID)
+	createdAtValue := createdAt.UTC().Format(time.RFC3339Nano)
+	if _, errorValue := queryRunner.ExecContext(ctx, `
 INSERT INTO calendar_push_observation_fences (account_id, calendar_url, event_uid, created_at)
 VALUES (?, ?, ?, ?)
 ON CONFLICT(account_id, calendar_url, event_uid) DO UPDATE SET created_at = excluded.created_at`,
-		strings.TrimSpace(accountID),
-		canonicalCalendarTargetURL(calendarURL),
-		strings.TrimSpace(eventUID),
-		createdAt.UTC().Format(time.RFC3339Nano),
-	)
+		trimmedAccountID,
+		canonicalCalendarURL,
+		trimmedEventUID,
+		createdAtValue,
+	); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := queryRunner.ExecContext(ctx, `
+UPDATE calendar_remote_event_sync_state
+SET missing_detected_at = '', updated_at = ?
+WHERE account_id = ? AND calendar_url = ? AND event_uid = ?`, createdAtValue, trimmedAccountID, canonicalCalendarURL, trimmedEventUID)
 	return errorValue
 }
 
@@ -105,22 +106,43 @@ func deleteCalendarPushObservationFenceWithRunner(ctx context.Context, queryRunn
 	return deleteCalendarPushObservationFencesWithRunner(ctx, queryRunner, accountID, calendarURL, []string{eventUID})
 }
 
-func mergeCalendarUIDSets(first map[string]struct{}, second map[string]struct{}) map[string]struct{} {
-	result := map[string]struct{}{}
-	for eventUID := range first {
-		result[eventUID] = struct{}{}
-	}
-	for eventUID := range second {
-		result[eventUID] = struct{}{}
-	}
-	return result
-}
-
-func hasMissingCalendarPushObservationFence(fencedUIDs map[string]struct{}, observedUIDs map[string]struct{}) bool {
-	for eventUID := range fencedUIDs {
-		if _, observed := observedUIDs[eventUID]; !observed {
-			return true
+func (service *Service) protectMissingCalendarPushObservationFences(ctx context.Context, accountID string, calendarURL string, fencedUIDs map[string]struct{}, observedUIDs map[string]struct{}, pendingLocalChanges map[string]pendingCalendarLocalChange, detectedAt time.Time) (map[string]struct{}, error) {
+	protectedUIDs := map[string]struct{}{}
+	for _, eventUID := range missingCalendarPushObservationFenceUIDs(fencedUIDs, observedUIDs) {
+		_, hasActivePut := pendingLocalChanges[eventUID]
+		shouldProtect, errorValue := service.shouldProtectMissingCalendarPushObservationFence(ctx, accountID, calendarURL, eventUID, hasActivePut, detectedAt)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if shouldProtect {
+			protectedUIDs[eventUID] = struct{}{}
 		}
 	}
-	return false
+	return protectedUIDs, nil
+}
+
+func (service *Service) shouldProtectMissingCalendarPushObservationFence(ctx context.Context, accountID string, calendarURL string, eventUID string, hasActivePut bool, detectedAt time.Time) (bool, error) {
+	if hasActivePut {
+		return true, nil
+	}
+	state, found, errorValue := service.readCalendarRemoteEventState(ctx, accountID, calendarURL, eventUID)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	if found && strings.TrimSpace(state.MissingDetectedAt) != "" {
+		return false, nil
+	}
+	_, errorValue = service.markCalendarRemoteEventMissingAtReservedBoundary(ctx, accountID, calendarURL, eventUID, detectedAt)
+	return true, errorValue
+}
+
+func missingCalendarPushObservationFenceUIDs(fencedUIDs map[string]struct{}, observedUIDs map[string]struct{}) []string {
+	result := []string{}
+	for eventUID := range fencedUIDs {
+		if _, observed := observedUIDs[eventUID]; !observed {
+			result = append(result, eventUID)
+		}
+	}
+	sort.Strings(result)
+	return result
 }

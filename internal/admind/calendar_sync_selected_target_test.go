@@ -47,7 +47,7 @@ func TestPullCalendarChangesForProviderSkipsBeforeCalendarSelection(t *testing.T
 	}
 	provider := &countingCalendarProvider{name: "counting"}
 
-	changed, errorValue := service.pullCalendarChangesForProvider(ctx, provider, false, nil)
+	changed, errorValue := service.pullCalendarChangesForProvider(ctx, provider, false)
 	if errorValue != nil {
 		t.Fatalf("pull: %v", errorValue)
 	}

@@ -72,6 +72,25 @@ END`)
 	if storedEvent.RemoteHref != "" || storedEvent.RemoteETag != "" {
 		t.Fatalf("event remote state changed despite transaction failure: href=%q etag=%q", storedEvent.RemoteHref, storedEvent.RemoteETag)
 	}
+	secondRestartedService := NewService(service.Configuration)
+	secondPullClient := &fakeCalDAVPullClient{ctag: "ctag-known"}
+	if _, errorValue := secondRestartedService.runGoogleCalendarPull(ctx, account, secondPullClient); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found, errorValue := secondRestartedService.readCalendarEventByID(ctx, event.ID); errorValue != nil || !found {
+		t.Fatalf("active PUT fence did not survive second missing snapshot: found=%v error=%v", found, errorValue)
+	}
+	rows, errorValue = secondRestartedService.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil || len(rows) != 1 {
+		t.Fatalf("active PUT changed after second missing snapshot: rows=%d error=%v", len(rows), errorValue)
+	}
+	if _, found, errorValue := secondRestartedService.readCalendarRemoteEventState(ctx, account.ID, account.DefaultCalendarURL, event.UID); errorValue != nil || found {
+		t.Fatalf("active PUT missing snapshot persisted deletion bound: found=%v error=%v", found, errorValue)
+	}
+	fencedUIDs = readCalendarPushObservationFenceUIDsForTest(t, secondRestartedService, account.ID, account.DefaultCalendarURL)
+	if _, found := fencedUIDs[event.UID]; !found {
+		t.Fatalf("active PUT missing snapshot cleared fence: %#v", fencedUIDs)
+	}
 }
 
 func TestCalendarPushObservationFenceClearsAcceptedRemoteDeletionAndKeepsAmbiguousFailure(t *testing.T) {
@@ -154,7 +173,7 @@ func TestCalendarPushObservationFenceClearsAcceptedRemoteDeletionAndKeepsAmbiguo
 	}
 }
 
-func TestCalendarPushObservationFenceBlocksMissingDeleteAndCTagAfterMemoryExpiry(t *testing.T) {
+func TestCalendarPushObservationFenceReleasesOnSecondMissingSnapshotAfterRestart(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -171,30 +190,105 @@ func TestCalendarPushObservationFenceBlocksMissingDeleteAndCTagAfterMemoryExpiry
 		t.Fatal(errorValue)
 	}
 	seedCalendarPushObservationFenceForTest(t, service, account.ID, account.DefaultCalendarURL, event.UID)
-	now := time.Unix(1000, 0).UTC()
-	service.recordRecentlyPushedCalendarUIDs(now, map[string]struct{}{event.UID: {}})
-	if protectedUIDs := service.recentlyPushedCalendarUIDs(now.Add(calendarPushVisibilityGracePeriod + time.Second)); len(protectedUIDs) != 0 {
-		t.Fatalf("memory protection did not expire: %#v", protectedUIDs)
-	}
-
-	restartedService := NewService(service.Configuration)
-	client := &fakeCalDAVPullClient{ctag: "ctag-new"}
-	changed, errorValue := restartedService.runGoogleCalendarPull(ctx, account, client)
+	firstClient := &fakeCalDAVPullClient{ctag: "ctag-new"}
+	changed, errorValue := service.runGoogleCalendarPull(ctx, account, firstClient)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !changed || client.queryCalls != 1 {
-		t.Fatalf("fenced missing snapshot result: changed=%v queryCalls=%d", changed, client.queryCalls)
+	if !changed || firstClient.queryCalls != 1 {
+		t.Fatalf("first missing snapshot result: changed=%v queryCalls=%d", changed, firstClient.queryCalls)
 	}
-	if _, found, errorValue := restartedService.readCalendarEventByID(ctx, event.ID); errorValue != nil || !found {
-		t.Fatalf("fenced event was deleted: found=%v error=%v", found, errorValue)
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil || !found {
+		t.Fatalf("first missing snapshot deleted fenced event: found=%v error=%v", found, errorValue)
 	}
-	refreshed, found, errorValue := restartedService.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	remoteState, found, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, account.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found || remoteState.MissingDetectedAt == "" {
+		t.Fatalf("first missing snapshot state: found=%v state=%+v error=%v", found, remoteState, errorValue)
+	}
+	refreshed, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil || !found {
-		t.Fatalf("account after pull: found=%v error=%v", found, errorValue)
+		t.Fatalf("account after first pull: found=%v error=%v", found, errorValue)
 	}
 	if refreshed.DefaultCalendarCTag != "ctag-old" {
-		t.Fatalf("ctag advanced while fence unresolved: %q", refreshed.DefaultCalendarCTag)
+		t.Fatalf("first missing snapshot advanced ctag: %q", refreshed.DefaultCalendarCTag)
+	}
+
+	restartedService := NewService(service.Configuration)
+	secondClient := &fakeCalDAVPullClient{ctag: "ctag-new"}
+	changed, errorValue = restartedService.runGoogleCalendarPull(ctx, refreshed, secondClient)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !changed || secondClient.queryCalls != 1 {
+		t.Fatalf("second missing snapshot result: changed=%v queryCalls=%d", changed, secondClient.queryCalls)
+	}
+	if _, found, errorValue := restartedService.readCalendarEventByID(ctx, event.ID); errorValue != nil || found {
+		t.Fatalf("second missing snapshot event: found=%v error=%v", found, errorValue)
+	}
+	if fencedUIDs := readCalendarPushObservationFenceUIDsForTest(t, restartedService, account.ID, account.DefaultCalendarURL); len(fencedUIDs) != 0 {
+		t.Fatalf("second missing snapshot left fence: %#v", fencedUIDs)
+	}
+	refreshed, found, errorValue = restartedService.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found {
+		t.Fatalf("account after second pull: found=%v error=%v", found, errorValue)
+	}
+	if refreshed.DefaultCalendarCTag != "ctag-new" {
+		t.Fatalf("second missing snapshot did not advance ctag: %q", refreshed.DefaultCalendarCTag)
+	}
+}
+
+func TestCalendarPushObservationFenceNewPutRestartsMissingSnapshotSequence(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account.DefaultCalendarCTag = "ctag-old"
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event := newLocalTestCalendarEvent("push-fence-new-put", "Push Fence New PUT")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteHref = account.DefaultCalendarURL + event.UID + ".ics"
+	event.RemoteETag = `"etag-old"`
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	seedCalendarPushObservationFenceForTest(t, service, account.ID, account.DefaultCalendarURL, event.UID)
+	if _, errorValue := service.runGoogleCalendarPull(ctx, account, &fakeCalDAVPullClient{ctag: "ctag-new"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firstState, found, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, account.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found || firstState.MissingDetectedAt == "" {
+		t.Fatalf("first missing snapshot state: found=%v state=%+v error=%v", found, firstState, errorValue)
+	}
+
+	updatedEvent := event
+	updatedEvent.Title = "Repushed Local Event"
+	if errorValue := service.writeCalendarEvent(ctx, updatedEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pushClient := &fakeCalDAVPushClient{putETags: map[string]string{event.RemoteHref: `"etag-repushed"`}}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, pushClient); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	stateAfterPush, found, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, account.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found {
+		t.Fatalf("state after push: found=%v error=%v", found, errorValue)
+	}
+	if stateAfterPush.MissingDetectedAt != "" {
+		t.Fatalf("new PUT kept prior missing boundary: %q", stateAfterPush.MissingDetectedAt)
+	}
+
+	restartedService := NewService(service.Configuration)
+	if _, errorValue := restartedService.runGoogleCalendarPull(ctx, account, &fakeCalDAVPullClient{ctag: "ctag-new"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found, errorValue := restartedService.readCalendarEventByID(ctx, event.ID); errorValue != nil || !found {
+		t.Fatalf("first missing snapshot after new PUT deleted event: found=%v error=%v", found, errorValue)
+	}
+	secondFirstState, found, errorValue := restartedService.readCalendarRemoteEventState(ctx, account.ID, account.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found || secondFirstState.MissingDetectedAt == "" {
+		t.Fatalf("first missing snapshot after new PUT state: found=%v state=%+v error=%v", found, secondFirstState, errorValue)
 	}
 }
 

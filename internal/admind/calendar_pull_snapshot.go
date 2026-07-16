@@ -2,7 +2,7 @@ package admind
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -11,16 +11,16 @@ type calendarPullReconciliationResult struct {
 	IsComplete bool
 }
 
-func (service *Service) reconcileCalendarPullSnapshot(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}) (calendarPullReconciliationResult, error) {
+func (service *Service) reconcileCalendarPullSnapshot(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject) (calendarPullReconciliationResult, error) {
 	target := activeRemoteCalendarTarget(account)
 	fencedUIDs, errorValue := service.listCalendarPushObservationFenceUIDs(ctx, account.ID, target.CalendarURL)
 	if errorValue != nil {
 		return calendarPullReconciliationResult{}, errorValue
 	}
-	return service.reconcileCalendarPullSnapshotWithFences(ctx, account, remoteObjects, protectedUIDs, fencedUIDs)
+	return service.reconcileCalendarPullSnapshotWithFences(ctx, account, remoteObjects, fencedUIDs)
 }
 
-func (service *Service) reconcileCalendarPullSnapshotWithFences(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}, fencedUIDs map[string]struct{}) (calendarPullReconciliationResult, error) {
+func (service *Service) reconcileCalendarPullSnapshotWithFences(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, fencedUIDs map[string]struct{}) (calendarPullReconciliationResult, error) {
 	deferredProjections := &calendarPullDeferredProjectionQueue{}
 	var result calendarPullReconciliationResult
 	var errorValue error
@@ -29,12 +29,12 @@ func (service *Service) reconcileCalendarPullSnapshotWithFences(ctx context.Cont
 		return calendarPullReconciliationResult{}, errorValue
 	}
 	service.runCalendarPullLocked(ctx, deferredProjections, func() {
-		result, errorValue = service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, remoteObjects, protectedUIDs, fencedUIDs, snapshotCompletedAt, deferredProjections)
+		result, errorValue = service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, remoteObjects, fencedUIDs, snapshotCompletedAt, deferredProjections)
 	})
 	return result, errorValue
 }
 
-func (service *Service) reconcileCalendarPullSnapshotWithFencesLocked(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, protectedUIDs map[string]struct{}, fencedUIDs map[string]struct{}, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, error) {
+func (service *Service) reconcileCalendarPullSnapshotWithFencesLocked(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, fencedUIDs map[string]struct{}, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, error) {
 	target := activeRemoteCalendarTarget(account)
 	activeEvents, errorValue := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
 	if errorValue != nil {
@@ -53,21 +53,23 @@ func (service *Service) reconcileCalendarPullSnapshotWithFencesLocked(ctx contex
 	if errorValue != nil {
 		return calendarPullReconciliationResult{}, errorValue
 	}
-	service.markCalendarPushUIDsObserved(result.RemoteUIDs)
-	allProtectedUIDs := mergeCalendarUIDSets(protectedUIDs, fencedUIDs)
-	if hasMissingCalendarPushObservationFence(fencedUIDs, result.RemoteUIDs) || hasProtectedMissingCalendarUID(activeEvents, target, result.RemoteUIDs, allProtectedUIDs) {
-		result.IsComplete = false
-	}
 	if !result.IsComplete {
 		return result, nil
 	}
+	protectedUIDs, errorValue := service.protectMissingCalendarPushObservationFences(ctx, account.ID, target.CalendarURL, fencedUIDs, result.RemoteUIDs, pendingLocalChanges, snapshotCompletedAt)
+	if errorValue != nil {
+		return calendarPullReconciliationResult{}, errorValue
+	}
 	if !target.NeedsInitialSyncCompletion {
-		if errorValue := service.softDeleteMissingRemoteEventsWithConflictStateLocked(ctx, account.ID, target, activeEvents, result.RemoteUIDs, allProtectedUIDs, pendingLocalChanges, snapshotCompletedAt, deferredProjections); errorValue != nil {
+		if errorValue := service.softDeleteMissingRemoteEventsWithConflictStateLocked(ctx, account.ID, target, activeEvents, result.RemoteUIDs, protectedUIDs, pendingLocalChanges, snapshotCompletedAt, deferredProjections); errorValue != nil {
 			return calendarPullReconciliationResult{}, errorValue
 		}
 	}
 	if errorValue := service.clearObservedCalendarPushObservationFences(ctx, account.ID, target.CalendarURL, fencedUIDs, result.RemoteUIDs); errorValue != nil {
 		return calendarPullReconciliationResult{}, errorValue
+	}
+	if len(protectedUIDs) > 0 {
+		result.IsComplete = false
 	}
 	return result, nil
 }
@@ -122,7 +124,7 @@ func decodeCalendarPullSnapshot(remoteObjects []calDAVCalendarObject, accountEma
 	for _, object := range remoteObjects {
 		event, errorValue := decodeRemoteCalendarObject(object, accountEmail)
 		if errorValue != nil {
-			log.Printf("calendar pull decode failed for %s: %v", object.Path, errorValue)
+			slog.Warn("calendar pull decode failed", "path", object.Path, "error", errorValue)
 			result.IsComplete = false
 			continue
 		}
@@ -130,19 +132,4 @@ func decodeCalendarPullSnapshot(remoteObjects []calDAVCalendarObject, accountEma
 		result.RemoteUIDs[event.UID] = struct{}{}
 	}
 	return decodedEvents, result
-}
-
-func hasProtectedMissingCalendarUID(activeEvents []calendarEvent, target remoteCalendarTarget, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}) bool {
-	for _, event := range activeEvents {
-		if event.RemoteSource != remoteCalendarProviderGoogle || !remoteCalendarEventBelongsToTarget(event, target) {
-			continue
-		}
-		if _, isRemote := remoteUIDs[event.UID]; isRemote {
-			continue
-		}
-		if _, isProtected := protectedUIDs[event.UID]; isProtected {
-			return true
-		}
-	}
-	return false
 }
