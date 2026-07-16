@@ -17,34 +17,35 @@ func readCalendarEventWindowSourceRevision(ctx context.Context, database *sql.DB
 	return revision, nil
 }
 
-func readCalendarEventWindowCacheEntry(ctx context.Context, database *sql.DB, cacheRange calendarEventWindowCacheRange, now time.Time) ([]calendarEvent, bool, error) {
+func readCalendarEventWindowCacheEntry(ctx context.Context, database *sql.DB, cacheRange calendarEventWindowCacheRange, now time.Time) ([]calendarEvent, int64, bool, error) {
+	var sourceRevision int64
 	var schemaVersion int
 	var payloadJSON []byte
 	var lastUsedAtISO string
 	errorValue := database.QueryRowContext(ctx, `
-		SELECT schema_version, payload_json, last_used_at
-		FROM calendar_event_window_cache_entries
-		WHERE cache_key = ?`, cacheRange.Key).Scan(&schemaVersion, &payloadJSON, &lastUsedAtISO)
+			SELECT source_revision, schema_version, payload_json, last_used_at
+			FROM calendar_event_window_cache_entries
+			WHERE cache_key = ?`, cacheRange.Key).Scan(&sourceRevision, &schemaVersion, &payloadJSON, &lastUsedAtISO)
 	if errors.Is(errorValue, sql.ErrNoRows) {
-		return nil, false, nil
+		return nil, 0, false, nil
 	}
 	if errorValue != nil {
-		return nil, false, fmt.Errorf("read calendar event window cache entry: %w", errorValue)
+		return nil, 0, false, fmt.Errorf("read calendar event window cache entry: %w", errorValue)
 	}
 	var payload calendarEventWindowCachePayload
 	lastUsedAt, lastUsedAtError := time.Parse(calendarEventWindowCacheTimestampLayout, lastUsedAtISO)
 	if schemaVersion != calendarEventWindowCacheSchemaVersion || json.Unmarshal(payloadJSON, &payload) != nil || payload.Version != calendarEventWindowCacheSchemaVersion || lastUsedAtError != nil {
 		if _, errorValue := database.ExecContext(ctx, "DELETE FROM calendar_event_window_cache_entries WHERE cache_key = ?", cacheRange.Key); errorValue != nil {
-			return nil, false, fmt.Errorf("delete invalid calendar event window cache entry: %w", errorValue)
+			return nil, 0, false, fmt.Errorf("delete invalid calendar event window cache entry: %w", errorValue)
 		}
-		return nil, false, nil
+		return nil, 0, false, nil
 	}
 	if now.Sub(lastUsedAt) >= calendarEventWindowCacheTouchInterval {
 		if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_window_cache_entries SET last_used_at = ? WHERE cache_key = ?", formatCalendarEventWindowCacheTimestamp(now), cacheRange.Key); errorValue != nil {
-			return nil, false, fmt.Errorf("touch calendar event window cache entry: %w", errorValue)
+			return nil, 0, false, fmt.Errorf("touch calendar event window cache entry: %w", errorValue)
 		}
 	}
-	return payload.Events, true, nil
+	return payload.Events, sourceRevision, true, nil
 }
 
 func writeCalendarEventWindowCacheEntryIfCurrent(ctx context.Context, database *sql.DB, cacheRange calendarEventWindowCacheRange, expectedRevision int64, events []calendarEvent, now time.Time) (calendarEventWindowCacheWriteResult, error) {

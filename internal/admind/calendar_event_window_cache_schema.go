@@ -10,19 +10,29 @@ import (
 )
 
 type calendarEventWindowCacheAvailability struct {
-	initialize sync.Once
-	enabled    atomic.Bool
+	initializationMutex sync.Mutex
+	enabled             atomic.Bool
 }
 
 func (service *Service) initializeCalendarEventWindowCache(ctx context.Context, database *sql.DB) {
 	availability := &service.calendarWindowCache
-	availability.initialize.Do(func() {
-		if errorValue := ensureCalendarEventWindowCacheSchema(ctx, database); errorValue != nil {
-			slog.Warn("calendar event window cache initialization failed", "error", errorValue.Error())
-			return
-		}
-		availability.enabled.Store(true)
-	})
+	if availability.enabled.Load() {
+		return
+	}
+	availability.initializationMutex.Lock()
+	defer availability.initializationMutex.Unlock()
+	if availability.enabled.Load() {
+		return
+	}
+	if errorValue := ensureCalendarEventWindowCacheSchema(ctx, database); errorValue != nil {
+		slog.Warn("calendar event window cache initialization failed", "error", errorValue.Error())
+		return
+	}
+	if errorValue := resetCalendarEventWindowCacheEntries(ctx, database); errorValue != nil {
+		slog.Warn("calendar event window cache initialization failed", "error", errorValue.Error())
+		return
+	}
+	availability.enabled.Store(true)
 }
 
 func (service *Service) isCalendarEventWindowCacheEnabled() bool {
@@ -59,6 +69,10 @@ func ensureCalendarEventWindowCacheSchema(ctx context.Context, database *sql.DB)
 			return fmt.Errorf("ensure calendar event window cache schema: %w", errorValue)
 		}
 	}
+	return nil
+}
+
+func resetCalendarEventWindowCacheEntries(ctx context.Context, database *sql.DB) error {
 	if _, errorValue := database.ExecContext(ctx, "DELETE FROM calendar_event_window_cache_entries"); errorValue != nil {
 		return fmt.Errorf("reset calendar event window cache entries: %w", errorValue)
 	}
