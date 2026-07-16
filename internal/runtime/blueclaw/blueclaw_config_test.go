@@ -299,6 +299,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if _, hasAllowlist := terminal["allowedExecutableNames"]; hasAllowlist {
 		t.Fatalf("expected no executable allowlist; POSIX permissions are the execution boundary, got %+v", terminal["allowedExecutableNames"])
 	}
+	if _, hasPathDenylist := terminal["deniedPathPrefixes"]; hasPathDenylist {
+		t.Fatalf("expected no path denylist; POSIX permissions are the path boundary, got %+v", terminal["deniedPathPrefixes"])
+	}
 	requesterWorkspace := terminal["requesterWorkspace"].(map[string]any)
 	if requesterWorkspace["taskTemporaryEnvironmentVariable"] != "BLUECLAW_TASK_TMP" {
 		t.Fatalf("expected requester task temporary environment contract, got %+v", requesterWorkspace)
