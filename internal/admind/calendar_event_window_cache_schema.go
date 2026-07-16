@@ -4,7 +4,30 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
+	"sync"
+	"sync/atomic"
 )
+
+type calendarEventWindowCacheAvailability struct {
+	initialize sync.Once
+	enabled    atomic.Bool
+}
+
+func (service *Service) initializeCalendarEventWindowCache(ctx context.Context, database *sql.DB) {
+	availability := &service.calendarWindowCache
+	availability.initialize.Do(func() {
+		if errorValue := ensureCalendarEventWindowCacheSchema(ctx, database); errorValue != nil {
+			slog.Warn("calendar event window cache initialization failed", "error", errorValue.Error())
+			return
+		}
+		availability.enabled.Store(true)
+	})
+}
+
+func (service *Service) isCalendarEventWindowCacheEnabled() bool {
+	return service.calendarWindowCache.enabled.Load()
+}
 
 func ensureCalendarEventWindowCacheSchema(ctx context.Context, database *sql.DB) error {
 	statements := []string{

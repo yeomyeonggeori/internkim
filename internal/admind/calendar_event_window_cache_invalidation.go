@@ -14,6 +14,13 @@ type calendarEventWindowMutationRange struct {
 	EndISO   string
 }
 
+func (service *Service) invalidateCalendarEventWindowCache(ctx context.Context, transaction *sql.Tx, events ...calendarEvent) error {
+	if !service.isCalendarEventWindowCacheEnabled() {
+		return nil
+	}
+	return invalidateCalendarEventWindowCache(ctx, transaction, events...)
+}
+
 func invalidateCalendarEventWindowCache(ctx context.Context, transaction *sql.Tx, events ...calendarEvent) error {
 	ranges := map[calendarEventWindowMutationRange]struct{}{}
 	for _, event := range events {

@@ -10,7 +10,12 @@ import (
 )
 
 func (service *Service) openCalendarDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema)
+	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	service.initializeCalendarEventWindowCache(ctx, database)
+	return database, nil
 }
 
 func ensureCalendarSchema(ctx context.Context, database *sql.DB) error {
@@ -113,10 +118,7 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarChannelOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureCalendarSyncSchema(ctx, database); errorValue != nil {
-		return errorValue
-	}
-	return ensureCalendarEventWindowCacheSchema(ctx, database)
+	return ensureCalendarSyncSchema(ctx, database)
 }
 
 func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) error {
