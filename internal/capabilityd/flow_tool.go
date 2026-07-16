@@ -24,13 +24,21 @@ type flowTaskAddInput struct {
 }
 
 type flowTaskListInput struct {
-	Query            string `json:"query"`
-	TargetPersonHint string `json:"targetPersonHint"`
-	WeekFrom         int    `json:"weekFrom"`
-	WeekTo           int    `json:"weekTo"`
-	Status           string `json:"status"`
-	Limit            int    `json:"limit"`
+	Query            string            `json:"query"`
+	TargetPersonHint string            `json:"targetPersonHint"`
+	Scope            flowTaskListScope `json:"scope"`
+	WeekFrom         int               `json:"weekFrom"`
+	WeekTo           int               `json:"weekTo"`
+	Status           string            `json:"status"`
+	Limit            int               `json:"limit"`
 }
+
+type flowTaskListScope string
+
+const (
+	flowTaskListScopeSelf flowTaskListScope = "self"
+	flowTaskListScopeAll  flowTaskListScope = "all"
+)
 
 type flowTaskUpdateInput struct {
 	TaskID           string  `json:"taskID"`
@@ -164,6 +172,9 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 			summary.Members = members
 		}
 	}
+	if input.TaskID == "" && input.TargetPersonHint == "" {
+		input.TargetPersonHint = request.Context.RequesterEmail
+	}
 	task, failure := resolveFlowTaskUpdateTarget(input, summary)
 	if failure != nil {
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
@@ -230,6 +241,9 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if input.TaskID == "" && input.TargetPersonHint == "" {
+		input.TargetPersonHint = request.Context.RequesterEmail
 	}
 	task, failure := resolveFlowTaskDeleteTarget(input, summary)
 	if failure != nil {
@@ -340,6 +354,12 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 	input.Query = strings.TrimSpace(input.Query)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
 	input.Status = strings.TrimSpace(input.Status)
+	if input.Scope == "" {
+		input.Scope = flowTaskListScopeSelf
+	}
+	if input.Scope != flowTaskListScopeSelf && input.Scope != flowTaskListScopeAll {
+		return flowTaskListInput{}, fmt.Errorf("scope must be self or all")
+	}
 	if input.Limit < 0 {
 		input.Limit = 0
 	}
@@ -643,7 +663,7 @@ type flowTaskFilter struct {
 }
 
 func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
-	if strings.TrimSpace(input.TargetPersonHint) == "" {
+	if input.Scope == flowTaskListScopeAll && strings.TrimSpace(input.TargetPersonHint) == "" {
 		return "", nil
 	}
 	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)

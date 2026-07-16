@@ -317,7 +317,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -439,7 +439,7 @@ func TestFlowTaskUpdateQueryOnlyDefaultsToComplete(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -516,7 +516,7 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary?week=26W24":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"weeklyTasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"weeklyTasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodDelete && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				deletedRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
 				return flowToolJSONResponse(`{"status":"deleted","task":{"id":"task-1"}}`), nil
@@ -569,7 +569,7 @@ func flowTaskListTwoOwnerStateService(t *testing.T) Service {
 	}
 }
 
-func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
+func TestFlowTaskListEmptyHintDefaultsToRequester(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.list",
@@ -580,8 +580,27 @@ func TestFlowTaskListEmptyHintListsEveryone(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	result := string(response.Result)
+	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || strings.Contains(result, "lee-task") {
+		t.Fatalf("expected requester tasks when no person is named, got %s", result)
+	}
+	if !strings.Contains(result, `"scope":"person"`) || !strings.Contains(result, `"ownerID":"rain"`) {
+		t.Fatalf("expected requester scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListAllScopeListsEveryone(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.list",
+		Input:    []byte(`{"scope":"all","weekFrom":-1000}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
 	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "rain-done") || !strings.Contains(result, "lee-task") {
-		t.Fatalf("expected everyone's tasks when no person is named, got %s", result)
+		t.Fatalf("expected all tasks for explicit all scope, got %s", result)
 	}
 	if !strings.Contains(result, `"scope":"everyone"`) || !strings.Contains(result, `"ownerID":""`) {
 		t.Fatalf("expected everyone scope metadata, got %s", result)
@@ -611,7 +630,7 @@ func TestFlowTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.list",
-		Input:    []byte(`{"status":"예약","weekFrom":-1000}`),
+		Input:    []byte(`{"scope":"all","status":"예약","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
