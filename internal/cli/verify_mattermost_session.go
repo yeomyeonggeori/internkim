@@ -395,7 +395,7 @@ func (session *mattermostScenarioSession) waitForStepReply(contextValue context.
 
 func mattermostScenarioHasSourceReference(events []mattermostScenarioTaskEvent, sourceReference string) bool {
 	for _, event := range events {
-		if event.Name != "agent.task_source" {
+		if event.Name != "agent.task_source" && event.Name != "agent.task_launched" {
 			continue
 		}
 		var body struct {
