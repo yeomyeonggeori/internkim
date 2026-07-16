@@ -197,6 +197,15 @@ func devFleetReprovisionEnvironment(environment []string, moduleCachePath string
 }
 
 func latestLocalFleetConfigurationPath(repositoryRootPath string) (string, error) {
+	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
+	fileInfo, errorValue := os.Stat(canonicalPath)
+	if errorValue == nil && fileInfo.Mode().IsRegular() {
+		return canonicalPath, nil
+	}
+	if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+		return "", errorValue
+	}
+
 	matches, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "*", "config.json"))
 	if errorValue != nil {
 		return "", errorValue
