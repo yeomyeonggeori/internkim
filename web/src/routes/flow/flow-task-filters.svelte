@@ -56,6 +56,7 @@
 	}: Props = $props();
 
 	let participantChoices = $derived(participantOptions.filter((option) => option.value !== 'all'));
+	let participantChoiceIDs = $derived(participantChoices.map((option) => option.value));
 	let activeFilterCount = $derived(
 		(searchText.trim() ? 1 : 0) +
 		(statusFilter !== 'all' ? 1 : 0) +
@@ -66,11 +67,15 @@
 	let filterButtonLabel = $derived(activeFilterCount > 0 ? text.filterCount.replace('{count}', String(activeFilterCount)) : text.filterButton);
 
 	function toggleParticipant(memberID: string): void {
-		if (participantFilterIDs.includes(memberID)) {
-			setParticipantFilterIDs(participantFilterIDs.filter((value) => value !== memberID));
+		if (participantFilterIDs.length === 0) {
+			setParticipantFilterIDs(participantChoiceIDs.filter((value) => value !== memberID));
 			return;
 		}
-		setParticipantFilterIDs([...participantFilterIDs, memberID]);
+		const nextParticipantFilterIDs = participantFilterIDs.includes(memberID)
+			? participantFilterIDs.filter((value) => value !== memberID)
+			: [...participantFilterIDs, memberID];
+		const hasSelectedEveryParticipant = participantChoiceIDs.every((value) => nextParticipantFilterIDs.includes(value));
+		setParticipantFilterIDs(hasSelectedEveryParticipant ? [] : nextParticipantFilterIDs);
 	}
 </script>
 
@@ -109,7 +114,7 @@
 							<input
 								type="checkbox"
 								class="size-4 accent-primary"
-								checked={participantFilterIDs.includes(option.value)}
+								checked={participantFilterIDs.length === 0 || participantFilterIDs.includes(option.value)}
 								onchange={() => toggleParticipant(option.value)}
 							/>
 							<PersonAvatar name={option.label} email={option.email ?? ''} seed={option.value} image={option.image ?? ''} class="size-6" />

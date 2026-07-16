@@ -219,15 +219,22 @@ func (service *Service) authorizeCalendarTokenRequest(request *http.Request) boo
 }
 
 func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	hasExplicitRange := strings.TrimSpace(query.Get("startISO")) != "" && strings.TrimSpace(query.Get("endISO")) != ""
 	startTime, endTime, errorValue := parseCalendarRange(request)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if startTime.IsZero() && endTime.IsZero() && request.URL.Query().Get("window") == "upcoming" {
+	if startTime.IsZero() && endTime.IsZero() && query.Get("window") == "upcoming" {
 		startTime, endTime = service.upcomingCalendarWindow(time.Now())
 	}
-	events, errorValue := service.readCalendarEvents(request.Context(), startTime, endTime)
+	var events []calendarEvent
+	if hasExplicitRange {
+		events, errorValue = service.readCalendarEventWindow(request.Context(), startTime, endTime)
+	} else {
+		events, errorValue = service.readCalendarEvents(request.Context(), startTime, endTime)
+	}
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return

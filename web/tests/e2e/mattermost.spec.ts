@@ -33,7 +33,7 @@ test('local Mattermost renders and accepts an admin session', async ({ page }) =
 	await expect(composer).toBeVisible();
 });
 
-test('InternKim boards plugin loads and renders its App Bar icon', async ({ page }) => {
+test('InternKim boards plugin loads and renders its channel header icon', async ({ page }) => {
 	test.skip(!adminEmail || !adminPassword, 'admin credentials are required');
 
 	await page.route('**/api/v4/properties/groups/access_control/**', (route) =>
@@ -60,8 +60,7 @@ test('InternKim boards plugin loads and renders its App Bar icon', async ({ page
 	await page.goto(mattermostPath(`/${teamName}/channels/town-square`), { waitUntil: 'domcontentloaded' });
 	await expect(page.locator('#post_textbox, textarea, [contenteditable="true"]').first()).toBeVisible();
 
-	const pluginAppBarIcon = page.locator('#app-bar-icon-com\\.internkim\\.ephemeral [role="button"]').first();
-	await expect(pluginAppBarIcon).toBeVisible();
+	await expect(page.getByTestId('internkim-boards-icon')).toBeVisible();
 	expect(pluginLoads.length).toBeGreaterThan(0);
 });
 

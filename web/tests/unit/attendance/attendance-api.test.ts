@@ -7,6 +7,34 @@ import {
 import { createMockFetch } from '../test-fetch';
 
 describe('fetchAttendanceSummary', () => {
+	test('requests a private response without using the browser cache', async () => {
+		const originalFetch = globalThis.fetch;
+
+		let requestOptions: RequestInit | undefined;
+		try {
+			globalThis.fetch = createMockFetch(async (_input, init) => {
+				requestOptions = init;
+				return Response.json({
+					month: '2026-05',
+					currentUserEmail: 'me@example.com',
+					isAdmin: false,
+					timeZone: 'Asia/Seoul',
+					events: [],
+					todayStatus: 'absent',
+					locations: [],
+					teamViewVisibleToAll: false,
+					teamViewBlocked: true
+				});
+			});
+
+			await fetchAttendanceSummary({ month: '2026-05' });
+
+			expect(requestOptions).toEqual({ credentials: 'include', cache: 'no-store' });
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test('omits empty summary query parameters', async () => {
 		const originalFetch = globalThis.fetch;
 
