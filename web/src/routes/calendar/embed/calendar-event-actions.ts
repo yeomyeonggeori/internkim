@@ -32,7 +32,10 @@ export type CalendarEventActionsContext = {
 	openMobileEventEditor: (event: DayFlowEvent) => void;
 	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
+	invalidatePendingEventLoad: () => void;
 	text: {
+		calendarDeleteVersionConflictError: string;
+		calendarEventVersionConflictError: string;
 		calendarTargetUnavailableError: string;
 		deleteError: string;
 		deleteUndoAction: string;
@@ -98,6 +101,7 @@ export function createCalendarEventActions(
 	});
 
 	function addDraftEvent(params: DraftEventParams): DayFlowEvent {
+		context.invalidatePendingEventLoad();
 		const event = draftEvents.createDraftEvent(params);
 		draftEvents.addCreatedEvent(event);
 		context.addCalendarEvent(event);

@@ -21,7 +21,7 @@ type CalendarPageAppOptionsContext = {
 	setVisibleDate: (date: Date) => void;
 	selectCalendarEvent: (eventID: string) => void;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 };
 
@@ -55,8 +55,8 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 				enableResize: true,
 				enableCreate: false,
 				enableAllDayCreate: false,
-				onEventDrop: context.saveUpdatedEvent,
-				onEventResize: context.saveUpdatedEvent
+				onEventDrop: (event, previousEvent) => context.saveUpdatedEvent(event, previousEvent),
+				onEventResize: (event, previousEvent) => context.saveUpdatedEvent(event, previousEvent)
 			})
 		],
 		callbacks: {
@@ -70,7 +70,7 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 			},
 			onEventClick: (event) => context.selectCalendarEvent(event.id),
 			onEventCreate: context.saveCreatedEvent,
-			onEventUpdate: context.saveUpdatedEvent,
+			onEventUpdate: (event) => context.saveUpdatedEvent(event),
 			onEventDelete: context.deleteEvent
 		}
 	};
