@@ -290,7 +290,8 @@ func collectMattermostScenarioCreatedResourceIDs(result mattermostScenarioResult
 }
 
 func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEvent) (string, string) {
-	if event.Name != "tool.capability.invoke.result" {
+	expectedToolName, isCreatedResourceEvent := mattermostScenarioCreatedResourceToolName(event.Name)
+	if !isCreatedResourceEvent {
 		return "", ""
 	}
 	var result struct {
@@ -301,6 +302,9 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 		} `json:"output"`
 	}
 	if json.Unmarshal([]byte(event.Body), &result) != nil {
+		return "", ""
+	}
+	if expectedToolName != "" && result.Tool != expectedToolName {
 		return "", ""
 	}
 	identifierKeys := []string{"id"}
@@ -319,6 +323,19 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 		return "", ""
 	}
 	return result.Tool, resourceID
+}
+
+func mattermostScenarioCreatedResourceToolName(eventName string) (string, bool) {
+	switch eventName {
+	case "tool.capability.invoke.result":
+		return "", true
+	case "tool.task.add.result":
+		return "task.add", true
+	case "tool.calendar.add.result":
+		return "calendar.add", true
+	default:
+		return "", false
+	}
 }
 
 func mattermostScenarioCreatedResourceID(document json.RawMessage, identifierKeys []string) string {
