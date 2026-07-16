@@ -7,6 +7,67 @@ import (
 	"time"
 )
 
+func TestInitialBackfillUsesActualLocalEditTime(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	localEvent := newLocalTestCalendarEvent("backfill-actual-edit-time", "Older Local")
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedLocalEvent, found, errorValue := service.readCalendarEventByID(ctx, localEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("local event found=%v error=%v", found, errorValue)
+	}
+	localChangedAt := parseCalendarConflictTime(storedLocalEvent.UpdatedAt)
+	remoteChangedAt := localChangedAt.Truncate(time.Second).Add(time.Second)
+	if _, errorValue := service.reserveCalendarConflictCandidateTime(ctx, remoteChangedAt.Add(time.Second)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := storedLocalEvent
+	remoteEvent.Title = "Newer Remote"
+	remoteObject := calDAVCalendarObject{
+		Path: "/calendars/company/" + localEvent.UID + ".ics",
+		ETag: `"remote-etag"`,
+		Data: encodeCalendarTestEventWithLastModified(t, remoteEvent, remoteChangedAt),
+	}
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                 "backfill-actual-edit-account",
+		Provider:           remoteCalendarProviderGoogle,
+		AccountEmail:       "backfill@example.com",
+		DefaultCalendarURL: "/calendars/default/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{
+		ctag:    `"company-ctag"`,
+		objects: []calDAVCalendarObject{remoteObject},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	storedEvent, found, errorValue := service.readCalendarEventByID(ctx, localEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event found=%v error=%v", found, errorValue)
+	}
+	if storedEvent.Title != remoteEvent.Title {
+		t.Fatalf("selection time overrode actual edit ordering: title=%q", storedEvent.Title)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, row := range rows {
+		if row.EventUID == localEvent.UID && strings.Contains(strings.Join(row.ChangedFields, ","), calendarFieldTitle) {
+			t.Fatalf("remote-winning title remained pending: %+v", row)
+		}
+	}
+}
+
 func TestSelectedCalendarSwitchPreservesLatestSameUIDEditForNewTarget(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()

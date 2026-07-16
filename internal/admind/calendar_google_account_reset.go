@@ -20,18 +20,13 @@ func (service *Service) resetGoogleOAuthAccountConnectionsExcept(ctx context.Con
 		if isKeptGoogleOAuthAccount(account, keptAccountID) {
 			continue
 		}
+		if errorValue := service.deleteRemoteCalendarAccount(ctx, account.ID); errorValue != nil {
+			return fmt.Errorf("delete google calendar account %s: %w", account.AccountEmail, errorValue)
+		}
 		if service.canDeleteCalendarTokenFile(account.TokenFilePath) {
 			if errorValue := deleteCalendarTokenFile(account.TokenFilePath); errorValue != nil {
 				return fmt.Errorf("delete google calendar token file for %s: %w", account.AccountEmail, errorValue)
 			}
-		}
-	}
-	for _, account := range accounts {
-		if isKeptGoogleOAuthAccount(account, keptAccountID) {
-			continue
-		}
-		if errorValue := service.deleteRemoteCalendarAccount(ctx, account.ID); errorValue != nil {
-			return fmt.Errorf("delete google calendar account %s: %w", account.AccountEmail, errorValue)
 		}
 	}
 	return nil

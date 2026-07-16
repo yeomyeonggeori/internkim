@@ -22,15 +22,6 @@ type calendarRemoteEventStateQueryRunner interface {
 	QueryRowContext(ctx context.Context, query string, arguments ...any) *sql.Row
 }
 
-func (service *Service) upsertCalendarRemoteEventState(ctx context.Context, state calendarRemoteEventState) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	return upsertCalendarRemoteEventStateWithRunner(ctx, database, state, time.Now().UTC().Format(time.RFC3339Nano))
-}
-
 func upsertCalendarRemoteEventStateWithRunner(ctx context.Context, queryRunner calendarSQLRunner, state calendarRemoteEventState, updatedAt string) error {
 	_, errorValue := queryRunner.ExecContext(ctx, `
 INSERT INTO calendar_remote_event_sync_state(account_id, calendar_url, event_uid, remote_modified_at, last_seen_at, missing_detected_at, updated_at)

@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-var errCalendarPushTargetChanged = errors.New("calendar push target changed")
+var (
+	errCalendarPushTargetChanged           = errors.New("calendar push target changed")
+	errCalendarCanonicalETagRecoveryFailed = errors.New("calendar canonical ETag recovery failed")
+)
 
 type calDAVPutResponseETagClient interface {
 	putCalendarObjectResponseETag(ctx context.Context, objectPath string, encoded []byte, ifMatch string, ifNoneMatch string) (string, error)
@@ -38,11 +41,11 @@ func (service *Service) guardedCalendarPut(ctx context.Context, client calDAVPus
 	}
 	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, objectPath)
 	if errorValue != nil {
-		return "", fmt.Errorf("recover canonical ETag after CalDAV PUT %s: %v", objectPath, errorValue)
+		return "", fmt.Errorf("%w after CalDAV PUT %s: %w", errCalendarCanonicalETagRecoveryFailed, objectPath, errorValue)
 	}
 	remoteETag := strings.TrimSpace(remoteObject.ETag)
 	if remoteETag == "" {
-		return "", fmt.Errorf("recover canonical ETag after CalDAV PUT %s: GET response ETag is empty", objectPath)
+		return "", fmt.Errorf("%w after CalDAV PUT %s: GET response ETag is empty", errCalendarCanonicalETagRecoveryFailed, objectPath)
 	}
 	return remoteETag, nil
 }

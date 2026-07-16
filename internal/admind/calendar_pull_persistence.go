@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (service *Service) writePulledCalendarEventLocked(ctx context.Context, event calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -22,6 +22,10 @@ func (service *Service) writePulledCalendarEventLocked(ctx context.Context, even
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if errorValue := persistPulledCalendarFieldClocks(ctx, transaction, accountID, targetCalendarURL, event, remoteWinningFields, updatedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
@@ -29,7 +33,7 @@ func (service *Service) writePulledCalendarEventLocked(ctx context.Context, even
 	return nil
 }
 
-func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, retainedFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, retainedFields []string, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -41,6 +45,10 @@ func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx contex
 	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := persistPulledCalendarFieldClocks(ctx, transaction, accountID, targetCalendarURL, event, remoteWinningFields, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -56,7 +64,7 @@ func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx contex
 	return nil
 }
 
-func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -71,6 +79,10 @@ func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx contex
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if errorValue := persistPulledCalendarFieldClocks(ctx, transaction, accountID, targetCalendarURL, event, remoteWinningFields, updatedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if errorValue := deleteCalendarOutboxForEventUIDWithRunner(ctx, transaction, accountID, targetCalendarURL, event.UID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -81,6 +93,25 @@ func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx contex
 	event.UpdatedAt = updatedAt
 	deferredProjections.add(event.ID)
 	return nil
+}
+
+func persistPulledCalendarFieldClocks(ctx context.Context, transaction *sql.Tx, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string, fallbackChangedAt string) error {
+	changedAt := parseCalendarConflictTime(event.RemoteModifiedAt)
+	if changedAt.IsZero() {
+		changedAt = parseCalendarConflictTime(fallbackChangedAt)
+	}
+	if changedAt.IsZero() || len(remoteWinningFields) == 0 {
+		return nil
+	}
+	existingAcknowledgements, errorValue := readCalendarTargetFieldAcknowledgements(ctx, transaction, accountID, targetCalendarURL, event.UID)
+	if errorValue != nil {
+		return errorValue
+	}
+	acknowledgements, errorValue := persistAdvancedCalendarEventFieldClocks(ctx, transaction, event.UID, remoteWinningFields, changedAt, existingAcknowledgements)
+	if errorValue != nil {
+		return errorValue
+	}
+	return persistCalendarTargetFieldAcknowledgements(ctx, transaction, accountID, targetCalendarURL, event.UID, acknowledgements)
 }
 
 func (service *Service) acceptMissingCalendarRemoteDeletionLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {

@@ -63,6 +63,10 @@ func (service *Service) reconcileCalendarLocalDeletionDuringPush(ctx context.Con
 		}
 		return errorValue
 	}
+	return service.reconcileCalendarLocalDeletionAgainstRemoteObject(ctx, account, client, row, remoteObject, observedAt)
+}
+
+func (service *Service) reconcileCalendarLocalDeletionAgainstRemoteObject(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, remoteObject calDAVCalendarObject, observedAt time.Time) error {
 	remoteEvent, errorValue := decodeRemoteCalendarObject(remoteObject, account.AccountEmail)
 	if errorValue != nil {
 		return errorValue
@@ -89,7 +93,8 @@ func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(c
 		return service.updatePendingCalendarDeleteRemoteState(ctx, account.ID, targetCalendarURL, localEvent.UID, remoteEvent.RemoteHref, remoteEvent.RemoteETag)
 	}
 	remoteEvent = restoreCalendarRemoteEventFromProjection(remoteEvent, projection.Event)
-	return service.writePulledCalendarEventAndDeleteOutboxLocked(ctx, account.ID, targetCalendarURL, remoteEvent, deferredProjections)
+	remoteWinningFields := excludeCalendarFields(calendarAllUserEditableFields(), []string{calendarFieldParticipants})
+	return service.writePulledCalendarEventAndDeleteOutboxLocked(ctx, account.ID, targetCalendarURL, remoteEvent, remoteWinningFields, deferredProjections)
 }
 
 func restoreCalendarRemoteEventFromProjection(remoteEvent calendarEvent, projectionEvent calendarEvent) calendarEvent {

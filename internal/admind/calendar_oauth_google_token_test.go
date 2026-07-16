@@ -3,11 +3,52 @@ package admind
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/oauth2"
 )
+
+func TestResetGoogleOAuthAccountPreservesTokenWhenAccountDeleteFails(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, &oauth2.Token{
+		AccessToken:  "reset-access-token",
+		RefreshToken: "reset-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().UTC().Add(time.Hour),
+	}, "reset-failure@example.com")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TRIGGER fail_google_oauth_account_reset
+BEFORE DELETE ON calendar_remote_accounts
+BEGIN
+	SELECT RAISE(ABORT, 'forced google oauth account reset failure');
+END`)
+	database.Close()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue = service.resetGoogleOAuthAccountConnection(ctx)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "forced google oauth account reset failure") {
+		t.Fatalf("reset error=%v", errorValue)
+	}
+	if _, errorValue := os.Stat(account.TokenFilePath); errorValue != nil {
+		t.Fatalf("token file must remain while account exists: %v", errorValue)
+	}
+	storedAccount, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found || storedAccount.ID != account.ID {
+		t.Fatalf("account found=%v id=%q error=%v", found, storedAccount.ID, errorValue)
+	}
+}
 
 func TestSaveGoogleOAuthTokenAndAccountResetsDiscoveryForDifferentEmail(t *testing.T) {
 	service := newCalendarTestService(t)
