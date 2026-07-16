@@ -10,6 +10,7 @@ export class CalendarDraftEventState {
 	private readonly draftEventIDs = new Set<string>();
 	private readonly draftEventsByID = new Map<string, DayFlowEvent>();
 	private readonly draftEventOriginalTitles = new Map<string, string>();
+	private readonly draftEventRevisions = new Map<string, number>();
 	private readonly eventsDeletedDuringCreate = new Set<string>();
 
 	constructor(
@@ -21,6 +22,7 @@ export class CalendarDraftEventState {
 		this.draftEventIDs.add(event.id);
 		this.draftEventsByID.set(event.id, event);
 		this.draftEventOriginalTitles.set(event.id, (event.title ?? '').trim());
+		this.draftEventRevisions.set(event.id, 0);
 	}
 
 	isDraftEvent(eventID: string): boolean {
@@ -31,11 +33,21 @@ export class CalendarDraftEventState {
 		this.draftEventIDs.delete(eventID);
 		this.draftEventsByID.delete(eventID);
 		this.draftEventOriginalTitles.delete(eventID);
+		this.draftEventRevisions.delete(eventID);
 	}
 
 	retainDraftEvent(event: DayFlowEvent): void {
 		if (!this.isDraftEvent(event.id)) return;
 		this.draftEventsByID.set(event.id, event);
+		this.draftEventRevisions.set(event.id, (this.draftEventRevisions.get(event.id) ?? 0) + 1);
+	}
+
+	draftEvent(eventID: string): DayFlowEvent | undefined {
+		return this.draftEventsByID.get(eventID);
+	}
+
+	draftEventRevision(eventID: string): number {
+		return this.draftEventRevisions.get(eventID) ?? 0;
 	}
 
 	createdEvents(): DayFlowEvent[] {
@@ -59,6 +71,11 @@ export class CalendarDraftEventState {
 	}
 
 	async trackCreatedEvent(event: DayFlowEvent, createEventOnServer: (event: DayFlowEvent) => Promise<void>): Promise<void> {
+		const existingCommit = this.pendingCreateEvents.get(event.id);
+		if (existingCommit) {
+			await existingCommit;
+			return;
+		}
 		const commitPromise = createEventOnServer(event);
 		this.pendingCreateEvents.set(event.id, commitPromise);
 		try {

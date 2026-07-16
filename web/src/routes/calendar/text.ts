@@ -73,6 +73,8 @@ export type CalendarLocaleText = {
 	error: string;
 	saveError: string;
 	deleteError: string;
+	calendarEventVersionConflictError: string;
+	calendarDeleteVersionConflictError: string;
 	calendarTargetUnavailableError: string;
 	deleteUndoMessage: string;
 	deleteUndoAction: string;
@@ -254,6 +256,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: '일정을 불러오지 못했습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
+		calendarEventVersionConflictError:
+			'다른 곳에서 이 일정이 변경되었습니다. 서버의 최신 내용을 다시 불러왔습니다.',
+		calendarDeleteVersionConflictError:
+			'다른 곳에서 이 일정이 변경되어 삭제하지 못했습니다. 서버의 최신 내용을 다시 불러왔습니다.',
 		calendarTargetUnavailableError:
 			'Google 캘린더의 저장 위치를 사용할 수 없습니다. 계정을 다시 연결하거나 쓸 수 있는 캘린더를 선택하세요.',
 		deleteUndoMessage: '일정을 삭제했습니다.',
@@ -401,6 +407,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: 'Could not load the calendar.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
+		calendarEventVersionConflictError:
+			'This event changed elsewhere. The latest server version has been reloaded.',
+		calendarDeleteVersionConflictError:
+			'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.',
 		calendarTargetUnavailableError:
 			'The Google Calendar destination is unavailable. Reconnect the account or select a writable calendar.',
 		deleteUndoMessage: 'Event deleted.',

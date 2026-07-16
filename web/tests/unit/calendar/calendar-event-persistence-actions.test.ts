@@ -1,90 +1,28 @@
-import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
-import { expect, mock, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 
-import { CalendarDraftEventState } from '../../../src/routes/calendar/embed/calendar-draft-events';
-import type { CalendarDraftEventDOMActions } from '../../../src/routes/calendar/embed/calendar-draft-event-dom';
-import type { CalendarEventActionsContext } from '../../../src/routes/calendar/embed/calendar-event-actions';
+import { CalendarPersistenceError } from '../../../src/routes/calendar/embed/calendar-event-persistence';
+
 import {
-	CalendarPersistenceError,
+	calendarServerEvent,
+	calendarTestEvent,
+	calendarVersionedTestEvent,
+	createPersistenceScenario,
+	targetUnavailableError,
+	targetUnavailableMessage,
+	toastErrorMessages,
 	type CalendarEvent
-} from '../../../src/routes/calendar/embed/calendar-event-persistence';
-import type { CalendarPersistedEventActions } from '../../../src/routes/calendar/embed/calendar-persisted-event-actions';
-import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
+} from './calendar-event-persistence-scenario';
 
-const toastErrorMessages: string[] = [];
+test('invalidates pending loads before update delete and draft persistence callbacks', async () => {
+	const persistedEvent = calendarTestEvent('local-mutation-event', 'Updated title');
+	const draftEvent = calendarTestEvent('local-draft-event', '');
+	const scenario = createPersistenceScenario([persistedEvent]);
 
-mock.module('svelte-sonner', () => ({
-	toast: Object.assign(() => {}, {
-		dismiss: () => {},
-		error: (message: string) => toastErrorMessages.push(message)
-	})
-}));
+	await scenario.actions.saveUpdatedEvent(persistedEvent);
+	await scenario.actions.deleteEvent(persistedEvent.id);
+	await scenario.actions.saveCreatedEvent(draftEvent);
 
-const { createCalendarEventPersistenceActions } = await import(
-	'../../../src/routes/calendar/embed/calendar-event-persistence-actions'
-);
-
-const targetUnavailableMessage = 'Reconnect the account or select a writable calendar.';
-
-test('keeps the latest draft after create reports target unavailable', async () => {
-	const originalDraft = calendarTestEvent('draft-event', '');
-	const titledDraft = calendarTestEvent('draft-event', 'Draft title');
-	const scenario = createPersistenceScenario([titledDraft]);
-	scenario.draftEvents.addCreatedEvent(originalDraft);
-
-	await scenario.actions.saveUpdatedEvent(titledDraft);
-
-	expect(scenario.draftEvents.isDraftEvent(titledDraft.id)).toBe(true);
-	expect(scenario.draftEvents.createdEvents().map((event) => event.title)).toEqual(['Draft title']);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
-});
-
-test('deletes an event created on the server after the pending draft was deleted', async () => {
-	const originalDraft = calendarTestEvent('pending-delete-event', '');
-	const titledDraft = calendarTestEvent('pending-delete-event', 'Draft title');
-	const deletedEventIDs: string[] = [];
-	let resolveWrite: (event: CalendarEvent) => void = () => {};
-	const pendingWrite = new Promise<CalendarEvent>((resolve) => {
-		resolveWrite = resolve;
-	});
-	const scenario = createPersistenceScenario([titledDraft], () => [], {
-		writeEvent: async () => pendingWrite,
-		deleteEvent: async (eventID) => {
-			deletedEventIDs.push(eventID);
-		}
-	});
-	scenario.draftEvents.addCreatedEvent(originalDraft);
-
-	const savePromise = scenario.actions.saveUpdatedEvent(titledDraft);
-	await scenario.actions.deleteEvent(titledDraft.id);
-	resolveWrite(calendarServerEvent(titledDraft.id, titledDraft.title));
-	await savePromise;
-
-	expect(scenario.events()).toEqual([]);
-	expect(scenario.draftEvents.isDraftEvent(titledDraft.id)).toBe(false);
-	expect(deletedEventIDs).toEqual([titledDraft.id]);
-});
-
-test('forgets a pending draft deleted before its failed create request completes', async () => {
-	const originalDraft = calendarTestEvent('pending-failure-event', '');
-	const titledDraft = calendarTestEvent('pending-failure-event', 'Draft title');
-	let rejectWrite: (error: Error) => void = () => {};
-	const pendingWrite = new Promise<CalendarEvent>((_, reject) => {
-		rejectWrite = reject;
-	});
-	const scenario = createPersistenceScenario([titledDraft], () => [], {
-		writeEvent: async () => pendingWrite
-	});
-	scenario.draftEvents.addCreatedEvent(originalDraft);
-
-	const savePromise = scenario.actions.saveUpdatedEvent(titledDraft);
-	await scenario.actions.deleteEvent(titledDraft.id);
-	rejectWrite(targetUnavailableError());
-	await savePromise;
-
-	expect(scenario.events()).toEqual([]);
-	expect(scenario.draftEvents.isDraftEvent(titledDraft.id)).toBe(false);
-	expect(scenario.notifications).toEqual([]);
+	expect(scenario.pendingLoadInvalidationCount()).toBe(3);
 });
 
 test('restores the previous event after an optimistic update fails', async () => {
@@ -97,6 +35,163 @@ test('restores the previous event after an optimistic update fails', async () =>
 	expect(scenario.events().map((event) => event.title)).toEqual(['Previous title']);
 	expect(scenario.refreshCount()).toBe(0);
 	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+});
+
+test('does not let a stale update failure overwrite a newer update', async () => {
+	const previousEvent = calendarTestEvent('overlapping-update', 'Previous title');
+	const firstUpdate = calendarTestEvent('overlapping-update', 'First update');
+	const latestUpdate = calendarTestEvent('overlapping-update', 'Latest update');
+	const writes: string[] = [];
+	let rejectFirstWrite: (error: Error) => void = () => {};
+	let reportFirstWriteStarted: () => void = () => {};
+	const firstWriteStarted = new Promise<void>((resolve) => {
+		reportFirstWriteStarted = resolve;
+	});
+	const firstWrite = new Promise<CalendarEvent>((_, reject) => {
+		rejectFirstWrite = reject;
+	});
+	const scenario = createPersistenceScenario([latestUpdate], () => [previousEvent], {
+		writeEvent: async (_path, _method, event) => {
+			writes.push(event.title ?? '');
+			if (writes.length === 1) {
+				reportFirstWriteStarted();
+				return firstWrite;
+			}
+			return calendarServerEvent(event.id, event.title ?? '');
+		}
+	});
+
+	const firstSave = scenario.actions.saveUpdatedEvent(firstUpdate, previousEvent);
+	await firstWriteStarted;
+	const latestSave = scenario.actions.saveUpdatedEvent(latestUpdate, firstUpdate);
+	rejectFirstWrite(targetUnavailableError());
+	await Promise.all([firstSave, latestSave]);
+
+	expect(writes).toEqual(['First update', 'Latest update']);
+	expect(scenario.events().map((event) => event.title)).toEqual(['Latest update']);
+	expect(scenario.notifications).toEqual([]);
+});
+
+test('uses the persisted version from a completed PUT for the next queued PUT', async () => {
+	const initialUpdatedAt = '2026-07-17T01:00:00Z';
+	const firstSavedUpdatedAt = '2026-07-17T02:00:00Z';
+	const latestSavedUpdatedAt = '2026-07-17T03:00:00Z';
+	const previousEvent = calendarVersionedTestEvent('overlapping-update-version', 'Previous title', initialUpdatedAt);
+	const firstUpdate = calendarVersionedTestEvent('overlapping-update-version', 'First update', initialUpdatedAt);
+	const latestUpdate = calendarVersionedTestEvent('overlapping-update-version', 'Latest update', initialUpdatedAt);
+	const expectedUpdatedAtValues: Array<string | undefined> = [];
+	let resolveFirstWrite: (event: CalendarEvent) => void = () => {};
+	let reportFirstWriteStarted: () => void = () => {};
+	const firstWriteStarted = new Promise<void>((resolve) => {
+		reportFirstWriteStarted = resolve;
+	});
+	const firstWrite = new Promise<CalendarEvent>((resolve) => {
+		resolveFirstWrite = resolve;
+	});
+	const scenario = createPersistenceScenario([latestUpdate], () => [previousEvent], {
+		writeEvent: async (_path, _method, event, expectedUpdatedAt) => {
+			expectedUpdatedAtValues.push(expectedUpdatedAt);
+			if (expectedUpdatedAtValues.length === 1) {
+				reportFirstWriteStarted();
+				return firstWrite;
+			}
+			return {
+				...calendarServerEvent(event.id, event.title ?? ''),
+				updatedAt: latestSavedUpdatedAt
+			};
+		}
+	});
+
+	const firstSave = scenario.actions.saveUpdatedEvent(firstUpdate, previousEvent);
+	await firstWriteStarted;
+	const latestSave = scenario.actions.saveUpdatedEvent(latestUpdate, firstUpdate);
+	resolveFirstWrite({
+		...calendarServerEvent(firstUpdate.id, firstUpdate.title),
+		updatedAt: firstSavedUpdatedAt
+	});
+	await Promise.all([firstSave, latestSave]);
+
+	expect(expectedUpdatedAtValues).toEqual([initialUpdatedAt, firstSavedUpdatedAt]);
+});
+
+test('refreshes from the server when metadata application fails after a successful update', async () => {
+	const previousEvent = calendarTestEvent('metadata-failure', 'Previous title');
+	const updatedEvent = calendarTestEvent('metadata-failure', 'Updated title');
+	const serverEvent = calendarTestEvent('metadata-failure', 'Server title');
+	const scenario = createPersistenceScenario([updatedEvent], () => [serverEvent], {
+		writeEvent: async (_path, _method, event) => calendarServerEvent(event.id, event.title ?? ''),
+		applyServerMetadata: async () => {
+			throw new Error('event disappeared during metadata application');
+		}
+	});
+
+	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
+
+	expect(scenario.events().map((event) => event.title)).toEqual(['Server title']);
+	expect(scenario.refreshCount()).toBe(1);
+	expect(scenario.notifications).toEqual(['Could not save the event.']);
+});
+
+test('does not refresh a deleted event after stale metadata application fails', async () => {
+	const previousEvent = calendarTestEvent('stale-metadata-delete', 'Previous title');
+	const updatedEvent = calendarTestEvent('stale-metadata-delete', 'Updated title');
+	let rejectMetadata: (error: Error) => void = () => {};
+	let reportMetadataStarted: () => void = () => {};
+	const metadataStarted = new Promise<void>((resolve) => {
+		reportMetadataStarted = resolve;
+	});
+	const pendingMetadata = new Promise<void>((_, reject) => {
+		rejectMetadata = reject;
+	});
+	const scenario = createPersistenceScenario([updatedEvent], () => [previousEvent], {
+		writeEvent: async (_path, _method, event) => calendarServerEvent(event.id, event.title ?? ''),
+		applyServerMetadata: async () => {
+			reportMetadataStarted();
+			await pendingMetadata;
+		},
+		deleteEvent: async () => {}
+	});
+
+	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
+	await metadataStarted;
+	await scenario.actions.deleteEvent(updatedEvent.id);
+	rejectMetadata(new Error('stale metadata failure'));
+	await save;
+	await scenario.actions.flushPendingDelete();
+
+	expect(scenario.events()).toEqual([]);
+	expect(scenario.refreshCount()).toBe(0);
+	expect(scenario.notifications).toEqual([]);
+});
+
+test('does not restore an event deleted while its update is pending', async () => {
+	const previousEvent = calendarTestEvent('pending-update-delete', 'Previous title');
+	const updatedEvent = calendarTestEvent('pending-update-delete', 'Updated title');
+	let rejectWrite: (error: Error) => void = () => {};
+	let reportWriteStarted: () => void = () => {};
+	const writeStarted = new Promise<void>((resolve) => {
+		reportWriteStarted = resolve;
+	});
+	const pendingWrite = new Promise<CalendarEvent>((_, reject) => {
+		rejectWrite = reject;
+	});
+	const scenario = createPersistenceScenario([updatedEvent], () => [previousEvent], {
+		writeEvent: async () => {
+			reportWriteStarted();
+			return pendingWrite;
+		},
+		deleteEvent: async () => {}
+	});
+
+	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
+	await writeStarted;
+	await scenario.actions.deleteEvent(updatedEvent.id);
+	rejectWrite(targetUnavailableError());
+	await save;
+	await scenario.actions.flushPendingDelete();
+
+	expect(scenario.events()).toEqual([]);
+	expect(scenario.notifications).toEqual([]);
 });
 
 test('uses toast error as the default persistence failure notification', async () => {
@@ -122,141 +217,49 @@ test('refreshes the persisted event when an update callback has no previous snap
 	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
 });
 
-test('restores an optimistically deleted event after delete reports target unavailable', async () => {
-	const persistedEvent = calendarTestEvent('deleted-event', 'Persisted title');
-	const scenario = createPersistenceScenario([persistedEvent]);
+test('shows a localized version conflict and refreshes the server event', async () => {
+	const previousEvent = calendarTestEvent('version-conflict-event', 'Previous title');
+	const updatedEvent = calendarTestEvent('version-conflict-event', 'Optimistic title');
+	const serverEvent = calendarTestEvent('version-conflict-event', 'Server title');
+	const scenario = createPersistenceScenario([updatedEvent], () => [serverEvent], {
+		writeEvent: async () => {
+			throw new CalendarPersistenceError('calendar_event_version_conflict', 'Could not save the event.');
+		}
+	});
 
-	await scenario.actions.deleteEvent(persistedEvent.id);
-	expect(scenario.events()).toEqual([]);
+	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
 
-	await scenario.actions.flushPendingDelete();
-
-	expect(scenario.events().map((event) => event.title)).toEqual(['Persisted title']);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.events().map((event) => event.title)).toEqual(['Server title']);
+	expect(scenario.notifications).toEqual([
+		'This event changed elsewhere. The latest server version has been reloaded.'
+	]);
+	expect(scenario.refreshCount()).toBe(1);
 });
 
-function createPersistenceScenario(
-	initialEvents: DayFlowEvent[],
-	refreshedEvents: () => DayFlowEvent[] = () => initialEvents,
-	persistedOverrides: Partial<CalendarPersistedEventActions> = {},
-	useDefaultNotifier = false
-) {
-	let calendarEvents = [...initialEvents];
-	let calendarRefreshCount = 0;
-	const notifications: string[] = [];
-	const draftEvents = new CalendarDraftEventState(() => 'New Event', () => 'New Event');
-	const context: CalendarEventActionsContext = {
-		isBrowser: () => false,
-		getCurrentDate: () => new Date('2026-07-16T00:00:00Z'),
-		getStageElement: () => null,
-		getSelectedAuditEventID: () => null,
-		setSelectedAuditEventID: () => {},
-		getCalendarEvents: () => calendarEvents,
-		addCalendarEvent: (event) => {
-			calendarEvents = [...calendarEvents, event];
-		},
-		restoreCalendarEvent: (event) => {
-			calendarEvents = [...calendarEvents.filter((candidate) => candidate.id !== event.id), event];
-		},
-		removeCalendarEvent: (eventID) => {
-			calendarEvents = calendarEvents.filter((event) => event.id !== eventID);
-		},
-		updateCalendarEvent: async () => {},
-		setEventCount: () => {},
-		setVisibleEvents: (events) => {
-			calendarEvents = [...events];
-		},
-		setIsSaving: () => {},
-		setStatusMessage: () => {},
-		setErrorMessage: () => {},
-		openEventDetails: () => {},
-		openMobileEventEditor: () => {},
-		notifyEventsChanged: () => {},
-		refreshCalendar: async () => {
-			calendarRefreshCount += 1;
-			calendarEvents = [...refreshedEvents()];
-		},
-		text: {
-			calendarTargetUnavailableError: targetUnavailableMessage,
-			deleteError: 'Could not delete the event.',
-			deleteUndoAction: 'Undo',
-			deleteUndoMessage: 'Event deleted.',
-			draftTitlePlaceholder: 'New Event',
-			saveError: 'Could not save the event.',
-			shared: 'Shared'
-		}
-	};
-	const persistedEvents: CalendarPersistedEventActions = {
-		writeEvent: async () => {
-			throw targetUnavailableError();
-		},
-		deleteEvent: async () => {
-			throw targetUnavailableError();
-		},
-		deleteEventOnPageHide: () => {},
-		applyServerMetadata: async () => {},
-		...persistedOverrides
-	};
-	const draftEventDOM: CalendarDraftEventDOMActions = {
-		openEventDetailsAfterRender: () => {},
-		scheduleDraftTitleInputPlaceholderUpdates: () => {},
-		scheduleDraftEventVisibilitySync: () => {}
-	};
-	const actions = createCalendarEventPersistenceActions(
-		{
-			context,
-			draftEvents,
-			draftEventDOM,
-			programmaticUpdates: new CalendarProgrammaticUpdateState(),
-			refreshEventCountAfterRender: () => {},
-			refreshLocalEventSnapshot: () => {},
-			resetDraftEventTitle: async () => {}
+test('releases the saving state when version conflict refresh fails', async () => {
+	const previousEvent = calendarTestEvent('version-conflict-refresh-failure', 'Previous title');
+	const updatedEvent = calendarTestEvent('version-conflict-refresh-failure', 'Optimistic title');
+	const refreshError = new Error('calendar refresh failed');
+	const scenario = createPersistenceScenario(
+		[updatedEvent],
+		() => {
+			throw refreshError;
 		},
 		{
-			createPersistedEventActions: () => persistedEvents,
-			dismissDeleteUndoToast: () => {},
-			showDeleteUndoToast: () => {},
-			...(useDefaultNotifier ? {} : { notifyError: (message: string) => notifications.push(message) })
+			writeEvent: async () => {
+				throw new CalendarPersistenceError('calendar_event_version_conflict', 'Could not save the event.');
+			}
 		}
 	);
-	return {
-		actions,
-		draftEvents,
-		events: () => calendarEvents,
-		notifications,
-		refreshCount: () => calendarRefreshCount
-	};
-}
+	let rejection: unknown;
 
-function calendarTestEvent(eventID: string, title: string): DayFlowEvent {
-	return createEvent({
-		id: eventID,
-		title,
-		start: new Date('2026-07-16T01:00:00Z'),
-		end: new Date('2026-07-16T02:00:00Z'),
-		allDay: false,
-		calendarId: 'internkim'
-	});
-}
+	try {
+		await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
+	} catch (error: unknown) {
+		rejection = error;
+	}
 
-function targetUnavailableError(): CalendarPersistenceError {
-	return new CalendarPersistenceError('calendar_target_unavailable', 'Could not persist the event.');
-}
-
-function calendarServerEvent(eventID: string, title: string): CalendarEvent {
-	return {
-		id: eventID,
-		uid: `${eventID}@internkim`,
-		title,
-		description: '',
-		location: '',
-		startISO: '2026-07-16T01:00:00Z',
-		endISO: '2026-07-16T02:00:00Z',
-		timeZone: 'UTC',
-		isAllDay: false,
-		color: '#2563eb',
-		createdByEmail: 'admin@example.com',
-		createdByName: 'Admin',
-		updatedAt: '2026-07-16T00:00:00Z'
-	};
-}
+	expect(rejection).toBe(refreshError);
+	expect(scenario.refreshCount()).toBe(1);
+	expect(scenario.savingStates).toEqual([true, false]);
+});
