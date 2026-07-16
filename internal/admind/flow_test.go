@@ -19,21 +19,23 @@ func TestFlowStaffActorWithoutDeviceAuthIsolatesToTenantAdmin(t *testing.T) {
 	}
 }
 
-func TestFlowTasksWithMatchingDatesUsesStartAndEndDateOnly(t *testing.T) {
+func TestFlowTasksWithMatchingOwnerAndDates(t *testing.T) {
 	tasks := []flowTask{
-		{ID: "same-date", StartDate: "2026-05-07", EndDate: "2026-05-07", Content: "10분 회의"},
-		{ID: "different-start", StartDate: "2026-05-08", EndDate: "2026-05-07", Content: "10분 회의"},
-		{ID: "different-end", StartDate: "2026-05-07", EndDate: "2026-05-08", Content: "10분 회의"},
+		{ID: "same-owner-and-date", OwnerID: "owner-1", StartDate: "2026-05-07", EndDate: "2026-05-07", Content: "10분 회의"},
+		{ID: "different-owner", OwnerID: "owner-2", StartDate: "2026-05-07", EndDate: "2026-05-07", Content: "10분 회의"},
+		{ID: "different-start", OwnerID: "owner-1", StartDate: "2026-05-08", EndDate: "2026-05-07", Content: "10분 회의"},
+		{ID: "different-end", OwnerID: "owner-1", StartDate: "2026-05-07", EndDate: "2026-05-08", Content: "10분 회의"},
 	}
 
-	matches := flowTasksWithMatchingDates(tasks, flowTask{
+	matches := flowTasksWithMatchingOwnerAndDates(tasks, flowTask{
 		ID:        "candidate",
+		OwnerID:   "owner-1",
 		StartDate: "2026-05-07",
 		EndDate:   "2026-05-07",
-		Content:   "완전히 다른 표현이어도 날짜로만 후보를 고른다",
+		Content:   "완전히 다른 표현이어도 owner와 날짜로 후보를 고른다",
 	})
 
-	if len(matches) != 1 || matches[0].ID != "same-date" {
+	if len(matches) != 1 || matches[0].ID != "same-owner-and-date" {
 		t.Fatalf("matches = %+v", matches)
 	}
 }
