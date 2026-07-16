@@ -167,7 +167,7 @@ func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.list")
 
-	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "weekFrom", "weekTo", "status", "limit")
+	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
