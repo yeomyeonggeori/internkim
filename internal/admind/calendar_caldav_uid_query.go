@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -64,14 +65,28 @@ func calDAVCalendarObjectMatchesUID(object calDAVCalendarObject, eventUID string
 	if len(events) == 0 {
 		return false, fmt.Errorf("decode CalDAV calendar object %s: VEVENT is required", object.Path)
 	}
-	for _, event := range events {
+	objectUID := ""
+	for index, event := range events {
 		uid, errorValue := event.Props.Text(ical.PropUID)
 		if errorValue != nil {
 			return false, fmt.Errorf("decode CalDAV calendar object %s VEVENT UID: %w", object.Path, errorValue)
 		}
-		if uid != eventUID {
-			return false, nil
+		if index == 0 {
+			objectUID = uid
+			continue
+		}
+		if uid != objectUID {
+			return false, fmt.Errorf("decode CalDAV calendar object %s: mixed VEVENT UIDs %q and %q", object.Path, objectUID, uid)
 		}
 	}
-	return true, nil
+	return objectUID == eventUID, nil
+}
+
+func strongCalDAVCalendarObjectETag(object calDAVCalendarObject) (string, error) {
+	etag := strings.TrimSpace(object.ETag)
+	isWeak := len(etag) >= 2 && strings.EqualFold(etag[:2], "W/")
+	if etag == "" || etag == caldavWildcardETag || isWeak {
+		return "", fmt.Errorf("CalDAV calendar object %s requires a strong ETag", object.Path)
+	}
+	return etag, nil
 }
