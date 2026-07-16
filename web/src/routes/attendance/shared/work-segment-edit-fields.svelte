@@ -13,8 +13,8 @@
 		startMaximumTime?: string;
 		endMaximumTime?: string;
 		text: AttendanceText;
-		onStartTimeChange: (value: string) => void;
-		onEndTimeChange: (value: string) => void;
+		onStartTimeChange: (value: string) => string;
+		onEndTimeChange: (value: string) => string;
 		onLocationChange: (value: string) => void;
 	};
 
@@ -32,8 +32,9 @@
 		onLocationChange
 	}: Props = $props();
 
-	function inputValue(event: Event): string {
-		return event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : '';
+	function updateTimeInput(event: Event, onTimeChange: (value: string) => string): void {
+		if (!(event.currentTarget instanceof HTMLInputElement)) return;
+		event.currentTarget.value = onTimeChange(event.currentTarget.value);
 	}
 
 	function locationName(): string {
@@ -50,7 +51,7 @@
 				value={startTime}
 				max={startMaximumTime}
 				disabled={isSaving}
-				oninput={(event) => onStartTimeChange(inputValue(event))}
+				oninput={(event) => updateTimeInput(event, onStartTimeChange)}
 				class="w-full"
 			/>
 		</label>
@@ -62,7 +63,7 @@
 					value={endTime}
 					max={endMaximumTime}
 					disabled={isSaving}
-					oninput={(event) => onEndTimeChange(inputValue(event))}
+					oninput={(event) => updateTimeInput(event, onEndTimeChange)}
 					class="w-full"
 				/>
 			</label>

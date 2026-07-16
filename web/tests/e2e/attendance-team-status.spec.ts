@@ -153,11 +153,14 @@ test.describe('attendance team status', () => {
 	});
 
 	test('opens status day details from a team status cell', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		const summaryTime = new Date(`${todayDate}T15:45:00+09:00`);
+		await page.clock.setFixedTime(summaryTime);
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
-			const month = requestURL.searchParams.get('month') ?? todayDateInSeoul().slice(0, 7);
-			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+			const month = requestURL.searchParams.get('month') ?? todayDate.slice(0, 7);
+			await route.fulfill({ json: buildAttendanceSummaryFixture(month, summaryTime) });
 		});
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
@@ -168,7 +171,6 @@ test.describe('attendance team status', () => {
 			await route.fulfill({ json: flowStateFixture([]) });
 		});
 
-		const todayDate = todayDateInSeoul();
 		await page.goto('/attendance');
 		await selectKorean(page);
 		const targetCell = page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`);
