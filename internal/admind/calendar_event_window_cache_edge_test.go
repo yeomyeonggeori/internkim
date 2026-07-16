@@ -137,7 +137,7 @@ func TestCalendarEventWindowCacheRollsBackMutationWhenInvalidationFails(t *testi
 	}
 }
 
-func TestCalendarEventWindowCacheInitializationFailureFallsBackToSource(t *testing.T) {
+func TestCalendarEventWindowCacheInitializationFailureRetriesAfterSourceFallback(t *testing.T) {
 	service := newCalendarTestService(t)
 	startTime := time.Date(2026, time.July, 16, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(24 * time.Hour)
@@ -172,6 +172,31 @@ func TestCalendarEventWindowCacheInitializationFailureFallsBackToSource(t *testi
 	events, errorValue := restartedService.readCalendarEventWindow(context.Background(), startTime, endTime)
 	if errorValue != nil || len(events) != 1 || events[0].Title != event.Title {
 		t.Fatalf("source fallback events=%+v error=%v", events, errorValue)
+	}
+	database, errorValue = restartedService.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), "DROP TRIGGER fail_calendar_event_window_cache_reset"); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue = restartedService.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !restartedService.isCalendarEventWindowCacheEnabled() {
+		t.Fatal("calendar event window cache did not recover")
+	}
+	events, errorValue = restartedService.readCalendarEventWindow(context.Background(), startTime, endTime)
+	if errorValue != nil || len(events) != 1 || events[0].Title != event.Title {
+		t.Fatalf("recovered cache events=%+v error=%v", events, errorValue)
 	}
 }
 

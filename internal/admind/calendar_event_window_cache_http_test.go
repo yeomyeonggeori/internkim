@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestCalendarEventWindowCacheHTTPOnlyCachesExplicitRange(t *testing.T) {
@@ -125,6 +126,19 @@ func TestCalendarEventWindowCacheReadFailureReturnsSourceEvents(t *testing.T) {
 	serveCalendarEventWindowBenchmark(t, handler)
 	database, errorValue := service.openCalendarDatabase(context.Background())
 	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	stalePayloadJSON, errorValue := json.Marshal(calendarEventWindowCachePayload{
+		Version: calendarEventWindowCacheSchemaVersion,
+		Events:  []calendarEvent{{ID: "stale-cache-event", Title: "Stale cache event"}},
+	})
+	if errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	expiredLastUsedAt := formatCalendarEventWindowCacheTimestamp(time.Now().Add(-calendarEventWindowCacheTouchInterval - time.Second))
+	if _, errorValue := database.ExecContext(context.Background(), "UPDATE calendar_event_window_cache_entries SET payload_json = ?, last_used_at = ?", stalePayloadJSON, expiredLastUsedAt); errorValue != nil {
+		database.Close()
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := database.ExecContext(context.Background(), `
