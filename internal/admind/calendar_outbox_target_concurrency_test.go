@@ -548,17 +548,17 @@ func testCalendarPushCompletionAfterTargetSwitch(t *testing.T, pushError error) 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	newTargetRows := 0
+	newTargetRows := []calendarOutboxRow{}
 	for _, row := range rows {
 		if normalizeCalendarOutboxTargetURL(row.TargetCalendarURL) != "/calendars/company/" {
 			continue
 		}
-		newTargetRows++
+		newTargetRows = append(newTargetRows, row)
 		if row.RemoteHref != "" || row.IfMatchETag != "" {
 			t.Fatalf("new target row contaminated by stale push: %+v", row)
 		}
 	}
-	if newTargetRows != 1 {
-		t.Fatalf("new target rows=%d want 1 rows=%+v", newTargetRows, rows)
+	if batches := aggregateCalendarOutboxRows(newTargetRows); len(batches) != 1 {
+		t.Fatalf("new target batches=%d want 1 rows=%+v", len(batches), rows)
 	}
 }

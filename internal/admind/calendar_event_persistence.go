@@ -39,9 +39,10 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 	}
 	updatedAt := candidateUpdatedAt.Format(time.RFC3339Nano)
 	var outboxRow calendarOutboxRow
+	var changedFields []string
 	shouldSignalSync := false
 	if source == calendarSourceLocal {
-		changedFields := diffCalendarEventFields(previousEvent, event)
+		changedFields = diffCalendarEventFields(previousEvent, event)
 		var errorValue error
 		outboxRow, shouldSignalSync, errorValue = service.prepareCalendarOutboxForWrite(ctx, event, changedFields)
 		if errorValue != nil {
@@ -66,6 +67,12 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 		updatedAt = logicalTime.Format(time.RFC3339Nano)
 	}
 	event.UpdatedAt = updatedAt
+	if source == calendarSourceLocal {
+		if errorValue := persistCalendarEventFieldClocks(ctx, transaction, event.UID, changedFields, updatedAt); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+	}
 	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -94,6 +101,9 @@ func (service *Service) persistCalendarEventMutationWithTransaction(ctx context.
 		return errorValue
 	}
 	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := deleteCalendarEventDeletionClock(ctx, transaction, event.UID); errorValue != nil {
 		return errorValue
 	}
 	invalidationEvents := []calendarEvent{event}
@@ -219,6 +229,10 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 			return errorValue
 		}
 		deletedAt = logicalTime.Format(time.RFC3339Nano)
+		if errorValue := persistCalendarEventFieldClocks(ctx, transaction, event.UID, []string{calendarEventDeletionClockField}, deletedAt); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
 	}
 	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", deletedAt, deletedAt, strings.TrimSpace(eventID))
 	if errorValue != nil {

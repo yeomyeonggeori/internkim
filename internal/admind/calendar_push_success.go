@@ -59,22 +59,6 @@ func (service *Service) persistCalendarPushSuccessForDeletedEvent(ctx context.Co
 	return transaction.Commit()
 }
 
-func (service *Service) softDeleteCalendarEventIfRevisionMatches(ctx context.Context, snapshotEvent calendarEvent, source string) (bool, error) {
-	service.calendarStoreWriteMutex.Lock()
-	defer service.calendarStoreWriteMutex.Unlock()
-	currentEvent, found, errorValue := service.readCalendarEventByID(ctx, snapshotEvent.ID)
-	if errorValue != nil || !found {
-		return false, errorValue
-	}
-	if !calendarEventRevisionMatches(currentEvent, snapshotEvent) {
-		return false, nil
-	}
-	if errorValue := service.softDeleteCalendarEventWithSourceLocked(ctx, currentEvent.ID, source, time.Now().UTC()); errorValue != nil {
-		return false, errorValue
-	}
-	return true, nil
-}
-
 func calendarEventRevisionMatches(currentEvent calendarEvent, snapshotEvent calendarEvent) bool {
 	return strings.TrimSpace(currentEvent.UpdatedAt) == strings.TrimSpace(snapshotEvent.UpdatedAt)
 }

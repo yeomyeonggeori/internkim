@@ -12,11 +12,11 @@ func recoverCanonicalETagAfterCalDAVPut(ctx context.Context, client *outboundCal
 	}
 	remoteObject, errorValue := client.getCalendarObject(ctx, objectPath)
 	if errorValue != nil {
-		return "", fmt.Errorf("recover canonical ETag after CalDAV PUT %s: %v", objectPath, errorValue)
+		return "", fmt.Errorf("%w after CalDAV PUT %s: %w", errCalendarCanonicalETagRecoveryFailed, objectPath, errorValue)
 	}
 	etag := strings.TrimSpace(remoteObject.ETag)
 	if etag == "" {
-		return "", fmt.Errorf("recover canonical ETag after CalDAV PUT %s: GET response ETag is empty", objectPath)
+		return "", fmt.Errorf("%w after CalDAV PUT %s: GET response ETag is empty", errCalendarCanonicalETagRecoveryFailed, objectPath)
 	}
 	return etag, nil
 }

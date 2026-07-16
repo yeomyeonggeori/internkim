@@ -29,6 +29,12 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarEventLogicalClocksTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarEventFieldClocksTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarTargetFieldAcknowledgementsTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarPushObservationFencesTable(ctx, database); errorValue != nil {
 		return errorValue
 	}

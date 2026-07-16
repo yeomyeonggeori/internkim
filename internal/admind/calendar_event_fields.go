@@ -149,3 +149,13 @@ func intersectCalendarFields(left []string, right []string) []string {
 	}
 	return result
 }
+
+func excludeCalendarFields(fields []string, excluded []string) []string {
+	result := []string{}
+	for _, field := range fields {
+		if !calendarFieldListIncludes(excluded, field) {
+			result = append(result, field)
+		}
+	}
+	return result
+}

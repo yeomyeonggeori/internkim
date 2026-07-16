@@ -265,7 +265,9 @@ func TestPushCalendarOutboxDeletesObjectWithIfMatch(t *testing.T) {
 	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
 		t.Fatalf("soft delete: %v", errorValue)
 	}
-	client := &fakeCalDAVPushClient{}
+	remoteObject := fakeRemoteObject(t, event.UID, event.RemoteETag, event.Title)
+	remoteObject.Path = event.RemoteHref
+	client := &fakeCalDAVPushClient{getObjects: map[string]calDAVCalendarObject{event.RemoteHref: remoteObject}}
 	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client); errorValue != nil {
 		t.Fatalf("push: %v", errorValue)
 	}
@@ -301,7 +303,9 @@ func TestPushCalendarOutboxClearsAuthErrorAfterDeleteSuccess(t *testing.T) {
 		t.Fatalf("soft delete: %v", errorValue)
 	}
 
-	client := &fakeCalDAVPushClient{}
+	remoteObject := fakeRemoteObject(t, event.UID, event.RemoteETag, event.Title)
+	remoteObject.Path = event.RemoteHref
+	client := &fakeCalDAVPushClient{getObjects: map[string]calDAVCalendarObject{event.RemoteHref: remoteObject}}
 	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, reloaded, client); errorValue != nil {
 		t.Fatalf("push: %v", errorValue)
 	}

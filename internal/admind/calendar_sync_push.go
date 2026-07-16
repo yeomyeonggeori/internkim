@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -151,6 +152,9 @@ func (service *Service) pushCalendarOutboxPut(ctx context.Context, account remot
 	}
 	newETag, errorValue := service.guardedCalendarPut(ctx, client, row, objectPath, ics, ifMatch, ifNoneMatch)
 	if errorValue != nil {
+		if errors.Is(errorValue, errCalendarCanonicalETagRecoveryFailed) {
+			return false, errorValue
+		}
 		if isCalDAVPreconditionFailed(errorValue) {
 			return service.handleCalendarPushConflict(ctx, account, client, row, event, objectPath)
 		}
@@ -191,6 +195,7 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	localWinningFields := selectCalendarLocalWinningFields(row.ChangedFields, remoteChangedFields, fieldChangedAt, parseCalendarConflictTime(remoteEvent.RemoteModifiedAt))
 	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, localWinningFields)
 	mergedEvent = preserveCalendarInternalParticipants(mergedEvent, localEvent, localWinningFields)
+	remoteWinningFields := excludeCalendarFields(remoteChangedFields, mergeCalendarFieldLists(localWinningFields, diffCalendarEventFields(remoteEvent, mergedEvent)))
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
 	mergedEvent.CreatedByName = localEvent.CreatedByName
@@ -199,7 +204,10 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	mergedEvent.UpdatedByAt = localEvent.UpdatedByAt
 	mergedEvent.MattermostPostID = localEvent.MattermostPostID
 	if len(localWinningFields) == 0 {
-		return false, service.applyCalendarPushSuccess(ctx, row, localEvent, mergedEvent, remoteObject.Path, remoteObject.ETag, remoteObject.Data)
+		if errorValue := service.applyCalendarPushConflictSuccess(ctx, row, localEvent, mergedEvent, remoteEvent, remoteWinningFields, remoteObject.Path, remoteObject.ETag, remoteObject.Data); errorValue != nil {
+			return false, errorValue
+		}
+		return false, nil
 	}
 	mergedICS, errorValue := encodeEventToICS(mergedEvent)
 	if errorValue != nil {
@@ -213,7 +221,10 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		return false, errorValue
 	}
 	slog.InfoContext(ctx, "calendar push conflict resolved", "event_uid", localEvent.UID, "local_winning_field_count", len(localWinningFields))
-	return true, service.applyCalendarPushSuccess(ctx, row, localEvent, mergedEvent, remoteObject.Path, newETag, mergedICS)
+	if errorValue := service.applyCalendarPushConflictSuccess(ctx, row, localEvent, mergedEvent, remoteEvent, remoteWinningFields, remoteObject.Path, newETag, mergedICS); errorValue != nil {
+		return false, errorValue
+	}
+	return true, nil
 }
 
 func resolveCalendarPushTarget(row calendarOutboxRow, event calendarEvent) (string, string, string) {

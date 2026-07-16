@@ -127,15 +127,18 @@ func TestLocalCalendarDeleteRollsBackLogicalTimeWithOutbox(t *testing.T) {
 	}
 }
 
-func TestCalendarBackfillAdvancesPastLegacyEventRevision(t *testing.T) {
+func TestCalendarBackfillPreservesActualLocalFieldRevision(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
 	event := newLocalTestCalendarEvent("logical-clock-backfill", "Backfill")
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(contextValue, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	legacyRevision := time.Date(2036, 7, 16, 12, 0, 0, 0, time.UTC)
-	updateCalendarEventConflictTimes(t, service, event.ID, legacyRevision, time.Time{})
+	storedEvent, found, errorValue := service.readCalendarEventByID(contextValue, event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event found=%v error=%v", found, errorValue)
+	}
+	localRevision := parseCalendarConflictTime(storedEvent.UpdatedAt)
 	account, errorValue := service.upsertRemoteCalendarAccount(contextValue, remoteCalendarAccount{
 		ID:                 "logical-clock-backfill-account",
 		Provider:           remoteCalendarProviderGoogle,
@@ -153,8 +156,8 @@ func TestCalendarBackfillAdvancesPastLegacyEventRevision(t *testing.T) {
 		t.Fatalf("outbox rows=%d error=%v", len(rows), errorValue)
 	}
 	createdAt := parseCalendarConflictTime(rows[0].CreatedAt)
-	if !createdAt.After(legacyRevision) {
-		t.Fatalf("outbox created_at=%s legacy revision=%s", createdAt, legacyRevision)
+	if createdAt != localRevision {
+		t.Fatalf("outbox created_at=%s local revision=%s", createdAt, localRevision)
 	}
 	logicalTime := readCalendarConflictLogicalTime(t, service, event.UID)
 	if logicalTime != createdAt {
@@ -162,13 +165,18 @@ func TestCalendarBackfillAdvancesPastLegacyEventRevision(t *testing.T) {
 	}
 }
 
-func TestCalendarBackfillAdvancesPastGlobalBoundaryDuringWallClockRollback(t *testing.T) {
+func TestCalendarBackfillDoesNotUseGlobalObservationBoundary(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
 	event := newLocalTestCalendarEvent("logical-clock-backfill-global", "Backfill")
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(contextValue, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	storedEvent, found, errorValue := service.readCalendarEventByID(contextValue, event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event found=%v error=%v", found, errorValue)
+	}
+	localRevision := parseCalendarConflictTime(storedEvent.UpdatedAt)
 	snapshotBoundary, errorValue := service.reserveCalendarConflictCandidateTime(contextValue, time.Date(2036, 7, 16, 13, 0, 0, 0, time.UTC))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -190,7 +198,7 @@ func TestCalendarBackfillAdvancesPastGlobalBoundaryDuringWallClockRollback(t *te
 		t.Fatalf("outbox rows=%d error=%v", len(rows), errorValue)
 	}
 	createdAt := parseCalendarConflictTime(rows[0].CreatedAt)
-	if !createdAt.After(snapshotBoundary) {
-		t.Fatalf("outbox created at=%s snapshot boundary=%s", createdAt, snapshotBoundary)
+	if createdAt != localRevision || !createdAt.Before(snapshotBoundary) {
+		t.Fatalf("outbox created at=%s local revision=%s snapshot boundary=%s", createdAt, localRevision, snapshotBoundary)
 	}
 }

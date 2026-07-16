@@ -9,26 +9,35 @@ import (
 
 const calendarOutboxBlockedRetryDelay = time.Minute
 
+type recoveredCalendarDeleteState struct {
+	Row          calendarOutboxRow
+	RemoteObject calDAVCalendarObject
+}
+
 func (service *Service) pushCalendarOutboxDeleteWithRecovery(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) (bool, error) {
-	resolvedRow, found, errorValue := service.recoverCalendarOutboxDeleteRemoteState(ctx, account, client, row)
+	recoveredState, found, errorValue := service.recoverCalendarOutboxDeleteRemoteState(ctx, account, client, row)
 	if errorValue != nil || !found {
 		return false, errorValue
 	}
-	errorValue = service.guardedCalendarDelete(ctx, client, resolvedRow, resolvedRow.RemoteHref, resolvedRow.IfMatchETag)
-	if errorValue != nil && isCalDAVPreconditionFailed(errorValue) {
-		return true, service.reconcileCalendarLocalDeletionDuringPush(ctx, account, client, resolvedRow, time.Now().UTC())
-	}
-	return errorValue == nil, errorValue
+	return true, service.reconcileCalendarLocalDeletionAgainstRemoteObject(ctx, account, client, recoveredState.Row, recoveredState.RemoteObject, time.Now().UTC())
 }
 
-func (service *Service) recoverCalendarOutboxDeleteRemoteState(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) (calendarOutboxRow, bool, error) {
-	if strings.TrimSpace(row.RemoteHref) != "" {
-		return row, true, nil
-	}
+func (service *Service) recoverCalendarOutboxDeleteRemoteState(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) (recoveredCalendarDeleteState, bool, error) {
 	calendarURL := normalizeCalendarOutboxTargetURL(row.TargetCalendarURL)
 	eventUID := strings.TrimSpace(row.EventUID)
 	if calendarURL == "" || eventUID == "" {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete target: calendar URL and event UID are required")
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete target: calendar URL and event UID are required")
+	}
+	remoteHref := strings.TrimSpace(row.RemoteHref)
+	if remoteHref != "" {
+		remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, remoteHref)
+		if errorValue != nil {
+			if isCalDAVObjectNotFound(errorValue) {
+				return service.recoverCalendarOutboxDeleteRemoteStateByUID(ctx, client, row, calendarURL, eventUID)
+			}
+			return recoveredCalendarDeleteState{}, false, errorValue
+		}
+		return recoveredCalendarDeleteStateFromObject(row, remoteObject, eventUID, remoteHref)
 	}
 	canonicalPath := strings.TrimRight(calendarURL, "/") + "/" + eventUID + ".ics"
 	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, canonicalPath)
@@ -36,55 +45,55 @@ func (service *Service) recoverCalendarOutboxDeleteRemoteState(ctx context.Conte
 		if isCalDAVObjectNotFound(errorValue) {
 			return service.recoverCalendarOutboxDeleteRemoteStateByUID(ctx, client, row, calendarURL, eventUID)
 		}
-		return calendarOutboxRow{}, false, errorValue
+		return recoveredCalendarDeleteState{}, false, errorValue
 	}
+	return recoveredCalendarDeleteStateFromObject(row, remoteObject, eventUID, canonicalPath)
+}
+
+func recoveredCalendarDeleteStateFromObject(row calendarOutboxRow, remoteObject calDAVCalendarObject, eventUID string, fallbackPath string) (recoveredCalendarDeleteState, bool, error) {
 	matchesEventUID, errorValue := calDAVCalendarObjectMatchesUID(remoteObject, eventUID)
 	if errorValue != nil {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: %w", canonicalPath, errorValue)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete object %s: %w", fallbackPath, errorValue)
 	}
 	if !matchesEventUID {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: VEVENT UID does not equal %q", canonicalPath, eventUID)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete object %s: VEVENT UID does not equal %q", fallbackPath, eventUID)
 	}
 	strongETag, errorValue := strongCalDAVCalendarObjectETag(remoteObject)
 	if errorValue != nil {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: %w", canonicalPath, errorValue)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete object %s: %w", fallbackPath, errorValue)
 	}
-	row.RemoteHref = firstNonEmpty(strings.TrimSpace(remoteObject.Path), canonicalPath)
+	row.RemoteHref = firstNonEmpty(strings.TrimSpace(remoteObject.Path), fallbackPath)
 	row.IfMatchETag = strongETag
-	return row, true, nil
+	remoteObject.Path = row.RemoteHref
+	remoteObject.ETag = strongETag
+	return recoveredCalendarDeleteState{Row: row, RemoteObject: remoteObject}, true, nil
 }
 
-func (service *Service) recoverCalendarOutboxDeleteRemoteStateByUID(ctx context.Context, client calDAVPushClient, row calendarOutboxRow, calendarURL string, eventUID string) (calendarOutboxRow, bool, error) {
+func (service *Service) recoverCalendarOutboxDeleteRemoteStateByUID(ctx context.Context, client calDAVPushClient, row calendarOutboxRow, calendarURL string, eventUID string) (recoveredCalendarDeleteState, bool, error) {
 	queryClient, supported := client.(calDAVUIDQueryClient)
 	if !supported {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: CalDAV client does not support UID query", eventUID, calendarURL)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete UID %q in %s: CalDAV client does not support UID query", eventUID, calendarURL)
 	}
 	objects, errorValue := service.guardedCalendarUIDQuery(ctx, queryClient, row, calendarURL, eventUID)
 	if errorValue != nil {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
 	}
 	exactMatches, errorValue := exactCalDAVCalendarObjectUIDMatches(objects, eventUID)
 	if errorValue != nil {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
 	}
 	if len(exactMatches) == 0 {
-		return row, false, nil
+		return recoveredCalendarDeleteState{Row: row}, false, nil
 	}
 	if len(exactMatches) > 1 {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: multiple exact matches (%d)", eventUID, calendarURL, len(exactMatches))
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete UID %q in %s: multiple exact matches (%d)", eventUID, calendarURL, len(exactMatches))
 	}
 	remoteObject := exactMatches[0]
 	remoteHref := strings.TrimSpace(remoteObject.Path)
 	if remoteHref == "" {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: matching object href is empty", eventUID, calendarURL)
+		return recoveredCalendarDeleteState{}, false, fmt.Errorf("recover calendar delete UID %q in %s: matching object href is empty", eventUID, calendarURL)
 	}
-	strongETag, errorValue := strongCalDAVCalendarObjectETag(remoteObject)
-	if errorValue != nil {
-		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
-	}
-	row.RemoteHref = remoteHref
-	row.IfMatchETag = strongETag
-	return row, true, nil
+	return recoveredCalendarDeleteStateFromObject(row, remoteObject, eventUID, remoteHref)
 }
 
 func (service *Service) guardedCalendarUIDQuery(ctx context.Context, client calDAVUIDQueryClient, row calendarOutboxRow, calendarURL string, eventUID string) ([]calDAVCalendarObject, error) {
