@@ -70,3 +70,47 @@ test('schedules the next minute from the provided clock', () => {
 
 	stopClock();
 });
+
+test('does not emit or schedule a tick when the provided clock is invalid', () => {
+	jest.useFakeTimers();
+	const emittedTimes: Date[] = [];
+	let currentTimeRequestCount = 0;
+	const stopClock = startAttendanceMinuteClock(
+		(currentTime) => emittedTimes.push(currentTime),
+		() => {
+			currentTimeRequestCount += 1;
+			return new Date(Number.NaN);
+		}
+	);
+
+	expect(emittedTimes).toEqual([]);
+	expect(currentTimeRequestCount).toBe(1);
+	jest.advanceTimersByTime(60_000);
+	expect(currentTimeRequestCount).toBe(1);
+
+	stopClock();
+});
+
+test('stops when the provided clock becomes invalid', () => {
+	jest.useFakeTimers();
+	const emittedTimes: Date[] = [];
+	let currentTimeRequestCount = 0;
+	const stopClock = startAttendanceMinuteClock(
+		(currentTime) => emittedTimes.push(currentTime),
+		() => {
+			currentTimeRequestCount += 1;
+			return currentTimeRequestCount === 1
+				? new Date('2026-07-15T06:00:30.000Z')
+				: new Date(Number.NaN);
+		}
+	);
+
+	expect(emittedTimes.map((time) => time.toISOString())).toEqual(['2026-07-15T06:00:30.000Z']);
+	jest.advanceTimersByTime(30_000);
+	expect(emittedTimes.map((time) => time.toISOString())).toEqual(['2026-07-15T06:00:30.000Z']);
+	expect(currentTimeRequestCount).toBe(2);
+	jest.advanceTimersByTime(60_000);
+	expect(currentTimeRequestCount).toBe(2);
+
+	stopClock();
+});

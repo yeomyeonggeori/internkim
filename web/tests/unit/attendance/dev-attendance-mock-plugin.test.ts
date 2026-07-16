@@ -3,6 +3,7 @@ import {
 	createDevAttendanceMockResponse,
 	createDevAttendanceMockState
 } from '../../../dev-attendance-mock-plugin';
+import { buildAttendanceSummaryFixture } from '../../../dev-attendance-summary-fixture';
 import {
 	devPopupOverflowAttendanceRows,
 	devPopupOverflowDate,
@@ -11,6 +12,12 @@ import {
 } from '../../../dev-popup-overflow-fixture';
 import { todayDateInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
 import type { AttendanceAbsence, AttendanceSummary } from '../../../src/routes/attendance/attendance-context.svelte';
+
+class HostPreviousDate extends Date {
+	override getDate(): number {
+		return 30;
+	}
+}
 
 describe('dev attendance mock plugin', () => {
 	test('returns an authenticated development session', async () => {
@@ -44,6 +51,15 @@ describe('dev attendance mock plugin', () => {
 		const body = response?.body;
 		expect(hasKey(body, 'events')).toBe(true);
 		expect(hasKey(body, 'absences')).toBe(true);
+	});
+
+	test('keeps the Seoul fixture day when the host time zone is still on the previous date', () => {
+		const currentTime = new HostPreviousDate('2026-07-01T00:30:00+09:00');
+		const summary = buildAttendanceSummaryFixture('2026-07', currentTime);
+		const personalLeave = summary.absences.find((absence) => absence.id === 'absence-personal-leave');
+
+		expect(summary.events.every((event) => event.localDate <= '2026-07-01')).toBe(true);
+		expect(personalLeave?.date).toBe('2026-07-02');
 	});
 
 	test('includes a multiple-location current-day scenario for the development user', async () => {
