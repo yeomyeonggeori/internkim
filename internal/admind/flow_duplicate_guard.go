@@ -12,7 +12,7 @@ func (service *Service) findQuickFlowTaskDuplicate(ctx context.Context, task flo
 	if errorValue != nil {
 		return flowTask{}, "", false, errorValue
 	}
-	sameDateTasks := flowTasksWithMatchingDates(existingTasks, task)
+	sameDateTasks := flowTasksWithMatchingOwnerAndDates(existingTasks, task)
 	if len(sameDateTasks) == 0 {
 		return flowTask{}, "", false, nil
 	}
@@ -82,10 +82,13 @@ func flowDuplicateLLMRequest(task flowTask, existingTasks []flowTask) map[string
 	}
 }
 
-func flowTasksWithMatchingDates(tasks []flowTask, task flowTask) []flowTask {
+func flowTasksWithMatchingOwnerAndDates(tasks []flowTask, task flowTask) []flowTask {
 	result := []flowTask{}
 	for _, existingTask := range tasks {
 		if strings.TrimSpace(existingTask.ID) == strings.TrimSpace(task.ID) {
+			continue
+		}
+		if strings.TrimSpace(existingTask.OwnerID) != strings.TrimSpace(task.OwnerID) {
 			continue
 		}
 		if strings.TrimSpace(existingTask.StartDate) != strings.TrimSpace(task.StartDate) {
