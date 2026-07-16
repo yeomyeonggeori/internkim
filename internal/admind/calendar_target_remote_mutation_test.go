@@ -14,6 +14,7 @@ type selectedCalendarSaveResult struct {
 type blockingCalendarDeleteClient struct {
 	started chan struct{}
 	release chan struct{}
+	object  calDAVCalendarObject
 }
 
 func (client *blockingCalendarDeleteClient) putCalendarObject(context.Context, string, []byte, string, string) (string, error) {
@@ -27,7 +28,7 @@ func (client *blockingCalendarDeleteClient) deleteCalendarObject(context.Context
 }
 
 func (client *blockingCalendarDeleteClient) getCalendarObject(context.Context, string) (calDAVCalendarObject, error) {
-	return calDAVCalendarObject{}, errCalDAVObjectNotFound
+	return client.object, nil
 }
 
 type blockingCalendarUIDQueryClient struct {
@@ -135,7 +136,9 @@ func TestSelectedCalendarSwitchWaitsForInFlightDeleteCleanup(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	seedCalendarPushObservationFenceForTest(t, service, account.ID, account.DefaultCalendarURL, eventUID)
-	client := &blockingCalendarDeleteClient{started: make(chan struct{}), release: make(chan struct{})}
+	remoteObject := fakeRemoteObject(t, eventUID, `"etag-delete"`, "Target Switch Delete")
+	remoteObject.Path = account.DefaultCalendarURL + eventUID + ".ics"
+	client := &blockingCalendarDeleteClient{started: make(chan struct{}), release: make(chan struct{}), object: remoteObject}
 	pushResult := make(chan error, 1)
 	go func() {
 		_, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client)

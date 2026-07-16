@@ -167,6 +167,10 @@ func seedCalendarRemoteAccountCleanupFixture(t *testing.T, service *Service, acc
 			arguments: []any{account.ID, calendarURL, event.UID, now, now, now},
 		},
 		{
+			query:     `INSERT INTO calendar_target_field_acknowledgements(account_id, calendar_url, event_uid, field, acknowledged_at) VALUES(?, ?, ?, ?, ?)`,
+			arguments: []any{account.ID, calendarURL, event.UID, calendarFieldTitle, now},
+		},
+		{
 			query:     `INSERT INTO calendar_push_observation_fences(account_id, calendar_url, event_uid, created_at) VALUES(?, ?, ?, ?)`,
 			arguments: []any{account.ID, calendarURL, event.UID, now},
 		},
@@ -197,6 +201,7 @@ func assertCalendarRemoteAccountCleanupRowCounts(t *testing.T, service *Service,
 		{query: `SELECT COUNT(*) FROM calendar_outbox WHERE account_id = ?`, arguments: []any{fixture.account.ID}},
 		{query: `SELECT COUNT(*) FROM calendar_sync_state WHERE account_id = ?`, arguments: []any{fixture.account.ID}},
 		{query: `SELECT COUNT(*) FROM calendar_remote_event_sync_state WHERE account_id = ?`, arguments: []any{fixture.account.ID}},
+		{query: `SELECT COUNT(*) FROM calendar_target_field_acknowledgements WHERE account_id = ?`, arguments: []any{fixture.account.ID}},
 		{query: `SELECT COUNT(*) FROM calendar_push_observation_fences WHERE account_id = ?`, arguments: []any{fixture.account.ID}},
 	}
 	for _, check := range checks {

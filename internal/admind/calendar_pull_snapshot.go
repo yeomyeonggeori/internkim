@@ -11,29 +11,6 @@ type calendarPullReconciliationResult struct {
 	IsComplete bool
 }
 
-func (service *Service) reconcileCalendarPullSnapshot(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject) (calendarPullReconciliationResult, error) {
-	target := activeRemoteCalendarTarget(account)
-	fencedUIDs, errorValue := service.listCalendarPushObservationFenceUIDs(ctx, account.ID, target.CalendarURL)
-	if errorValue != nil {
-		return calendarPullReconciliationResult{}, errorValue
-	}
-	return service.reconcileCalendarPullSnapshotWithFences(ctx, account, remoteObjects, fencedUIDs)
-}
-
-func (service *Service) reconcileCalendarPullSnapshotWithFences(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, fencedUIDs map[string]struct{}) (calendarPullReconciliationResult, error) {
-	deferredProjections := &calendarPullDeferredProjectionQueue{}
-	var result calendarPullReconciliationResult
-	var errorValue error
-	snapshotCompletedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, time.Now().UTC())
-	if errorValue != nil {
-		return calendarPullReconciliationResult{}, errorValue
-	}
-	service.runCalendarPullLocked(ctx, deferredProjections, func() {
-		result, errorValue = service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, remoteObjects, fencedUIDs, snapshotCompletedAt, deferredProjections)
-	})
-	return result, errorValue
-}
-
 func (service *Service) reconcileCalendarPullSnapshotWithFencesLocked(ctx context.Context, account remoteCalendarAccount, remoteObjects []calDAVCalendarObject, fencedUIDs map[string]struct{}, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, error) {
 	target := activeRemoteCalendarTarget(account)
 	activeEvents, errorValue := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
@@ -85,20 +62,6 @@ func calendarEventsByUID(activeEvents []calendarEvent, softDeletedEvents []calen
 		}
 	}
 	return existingByUID
-}
-
-func (service *Service) applyCalendarPullSnapshot(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent, observedAt time.Time) (calendarPullReconciliationResult, error) {
-	reservedObservedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, observedAt)
-	if errorValue != nil {
-		return calendarPullReconciliationResult{}, errorValue
-	}
-	deferredProjections := &calendarPullDeferredProjectionQueue{}
-	var result calendarPullReconciliationResult
-	errorValue = nil
-	service.runCalendarPullLocked(ctx, deferredProjections, func() {
-		result, errorValue = service.applyCalendarPullSnapshotLocked(ctx, account, target, remoteObjects, existingByUID, reservedObservedAt, deferredProjections)
-	})
-	return result, errorValue
 }
 
 func (service *Service) applyCalendarPullSnapshotLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent, observedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, error) {

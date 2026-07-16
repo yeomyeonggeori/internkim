@@ -66,6 +66,9 @@ func (service *Service) executeCalendarOutboxRemoteMutation(ctx context.Context,
 	}
 	result.pushed = pushed
 	result.successfulRemoteOperation = pushed || (row.Operation == calendarOutboxOperationDelete && strings.TrimSpace(row.RemoteHref) != "")
+	if errorValue := service.acknowledgeCalendarOutboxBatch(ctx, row); errorValue != nil {
+		return result, fmt.Errorf("acknowledge calendar outbox batch %d: %w", row.ID, errorValue)
+	}
 	if row.Operation == calendarOutboxOperationDelete {
 		if errorValue := service.deleteCompletedCalendarDeleteOutboxBatch(ctx, row); errorValue != nil {
 			return result, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)

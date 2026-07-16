@@ -38,11 +38,6 @@ func calendarRemoteHrefBelongsToTargetURL(remoteHref string, targetCalendarURL s
 	return normalizedTarget != "" && normalizedRemoteHref != "" && strings.HasPrefix(normalizedRemoteHref, normalizedTarget)
 }
 
-func calendarOutboxTargetsRemoteTarget(row calendarOutboxRow, target remoteCalendarTarget) bool {
-	rowTarget := normalizeCalendarOutboxTargetURL(row.TargetCalendarURL)
-	return rowTarget != "" && rowTarget == normalizeCalendarOutboxTargetURL(target.CalendarURL)
-}
-
 func prepareCalendarOutboxTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, row calendarOutboxRow) (calendarOutboxRow, error) {
 	targetCalendarURL := normalizeCalendarOutboxTargetURL(row.TargetCalendarURL)
 	if targetCalendarURL == "" {
@@ -82,13 +77,17 @@ func readActiveCalendarOutboxTargetURLWithRunner(ctx context.Context, queryRunne
 	if errorValue := rows.Scan(&selectedCalendarID, &selectedCalendarURL, &defaultCalendarURL); errorValue != nil {
 		return "", errorValue
 	}
+	return resolveCalendarOutboxTargetURL(selectedCalendarID, selectedCalendarURL, defaultCalendarURL), nil
+}
+
+func resolveCalendarOutboxTargetURL(selectedCalendarID string, selectedCalendarURL string, defaultCalendarURL string) string {
 	if strings.TrimSpace(selectedCalendarID) != "" && strings.TrimSpace(selectedCalendarURL) != "" {
-		return normalizeCalendarOutboxTargetURL(selectedCalendarURL), nil
+		return normalizeCalendarOutboxTargetURL(selectedCalendarURL)
 	}
 	if strings.TrimSpace(selectedCalendarID) != "" || strings.TrimSpace(selectedCalendarURL) != "" {
-		return "", nil
+		return ""
 	}
-	return normalizeCalendarOutboxTargetURL(defaultCalendarURL), nil
+	return normalizeCalendarOutboxTargetURL(defaultCalendarURL)
 }
 
 func backfillLegacyCalendarOutboxTargets(ctx context.Context, databaseRunner calendarSQLRunner) error {

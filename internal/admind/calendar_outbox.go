@@ -239,7 +239,11 @@ func (service *Service) updatePendingCalendarOutboxRemoteState(ctx context.Conte
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx,
+	return updatePendingCalendarOutboxRemoteStateWithRunner(ctx, database, accountID, targetCalendarURL, eventUID, remoteHref, remoteETag)
+}
+
+func updatePendingCalendarOutboxRemoteStateWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, targetCalendarURL string, eventUID string, remoteHref string, remoteETag string) error {
+	_, errorValue := queryRunner.ExecContext(ctx,
 		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND `+calendarOutboxActiveStatusPredicate,
 		strings.TrimSpace(remoteETag),
 		strings.TrimSpace(remoteHref),

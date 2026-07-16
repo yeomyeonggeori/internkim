@@ -193,6 +193,10 @@ func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, account
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_target_field_acknowledgements WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue

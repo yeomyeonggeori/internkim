@@ -19,8 +19,17 @@ func (service *Service) applyCalendarDeleteConflictResolution(ctx context.Contex
 		return false, errorValue
 	}
 	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, row.EventID)
-	if errorValue != nil || !found {
+	if errorValue != nil {
 		return false, errorValue
+	}
+	if !found {
+		localDeletedAt := parseCalendarConflictTime(row.CreatedAt)
+		remoteModifiedAt := parseCalendarConflictTime(remoteEvent.RemoteModifiedAt)
+		if resolveCalendarLocalDeletion(localDeletedAt, remoteModifiedAt) == calendarConflictWinnerLocal {
+			return true, nil
+		}
+		remoteEvent.ID = row.EventID
+		return false, service.persistCalendarDeleteConflictResolutionLocked(ctx, account, row, remoteEvent, remoteEvent, reservedObservedAt, false)
 	}
 	if !projection.IsDeleted {
 		currentEvent := projection.Event
@@ -55,7 +64,7 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 		return errorValue
 	}
 	updatedAt := remoteState.LastSeenAt
-	if errorValue := service.persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, updatedAt, retainPendingLocalWrite); errorValue != nil {
+	if errorValue := service.persistCalendarDeleteConflictResolutionWithTransaction(ctx, transaction, account.ID, row, event, observedEvent, updatedAt, retainPendingLocalWrite); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -69,12 +78,17 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 	return nil
 }
 
-func (service *Service) persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, updatedAt string, retainPendingLocalWrite bool) error {
+func (service *Service) persistCalendarDeleteConflictResolutionWithTransaction(ctx context.Context, transaction *sql.Tx, accountID string, row calendarOutboxRow, event calendarEvent, observedEvent calendarEvent, updatedAt string, retainPendingLocalWrite bool) error {
 	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		return errorValue
 	}
 	if retainPendingLocalWrite {
 		if errorValue := updatePendingCalendarPutRemoteStateWithRunner(ctx, transaction, accountID, row.TargetCalendarURL, event.UID, event.RemoteHref, event.RemoteETag); errorValue != nil {
+			return errorValue
+		}
+	} else {
+		remoteWinningFields := excludeCalendarFields(calendarAllUserEditableFields(), diffCalendarEventFields(observedEvent, event))
+		if errorValue := persistPulledCalendarFieldClocks(ctx, transaction, accountID, row.TargetCalendarURL, event, remoteWinningFields, updatedAt); errorValue != nil {
 			return errorValue
 		}
 	}

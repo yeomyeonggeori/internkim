@@ -19,6 +19,13 @@ type blockingCalendarDeleteConflictClient struct {
 	deleteCalls  []fakeDeleteCall
 }
 
+type blockingCalendarPutConflictClient struct {
+	started      chan struct{}
+	release      chan struct{}
+	remoteObject calDAVCalendarObject
+	putCalls     int
+}
+
 func (client *blockingCalendarDeleteConflictClient) putCalendarObject(ctx context.Context, objectPath string, ics []byte, ifMatch string, ifNoneMatch string) (string, error) {
 	return "", nil
 }
@@ -59,6 +66,28 @@ func (client *blockingCalendarPutClient) getCalendarObject(ctx context.Context, 
 	return calDAVCalendarObject{}, errCalDAVObjectNotFound
 }
 
+func (client *blockingCalendarPutConflictClient) putCalendarObject(context.Context, string, []byte, string, string) (string, error) {
+	client.putCalls++
+	if client.putCalls == 1 {
+		return "", errCalDAVPreconditionFailed
+	}
+	return `"etag-after-merge"`, nil
+}
+
+func (client *blockingCalendarPutConflictClient) deleteCalendarObject(context.Context, string, string) error {
+	return nil
+}
+
+func (client *blockingCalendarPutConflictClient) getCalendarObject(ctx context.Context, objectPath string) (calDAVCalendarObject, error) {
+	close(client.started)
+	select {
+	case <-client.release:
+		return client.remoteObject, nil
+	case <-ctx.Done():
+		return calDAVCalendarObject{}, ctx.Err()
+	}
+}
+
 func TestPushCalendarOutboxPreservesLocalEditCreatedDuringRemotePut(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -81,6 +110,11 @@ func TestPushCalendarOutboxPreservesLocalEditCreatedDuringRemotePut(t *testing.T
 	if errorValue := service.writeCalendarEvent(ctx, firstLocalEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	firstRows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil || len(firstRows) != 1 {
+		t.Fatalf("first rows=%d error=%v", len(firstRows), errorValue)
+	}
+	firstChangedAt := parseCalendarConflictTime(firstRows[0].CreatedAt)
 	client := &blockingCalendarPutClient{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -119,6 +153,21 @@ func TestPushCalendarOutboxPreservesLocalEditCreatedDuringRemotePut(t *testing.T
 	}
 	if remainingRows[0].IfMatchETag != client.etag {
 		t.Fatalf("remaining if-match=%q want %q", remainingRows[0].IfMatchETag, client.etag)
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acknowledgements, errorValue := readCalendarTargetFieldAcknowledgements(ctx, database, account.ID, account.DefaultCalendarURL, baselineEvent.UID)
+	database.Close()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !acknowledgements[calendarFieldTitle].Equal(firstChangedAt) {
+		t.Fatalf("title acknowledgement=%s want first edit %s", acknowledgements[calendarFieldTitle], firstChangedAt)
+	}
+	if !parseCalendarConflictTime(remainingRows[0].CreatedAt).After(acknowledgements[calendarFieldTitle]) {
+		t.Fatalf("remaining edit=%s acknowledgement=%s", remainingRows[0].CreatedAt, acknowledgements[calendarFieldTitle])
 	}
 }
 
@@ -195,6 +244,84 @@ func TestPushCalendarOutboxPreservesLocalDeleteCreatedDuringRemotePut(t *testing
 	remainingRows, errorValue = service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil || len(remainingRows) != 1 || remainingRows[0].Operation != calendarOutboxOperationDelete {
 		t.Fatalf("remaining rows after pull=%+v error=%v", remainingRows, errorValue)
+	}
+}
+
+func TestPushConflictDoesNotAcknowledgeConcurrentLocalRemoteWinningField(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	baselineEvent := newLocalTestCalendarEvent("push-conflict-concurrent-field", "Original")
+	baselineEvent.Location = "Original location"
+	baselineEvent.RemoteSource = remoteCalendarProviderGoogle
+	baselineEvent.RemoteETag = `"etag-original"`
+	baselineEvent.RemoteHref = "/calendars/me/push-conflict-concurrent-field.ics"
+	baselineICS, errorValue := encodeEventToICS(baselineEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baselineEvent.RawICS = string(baselineICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, baselineEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firstLocalEvent := baselineEvent
+	firstLocalEvent.Title = "First local title"
+	if errorValue := service.writeCalendarEvent(ctx, firstLocalEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := baselineEvent
+	remoteEvent.Location = "Remote location"
+	remoteICS, errorValue := encodeEventToICS(remoteEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	client := &blockingCalendarPutConflictClient{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		remoteObject: calDAVCalendarObject{
+			Path: baselineEvent.RemoteHref,
+			ETag: `"etag-remote"`,
+			Data: remoteICS,
+		},
+	}
+	pushResult := make(chan error, 1)
+	go func() {
+		_, pushError := service.pushCalendarOutboxForAccount(ctx, account, client)
+		pushResult <- pushError
+	}()
+	<-client.started
+	latestLocalEvent := firstLocalEvent
+	latestLocalEvent.Location = "Latest local location"
+	if errorValue := service.writeCalendarEvent(ctx, latestLocalEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localLocationClock := readCalendarFieldClocksForEventTest(t, service, baselineEvent.UID)[calendarFieldLocation]
+	close(client.release)
+	if errorValue := <-pushResult; errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedEvent, found, errorValue := service.readCalendarEventByID(ctx, baselineEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("stored event found=%v error=%v", found, errorValue)
+	}
+	if storedEvent.Location != latestLocalEvent.Location {
+		t.Fatalf("location=%q want %q", storedEvent.Location, latestLocalEvent.Location)
+	}
+	fieldClock := readCalendarFieldClocksForEventTest(t, service, baselineEvent.UID)[calendarFieldLocation]
+	if !fieldClock.Equal(localLocationClock) {
+		t.Fatalf("location clock=%s want local edit %s", fieldClock, localLocationClock)
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acknowledgements, errorValue := readCalendarTargetFieldAcknowledgements(ctx, database, account.ID, account.DefaultCalendarURL, baselineEvent.UID)
+	database.Close()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !acknowledgements[calendarFieldLocation].Before(localLocationClock) {
+		t.Fatalf("location acknowledgement=%s local edit=%s", acknowledgements[calendarFieldLocation], localLocationClock)
 	}
 }
 
