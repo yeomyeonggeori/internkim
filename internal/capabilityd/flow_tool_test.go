@@ -81,6 +81,15 @@ func TestResolveFlowOwnerReturnsAmbiguousCandidates(t *testing.T) {
 	}
 }
 
+func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
+	members := []flowMemberForTool{{ID: "lee", Name: "이동하", Email: "lee@example.com"}}
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "Expensive"}, "lee@example.com", members)
+
+	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
 func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 	var summaryRequesterEmail string
 	var taskRequesterEmail string
@@ -668,6 +677,24 @@ func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	}
 	if !strings.Contains(result, `"scope":"person"`) {
 		t.Fatalf("expected person scope metadata, got %s", result)
+	}
+}
+
+func TestFlowTaskListUnknownPersonDoesNotListEveryone(t *testing.T) {
+	service := flowTaskListTwoOwnerStateService(t)
+	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.list",
+		Input:    []byte(`{"targetPersonHint":"Expensive","weekFrom":-1000}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "flow_owner_not_found" {
+		t.Fatalf("expected unresolved person error, got %+v", response)
+	}
+	if strings.Contains(string(response.Result), "rain-future") || strings.Contains(string(response.Result), "lee-task") {
+		t.Fatalf("expected no task disclosure, got %s", response.Result)
 	}
 }
 

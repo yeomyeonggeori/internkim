@@ -1,8 +1,6 @@
 package capabilityd
 
-import (
-	"strings"
-)
+import "strings"
 
 type flowOwnerResolution struct {
 	OwnerID string
@@ -25,7 +23,17 @@ func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOw
 	if len(matches) > 1 {
 		return ambiguousFlowOwnerResolution(matches)
 	}
-	return flowOwnerResolution{}
+	return missingFlowOwnerResolution()
+}
+
+func missingFlowOwnerResolution() flowOwnerResolution {
+	return flowOwnerResolution{Failure: &flowTaskAddFailure{
+		ErrorCode:    "flow_owner_not_found",
+		FailureStage: "target_resolution",
+		Message:      "task owner was not found; ask the user for a name, email, or @handle",
+		Retryable:    true,
+		SafeRetry:    true,
+	}}
 }
 
 func ambiguousFlowOwnerResolution(matches []flowMemberForTool) flowOwnerResolution {
