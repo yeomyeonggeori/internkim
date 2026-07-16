@@ -111,6 +111,7 @@ type Service struct {
 	calendarRemoteMutex     sync.Mutex
 	calendarSwitchWaiters   atomic.Int64
 	calendarStoreWriteMutex sync.Mutex
+	calendarCandidateClock  calendarConflictCandidateClock
 	calendarPullCacheMutex  sync.Mutex
 	lastCalendarPullAt      time.Time
 	calendarRecentPushMutex sync.Mutex

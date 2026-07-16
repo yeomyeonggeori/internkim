@@ -13,9 +13,11 @@ func TestResolveCalendarRemoteDeletion(t *testing.T) {
 		localChangedAt time.Time
 		expected       calendarConflictWinner
 	}{
-		{name: "delete after local change", localChangedAt: lastSeenAt.Add(-time.Minute), expected: calendarConflictWinnerRemote},
-		{name: "local change after detected deletion", localChangedAt: missingDetectedAt.Add(time.Minute), expected: calendarConflictWinnerLocal},
+		{name: "before last seen", localChangedAt: lastSeenAt.Add(-time.Minute), expected: calendarConflictWinnerRemote},
+		{name: "at last seen", localChangedAt: lastSeenAt, expected: calendarConflictWinnerRemote},
 		{name: "ambiguous interval prefers deletion", localChangedAt: lastSeenAt.Add(30 * time.Minute), expected: calendarConflictWinnerRemote},
+		{name: "at missing detected", localChangedAt: missingDetectedAt, expected: calendarConflictWinnerRemote},
+		{name: "strictly after missing detected", localChangedAt: missingDetectedAt.Add(time.Nanosecond), expected: calendarConflictWinnerLocal},
 		{name: "missing evidence prefers deletion", localChangedAt: time.Time{}, expected: calendarConflictWinnerRemote},
 	}
 	for _, testCase := range testCases {

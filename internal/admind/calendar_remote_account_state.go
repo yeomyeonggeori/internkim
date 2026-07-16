@@ -43,6 +43,14 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 	if strings.TrimSpace(account.InitialSyncCompletedAt) != "" {
 		account.SelectedCalendarReadinessStatus = calendarReadinessStatusSyncReady
 	}
+	backfillCandidate := time.Now().UTC()
+	if remoteCalendarAccountCanWrite(account) {
+		reservedBackfillCandidate, errorValue := service.reserveCalendarConflictCandidateTime(ctx, backfillCandidate)
+		if errorValue != nil {
+			return remoteCalendarAccount{}, errorValue
+		}
+		backfillCandidate = reservedBackfillCandidate
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
@@ -64,7 +72,7 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 		}
 		return updated, nil
 	}
-	shouldSignalSync, errorValue = enqueueCalendarBackfillOutboxWithRunner(ctx, transaction, updated)
+	shouldSignalSync, errorValue = enqueueCalendarBackfillOutboxWithRunner(ctx, transaction, &service.calendarCandidateClock, updated, backfillCandidate)
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return remoteCalendarAccount{}, errorValue
