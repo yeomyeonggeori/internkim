@@ -168,13 +168,27 @@ func TestSDKDBridgeExposesOnlyAllowedRoutes(t *testing.T) {
 }
 
 func TestSDKDBridgePreservesCancellation(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-sdkd.sock")
+	t.Cleanup(func() { _ = os.Remove(socketPath) })
 	requestStarted := make(chan struct{})
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		close(requestStarted)
+		<-request.Context().Done()
+	})}
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		_ = server.Shutdown(context.Background())
+		_ = listener.Close()
+	})
+
 	service := Service{
-		Configuration: DefaultConfiguration(),
+		Configuration: Configuration{SDKDSocketPath: socketPath}.WithDefaults(),
 		SDKDAuthKey:   "host-key",
-		SDKDHTTPClient: &http.Client{Transport: sdkdCancellationRoundTripper{
-			requestStarted: requestStarted,
-		}},
 	}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/v1/llm/chat", strings.NewReader(`{"model":"test"}`)).WithContext(requestContext)
@@ -203,12 +217,16 @@ func TestSDKDBridgePreservesCancellation(t *testing.T) {
 	assertSDKDErrorResponse(t, responseRecorder, "sdkd_bridge_unavailable", true)
 }
 
-type sdkdCancellationRoundTripper struct {
-	requestStarted chan<- struct{}
-}
-
-func (roundTripper sdkdCancellationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	close(roundTripper.requestStarted)
-	<-request.Context().Done()
-	return nil, request.Context().Err()
+func TestSDKDHTTPClientHasNoIndependentRequestTimeout(t *testing.T) {
+	client := (Service{Configuration: DefaultConfiguration()}).newSDKDHTTPClient()
+	if client.Timeout != 0 {
+		t.Fatalf("expected request context to own SDKD cancellation, got client timeout %s", client.Timeout)
+	}
+	transport, isTransport := client.Transport.(*http.Transport)
+	if !isTransport {
+		t.Fatalf("expected SDKD HTTP transport, got %T", client.Transport)
+	}
+	if transport.ResponseHeaderTimeout != 0 {
+		t.Fatalf("expected no independent SDKD response header timeout, got %s", transport.ResponseHeaderTimeout)
+	}
 }

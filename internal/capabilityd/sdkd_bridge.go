@@ -115,17 +115,14 @@ func (service Service) sdkdHTTPClient() *http.Client {
 }
 
 func (service Service) newSDKDHTTPClient() *http.Client {
-	timeout := service.httpClientTimeout()
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "unix", service.Configuration.SDKDSocketPath)
 		},
-		IdleConnTimeout:       90 * time.Second,
-		ResponseHeaderTimeout: timeout,
+		IdleConnTimeout: 90 * time.Second,
 	}
 	return &http.Client{
 		Transport: transport,
-		Timeout:   timeout,
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
