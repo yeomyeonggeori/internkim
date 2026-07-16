@@ -192,6 +192,60 @@ func TestCalDAVClientGetReturnsCanonicalCalendarObject(t *testing.T) {
 	}
 }
 
+func TestCalDAVClientQueriesCalendarObjectByUID(t *testing.T) {
+	const calendarPath = "/calendars/me/"
+	const objectPath = "/calendars/me/server-generated-42.ics"
+	const eventUID = "query-by-uid@internkim"
+	const calendarData = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//InternKim//Calendar//EN\r\nBEGIN:VEVENT\r\nUID:" + eventUID + "\r\nDTSTAMP:20260716T000000Z\r\nDTSTART:20260716T010000Z\r\nDTEND:20260716T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	requestMethod := ""
+	requestPath := ""
+	requestDepth := ""
+	requestBody := ""
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestMethod = request.Method
+		requestPath = request.URL.EscapedPath()
+		requestDepth = request.Header.Get("Depth")
+		encodedRequest, _ := io.ReadAll(request.Body)
+		requestBody = string(encodedRequest)
+		writer.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		writer.WriteHeader(http.StatusMultiStatus)
+		_, _ = io.WriteString(writer, `<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:response>
+    <D:href>`+objectPath+`</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:getetag>"etag-query"</D:getetag>
+        <C:calendar-data><![CDATA[`+calendarData+`]]></C:calendar-data>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>`)
+	}))
+	defer server.Close()
+
+	client := newTestOutboundCalDAVClient(t, server)
+	objects, errorValue := client.queryCalendarObjectsByUID(context.Background(), calendarPath, eventUID)
+	if errorValue != nil {
+		t.Fatalf("query by UID: %v", errorValue)
+	}
+	if requestMethod != "REPORT" || requestPath != calendarPath || requestDepth != "1" {
+		t.Fatalf("request method=%q path=%q depth=%q", requestMethod, requestPath, requestDepth)
+	}
+	for _, expectedFragment := range []string{"calendar-query", "getetag", "calendar-data", `name="VCALENDAR"`, `name="VEVENT"`, `name="UID"`, "text-match", eventUID} {
+		if !strings.Contains(requestBody, expectedFragment) {
+			t.Errorf("REPORT body missing %q: %s", expectedFragment, requestBody)
+		}
+	}
+	if len(objects) != 1 {
+		t.Fatalf("objects=%+v", objects)
+	}
+	if objects[0].Path != objectPath || objects[0].ETag != "etag-query" || !strings.Contains(string(objects[0].Data), "UID:"+eventUID) {
+		t.Fatalf("object=%+v data=%q", objects[0], string(objects[0].Data))
+	}
+}
+
 func TestCalDAVClientPutReturnsPreconditionFailedOn412(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusPreconditionFailed)
