@@ -101,6 +101,10 @@ WHERE account_id = ? AND calendar_url = ? AND event_uid IN (`+placeholders+")", 
 	return errorValue
 }
 
+func deleteCalendarPushObservationFenceWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, calendarURL string, eventUID string) error {
+	return deleteCalendarPushObservationFencesWithRunner(ctx, queryRunner, accountID, calendarURL, []string{eventUID})
+}
+
 func mergeCalendarUIDSets(first map[string]struct{}, second map[string]struct{}) map[string]struct{} {
 	result := map[string]struct{}{}
 	for eventUID := range first {

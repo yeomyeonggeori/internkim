@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	calendarSourceLocal = "local"
-	calendarSourcePull  = "pull"
+	calendarSourceLocal                 = "local"
+	calendarSourcePull                  = "pull"
+	calendarOutboxActiveStatusPredicate = "status IN (?, ?)"
 )
 
 type calendarOutboxRow struct {
@@ -106,7 +107,10 @@ func (service *Service) listCalendarOutbox(ctx context.Context, accountID string
 		conditions = append(conditions, "account_id = ?")
 		arguments = append(arguments, strings.TrimSpace(accountID))
 	}
-	if !includeBlocked {
+	if includeBlocked {
+		conditions = append(conditions, calendarOutboxActiveStatusPredicate)
+		arguments = append(arguments, calendarOutboxStatusPending, calendarOutboxStatusBlocked)
+	} else {
 		conditions = append(conditions, "status = ?")
 		arguments = append(arguments, calendarOutboxStatusPending)
 	}
@@ -162,13 +166,14 @@ func (service *Service) hasPendingCalendarLocalDelete(ctx context.Context, accou
 		return false, errorValue
 	}
 	defer database.Close()
-	query := `SELECT operation FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND status = ? ORDER BY id DESC LIMIT 1`
+	query := `SELECT operation FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND ` + calendarOutboxActiveStatusPredicate + ` ORDER BY id DESC LIMIT 1`
 	var operation string
 	errorValue = database.QueryRowContext(ctx, query,
 		strings.TrimSpace(accountID),
 		normalizeCalendarOutboxTargetURL(targetCalendarURL),
 		trimmedEventUID,
 		calendarOutboxStatusPending,
+		calendarOutboxStatusBlocked,
 	).Scan(&operation)
 	if errorValue == nil {
 		return operation == calendarOutboxOperationDelete, nil
@@ -200,8 +205,8 @@ func (service *Service) hasPendingCalendarPutsForTarget(ctx context.Context, acc
 }
 
 func hasPendingCalendarPutsForTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
-	query := `SELECT target_calendar_url FROM calendar_outbox WHERE operation = ? AND target_calendar_url = ? AND status = ?`
-	arguments := []any{calendarOutboxOperationPut, normalizeCalendarOutboxTargetURL(target.CalendarURL), calendarOutboxStatusPending}
+	query := `SELECT target_calendar_url FROM calendar_outbox WHERE operation = ? AND target_calendar_url = ? AND ` + calendarOutboxActiveStatusPredicate
+	arguments := []any{calendarOutboxOperationPut, normalizeCalendarOutboxTargetURL(target.CalendarURL), calendarOutboxStatusPending, calendarOutboxStatusBlocked}
 	if strings.TrimSpace(eventUID) != "" {
 		query += " AND event_uid = ?"
 		arguments = append(arguments, strings.TrimSpace(eventUID))
