@@ -294,14 +294,14 @@ func TestMattermostScenarioRejectsUnsupportedApprovalAction(t *testing.T) {
 	}
 }
 
-func TestMattermostScenarioOutputFragmentExcludesCapabilityRequestEcho(t *testing.T) {
+func TestMattermostScenarioOutputFragmentExcludesToolRequestEcho(t *testing.T) {
 	expectation := mattermostScenarioEventCount{
-		Name:           "tool.capability.invoke.result",
+		Name:           "tool.task.update.result",
 		OutputFragment: "고객지원 분기 결산 검토 완료",
 		Count:          1,
 	}
 	events := []mattermostScenarioTaskEvent{{
-		Name: "tool.capability.invoke.result",
+		Name: "tool.task.update.result",
 		Body: `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"toolInputKey":"task.update request 고객지원 분기 결산 검토 완료"}`,
 	}}
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 0 {
@@ -314,6 +314,33 @@ func TestMattermostScenarioOutputFragmentExcludesCapabilityRequestEcho(t *testin
 	events[0].Body = `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"summary":"고객지원 분기 결산 검토 완료"}`
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 0 {
 		t.Fatalf("expected summary text to be excluded, got %d", count)
+	}
+}
+
+func TestMattermostScenarioOutputFragmentRequiresToolResult(t *testing.T) {
+	validScenario := mattermostScenario{
+		Name: "valid",
+		Steps: []mattermostScenarioStep{{
+			Prompt: "검토해줘",
+			ExpectedEventCounts: []mattermostScenarioEventCount{{
+				Name:           "tool.task.update.result",
+				OutputFragment: "완료",
+			}},
+		}},
+	}
+	if errorValue := validateMattermostScenario(validScenario); errorValue != nil {
+		t.Fatalf("expected direct tool result to allow outputFragment: %v", errorValue)
+	}
+	invalidScenario := validScenario
+	invalidScenario.Steps = []mattermostScenarioStep{{
+		Prompt: "검토해줘",
+		ExpectedEventCounts: []mattermostScenarioEventCount{{
+			Name:           "tool.task.update.requested",
+			OutputFragment: "완료",
+		}},
+	}}
+	if errorValue := validateMattermostScenario(invalidScenario); errorValue == nil {
+		t.Fatal("expected outputFragment on a request event to be rejected")
 	}
 }
 

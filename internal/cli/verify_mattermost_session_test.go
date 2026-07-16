@@ -636,10 +636,24 @@ func TestMattermostScenarioStepMetricsDescribeAgentWork(t *testing.T) {
 	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router"}`},
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action"}`},
+		{Name: "agent.action"},
 		{Name: "tool.capability.invoke.requested"},
 	}}
 	setMattermostScenarioStepMetrics(&result)
 	if result.LLMCallCount != 2 || result.AgentStepCount != 1 || result.ToolCallCount != 1 {
 		t.Fatalf("unexpected step metrics: %#v", result)
+	}
+}
+
+func TestMattermostScenarioStepMetricsCountsNativeAgentActionsWithoutDoubleCounting(t *testing.T) {
+	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "llm.call", Body: `{"kind":"chat"}`},
+		{Name: "agent.action"},
+		{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_agent_turn_action"}`},
+		{Name: "agent.action"},
+	}}
+	setMattermostScenarioStepMetrics(&result)
+	if result.AgentStepCount != 2 {
+		t.Fatalf("expected two native agent steps, got %#v", result)
 	}
 }

@@ -17,7 +17,7 @@
         {"name": "agent.ambient_duty_launch", "bodyFragment": "team_flow", "count": 1},
         {"name": "tool.task.list.requested", "bodyFragment": "\"targetPersonHint\":\"박예시\"", "count": 1},
         {"name": "tool.task.add.requested", "bodyFragment": "\"targetPersonHint\":\"박예시\"", "count": 1},
-        {"name": "tool.task.add.result", "bodyFragment": "박예시", "count": 1}
+        {"name": "tool.task.add.result", "outputFragment": "박예시", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }

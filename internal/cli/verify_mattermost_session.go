@@ -279,12 +279,9 @@ func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {
 	for _, event := range result.TaskEvents {
 		if event.Name == "llm.call" {
 			result.LLMCallCount++
-			var call struct {
-				SchemaName string `json:"schemaName"`
-			}
-			if json.Unmarshal([]byte(event.Body), &call) == nil && call.SchemaName == "blueclaw_agent_turn_action" {
-				result.AgentStepCount++
-			}
+		}
+		if event.Name == "agent.action" {
+			result.AgentStepCount++
 		}
 		if strings.HasPrefix(event.Name, "tool.") && strings.HasSuffix(event.Name, ".requested") {
 			result.ToolCallCount++

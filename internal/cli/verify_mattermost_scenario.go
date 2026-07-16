@@ -259,14 +259,18 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 		if strings.TrimSpace(eventCount.Name) == "" || eventCount.Count < 0 {
 			return fmt.Errorf("Mattermost scenario step %d event count %d is invalid", stepIndex, eventIndex)
 		}
-		if eventCount.OutputFragment != "" && eventCount.Name != "tool.capability.invoke.result" {
-			return fmt.Errorf("Mattermost scenario step %d event count %d outputFragment requires tool.capability.invoke.result", stepIndex, eventIndex)
+		if eventCount.OutputFragment != "" && !isMattermostScenarioToolResultEvent(eventCount.Name) {
+			return fmt.Errorf("Mattermost scenario step %d event count %d outputFragment requires a tool result event", stepIndex, eventIndex)
 		}
 		if eventCount.BodyFragment != "" && eventCount.OutputFragment != "" {
 			return fmt.Errorf("Mattermost scenario step %d event count %d cannot combine bodyFragment and outputFragment", stepIndex, eventIndex)
 		}
 	}
 	return nil
+}
+
+func isMattermostScenarioToolResultEvent(name string) bool {
+	return strings.HasPrefix(name, "tool.") && strings.HasSuffix(name, ".result")
 }
 
 func validateMattermostScenarioResult(scenario mattermostScenario, result *mattermostScenarioResult) error {
@@ -741,14 +745,14 @@ func countMattermostScenarioExpectedEvents(events []mattermostScenarioTaskEvent,
 	}
 	count := 0
 	for _, event := range events {
-		if event.Name == expected.Name && capabilityResultOutputContains(event.Body, expected.OutputFragment) {
+		if event.Name == expected.Name && toolResultOutputContains(event.Body, expected.OutputFragment) {
 			count++
 		}
 	}
 	return count
 }
 
-func capabilityResultOutputContains(body string, fragment string) bool {
+func toolResultOutputContains(body string, fragment string) bool {
 	var result struct {
 		Output json.RawMessage `json:"output"`
 	}
