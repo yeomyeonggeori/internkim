@@ -126,6 +126,10 @@ func testMattermostSourceEvent(identifier string, postID string) mattermostScena
 	return mattermostScenarioTaskEvent{TaskEventID: identifier, Name: "agent.task_source", Body: `{"sourceReference":"mattermost:thread:channel:user-post:` + postID + `"}`}
 }
 
+func testMattermostLaunchedEvent(identifier string, postID string) mattermostScenarioTaskEvent {
+	return mattermostScenarioTaskEvent{TaskEventID: identifier, Name: "agent.task_launched", Body: `{"sourceReference":"mattermost:thread:channel:user-post:` + postID + `"}`}
+}
+
 func testMattermostReplyEvent(identifier string, replyKind string, postID string, sourcePostID string) mattermostScenarioTaskEvent {
 	return mattermostScenarioTaskEvent{TaskEventID: identifier, Name: "connector.reply.sent", Body: `{"dispatchID":"` + postID + `","messageID":"mattermost:thread:channel:user-post:` + sourcePostID + `","replyKind":"` + replyKind + `"}`}
 }
@@ -561,7 +565,7 @@ func TestMattermostScenarioUnexpectedTerminalStatusReturnsWithoutPolling(t *test
 			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "now"}}
 		},
 		taskDetailValue: func(string) mattermostScenarioTaskDetail {
-			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "failed"}, TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "post"), {TaskEventID: "failed", Name: "task.failed"}, testMattermostReplyEvent("reply", "user_notice", "bot-post", "post")}}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "failed"}, TaskEvents: []mattermostScenarioTaskEvent{testMattermostLaunchedEvent("source", "post"), {TaskEventID: "failed", Name: "task.failed"}, testMattermostReplyEvent("reply", "user_notice", "bot-post", "post")}}
 		},
 	}
 	session := newTestMattermostScenarioSession(mattermostScenario{}, &fakeMattermostProbeAPI{}, admin)
