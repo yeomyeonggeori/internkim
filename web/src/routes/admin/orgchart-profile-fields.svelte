@@ -2,6 +2,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
+	import { replaceOrgchartPrimaryGroup } from '../../lib/orgchart/group-membership';
 	import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 	import type { AdminPageText } from './admin-types';
 	import { supervisorCandidatesForRecord } from './orgchart-tree';
@@ -47,9 +48,10 @@
 	}
 
 	function selectPrimaryGroup(groupID: string) {
-		record.primaryGroupID = groupID;
-		record.group = groupID;
-		record.groupIDs = groupID ? [groupID] : [];
+		const membership = replaceOrgchartPrimaryGroup(record, groupID);
+		record.primaryGroupID = membership.primaryGroupID;
+		record.group = membership.primaryGroupID;
+		record.groupIDs = membership.groupIDs;
 	}
 
 	function selectPrimaryGroupValue(groupID: string) {
