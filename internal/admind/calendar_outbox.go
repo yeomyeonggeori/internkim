@@ -240,7 +240,7 @@ func (service *Service) updatePendingCalendarOutboxRemoteState(ctx context.Conte
 	}
 	defer database.Close()
 	_, errorValue = database.ExecContext(ctx,
-		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status = ?`,
+		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND `+calendarOutboxActiveStatusPredicate,
 		strings.TrimSpace(remoteETag),
 		strings.TrimSpace(remoteHref),
 		strings.TrimSpace(accountID),
@@ -248,6 +248,7 @@ func (service *Service) updatePendingCalendarOutboxRemoteState(ctx context.Conte
 		strings.TrimSpace(eventUID),
 		calendarOutboxOperationPut,
 		calendarOutboxStatusPending,
+		calendarOutboxStatusBlocked,
 	)
 	return errorValue
 }
@@ -259,7 +260,7 @@ func (service *Service) updatePendingCalendarDeleteRemoteState(ctx context.Conte
 	}
 	defer database.Close()
 	_, errorValue = database.ExecContext(ctx,
-		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status = ?`,
+		`UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND `+calendarOutboxActiveStatusPredicate,
 		strings.TrimSpace(remoteETag),
 		strings.TrimSpace(remoteHref),
 		strings.TrimSpace(accountID),
@@ -267,20 +268,12 @@ func (service *Service) updatePendingCalendarDeleteRemoteState(ctx context.Conte
 		strings.TrimSpace(eventUID),
 		calendarOutboxOperationDelete,
 		calendarOutboxStatusPending,
+		calendarOutboxStatusBlocked,
 	)
 	return errorValue
 }
 
-func (service *Service) deleteCalendarOutboxForEventUID(ctx context.Context, accountID string, targetCalendarURL string, eventUID string) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	return deleteCalendarOutboxForEventUIDWithRunner(ctx, database, accountID, targetCalendarURL, eventUID)
-}
-
 func deleteCalendarOutboxForEventUIDWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, targetCalendarURL string, eventUID string) error {
-	_, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND status = ?`, strings.TrimSpace(accountID), normalizeCalendarOutboxTargetURL(targetCalendarURL), strings.TrimSpace(eventUID), calendarOutboxStatusPending)
+	_, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND `+calendarOutboxActiveStatusPredicate, strings.TrimSpace(accountID), normalizeCalendarOutboxTargetURL(targetCalendarURL), strings.TrimSpace(eventUID), calendarOutboxStatusPending, calendarOutboxStatusBlocked)
 	return errorValue
 }

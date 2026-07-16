@@ -476,6 +476,13 @@ func TestPullConflictRemoteEditAfterLocalDeleteRestoresRemoteEvent(t *testing.T)
 	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	deleteRows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(deleteRows) != 1 {
+		t.Fatalf("pending delete rows=%d error=%v", len(deleteRows), errorValue)
+	}
+	if errorValue := service.markCalendarOutboxBatchBlocked(ctx, deleteRows[0], time.Now().UTC().Format(time.RFC3339Nano), "manual review required"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	deletedAt := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -511,6 +518,69 @@ func TestPullConflictRemoteEditAfterLocalDeleteRestoresRemoteEvent(t *testing.T)
 	}
 	if len(rows) != 0 {
 		t.Fatalf("resolved local delete should clear outbox, rows=%d", len(rows))
+	}
+}
+
+func TestPullConflictBlockedLocalDeleteKeepsUpdatedRemoteState(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("pull-blocked-delete-local-wins", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-edit"`
+	event.RemoteHref = "/calendars/me/pull-blocked-delete-local-wins.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteRows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(deleteRows) != 1 {
+		t.Fatalf("pending delete rows=%d error=%v", len(deleteRows), errorValue)
+	}
+	deletedAt := time.Date(2026, 7, 15, 5, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_events SET deleted_at = ? WHERE id = ?`, deletedAt.Format(time.RFC3339Nano), event.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.markCalendarOutboxBatchBlocked(ctx, deleteRows[0], deletedAt.Format(time.RFC3339Nano), "manual review required"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	remoteEvent := event
+	remoteEvent.Title = "Remote Older Edit"
+	remoteHref := "/calendars/me/pull-blocked-delete-local-wins-renamed.ics"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, deletedAt.Add(-time.Minute))
+	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, []calDAVCalendarObject{{
+		Path: remoteHref,
+		ETag: `"etag-after-edit"`,
+		Data: remoteICS,
+	}}, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil || found {
+		t.Fatalf("local delete should remain applied: found=%v error=%v", found, errorValue)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil || len(rows) != 1 {
+		t.Fatalf("active rows=%d error=%v", len(rows), errorValue)
+	}
+	if rows[0].Status != calendarOutboxStatusBlocked || rows[0].RemoteHref != remoteHref || rows[0].IfMatchETag != `"etag-after-edit"` {
+		t.Fatalf("blocked delete state=%+v", rows[0])
 	}
 }
 

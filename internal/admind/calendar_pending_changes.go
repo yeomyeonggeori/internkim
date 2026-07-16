@@ -10,6 +10,7 @@ import (
 type retainedCalendarOutboxRow struct {
 	ID     int64
 	Fields []string
+	Status string
 }
 
 type pendingCalendarLocalChange struct {
@@ -195,14 +196,14 @@ func calendarOutboxRowHappenedAfter(candidate calendarOutboxRow, current calenda
 
 func retainPendingCalendarOutboxFieldsWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, targetCalendarURL string, eventUID string, retainedFields []string, remoteHref string, remoteETag string) error {
 	normalizedTarget := normalizeCalendarOutboxTargetURL(targetCalendarURL)
-	if _, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation <> ? AND status = ?`, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(eventUID), calendarOutboxOperationPut, calendarOutboxStatusPending); errorValue != nil {
+	if _, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation <> ? AND `+calendarOutboxActiveStatusPredicate, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(eventUID), calendarOutboxOperationPut, calendarOutboxStatusPending, calendarOutboxStatusBlocked); errorValue != nil {
 		return errorValue
 	}
 	rows, errorValue := queryRunner.QueryContext(ctx, `
-SELECT id, changed_fields
+SELECT id, changed_fields, status
 FROM calendar_outbox
-WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status = ?
-ORDER BY id`, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(eventUID), calendarOutboxOperationPut, calendarOutboxStatusPending)
+WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND `+calendarOutboxActiveStatusPredicate+`
+ORDER BY id`, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(eventUID), calendarOutboxOperationPut, calendarOutboxStatusPending, calendarOutboxStatusBlocked)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -210,12 +211,13 @@ ORDER BY id`, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(
 	for rows.Next() {
 		var rowID int64
 		var changedFieldsRaw string
-		if errorValue := rows.Scan(&rowID, &changedFieldsRaw); errorValue != nil {
+		var status string
+		if errorValue := rows.Scan(&rowID, &changedFieldsRaw, &status); errorValue != nil {
 			rows.Close()
 			return errorValue
 		}
 		changedFields := normalizeCalendarOutboxPutChangedFields(decodeChangedFields(changedFieldsRaw))
-		retainedRows = append(retainedRows, retainedCalendarOutboxRow{ID: rowID, Fields: intersectCalendarFields(changedFields, retainedFields)})
+		retainedRows = append(retainedRows, retainedCalendarOutboxRow{ID: rowID, Fields: intersectCalendarFields(changedFields, retainedFields), Status: status})
 	}
 	if errorValue := rows.Close(); errorValue != nil {
 		return errorValue
@@ -223,6 +225,15 @@ ORDER BY id`, strings.TrimSpace(accountID), normalizedTarget, strings.TrimSpace(
 	for _, row := range retainedRows {
 		if len(row.Fields) == 0 {
 			if _, errorValue := queryRunner.ExecContext(ctx, `DELETE FROM calendar_outbox WHERE id = ?`, row.ID); errorValue != nil {
+				return errorValue
+			}
+			continue
+		}
+		if row.Status == calendarOutboxStatusBlocked {
+			if _, errorValue := queryRunner.ExecContext(ctx, `
+UPDATE calendar_outbox
+SET changed_fields = ?, if_match_etag = ?, remote_href = ?
+WHERE id = ?`, encodeChangedFields(row.Fields), strings.TrimSpace(remoteETag), strings.TrimSpace(remoteHref), row.ID); errorValue != nil {
 				return errorValue
 			}
 			continue

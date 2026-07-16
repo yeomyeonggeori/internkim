@@ -35,7 +35,7 @@ func TestPullConflictRepeatedMissingKeepsFirstBoundaryAndLaterLocalWrite(t *test
 	if errorValue := service.writeCalendarEvent(contextValue, localUpdated); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if _, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, target, nil, nil, "", firstMissingBoundary); errorValue != nil || !isCurrentTarget {
+	if _, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, target, nil, "", firstMissingBoundary); errorValue != nil || !isCurrentTarget {
 		t.Fatalf("first pull current=%v error=%v", isCurrentTarget, errorValue)
 	}
 	firstState, found, errorValue := service.readCalendarRemoteEventState(contextValue, account.ID, target.CalendarURL, event.UID)
@@ -49,7 +49,7 @@ func TestPullConflictRepeatedMissingKeepsFirstBoundaryAndLaterLocalWrite(t *test
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if _, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, target, nil, nil, "", secondMissingBoundary); errorValue != nil || !isCurrentTarget {
+	if _, isCurrentTarget, errorValue := service.applyCalendarPullCycleIfCurrent(contextValue, account, target, nil, "", secondMissingBoundary); errorValue != nil || !isCurrentTarget {
 		t.Fatalf("second pull current=%v error=%v", isCurrentTarget, errorValue)
 	}
 	finalEvent, found, errorValue := service.readCalendarEventByID(contextValue, event.ID)
