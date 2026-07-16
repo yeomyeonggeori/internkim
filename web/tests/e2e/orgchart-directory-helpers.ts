@@ -7,9 +7,9 @@ type MockOrgchartDirectoryOptions = {
 
 export const orgchartDirectoryUsersResponse: UsersResponse = {
 	availableGroups: [
-		{ id: 'leadership', name: '경영' },
-		{ id: 'product', name: '제품팀' },
 		{ id: 'design', name: '디자인팀' },
+		{ id: 'product', name: '제품팀' },
+		{ id: 'leadership', name: '경영' },
 		{ id: 'field', name: '현장지원팀' }
 	],
 	records: [
@@ -20,9 +20,9 @@ export const orgchartDirectoryUsersResponse: UsersResponse = {
 			email: 'ceo@example.com',
 			hireDate: '2026-01-03',
 			role: 'member',
-			jobTitle: '대표이사',
+			jobTitle: '  FoUn-Der  ',
 			primaryGroupID: 'leadership',
-			groupIDs: ['leadership']
+			groupIDs: ['leadership', 'product']
 		},
 		{
 			userID: 'user-junho',
