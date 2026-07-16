@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -112,6 +115,54 @@ func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
 		if !slices.Contains(environment, expectedValue) {
 			t.Fatalf("expected %q in %#v", expectedValue, environment)
 		}
+	}
+}
+
+func TestLatestLocalFleetConfigurationPathPrefersCanonicalConfiguration(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
+	runPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "stale", "config.json")
+	if errorValue := os.MkdirAll(filepath.Dir(runPath), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, path := range []string{canonicalPath, runPath} {
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected canonical configuration: %v", errorValue)
+	}
+	if configurationPath != canonicalPath {
+		t.Fatalf("configuration path = %q, want %q", configurationPath, canonicalPath)
+	}
+}
+
+func TestLatestLocalFleetConfigurationPathFallsBackToLatestRun(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	oldRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "old", "config.json")
+	latestRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "latest", "config.json")
+	for _, path := range []string{oldRunPath, latestRunPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	oldModificationTime := time.Now().Add(-time.Hour)
+	if errorValue := os.Chtimes(oldRunPath, oldModificationTime, oldModificationTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected run configuration: %v", errorValue)
+	}
+	if configurationPath != latestRunPath {
+		t.Fatalf("configuration path = %q, want %q", configurationPath, latestRunPath)
 	}
 }
 
