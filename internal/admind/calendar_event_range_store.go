@@ -3,6 +3,8 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -12,7 +14,11 @@ func readCalendarEventRows(ctx context.Context, database *sql.DB, startTime time
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return scanCalendarEventRows(rows)
+	events, errorValue := scanCalendarEventRows(rows)
+	if errorValue != nil || startTime.IsZero() || endTime.IsZero() {
+		return events, errorValue
+	}
+	return filterCalendarEventRowsByRange(events, startTime, endTime)
 }
 
 func calendarEventRangeQuery(startTime time.Time, endTime time.Time) (string, []any) {
@@ -22,8 +28,26 @@ FROM calendar_events
 WHERE deleted_at = ''`
 	arguments := []any{}
 	if !startTime.IsZero() && !endTime.IsZero() {
-		query += " AND end_at > ? AND start_at < ?"
-		arguments = append(arguments, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
+		query += " AND julianday(end_at) >= julianday(?) AND julianday(start_at) <= julianday(?)"
+		arguments = append(arguments, startTime.UTC().Format(time.RFC3339Nano), endTime.UTC().Format(time.RFC3339Nano))
 	}
 	return query + " ORDER BY start_at, title", arguments
+}
+
+func filterCalendarEventRowsByRange(events []calendarEvent, startTime time.Time, endTime time.Time) ([]calendarEvent, error) {
+	filteredEvents := make([]calendarEvent, 0, len(events))
+	for _, event := range events {
+		eventStartTime, errorValue := time.Parse(time.RFC3339Nano, strings.TrimSpace(event.StartISO))
+		if errorValue != nil {
+			return nil, fmt.Errorf("parse calendar event %s start time: %w", event.ID, errorValue)
+		}
+		eventEndTime, errorValue := time.Parse(time.RFC3339Nano, strings.TrimSpace(event.EndISO))
+		if errorValue != nil {
+			return nil, fmt.Errorf("parse calendar event %s end time: %w", event.ID, errorValue)
+		}
+		if eventEndTime.After(startTime) && eventStartTime.Before(endTime) {
+			filteredEvents = append(filteredEvents, event)
+		}
+	}
+	return filteredEvents, nil
 }
