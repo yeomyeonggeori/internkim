@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -259,7 +259,7 @@ func (client *outboundCalDAVClient) putCalendarObjectResponseETag(ctx context.Co
 	if response.StatusCode == http.StatusPreconditionFailed || response.StatusCode == http.StatusConflict {
 		responseExcerpt := readCalDAVResponseExcerpt(response)
 		drainAndCloseResponse(response)
-		log.Printf("caldav put conflict status=%d url=%s if-match=%q if-none-match=%q body=%s", response.StatusCode, requestURL, ifMatch, ifNoneMatch, responseExcerpt)
+		slog.WarnContext(ctx, "caldav put conflict", "status", response.StatusCode, "url", requestURL, "if_match", ifMatch, "if_none_match", ifNoneMatch, "response_body", responseExcerpt)
 		return "", errCalDAVPreconditionFailed
 	}
 	if response.StatusCode == http.StatusNotFound {
