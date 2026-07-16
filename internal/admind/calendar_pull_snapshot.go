@@ -100,18 +100,11 @@ func (service *Service) applyCalendarPullSnapshot(ctx context.Context, account r
 }
 
 func (service *Service) applyCalendarPullSnapshotLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, remoteObjects []calDAVCalendarObject, existingByUID map[string]calendarEvent, observedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, error) {
-	result := calendarPullReconciliationResult{RemoteUIDs: map[string]struct{}{}, IsComplete: true}
-	for _, object := range remoteObjects {
-		event, errorValue := decodeRemoteCalendarObject(object, account.AccountEmail)
-		if errorValue != nil {
-			log.Printf("calendar pull decode failed for %s: %v", object.Path, errorValue)
-			result.IsComplete = false
-			continue
-		}
-		result.RemoteUIDs[event.UID] = struct{}{}
-		if errorValue := service.markCalendarRemoteEventObservedAtReservedBoundary(ctx, account.ID, target.CalendarURL, event, observedAt); errorValue != nil {
-			return calendarPullReconciliationResult{}, errorValue
-		}
+	decodedEvents, result := decodeCalendarPullSnapshot(remoteObjects, account.AccountEmail)
+	if errorValue := service.persistObservedCalendarRemoteEventStateBatch(ctx, account.ID, target.CalendarURL, decodedEvents, observedAt); errorValue != nil {
+		return calendarPullReconciliationResult{}, errorValue
+	}
+	for _, event := range decodedEvents {
 		previous, found := existingByUID[event.UID]
 		if found && previous.RemoteETag == event.RemoteETag && previous.RemoteETag != "" {
 			continue
@@ -121,6 +114,22 @@ func (service *Service) applyCalendarPullSnapshotLocked(ctx context.Context, acc
 		}
 	}
 	return result, nil
+}
+
+func decodeCalendarPullSnapshot(remoteObjects []calDAVCalendarObject, accountEmail string) ([]calendarEvent, calendarPullReconciliationResult) {
+	decodedEvents := make([]calendarEvent, 0, len(remoteObjects))
+	result := calendarPullReconciliationResult{RemoteUIDs: map[string]struct{}{}, IsComplete: true}
+	for _, object := range remoteObjects {
+		event, errorValue := decodeRemoteCalendarObject(object, accountEmail)
+		if errorValue != nil {
+			log.Printf("calendar pull decode failed for %s: %v", object.Path, errorValue)
+			result.IsComplete = false
+			continue
+		}
+		decodedEvents = append(decodedEvents, event)
+		result.RemoteUIDs[event.UID] = struct{}{}
+	}
+	return decodedEvents, result
 }
 
 func hasProtectedMissingCalendarUID(activeEvents []calendarEvent, target remoteCalendarTarget, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}) bool {
