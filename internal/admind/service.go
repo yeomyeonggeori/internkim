@@ -119,6 +119,7 @@ type Service struct {
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
 	calendarWindowCache     calendarEventWindowCacheAvailability
+	calendarWindowBuilds    calendarEventWindowCacheBuildCoordinator
 	mattermostSessions      *mattermostSessionCache
 	startedAt               time.Time
 }
