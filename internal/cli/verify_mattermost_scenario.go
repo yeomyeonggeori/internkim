@@ -297,13 +297,13 @@ func validateMattermostScenarioStep(stepIndex int, scenario mattermostScenario, 
 	if actual.Prompt != expected.Prompt {
 		return fmt.Errorf("Mattermost scenario step %d prompt does not match", stepIndex)
 	}
+	if expected.ExpectedTaskStatus != "" && actual.TaskStatus != expected.ExpectedTaskStatus {
+		return fmt.Errorf("Mattermost scenario step %d status %q does not match %q", stepIndex, actual.TaskStatus, expected.ExpectedTaskStatus)
+	}
 	if scenarioHasExposureExpectations(scenario) {
 		if errorValue := validateMattermostScenarioExposure(stepIndex, scenario, expected, actual.TaskEvents); errorValue != nil {
 			return errorValue
 		}
-	}
-	if expected.ExpectedTaskStatus != "" && actual.TaskStatus != expected.ExpectedTaskStatus {
-		return fmt.Errorf("Mattermost scenario step %d status %q does not match %q", stepIndex, actual.TaskStatus, expected.ExpectedTaskStatus)
 	}
 	if errorValue := validateMattermostScenarioReply(stepIndex, expected, actual.BotMessage); errorValue != nil {
 		return errorValue

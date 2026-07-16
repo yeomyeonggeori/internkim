@@ -93,6 +93,27 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioReportsStatusBeforeMissingExposure(t *testing.T) {
+	scenario := mattermostScenario{
+		Name:             "exposure",
+		AllowedTools:     []string{"task.add"},
+		InitialToolNames: []string{"task.add"},
+		Steps: []mattermostScenarioStep{{
+			Prompt:             "업무를 추가해줘",
+			ExpectedTaskStatus: "completed",
+		}},
+	}
+	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
+		Prompt:     "업무를 추가해줘",
+		TaskStatus: "waiting_user_input",
+	}}}
+
+	errorValue := validateMattermostScenarioResult(scenario, &result)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), `status "waiting_user_input" does not match "completed"`) {
+		t.Fatalf("expected actionable status failure, got %v", errorValue)
+	}
+}
+
 func TestResolveMattermostScenarioRuntimeValuesUsesNextFriday(t *testing.T) {
 	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{ExpectedEventCounts: []mattermostScenarioEventCount{{BodyFragment: "{{nextFriday}}"}}}}}
 	resolveMattermostScenarioRuntimeValues(&scenario, time.Date(2026, time.July, 16, 12, 0, 0, 0, time.UTC))
