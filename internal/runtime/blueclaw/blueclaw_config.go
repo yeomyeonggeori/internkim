@@ -376,11 +376,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
 		"mcpServers":    []map[string]any{},
 		"terminal": map[string]any{
-			"mode":               terminalMode,
-			"sandboxProvider":    "",
-			"workspaceRootPath":  terminalWorkspaceRootPath,
-			"posixHelperPath":    terminalPOSIXHelperPath,
-			"deniedPathPrefixes": BlueclawDeniedPathPrefixes,
+			"mode":              terminalMode,
+			"sandboxProvider":   "",
+			"workspaceRootPath": terminalWorkspaceRootPath,
+			"posixHelperPath":   terminalPOSIXHelperPath,
 			"requesterWorkspace": map[string]any{
 				"requesterTemporaryEnvironmentVariable": "BLUECLAW_REQUESTER_TMP",
 				"taskTemporaryEnvironmentVariable":      "BLUECLAW_TASK_TMP",
