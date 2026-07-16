@@ -207,6 +207,18 @@ func resetCalendarActorProfileBenchmarkCache(service *Service) {
 	service.calendarActorCache = map[string]calendarActorProfileCacheEntry{}
 }
 
+func resetCalendarEventWindowBenchmarkCache(testContext testing.TB, service *Service) {
+	testContext.Helper()
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	defer database.Close()
+	if _, errorValue := database.ExecContext(context.Background(), "DELETE FROM calendar_event_window_cache_entries"); errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+}
+
 func verifyCalendarEventWindowBenchmarkResponse(testContext testing.TB, response calendarEventsResponse) {
 	testContext.Helper()
 	if len(response.Events) != calendarEventWindowBenchmarkEventCount {
