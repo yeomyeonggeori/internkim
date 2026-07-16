@@ -417,8 +417,8 @@ func TestCalendarOutboxWriteKeepsPullCache(t *testing.T) {
 	}
 	seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("cache-invalidate", "Cache Invalidate")
-	if errorValue := service.enqueueCalendarOutboxForWrite(ctx, event, []string{calendarFieldTitle}); errorValue != nil {
-		t.Fatalf("enqueue: %v", errorValue)
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write: %v", errorValue)
 	}
 	if service.shouldRunCalendarPull(now.Add(30 * time.Second)) {
 		t.Fatal("local write should keep fresh pull cache")

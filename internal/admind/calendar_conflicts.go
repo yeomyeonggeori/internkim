@@ -30,14 +30,23 @@ func (service *Service) recordCalendarConflict(ctx context.Context, eventID stri
 	defer database.Close()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO calendar_conflicts (event_id, event_uid, field, local_value, remote_value, detected_at, dismissed_at)
-VALUES (?, ?, ?, ?, ?, ?, '')`,
+	INSERT INTO calendar_conflicts (event_id, event_uid, field, local_value, remote_value, detected_at, dismissed_at)
+	SELECT ?, ?, ?, ?, ?, ?, ''
+	WHERE NOT EXISTS (
+		SELECT 1
+		FROM calendar_conflicts
+		WHERE event_uid = ? AND field = ? AND local_value = ? AND remote_value = ? AND dismissed_at = ''
+	)`,
 		strings.TrimSpace(eventID),
 		strings.TrimSpace(eventUID),
 		strings.TrimSpace(field),
 		localValue,
 		remoteValue,
 		now,
+		strings.TrimSpace(eventUID),
+		strings.TrimSpace(field),
+		localValue,
+		remoteValue,
 	)
 	return errorValue
 }

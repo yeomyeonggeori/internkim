@@ -96,7 +96,7 @@ func TestPullConflictStaleMissingRemotePreservesLatePendingLocalEdit(t *testing.
 	}); errorValue != nil {
 		t.Fatalf("seed remote state: %v", errorValue)
 	}
-	pendingLocalChanges, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID)
+	pendingLocalChanges, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID, activeRemoteCalendarTarget(account).CalendarURL)
 	if errorValue != nil {
 		t.Fatalf("read stale pending changes: %v", errorValue)
 	}

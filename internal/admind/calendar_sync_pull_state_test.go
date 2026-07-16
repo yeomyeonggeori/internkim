@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 func TestMarkRemoteCalendarAccountAuthErrorPersistsMessage(t *testing.T) {
@@ -211,6 +214,155 @@ func TestRunGoogleCalendarPullDoesNotSoftDeleteLocalOnlyEvents(t *testing.T) {
 	if !found {
 		t.Fatal("local-only event must survive pull with empty remote response")
 	}
+}
+
+func TestRunCalendarPullQueriesAgainAfterProtectedMissingUIDExpires(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account.DefaultCalendarCTag = "ctag-old"
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatalf("seed account ctag: %v", errorValue)
+	}
+
+	event := newLocalTestCalendarEvent("protected-missing", "Protected Missing")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-protected"`
+	event.RemoteHref = account.DefaultCalendarURL + event.UID + ".ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed remote event: %v", errorValue)
+	}
+
+	client := &fakeCalDAVPullClient{ctag: "ctag-new"}
+	protectedUIDs := map[string]struct{}{event.UID: {}}
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, protectedUIDs); errorValue != nil {
+		t.Fatalf("protected pull: %v", errorValue)
+	}
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
+		t.Fatalf("read protected event: %v", errorValue)
+	} else if !found {
+		t.Fatal("protected missing event should remain")
+	}
+
+	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found {
+		t.Fatalf("read account after protected pull: found=%v error=%v", found, errorValue)
+	}
+	if account.DefaultCalendarCTag != "ctag-old" {
+		t.Errorf("incomplete protected snapshot persisted ctag: got %q", account.DefaultCalendarCTag)
+	}
+
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
+		t.Fatalf("pull after protection expiry: %v", errorValue)
+	}
+	if client.queryCalls != 2 {
+		t.Errorf("calendar query calls: got %d, want 2", client.queryCalls)
+	}
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
+		t.Fatalf("read event after protection expiry: %v", errorValue)
+	} else if found {
+		t.Error("missing event should be deleted after protection expires")
+	}
+}
+
+func TestRunCalendarPullDoesNotDeleteMissingEventsOrPersistCTagAfterDecodeFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account.DefaultCalendarCTag = "ctag-old"
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatalf("seed account ctag: %v", errorValue)
+	}
+
+	event := newLocalTestCalendarEvent("decode-failure-missing", "Decode Failure Missing")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-existing"`
+	event.RemoteHref = account.DefaultCalendarURL + event.UID + ".ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed remote event: %v", errorValue)
+	}
+
+	client := &fakeCalDAVPullClient{
+		ctag: "ctag-new",
+		objects: []calDAVCalendarObject{
+			{Path: account.DefaultCalendarURL + "undecodable.ics", ETag: `"etag-undecodable"`},
+		},
+	}
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
+		t.Fatalf("pull with decode failure: %v", errorValue)
+	}
+
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
+		t.Fatalf("read missing event: %v", errorValue)
+	} else if !found {
+		t.Error("decode failure should prevent missing-as-delete")
+	}
+	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found {
+		t.Fatalf("read account after decode failure: found=%v error=%v", found, errorValue)
+	}
+	if account.DefaultCalendarCTag != "ctag-old" {
+		t.Errorf("snapshot with decode failure persisted ctag: got %q", account.DefaultCalendarCTag)
+	}
+}
+
+func TestRunCalendarPullDoesNotDeleteMissingEventsOrPersistCTagAfterCalDAVConversionFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	account.DefaultCalendarCTag = "ctag-old"
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatalf("seed account ctag: %v", errorValue)
+	}
+
+	event := newLocalTestCalendarEvent("conversion-failure-missing", "Conversion Failure Missing")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-existing"`
+	event.RemoteHref = account.DefaultCalendarURL + event.UID + ".ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed remote event: %v", errorValue)
+	}
+
+	client := &conversionBoundaryCalDAVPullClient{
+		fakeCalDAVPullClient: fakeCalDAVPullClient{ctag: "ctag-new"},
+		rawCalendarObjects: []caldav.CalendarObject{
+			{
+				Path: account.DefaultCalendarURL + "unencodable.ics",
+				ETag: `"etag-unencodable"`,
+				Data: ical.NewCalendar(),
+			},
+		},
+	}
+	if _, errorValue := service.runCalendarPull(ctx, googleCalendarProvider{}, account, client, false, nil); errorValue != nil {
+		t.Fatalf("pull with conversion failure: %v", errorValue)
+	}
+
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
+		t.Fatalf("read missing event: %v", errorValue)
+	} else if !found {
+		t.Error("conversion failure should prevent missing-as-delete")
+	}
+	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil || !found {
+		t.Fatalf("read account after conversion failure: found=%v error=%v", found, errorValue)
+	}
+	if account.DefaultCalendarCTag != "ctag-old" {
+		t.Errorf("snapshot with conversion failure persisted ctag: got %q", account.DefaultCalendarCTag)
+	}
+}
+
+type conversionBoundaryCalDAVPullClient struct {
+	fakeCalDAVPullClient
+	rawCalendarObjects []caldav.CalendarObject
+}
+
+func (client *conversionBoundaryCalDAVPullClient) queryAllCalendarEvents(ctx context.Context, calendarPath string) ([]calDAVCalendarObject, error) {
+	client.queryCalls++
+	client.queryPaths = append(client.queryPaths, calendarPath)
+	return convertCalDAVObjects(client.rawCalendarObjects), nil
 }
 
 func TestRunGoogleCalendarPullRequiresAccountEmailForDiscovery(t *testing.T) {

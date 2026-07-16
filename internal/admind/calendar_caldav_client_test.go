@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emersion/go-ical"
 	"golang.org/x/oauth2"
 )
 
@@ -123,6 +124,71 @@ func TestCalDAVClientPutUpdatesExistingObjectWithIfMatch(t *testing.T) {
 	}
 	if gotIfMatch != `"etag-old"` {
 		t.Errorf("If-Match: got %q", gotIfMatch)
+	}
+}
+
+func TestCalDAVClientPutRecoversCanonicalETagWithGet(t *testing.T) {
+	const objectPath = "/calendars/me/events/canonical-etag.ics"
+	const calendarData = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
+	requestMethods := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestMethods = append(requestMethods, request.Method)
+		if request.URL.EscapedPath() != objectPath {
+			t.Errorf("path: got %q, want %q", request.URL.EscapedPath(), objectPath)
+		}
+		switch request.Method {
+		case http.MethodPut:
+			writer.WriteHeader(http.StatusNoContent)
+		case http.MethodGet:
+			if request.Header.Get("Accept") != ical.MIMEType {
+				t.Errorf("Accept: got %q, want %q", request.Header.Get("Accept"), ical.MIMEType)
+			}
+			writer.Header().Set("ETag", `"etag-canonical"`)
+			_, _ = writer.Write([]byte(calendarData))
+		default:
+			t.Fatalf("unexpected method: %s", request.Method)
+		}
+	}))
+	defer server.Close()
+
+	client := newTestOutboundCalDAVClient(t, server)
+	etag, errorValue := client.putCalendarObject(context.Background(), objectPath, []byte(calendarData), "", caldavWildcardETag)
+	if errorValue != nil {
+		t.Fatalf("put: %v", errorValue)
+	}
+	if etag != `"etag-canonical"` {
+		t.Fatalf("etag: got %q, want canonical ETag", etag)
+	}
+	if strings.Join(requestMethods, ",") != http.MethodPut+","+http.MethodGet {
+		t.Fatalf("request methods: %v", requestMethods)
+	}
+}
+
+func TestCalDAVClientGetReturnsCanonicalCalendarObject(t *testing.T) {
+	const objectPath = "/calendars/me/events/get-canonical.ics"
+	const calendarData = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			t.Errorf("method: got %q, want GET", request.Method)
+		}
+		if request.URL.EscapedPath() != objectPath {
+			t.Errorf("path: got %q, want %q", request.URL.EscapedPath(), objectPath)
+		}
+		if request.Header.Get("Accept") != ical.MIMEType {
+			t.Errorf("Accept: got %q, want %q", request.Header.Get("Accept"), ical.MIMEType)
+		}
+		writer.Header().Set("ETag", `"etag-get"`)
+		_, _ = writer.Write([]byte(calendarData))
+	}))
+	defer server.Close()
+
+	client := newTestOutboundCalDAVClient(t, server)
+	object, errorValue := client.getCalendarObject(context.Background(), objectPath)
+	if errorValue != nil {
+		t.Fatalf("get: %v", errorValue)
+	}
+	if object.Path != objectPath || object.ETag != `"etag-get"` || string(object.Data) != calendarData {
+		t.Fatalf("object: %+v", object)
 	}
 }
 
@@ -261,7 +327,7 @@ func TestCalDAVClientAbsoluteURLHandlesPathVariants(t *testing.T) {
 	}{
 		{"calendars/me/", "https://caldav.example.com/base/calendars/me/"},
 		{"/calendars/me/", "https://caldav.example.com/calendars/me/"},
-		{"https://other.example.com/x", "https://other.example.com/x"},
+		{"https://caldav.example.com/x", "https://caldav.example.com/x"},
 	}
 	for _, testCase := range cases {
 		got, errorValue := client.absoluteURL(testCase.input)
@@ -337,10 +403,10 @@ func TestAbsoluteURLResolvesAbsolutePathAgainstPathfulEndpoint(t *testing.T) {
 			want:     "https://example.com/caldav/foo.ics",
 		},
 		{
-			name:     "fully qualified URL passes through",
+			name:     "fully qualified same-origin URL passes through",
 			endpoint: "https://example.com/base",
-			path:     "https://other.com/calendar/x.ics",
-			want:     "https://other.com/calendar/x.ics",
+			path:     "https://example.com/calendar/x.ics",
+			want:     "https://example.com/calendar/x.ics",
 		},
 	}
 	for _, testCase := range cases {
@@ -357,5 +423,18 @@ func TestAbsoluteURLResolvesAbsolutePathAgainstPathfulEndpoint(t *testing.T) {
 				t.Errorf("got %q want %q", got, testCase.want)
 			}
 		})
+	}
+}
+
+func TestCalDAVClientAbsoluteURLRejectsCrossHost(t *testing.T) {
+	client := &outboundCalDAVClient{endpoint: "https://apidata.googleusercontent.com/caldav/v2/user@example.com/user/"}
+	for _, candidate := range []string{
+		"https://other.example.com/calendar/event.ics",
+		"//other.example.com/calendar/event.ics",
+		"http://apidata.googleusercontent.com/calendar/event.ics",
+	} {
+		if _, errorValue := client.absoluteURL(candidate); errorValue == nil {
+			t.Fatalf("cross-origin URL accepted: %s", candidate)
+		}
 	}
 }
