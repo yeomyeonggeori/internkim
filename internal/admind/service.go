@@ -118,6 +118,7 @@ type Service struct {
 	companyShareAttempts    map[string]companyShareAttempt
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
+	calendarWindowCache     calendarEventWindowCacheAvailability
 	mattermostSessions      *mattermostSessionCache
 	startedAt               time.Time
 }

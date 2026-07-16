@@ -109,7 +109,7 @@ ON CONFLICT(id) DO UPDATE SET
 	if previousMutationEventFound {
 		invalidationEvents = append(invalidationEvents, previousMutationEvent)
 	}
-	if errorValue := invalidateCalendarEventWindowCache(ctx, transaction, invalidationEvents...); errorValue != nil {
+	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, invalidationEvents...); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -172,7 +172,7 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
+	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}

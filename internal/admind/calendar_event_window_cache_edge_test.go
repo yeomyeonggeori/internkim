@@ -137,6 +137,44 @@ func TestCalendarEventWindowCacheRollsBackMutationWhenInvalidationFails(t *testi
 	}
 }
 
+func TestCalendarEventWindowCacheInitializationFailureFallsBackToSource(t *testing.T) {
+	service := newCalendarTestService(t)
+	startTime := time.Date(2026, time.July, 16, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(24 * time.Hour)
+	event := calendarEventWindowCacheEdgeEvent(startTime)
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `
+		CREATE TRIGGER fail_calendar_event_window_cache_reset
+		BEFORE DELETE ON calendar_event_window_cache_entries
+		BEGIN
+			SELECT RAISE(FAIL, 'forced cache reset failure');
+		END`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	restartedService := NewService(service.Configuration)
+	event.Title = "Updated from source"
+	if errorValue := restartedService.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	events, errorValue := restartedService.readCalendarEventWindow(context.Background(), startTime, endTime)
+	if errorValue != nil || len(events) != 1 || events[0].Title != event.Title {
+		t.Fatalf("source fallback events=%+v error=%v", events, errorValue)
+	}
+}
+
 func calendarEventWindowCacheEdgeEvent(startTime time.Time) calendarEvent {
 	return calendarEvent{
 		ID:                "cache-edge-event",
