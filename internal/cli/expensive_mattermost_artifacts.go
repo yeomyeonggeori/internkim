@@ -69,6 +69,10 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 	if errorValue := os.MkdirAll(stepArtifactDirectoryPath, 0o755); errorValue != nil {
 		return errorValue
 	}
+	botReply, hasBotReply := latestMattermostScenarioPost(execution.Result.Posts)
+	if !hasBotReply {
+		return fmt.Errorf("verify Mattermost UI for step %s: bot reply is missing", strconv.Itoa(stepIndex+1))
+	}
 	environment := append(os.Environ(),
 		"INTERNKIM_MATTERMOST_URL="+mattermostURL,
 		"INTERNKIM_MATTERMOST_PROBE_USERNAME="+execution.Username,
@@ -76,6 +80,7 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		"INTERNKIM_MATTERMOST_DM_CHANNEL_ID="+execution.Result.ChannelID,
 		"INTERNKIM_MATTERMOST_ROOT_POST_ID="+execution.RootPostID,
 		"INTERNKIM_MATTERMOST_BOT_USERNAME="+execution.BotUsername,
+		"INTERNKIM_MATTERMOST_BOT_REPLY_POST_ID="+botReply.ID,
 		"INTERNKIM_MATTERMOST_ARTIFACT_DIR="+stepArtifactDirectoryPath,
 		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL="+result.PublicURL,
 		"INTERNKIM_SITE_PROXY_URL="+siteProxyURL,
@@ -99,6 +104,13 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		return fmt.Errorf("verify Mattermost UI for step %s: %w", strconv.Itoa(stepIndex+1), errorValue)
 	}
 	return nil
+}
+
+func latestMattermostScenarioPost(posts []mattermostScenarioPost) (mattermostScenarioPost, bool) {
+	if len(posts) == 0 {
+		return mattermostScenarioPost{}, false
+	}
+	return posts[len(posts)-1], true
 }
 
 func marshalEnvironmentStringArray(values []string) string {
