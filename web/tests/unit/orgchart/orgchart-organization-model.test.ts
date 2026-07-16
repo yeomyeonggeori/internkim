@@ -123,19 +123,27 @@ describe('orgchart organization model', () => {
 		expect(sections.map((section) => section.id)).toEqual(['c-level', 'general']);
 	});
 
-	test('keeps general C and O phrases below short C-suite acronyms', () => {
+	test('keeps ordinary C and O words below standard C-suite acronyms', () => {
 		const groups: OrgGroup[] = [
-			{ id: 'general', name: 'Alpha' },
-			{ id: 'c-level', name: 'Zulu' }
+			{ id: 'cargo', name: 'Alpha Cargo' },
+			{ id: 'camo', name: 'Bravo Camo' },
+			{ id: 'content-seo', name: 'Charlie Content' },
+			{ id: 'ciso', name: 'Xray CISO' },
+			{ id: 'chro', name: 'Yankee CHRO' },
+			{ id: 'cfo', name: 'Zulu CFO' }
 		];
 		const records = [
-			userRecord({ userID: 'general', jobTitle: 'Content SEO', primaryGroupID: 'general', groupIDs: ['general'] }),
-			userRecord({ userID: 'c-level', jobTitle: 'CHRO', primaryGroupID: 'c-level', groupIDs: ['c-level'] })
+			userRecord({ userID: 'cargo', jobTitle: 'Cargo', primaryGroupID: 'cargo', groupIDs: ['cargo'] }),
+			userRecord({ userID: 'camo', jobTitle: 'Camo', primaryGroupID: 'camo', groupIDs: ['camo'] }),
+			userRecord({ userID: 'content-seo', jobTitle: 'Content SEO', primaryGroupID: 'content-seo', groupIDs: ['content-seo'] }),
+			userRecord({ userID: 'ciso', jobTitle: 'CiSo', primaryGroupID: 'ciso', groupIDs: ['ciso'] }),
+			userRecord({ userID: 'chro', jobTitle: 'chro', primaryGroupID: 'chro', groupIDs: ['chro'] }),
+			userRecord({ userID: 'cfo', jobTitle: ' C-F O ', primaryGroupID: 'cfo', groupIDs: ['cfo'] })
 		];
 
 		const sections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'en');
 
-		expect(sections.map((section) => section.id)).toEqual(['c-level', 'general']);
+		expect(sections.map((section) => section.id)).toEqual(['ciso', 'chro', 'cfo', 'cargo', 'camo', 'content-seo']);
 	});
 
 	test('treats non-executive job titles as general and orders them by localized name', () => {

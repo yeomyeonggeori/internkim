@@ -10,7 +10,31 @@ export type OrgchartGroupOrderItem = {
 
 const highestExecutiveTitles = new Set(['ceo', 'founder']);
 const secondExecutiveTitles = new Set(['coceo', 'cofounder']);
-const cLevelTitlePattern = /^c[a-z]{1,3}o$/;
+const cLevelTitles = new Set([
+	'cao',
+	'caio',
+	'cbo',
+	'cco',
+	'cdao',
+	'cdo',
+	'cfo',
+	'cgo',
+	'chro',
+	'cio',
+	'ciso',
+	'cko',
+	'clo',
+	'cmo',
+	'cno',
+	'coo',
+	'cpo',
+	'cro',
+	'cso',
+	'cto',
+	'cvo',
+	'cwo',
+	'cxo'
+]);
 const generalGroupPriority = 3;
 
 export function compareOrgchartGroups(records: UserRecord[], locale: Locale): (first: OrgchartGroupOrderItem, second: OrgchartGroupOrderItem) => number {
@@ -38,6 +62,6 @@ function orgchartGroupPriority(jobTitle: string | undefined): number {
 	const normalizedJobTitle = (jobTitle ?? '').toLowerCase().replace(/[\s-]+/g, '');
 	if (highestExecutiveTitles.has(normalizedJobTitle)) return 0;
 	if (secondExecutiveTitles.has(normalizedJobTitle)) return 1;
-	if (cLevelTitlePattern.test(normalizedJobTitle)) return 2;
+	if (cLevelTitles.has(normalizedJobTitle)) return 2;
 	return generalGroupPriority;
 }
