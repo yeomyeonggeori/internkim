@@ -1,4 +1,5 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
+import { toast } from 'svelte-sonner';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import type { CalendarDraftEventDOMActions } from './calendar-draft-event-dom';
 import {
@@ -10,6 +11,7 @@ import {
 	showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
 import type { CalendarEvent } from './calendar-event-persistence';
+import { CalendarPersistenceError } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
 
@@ -25,17 +27,31 @@ type CalendarEventPersistenceActionsContext = {
 
 export type CalendarEventPersistenceActions = {
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
 	flushPendingDeleteOnPageHide: () => void;
 	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 };
 
+type CalendarEventPersistenceDependencies = {
+	createPersistedEventActions: typeof createCalendarPersistedEventActions;
+	dismissDeleteUndoToast: typeof dismissCalendarDeleteUndoToast;
+	notifyError: (message: string) => void;
+	showDeleteUndoToast: typeof showCalendarDeleteUndoToast;
+};
+
 export function createCalendarEventPersistenceActions(
-	options: CalendarEventPersistenceActionsContext
+	options: CalendarEventPersistenceActionsContext,
+	dependencies: Partial<CalendarEventPersistenceDependencies> = {}
 ): CalendarEventPersistenceActions {
-	const persistedEvents = createCalendarPersistedEventActions(options.context, options.programmaticUpdates);
+	const persistedEvents = (dependencies.createPersistedEventActions ?? createCalendarPersistedEventActions)(
+		options.context,
+		options.programmaticUpdates
+	);
+	const dismissDeleteUndoToast = dependencies.dismissDeleteUndoToast ?? dismissCalendarDeleteUndoToast;
+	const notifyError = dependencies.notifyError ?? ((message: string) => toast.error(message));
+	const showDeleteUndoToast = dependencies.showDeleteUndoToast ?? showCalendarDeleteUndoToast;
 	let pendingDelete: { event: DayFlowEvent; timeoutID: ReturnType<typeof setTimeout> } | null = null;
 
 	async function saveCreatedEvent(event: DayFlowEvent): Promise<void> {
@@ -47,13 +63,13 @@ export function createCalendarEventPersistenceActions(
 		options.draftEventDOM.scheduleDraftEventVisibilitySync();
 	}
 
-	async function saveUpdatedEvent(event: DayFlowEvent): Promise<void> {
+	async function saveUpdatedEvent(event: DayFlowEvent, previousEvent?: DayFlowEvent): Promise<void> {
 		if (options.programmaticUpdates.isActive(event.id)) return;
 		if (options.draftEvents.isDraftEvent(event.id)) {
 			await saveUpdatedDraftEvent(event);
 			return;
 		}
-		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event);
+		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event, previousEvent);
 	}
 
 	async function saveUpdatedDraftEvent(event: DayFlowEvent): Promise<void> {
@@ -62,7 +78,7 @@ export function createCalendarEventPersistenceActions(
 			options.draftEventDOM.scheduleDraftTitleInputPlaceholderUpdates();
 			return;
 		}
-		options.draftEvents.removeDraftEvent(event.id);
+		options.draftEvents.retainDraftEvent(event);
 		await persistCreatedEvent(event);
 	}
 
@@ -70,8 +86,8 @@ export function createCalendarEventPersistenceActions(
 		if (options.context.getSelectedAuditEventID() === eventID) {
 			options.context.setSelectedAuditEventID(null);
 		}
-		if (deleteDraftEvent(eventID)) return;
 		if (deletePendingCreateEvent(eventID)) return;
+		if (deleteDraftEvent(eventID)) return;
 		await deletePersistedEvent(eventID);
 	}
 
@@ -103,7 +119,7 @@ export function createCalendarEventPersistenceActions(
 				void flushPendingDelete();
 			}, calendarDeleteUndoTimeoutMs)
 		};
-		showCalendarDeleteUndoToast({
+		showDeleteUndoToast({
 			message: options.context.text.deleteUndoMessage,
 			actionLabel: options.context.text.deleteUndoAction,
 			undo: () => undoPendingDelete(eventID)
@@ -118,7 +134,7 @@ export function createCalendarEventPersistenceActions(
 		if (!options.context.getCalendarEvents().some((calendarEvent) => calendarEvent.id === event.id)) {
 			options.context.restoreCalendarEvent(event);
 		}
-		dismissCalendarDeleteUndoToast();
+		dismissDeleteUndoToast();
 		options.refreshEventCountAfterRender();
 	}
 
@@ -131,7 +147,7 @@ export function createCalendarEventPersistenceActions(
 		if (!deleteToFlush) return;
 		clearTimeout(deleteToFlush.timeoutID);
 		pendingDelete = null;
-		dismissCalendarDeleteUndoToast();
+		dismissDeleteUndoToast();
 		persistedEvents.deleteEventOnPageHide(deleteToFlush.event.id);
 		options.context.notifyEventsChanged();
 	}
@@ -145,7 +161,7 @@ export function createCalendarEventPersistenceActions(
 		if (!deleteToFlush) return;
 		clearTimeout(deleteToFlush.timeoutID);
 		pendingDelete = null;
-		if (shouldClearNotice) dismissCalendarDeleteUndoToast();
+		if (shouldClearNotice) dismissDeleteUndoToast();
 		beginDeletePersistence();
 		try {
 			await persistedEvents.deleteEvent(deleteToFlush.event.id);
@@ -178,10 +194,14 @@ export function createCalendarEventPersistenceActions(
 		} catch (error) {
 			if (options.draftEvents.shouldReportCreateError(event.id)) {
 				showEventPersistenceError(error, options.context.text.saveError);
+			} else {
+				options.draftEvents.removeDraftEvent(event.id);
 			}
 			finishEventPersistence();
 			return;
 		}
+		options.draftEvents.removeDraftEvent(event.id);
+		options.draftEventDOM.scheduleDraftEventVisibilitySync();
 		if (options.draftEvents.wasDeletedDuringCreate(event.id)) {
 			await deleteEventCreatedDuringPendingCreate(event.id);
 			return;
@@ -209,7 +229,12 @@ export function createCalendarEventPersistenceActions(
 		}
 	}
 
-	async function persistEvent(path: string, method: 'POST' | 'PUT', event: DayFlowEvent): Promise<void> {
+	async function persistEvent(
+		path: string,
+		method: 'POST' | 'PUT',
+		event: DayFlowEvent,
+		previousEvent?: DayFlowEvent
+	): Promise<void> {
 		beginEventPersistence();
 		try {
 			const savedEvent = await persistedEvents.writeEvent(path, method, event);
@@ -217,9 +242,19 @@ export function createCalendarEventPersistenceActions(
 			markEventPersisted();
 		} catch (error) {
 			showEventPersistenceError(error, options.context.text.saveError);
+			if (method === 'PUT') await rollbackUpdatedEvent(previousEvent);
 		} finally {
 			finishEventPersistence();
 		}
+	}
+
+	async function rollbackUpdatedEvent(previousEvent?: DayFlowEvent): Promise<void> {
+		if (!previousEvent) {
+			await options.context.refreshCalendar();
+			return;
+		}
+		options.context.restoreCalendarEvent(previousEvent);
+		options.refreshLocalEventSnapshot();
 	}
 
 	async function persistCreatedEvent(event: DayFlowEvent): Promise<void> {
@@ -248,7 +283,12 @@ export function createCalendarEventPersistenceActions(
 	}
 
 	function showEventPersistenceError(error: unknown, fallback: string): void {
-		options.context.setErrorMessage(error instanceof Error ? error.message : fallback);
+		const message = error instanceof CalendarPersistenceError && error.code === 'calendar_target_unavailable'
+			? options.context.text.calendarTargetUnavailableError
+			: error instanceof Error
+				? error.message
+				: fallback;
+		notifyError(message);
 	}
 
 	return {

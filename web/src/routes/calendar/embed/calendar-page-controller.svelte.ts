@@ -131,6 +131,9 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 				await renderSync.refreshCalendar();
 			},
 			text: {
+				get calendarTargetUnavailableError() {
+					return context.text.calendarTargetUnavailableError;
+				},
 				get deleteError() {
 					return context.text.deleteError;
 				},
@@ -182,7 +185,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		setVisibleEvents: (events) => {
 			context.state.visibleEvents = events;
 		},
-		saveUpdatedEvent: (event) => eventActions.saveUpdatedEvent(event)
+		saveUpdatedEvent: (event, previousEvent) => eventActions.saveUpdatedEvent(event, previousEvent)
 	});
 
 	const draftPopoverActions: CalendarDraftPopoverActions = createCalendarDraftPopoverActions({

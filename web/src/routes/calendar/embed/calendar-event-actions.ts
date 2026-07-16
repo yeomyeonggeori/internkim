@@ -33,6 +33,7 @@ export type CalendarEventActionsContext = {
 	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
 	text: {
+		calendarTargetUnavailableError: string;
 		deleteError: string;
 		deleteUndoAction: string;
 		deleteUndoMessage: string;
@@ -54,7 +55,7 @@ export type CalendarEventActions = {
 	createTimelineSingleEvent: (startDate: Date) => DayFlowEvent | null;
 	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => DayFlowEvent | null;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
 	flushPendingDeleteOnPageHide: () => void;
