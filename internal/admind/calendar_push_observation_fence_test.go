@@ -74,6 +74,86 @@ END`)
 	}
 }
 
+func TestCalendarPushObservationFenceClearsAcceptedRemoteDeletionAndKeepsAmbiguousFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	acceptedEvent := newLocalTestCalendarEvent("accepted-remote-delete-fence", "Accepted")
+	acceptedEvent.RemoteSource = remoteCalendarProviderGoogle
+	acceptedEvent.RemoteETag = `"etag-accepted"`
+	acceptedEvent.RemoteHref = account.DefaultCalendarURL + acceptedEvent.UID + ".ics"
+	acceptedICS, errorValue := encodeEventToICS(acceptedEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acceptedEvent.RawICS = string(acceptedICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, acceptedEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   account.ID,
+		CalendarURL: account.DefaultCalendarURL,
+		EventUID:    acceptedEvent.UID,
+		LastSeenAt:  time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acceptedEvent.Title = "Accepted Local Edit"
+	if errorValue := service.writeCalendarEvent(ctx, acceptedEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	ambiguousEvent := newLocalTestCalendarEvent("ambiguous-remote-delete-fence", "Ambiguous")
+	ambiguousEvent.RemoteSource = remoteCalendarProviderGoogle
+	ambiguousEvent.RemoteETag = `"etag-ambiguous"`
+	ambiguousEvent.RemoteHref = account.DefaultCalendarURL + ambiguousEvent.UID + ".ics"
+	ambiguousICS, errorValue := encodeEventToICS(ambiguousEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ambiguousEvent.RawICS = string(ambiguousICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, ambiguousEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ambiguousEvent.Title = "Ambiguous Local Edit"
+	if errorValue := service.writeCalendarEvent(ctx, ambiguousEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(rows) != 2 {
+		t.Fatalf("pending rows=%d error=%v", len(rows), errorValue)
+	}
+	rowsByUID := map[string]calendarOutboxRow{}
+	for _, row := range rows {
+		rowsByUID[row.EventUID] = row
+	}
+	client := &fakeCalDAVPushClient{
+		putErrors: map[string]error{
+			acceptedEvent.RemoteHref:  errCalDAVPreconditionFailed,
+			ambiguousEvent.RemoteHref: errCalDAVPreconditionFailed,
+		},
+		getErrors: map[string]error{
+			acceptedEvent.RemoteHref:  errCalDAVObjectNotFound,
+			ambiguousEvent.RemoteHref: errCalDAVObjectNotFound,
+		},
+	}
+	if pushed, errorValue := service.pushCalendarOutboxPut(ctx, account, client, rowsByUID[acceptedEvent.UID]); pushed || errorValue != nil {
+		t.Fatalf("accepted deletion pushed=%v error=%v", pushed, errorValue)
+	}
+	if pushed, errorValue := service.pushCalendarOutboxPut(ctx, account, client, rowsByUID[ambiguousEvent.UID]); pushed || !isCalDAVObjectNotFound(errorValue) {
+		t.Fatalf("ambiguous deletion pushed=%v error=%v", pushed, errorValue)
+	}
+
+	fencedUIDs := readCalendarPushObservationFenceUIDsForTest(t, service, account.ID, account.DefaultCalendarURL)
+	if _, found := fencedUIDs[acceptedEvent.UID]; found {
+		t.Fatal("accepted remote deletion left observation fence")
+	}
+	if _, found := fencedUIDs[ambiguousEvent.UID]; !found {
+		t.Fatal("ambiguous remote deletion cleared observation fence")
+	}
+}
+
 func TestCalendarPushObservationFenceBlocksMissingDeleteAndCTagAfterMemoryExpiry(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
