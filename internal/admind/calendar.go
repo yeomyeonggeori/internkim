@@ -77,6 +77,11 @@ type calendarEventWriteRequest struct {
 	Participants      []calendarParticipantIdentity `json:"participants"`
 	ReminderLeadHours int                           `json:"reminderLeadHours"`
 	AllowDuplicate    bool                          `json:"allowDuplicate"`
+	ExpectedUpdatedAt string                        `json:"expectedUpdatedAt"`
+}
+
+type calendarEventDeleteRequest struct {
+	ExpectedUpdatedAt string `json:"expectedUpdatedAt"`
 }
 
 type calendarEventsResponse struct {
@@ -244,12 +249,12 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, request *http.Request) {
-	event, allowDuplicate, errorValue := service.decodeCalendarEventWriteRequest(request, "")
+	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if !allowDuplicate {
+	if !payload.AllowDuplicate {
 		if candidates, errorValue := service.findDuplicateCalendarCandidates(request.Context(), event); errorValue == nil && len(candidates) > 0 {
 			responseWriter.WriteHeader(http.StatusOK)
 			service.writeJSON(responseWriter, map[string]any{
@@ -266,6 +271,12 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	persistedEvent, found, errorValue := service.readCalendarEventByID(request.Context(), event.ID)
+	if errorValue != nil || !found {
+		http.Error(responseWriter, "failed to read created calendar event", http.StatusInternalServerError)
+		return
+	}
+	event = persistedEvent
 	responseWriter.WriteHeader(http.StatusCreated)
 	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
@@ -281,7 +292,12 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.NotFound(responseWriter, request)
 		return
 	}
-	event, _, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
+	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -306,19 +322,41 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	event.RawICS = regeneratedRawICS
-	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
+	if errorValue := service.writeCalendarEventIfCurrentVersion(request.Context(), event, expectedUpdatedAt); errorValue != nil {
+		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
+			return
+		}
 		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
 			return
 		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	persistedEvent, found, errorValue := service.readCalendarEventByID(request.Context(), event.ID)
+	if errorValue != nil || !found {
+		http.Error(responseWriter, "failed to read updated calendar event", http.StatusInternalServerError)
+		return
+	}
+	event = persistedEvent
 	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
-	if errorValue := service.softDeleteCalendarEvent(request.Context(), eventID); errorValue != nil {
+	var payload calendarEventDeleteRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := service.softDeleteCalendarEventIfCurrentVersion(request.Context(), eventID, expectedUpdatedAt); errorValue != nil {
+		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
+			return
+		}
 		if errors.Is(errorValue, sql.ErrNoRows) {
 			http.NotFound(responseWriter, request)
 			return
@@ -504,13 +542,13 @@ func calendarPeopleSetKey(people []string) string {
 	return strings.Join(normalizedPeople, "\x00")
 }
 
-func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, bool, error) {
+func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, calendarEventWriteRequest, error) {
 	var payload calendarEventWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		return calendarEvent{}, false, errorValue
+		return calendarEvent{}, calendarEventWriteRequest{}, errorValue
 	}
 	event, errorValue := service.normalizeCalendarEventWriteRequest(request, payload, eventID)
-	return event, payload.AllowDuplicate, errorValue
+	return event, payload, errorValue
 }
 
 func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request, payload calendarEventWriteRequest, eventID string) (calendarEvent, error) {

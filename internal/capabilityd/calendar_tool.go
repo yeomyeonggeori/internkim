@@ -31,6 +31,7 @@ type calendarEventWriteInput struct {
 	ReminderLeadHours int                       `json:"reminderLeadHours"`
 	AllowDuplicate    bool                      `json:"allowDuplicate"`
 	IncludeRequester  *bool                     `json:"includeRequester"`
+	ExpectedUpdatedAt string                    `json:"-"`
 	GeneratedEventID  bool                      `json:"-"`
 }
 
@@ -73,6 +74,12 @@ type calendarEventForTool struct {
 	EndISO      string `json:"endISO"`
 	TimeZone    string `json:"timeZone"`
 	IsAllDay    bool   `json:"isAllDay"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+type calendarResolvedEventTarget struct {
+	ID        string
+	UpdatedAt string
 }
 
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -123,14 +130,14 @@ func (service Service) invokeCalendarEventList(ctx context.Context, request capa
 }
 
 func (service Service) invokeCalendarEventUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	eventID, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if failure != nil {
 		return *failure, nil
 	}
-	resolvedInput, errorValue := injectCalendarEventID(request.Input, eventID)
+	resolvedInput, errorValue := injectCalendarEventID(request.Input, target.ID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -142,6 +149,7 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	if hasFailure {
 		return calendarToolPersonResolveErrorResponse(request.ToolName, personFailure), nil
 	}
+	input.ExpectedUpdatedAt = target.UpdatedAt
 	path := "/calendar/api/events/" + url.PathEscape(input.EventID)
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPut, path, calendarEventWritePayload(input), request.Context.RequesterEmail)
 	if errorValue != nil {
@@ -151,59 +159,61 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 }
 
 func (service Service) invokeCalendarEventDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	eventID, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if failure != nil {
 		return *failure, nil
 	}
-	path := "/calendar/api/events/" + url.PathEscape(eventID)
-	if _, errorValue := service.sendCalendarToolRequest(ctx, http.MethodDelete, path, nil, request.Context.RequesterEmail); errorValue != nil {
+	path := "/calendar/api/events/" + url.PathEscape(target.ID)
+	payload := map[string]any{"expectedUpdatedAt": target.UpdatedAt}
+	if _, errorValue := service.sendCalendarToolRequest(ctx, http.MethodDelete, path, payload, request.Context.RequesterEmail); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	result, _ := json.Marshal(map[string]any{"eventID": eventID, "deleted": true})
+	result, _ := json.Marshal(map[string]any{"eventID": target.ID, "deleted": true})
 	return calendarToolResponse(request.ToolName, "deleted", result), nil
 }
 
-func (service Service) resolveCalendarEventTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (string, *capabilities.ToolInvokeResponse, error) {
+func (service Service) resolveCalendarEventTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (calendarResolvedEventTarget, *capabilities.ToolInvokeResponse, error) {
 	var target calendarEventTarget
 	_ = json.Unmarshal(request.Input, &target)
 	target.EventID = strings.TrimSpace(target.EventID)
 	target.Query = strings.TrimSpace(target.Query)
 	target.Title = strings.TrimSpace(target.Title)
-	if target.EventID != "" {
-		return target.EventID, nil, nil
-	}
 	if target.Query == "" {
 		target.Query = target.Title
 	}
-	if target.Query == "" {
-		return "", nil, fmt.Errorf("eventID, query, or unchanged title is required")
+	if target.EventID == "" && target.Query == "" {
+		return calendarResolvedEventTarget{}, nil, fmt.Errorf("eventID, query, or unchanged title is required")
 	}
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, "/calendar/api/events", nil, request.Context.RequesterEmail)
 	if errorValue != nil {
-		return "", nil, errorValue
+		return calendarResolvedEventTarget{}, nil, errorValue
 	}
 	var response calendarEventsForTool
 	if errorValue := json.Unmarshal(result, &response); errorValue != nil {
-		return "", nil, errorValue
+		return calendarResolvedEventTarget{}, nil, errorValue
 	}
 	matches := make([]calendarEventForTool, 0, len(response.Events))
 	for _, event := range response.Events {
-		if calendarEventMatchesQuery(event, target.Query) {
+		if target.EventID != "" && event.ID == target.EventID {
+			matches = append(matches, event)
+			continue
+		}
+		if target.EventID == "" && calendarEventMatchesQuery(event, target.Query) {
 			matches = append(matches, event)
 		}
 	}
 	if len(matches) == 0 {
 		failure := calendarResolutionFailure(request.ToolName, "calendar_event_not_found", "no calendar event matched the query", nil)
-		return "", &failure, nil
+		return calendarResolvedEventTarget{}, &failure, nil
 	}
 	if len(matches) > 1 {
 		failure := calendarResolutionFailure(request.ToolName, "calendar_event_ambiguous", "multiple calendar events matched the query", matches)
-		return "", &failure, nil
+		return calendarResolvedEventTarget{}, &failure, nil
 	}
-	return matches[0].ID, nil, nil
+	return calendarResolvedEventTarget{ID: matches[0].ID, UpdatedAt: matches[0].UpdatedAt}, nil, nil
 }
 
 func calendarResolutionFailure(toolName string, errorCode string, message string, candidates []calendarEventForTool) capabilities.ToolInvokeResponse {
@@ -395,6 +405,9 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		"people":            []string(input.People),
 		"reminderLeadHours": input.ReminderLeadHours,
 		"allowDuplicate":    input.AllowDuplicate,
+	}
+	if input.ExpectedUpdatedAt != "" {
+		payload["expectedUpdatedAt"] = input.ExpectedUpdatedAt
 	}
 	if len(input.Participants) > 0 {
 		payload["participants"] = input.Participants

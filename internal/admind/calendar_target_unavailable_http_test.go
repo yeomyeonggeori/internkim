@@ -69,8 +69,34 @@ func TestCalendarEventMutationReportsTargetUnavailable(t *testing.T) {
 					t.Fatal(errorValue)
 				}
 			}
+			requestBody := testCase.requestBody
+			if testCase.seedEvent {
+				persistedEvent, found, errorValue := service.readCalendarEventByID(contextValue, testCase.eventID)
+				if errorValue != nil || !found {
+					t.Fatalf("seeded event found=%v error=%v", found, errorValue)
+				}
+				if testCase.method == http.MethodPut {
+					var payload calendarEventWriteRequest
+					if errorValue := json.Unmarshal([]byte(requestBody), &payload); errorValue != nil {
+						t.Fatal(errorValue)
+					}
+					payload.ExpectedUpdatedAt = persistedEvent.UpdatedAt
+					encodedPayload, errorValue := json.Marshal(payload)
+					if errorValue != nil {
+						t.Fatal(errorValue)
+					}
+					requestBody = string(encodedPayload)
+				}
+				if testCase.method == http.MethodDelete {
+					encodedPayload, errorValue := json.Marshal(calendarEventDeleteRequest{ExpectedUpdatedAt: persistedEvent.UpdatedAt})
+					if errorValue != nil {
+						t.Fatal(errorValue)
+					}
+					requestBody = string(encodedPayload)
+				}
+			}
 
-			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(testCase.requestBody))
+			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(requestBody))
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
 			response := httptest.NewRecorder()

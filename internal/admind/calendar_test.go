@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -191,13 +192,15 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 		t.Fatalf("created actor image = %q", createdEvent.CreatedByImage)
 	}
 
-	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+createdEvent.ID, strings.NewReader(`{
+	updatePayload := fmt.Sprintf(`{
 		"title":"Actor audit edited",
 		"startISO":"2026-05-08T03:00:00Z",
 		"endISO":"2026-05-08T04:00:00Z",
 		"timeZone":"Asia/Seoul",
-		"color":"#2563eb"
-	}`))
+		"color":"#2563eb",
+		"expectedUpdatedAt":%q
+	}`, createdEvent.UpdatedAt)
+	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+createdEvent.ID, strings.NewReader(updatePayload))
 	updateRequest.Header.Set("Content-Type", "application/json")
 	updateRequest.Header.Set("Cookie", "MMAUTHTOKEN=editor-token")
 	updateResponse := httptest.NewRecorder()
