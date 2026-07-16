@@ -1,5 +1,8 @@
 import { compareOrgchartPeople } from '$lib/orgchart/person-order';
+import type { Locale } from '../../lib/i18n/locale.svelte';
+import { orgchartGroupMembership } from '../../lib/orgchart/group-membership';
 import { unassignedGroupID } from './orgchart-directory-model';
+import { compareOrgchartGroups } from './orgchart-group-order';
 import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type OrgchartOrganizationMemberNode = {
@@ -22,9 +25,15 @@ type OrganizationDefinition = {
 	isUnassigned: boolean;
 };
 
-export function orgchartOrganizationSections(records: UserRecord[], groups: OrgGroup[], unassignedName: string): OrgchartOrganizationSection[] {
+export function orgchartOrganizationSections(
+	records: UserRecord[],
+	groups: OrgGroup[],
+	unassignedName: string,
+	priorityRecords: UserRecord[] = records,
+	locale: Locale = 'ko'
+): OrgchartOrganizationSection[] {
 	const recordsByGroupID = recordsByPrimaryGroupID(records);
-	return organizationDefinitions(groups, recordsByGroupID, unassignedName).flatMap((organization) => {
+	return organizationDefinitions(groups, recordsByGroupID, unassignedName, priorityRecords, locale).flatMap((organization) => {
 		const organizationRecords = sortedRecords(recordsByGroupID.get(organization.id) ?? []);
 		if (organizationRecords.length === 0) return [];
 		const treeRoots = organizationTreeRoots(organizationRecords);
@@ -42,24 +51,31 @@ export function orgchartOrganizationSections(records: UserRecord[], groups: OrgG
 	});
 }
 
-function organizationDefinitions(groups: OrgGroup[], recordsByGroupID: Map<string, UserRecord[]>, unassignedName: string): OrganizationDefinition[] {
+function organizationDefinitions(
+	groups: OrgGroup[],
+	recordsByGroupID: Map<string, UserRecord[]>,
+	unassignedName: string,
+	priorityRecords: UserRecord[],
+	locale: Locale
+): OrganizationDefinition[] {
 	const knownGroupIDs = new Set(groups.map((group) => group.id));
 	const unknownGroups = Array.from(recordsByGroupID.keys())
 		.filter((groupID) => groupID !== unassignedGroupID && !knownGroupIDs.has(groupID))
 		.sort((first, second) => first.localeCompare(second))
 		.map((groupID) => ({ id: groupID, name: groupID, isUnassigned: false }));
 	const unassignedDefinition = recordsByGroupID.has(unassignedGroupID) ? [{ id: unassignedGroupID, name: unassignedName, isUnassigned: true }] : [];
-	return [
+	const definitions = [
 		...groups.map((group) => ({ id: group.id, name: group.name, isUnassigned: false })),
 		...unknownGroups,
 		...unassignedDefinition
 	];
+	return definitions.sort(compareOrgchartGroups(priorityRecords, locale));
 }
 
 function recordsByPrimaryGroupID(records: UserRecord[]): Map<string, UserRecord[]> {
 	const recordsByGroupID = new Map<string, UserRecord[]>();
 	for (const record of records) {
-		const groupID = primaryGroupID(record) || unassignedGroupID;
+		const groupID = orgchartGroupMembership(record).primaryGroupID || unassignedGroupID;
 		recordsByGroupID.set(groupID, [...(recordsByGroupID.get(groupID) ?? []), record]);
 	}
 	return recordsByGroupID;
@@ -100,10 +116,6 @@ function sortedRecords(records: UserRecord[]): UserRecord[] {
 
 function compareRecords(first: UserRecord, second: UserRecord): number {
 	return compareOrgchartPeople(first, second);
-}
-
-function primaryGroupID(record: UserRecord): string {
-	return (record.primaryGroupID ?? record.group ?? record.groupIDs?.[0] ?? '').trim();
 }
 
 function normalizedID(value: string | undefined): string {

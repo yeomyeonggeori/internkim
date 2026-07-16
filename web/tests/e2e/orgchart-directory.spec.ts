@@ -18,6 +18,14 @@ test.describe('employee orgchart directory', () => {
 		await expect(page.getByRole('heading', { name: '직원' })).toBeVisible();
 		await expect(page.getByTestId('orgchart-board')).toBeVisible();
 		await expect(page.getByTestId('orgchart-organization-grid')).toBeVisible();
+		const organizationSections = page.getByTestId('orgchart-organization-grid').locator(':scope > [data-testid^="orgchart-organization-section-"]');
+		await expect(organizationSections).toHaveCount(4);
+		expect(await organizationSections.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')))).toEqual([
+			'orgchart-organization-section-leadership',
+			'orgchart-organization-section-product',
+			'orgchart-organization-section-design',
+			'orgchart-organization-section-__unassigned__'
+		]);
 		await expect(page.getByTestId('orgchart-team-column-product')).toBeVisible();
 		await expect(page.getByTestId('orgchart-team-column-__unassigned__')).toBeVisible();
 		await expect(page.getByTestId('orgchart-tree-node-user-taehyun')).toBeVisible();
