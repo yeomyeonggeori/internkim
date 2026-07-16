@@ -110,18 +110,19 @@ type attendanceAbsenceRange struct {
 }
 
 type attendanceSummaryResponse struct {
-	Month                string               `json:"month"`
-	ServerTime           string               `json:"serverTime"`
-	CurrentUserEmail     string               `json:"currentUserEmail"`
-	IsAdmin              bool                 `json:"isAdmin"`
-	TimeZone             string               `json:"timeZone"`
-	Events               []attendanceEvent    `json:"events"`
-	Absences             []attendanceAbsence  `json:"absences"`
-	Members              []attendanceMember   `json:"members"`
-	TodayStatus          string               `json:"todayStatus"`
-	Locations            []attendanceLocation `json:"locations"`
-	TeamViewVisibleToAll bool                 `json:"teamViewVisibleToAll"`
-	TeamViewBlocked      bool                 `json:"teamViewBlocked"`
+	Month                 string               `json:"month"`
+	ServerTime            string               `json:"serverTime"`
+	CurrentUserEmail      string               `json:"currentUserEmail"`
+	IsAdmin               bool                 `json:"isAdmin"`
+	TimeZone              string               `json:"timeZone"`
+	TimeZoneAuthoritative bool                 `json:"timeZoneAuthoritative"`
+	Events                []attendanceEvent    `json:"events"`
+	Absences              []attendanceAbsence  `json:"absences"`
+	Members               []attendanceMember   `json:"members"`
+	TodayStatus           string               `json:"todayStatus"`
+	Locations             []attendanceLocation `json:"locations"`
+	TeamViewVisibleToAll  bool                 `json:"teamViewVisibleToAll"`
+	TeamViewBlocked       bool                 `json:"teamViewBlocked"`
 }
 
 type attendanceMember struct {
