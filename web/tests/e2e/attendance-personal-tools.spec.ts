@@ -386,6 +386,41 @@ test.describe('attendance personal tools', () => {
 		await expect(clockOutInput).toHaveAttribute('max', '16:00');
 	});
 
+	test('closes attendance editing when a refreshed server clock is invalid', async ({ page }) => {
+		const todayDate = todayDateInSeoul();
+		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
+		let summary = buildAttendanceSummaryFixture(todayDate.slice(0, 7), currentTime);
+		let summaryRequestCount = 0;
+
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			summaryRequestCount += 1;
+			await route.fulfill({ json: summary });
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
+
+		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
+		const editButton = detailDialog.getByTestId('work-record-edit-button');
+		await editButton.click();
+		const editActions = detailDialog.getByTestId('work-record-edit-actions');
+		await detailDialog.getByTestId('team-status-day-segment').first().getByLabel('출근').fill('08:40');
+		await editActions.getByLabel('수정 사유').fill('서버 시각 무효화 검증');
+		await expect(editActions.getByRole('button', { name: '저장' })).toBeEnabled();
+		await expect(editButton).toHaveAccessibleName('취소');
+		await expect(editButton).toBeEnabled();
+
+		const initialRequestCount = summaryRequestCount;
+		summary = { ...summary, serverTime: 'invalid' };
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+		await expect.poll(() => summaryRequestCount).toBe(initialRequestCount + 1);
+		await expect(detailDialog.getByTestId('work-record-edit-actions')).toHaveCount(0);
+		await expect(editButton).toHaveAccessibleName('수정');
+		await expect(editButton).toBeDisabled();
+	});
+
 	test('recovers attendance editing after a legacy server is replaced', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
 		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
