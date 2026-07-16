@@ -6,42 +6,19 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check-big';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
-	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import XIcon from '@lucide/svelte/icons/x';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import CalendarEventContent from '../../calendar/embed/calendar-event-content.svelte';
 	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
 	import { flowText } from '../../flow/text';
-	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
+	import { getAttendanceState } from '../attendance-context.svelte';
 	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
-	import {
-		fallbackFutureAttendanceLocalTime,
-		timeInTimeZone,
-		todayDateInTimeZone
-	} from '../shared/attendance-date';
-	import { startAttendanceMinuteClock } from '../shared/attendance-minute-clock';
-	import { absenceDisplayClass } from '../shared/color-tokens';
-	import { localTimeMinutes } from '../shared/day-timeline';
-	import DurationText from '../shared/duration-text.svelte';
-	import WorkSegmentEditFields from '../shared/work-segment-edit-fields.svelte';
-	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
+	import TeamStatusWorkRecordSection from './team-status-work-record-section.svelte';
 
 	type Props = {
 		text: AttendanceText;
 		detail: TeamStatusDayDetail;
-	};
-
-	type WorkEventDraft = {
-		eventID: string;
-		localDate: string;
-		originalLocalTime: string;
-		localTime: string;
-		originalLocationID: string;
-		locationID: string;
 	};
 
 	let { text, detail }: Props = $props();
@@ -49,12 +26,6 @@
 	let deletingAbsenceID = $state('');
 	let absenceErrorID = $state('');
 	let absenceErrorMessage = $state('');
-	let isEditingWorkRecords = $state(false);
-	let workEventDrafts = $state<Record<string, WorkEventDraft>>({});
-	let workEditReason = $state('');
-	let isSavingWorkRecords = $state(false);
-	let workEditError = $state('');
-	let workEditNow = $state(new Date());
 	const sectionCountBadgeClass = 'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground';
 
 	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
@@ -63,33 +34,9 @@
 			? absencesForDate(attendance.summary.absences, detail.day.date, attendance.summary.currentUserEmail)
 			: []
 	);
-	const attendanceLocations = $derived(attendance.summary?.locations ?? []);
 	const flowBusinessFallback = $derived(
 		text.dateLocale === 'ko-KR' ? flowText.ko.task.businessFallback : flowText.en.task.businessFallback
 	);
-	const canEditWorkRecords = $derived(
-		isOwnDay && detail.day.segments.length > 0 && attendanceLocations.length > 0
-	);
-	const hasWorkRecordChanges = $derived(
-		Object.values(workEventDrafts).some(
-			(draft) => draft.localTime !== draft.originalLocalTime || draft.locationID !== draft.originalLocationID
-		)
-	);
-	const hasValidWorkEventTimes = $derived(
-		Object.values(workEventDrafts).every((draft) => draft.localTime !== '')
-	);
-	const canSaveWorkRecords = $derived(
-		hasWorkRecordChanges && hasValidWorkEventTimes && workEditReason.trim() !== '' && !isSavingWorkRecords
-	);
-	const currentWorkEditDate = $derived(todayDateInTimeZone(attendance.summary?.timeZone, workEditNow));
-	const currentWorkEditTime = $derived(timeInTimeZone(attendance.summary?.timeZone, workEditNow));
-
-	$effect(() => {
-		if (!isEditingWorkRecords) return;
-		return startAttendanceMinuteClock((currentTime) => {
-			workEditNow = currentTime;
-		});
-	});
 
 	async function deleteAbsence(absenceID: string) {
 		if (deletingAbsenceID) return;
@@ -106,115 +53,6 @@
 		}
 	}
 
-	function openWorkRecordEditor(): void {
-		workEditNow = new Date();
-		workEventDrafts = createWorkEventDrafts(attendance.summary?.events ?? []);
-		workEditReason = '';
-		workEditError = '';
-		isEditingWorkRecords = true;
-	}
-
-	function closeWorkRecordEditor(): void {
-		if (isSavingWorkRecords) return;
-		resetWorkRecordEditor();
-	}
-
-	function resetWorkRecordEditor(): void {
-		isEditingWorkRecords = false;
-		workEventDrafts = {};
-		workEditReason = '';
-		workEditError = '';
-	}
-
-	function createWorkEventDrafts(events: AttendanceEvent[]): Record<string, WorkEventDraft> {
-		const eventIDs = editableEventIDs();
-		const fallbackLocationID = attendanceLocations[0]?.id ?? '';
-		const drafts: Record<string, WorkEventDraft> = {};
-		for (const event of events) {
-			if (!eventIDs.has(event.id)) continue;
-			const locationID = event.locationID || fallbackLocationID;
-			const originalLocalTime = shortTime(event.localTime);
-			drafts[event.id] = {
-				eventID: event.id,
-				localDate: event.localDate,
-				originalLocalTime,
-				localTime: originalLocalTime,
-				originalLocationID: locationID,
-				locationID
-			};
-		}
-		return drafts;
-	}
-
-	function editableEventIDs(): Set<string> {
-		const eventIDs = new Set<string>();
-		for (const segment of detail.day.segments) {
-			eventIDs.add(segment.startEventID);
-			if (segment.endEventID) eventIDs.add(segment.endEventID);
-		}
-		return eventIDs;
-	}
-
-	function shortTime(localTime: string): string {
-		return localTime.slice(0, 5);
-	}
-
-	function displayTimeForDraft(draft: WorkEventDraft | undefined, segmentDate: string, fallbackTime: string): string {
-		if (draft?.localDate !== segmentDate) return fallbackTime;
-		return draft.localTime;
-	}
-
-	function durationMinutesBetween(startTime: string, endTime: string): number {
-		return Math.max(0, localTimeMinutes(endTime) - localTimeMinutes(startTime));
-	}
-
-	function updateEventTime(eventID: string | undefined, localTime: string): void {
-		if (!eventID) return;
-		const draft = workEventDrafts[eventID];
-		if (!draft) return;
-		const currentTime = new Date();
-		workEditNow = currentTime;
-		draft.localTime = fallbackFutureAttendanceLocalTime(
-			draft.localDate,
-			localTime,
-			attendance.summary?.timeZone,
-			currentTime
-		);
-	}
-
-	function updateSegmentLocation(segment: TeamStatusDayDetail['day']['segments'][number], locationID: string): void {
-		const startDraft = workEventDrafts[segment.startEventID];
-		if (startDraft) startDraft.locationID = locationID;
-		if (segment.endReason !== 'clock_out' || !segment.endEventID) return;
-		const endDraft = workEventDrafts[segment.endEventID];
-		if (endDraft) endDraft.locationID = locationID;
-	}
-
-	async function saveWorkRecordChanges(): Promise<void> {
-		if (!canSaveWorkRecords) return;
-		isSavingWorkRecords = true;
-		workEditError = '';
-		try {
-			const updates = Object.values(workEventDrafts)
-				.filter((draft) => draft.localTime !== draft.originalLocalTime || draft.locationID !== draft.originalLocationID)
-				.map((draft) => ({
-					eventID: draft.eventID,
-					request: {
-						localDate: draft.localDate,
-						localTime: draft.localTime,
-						locationID: draft.locationID,
-						reason: workEditReason.trim()
-					}
-				}));
-			await attendance.updateEvents(updates);
-			resetWorkRecordEditor();
-		} catch {
-			workEditError = text.processingFailed;
-		} finally {
-			isSavingWorkRecords = false;
-		}
-	}
-
 	function openCalendarEvent(eventID: string): void {
 		void goto(`/calendar/?date=${encodeURIComponent(detail.day.date)}&event=${encodeURIComponent(eventID)}`);
 	}
@@ -226,140 +64,7 @@
 
 <div class="divide-y" data-testid="team-status-day-detail-content">
 	<section class="px-5 py-5">
-		<div class="flex items-center justify-between gap-4" data-testid="team-status-work-record-header">
-			<div class="flex min-w-0 items-center gap-2">
-				<Clock3Icon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-				<h3 class="truncate text-sm font-semibold">{text.workRecords}</h3>
-				<span
-					class={sectionCountBadgeClass}
-					aria-label={text.locationSegmentCountTemplate.replace('{count}', String(detail.day.segments.length))}
-					data-slot="section-count-badge"
-					data-testid="section-count-badge"
-				>
-					{text.locationSegmentCountTemplate.replace('{count}', String(detail.day.segments.length))}
-				</span>
-			</div>
-			<div class="flex shrink-0 items-center gap-2">
-				{#if detail.day.durationMinutes !== undefined}
-					<DurationText
-						minutes={detail.day.durationMinutes}
-						size="medium"
-						tone={detail.day.tone === 'working' ? 'info' : 'default'}
-					/>
-				{/if}
-				{#if canEditWorkRecords}
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label={isEditingWorkRecords ? text.cancel : text.edit}
-						disabled={isSavingWorkRecords}
-						onclick={isEditingWorkRecords ? closeWorkRecordEditor : openWorkRecordEditor}
-						data-testid="work-record-edit-button"
-						data-state={isEditingWorkRecords ? 'editing' : 'idle'}
-					>
-						{#if isEditingWorkRecords}
-							<XIcon class="size-4" />
-						{:else}
-							<PencilIcon class="size-4" />
-						{/if}
-					</Button>
-				{/if}
-			</div>
-		</div>
-
-		<div class="mt-4" data-testid="team-status-work-record-list">
-			{#if detail.day.absenceDetail}
-				<div class={`rounded-lg px-4 py-3 ${absenceDisplayClass(detail.day.absenceTone ?? 'leave')}`}>
-					<div class="flex items-start justify-between gap-3">
-						<div class="min-w-0">
-							<p class="text-sm font-semibold">{detail.day.absenceDetail.label}</p>
-							{#if detail.day.absenceDetail.reason}
-								<p class="mt-1 text-sm opacity-80">{detail.day.absenceDetail.reason}</p>
-							{/if}
-							{#if detail.day.absenceDetail.createdBy}
-								<p class="mt-1 text-xs opacity-70">
-									{text.absenceCreatedByTemplate.replace('{user}', detail.day.absenceDetail.createdBy)}
-								</p>
-							{/if}
-						</div>
-						<span class="shrink-0 rounded-full bg-background/70 px-2.5 py-1 text-xs font-medium">
-							{detail.day.absenceDetail.periodLabel}
-						</span>
-					</div>
-				</div>
-			{:else if detail.day.segments.length}
-				<div class="grid gap-2">
-					{#each detail.day.segments as segment (segment.id)}
-						{@const startDraft = workEventDrafts[segment.startEventID]}
-						{@const endDraft = segment.endEventID ? workEventDrafts[segment.endEventID] : undefined}
-						{@const draftLocation = attendanceLocations.find((location) => location.id === startDraft?.locationID)}
-						{@const displayStartTime = displayTimeForDraft(startDraft, detail.day.date, segment.startTime)}
-						{@const displayEndTime = displayTimeForDraft(endDraft, detail.day.date, segment.endTime)}
-						{@const displayDurationMinutes = startDraft
-							? durationMinutesBetween(displayStartTime, displayEndTime)
-							: segment.durationMinutes}
-						<div
-							class="rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm"
-							data-testid="team-status-day-segment"
-							data-state={segment.isOpen ? 'open' : 'closed'}
-						>
-							<WorkSegmentSummary
-								locationName={draftLocation?.name ?? segment.locationName}
-								locationColor={draftLocation?.color ?? segment.locationColor}
-								startTime={displayStartTime}
-								endTime={displayEndTime}
-								durationMinutes={displayDurationMinutes}
-								isOpen={segment.isOpen}
-							/>
-							{#if isEditingWorkRecords && startDraft}
-								<WorkSegmentEditFields
-									startTime={startDraft.localTime}
-									endTime={endDraft?.localTime}
-									locationID={startDraft.locationID}
-									locations={attendanceLocations}
-									isSaving={isSavingWorkRecords}
-									startMaximumTime={startDraft.localDate === currentWorkEditDate ? currentWorkEditTime : undefined}
-									endMaximumTime={endDraft?.localDate === currentWorkEditDate ? currentWorkEditTime : undefined}
-									{text}
-									onStartTimeChange={(value) => updateEventTime(segment.startEventID, value)}
-									onEndTimeChange={(value) => updateEventTime(segment.endEventID, value)}
-									onLocationChange={(value) => updateSegmentLocation(segment, value)}
-								/>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<div class="flex items-center gap-3 rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-					<CircleAlertIcon class="size-4 shrink-0" />
-					{text.eventNone}
-				</div>
-			{/if}
-		</div>
-
-		{#if isEditingWorkRecords}
-			<div class="mt-4 grid gap-3 border-t pt-4" data-testid="work-record-edit-actions">
-				<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-					<span>{text.editReason}</span>
-					<Textarea
-						bind:value={workEditReason}
-						placeholder={text.editReasonPlaceholder}
-						disabled={isSavingWorkRecords}
-						class="min-h-16 text-sm"
-					/>
-				</label>
-				{#if workEditError}<p class="text-xs text-destructive">{workEditError}</p>{/if}
-				<div class="flex justify-end gap-2">
-					<Button type="button" variant="outline" size="sm" disabled={isSavingWorkRecords} onclick={closeWorkRecordEditor}>
-						{text.cancel}
-					</Button>
-					<Button type="button" size="sm" disabled={!canSaveWorkRecords} onclick={saveWorkRecordChanges}>
-						{text.save}
-					</Button>
-				</div>
-			</div>
-		{/if}
+		<TeamStatusWorkRecordSection {text} {detail} {sectionCountBadgeClass} />
 
 		{#if isOwnDay && ownDayAbsences.length}
 			<div class="mt-4 grid gap-2 border-t pt-4" data-testid="personal-day-detail-panel">
