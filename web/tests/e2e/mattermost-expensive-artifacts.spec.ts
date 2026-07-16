@@ -127,11 +127,10 @@ async function waitForLatestBotReply(page: Page): Promise<Locator> {
 }
 
 function findBotPosts(page: Page): Locator {
-	if (botReplyPostID !== '') {
-		return page.locator(`#post_${botReplyPostID}`);
+	if (botReplyPostID === '') {
+		throw new Error('Mattermost bot reply post ID is required for exact UI evidence');
 	}
-	const expectedAuthor = botUsername !== '' ? escapeRegularExpression(botUsername) : 'InternKim|김인턴';
-	return page.getByTestId('postView').filter({ hasText: new RegExp(expectedAuthor, 'i') });
+	return page.locator(`#post_${botReplyPostID}`);
 }
 
 async function saveAttachment(page: Page, expectedAttachment: string): Promise<void> {
