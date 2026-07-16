@@ -2,8 +2,10 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -31,7 +33,7 @@ func (service *Service) pushPendingCalendarOutboxForProvider(ctx context.Context
 	if !remoteCalendarAccountCanWrite(account) {
 		return nil, nil
 	}
-	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -61,7 +63,7 @@ func isCalendarAuthError(errorValue error) bool {
 }
 
 func (service *Service) pushCalendarOutboxForAccount(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient) (map[string]struct{}, error) {
-	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -77,43 +79,60 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 	if target.NeedsInitialSyncCompletion && strings.TrimSpace(account.SelectedCalendarReadinessStatus) != calendarReadinessStatusInitialExportPending {
 		return pushedUIDs, nil
 	}
+	activeBatches, isCurrentTarget, errorValue := service.prepareCalendarOutboxPushBatches(ctx, account, rows)
+	if errorValue != nil {
+		return pushedUIDs, errorValue
+	}
+	if !isCurrentTarget {
+		return pushedUIDs, nil
+	}
 	hasAuthError := false
 	hasSuccessfulRemoteOperation := false
-	for _, row := range rows {
-		if !calendarOutboxPutTargetsRemoteTarget(row, target) {
-			if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
-				log.Printf("outbox retarget cleanup %d: %v", row.ID, errorValue)
+	for _, row := range activeBatches {
+		isCurrentTarget, errorValue := service.calendarPushTargetIsCurrent(ctx, row)
+		if errorValue != nil {
+			return pushedUIDs, errorValue
+		}
+		if !isCurrentTarget {
+			break
+		}
+		if row.Status != calendarOutboxStatusBlocked && row.AttemptCount >= calendarOutboxMaxAttempts {
+			slog.WarnContext(ctx, "calendar outbox batch blocked", "row_id", row.ID, "event_uid", row.EventUID, "attempt_count", row.AttemptCount, "last_error", row.LastError)
+			failedAt := time.Now().UTC().Format(time.RFC3339Nano)
+			if errorValue := service.markCalendarOutboxBatchBlocked(ctx, row, failedAt, row.LastError); errorValue != nil {
+				return pushedUIDs, fmt.Errorf("mark calendar outbox batch %d blocked: %w", row.ID, errorValue)
 			}
 			continue
 		}
-		if row.AttemptCount >= calendarOutboxMaxAttempts {
-			log.Printf("calendar outbox row %d (event %s) blocked after %d attempts: %s",
-				row.ID, row.EventUID, row.AttemptCount, row.LastError)
-			failedAt := time.Now().UTC().Format(time.RFC3339Nano)
-			if errorValue := service.markCalendarOutboxBlocked(ctx, row.ID, failedAt, row.LastError); errorValue != nil {
-				log.Printf("outbox block %d: %v", row.ID, errorValue)
-			}
+		if !canRetryBlockedCalendarOutbox(row, time.Now().UTC()) {
 			continue
 		}
 		pushed, errorValue := service.processCalendarOutboxRow(ctx, account, client, row)
 		if errorValue != nil {
+			if errors.Is(errorValue, errCalendarPushTargetChanged) {
+				break
+			}
 			log.Printf("calendar outbox row %d failed: %v", row.ID, errorValue)
-			if isCalendarAuthError(errorValue) {
+			isAuthenticationError := isCalendarAuthError(errorValue)
+			if isAuthenticationError {
 				hasAuthError = true
 				service.markRemoteCalendarAccountAuthError(ctx, account, errorValue)
 			}
-			if outboxErr := service.markCalendarOutboxAttempt(ctx, row.ID, errorValue.Error()); outboxErr != nil {
-				log.Printf("mark outbox attempt: %v", outboxErr)
+			if outboxErr := service.markCalendarOutboxBatchAttempt(ctx, row, errorValue.Error()); outboxErr != nil {
+				return pushedUIDs, fmt.Errorf("mark calendar outbox batch %d attempt: %w", row.ID, outboxErr)
+			}
+			if isAuthenticationError {
+				break
 			}
 			continue
 		}
 		if pushed || (row.Operation == calendarOutboxOperationDelete && strings.TrimSpace(row.RemoteHref) != "") {
 			hasSuccessfulRemoteOperation = true
 		}
-		if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
-			log.Printf("outbox cleanup %d: %v", row.ID, errorValue)
+		if errorValue := service.deleteCalendarOutboxBatch(ctx, row); errorValue != nil {
+			return pushedUIDs, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)
 		}
-		if pushed && strings.TrimSpace(row.EventUID) != "" {
+		if pushed && row.Operation == calendarOutboxOperationPut && strings.TrimSpace(row.EventUID) != "" {
 			pushedUIDs[row.EventUID] = struct{}{}
 		}
 	}
@@ -133,7 +152,7 @@ func (service *Service) processCalendarOutboxRow(ctx context.Context, account re
 	case calendarOutboxOperationPut:
 		return service.pushCalendarOutboxPut(ctx, account, client, row)
 	case calendarOutboxOperationDelete:
-		return false, service.pushCalendarOutboxDelete(ctx, account, client, row)
+		return service.pushCalendarOutboxDelete(ctx, account, client, row)
 	}
 	return false, fmt.Errorf("unknown outbox operation %q", row.Operation)
 }
@@ -146,26 +165,29 @@ func (service *Service) pushCalendarOutboxPut(ctx context.Context, account remot
 	if !found {
 		return false, nil
 	}
-	objectPath, ifMatch, ifNoneMatch := resolveCalendarPushTarget(account, row, event)
+	objectPath, ifMatch, ifNoneMatch := resolveCalendarPushTarget(row, event)
 	ics, errorValue := encodeEventToICS(event)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	newETag, errorValue := client.putCalendarObject(ctx, objectPath, ics, ifMatch, ifNoneMatch)
+	newETag, errorValue := service.guardedCalendarPut(ctx, client, row, objectPath, ics, ifMatch, ifNoneMatch)
 	if errorValue != nil {
 		if isCalDAVPreconditionFailed(errorValue) {
 			return service.handleCalendarPushConflict(ctx, account, client, row, event, objectPath)
 		}
 		if isCalDAVObjectNotFound(errorValue) {
+			if strings.TrimSpace(row.RemoteHref) == "" {
+				return false, errorValue
+			}
 			return service.reconcileCalendarRemoteDeletionDuringPush(ctx, account, client, row, event, time.Now().UTC())
 		}
 		return false, errorValue
 	}
-	return true, service.applyCalendarPushSuccess(ctx, event, objectPath, newETag, ics)
+	return true, service.applyCalendarPushSuccess(ctx, row, event, event, objectPath, newETag, ics)
 }
 
 func (service *Service) handleCalendarPushConflict(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, localEvent calendarEvent, objectPath string) (bool, error) {
-	remoteObject, errorValue := client.getCalendarObject(ctx, objectPath)
+	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, objectPath)
 	if errorValue != nil {
 		if isCalDAVObjectNotFound(errorValue) {
 			return service.reconcileCalendarRemoteDeletionDuringPush(ctx, account, client, row, localEvent, time.Now().UTC())
@@ -183,10 +205,9 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	}
 	previousRemote := decodeCalendarEventFromRawICS(localEvent.RawICS, localEvent.RemoteHref, localEvent.CreatedByEmail)
 	remoteChangedFields := diffCalendarEventFields(previousRemote, remoteEvent)
-	localChangedAt := parseCalendarConflictTime(row.CreatedAt)
-	fieldChangedAt := map[string]time.Time{}
-	for _, field := range row.ChangedFields {
-		fieldChangedAt[field] = localChangedAt
+	fieldChangedAt := row.FieldChangedAt
+	if len(fieldChangedAt) == 0 {
+		fieldChangedAt = calendarOutboxFieldChangedAt(row)
 	}
 	localWinningFields := selectCalendarLocalWinningFields(row.ChangedFields, remoteChangedFields, fieldChangedAt, parseCalendarConflictTime(remoteEvent.RemoteModifiedAt))
 	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, localWinningFields)
@@ -199,50 +220,35 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	mergedEvent.UpdatedByAt = localEvent.UpdatedByAt
 	mergedEvent.MattermostPostID = localEvent.MattermostPostID
 	if len(localWinningFields) == 0 {
-		return false, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, remoteObject.ETag, remoteObject.Data)
+		return false, service.applyCalendarPushSuccess(ctx, row, localEvent, mergedEvent, remoteObject.Path, remoteObject.ETag, remoteObject.Data)
 	}
 	mergedICS, errorValue := encodeEventToICS(mergedEvent)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	newETag, errorValue := client.putCalendarObject(ctx, remoteObject.Path, mergedICS, remoteObject.ETag, "")
+	newETag, errorValue := service.guardedCalendarPut(ctx, client, row, remoteObject.Path, mergedICS, remoteObject.ETag, "")
 	if errorValue != nil {
 		if isCalDAVPreconditionFailed(errorValue) {
 			log.Printf("calendar push retry precondition failed for %s — outbox row will retry", localEvent.UID)
 		}
 		return false, errorValue
 	}
-	log.Printf("calendar push conflict resolved for %s — merged %d local field(s) over remote update", localEvent.UID, len(localWinningFields))
-	return true, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, newETag, mergedICS)
+	slog.InfoContext(ctx, "calendar push conflict resolved", "event_uid", localEvent.UID, "local_winning_field_count", len(localWinningFields))
+	return true, service.applyCalendarPushSuccess(ctx, row, localEvent, mergedEvent, remoteObject.Path, newETag, mergedICS)
 }
 
-func resolveCalendarPushTarget(account remoteCalendarAccount, row calendarOutboxRow, event calendarEvent) (string, string, string) {
+func resolveCalendarPushTarget(row calendarOutboxRow, event calendarEvent) (string, string, string) {
 	objectPath := row.RemoteHref
 	ifMatch := row.IfMatchETag
 	ifNoneMatch := ""
 	if strings.TrimSpace(objectPath) == "" {
-		objectPath = strings.TrimRight(activeRemoteCalendarTarget(account).CalendarURL, "/") + "/" + event.UID + ".ics"
+		objectPath = strings.TrimRight(row.TargetCalendarURL, "/") + "/" + event.UID + ".ics"
 		ifNoneMatch = caldavWildcardETag
 		ifMatch = ""
 	}
 	return objectPath, ifMatch, ifNoneMatch
 }
 
-func (service *Service) applyCalendarPushSuccess(ctx context.Context, event calendarEvent, objectPath string, newETag string, rawICS []byte) error {
-	event.RemoteSource = remoteCalendarProviderGoogle
-	event.RemoteHref = objectPath
-	event.RemoteETag = newETag
-	event.RawICS = string(rawICS)
-	return service.writeCalendarEventWithSource(ctx, event, calendarSourcePull)
-}
-
-func (service *Service) pushCalendarOutboxDelete(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) error {
-	if strings.TrimSpace(row.RemoteHref) == "" {
-		return nil
-	}
-	errorValue := client.deleteCalendarObject(ctx, row.RemoteHref, row.IfMatchETag)
-	if errorValue != nil && isCalDAVPreconditionFailed(errorValue) {
-		return service.reconcileCalendarLocalDeletionDuringPush(ctx, account, client, row, time.Now().UTC())
-	}
-	return errorValue
+func (service *Service) pushCalendarOutboxDelete(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow) (bool, error) {
+	return service.pushCalendarOutboxDeleteWithRecovery(ctx, account, client, row)
 }

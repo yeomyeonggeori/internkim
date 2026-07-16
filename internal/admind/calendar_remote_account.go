@@ -152,9 +152,7 @@ func (service *Service) markRemoteCalendarAccountAuthError(ctx context.Context, 
 	if authError == nil {
 		return
 	}
-	account.LastAuthError = authError.Error()
-	account.LastAuthErrorAt = time.Now().UTC().Format(time.RFC3339Nano)
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+	if errorValue := service.updateRemoteCalendarAccountAuthState(ctx, account.ID, authError.Error(), time.Now().UTC().Format(time.RFC3339Nano)); errorValue != nil {
 		log.Printf("mark calendar auth error: %v", errorValue)
 	}
 }
@@ -163,9 +161,7 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 	if account.LastAuthError == "" {
 		return
 	}
-	account.LastAuthError = ""
-	account.LastAuthErrorAt = ""
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+	if errorValue := service.updateRemoteCalendarAccountAuthState(ctx, account.ID, "", ""); errorValue != nil {
 		log.Printf("clear calendar auth error: %v", errorValue)
 	}
 }
@@ -176,9 +172,20 @@ func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, account
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx,
-		"DELETE FROM calendar_remote_accounts WHERE id = ?", strings.TrimSpace(accountID))
-	return errorValue
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	trimmedAccountID := strings.TrimSpace(accountID)
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_remote_accounts WHERE id = ?", trimmedAccountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
 }
 
 func scanRemoteCalendarAccount(scanner calendarEventScanner) (remoteCalendarAccount, error) {

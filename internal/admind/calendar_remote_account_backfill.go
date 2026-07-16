@@ -2,36 +2,13 @@ package admind
 
 import (
 	"context"
+	"time"
 )
 
 type calendarBackfillEvent struct {
 	ID         string
 	UID        string
 	RemoteHref string
-}
-
-func (service *Service) enqueueCalendarBackfillOutbox(ctx context.Context, account remoteCalendarAccount) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	transaction, errorValue := database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	shouldSignalSync, errorValue := enqueueCalendarBackfillOutboxWithRunner(ctx, transaction, account)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return errorValue
-	}
-	if shouldSignalSync {
-		service.signalCalendarSyncWakeUp()
-	}
-	return nil
 }
 
 func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner calendarSQLRunner, account remoteCalendarAccount) (bool, error) {
@@ -47,6 +24,7 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner ca
 		return false, errorValue
 	}
 	shouldSignalSync := false
+	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
 	for _, event := range events {
 		if remoteCalendarHrefBelongsToTarget(event.RemoteHref, target) {
 			continue
@@ -64,7 +42,7 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner ca
 			EventUID:      event.UID,
 			Operation:     calendarOutboxOperationPut,
 			ChangedFields: calendarAllUserEditableFields(),
-		}); errorValue != nil {
+		}, createdAt); errorValue != nil {
 			return false, errorValue
 		}
 		shouldSignalSync = true

@@ -3,7 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -26,6 +26,18 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 			previousEvent = existing
 		}
 	}
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	event.UpdatedAt = updatedAt
+	var outboxRow calendarOutboxRow
+	shouldSignalSync := false
+	if source == calendarSourceLocal {
+		changedFields := diffCalendarEventFields(previousEvent, event)
+		var errorValue error
+		outboxRow, shouldSignalSync, errorValue = service.prepareCalendarOutboxForWrite(ctx, event, changedFields)
+		if errorValue != nil {
+			return errorValue
+		}
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -35,8 +47,30 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
-	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	_, errorValue = transaction.ExecContext(ctx, `
+	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if shouldSignalSync {
+		if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, outboxRow, updatedAt); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return errorValue
+	}
+	service.runCalendarStoreSideEffectUnlocked(func() {
+		event = service.finishCalendarEventPersistence(ctx, event)
+	})
+	if shouldSignalSync {
+		service.signalCalendarSyncWakeUp()
+	}
+	return nil
+}
+
+func persistCalendarEventWithTransaction(ctx context.Context, transaction *sql.Tx, event calendarEvent, updatedAt string) error {
+	_, errorValue := transaction.ExecContext(ctx, `
 	INSERT INTO calendar_events (
 		id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, deleted_at, remote_source, remote_etag, remote_href
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
@@ -55,7 +89,6 @@ ON CONFLICT(id) DO UPDATE SET
 	updated_by_email = excluded.updated_by_email,
 	updated_by_name = excluded.updated_by_name,
 	updated_by_at = excluded.updated_by_at,
-	mattermost_post_id = excluded.mattermost_post_id,
 	updated_at = excluded.updated_at,
 	remote_source = excluded.remote_source,
 	remote_etag = excluded.remote_etag,
@@ -84,31 +117,21 @@ ON CONFLICT(id) DO UPDATE SET
 		event.RemoteETag,
 		event.RemoteHref,
 	)
-	event.UpdatedAt = updatedAt
 	if errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
 	}
 	if errorValue := replaceCalendarEventParticipants(ctx, transaction, event.ID, calendarParticipantIdentities(event.Participants)); errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
 	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
-	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return errorValue
-	}
-	service.upsertCalendarNotifications(ctx, event)
-	event = service.applyCalendarMattermostProjection(ctx, event)
-	if source == calendarSourceLocal {
-		changedFields := diffCalendarEventFields(previousEvent, event)
-		if outboxErr := service.enqueueCalendarOutboxForWrite(ctx, event, changedFields); outboxErr != nil {
-			log.Printf("calendar outbox enqueue (write) failed: %v", outboxErr)
-		}
 	}
 	return nil
+}
+
+func (service *Service) finishCalendarEventPersistence(ctx context.Context, event calendarEvent) calendarEvent {
+	service.upsertCalendarNotifications(ctx, event)
+	return service.applyCalendarMattermostProjection(ctx, event)
 }
 
 func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
@@ -129,6 +152,15 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	if !found {
 		return sql.ErrNoRows
 	}
+	deletedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	var outboxRow calendarOutboxRow
+	shouldSignalSync := false
+	if source == calendarSourceLocal {
+		outboxRow, shouldSignalSync, errorValue = service.prepareCalendarOutboxForDelete(ctx, event)
+		if errorValue != nil {
+			return errorValue
+		}
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -138,7 +170,7 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	if errorValue != nil {
 		return errorValue
 	}
-	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", deletedAt, deletedAt, strings.TrimSpace(eventID))
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -156,17 +188,23 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if shouldSignalSync {
+		if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, outboxRow, deletedAt); errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
-		log.Printf("calendar notification cancel failed: %v", errorValue)
-	}
-	service.applyCalendarMattermostProjectionByID(ctx, event.ID)
-	if source == calendarSourceLocal {
-		if outboxErr := service.enqueueCalendarOutboxForDelete(ctx, event); outboxErr != nil {
-			log.Printf("calendar outbox enqueue (delete) failed: %v", outboxErr)
+	service.runCalendarStoreSideEffectUnlocked(func() {
+		if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
+			slog.WarnContext(ctx, "calendar notification cancel failed", "event_id", eventID, "error", errorValue)
 		}
+		service.applyCalendarMattermostProjectionByID(ctx, event.ID)
+	})
+	if shouldSignalSync {
+		service.signalCalendarSyncWakeUp()
 	}
 	return nil
 }

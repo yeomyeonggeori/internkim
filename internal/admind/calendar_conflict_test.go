@@ -120,7 +120,7 @@ func TestPendingCalendarLocalChangesTreatLegacyPutAsAllEditableFields(t *testing
 		t.Fatalf("enqueue legacy put: %v", errorValue)
 	}
 
-	changes, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID)
+	changes, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID, activeRemoteCalendarTarget(account).CalendarURL)
 	if errorValue != nil {
 		t.Fatalf("list pending local changes: %v", errorValue)
 	}

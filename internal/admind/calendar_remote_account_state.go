@@ -14,6 +14,8 @@ func (service *Service) saveCalendarDiscovery(ctx context.Context, account remot
 }
 
 func (service *Service) saveSelectedCalendar(ctx context.Context, account remoteCalendarAccount, calendarID string, summary string, accessRole string, calendarURL string, selectedAt time.Time) (remoteCalendarAccount, error) {
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	selectedCalendarID := strings.TrimSpace(calendarID)
 	selectedCalendarURL := strings.TrimSpace(calendarURL)
 	isSameSelectedCalendar := strings.TrimSpace(account.SelectedCalendarID) == selectedCalendarID && strings.TrimSpace(account.SelectedCalendarURL) == selectedCalendarURL
