@@ -2,18 +2,18 @@
   "name": "website-lifecycle",
   "requiresSDKD": true,
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/website"],
-  "allowedTools": ["conversation.history", "memory.search", "capability.invoke", "terminal.run", "file.read", "file.write", "file.edit"],
-  "capabilityToolNames": ["site.create", "site.status", "site.publish", "site.delete"],
+  "allowedTools": ["conversation.history", "memory.search", "terminal.run", "file.read", "file.write", "file.edit", "site.create", "site.preview", "artifact.review", "site.publish", "site.status", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.delete"],
+  "capabilityToolNames": ["site.create", "site.preview", "artifact.review", "site.publish", "site.status", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.delete"],
   "capabilityToolDescriptors": [
     {"name": "site.delete", "requiresApproval": true}
   ],
-  "initialToolNames": ["capability.invoke"],
+  "initialToolNames": ["site.create", "site.status", "site.publish", "site.delete"],
   "steps": [
     {
       "prompt": "우리 회사 '브릿지웍스'가 처음 문의하는 소상공인을 위한 '브릿지웍스 상담 안내' 한 페이지 웹사이트를 초안으로 만들어줘. 어떤 상담을 받을 수 있는지, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 공개하지는 말아줘.",
       "expectedToolCalls": ["site.create"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "브릿지웍스 상담 안내", "count": 1}
+        {"name": "tool.site.create.result", "bodyFragment": "브릿지웍스 상담 안내", "count": 1, "exact": true}
       ],
       "expectedWorkspaceFiles": [
         {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["브릿지웍스 상담 안내"]}
@@ -32,9 +32,9 @@
       "prompt": "방금 수정한 웹사이트를 배포해줘.",
       "expectedToolCalls": ["site.publish", "site.status"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "https://", "count": 1},
-        {"name": "tool.capability.invoke.result", "outputFragment": "sourceSHA256", "count": 1},
-        {"name": "tool.capability.invoke.result", "outputFragment": "published", "count": 2}
+        {"name": "tool.site.publish.result", "bodyFragment": "https://", "count": 1, "exact": true},
+        {"name": "tool.site.publish.result", "bodyFragment": "sourceSHA256", "count": 1, "exact": true},
+        {"name": "tool.site.status.result", "bodyFragment": "published", "count": 1}
       ],
       "requiresPublicURL": true,
       "expectedPublicText": ["브릿지웍스 상담 안내", "첫 상담은 30분 무료입니다"],
@@ -49,7 +49,7 @@
         {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["상담 신청은 평일 오전에 접수합니다"]}
       ],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "sourceSHA256", "count": 1}
+        {"name": "tool.site.publish.result", "bodyFragment": "sourceSHA256", "count": 1, "exact": true}
       ],
       "requiresPublicURL": true,
       "expectedPublicText": ["브릿지웍스 상담 안내", "상담 신청은 평일 오전에 접수합니다"],
@@ -62,8 +62,8 @@
       "expectedToolCalls": ["site.delete"],
       "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "outputFragment": "approval_required", "count": 1},
-        {"name": "tool.capability.invoke.result", "outputFragment": "deleted", "count": 1}
+        {"name": "tool.site.delete.result", "bodyFragment": "approval_required", "count": 1, "exact": true},
+        {"name": "tool.site.delete.result", "bodyFragment": "deleted", "count": 1, "exact": true}
       ],
       "forbiddenWorkspaceFiles": ["circles/staff/sites/*"],
       "expectedTaskStatus": "completed"

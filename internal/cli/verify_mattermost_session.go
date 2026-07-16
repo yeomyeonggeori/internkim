@@ -173,7 +173,7 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 			if errorValue := session.finishApprovalStep(contextValue, stepIndex); errorValue != nil {
 				return errorValue
 			}
-			if errorValue := validateMattermostScenarioStep(stepIndex, step, session.result.Steps[stepIndex], &session.result); errorValue != nil {
+			if errorValue := validateMattermostScenarioStep(stepIndex, session.scenario, step, session.result.Steps[stepIndex], &session.result); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -227,7 +227,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if step.ApprovalAction != "" {
 		return nil
 	}
-	return validateMattermostScenarioStep(stepIndex, step, *stepResult, &session.result)
+	return validateMattermostScenarioStep(stepIndex, session.scenario, step, *stepResult, &session.result)
 }
 
 func (session *mattermostScenarioSession) finishApprovalStep(contextValue context.Context, stepIndex int) error {
