@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -153,7 +153,7 @@ func (service *Service) markRemoteCalendarAccountAuthError(ctx context.Context, 
 		return
 	}
 	if errorValue := service.updateRemoteCalendarAccountAuthState(ctx, account.ID, authError.Error(), time.Now().UTC().Format(time.RFC3339Nano)); errorValue != nil {
-		log.Printf("mark calendar auth error: %v", errorValue)
+		slog.WarnContext(ctx, "calendar auth error update failed", "account_id", account.ID, "error", errorValue)
 	}
 }
 
@@ -162,7 +162,7 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 		return
 	}
 	if errorValue := service.clearRemoteCalendarAccountAuthStateIfUnchanged(ctx, account); errorValue != nil {
-		log.Printf("clear calendar auth error: %v", errorValue)
+		slog.WarnContext(ctx, "calendar auth error clear failed", "account_id", account.ID, "error", errorValue)
 	}
 }
 

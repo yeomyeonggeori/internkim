@@ -2,7 +2,7 @@ package admind
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -10,7 +10,7 @@ import (
 func (service *Service) updateSelectedCalendarReadinessStatus(ctx context.Context, account remoteCalendarAccount, readinessStatus string) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
-		log.Printf("mark selected calendar readiness status: %v", errorValue)
+		slog.WarnContext(ctx, "calendar readiness status update failed", "account_id", account.ID, "readiness_status", readinessStatus, "error", errorValue)
 		return
 	}
 	defer database.Close()
@@ -27,6 +27,6 @@ WHERE id = ?
 		strings.TrimSpace(account.SelectedCalendarURL),
 	)
 	if errorValue != nil {
-		log.Printf("mark selected calendar readiness status: %v", errorValue)
+		slog.WarnContext(ctx, "calendar readiness status update failed", "account_id", account.ID, "readiness_status", readinessStatus, "error", errorValue)
 	}
 }
