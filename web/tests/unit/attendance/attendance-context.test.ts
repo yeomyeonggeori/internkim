@@ -5,7 +5,6 @@ import { attendanceText } from '../../../src/routes/attendance/text';
 
 const currentMonth = currentMonthInTimeZone('Asia/Seoul');
 const firstServerTime = `${currentMonth}-15T15:00:00+09:00`;
-const delayedServerTime = `${currentMonth}-15T15:10:00+09:00`;
 const secondServerTime = `${currentMonth}-15T16:00:00+09:00`;
 
 test('loads a legacy attendance summary without a server clock', async () => {
@@ -90,7 +89,9 @@ test('refreshes the server clock without replacing the loaded attendance summary
 			requestCount += 1;
 			return Response.json({
 				...buildAttendanceSummaryFixture(currentMonth),
-				serverTime: requestCount === 1 ? firstServerTime : secondServerTime
+				serverTime: requestCount === 1 ? firstServerTime : secondServerTime,
+				timeZone: requestCount === 1 ? 'Asia/Seoul' : 'America/Los_Angeles',
+				timeZoneAuthoritative: requestCount === 1
 			});
 		},
 		{ preconnect: originalFetch.preconnect }
@@ -108,6 +109,8 @@ test('refreshes the server clock without replacing the loaded attendance summary
 
 		expect(requestCount).toBe(2);
 		expect(attendance.summary).toBe(loadedSummary);
+		expect(attendance.summary?.timeZone).toBe('America/Los_Angeles');
+		expect(attendance.summary?.timeZoneAuthoritative).toBe(false);
 		expect(attendance.currentServerTime(refreshedClock.monotonicTimestampMilliseconds).toISOString()).toBe(
 			new Date(secondServerTime).toISOString()
 		);
@@ -268,20 +271,23 @@ test('orders legacy and valid server clocks by request sequence', async () => {
 				await new Promise<void>((resolve) => {
 					releaseSecondDelayedLoad = resolve;
 				});
+				return new Response('unavailable', { status: 503 });
 			}
 			const summary = buildAttendanceSummaryFixture(currentMonth);
 			if (requestNumber === 2) {
 				const { serverTime: _serverTime, ...legacySummary } = summary;
-				return Response.json(legacySummary);
+				return Response.json({
+					...legacySummary,
+					timeZone: 'America/Los_Angeles',
+					timeZoneAuthoritative: false
+				});
 			}
 			const serverTime =
 				requestNumber === 1
 					? firstServerTime
-					: requestNumber === 4
-						? delayedServerTime
-						: requestNumber === 5
-							? 'invalid'
-							: secondServerTime;
+					: requestNumber === 5
+						? 'invalid'
+						: secondServerTime;
 			return Response.json({ ...summary, serverTime });
 		},
 		{ preconnect: originalFetch.preconnect }
@@ -304,6 +310,8 @@ test('orders legacy and valid server clocks by request sequence', async () => {
 		expect(attendance.currentServerTime(finalClock.monotonicTimestampMilliseconds).toISOString()).toBe(
 			new Date(secondServerTime).toISOString()
 		);
+		expect(attendance.summary?.timeZone).toBe('Asia/Seoul');
+		expect(attendance.summary?.timeZoneAuthoritative).toBe(true);
 
 		const secondDelayedLoad = attendance.load();
 		if (!releaseSecondDelayedLoad) throw new Error('Expected the second delayed summary request to start');
@@ -313,6 +321,8 @@ test('orders legacy and valid server clocks by request sequence', async () => {
 
 		expect(requestCount).toBe(5);
 		expect(attendance.serverClock).toBe(null);
+		expect(attendance.summary?.timeZone).toBe('Asia/Seoul');
+		expect(attendance.errorMessage).toBe('');
 	} finally {
 		globalThis.fetch = originalFetch;
 		if (originalState === undefined) {
