@@ -34,13 +34,68 @@ func (service *Service) recoverCalendarOutboxDeleteRemoteState(ctx context.Conte
 	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, canonicalPath)
 	if errorValue != nil {
 		if isCalDAVObjectNotFound(errorValue) {
-			return row, false, nil
+			return service.recoverCalendarOutboxDeleteRemoteStateByUID(ctx, client, row, calendarURL, eventUID)
 		}
 		return calendarOutboxRow{}, false, errorValue
+	}
+	matchesEventUID, errorValue := calDAVCalendarObjectMatchesUID(remoteObject, eventUID)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: %w", canonicalPath, errorValue)
+	}
+	if !matchesEventUID {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: VEVENT UID does not equal %q", canonicalPath, eventUID)
 	}
 	row.RemoteHref = firstNonEmpty(strings.TrimSpace(remoteObject.Path), canonicalPath)
 	row.IfMatchETag = strings.TrimSpace(remoteObject.ETag)
 	return row, true, nil
+}
+
+func (service *Service) recoverCalendarOutboxDeleteRemoteStateByUID(ctx context.Context, client calDAVPushClient, row calendarOutboxRow, calendarURL string, eventUID string) (calendarOutboxRow, bool, error) {
+	queryClient, supported := client.(calDAVUIDQueryClient)
+	if !supported {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: CalDAV client does not support UID query", eventUID, calendarURL)
+	}
+	objects, errorValue := service.guardedCalendarUIDQuery(ctx, queryClient, row, calendarURL, eventUID)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
+	}
+	exactMatches, errorValue := exactCalDAVCalendarObjectUIDMatches(objects, eventUID)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
+	}
+	if len(exactMatches) == 0 {
+		return row, false, nil
+	}
+	if len(exactMatches) > 1 {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: multiple exact matches (%d)", eventUID, calendarURL, len(exactMatches))
+	}
+	remoteObject := exactMatches[0]
+	remoteHref := strings.TrimSpace(remoteObject.Path)
+	if remoteHref == "" {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: matching object href is empty", eventUID, calendarURL)
+	}
+	row.RemoteHref = remoteHref
+	row.IfMatchETag = strings.TrimSpace(remoteObject.ETag)
+	return row, true, nil
+}
+
+func (service *Service) guardedCalendarUIDQuery(ctx context.Context, client calDAVUIDQueryClient, row calendarOutboxRow, calendarURL string, eventUID string) ([]calDAVCalendarObject, error) {
+	isCurrentTarget, errorValue := service.calendarPushTargetIsCurrent(ctx, row)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if !isCurrentTarget {
+		return nil, errCalendarPushTargetChanged
+	}
+	objects, queryError := client.queryCalendarObjectsByUID(ctx, calendarURL, eventUID)
+	isCurrentTarget, errorValue = service.calendarPushTargetIsCurrent(ctx, row)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if !isCurrentTarget {
+		return nil, errCalendarPushTargetChanged
+	}
+	return objects, queryError
 }
 
 func calendarOutboxBatchRowIDs(row calendarOutboxRow) []int64 {

@@ -18,6 +18,10 @@ type calDAVPushClient interface {
 	getCalendarObject(ctx context.Context, objectPath string) (calDAVCalendarObject, error)
 }
 
+type calDAVUIDQueryClient interface {
+	queryCalendarObjectsByUID(ctx context.Context, calendarPath string, eventUID string) ([]calDAVCalendarObject, error)
+}
+
 func (service *Service) pushPendingCalendarOutbox(ctx context.Context) (map[string]struct{}, error) {
 	return service.pushPendingCalendarOutboxForProvider(ctx, googleCalendarProvider{})
 }
