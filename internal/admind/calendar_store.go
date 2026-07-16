@@ -10,7 +10,13 @@ import (
 )
 
 func (service *Service) openCalendarDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema)
+	options := sqliteDatabaseOptions{transactionLock: "immediate"}
+	database, errorValue := service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema, options)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	service.initializeCalendarEventWindowCache(ctx, database)
+	return database, nil
 }
 
 func ensureCalendarSchema(ctx context.Context, database *sql.DB) error {
@@ -165,21 +171,7 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 		return nil, errorValue
 	}
 	defer database.Close()
-	query := `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
-FROM calendar_events
-WHERE deleted_at = ''`
-	arguments := []any{}
-	if !startTime.IsZero() && !endTime.IsZero() {
-		query += " AND end_at > ? AND start_at < ?"
-		arguments = append(arguments, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
-	}
-	query += " ORDER BY start_at, title"
-	rows, errorValue := database.QueryContext(ctx, query, arguments...)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	events, errorValue := scanCalendarEventRows(rows)
+	events, errorValue := readCalendarEventRows(ctx, database, startTime, endTime)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -424,21 +416,6 @@ func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventPro
 	projection.Event.ReminderLeadHours = normalizeCalendarReminderLeadHours(projection.Event.ReminderLeadHours)
 	projection.IsDeleted = strings.TrimSpace(deletedAt) != ""
 	return projection, errorValue
-}
-
-func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context, eventID string, postID string) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	trimmedPostID := strings.TrimSpace(postID)
-	postCreatedAt := ""
-	if trimmedPostID != "" {
-		postCreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
-	}
-	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
-	return errorValue
 }
 
 func boolToSQLiteInteger(value bool) int {
