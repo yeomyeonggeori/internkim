@@ -7,17 +7,18 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 
 | 계층 | 실행 | 정의 위치 | 보증 범위 |
 |---|---|---|---|
-| 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 에이전트 루프·툴 선택·스킬 선택·이벤트 (스크립트된 LLM, 결정적) |
+| 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 스크립트 응답에 대한 에이전트 루프·상태 전이·이벤트 invariant |
 | Mattermost 제외 Linux | `./internkim dev fleet run --without-mattermost --scenario <name>` | Blueclaw virtual-session을 Linux VM 내부에서 실행 | Mattermost 서버 없이 Linux toolchain·agent 경로 검증 |
 | 로컬 플릿 | `./internkim dev fleet run` | `internal/localfleet/plans.go` | 일회용 Linux+Mattermost+Kim 서버에서 predeploy API·Mattermost·browser 스모크 |
 | 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 일회용 실제 커넥터 경유 메시징·재시작 후 정책 보존 |
 | 재사용 플릿 | `./internkim dev fleet run --reuse --scenario <name>` | `internal/localfleet` shared VM/state/tunnel | 수동 디버깅용 공유 로컬 플릿 |
 
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
-스크립트 응답으로 상태 전이, 승인, 취소, 부작용, 증거 연결을 결정적으로
-검증한다. 실 LLM 판단과 AI SDK 경로는 `--live-llm` 또는 expensive
-Mattermost 시나리오로 직접 검증하고 요청, 응답, 라우팅, 도구, 시간,
-산출물 증거를 보존한다.
+응답에 대한 상태 전이, 승인, 취소, 부작용, 증거 연결을 결정적으로 검증한다.
+실 LLM의 툴·스킬 판단 품질이나 AI SDK 경로는 보증하지 않는다. AI SDK
+acceptance는 SDKD authoritative로 실행되는 `./internkim test expensive` 또는
+lab runner의 `--llm-provider sdkd --live-llm --strict-assertions` 조합으로
+검증한다. `--live-llm`만 사용하면 실 호출을 허용할 뿐 SDKD 경로를 뜻하지 않는다.
 
 ## 가상 세션 시나리오 인벤토리
 
