@@ -24,6 +24,10 @@ func (service *Service) readCalendarEventWindowWithSourceReader(ctx context.Cont
 		logCalendarEventWindowCacheFailure("open", cacheRange.Key, errorValue)
 		return sourceReader(ctx, startTime, endTime)
 	}
+	if !service.isCalendarEventWindowCacheEnabled() {
+		database.Close()
+		return sourceReader(ctx, startTime, endTime)
+	}
 	defer database.Close()
 	if events, found, errorValue := readCalendarEventWindowCacheEntry(ctx, database, cacheRange, time.Now()); errorValue != nil {
 		logCalendarEventWindowCacheFailure("read", cacheRange.Key, errorValue)
