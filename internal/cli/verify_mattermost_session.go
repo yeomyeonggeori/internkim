@@ -198,7 +198,8 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 		return errorValue
 	}
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(userPost))
-	detail, events, errorValue := session.waitForStepTask(contextValue, snapshot)
+	sourceReference := session.stepSourceReference(userPost.ID)
+	detail, events, replyPostID, errorValue := session.waitForStepTask(contextValue, snapshot, sourceReference)
 	stepResult.TaskRunID = detail.TaskRun.TaskRunID
 	stepResult.TaskStatus = detail.TaskRun.Status
 	stepResult.TaskEvents = events
@@ -207,7 +208,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
-	botPost, errorValue := session.waitForStepReply(contextValue, userPost.CreatedAt)
+	botPost, errorValue := session.waitForStepReply(contextValue, replyPostID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -231,7 +232,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 
 func (session *mattermostScenarioSession) finishApprovalStep(contextValue context.Context, stepIndex int) error {
 	stepResult := &session.result.Steps[stepIndex]
-	detail, newEvents, errorValue := session.waitForApprovalCompletion(contextValue, stepResult.TaskRunID, stepResult.TaskEvents)
+	detail, newEvents, replyPostID, errorValue := session.waitForApprovalCompletion(contextValue, stepResult.TaskRunID, stepResult.TaskEvents)
 	stepResult.TaskStatus = detail.TaskRun.Status
 	stepResult.TaskEvents = append(stepResult.TaskEvents, newEvents...)
 	setMattermostScenarioStepMetrics(stepResult)
@@ -239,7 +240,7 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	if errorValue != nil {
 		return errorValue
 	}
-	botPost, errorValue := session.waitForStepReply(contextValue, 0)
+	botPost, errorValue := session.waitForStepReply(contextValue, replyPostID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -253,19 +254,20 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	return errorValue
 }
 
-func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue context.Context, taskRunID string, previousEvents []mattermostScenarioTaskEvent) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, error) {
+func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue context.Context, taskRunID string, previousEvents []mattermostScenarioTaskEvent) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
 	previousEventIDs := mattermostScenarioEventIDSet(previousEvents)
 	for {
 		detail, errorValue := session.admin.taskDetail(contextValue, taskRunID)
 		if errorValue != nil {
-			return mattermostScenarioTaskDetail{}, nil, errorValue
+			return mattermostScenarioTaskDetail{}, nil, "", errorValue
 		}
 		newEvents := mattermostScenarioNewEvents(detail.TaskEvents, previousEventIDs)
-		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && len(newEvents) > 0 {
-			return detail, newEvents, nil
+		replyPostID := mattermostScenarioReplyPostID(newEvents, detail.TaskRun.Status, "")
+		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && replyPostID != "" {
+			return detail, newEvents, replyPostID, nil
 		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
-			return detail, newEvents, errorValue
+			return detail, newEvents, replyPostID, errorValue
 		}
 	}
 }
@@ -322,36 +324,41 @@ func (session *mattermostScenarioSession) snapshotTasks(contextValue context.Con
 	return snapshot, nil
 }
 
-func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, snapshot map[string]mattermostScenarioTaskSnapshot) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, error) {
+func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, snapshot map[string]mattermostScenarioTaskSnapshot, sourceReference string) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
 	var latestDetail mattermostScenarioTaskDetail
 	var latestEvents []mattermostScenarioTaskEvent
+	var latestReplyPostID string
 	for {
 		tasks, errorValue := session.admin.listTasks(contextValue, session.conversationID())
 		if errorValue != nil {
-			return latestDetail, latestEvents, errorValue
+			return latestDetail, latestEvents, latestReplyPostID, errorValue
 		}
 		for taskIndex := len(tasks) - 1; taskIndex >= 0; taskIndex-- {
 			taskSummary := tasks[taskIndex]
 			detail, detailError := session.admin.taskDetail(contextValue, taskSummary.TaskRunID)
 			if detailError != nil {
-				return latestDetail, latestEvents, detailError
+				return latestDetail, latestEvents, latestReplyPostID, detailError
+			}
+			if !mattermostScenarioHasSourceReference(detail.TaskEvents, sourceReference) {
+				continue
 			}
 			newEvents := mattermostScenarioNewEvents(detail.TaskEvents, snapshot[taskSummary.TaskRunID].EventIDs)
 			previous, didExist := snapshot[taskSummary.TaskRunID]
 			if !didExist || previous.UpdatedAt != taskSummary.UpdatedAt || len(newEvents) > 0 {
 				latestDetail = detail
 				latestEvents = newEvents
+				latestReplyPostID = mattermostScenarioReplyPostID(newEvents, detail.TaskRun.Status, sourceReference)
 			}
 			if didExist && previous.UpdatedAt == taskSummary.UpdatedAt && len(newEvents) == 0 {
 				continue
 			}
-			if len(newEvents) == 0 || isMattermostScenarioTaskInProgress(detail.TaskRun.Status) {
+			if len(newEvents) == 0 || isMattermostScenarioTaskInProgress(detail.TaskRun.Status) || latestReplyPostID == "" {
 				continue
 			}
-			return detail, newEvents, nil
+			return detail, newEvents, latestReplyPostID, nil
 		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
-			return latestDetail, latestEvents, errorValue
+			return latestDetail, latestEvents, latestReplyPostID, errorValue
 		}
 	}
 }
@@ -363,14 +370,18 @@ func (session *mattermostScenarioSession) conversationID() string {
 	return "thread:" + session.channelID + ":" + session.rootPostID
 }
 
-func (session *mattermostScenarioSession) waitForStepReply(contextValue context.Context, postedAt int64) (mattermostProbePost, error) {
+func (session *mattermostScenarioSession) stepSourceReference(postID string) string {
+	return "mattermost:" + session.conversationID() + ":" + postID
+}
+
+func (session *mattermostScenarioSession) waitForStepReply(contextValue context.Context, replyPostID string) (mattermostProbePost, error) {
 	for {
 		posts, errorValue := session.mattermost.ListChannelPosts(contextValue, session.adminToken, session.channelID)
 		if errorValue != nil {
 			return mattermostProbePost{}, errorValue
 		}
 		for _, post := range posts {
-			if post.UserID != session.botUserID || post.CreatedAt < postedAt || post.RootID != session.rootPostID || session.seenBotPostIDs[post.ID] {
+			if post.ID != replyPostID || post.UserID != session.botUserID || post.RootID != session.rootPostID || session.seenBotPostIDs[post.ID] {
 				continue
 			}
 			session.seenBotPostIDs[post.ID] = true
@@ -380,6 +391,47 @@ func (session *mattermostScenarioSession) waitForStepReply(contextValue context.
 			return mattermostProbePost{}, errorValue
 		}
 	}
+}
+
+func mattermostScenarioHasSourceReference(events []mattermostScenarioTaskEvent, sourceReference string) bool {
+	for _, event := range events {
+		if event.Name != "agent.task_source" {
+			continue
+		}
+		var body struct {
+			SourceReference string `json:"sourceReference"`
+		}
+		if json.Unmarshal([]byte(event.Body), &body) == nil && body.SourceReference == sourceReference {
+			return true
+		}
+	}
+	return false
+}
+
+func mattermostScenarioReplyPostID(events []mattermostScenarioTaskEvent, taskStatus string, sourceReference string) string {
+	expectedReplyKind := "user_notice"
+	if taskStatus == "completed" {
+		expectedReplyKind = "success"
+	}
+	messageID := sourceReference[strings.LastIndex(sourceReference, ":")+1:]
+	for eventIndex := len(events) - 1; eventIndex >= 0; eventIndex-- {
+		event := events[eventIndex]
+		if event.Name != "connector.reply.sent" {
+			continue
+		}
+		var body struct {
+			DispatchID string `json:"dispatchID"`
+			MessageID  string `json:"messageID"`
+			ReplyKind  string `json:"replyKind"`
+		}
+		if json.Unmarshal([]byte(event.Body), &body) != nil || body.ReplyKind != expectedReplyKind || body.DispatchID == "" {
+			continue
+		}
+		if sourceReference == "" || body.MessageID == sourceReference || body.MessageID == messageID {
+			return body.DispatchID
+		}
+	}
+	return ""
 }
 
 func (session *mattermostScenarioSession) downloadAttachments(contextValue context.Context, fileIDs []string) ([]downloadedMattermostFile, error) {
