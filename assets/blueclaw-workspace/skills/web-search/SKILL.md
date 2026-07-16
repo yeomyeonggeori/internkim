@@ -1,11 +1,12 @@
 ---
 name: web-search
 description: Search the public web or fetch a specific URL when the user's request needs external or current information that is not already available in the conversation, an attachment, or another skill. Use for news, prices, schedules, documentation, or any fact you cannot already answer from provided context.
+allowed-tools: web.search web.fetch
 ---
 
 # Web Search
 
-Use `capability.invoke` with `operation: "web.search"` to search the public web, and `operation: "web.fetch"` to retrieve the content of specific URLs. Set `operation` to the operation name and `input` to its parameters.
+Call `web.search` directly to search the public web, and `web.fetch` directly to retrieve the content of specific URLs.
 
 Check the conversation and any attachments first. If the answer is already there, answer directly and do not call this skill just to satisfy a requirement — call it only when it genuinely adds information you do not have.
 
