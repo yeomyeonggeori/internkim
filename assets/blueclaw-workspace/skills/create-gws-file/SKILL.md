@@ -1,11 +1,12 @@
 ---
 name: create-gws-file
 description: Create Google Docs, Sheets, or Gmail messages through typed Google Workspace capability operations for Google Docs, Google Sheets, spreadsheets, Gmail, 구글 문서, 구글 시트, 스프레드시트, or 지메일 requests. Use presentation for slide decks.
+allowed-tools: google.docs.create google.sheets.create google.gmail.send
 ---
 
 # Google Workspace Files
 
-Use typed Google Workspace capabilities through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. Blueclaw does not read API keys, service-account JSON, OAuth exports, webhook URLs, or any other Google credential.
+Call the named Google Workspace tool directly with its fields. Blueclaw does not read API keys, service-account JSON, OAuth exports, webhook URLs, or any other Google credential.
 
 ## Routing
 

@@ -1,11 +1,12 @@
 ---
 name: calendar
 description: Read or write the workspace calendar with calendar capability operations. Use this whenever the user asks to add, find, update, cancel, delete, or check meetings, schedules, 일정, 캘린더, 미팅, 회의, 약속, or reminders, even if they do not explicitly say "calendar."
+allowed-tools: calendar.add calendar.list calendar.update calendar.delete
 ---
 
 # Workspace Calendar
 
-Use the workspace calendar capability operations for team schedule creation and lookup. Run these operations through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. The runtime supplies requester identity and approval. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
+Use the typed calendar tools directly with their fields. The runtime supplies requester identity and approval. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
 
 ## Operations
 

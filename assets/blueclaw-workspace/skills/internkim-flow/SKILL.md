@@ -1,13 +1,14 @@
 ---
 name: internkim-flow
 description: Add, find, update, or complete weekly work items when the user asks to add, record, request, find, change, or complete work, todos, 업무, deadlines, or task notes.
+allowed-tools: task.add task.list task.update task.delete
 ---
 
 # 업무 관리
 
 Use the work capability operations when the user asks to add, record, request, find, update, or complete a work item.
 
-Run the work and calendar operations through the capability.invoke tool: set `operation` to the operation name and `input` to its parameters. The runtime supplies requester identity and approval, so never put identity in the input. The work operations are `task.add`, `task.list`, `task.update`, `task.delete`; the calendar operations are `calendar.add`, `calendar.list`, `calendar.update`, `calendar.delete`.
+Call `task.add`, `task.list`, `task.update`, or `task.delete` directly with its typed fields. The runtime supplies requester identity and approval, so never put identity in the input.
 
 Rules:
 

@@ -1,7 +1,6 @@
 package capabilityd
 
 import (
-	"regexp"
 	"strings"
 )
 
@@ -10,53 +9,16 @@ type flowOwnerResolution struct {
 	Failure *flowTaskAddFailure
 }
 
-type flowOwnerReference struct {
-	Value string
-}
-
-var flowOwnerReferencePattern = regexp.MustCompile(`@([A-Za-z0-9._-]+)|([\p{L}\p{N}._-]{2,})\s*(?:에게|한테|께|더러)`)
-
 func resolveFlowOwner(input flowTaskAddInput, requesterEmail string, members []flowMemberForTool) flowOwnerResolution {
-	if strings.TrimSpace(input.TargetPersonHint) != "" {
-		return resolveFlowOwnerReference(flowOwnerReference{Value: input.TargetPersonHint}, members)
+	personHint := strings.TrimSpace(input.TargetPersonHint)
+	if personHint == "" {
+		personHint = requesterEmail
 	}
-	for _, reference := range flowOwnerReferencesFromPrompt(input.Prompt) {
-		resolution := resolveFlowOwnerReference(reference, members)
-		if resolution.OwnerID != "" || resolution.Failure != nil {
-			return resolution
-		}
-	}
-	resolution := resolveFlowOwnerReference(flowOwnerReference{Value: requesterEmail}, members)
-	if resolution.OwnerID != "" {
-		return resolution
-	}
-	return flowOwnerResolution{}
+	return resolveFlowOwnerHint(personHint, members)
 }
 
-func flowOwnerReferencesFromPrompt(prompt string) []flowOwnerReference {
-	matches := flowOwnerReferencePattern.FindAllStringSubmatch(prompt, -1)
-	references := make([]flowOwnerReference, 0, len(matches))
-	for _, match := range matches {
-		reference, ok := flowOwnerReferenceFromMatch(match)
-		if ok {
-			references = append(references, reference)
-		}
-	}
-	return references
-}
-
-func flowOwnerReferenceFromMatch(match []string) (flowOwnerReference, bool) {
-	for _, value := range match[1:] {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue != "" {
-			return flowOwnerReference{Value: trimmedValue}, true
-		}
-	}
-	return flowOwnerReference{}, false
-}
-
-func resolveFlowOwnerReference(reference flowOwnerReference, members []flowMemberForTool) flowOwnerResolution {
-	matches := matchingFlowMembers(reference.Value, members)
+func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOwnerResolution {
+	matches := matchingFlowMembers(personHint, members)
 	if len(matches) == 1 {
 		return flowOwnerResolution{OwnerID: matches[0].ID}
 	}

@@ -64,7 +64,7 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 		"## Retrieval And Browser",
 		"`browser.snapshot`",
 		"interactive fallback",
-		"capability.invoke tool with operation `web.fetch`",
+		"Use `web.fetch` for ordinary public URL lookup",
 		"## File Delivery",
 		"## Memory",
 		"## Approval Handling",

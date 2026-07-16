@@ -153,11 +153,8 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 		"/workspace/shared/public",
 		"/workspace/shared/cache/dependencies",
 		"/workspace/skills/<skill>/scripts/...",
-		"Denied or internal paths",
-		"/workspace/.blueclaw/*",
-		"Concrete private POSIX paths for people",
-		"/opt/*",
-		"/tmp/*",
+		"Linux UID, GID, supplementary groups, and file permissions",
+		"Do not infer authorization from path",
 		"Some parent directories allow",
 	} {
 		if !strings.Contains(content, expectedText) {

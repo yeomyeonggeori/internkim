@@ -13,13 +13,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestResolveFlowOwnerFindsNameInsidePrompt(t *testing.T) {
+func TestResolveFlowOwnerUsesRequesterWhenTargetPersonHintIsEmpty(t *testing.T) {
 	members := []flowMemberForTool{
 		{ID: "lee", Name: "lee", Email: "lee@example.com"},
 		{ID: "iam", Name: "iam", Email: "iam@example.com"},
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "lee에게 10분 회의 추가해줘"}, "", members)
-	if resolution.OwnerID != "lee" {
+	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "lee에게 10분 회의 추가해줘"}, "iam@example.com", members)
+	if resolution.OwnerID != "iam" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
 }
@@ -29,7 +29,7 @@ func TestResolveFlowOwnerMatchesMattermostHandle(t *testing.T) {
 		{ID: "lee", Name: "Lee Dongha", Email: "lee@example.com", MattermostUsername: "lee"},
 		{ID: "kim", Name: "Kim Dongha", Email: "kim@example.com", MattermostUsername: "kim"},
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "@kim에게 업무 요청해줘"}, "", members)
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "@kim"}, "", members)
 	if resolution.OwnerID != "kim" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -72,7 +72,7 @@ func TestResolveFlowOwnerReturnsAmbiguousCandidates(t *testing.T) {
 		{ID: "lee", Name: "동하", Email: "lee@example.com", MattermostUsername: "lee"},
 		{ID: "kim", Name: "동하", Email: "kim@example.com", MattermostUsername: "kim"},
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "동하에게 업무 요청해줘"}, "", members)
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "동하"}, "", members)
 	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_ambiguous" {
 		t.Fatalf("failure = %+v", resolution.Failure)
 	}
@@ -197,7 +197,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"동하에게 업무 요청해줘"}`),
+		Input:    []byte(`{"prompt":"업무 요청해줘","targetPersonHint":"동하"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
