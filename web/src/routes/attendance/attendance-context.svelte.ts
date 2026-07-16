@@ -12,9 +12,12 @@ import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from 
 import { currentMonthInTimeZone } from './shared/attendance-date';
 import {
 	type AttendanceServerClock,
-	attendanceServerTime,
-	createAttendanceServerClock
+	attendanceServerTime
 } from './shared/attendance-server-clock';
+import { AttendanceServerClockSync } from './attendance-server-clock-sync';
+
+const selectedMonthSummaryLoadTarget = 'selectedMonthSummary';
+const currentMonthSummaryLoadTarget = 'currentMonthSummary';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
 export type AttendanceAbsenceKind = 'leave' | 'other';
@@ -107,6 +110,7 @@ export type AttendanceMember = {
 export type AttendanceSummary = {
 	month: string;
 	serverTime?: string;
+	timeZoneAuthoritative?: boolean;
 	currentUserEmail: string;
 	isAdmin: boolean;
 	timeZone: string;
@@ -131,12 +135,27 @@ export class AttendanceState {
 	serverClock = $state<AttendanceServerClock | null>(null);
 
 	private loadFailedMessage: string;
-	private serverClockRequestSequence = 0;
-	private appliedServerClockRequestSequence = 0;
-	private serverClockRefreshPromise: Promise<boolean> | null = null;
+	private readonly serverClockSync: AttendanceServerClockSync<AttendanceSummary>;
+	private activeLoadCount = 0;
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
+		this.serverClockSync = new AttendanceServerClockSync({
+			requestSummary: (month) => fetchAttendanceSummary({ month }),
+			applySummarySnapshot: (summary, serverClock) => {
+				this.serverClock = serverClock;
+				if (this.summary) {
+					this.summary.serverTime = summary.serverTime;
+					this.summary.timeZone = summary.timeZone;
+					this.summary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+				}
+				if (this.currentMonthSummary) {
+					this.currentMonthSummary.serverTime = summary.serverTime;
+					this.currentMonthSummary.timeZone = summary.timeZone;
+					this.currentMonthSummary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+				}
+			}
+		});
 		const persisted = readPersistedAttendanceFilters();
 		if (persisted.selectedMonth) this.selectedMonth = persisted.selectedMonth;
 		if (persisted.chartMode) this.chartMode = persisted.chartMode;
@@ -150,19 +169,28 @@ export class AttendanceState {
 	}
 
 	async load() {
+		this.activeLoadCount += 1;
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const next = await this.fetchSummaryForMonth(this.selectedMonth);
-			this.summary = next;
-			this.selectedMonth = next.month;
+			const next = await this.serverClockSync.loadSummary(
+				this.selectedMonth,
+				(summary) => {
+					this.summary = summary;
+					this.selectedMonth = summary.month;
+				},
+				selectedMonthSummaryLoadTarget
+			);
+			if (!next) return;
 			await this.refreshCurrentMonthSnapshot(next);
 		} catch (error) {
+			this.serverClockSync.invalidateLoadTarget(currentMonthSummaryLoadTarget);
 			this.errorMessage = error instanceof Error ? error.message : this.loadFailedMessage;
 			this.summary = null;
 			this.currentMonthSummary = null;
 		} finally {
-			this.isLoading = false;
+			this.activeLoadCount -= 1;
+			this.isLoading = this.activeLoadCount > 0;
 		}
 	}
 
@@ -172,49 +200,29 @@ export class AttendanceState {
 	}
 
 	refreshServerClock(): Promise<boolean> {
-		if (this.serverClockRefreshPromise) return this.serverClockRefreshPromise;
-		const refreshPromise = this.requestServerClockRefresh();
-		this.serverClockRefreshPromise = refreshPromise;
-		return refreshPromise.finally(() => {
-			if (this.serverClockRefreshPromise === refreshPromise) this.serverClockRefreshPromise = null;
-		});
-	}
-
-	private async requestServerClockRefresh(): Promise<boolean> {
-		const requestSequence = ++this.serverClockRequestSequence;
-		try {
-			const summary = await fetchAttendanceSummary({ month: this.selectedMonth });
-			const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
-			this.applyServerClock(serverClock, requestSequence);
-			return serverClock !== null;
-		} catch (error) {
-			if (error instanceof Error) return false;
-			throw error;
-		}
-	}
-
-	private async fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
-		const requestSequence = ++this.serverClockRequestSequence;
-		const summary = await fetchAttendanceSummary({ month });
-		const serverClock = createAttendanceServerClock(summary.serverTime, performance.now());
-		this.applyServerClock(serverClock, requestSequence);
-		return summary;
-	}
-
-	private applyServerClock(serverClock: AttendanceServerClock | null, requestSequence: number): void {
-		if (requestSequence <= this.appliedServerClockRequestSequence) return;
-		this.serverClock = serverClock;
-		this.appliedServerClockRequestSequence = requestSequence;
+		return this.serverClockSync.refresh(this.selectedMonth);
 	}
 
 	private async refreshCurrentMonthSnapshot(filteredSummary: AttendanceSummary) {
 		const currentMonth = currentMonthInTimeZone(filteredSummary.timeZone);
 		if (filteredSummary.month === currentMonth) {
-			this.currentMonthSummary = filteredSummary;
+			this.serverClockSync.applySummaryToLoadTarget(
+				filteredSummary,
+				(summary) => {
+					this.currentMonthSummary = summary;
+				},
+				currentMonthSummaryLoadTarget
+			);
 			return;
 		}
 		try {
-			this.currentMonthSummary = await this.fetchSummaryForMonth(currentMonth);
+			await this.serverClockSync.loadSummary(
+				currentMonth,
+				(summary) => {
+					this.currentMonthSummary = summary;
+				},
+				currentMonthSummaryLoadTarget
+			);
 		} catch {
 			this.currentMonthSummary = null;
 		}
