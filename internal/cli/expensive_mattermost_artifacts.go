@@ -84,11 +84,11 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 		environment = append(environment, "INTERNKIM_MATTERMOST_APPROVAL_ACTION="+string(step.ApprovalAction))
 	}
 	if len(step.ExpectedAttachments) > 0 {
-		environment = append(environment, "INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentJSON(step.ExpectedAttachments))
+		environment = append(environment, "INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentStringArray(step.ExpectedAttachments))
 	}
 	environment = append(environment,
-		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT="+marshalEnvironmentJSON(step.ExpectedPublicText),
-		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS="+marshalEnvironmentJSON(step.ExpectedPublicControls),
+		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT="+marshalEnvironmentStringArray(step.ExpectedPublicText),
+		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS="+marshalEnvironmentStringArray(step.ExpectedPublicControls),
 	)
 	command := exec.CommandContext(contextValue, "bun", "run", "test:e2e:mattermost-expensive", "--output="+filepath.Join(stepArtifactDirectoryPath, "playwright"))
 	command.Dir = filepath.Join(repositoryRootPath, "web")
@@ -101,8 +101,8 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 	return nil
 }
 
-func marshalEnvironmentJSON(value any) string {
-	document, errorValue := json.Marshal(value)
+func marshalEnvironmentStringArray(values []string) string {
+	document, errorValue := json.Marshal(append([]string{}, values...))
 	if errorValue != nil {
 		return "[]"
 	}
