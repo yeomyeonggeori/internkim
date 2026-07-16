@@ -206,4 +206,3 @@ stale 체크아웃). 아래 1·5번의 "코드" 쪽 근거는 stale 체크아웃
 | 롤백 501 | `internal/admind/release_updates.go` (`rollbackReleaseUpdate`) |
 | Signal stub | `internal/capabilityd/signal_jsonrpc.go` (`signalHistoryFromRequest`) |
 | 모델 핀 산재 | `internal/llmbackend/openrouter.go`, `internal/runtime/blueclaw/blueclaw_contract.go`, `internal/capabilityd/service.go` |
-| 카세트 배선(문서와 달리 완성) | `.dependency/blueclaw/cmd/blueclaw-lab/main.go`, `internal/e2e/language_model_cassette.go` |

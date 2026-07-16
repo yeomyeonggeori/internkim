@@ -1,21 +1,22 @@
 ---
 name: scheduled-task
 description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks when the user asks to schedule, remind, repeat, cancel, or stop them.
+allowed-tools: schedule.create schedule.cancel
 ---
 
 # Scheduled Task
 
-Use `capability.invoke` with `operation: schedule.create` when the user asks the assistant to create a reminder, recurring message, periodic report, future follow-up, finite repeated message, or timed automation. Use `capability.invoke` with `operation: schedule.cancel` when the user asks to cancel, stop, clear, or remove scheduled tasks or pending waits.
+Call `schedule.create` when the user asks the assistant to create a reminder, recurring message, periodic report, future follow-up, finite repeated message, or timed automation. Call `schedule.cancel` when the user asks to cancel, stop, clear, or remove scheduled tasks or pending waits.
 
 Creating a schedule is bounded work. Do not reject these requests as unsupported background loops when the schedule capability is available.
 
-Every JSON block below is the `input` object for that `capability.invoke` call, for example:
+Every JSON block below is the input object for the named tool, for example:
 
 ```json
-{"operation": "schedule.create", "input": {"taskInstruction": "업계 뉴스를 조사해서 핵심만 보고해준다.", "kind": "cron", "cronExpression": "0 9 * * *", "timeZone": "Asia/Seoul"}}
+{"taskInstruction": "업계 뉴스를 조사해서 핵심만 보고해준다.", "kind": "cron", "cronExpression": "0 9 * * *", "timeZone": "Asia/Seoul"}
 ```
 
-`input` must be a real object with the fields filled in — never an empty object, an empty string, or a placeholder like `{}`.
+The tool arguments must be a real object with the fields filled in — never an empty object, an empty string, or a placeholder like `{}`.
 
 ## Task Instruction
 
@@ -27,14 +28,14 @@ The scheduled agent run can use approved delivery operations later without askin
 
 ## Workflow
 
-1. If the user asks to cancel schedules or pending waits, use `capability.invoke` with `operation: schedule.cancel` and do not ask for approval.
+1. If the user asks to cancel schedules or pending waits, call `schedule.cancel` and do not ask for approval.
 2. Write `taskInstruction` as the action to perform when the schedule fires.
 3. Choose `kind: interval` for simple repeats like every minute or every hour.
 4. Choose `kind: cron` for calendar-like schedules such as every day at 9 AM or every Monday.
 5. Set `timeZone` from user context when known. Use `Asia/Seoul` for Korean-language local-time requests when no better timezone is available.
 6. Set `maxRunCount` when the user asks for a finite count such as 10 times, 10번, or repeat N times.
 7. Set `expiresAt` when the user gives an end time such as today 18:00 or until tomorrow.
-8. Use `capability.invoke` with `operation: schedule.create`.
+8. Call `schedule.create`.
 9. Reply with what was scheduled and when it will run or stop.
 
 ## Cancellation

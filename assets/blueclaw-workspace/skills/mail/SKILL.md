@@ -1,11 +1,12 @@
 ---
 name: mail
 description: Read, search, draft, and send mail through the workspace IMAP/SMTP mail capabilities. Use for 메일 확인, 이메일 검색, 받은메일, 최근 메일, 답장, 초안, and sending email.
+allowed-tools: mail.connection.status mail.connection.start mail.message.list mail.message.search mail.message.read mail.message.send
 ---
 
 # Mail
 
-Use mail capabilities for the configured IMAP/SMTP account. Run these operations through the `capability.invoke` tool: set `operation` to the operation name and `input` to its parameters. The operations include `mail.message.list`, `mail.message.search`, `mail.message.read`, `mail.message.send`, and `mail.connection.*`.
+Use the typed mail tools for the configured IMAP/SMTP account: `mail.connection.status`, `mail.connection.start`, `mail.message.list`, `mail.message.search`, `mail.message.read`, and `mail.message.send`.
 
 Never answer that you cannot access email before trying the relevant mail operation. If the user asks whether any email arrived from a sender or service, use `mail.message.search`.
 
@@ -38,21 +39,11 @@ If the user asks for a draft only, write the draft in chat and do not call `mail
 For immediate sending:
 
 1. Confirm the recipient, subject, and exact body.
-2. Call `ask.confirm` with the recipient, subject, and body.
-3. After approval, invoke `mail.message.send` via `capability.invoke`.
+2. Call `mail.message.send` with the recipient, subject, and body. The runtime requests approval before sending.
 
 Never say the email was sent before `mail.message.send` succeeds.
 
-Use this approval message shape:
-
-```json
-{
-  "userFacingMessage": "다음 이메일을 보내도 될까요?\n\nTo: recipient@example.com\nSubject: 제목\n\n본문",
-  "reasonCode": "external_send"
-}
-```
-
-After approval, use:
+Use:
 
 ```json
 {

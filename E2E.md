@@ -14,10 +14,10 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 재사용 플릿 | `./internkim dev fleet run --reuse --scenario <name>` | `internal/localfleet` shared VM/state/tunnel | 수동 디버깅용 공유 로컬 플릿 |
 
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
-스크립트 응답으로 결정성을 확보한다. 실 LLM 판단이 필요한 검증은
-`--live-llm --record-cassette <path>`로 녹화한 뒤 `--cassette <path>`로
-재생한다 (`.dependency/blueclaw/cmd/blueclaw-lab/main.go`에 배선,
-`--cassette`는 `--record-cassette`/`--live-llm`과 동시 사용 불가).
+스크립트 응답으로 상태 전이, 승인, 취소, 부작용, 증거 연결을 결정적으로
+검증한다. 실 LLM 판단과 AI SDK 경로는 `--live-llm` 또는 expensive
+Mattermost 시나리오로 직접 검증하고 요청, 응답, 라우팅, 도구, 시간,
+산출물 증거를 보존한다.
 
 ## 가상 세션 시나리오 인벤토리
 

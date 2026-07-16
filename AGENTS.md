@@ -40,9 +40,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 - For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
   behavior changes, start with `./internkim dev simulate --scenario <name>`.
-- Use scripted/cassette virtual sessions for repeatability. Record live model
-  decisions with `--live-llm --record-cassette <path>`, then replay the same
-  cassette instead of relying on seed stability alone.
+- Use scripted virtual sessions only for deterministic runtime invariants such
+  as state transitions, approval, cancellation, effects, and evidence.
+- Verify model judgment and AI SDK behavior through the live LLM path. Preserve
+  request, response, routing, tool, timing, and artifact evidence instead of
+  replaying recorded model output as acceptance.
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for

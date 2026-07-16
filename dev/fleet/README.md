@@ -54,9 +54,8 @@ Mattermost artifacts after review.
 
 ## Scenario Rules
 
-- Keep scenarios deterministic by default.
-- Use fake or cassette LLM behavior unless the scenario explicitly requires
-  `--live-llm`.
+- Keep runtime-invariant scenarios deterministic with a scripted model.
+- Use `--live-llm` for model judgment and AI SDK acceptance.
 - Create Mattermost users, channels, posts, and Blueclaw state through a lease.
 - Clean the lease by default; keep artifacts only when debugging.
 - Do not copy production, pilot, Jetson, Cloudflare, or direct deploy secrets

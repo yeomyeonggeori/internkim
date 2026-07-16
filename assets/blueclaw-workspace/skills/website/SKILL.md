@@ -1,11 +1,12 @@
 ---
 name: website
 description: Create, publish, update, take down, restore, or delete dependency-light websites, web apps, prototypes, demos, landing pages, dashboards, and app ideas through site capability operations.
+allowed-tools: terminal.run file.read file.write file.edit site.create site.preview artifact.review site.publish site.status site.history site.diff site.logs site.rollback site.unpublish site.restore site.delete
 ---
 
 # Site Prototype
 
-Use this skill for website and web app prototypes. Run site, browser, and review operations through the capability.invoke tool: set `operation` to the operation name (`site.create`, `site.preview`, `site.publish`, `site.status`, `site.history`, `site.diff`, `site.logs`, `site.rollback`, `site.unpublish`, `site.restore`, `site.delete`, or `artifact.review`) and `input` to that operation's fields as one JSON object written inside a string, e.g. `"{\"siteID\":\"abc123\"}"` — never empty. Basic creation and content edits need no build step; `terminal.run` (`bun scripts/build.ts`) is only for structural changes under `app/src/**` or scaffold config.
+Use this skill for website and web app prototypes. Call each named site or review tool directly with its fields. Basic creation and content edits need no build step; `terminal.run` (`bun scripts/build.ts`) is only for structural changes under `app/src/**` or scaffold config.
 
 Create validation prototypes, not production software. Do not claim production readiness, compliance, SLA, paid hosting, payment support, real customer workflows, or external integrations unless the user explicitly requests and confirms that path.
 
@@ -41,7 +42,7 @@ Membership only when the request truly needs member-only areas — most sites ne
 
 ## Create, Update, Publish
 
-A request is incomplete until site.publish succeeds and site.status returns `published`. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
+A publish request is incomplete until site.publish succeeds and site.status returns `published`. When the user explicitly asks for a draft or says not to publish, stop after creating, composing, and reviewing the draft. A preview URL is only a draft. site.create is synchronous: success returns the full record (`status: "draft"`, `siteID`) immediately; never poll site.status waiting for create.
 
 1. Call site.status once; recall only after an action changed the answer.
 2. If status is `ambiguous`, show candidate titles, descriptions, archetypes, owners, and URLs, then ask which site to update.
@@ -67,17 +68,23 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
        radius: 8px
    ---
    ```
-5. Call the site.create operation **exactly once**, with `input` holding every field as one JSON object written inside a string — never empty. `slug` is the only required field, but always include `title`, `description`, `idea`, `purpose`, `audience`, `archetype`, and `domainKeywords` in that same call so the record starts complete. Example call:
+5. Call `site.create` **exactly once** with every field as a direct object — never empty. `slug` is the only required field, but always include `title`, `description`, `idea`, `purpose`, `audience`, `archetype`, and `domainKeywords` in that same call so the record starts complete. Example call:
 
    ```json
    {
-     "operation": "site.create",
-     "input": "{\"slug\":\"banchan-table\",\"title\":\"Banchan Table Reservations\",\"description\":\"Weekly Korean meal-kit pickup reservation prototype\",\"idea\":\"Let busy Seoul households reserve a Thursday meal kit for weekend pickup\",\"purpose\":\"Test whether users understand the reservation flow without explanation\",\"audience\":\"busy single-person households in Seoul\",\"archetype\":\"booking\",\"domainKeywords\":[\"reservation\",\"meal-kit\",\"pickup\"]}"
+     "slug": "banchan-table",
+     "title": "Banchan Table Reservations",
+     "description": "Weekly Korean meal-kit pickup reservation prototype",
+     "idea": "Let busy Seoul households reserve a Thursday meal kit for weekend pickup",
+     "purpose": "Test whether users understand the reservation flow without explanation",
+     "audience": "busy single-person households in Seoul",
+     "archetype": "booking",
+     "domainKeywords": ["reservation", "meal-kit", "pickup"]
    }
    ```
 
    If it fails with `invalid_input`, fill in every field the error lists and call site.create exactly one more time — never a third time, and polling site.status cannot repair a failed create. If the second attempt also fails, stop and report.
-6. Read `references/blocks.md` once, then compose the site in `app/public/site-content.json` — page split and block order is the structure decision. Then run the content review with `terminal.run`:
+6. Call `file.read` once for `references/blocks.md`, then compose the site in `app/public/site-content.json` with `file.write` or `file.edit` — page split and block order is the structure decision. Then run the content review with `terminal.run`:
 
    ```json
    {
@@ -95,11 +102,11 @@ A request is incomplete until site.publish succeeds and site.status returns `pub
 12. For a structural change beyond the block library — a new variant, primitive, or layout — build it as a reusable component under `app/src/blocks/` or `app/src/components/` consuming the theme variables, then compose it; never inline one-off markup into `App.tsx` like a scratchpad.
 13. Do not edit managed scaffold files (`app/package.json`, `app/index.html`, `app/scripts/*`, `app/tsconfig.json`, `app/vite.config.ts`); `app/public/site-content.json` is the primary content surface and is not managed.
 14. Only after a structural change (step 12) or a scaffold config edit, build the app with `terminal.run` running `bun scripts/build.ts` from `appWorkspacePath`; it writes `.internkim/build-quality.json`. A basic create or a content-only edit (step 11) needs no build step.
-15. Use the site.preview operation or local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
+15. Call `site.preview` (the site.preview operation) or use local preview only for visual QA. Capture desktop and mobile screenshots when browser capability operations are available.
 16. Call `artifact.review` with screenshots, artifact brief, source summary, archetype, and rubric. Inspect rendered text for the source checklist.
 17. Write `.internkim/review-log.json` with attempts, reviewed artifacts, issues, changes made, remaining notes, and screenshot paths or `visualReviewUnavailable: true`.
 18. Revise and rebuild when screenshots or review notes show useful improvements and budget remains; repeat at most three times.
-19. Call the site.publish operation with the `siteID` from step 5's create result (or step 1/3's status result) and a concise revision `message`: `{"operation": "site.publish", "input": "{\"siteID\":\"<siteID>\",\"message\":\"Initial reservation flow\"}"}`.
+19. Call `site.publish` with the `siteID` from step 5's create result (or step 1/3's status result) and a concise revision `message`: `{"siteID":"<siteID>","message":"Initial reservation flow"}`.
 20. Call the site.status operation again and confirm `status` is `published`.
 21. Reply with the public URL, what changed, how to try the main workflow, rollback availability, and test credentials only when login exists.
 
@@ -140,7 +147,7 @@ Short continuations ("해줘", "진행", "좋아", "게시해", "publish") mean 
 
 When the user asks to check all requester-deployed sites, call site.status with `scope=mine` and `checkLive=true`. Treat a site as dead when status is `failed`, workspace health is unusable, or live HTTP status is present and not `200`. Repair, build, publish, or restore each site and report outcomes.
 
-Do not ask approval for create, build, preview, publish, status, logs, or restore — site.publish is a normal completion step. Use `ask.confirm` before rollback, unpublish, or delete. For delete, call site.delete only after confirmation succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
+Do not ask approval for create, build, preview, publish, status, logs, or restore — site.publish is a normal completion step. Rely on the runtime approval path before rollback, unpublish, or delete. For delete, call `site.delete` only after approval succeeds and pass `confirm: "DELETE"` and `userConfirmed: true`.
 
 ## Final Reply
 
