@@ -73,6 +73,7 @@ export type CalendarLocaleText = {
 	error: string;
 	saveError: string;
 	deleteError: string;
+	calendarTargetUnavailableError: string;
 	deleteUndoMessage: string;
 	deleteUndoAction: string;
 	allDay: string;
@@ -253,6 +254,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: '일정을 불러오지 못했습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
+		calendarTargetUnavailableError:
+			'Google 캘린더의 저장 위치를 사용할 수 없습니다. 계정을 다시 연결하거나 쓸 수 있는 캘린더를 선택하세요.',
 		deleteUndoMessage: '일정을 삭제했습니다.',
 		deleteUndoAction: '실행 취소',
 		allDay: '종일',
@@ -398,6 +401,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		error: 'Could not load the calendar.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
+		calendarTargetUnavailableError:
+			'The Google Calendar destination is unavailable. Reconnect the account or select a writable calendar.',
 		deleteUndoMessage: 'Event deleted.',
 		deleteUndoAction: 'Undo',
 		allDay: 'All day',

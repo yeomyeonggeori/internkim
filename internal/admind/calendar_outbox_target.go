@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -10,6 +11,8 @@ const (
 	legacyCalendarOutboxDeleteTargetUnknown  = "legacy calendar outbox delete target is unknown"
 	legacyCalendarOutboxPutTargetUnavailable = "legacy calendar outbox PUT target unavailable; reconnect account or select a complete writable calendar"
 )
+
+var errCalendarTargetUnavailable = errors.New("calendar target unavailable")
 
 type legacyCalendarOutboxTargetRow struct {
 	ID        int64
@@ -61,7 +64,7 @@ func prepareCalendarOutboxTargetWithRunner(ctx context.Context, queryRunner cale
 }
 
 func calendarOutboxTargetUnavailableError(accountID string) error {
-	return fmt.Errorf("calendar outbox target unavailable for account %q; reconnect the calendar account or select a complete writable calendar", strings.TrimSpace(accountID))
+	return fmt.Errorf("%w for account %q; reconnect the calendar account or select a complete writable calendar", errCalendarTargetUnavailable, strings.TrimSpace(accountID))
 }
 
 func readActiveCalendarOutboxTargetURLWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string) (string, error) {

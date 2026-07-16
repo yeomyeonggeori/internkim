@@ -253,6 +253,9 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		}
 	}
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
+		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
+			return
+		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -297,6 +300,9 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	}
 	event.RawICS = regeneratedRawICS
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
+		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
+			return
+		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -308,6 +314,9 @@ func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, 
 	if errorValue := service.softDeleteCalendarEvent(request.Context(), eventID); errorValue != nil {
 		if errors.Is(errorValue, sql.ErrNoRows) {
 			http.NotFound(responseWriter, request)
+			return
+		}
+		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
 			return
 		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
