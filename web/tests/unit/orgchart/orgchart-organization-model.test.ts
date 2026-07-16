@@ -123,6 +123,21 @@ describe('orgchart organization model', () => {
 		expect(sections.map((section) => section.id)).toEqual(['c-level', 'general']);
 	});
 
+	test('keeps general C and O phrases below short C-suite acronyms', () => {
+		const groups: OrgGroup[] = [
+			{ id: 'general', name: 'Alpha' },
+			{ id: 'c-level', name: 'Zulu' }
+		];
+		const records = [
+			userRecord({ userID: 'general', jobTitle: 'Content SEO', primaryGroupID: 'general', groupIDs: ['general'] }),
+			userRecord({ userID: 'c-level', jobTitle: 'CHRO', primaryGroupID: 'c-level', groupIDs: ['c-level'] })
+		];
+
+		const sections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'en');
+
+		expect(sections.map((section) => section.id)).toEqual(['c-level', 'general']);
+	});
+
 	test('treats non-executive job titles as general and orders them by localized name', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'zero-zulu', name: 'Zulu' },
