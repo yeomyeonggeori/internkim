@@ -44,6 +44,66 @@ func TestAttendanceSummaryIncludesServerTime(t *testing.T) {
 	}
 }
 
+func TestAttendanceSummaryIncludesAuthoritativeWorkspaceTimeZone(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	serverTime := time.Date(2026, 6, 30, 15, 30, 0, 0, time.UTC)
+	eventsReader := func(context.Context, string, string) ([]attendanceEvent, error) {
+		return []attendanceEvent{{
+			Email:      "staff@example.com",
+			Kind:       attendanceKindClockIn,
+			OccurredAt: serverTime.Add(-30 * time.Minute).Format(time.RFC3339Nano),
+			LocalDate:  "2026-07-01",
+		}}, nil
+	}
+	absencesReader := func(context.Context, string, string) ([]attendanceAbsence, error) {
+		return nil, nil
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary", nil)
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+
+	service.writeAttendanceSummaryWithReadersAt(recorder, request, eventsReader, absencesReader, serverTime)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceSummaryResponse
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.TimeZone != "Asia/Seoul" {
+		t.Fatalf("time zone = %q", response.TimeZone)
+	}
+	if !response.TimeZoneAuthoritative {
+		t.Fatal("time zone is not authoritative")
+	}
+	if response.Month != "2026-07" {
+		t.Fatalf("month = %q", response.Month)
+	}
+	if response.TodayStatus != "clocked_in" {
+		t.Fatalf("today status = %q", response.TodayStatus)
+	}
+}
+
+func TestAttendanceSummaryDisablesCaching(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-07", nil)
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if cacheControl := recorder.Header().Get("Cache-Control"); cacheControl != "private, no-store" {
+		t.Fatalf("cache control = %q", cacheControl)
+	}
+}
+
 func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
