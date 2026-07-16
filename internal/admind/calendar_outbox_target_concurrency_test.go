@@ -189,9 +189,14 @@ func TestCalendarPushStopsRemainingBatchesAfterTargetSwitchDuringFirstRequest(t 
 	case <-time.After(5 * time.Second):
 		t.Fatal("first calendar A request did not start")
 	}
-	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
-	if errorValue != nil {
-		t.Fatal(errorValue)
+	switchResult := startSelectedCalendarSwitch(ctx, service, account)
+	earlySwitchResult, switchedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	if switchedEarly {
+		close(client.firstRelease)
+		if earlySwitchResult.error != nil {
+			t.Fatal(earlySwitchResult.error)
+		}
+		t.Fatal("selected calendar switch committed before the first request finished")
 	}
 	latestSecondEvent := secondEvent
 	latestSecondEvent.Title = "Second After Switch"
@@ -207,6 +212,14 @@ func TestCalendarPushStopsRemainingBatchesAfterTargetSwitchDuringFirstRequest(t 
 	case <-time.After(5 * time.Second):
 		t.Fatal("calendar A push loop did not finish")
 	}
+	selectedResult, completed := waitForSelectedCalendarSwitch(switchResult, 5*time.Second)
+	if !completed {
+		t.Fatal("selected calendar switch did not finish")
+	}
+	if selectedResult.error != nil {
+		t.Fatal(selectedResult.error)
+	}
+	selectedAccount := selectedResult.account
 	if callCount := client.putCallCount(); callCount != 1 {
 		t.Fatalf("calendar A PUT calls=%d want only the in-flight request", callCount)
 	}
@@ -242,7 +255,7 @@ func TestCalendarPushStopsRemainingBatchesAfterTargetSwitchDuringFirstRequest(t 
 	}
 }
 
-func TestCalendarPushSkipsConflictRetryAfterTargetSwitchDuringPut(t *testing.T) {
+func TestSelectedCalendarSwitchWaitsForConflictRecoveryAfterPut(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -261,15 +274,28 @@ func TestCalendarPushSkipsConflictRetryAfterTargetSwitchDuringPut(t *testing.T) 
 		pushResult <- errorValue
 	}()
 	<-client.firstStarted
-	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
-		t.Fatal(errorValue)
+	switchResult := startSelectedCalendarSwitch(ctx, service, account)
+	earlySwitchResult, switchedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	if switchedEarly {
+		close(client.firstRelease)
+		if earlySwitchResult.error != nil {
+			t.Fatal(earlySwitchResult.error)
+		}
+		t.Fatal("selected calendar switch committed before conflict recovery finished")
 	}
 	close(client.firstRelease)
 	if errorValue := <-pushResult; errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if client.putCallCount() != 1 || client.getCallCount() != 0 || client.deleteCallCount() != 0 {
-		t.Fatalf("stale conflict follow-up calls put=%d get=%d delete=%d", client.putCallCount(), client.getCallCount(), client.deleteCallCount())
+	selectedResult, completed := waitForSelectedCalendarSwitch(switchResult, 5*time.Second)
+	if !completed {
+		t.Fatal("selected calendar switch did not finish")
+	}
+	if selectedResult.error != nil {
+		t.Fatal(selectedResult.error)
+	}
+	if client.putCallCount() != 1 || client.getCallCount() != 1 || client.deleteCallCount() != 0 {
+		t.Fatalf("conflict recovery calls put=%d get=%d delete=%d", client.putCallCount(), client.getCallCount(), client.deleteCallCount())
 	}
 }
 
@@ -301,12 +327,25 @@ func TestCalendarPushSkipsLaterDeleteAfterTargetSwitchDuringFirstPut(t *testing.
 		pushResult <- errorValue
 	}()
 	<-client.firstStarted
-	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
-		t.Fatal(errorValue)
+	switchResult := startSelectedCalendarSwitch(ctx, service, account)
+	earlySwitchResult, switchedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	if switchedEarly {
+		close(client.firstRelease)
+		if earlySwitchResult.error != nil {
+			t.Fatal(earlySwitchResult.error)
+		}
+		t.Fatal("selected calendar switch committed before the first PUT finished")
 	}
 	close(client.firstRelease)
 	if errorValue := <-pushResult; errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	selectedResult, completed := waitForSelectedCalendarSwitch(switchResult, 5*time.Second)
+	if !completed {
+		t.Fatal("selected calendar switch did not finish")
+	}
+	if selectedResult.error != nil {
+		t.Fatal(selectedResult.error)
 	}
 	if client.putCallCount() != 1 || client.deleteCallCount() != 0 || client.getCallCount() != 0 {
 		t.Fatalf("stale later calls put=%d get=%d delete=%d", client.putCallCount(), client.getCallCount(), client.deleteCallCount())
@@ -349,15 +388,28 @@ func TestCalendarPushSkipsETagRecoveryGetAfterTargetSwitchDuringPut(t *testing.T
 		pushResult <- errorValue
 	}()
 	<-putStarted
-	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
-		t.Fatal(errorValue)
+	switchResult := startSelectedCalendarSwitch(ctx, service, account)
+	earlySwitchResult, switchedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	if switchedEarly {
+		close(putRelease)
+		if earlySwitchResult.error != nil {
+			t.Fatal(earlySwitchResult.error)
+		}
+		t.Fatal("selected calendar switch committed before ETag recovery finished")
 	}
 	close(putRelease)
 	if errorValue := <-pushResult; errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if getCallCount.Load() != 0 {
-		t.Fatalf("stale ETag recovery GET calls=%d want 0", getCallCount.Load())
+	selectedResult, completed := waitForSelectedCalendarSwitch(switchResult, 5*time.Second)
+	if !completed {
+		t.Fatal("selected calendar switch did not finish")
+	}
+	if selectedResult.error != nil {
+		t.Fatal(selectedResult.error)
+	}
+	if getCallCount.Load() != 1 {
+		t.Fatalf("ETag recovery GET calls=%d want 1", getCallCount.Load())
 	}
 }
 
@@ -447,9 +499,14 @@ func testCalendarPushCompletionAfterTargetSwitch(t *testing.T, pushError error) 
 	case <-time.After(5 * time.Second):
 		t.Fatal("calendar A push did not start")
 	}
-	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
-	if errorValue != nil {
-		t.Fatal(errorValue)
+	switchResult := startSelectedCalendarSwitch(ctx, service, account)
+	earlySwitchResult, switchedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	if switchedEarly {
+		close(client.release)
+		if earlySwitchResult.error != nil {
+			t.Fatal(earlySwitchResult.error)
+		}
+		t.Fatal("selected calendar switch committed before the in-flight request finished")
 	}
 	latestEvent := event
 	latestEvent.Title = "After Switch"
@@ -465,6 +522,14 @@ func testCalendarPushCompletionAfterTargetSwitch(t *testing.T, pushError error) 
 	case <-time.After(5 * time.Second):
 		t.Fatal("calendar A push did not finish")
 	}
+	selectedResult, completed := waitForSelectedCalendarSwitch(switchResult, 5*time.Second)
+	if !completed {
+		t.Fatal("selected calendar switch did not finish")
+	}
+	if selectedResult.error != nil {
+		t.Fatal(selectedResult.error)
+	}
+	selectedAccount := selectedResult.account
 	storedAccount, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -486,7 +551,7 @@ func testCalendarPushCompletionAfterTargetSwitch(t *testing.T, pushError error) 
 			t.Fatalf("new target row contaminated by stale push: %+v", row)
 		}
 	}
-	if newTargetRows != 2 {
-		t.Fatalf("new target rows=%d want 2 rows=%+v", newTargetRows, rows)
+	if newTargetRows != 1 {
+		t.Fatalf("new target rows=%d want 1 rows=%+v", newTargetRows, rows)
 	}
 }

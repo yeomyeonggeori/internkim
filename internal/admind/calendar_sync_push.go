@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -93,55 +92,28 @@ func (service *Service) pushCalendarOutboxRowsForAccount(ctx context.Context, ac
 	hasAuthError := false
 	hasSuccessfulRemoteOperation := false
 	for _, row := range activeBatches {
-		isCurrentTarget, errorValue := service.calendarPushTargetIsCurrent(ctx, row)
+		mutationResult, errorValue := service.executeCalendarOutboxRemoteMutation(ctx, account, client, row)
 		if errorValue != nil {
 			return pushedUIDs, errorValue
 		}
-		if !isCurrentTarget {
+		if mutationResult.targetChanged {
 			break
 		}
-		if row.Status != calendarOutboxStatusBlocked && row.AttemptCount >= calendarOutboxMaxAttempts {
-			slog.WarnContext(ctx, "calendar outbox batch blocked", "row_id", row.ID, "event_uid", row.EventUID, "attempt_count", row.AttemptCount, "last_error", row.LastError)
-			failedAt := time.Now().UTC().Format(time.RFC3339Nano)
-			if errorValue := service.markCalendarOutboxBatchBlocked(ctx, row, failedAt, row.LastError); errorValue != nil {
-				return pushedUIDs, fmt.Errorf("mark calendar outbox batch %d blocked: %w", row.ID, errorValue)
-			}
-			continue
+		if mutationResult.operationError != nil {
+			slog.WarnContext(ctx, "calendar outbox batch failed", "row_id", row.ID, "event_uid", row.EventUID, "error", mutationResult.operationError)
 		}
-		if !canRetryBlockedCalendarOutbox(row, time.Now().UTC()) {
-			continue
+		if mutationResult.authenticationError {
+			hasAuthError = true
+			break
 		}
-		pushed, errorValue := service.processCalendarOutboxRow(ctx, account, client, row)
-		if errorValue != nil {
-			if errors.Is(errorValue, errCalendarPushTargetChanged) {
-				break
-			}
-			log.Printf("calendar outbox row %d failed: %v", row.ID, errorValue)
-			isAuthenticationError := isCalendarAuthError(errorValue)
-			if isAuthenticationError {
-				hasAuthError = true
-				service.markRemoteCalendarAccountAuthError(ctx, account, errorValue)
-			}
-			if outboxErr := service.markCalendarOutboxBatchAttempt(ctx, row, errorValue.Error()); outboxErr != nil {
-				return pushedUIDs, fmt.Errorf("mark calendar outbox batch %d attempt: %w", row.ID, outboxErr)
-			}
-			if isAuthenticationError {
-				break
-			}
-			continue
-		}
-		if pushed || (row.Operation == calendarOutboxOperationDelete && strings.TrimSpace(row.RemoteHref) != "") {
+		if mutationResult.successfulRemoteOperation {
 			hasSuccessfulRemoteOperation = true
 		}
-		if row.Operation == calendarOutboxOperationDelete {
-			if errorValue := service.deleteCompletedCalendarDeleteOutboxBatch(ctx, row); errorValue != nil {
-				return pushedUIDs, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)
-			}
-		} else if errorValue := service.deleteCalendarOutboxBatch(ctx, row); errorValue != nil {
-			return pushedUIDs, fmt.Errorf("delete calendar outbox batch %d: %w", row.ID, errorValue)
-		}
-		if pushed && row.Operation == calendarOutboxOperationPut && strings.TrimSpace(row.EventUID) != "" {
+		if mutationResult.pushed && row.Operation == calendarOutboxOperationPut && strings.TrimSpace(row.EventUID) != "" {
 			pushedUIDs[row.EventUID] = struct{}{}
+		}
+		if service.calendarTargetSwitchIsWaiting() {
+			break
 		}
 	}
 	if hasSuccessfulRemoteOperation && !hasAuthError {
