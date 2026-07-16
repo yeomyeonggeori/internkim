@@ -26,8 +26,18 @@ func (service *Service) writeAttendanceSummaryWithReaders(
 	eventsReader attendanceEventsReader,
 	absencesReader attendanceAbsencesReader,
 ) {
-	location, timeZoneName := service.workspaceTimeLocation()
-	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), time.Now().In(location))
+	service.writeAttendanceSummaryWithReadersAt(responseWriter, request, eventsReader, absencesReader, time.Now().UTC())
+}
+
+func (service *Service) writeAttendanceSummaryWithReadersAt(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	eventsReader attendanceEventsReader,
+	absencesReader attendanceAbsencesReader,
+	serverTime time.Time,
+) {
+	timeZone := service.workspaceTimeZone()
+	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), serverTime.In(timeZone.location))
 	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
 	isAdmin := service.isAuthorized(request)
 	targetEmail := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
@@ -73,19 +83,20 @@ func (service *Service) writeAttendanceSummaryWithReaders(
 		}
 		visibleEvents = filtered
 	}
-	serverTime := time.Now().UTC()
+	responseWriter.Header().Set("Cache-Control", "private, no-store")
 	service.writeJSON(responseWriter, attendanceSummaryResponse{
-		Month:                month,
-		ServerTime:           serverTime.Format(time.RFC3339Nano),
-		CurrentUserEmail:     actorEmail,
-		IsAdmin:              isAdmin,
-		TimeZone:             timeZoneName,
-		Events:               visibleEvents,
-		Absences:             projectAttendanceAbsences(absences, actorEmail, isAdmin),
-		Members:              members,
-		TodayStatus:          attendanceStatusForEvents(statusEvents, serverTime.In(location).Format("2006-01-02"), serverTime),
-		Locations:            locations,
-		TeamViewVisibleToAll: teamVisible,
-		TeamViewBlocked:      teamViewBlocked,
+		Month:                 month,
+		ServerTime:            serverTime.Format(time.RFC3339Nano),
+		CurrentUserEmail:      actorEmail,
+		IsAdmin:               isAdmin,
+		TimeZone:              timeZone.name,
+		TimeZoneAuthoritative: timeZone.isAuthoritative,
+		Events:                visibleEvents,
+		Absences:              projectAttendanceAbsences(absences, actorEmail, isAdmin),
+		Members:               members,
+		TodayStatus:           attendanceStatusForEvents(statusEvents, serverTime.In(timeZone.location).Format("2006-01-02"), serverTime),
+		Locations:             locations,
+		TeamViewVisibleToAll:  teamVisible,
+		TeamViewBlocked:       teamViewBlocked,
 	})
 }
