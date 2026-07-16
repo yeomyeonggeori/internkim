@@ -65,7 +65,7 @@ func TestCalendarEventWindowBenchmarkHistoryFixtureKeepsRequestedWindowStable(t 
 	}
 }
 
-func TestCalendarEventWindowBenchmarkQueryPlanDistinguishesCandidateIndex(t *testing.T) {
+func TestCalendarEventWindowBenchmarkQueryPlanReportsCandidateIndexScan(t *testing.T) {
 	service := newCalendarEventWindowHistoryBenchmarkService(t)
 	baselinePlan := strings.Join(calendarEventWindowBenchmarkQueryPlan(t, service), "\n")
 	t.Logf("baseline calendar event query plan:\n%s", baselinePlan)
@@ -75,7 +75,7 @@ func TestCalendarEventWindowBenchmarkQueryPlanDistinguishesCandidateIndex(t *tes
 	createCalendarEventWindowBenchmarkRangeIndex(t, service)
 	indexedPlan := strings.Join(calendarEventWindowBenchmarkQueryPlan(t, service), "\n")
 	t.Logf("indexed calendar event query plan:\n%s", indexedPlan)
-	if !strings.Contains(indexedPlan, "USING INDEX "+calendarEventWindowBenchmarkRangeIndexName) {
+	if !strings.Contains(indexedPlan, "SCAN calendar_events USING INDEX "+calendarEventWindowBenchmarkRangeIndexName) {
 		t.Fatalf("indexed calendar event query plan = %q", indexedPlan)
 	}
 }
@@ -164,12 +164,14 @@ func BenchmarkCalendarEventWindowActorProfilesWarm(benchmark *testing.B) {
 }
 
 func BenchmarkCalendarEventWindowHTTPCold(benchmark *testing.B) {
+	service := newCalendarEventWindowBenchmarkService(benchmark)
+	handler := service.router()
+	serveCalendarEventWindowBenchmark(benchmark, handler)
 	benchmark.ReportAllocs()
 	benchmark.ResetTimer()
 	for iteration := 0; iteration < benchmark.N; iteration++ {
 		benchmark.StopTimer()
-		service := newCalendarEventWindowBenchmarkService(benchmark)
-		handler := service.router()
+		resetCalendarEventWindowBenchmarkCache(benchmark, service)
 		benchmark.StartTimer()
 		serveCalendarEventWindowBenchmark(benchmark, handler)
 	}
