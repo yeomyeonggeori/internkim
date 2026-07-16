@@ -56,3 +56,19 @@ func TestMarshalEnvironmentStringArrayPreservesValues(t *testing.T) {
 		t.Fatalf("unexpected JSON array %s", document)
 	}
 }
+
+func TestLatestMattermostScenarioPostReturnsLastReply(t *testing.T) {
+	posts := []mattermostScenarioPost{{ID: "request"}, {ID: "reply", Message: "확인할까요?"}}
+
+	post, found := latestMattermostScenarioPost(posts)
+
+	if !found || post.ID != "reply" || post.Message != "확인할까요?" {
+		t.Fatalf("post=%+v found=%t", post, found)
+	}
+}
+
+func TestLatestMattermostScenarioPostRejectsEmptyConversation(t *testing.T) {
+	if _, found := latestMattermostScenarioPost(nil); found {
+		t.Fatal("expected no latest post")
+	}
+}
