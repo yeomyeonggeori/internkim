@@ -38,8 +38,11 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarConflictsTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue := database.ExecContext(ctx, "DROP INDEX IF EXISTS calendar_events_active_remote_source_uid_idx"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue := database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_events_active_remote_source_uid_idx ON calendar_events(remote_source, uid) WHERE deleted_at = ''")
+		"CREATE INDEX IF NOT EXISTS calendar_events_remote_source_uid_deleted_idx ON calendar_events(remote_source, uid, deleted_at)")
 	return errorValue
 }
 

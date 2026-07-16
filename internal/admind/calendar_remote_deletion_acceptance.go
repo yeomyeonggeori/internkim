@@ -21,7 +21,7 @@ func (service *Service) acceptCalendarRemoteDeletion(ctx context.Context, row ca
 		return false, errorValue
 	}
 	deletedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	accepted, errorValue := acceptCalendarRemoteDeletionWithTransaction(ctx, transaction, row, snapshotEvent, deletedAt)
+	accepted, errorValue := service.acceptCalendarRemoteDeletionWithTransaction(ctx, transaction, row, snapshotEvent, deletedAt)
 	if errorValue != nil || !accepted {
 		_ = transaction.Rollback()
 		return false, errorValue
@@ -38,7 +38,7 @@ func (service *Service) acceptCalendarRemoteDeletion(ctx context.Context, row ca
 	return true, nil
 }
 
-func acceptCalendarRemoteDeletionWithTransaction(ctx context.Context, transaction *sql.Tx, row calendarOutboxRow, snapshotEvent calendarEvent, deletedAt string) (bool, error) {
+func (service *Service) acceptCalendarRemoteDeletionWithTransaction(ctx context.Context, transaction *sql.Tx, row calendarOutboxRow, snapshotEvent calendarEvent, deletedAt string) (bool, error) {
 	result, errorValue := transaction.ExecContext(ctx, `
 UPDATE calendar_events
 SET deleted_at = ?, updated_at = ?
@@ -56,6 +56,9 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`,
 		return false, errorValue
 	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, snapshotEvent.ID); errorValue != nil {
+		return false, errorValue
+	}
+	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, snapshotEvent); errorValue != nil {
 		return false, errorValue
 	}
 	if errorValue := deleteCalendarOutboxBatchWithRunner(ctx, transaction, row); errorValue != nil {

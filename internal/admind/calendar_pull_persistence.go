@@ -18,7 +18,7 @@ func (service *Service) writePulledCalendarEventLocked(ctx context.Context, even
 		return errorValue
 	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -40,7 +40,7 @@ func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx contex
 		return errorValue
 	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -67,7 +67,7 @@ func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx contex
 		return errorValue
 	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -112,6 +112,10 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`, deletedAt, deletedAt, stri
 		return sql.ErrNoRows
 	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}

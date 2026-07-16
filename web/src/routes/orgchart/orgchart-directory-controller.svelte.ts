@@ -1,4 +1,5 @@
 import type { AdminPageText } from '../admin/admin-types';
+import { currentLocale } from '../../lib/i18n/locale.svelte';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrgchart } from '../admin/admin-role-policy';
 import { fetchOrgchartDirectory, orgchartApiErrorMessage } from './orgchart-api';
@@ -63,7 +64,7 @@ export class OrgchartDirectoryController {
 	}
 
 	get organizationSections(): OrgchartOrganizationSection[] {
-		return orgchartOrganizationSections(this.visibleRecords, this.groups, this.text.unassignedTeam);
+		return orgchartOrganizationSections(this.visibleRecords, this.groups, this.text.unassignedTeam, this.records, currentLocale.value);
 	}
 
 	async load(): Promise<void> {

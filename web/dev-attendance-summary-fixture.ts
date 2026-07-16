@@ -4,26 +4,27 @@ import { buildAttendanceAbsenceFixtures } from './dev-attendance-absence-fixture
 import { devAttendanceLocations, devAttendancePeople, devAttendancePresences } from './dev-attendance-fixture-data';
 import { buildAttendanceEventFixtures } from './dev-attendance-work-fixtures';
 
-export function buildAttendanceSummaryFixture(month: string): AttendanceSummary {
-	const today = new Date();
+export function buildAttendanceSummaryFixture(month: string, currentTime: Date = new Date()): AttendanceSummary {
+	const today = currentTime;
 	const todayDate = todayDateInTimeZone('Asia/Seoul', today);
 	const todayMonth = todayDate.slice(0, 7);
+	const todayDay = Number(todayDate.slice(8, 10));
 	const [yearString, monthString] = month.split('-');
 	const yearNumber = Number(yearString);
 	const monthNumber = Number(monthString);
 
 	if (!yearNumber || !monthNumber) {
-		return buildSummary(month, [], []);
+		return buildSummary(month, [], [], currentTime);
 	}
 
 	const lastDayInMonth = new Date(Date.UTC(yearNumber, monthNumber, 0)).getUTCDate();
-	const endDay = resolveFixtureEndDay(month, todayMonth, today.getDate(), lastDayInMonth);
+	const endDay = resolveFixtureEndDay(month, todayMonth, todayDay, lastDayInMonth);
 	const absences = buildAttendanceAbsenceFixtures({
 		month,
 		todayDate,
 		todayMonth,
 		lastDayInMonth,
-		todayDay: today.getDate(),
+		todayDay,
 	});
 	const events = buildAttendanceEventFixtures({
 		month,
@@ -33,7 +34,7 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 		absences,
 	});
 
-	return buildSummary(month, events, absences);
+	return buildSummary(month, events, absences, currentTime);
 }
 
 function resolveFixtureEndDay(month: string, todayMonth: string, todayDay: number, lastDayInMonth: number): number {
@@ -45,10 +46,13 @@ function resolveFixtureEndDay(month: string, todayMonth: string, todayDay: numbe
 function buildSummary(
 	month: string,
 	events: AttendanceSummary['events'],
-	absences: AttendanceSummary['absences']
+	absences: AttendanceSummary['absences'],
+	serverTime: Date
 ): AttendanceSummary {
 	return {
 		month,
+		serverTime: serverTime.toISOString(),
+		timeZoneAuthoritative: true,
 		currentUserEmail: 'kim@example.com',
 		isAdmin: true,
 		timeZone: 'Asia/Seoul',
