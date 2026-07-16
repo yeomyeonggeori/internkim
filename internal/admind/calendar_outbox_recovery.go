@@ -45,8 +45,12 @@ func (service *Service) recoverCalendarOutboxDeleteRemoteState(ctx context.Conte
 	if !matchesEventUID {
 		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: VEVENT UID does not equal %q", canonicalPath, eventUID)
 	}
+	strongETag, errorValue := strongCalDAVCalendarObjectETag(remoteObject)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover canonical calendar delete object %s: %w", canonicalPath, errorValue)
+	}
 	row.RemoteHref = firstNonEmpty(strings.TrimSpace(remoteObject.Path), canonicalPath)
-	row.IfMatchETag = strings.TrimSpace(remoteObject.ETag)
+	row.IfMatchETag = strongETag
 	return row, true, nil
 }
 
@@ -74,8 +78,12 @@ func (service *Service) recoverCalendarOutboxDeleteRemoteStateByUID(ctx context.
 	if remoteHref == "" {
 		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: matching object href is empty", eventUID, calendarURL)
 	}
+	strongETag, errorValue := strongCalDAVCalendarObjectETag(remoteObject)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, fmt.Errorf("recover calendar delete UID %q in %s: %w", eventUID, calendarURL, errorValue)
+	}
 	row.RemoteHref = remoteHref
-	row.IfMatchETag = strings.TrimSpace(remoteObject.ETag)
+	row.IfMatchETag = strongETag
 	return row, true, nil
 }
 
