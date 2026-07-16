@@ -26,7 +26,25 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarRemoteEventStateTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarPushObservationFencesTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := migrateCalendarTargetIdentityKeys(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return ensureCalendarConflictsTable(ctx, database)
+}
+
+func ensureCalendarPushObservationFencesTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_push_observation_fences (
+	account_id TEXT NOT NULL,
+	calendar_url TEXT NOT NULL,
+	event_uid TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	PRIMARY KEY(account_id, calendar_url, event_uid)
+)`)
+	return errorValue
 }
 
 func ensureCalendarRemoteEventStateTable(ctx context.Context, database *sql.DB) error {
@@ -157,6 +175,7 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	payload_ics TEXT NOT NULL DEFAULT '',
 	if_match_etag TEXT NOT NULL DEFAULT '',
 	remote_href TEXT NOT NULL DEFAULT '',
+	target_calendar_url TEXT NOT NULL DEFAULT '',
 	attempt_count INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL,
@@ -170,6 +189,9 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "remote_href", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "target_calendar_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "changed_fields", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
@@ -177,6 +199,9 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "failed_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := backfillLegacyCalendarOutboxTargets(ctx, database); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx,

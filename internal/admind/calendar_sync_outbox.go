@@ -1,25 +1,22 @@
 package admind
 
-import (
-	"context"
-	"strings"
-)
+import "context"
 
-func (service *Service) enqueueCalendarOutboxForWrite(ctx context.Context, event calendarEvent, changedFields []string) error {
+func (service *Service) prepareCalendarOutboxForWrite(ctx context.Context, event calendarEvent, changedFields []string) (calendarOutboxRow, bool, error) {
 	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
-		return errorValue
+		return calendarOutboxRow{}, false, errorValue
 	}
 	if !found {
-		return nil
+		return calendarOutboxRow{}, false, nil
 	}
 	if activeRemoteCalendarTarget(account).CalendarURL == "" {
-		return nil
+		return calendarOutboxRow{}, false, calendarOutboxTargetUnavailableError(account.ID)
 	}
 	if len(changedFields) == 0 {
-		return nil
+		return calendarOutboxRow{}, false, nil
 	}
-	if errorValue := service.enqueueCalendarOutbox(ctx, calendarOutboxRow{
+	return calendarOutboxRow{
 		AccountID:     account.ID,
 		EventID:       event.ID,
 		EventUID:      event.UID,
@@ -27,34 +24,26 @@ func (service *Service) enqueueCalendarOutboxForWrite(ctx context.Context, event
 		IfMatchETag:   event.RemoteETag,
 		RemoteHref:    event.RemoteHref,
 		ChangedFields: changedFields,
-	}); errorValue != nil {
-		return errorValue
-	}
-	service.signalCalendarSyncWakeUp()
-	return nil
+	}, true, nil
 }
 
-func (service *Service) enqueueCalendarOutboxForDelete(ctx context.Context, event calendarEvent) error {
+func (service *Service) prepareCalendarOutboxForDelete(ctx context.Context, event calendarEvent) (calendarOutboxRow, bool, error) {
 	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
-		return errorValue
+		return calendarOutboxRow{}, false, errorValue
 	}
 	if !found {
-		return nil
+		return calendarOutboxRow{}, false, nil
 	}
-	if strings.TrimSpace(event.RemoteHref) == "" && activeRemoteCalendarTarget(account).CalendarURL == "" {
-		return nil
+	if activeRemoteCalendarTarget(account).CalendarURL == "" {
+		return calendarOutboxRow{}, false, calendarOutboxTargetUnavailableError(account.ID)
 	}
-	if errorValue := service.enqueueCalendarOutbox(ctx, calendarOutboxRow{
+	return calendarOutboxRow{
 		AccountID:   account.ID,
 		EventID:     event.ID,
 		EventUID:    event.UID,
 		Operation:   calendarOutboxOperationDelete,
 		IfMatchETag: event.RemoteETag,
 		RemoteHref:  event.RemoteHref,
-	}); errorValue != nil {
-		return errorValue
-	}
-	service.signalCalendarSyncWakeUp()
-	return nil
+	}, true, nil
 }

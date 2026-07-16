@@ -18,7 +18,7 @@ func TestCalendarOutboxBlockedStatePersists(t *testing.T) {
 		t.Fatalf("pending rows: rows=%+v error=%v", rows, errorValue)
 	}
 	failedAt := "2026-07-15T02:00:00Z"
-	if errorValue := service.markCalendarOutboxBlocked(ctx, rows[0].ID, failedAt, "remote object missing"); errorValue != nil {
+	if errorValue := service.markCalendarOutboxBatchBlocked(ctx, rows[0], failedAt, "remote object missing"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	blockedRows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)

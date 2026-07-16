@@ -23,7 +23,11 @@ func (service *Service) upsertCalendarRemoteEventState(ctx context.Context, stat
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, `
+	return upsertCalendarRemoteEventStateWithRunner(ctx, database, state, time.Now().UTC().Format(time.RFC3339Nano))
+}
+
+func upsertCalendarRemoteEventStateWithRunner(ctx context.Context, queryRunner calendarSQLRunner, state calendarRemoteEventState, updatedAt string) error {
+	_, errorValue := queryRunner.ExecContext(ctx, `
 INSERT INTO calendar_remote_event_sync_state(account_id, calendar_url, event_uid, remote_modified_at, last_seen_at, missing_detected_at, updated_at)
 VALUES(?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(account_id, calendar_url, event_uid) DO UPDATE SET
@@ -32,12 +36,12 @@ ON CONFLICT(account_id, calendar_url, event_uid) DO UPDATE SET
 	missing_detected_at = excluded.missing_detected_at,
 	updated_at = excluded.updated_at`,
 		strings.TrimSpace(state.AccountID),
-		strings.TrimSpace(state.CalendarURL),
+		canonicalCalendarTargetURL(state.CalendarURL),
 		strings.TrimSpace(state.EventUID),
 		strings.TrimSpace(state.RemoteModifiedAt),
 		strings.TrimSpace(state.LastSeenAt),
 		strings.TrimSpace(state.MissingDetectedAt),
-		time.Now().UTC().Format(time.RFC3339Nano),
+		strings.TrimSpace(updatedAt),
 	)
 	return errorValue
 }
@@ -53,7 +57,7 @@ func (service *Service) readCalendarRemoteEventState(ctx context.Context, accoun
 SELECT account_id, calendar_url, event_uid, remote_modified_at, last_seen_at, missing_detected_at
 FROM calendar_remote_event_sync_state
 WHERE account_id = ? AND calendar_url = ? AND event_uid = ?`,
-		strings.TrimSpace(accountID), strings.TrimSpace(calendarURL), strings.TrimSpace(eventUID),
+		strings.TrimSpace(accountID), canonicalCalendarTargetURL(calendarURL), strings.TrimSpace(eventUID),
 	).Scan(
 		&state.AccountID,
 		&state.CalendarURL,
@@ -68,23 +72,32 @@ WHERE account_id = ? AND calendar_url = ? AND event_uid = ?`,
 	if errorValue != nil {
 		return calendarRemoteEventState{}, false, errorValue
 	}
+	state.CalendarURL = canonicalCalendarTargetURL(state.CalendarURL)
 	return state, true, nil
 }
 
 func (service *Service) markCalendarRemoteEventObserved(ctx context.Context, accountID string, calendarURL string, event calendarEvent, observedAt time.Time) error {
-	state, found, errorValue := service.readCalendarRemoteEventState(ctx, accountID, calendarURL, event.UID)
+	state, errorValue := service.prepareObservedCalendarRemoteEventState(ctx, accountID, calendarURL, event, observedAt)
 	if errorValue != nil {
 		return errorValue
 	}
+	return service.upsertCalendarRemoteEventState(ctx, state)
+}
+
+func (service *Service) prepareObservedCalendarRemoteEventState(ctx context.Context, accountID string, calendarURL string, event calendarEvent, observedAt time.Time) (calendarRemoteEventState, error) {
+	state, found, errorValue := service.readCalendarRemoteEventState(ctx, accountID, calendarURL, event.UID)
+	if errorValue != nil {
+		return calendarRemoteEventState{}, errorValue
+	}
 	if !found {
-		state = calendarRemoteEventState{AccountID: accountID, CalendarURL: calendarURL, EventUID: event.UID}
+		state = calendarRemoteEventState{AccountID: accountID, CalendarURL: canonicalCalendarTargetURL(calendarURL), EventUID: event.UID}
 	}
 	if strings.TrimSpace(event.RemoteModifiedAt) != "" {
 		state.RemoteModifiedAt = event.RemoteModifiedAt
 	}
 	state.LastSeenAt = observedAt.UTC().Format(time.RFC3339Nano)
 	state.MissingDetectedAt = ""
-	return service.upsertCalendarRemoteEventState(ctx, state)
+	return state, nil
 }
 
 func (service *Service) markCalendarRemoteEventMissing(ctx context.Context, accountID string, calendarURL string, eventUID string, detectedAt time.Time) (calendarRemoteEventState, error) {
@@ -93,7 +106,7 @@ func (service *Service) markCalendarRemoteEventMissing(ctx context.Context, acco
 		return calendarRemoteEventState{}, errorValue
 	}
 	if !found {
-		state = calendarRemoteEventState{AccountID: accountID, CalendarURL: calendarURL, EventUID: eventUID}
+		state = calendarRemoteEventState{AccountID: accountID, CalendarURL: canonicalCalendarTargetURL(calendarURL), EventUID: eventUID}
 	}
 	if strings.TrimSpace(state.MissingDetectedAt) == "" {
 		state.MissingDetectedAt = detectedAt.UTC().Format(time.RFC3339Nano)

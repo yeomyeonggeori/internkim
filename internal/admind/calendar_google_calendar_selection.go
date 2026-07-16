@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -102,8 +101,5 @@ func (service *Service) markSelectedCalendarReadinessStatusIfCurrent(ctx context
 	if strings.TrimSpace(readinessStatus) == "" {
 		return
 	}
-	account.SelectedCalendarReadinessStatus = strings.TrimSpace(readinessStatus)
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
-		log.Printf("mark selected calendar readiness status: %v", errorValue)
-	}
+	service.updateSelectedCalendarReadinessStatus(ctx, account, readinessStatus)
 }

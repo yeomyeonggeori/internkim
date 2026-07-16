@@ -52,9 +52,10 @@ type calDAVCalendarInfo struct {
 }
 
 type calDAVCalendarObject struct {
-	Path string
-	ETag string
-	Data []byte
+	Path            string
+	ETag            string
+	Data            []byte
+	ConversionError error
 }
 
 type outboundCalDAVClient struct {
@@ -226,6 +227,14 @@ func (client *outboundCalDAVClient) getCalendarObject(ctx context.Context, objec
 }
 
 func (client *outboundCalDAVClient) putCalendarObject(ctx context.Context, objectPath string, ics []byte, ifMatch string, ifNoneMatch string) (string, error) {
+	responseETag, errorValue := client.putCalendarObjectResponseETag(ctx, objectPath, ics, ifMatch, ifNoneMatch)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return recoverCanonicalETagAfterCalDAVPut(ctx, client, objectPath, responseETag)
+}
+
+func (client *outboundCalDAVClient) putCalendarObjectResponseETag(ctx context.Context, objectPath string, ics []byte, ifMatch string, ifNoneMatch string) (string, error) {
 	requestURL, errorValue := client.absoluteURL(objectPath)
 	if errorValue != nil {
 		return "", errorValue
@@ -247,18 +256,24 @@ func (client *outboundCalDAVClient) putCalendarObject(ctx context.Context, objec
 	if errorValue != nil {
 		return "", errorValue
 	}
-	defer drainAndCloseResponse(response)
 	if response.StatusCode == http.StatusPreconditionFailed || response.StatusCode == http.StatusConflict {
-		log.Printf("caldav put conflict status=%d url=%s if-match=%q if-none-match=%q body=%s", response.StatusCode, requestURL, ifMatch, ifNoneMatch, readCalDAVResponseExcerpt(response))
+		responseExcerpt := readCalDAVResponseExcerpt(response)
+		drainAndCloseResponse(response)
+		log.Printf("caldav put conflict status=%d url=%s if-match=%q if-none-match=%q body=%s", response.StatusCode, requestURL, ifMatch, ifNoneMatch, responseExcerpt)
 		return "", errCalDAVPreconditionFailed
 	}
 	if response.StatusCode == http.StatusNotFound {
+		drainAndCloseResponse(response)
 		return "", errCalDAVObjectNotFound
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("caldav put %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))
+		responseExcerpt := readCalDAVResponseExcerpt(response)
+		drainAndCloseResponse(response)
+		return "", fmt.Errorf("caldav put %s status %d: %s", requestURL, response.StatusCode, responseExcerpt)
 	}
-	return strings.TrimSpace(response.Header.Get("ETag")), nil
+	responseETag := response.Header.Get("ETag")
+	drainAndCloseResponse(response)
+	return responseETag, nil
 }
 
 func (client *outboundCalDAVClient) deleteCalendarObject(ctx context.Context, objectPath string, ifMatch string) error {
@@ -321,9 +336,6 @@ func formatETagHeaderValue(etag string) string {
 }
 
 func (client *outboundCalDAVClient) absoluteURL(path string) (string, error) {
-	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		return path, nil
-	}
 	base, errorValue := url.Parse(client.endpoint)
 	if errorValue != nil {
 		return "", errorValue
@@ -332,7 +344,11 @@ func (client *outboundCalDAVClient) absoluteURL(path string) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	return base.ResolveReference(reference).String(), nil
+	resolved := base.ResolveReference(reference)
+	if !strings.EqualFold(resolved.Scheme, base.Scheme) || !strings.EqualFold(resolved.Host, base.Host) {
+		return "", fmt.Errorf("caldav URL must use endpoint origin %s://%s", base.Scheme, base.Host)
+	}
+	return resolved.String(), nil
 }
 
 func convertCalDAVObjects(objects []caldav.CalendarObject) []calDAVCalendarObject {
@@ -340,6 +356,11 @@ func convertCalDAVObjects(objects []caldav.CalendarObject) []calDAVCalendarObjec
 	for index := range objects {
 		encoded, errorValue := encodeICalendarBytes(&objects[index])
 		if errorValue != nil {
+			result = append(result, calDAVCalendarObject{
+				Path:            objects[index].Path,
+				ETag:            objects[index].ETag,
+				ConversionError: fmt.Errorf("encode CalDAV calendar object %s: %w", objects[index].Path, errorValue),
+			})
 			continue
 		}
 		result = append(result, calDAVCalendarObject{

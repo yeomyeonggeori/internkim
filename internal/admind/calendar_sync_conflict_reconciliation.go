@@ -7,8 +7,15 @@ import (
 )
 
 func (service *Service) reconcileCalendarRemoteDeletionDuringPush(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, localEvent calendarEvent, detectedAt time.Time) (bool, error) {
-	target := activeRemoteCalendarTarget(account)
-	remoteState, errorValue := service.markCalendarRemoteEventMissing(ctx, account.ID, target.CalendarURL, localEvent.UID, detectedAt)
+	targetCalendarURL := row.TargetCalendarURL
+	remoteState, found, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, targetCalendarURL, localEvent.UID)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	if !found || strings.TrimSpace(remoteState.LastSeenAt) == "" {
+		return false, errCalDAVObjectNotFound
+	}
+	remoteState, errorValue = service.markCalendarRemoteEventMissing(ctx, account.ID, targetCalendarURL, localEvent.UID, detectedAt)
 	if errorValue != nil {
 		return false, errorValue
 	}
@@ -18,34 +25,38 @@ func (service *Service) reconcileCalendarRemoteDeletionDuringPush(ctx context.Co
 		parseCalendarConflictTime(remoteState.MissingDetectedAt),
 	)
 	if winner == calendarConflictWinnerRemote {
-		if errorValue := service.softDeleteCalendarEventWithSource(ctx, localEvent.ID, calendarSourcePull); errorValue != nil {
+		deleted, errorValue := service.softDeleteCalendarEventIfRevisionMatches(ctx, localEvent, calendarSourcePull)
+		if errorValue != nil {
 			return false, errorValue
 		}
-		return false, service.deleteCalendarOutboxForEventUID(ctx, account.ID, localEvent.UID)
+		if !deleted {
+			return false, nil
+		}
+		return false, service.deleteCalendarOutboxBatch(ctx, row)
 	}
-	objectPath := strings.TrimRight(target.CalendarURL, "/") + "/" + localEvent.UID + ".ics"
+	objectPath := strings.TrimRight(targetCalendarURL, "/") + "/" + localEvent.UID + ".ics"
 	encoded, errorValue := encodeEventToICS(localEvent)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	newETag, errorValue := client.putCalendarObject(ctx, objectPath, encoded, "", caldavWildcardETag)
+	newETag, errorValue := service.guardedCalendarPut(ctx, client, row, objectPath, encoded, "", caldavWildcardETag)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	if errorValue := service.applyCalendarPushSuccess(ctx, localEvent, objectPath, newETag, encoded); errorValue != nil {
+	if errorValue := service.applyCalendarPushSuccess(ctx, row, localEvent, localEvent, objectPath, newETag, encoded); errorValue != nil {
 		return false, errorValue
 	}
 	observedEvent := localEvent
 	observedEvent.RemoteHref = objectPath
 	observedEvent.RemoteETag = newETag
-	if errorValue := service.markCalendarRemoteEventObserved(ctx, account.ID, target.CalendarURL, observedEvent, detectedAt); errorValue != nil {
+	if errorValue := service.markCalendarRemoteEventObserved(ctx, account.ID, targetCalendarURL, observedEvent, detectedAt); errorValue != nil {
 		return false, errorValue
 	}
 	return true, nil
 }
 
 func (service *Service) reconcileCalendarLocalDeletionDuringPush(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, observedAt time.Time) error {
-	remoteObject, errorValue := client.getCalendarObject(ctx, row.RemoteHref)
+	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, row.RemoteHref)
 	if errorValue != nil {
 		if isCalDAVObjectNotFound(errorValue) {
 			return nil
@@ -56,27 +67,18 @@ func (service *Service) reconcileCalendarLocalDeletionDuringPush(ctx context.Con
 	if errorValue != nil {
 		return errorValue
 	}
-	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, row.EventID)
-	if errorValue != nil || !found {
+	shouldDeleteRemote, errorValue := service.applyCalendarDeleteConflictResolution(ctx, account, row, remoteEvent, observedAt)
+	if errorValue != nil {
 		return errorValue
 	}
-	localDeletedAt := parseCalendarConflictTime(projection.DeletedAt)
-	remoteModifiedAt := parseCalendarConflictTime(remoteEvent.RemoteModifiedAt)
-	if resolveCalendarLocalDeletion(localDeletedAt, remoteModifiedAt) == calendarConflictWinnerLocal {
-		return client.deleteCalendarObject(ctx, remoteObject.Path, remoteObject.ETag)
+	if shouldDeleteRemote {
+		return service.guardedCalendarDelete(ctx, client, row, remoteObject.Path, remoteObject.ETag)
 	}
-	remoteEvent = restoreCalendarRemoteEventFromProjection(remoteEvent, projection.Event)
-	target := activeRemoteCalendarTarget(account)
-	if errorValue := service.markCalendarRemoteEventObserved(ctx, account.ID, target.CalendarURL, remoteEvent, observedAt); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.deleteCalendarOutboxForEventUID(ctx, account.ID, remoteEvent.UID); errorValue != nil {
-		return errorValue
-	}
-	return service.writeCalendarEventWithSource(ctx, remoteEvent, calendarSourcePull)
+	return nil
 }
 
-func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx context.Context, account remoteCalendarAccount, localEvent calendarEvent, remoteEvent calendarEvent) error {
+func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx context.Context, account remoteCalendarAccount, localEvent calendarEvent, remoteEvent calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+	targetCalendarURL := activeRemoteCalendarTarget(account).CalendarURL
 	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, localEvent.ID)
 	if errorValue != nil || !found {
 		return errorValue
@@ -84,16 +86,10 @@ func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(c
 	localDeletedAt := parseCalendarConflictTime(projection.DeletedAt)
 	remoteModifiedAt := parseCalendarConflictTime(remoteEvent.RemoteModifiedAt)
 	if resolveCalendarLocalDeletion(localDeletedAt, remoteModifiedAt) == calendarConflictWinnerLocal {
-		return service.updatePendingCalendarDeleteRemoteState(ctx, account.ID, localEvent.UID, remoteEvent.RemoteHref, remoteEvent.RemoteETag)
+		return service.updatePendingCalendarDeleteRemoteState(ctx, account.ID, targetCalendarURL, localEvent.UID, remoteEvent.RemoteHref, remoteEvent.RemoteETag)
 	}
 	remoteEvent = restoreCalendarRemoteEventFromProjection(remoteEvent, projection.Event)
-	if errorValue := service.deleteCalendarOutboxForEventUID(ctx, account.ID, remoteEvent.UID); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.writeCalendarEventWithSourceLocked(ctx, remoteEvent, calendarSourcePull); errorValue != nil {
-		return errorValue
-	}
-	return nil
+	return service.writePulledCalendarEventAndDeleteOutboxLocked(ctx, account.ID, targetCalendarURL, remoteEvent, deferredProjections)
 }
 
 func restoreCalendarRemoteEventFromProjection(remoteEvent calendarEvent, projectionEvent calendarEvent) calendarEvent {

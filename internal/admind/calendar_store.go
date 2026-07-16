@@ -120,12 +120,31 @@ func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) err
 	_, errorValue := database.ExecContext(ctx, `
 	CREATE TABLE IF NOT EXISTS calendar_channel_outbox (
 		event_id TEXT PRIMARY KEY,
+		generation INTEGER NOT NULL DEFAULT 1,
+		lease_owner TEXT NOT NULL DEFAULT '',
+		lease_generation INTEGER NOT NULL DEFAULT 0,
 		attempt_count INTEGER NOT NULL DEFAULT 0,
 		last_error TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
 		last_attempted_at TEXT NOT NULL DEFAULT ''
 	)`)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "generation", "INTEGER NOT NULL DEFAULT 1"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "lease_owner", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "lease_generation", "INTEGER NOT NULL DEFAULT 0"); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, `
+UPDATE calendar_channel_outbox
+SET lease_owner = '', lease_generation = 0
+WHERE lease_owner != ''`)
 	return errorValue
 }
 
