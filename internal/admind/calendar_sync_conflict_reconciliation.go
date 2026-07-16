@@ -25,14 +25,14 @@ func (service *Service) reconcileCalendarRemoteDeletionDuringPush(ctx context.Co
 		parseCalendarConflictTime(remoteState.MissingDetectedAt),
 	)
 	if winner == calendarConflictWinnerRemote {
-		deleted, errorValue := service.softDeleteCalendarEventIfRevisionMatches(ctx, localEvent, calendarSourcePull)
+		deleted, errorValue := service.acceptCalendarRemoteDeletion(ctx, row, localEvent)
 		if errorValue != nil {
 			return false, errorValue
 		}
 		if !deleted {
 			return false, nil
 		}
-		return false, service.deleteCalendarOutboxBatch(ctx, row)
+		return false, nil
 	}
 	objectPath := strings.TrimRight(targetCalendarURL, "/") + "/" + localEvent.UID + ".ics"
 	encoded, errorValue := encodeEventToICS(localEvent)

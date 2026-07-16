@@ -26,7 +26,7 @@ func normalizeCalendarOutboxPutChangedFields(fields []string) []string {
 }
 
 func (service *Service) listPendingCalendarLocalChanges(ctx context.Context, accountID string, targetCalendarURL string) (map[string]pendingCalendarLocalChange, error) {
-	rows, errorValue := service.listPendingCalendarOutbox(ctx, accountID)
+	rows, errorValue := service.listCalendarOutbox(ctx, accountID, true)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -66,13 +66,14 @@ func (service *Service) readPendingCalendarLocalChange(ctx context.Context, acco
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT changed_fields, created_at
 FROM calendar_outbox
-WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status = ?
+WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND `+calendarOutboxActiveStatusPredicate+`
 ORDER BY id`,
 		strings.TrimSpace(accountID),
 		normalizeCalendarOutboxTargetURL(targetCalendarURL),
 		trimmedEventUID,
 		calendarOutboxOperationPut,
 		calendarOutboxStatusPending,
+		calendarOutboxStatusBlocked,
 	)
 	if errorValue != nil {
 		return pendingCalendarLocalChange{}, false, errorValue
