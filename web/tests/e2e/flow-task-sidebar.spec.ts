@@ -36,4 +36,23 @@ test.describe('flow task sidebar', () => {
 		await expect(page.getByRole('button', { name: '김철수 제거', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: '박민준 제거', exact: true })).toBeVisible();
 	});
+
+	test('keeps task editor dropdown options interactive above the sheet', async ({ page }) => {
+		await openFlowBoard(page);
+
+		await taskCard(page, flowDashboardTaskID).click();
+
+		for (const selection of [
+			{ trigger: '담당자', option: '이영희', expected: '이영희' },
+			{ trigger: '상태', option: '완료', expected: '완료' },
+			{ trigger: '사업', option: '김인턴', expected: '김인턴' },
+			{ trigger: '종류', option: '개선', expected: '개선' },
+			{ trigger: '크기', option: 'L · 5km · 16h', expected: 'L · 5km · 16h' }
+		]) {
+			const trigger = page.getByRole('button', { name: selection.trigger, exact: true });
+			await trigger.click();
+			await page.getByRole('option', { name: selection.option, exact: true }).click();
+			await expect(trigger).toContainText(selection.expected);
+		}
+	});
 });

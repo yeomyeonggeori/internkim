@@ -1,3 +1,4 @@
+import { orgchartGroupMembership } from '../../lib/orgchart/group-membership';
 import type { OrgGroup, UserRecord } from '../../lib/orgchart/types';
 
 export type OrgchartDirectoryFilters = {
@@ -31,11 +32,11 @@ export function orgchartFilterOptions(records: UserRecord[], groups: OrgGroup[])
 }
 
 function recordGroupIDs(record: UserRecord): string[] {
-	return Array.from(new Set([record.primaryGroupID ?? '', record.group ?? '', ...(record.groupIDs ?? [])].map((groupID) => groupID.trim()).filter(Boolean)));
+	return orgchartGroupMembership(record).groupIDs;
 }
 
 function recordPrimaryGroupID(record: UserRecord): string {
-	return (record.primaryGroupID ?? record.group ?? '').trim();
+	return orgchartGroupMembership(record).primaryGroupID;
 }
 
 function searchableText(record: UserRecord): string {

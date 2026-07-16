@@ -31,7 +31,7 @@ describe('orgchart profile model', () => {
 		expect(record.jobTitle).toBe('Engineer');
 		expect(record.primaryGroupID).toBe('engineering');
 		expect(record.group).toBe('engineering');
-		expect(record.groupIDs).toEqual(['engineering']);
+		expect(record.groupIDs).toEqual(['engineering', 'operations']);
 	});
 
 	test('falls back to legacy group metadata when primary group is empty', () => {
@@ -45,7 +45,7 @@ describe('orgchart profile model', () => {
 
 		expect(record.primaryGroupID).toBe('operations');
 		expect(record.group).toBe('operations');
-		expect(record.groupIDs).toEqual(['operations']);
+		expect(record.groupIDs).toEqual(['operations', 'engineering']);
 	});
 
 	test('falls back to the first legacy group id when primary and group are empty', () => {
@@ -59,7 +59,21 @@ describe('orgchart profile model', () => {
 
 		expect(record.primaryGroupID).toBe('engineering');
 		expect(record.group).toBe('engineering');
-		expect(record.groupIDs).toEqual(['engineering']);
+		expect(record.groupIDs).toEqual(['engineering', 'operations']);
+	});
+
+	test('replaces only the previous primary organization when primary changes', () => {
+		const record = normalizeOrgProfileRecord(
+			userRecord({
+				primaryGroupID: 'operations',
+				group: 'engineering',
+				groupIDs: ['engineering', 'platform', 'platform']
+			})
+		);
+
+		expect(record.primaryGroupID).toBe('operations');
+		expect(record.group).toBe('operations');
+		expect(record.groupIDs).toEqual(['operations', 'platform']);
 	});
 
 	test('compares snapshots with minimal editable values', () => {
@@ -103,7 +117,7 @@ describe('orgchart profile model', () => {
 			jobTitle: 'Lead',
 			group: 'leadership',
 			primaryGroupID: 'leadership',
-			groupIDs: ['leadership'],
+			groupIDs: ['leadership', 'engineering'],
 			supervisorID: 'manager-1'
 		});
 	});
