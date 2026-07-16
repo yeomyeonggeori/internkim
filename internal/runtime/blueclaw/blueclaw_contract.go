@@ -98,22 +98,6 @@ const (
 	BlueclawSlackAPIBaseURL               = "https://slack.com/api"
 )
 
-var BlueclawDeniedPathPrefixes = []string{
-	"/etc",
-	"/boot",
-	"/sys",
-	"/proc",
-	"/dev",
-	"/run",
-	"/var/lib",
-	"/var/run",
-	"/usr",
-	"/opt",
-	"/srv",
-	"/workspace/.blueclaw/config",
-	"/workspace/.blueclaw/postgres",
-}
-
 func BlueclawHealthCheckURL() string {
 	return BlueclawBaseURL + BlueclawHealthCheckPath
 }
