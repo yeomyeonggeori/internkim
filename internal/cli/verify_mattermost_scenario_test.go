@@ -46,8 +46,8 @@ func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
 	}
 }
 
-func TestMattermostScenarioRequiresRequestedModelTier(t *testing.T) {
-	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, RequiredModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
+	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
@@ -59,6 +59,10 @@ func TestMattermostScenarioRequiresRequestedModelTier(t *testing.T) {
 		t.Fatalf("validate requested model tier: %v", errorValue)
 	}
 	result.Steps[0].TaskEvents[0].Body = strings.Replace(result.Steps[0].TaskEvents[0].Body, `"modelTier":"low"`, `"modelTier":"xlow"`, 1)
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("validate lower model tier: %v", errorValue)
+	}
+	result.Steps[0].TaskEvents[0].Body = strings.Replace(result.Steps[0].TaskEvents[0].Body, `"modelTier":"xlow"`, `"modelTier":"medium"`, 1)
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "model tier") {
 		t.Fatalf("expected model tier failure, got %v", errorValue)
 	}
@@ -76,7 +80,7 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
 			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task.add"],"selectedSkillAllowedTools":{"internkim-flow":["task.add"]}}`},
-			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task.add"],"pinnedGroupToolIDs":["task.add"],"selectionSource":"fixed_kernel","usedFallbackGroups":false}}`},
+			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task.add"],"selectedSkillToolIDs":["task.add"],"selectionSource":"selected_skills","usedFallbackGroups":false}}`},
 			{Name: "tool.task.add.requested"},
 		},
 	}}}
@@ -273,11 +277,11 @@ func TestMattermostScenarioTreatsReadCountMismatchAsObservation(t *testing.T) {
 	}
 }
 
-func TestRequiredMattermostScenarioModelTierPreservesProductionMode(t *testing.T) {
-	if got := requiredMattermostScenarioModelTier(testCommandConfiguration{MaximumModelTier: "low"}); got != "low" {
-		t.Fatalf("expected low model requirement, got %q", got)
+func TestMaximumMattermostScenarioModelTierPreservesProductionMode(t *testing.T) {
+	if got := maximumMattermostScenarioModelTier(testCommandConfiguration{MaximumModelTier: "low"}); got != "low" {
+		t.Fatalf("expected low model maximum, got %q", got)
 	}
-	if got := requiredMattermostScenarioModelTier(testCommandConfiguration{ShouldUseRealModels: true}); got != "" {
+	if got := maximumMattermostScenarioModelTier(testCommandConfiguration{ShouldUseRealModels: true}); got != "" {
 		t.Fatalf("expected production mode to remain unrestricted, got %q", got)
 	}
 }

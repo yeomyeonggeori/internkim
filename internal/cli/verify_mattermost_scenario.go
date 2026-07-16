@@ -25,13 +25,12 @@ type mattermostScenario struct {
 	CapabilityToolDescriptors []mattermostScenarioToolDescriptor `json:"capabilityToolDescriptors"`
 	InitialToolNames          []string                           `json:"initialToolNames"`
 	Steps                     []mattermostScenarioStep           `json:"steps"`
-	RequiredModelTier         string                             `json:"-"`
+	MaximumModelTier          string                             `json:"-"`
 }
 
 type mattermostScenarioExposureEvidence struct {
 	ExposedToolIDs       []string `json:"exposedToolIDs"`
 	SelectedSkillToolIDs []string `json:"selectedSkillToolIDs"`
-	PinnedGroupToolIDs   []string `json:"pinnedGroupToolIDs"`
 	SelectionSource      string   `json:"selectionSource"`
 	UsedFallbackGroups   bool     `json:"usedFallbackGroups"`
 }
@@ -279,7 +278,7 @@ func validateMattermostScenarioResult(scenario mattermostScenario, result *matte
 	}
 	for stepIndex, expectedStep := range scenario.Steps {
 		if scenario.RequiresSDKD {
-			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario.RequiredModelTier); errorValue != nil {
+			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario.MaximumModelTier); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -392,9 +391,6 @@ func validateMattermostScenarioInitialTools(stepIndex int, scenario mattermostSc
 		}
 		if !containsMattermostScenarioString(exposure.ExposedToolIDs, toolName) {
 			return fmt.Errorf("Mattermost scenario step %d did not expose initial tool %q", stepIndex, toolName)
-		}
-		if !containsMattermostScenarioString(exposure.PinnedGroupToolIDs, toolName) {
-			return fmt.Errorf("Mattermost scenario step %d did not pin initial tool %q", stepIndex, toolName)
 		}
 	}
 	return nil
@@ -601,7 +597,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 	return nil
 }
 
-func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, requiredModelTier string) error {
+func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, maximumModelTier string) error {
 	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
 	requiredSchemaNameSet := testStringSet(requiredSchemaNames)
 	successfulSchemaNames := map[string]bool{}
@@ -637,8 +633,8 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		if strings.TrimSpace(call.Provider) == "" || strings.TrimSpace(call.Model) == "" || strings.TrimSpace(call.SelectedBackend) == "" {
 			return fmt.Errorf("Mattermost scenario step %d has incomplete model provenance for authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
-		if strings.TrimSpace(requiredModelTier) != "" && !strings.EqualFold(strings.TrimSpace(call.ModelTier), strings.TrimSpace(requiredModelTier)) {
-			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s reported model tier %q, expected %q", stepIndex, call.SchemaName, call.ModelTier, requiredModelTier)
+		if !isMattermostScenarioModelTierAtOrBelow(call.ModelTier, maximumModelTier) {
+			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s reported model tier %q above maximum %q", stepIndex, call.SchemaName, call.ModelTier, maximumModelTier)
 		}
 		successfulSchemaNames[call.SchemaName] = true
 	}
@@ -648,6 +644,24 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		}
 	}
 	return nil
+}
+
+func isMattermostScenarioModelTierAtOrBelow(modelTier string, maximumModelTier string) bool {
+	maximumRank, hasMaximum := mattermostScenarioModelTierRank(maximumModelTier)
+	if !hasMaximum {
+		return strings.TrimSpace(maximumModelTier) == ""
+	}
+	modelRank, hasModel := mattermostScenarioModelTierRank(modelTier)
+	return hasModel && modelRank <= maximumRank
+}
+
+func mattermostScenarioModelTierRank(modelTier string) (int, bool) {
+	for rank, name := range []string{"xlow", "low", "medium", "high", "xhigh", "max"} {
+		if strings.EqualFold(strings.TrimSpace(modelTier), name) {
+			return rank, true
+		}
+	}
+	return 0, false
 }
 
 func hasAnyMattermostScenarioToolEvent(events []mattermostScenarioTaskEvent, toolNames []string) bool {
