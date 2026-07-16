@@ -10,7 +10,7 @@ export type OrgchartGroupOrderItem = {
 
 const highestExecutiveTitles = new Set(['ceo', 'founder']);
 const secondExecutiveTitles = new Set(['coceo', 'cofounder']);
-const cLevelTitlePattern = /^c[a-z]+o$/;
+const cLevelTitlePattern = /^c[a-z]{1,3}o$/;
 const generalGroupPriority = 3;
 
 export function compareOrgchartGroups(records: UserRecord[], locale: Locale): (first: OrgchartGroupOrderItem, second: OrgchartGroupOrderItem) => number {
