@@ -637,6 +637,7 @@ func TestMattermostScenarioStepMetricsDescribeAgentWork(t *testing.T) {
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router"}`},
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action"}`},
 		{Name: "agent.action"},
+		{Name: "tool.task.add.requested"},
 		{Name: "tool.capability.invoke.requested"},
 	}}
 	setMattermostScenarioStepMetrics(&result)
@@ -655,5 +656,15 @@ func TestMattermostScenarioStepMetricsCountsNativeAgentActionsWithoutDoubleCount
 	setMattermostScenarioStepMetrics(&result)
 	if result.AgentStepCount != 2 {
 		t.Fatalf("expected two native agent steps, got %#v", result)
+	}
+}
+
+func TestMattermostScenarioEventPublicURLRequiresDirectTypedResult(t *testing.T) {
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.site.publish.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
+		{Name: "tool.capability.invoke.result", Body: `{"publicURL":"https://legacy.intern.kim"}`},
+	}
+	if publicURL := findMattermostScenarioEventPublicURL(events); publicURL != "https://demo.intern.kim" {
+		t.Fatalf("public URL = %q", publicURL)
 	}
 }

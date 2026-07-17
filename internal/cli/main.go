@@ -590,7 +590,7 @@ func syncToolDescriptorsCmd(ssh *sshClient) {
 	if capabilitiesSection == nil {
 		fatal("blueclaw runtime config has no capabilities section")
 	}
-	capabilitiesSection["toolNames"] = capabilities.DefaultToolNames()
+	delete(capabilitiesSection, "toolNames")
 	capabilitiesSection["toolDescriptors"] = capabilities.DefaultToolDescriptors()
 	updatedDocument, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {

@@ -9,18 +9,18 @@
   "initialToolNames": ["message.send"],
   "steps": [
     {
-      "prompt": "우경이에게 DM으로 '비용 테스트 메시지'라고 보내줘.",
+      "prompt": "우경이에게 DM으로 '이번 주 고객 미팅 자료 검토 부탁드립니다'라고 보내줘.",
       "expectedToolCalls": ["message.send"],
       "expectedEvents": ["confirmation.requested"],
       "expectedEventCounts": [
         {"name": "tool.message.send.requested", "bodyFragment": "\"personHint\":\"우경\"", "count": 1},
-        {"name": "tool.message.send.requested", "bodyFragment": "\"message\":\"비용 테스트 메시지\"", "count": 1},
+        {"name": "tool.message.send.requested", "bodyFragment": "\"message\":\"이번 주 고객 미팅 자료 검토 부탁드립니다\"", "count": 1},
         {"name": "tool.message.send.result", "outputFragment": "approval_required", "count": 1}
       ],
       "expectedTaskStatus": "waiting_approval"
     },
     {
-      "prompt": "DM 전송 승인할게.",
+      "prompt": "방금 요청한 DM 보내도 좋아.",
       "expectedToolCalls": ["message.send"],
       "expectedEvents": ["approval.executed"],
       "expectedEventCounts": [

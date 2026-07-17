@@ -1,6 +1,8 @@
 {
   "name": "calendar-lifecycle",
   "requiresSDKD": true,
+  "expectedLLMProvider": "openrouter",
+  "expectedLLMModel": "xiaomi/mimo-v2.5",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/calendar"],
   "allowedTools": ["conversation.history", "memory.search", "calendar.add", "calendar.list", "calendar.update", "calendar.delete"],
   "capabilityToolNames": ["calendar.add", "calendar.list", "calendar.update", "calendar.delete"],
