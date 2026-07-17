@@ -225,7 +225,7 @@ export async function expectMonthEventFullBlockFocused(page: Page, eventID: stri
 					eventWidth: Math.round(eventRectangle.width),
 					contentWidth: Math.round(contentRectangle.width),
 					isFullBlock:
-						eventStyle.backgroundColor === 'rgb(59, 130, 246)' &&
+						eventStyle.backgroundColor === 'rgb(37, 99, 235)' &&
 						eventStyle.color === 'rgb(255, 255, 255)' &&
 						contentRectangle.width < eventRectangle.width - 10 &&
 						contentStyle.backgroundColor === 'rgba(0, 0, 0, 0)' &&

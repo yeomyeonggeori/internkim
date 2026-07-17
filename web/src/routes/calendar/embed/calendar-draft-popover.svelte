@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CalendarAuditRow } from './calendar-audit';
+	import { installCalendarDraftPopoverFocus } from './calendar-draft-popover-focus';
 	import { isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
 	import type { CalendarParticipant } from './calendar-participants';
@@ -19,6 +20,7 @@
 		participantCandidates: CalendarParticipant[];
 		auditRows: CalendarAuditRow[];
 		auditLabel: string;
+		dialogLabel: string;
 		localeCode: string;
 		text: DraftPopoverText;
 		isSaving: boolean;
@@ -27,6 +29,7 @@
 		savePopover: () => void;
 		cancelPopover: () => void;
 		deletePopover: () => void;
+		stageElement: HTMLElement | null;
 	};
 
 	let {
@@ -35,6 +38,7 @@
 		participantCandidates,
 		auditRows,
 		auditLabel,
+		dialogLabel,
 		localeCode,
 		text,
 		isSaving,
@@ -42,7 +46,8 @@
 		repositionPopover,
 		savePopover,
 		cancelPopover,
-		deletePopover
+		deletePopover,
+		stageElement
 	}: Props = $props();
 
 	let popoverElement: HTMLElement | null = null;
@@ -115,14 +120,24 @@
 	});
 </script>
 
-<section
+<div
 	use:measurePopover
+	use:installCalendarDraftPopoverFocus={{
+		closePopover: cancelPopover,
+		eventID: popover.eventID,
+		isReady: popover.position.isReady,
+		originElement: popover.anchor?.originElement ?? null,
+		selectInitialFocus: popover.mode === 'create',
+		stageElement
+	}}
 	class="calendar-draft-popover"
 	class:draft-popover-pending={!popover.position.isReady}
 	class:popover-arrow-right={popover.position.arrowSide === 'right'}
 	class:draft-popover-can-scroll-up={canScrollUp}
 	class:draft-popover-can-scroll-down={canScrollDown}
 	style={popoverStyle}
+	role="dialog"
+	aria-label={dialogLabel}
 >
 	<CalendarDraftPopoverTitleRow {popover} {text} {updatePopover} {savePopover} {cancelPopover} />
 
@@ -147,4 +162,4 @@
 		{cancelPopover}
 		{deletePopover}
 	/>
-</section>
+</div>

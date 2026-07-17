@@ -18,11 +18,14 @@ export function monthMorePopoverStyle(placement: MonthMorePlacement): string {
 	return `left: ${placement.left}px; top: ${top}px; min-width: ${Math.min(240, Math.max(160, placement.width))}px;`;
 }
 
-export function monthMoreEventDateText(segment: MonthEventPlacement | MonthMoreHiddenSegment): string {
+export function monthMoreEventDateText(
+	segment: MonthEventPlacement | MonthMoreHiddenSegment,
+	localeCode: string
+): string {
 	const dateText =
 		segment.startDateKey === segment.endDateKey
-			? formattedMonthMoreCompactDate(segment.startDateKey)
-			: `${formattedMonthMoreCompactDate(segment.startDateKey)}-${formattedMonthMoreCompactDate(segment.endDateKey)}`;
+			? formattedMonthMoreDate(segment.startDateKey, localeCode)
+			: `${formattedMonthMoreDate(segment.startDateKey, localeCode)}-${formattedMonthMoreDate(segment.endDateKey, localeCode)}`;
 	if (!segment.startTimeText) return dateText;
 	return `${dateText} ${segment.startTimeText}`;
 }
@@ -50,10 +53,4 @@ function monthMoreDateFromDateKey(dateKey: string): Date | null {
 	const day = Number(dayText);
 	if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
 	return new Date(year, month - 1, day);
-}
-
-function formattedMonthMoreCompactDate(dateKey: string): string {
-	const date = monthMoreDateFromDateKey(dateKey);
-	if (!date) return dateKey;
-	return `${date.getMonth() + 1}.${date.getDate()}`;
 }

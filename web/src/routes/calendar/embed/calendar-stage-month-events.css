@@ -41,11 +41,6 @@
 		cursor: pointer;
 	}
 
-	.calendar-stage .calendar-month-direct-event:focus-visible {
-		outline: 2px solid #2563eb;
-		outline-offset: 1px;
-	}
-
 	.calendar-stage .df-month-event.draft-empty-title-event {
 		border-color: transparent !important;
 		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
@@ -71,11 +66,24 @@
 		pointer-events: auto;
 	}
 
-	.calendar-stage .calendar-month-more-button:hover,
+	.calendar-stage .calendar-month-more-button:hover {
+		background: #e2e8f0;
+		color: #1e3a8a;
+	}
+
 	.calendar-stage .calendar-month-more-button:focus-visible {
 		background: #e2e8f0;
 		color: #1e3a8a;
-		outline: none;
+		outline: 2px solid transparent;
+		outline-offset: -2px;
+		box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 4px #1d4ed8;
+	}
+
+	@media (forced-colors: active) {
+		.calendar-stage .calendar-month-more-button:focus-visible {
+			outline-color: Highlight;
+			box-shadow: none;
+		}
 	}
 
 	.calendar-stage .calendar-month-more-popover {
@@ -138,7 +146,6 @@
 	.calendar-stage .calendar-month-more-popover-event:hover,
 	.calendar-stage .calendar-month-more-popover-event:focus-visible {
 		background: #dbeafe;
-		outline: none;
 	}
 
 	.calendar-stage .calendar-month-more-popover-event-title {
@@ -151,6 +158,15 @@
 		color: #64748b;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+	}
+
+	.calendar-stage .calendar-month-more-popover-event.internkim-calendar-event-focused::before {
+		background: #ffffff;
+	}
+
+	.calendar-stage .calendar-month-more-popover-event.internkim-calendar-event-focused
+		.calendar-month-more-popover-event-date {
+		color: inherit;
 	}
 
 	.calendar-stage .df-month-event::before {
@@ -192,4 +208,27 @@
 		line-height: 16px !important;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	@media (max-width: 767px) {
+		.calendar-stage .df-month-event {
+			height: 24px !important;
+			min-height: 24px !important;
+			line-height: 24px !important;
+		}
+
+		.calendar-stage .calendar-month-more-button {
+			height: 24px;
+			line-height: 24px;
+		}
+
+		.calendar-stage .calendar-month-more-popover-event {
+			min-height: 24px;
+		}
+
+		.calendar-stage .df-month-event .calendar-month-event-content,
+		.calendar-stage .df-month-event .calendar-month-event-title {
+			height: 24px !important;
+			line-height: 24px !important;
+		}
 	}
