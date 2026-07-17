@@ -180,5 +180,6 @@
 		{savePopover}
 		{cancelPopover}
 		{deletePopover}
+		{stageElement}
 	/>
 </main>
