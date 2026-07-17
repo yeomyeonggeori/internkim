@@ -23,132 +23,168 @@ type CalendarDeletePersistenceOptions = {
 export type CalendarDeletePersistenceActions = {
 	deleteEvent: (eventID: string, revision: number) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
-	flushPendingDeleteOnPageHide: () => void;
+};
+
+type CalendarDeleteIntentResult =
+	| { isSuccessful: true }
+	| { isSuccessful: false; error: unknown };
+
+type PendingCalendarDelete = {
+	event: DayFlowEvent;
+	operationID: string;
+	timeoutID: ReturnType<typeof setTimeout>;
 };
 
 export function createCalendarDeletePersistenceActions(
 	options: CalendarDeletePersistenceOptions
 ): CalendarDeletePersistenceActions {
-	let pendingDelete: {
-		event: DayFlowEvent;
-		expectedUpdatedAt: string | undefined;
-		revision: number;
-		timeoutID: ReturnType<typeof setTimeout>;
-	} | null = null;
+	let pendingDelete: PendingCalendarDelete | null = null;
 
 	async function deleteEvent(eventID: string, revision: number): Promise<void> {
-		void persistPendingDelete(false);
+		finalizePendingDelete(false);
 		const event = options.context.getCalendarEvents().find((candidate) => candidate.id === eventID);
 		if (!event) return;
+		const expectedUpdatedAt = deleteExpectedUpdatedAt(event);
+		const operationID = globalThis.crypto.randomUUID();
+		const registrationResult = settleDeleteIntent(
+			options.persistedEvents.createDeleteIntent(
+				eventID,
+				operationID,
+				options.persistenceOrder.clientID,
+				revision,
+				expectedUpdatedAt
+			)
+		);
 		options.context.invalidatePendingEventLoad();
 		options.context.removeCalendarEvent(eventID);
 		options.refreshEventCountAfterRender();
-		pendingDelete = {
+		const deleteAction: PendingCalendarDelete = {
 			event,
-			expectedUpdatedAt: typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined,
-			revision,
+			operationID,
 			timeoutID: setTimeout(() => {
 				void flushPendingDelete();
 			}, calendarDeleteUndoTimeoutMs)
 		};
+		pendingDelete = deleteAction;
 		options.showUndoToast({
 			message: options.context.text.deleteUndoMessage,
 			actionLabel: options.context.text.deleteUndoAction,
 			undo: () => undoPendingDelete(eventID)
 		});
+		void registrationResult.then((result) =>
+			options.persistenceOrder.runLatestAction(eventID, revision, () =>
+				handleDeleteIntentRegistration(deleteAction, result)
+			)
+		);
 	}
 
 	function undoPendingDelete(eventID: string): void {
 		if (!pendingDelete || pendingDelete.event.id !== eventID) return;
-		const event = pendingDelete.event;
-		clearTimeout(pendingDelete.timeoutID);
-		pendingDelete = null;
+		const deleteAction = pendingDelete;
+		clearPendingDelete(deleteAction, true);
 		const revision = options.persistenceOrder.beginAction(eventID);
+		const cancellationResult = settleDeleteIntent(
+			options.persistedEvents.cancelDeleteIntent(
+				eventID,
+				deleteAction.operationID,
+				options.persistenceOrder.clientID,
+				revision
+			)
+		);
 		options.context.invalidatePendingEventLoad();
-		if (!options.context.getCalendarEvents().some((candidate) => candidate.id === event.id)) {
-			options.context.restoreCalendarEvent(event);
+		if (!hasLocalEvent(eventID)) {
+			options.context.restoreCalendarEvent(deleteAction.event);
 		}
-		options.dismissUndoToast();
 		options.refreshEventCountAfterRender();
-		void options.persistenceOrder.runLatestAction(eventID, revision, async () => {
+		void cancellationResult.then((result) =>
+			options.persistenceOrder.runLatestAction(eventID, revision, () =>
+				handleDeleteIntentCancellation(eventID, revision, result)
+			)
+		);
+	}
+
+	function flushPendingDelete(): Promise<void> {
+		finalizePendingDelete(true);
+		return Promise.resolve();
+	}
+
+	function finalizePendingDelete(shouldDismissToast: boolean): void {
+		if (!pendingDelete) return;
+		clearPendingDelete(pendingDelete, shouldDismissToast);
+	}
+
+	function clearPendingDelete(deleteAction: PendingCalendarDelete, shouldDismissToast: boolean): void {
+		if (pendingDelete !== deleteAction) return;
+		clearTimeout(deleteAction.timeoutID);
+		pendingDelete = null;
+		if (shouldDismissToast) options.dismissUndoToast();
+	}
+
+	function deleteExpectedUpdatedAt(event: DayFlowEvent): string {
+		const visibleUpdatedAt = typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined;
+		return options.persistenceOrder.persistedUpdatedAt(
+			event.id,
+			visibleUpdatedAt
+		) ?? '';
+	}
+
+	async function handleDeleteIntentRegistration(
+		deleteAction: PendingCalendarDelete,
+		result: CalendarDeleteIntentResult
+	): Promise<void> {
+		if (result.isSuccessful) {
+			options.persistenceOrder.clearPersistedUpdatedAt(deleteAction.event.id);
+			options.context.invalidatePendingEventLoad();
+			options.context.removeCalendarEvent(deleteAction.event.id);
+			options.refreshEventCountAfterRender();
+			return;
+		}
+		clearPendingDelete(deleteAction, true);
+		options.beginPersistence();
+		try {
+			const isVersionConflict = isCalendarEventVersionConflict(result.error);
+			if (!isVersionConflict && !hasLocalEvent(deleteAction.event.id)) {
+				options.context.restoreCalendarEvent(deleteAction.event);
+			}
+			if (isVersionConflict) {
+				options.persistenceOrder.clearPersistedUpdatedAt(deleteAction.event.id);
+			}
+			showDeletePersistenceError(result.error);
+			await options.context.refreshCalendar();
+			hidePendingDeleteAfterRefresh();
+		} finally {
+			options.finishPersistence();
+		}
+	}
+
+	async function handleDeleteIntentCancellation(
+		eventID: string,
+		revision: number,
+		result: CalendarDeleteIntentResult
+	): Promise<void> {
+		options.beginPersistence();
+		try {
+			if (!result.isSuccessful) showDeletePersistenceError(result.error);
 			await options.context.refreshCalendar();
 			if (options.persistenceOrder.isLatestAction(eventID, revision)) {
 				options.persistenceOrder.clearPersistedUpdatedAt(eventID);
 			}
-		});
+			hidePendingDeleteAfterRefresh();
+		} finally {
+			options.finishPersistence();
+		}
 	}
 
-	async function flushPendingDelete(): Promise<void> {
-		await persistPendingDelete(true);
-	}
-
-	function flushPendingDeleteOnPageHide(): void {
-		const deleteToFlush = pendingDelete;
-		if (!deleteToFlush) return;
-		clearTimeout(deleteToFlush.timeoutID);
-		pendingDelete = null;
-		options.dismissUndoToast();
-		void options.persistenceOrder.runLatestAction(
-			deleteToFlush.event.id,
-			deleteToFlush.revision,
-			async () => {
-				options.persistedEvents.deleteEventOnPageHide(
-					deleteToFlush.event.id,
-					deleteExpectedUpdatedAt(deleteToFlush)
-				);
-				options.persistenceOrder.clearPersistedUpdatedAt(deleteToFlush.event.id);
-				options.context.notifyEventsChanged();
-			}
+	function showDeletePersistenceError(error: unknown): void {
+		options.showPersistenceError(
+			error,
+			options.context.text.deleteError,
+			options.context.text.calendarDeleteVersionConflictError
 		);
 	}
 
-	async function persistPendingDelete(shouldClearNotice: boolean): Promise<void> {
-		const deleteToFlush = pendingDelete;
-		if (!deleteToFlush) return;
-		clearTimeout(deleteToFlush.timeoutID);
-		pendingDelete = null;
-		if (shouldClearNotice) options.dismissUndoToast();
-		await options.persistenceOrder.runLatestAction(deleteToFlush.event.id, deleteToFlush.revision, async () => {
-			options.beginPersistence();
-			try {
-				await options.persistedEvents.deleteEvent(
-					deleteToFlush.event.id,
-					deleteExpectedUpdatedAt(deleteToFlush)
-				);
-				if (!options.persistenceOrder.isLatestAction(deleteToFlush.event.id, deleteToFlush.revision)) return;
-				options.persistenceOrder.clearPersistedUpdatedAt(deleteToFlush.event.id);
-				options.context.invalidatePendingEventLoad();
-				options.context.removeCalendarEvent(deleteToFlush.event.id);
-				options.context.notifyEventsChanged();
-				options.refreshEventCountAfterRender();
-			} catch (error) {
-				if (!options.persistenceOrder.isLatestAction(deleteToFlush.event.id, deleteToFlush.revision)) return;
-				const isVersionConflict = error instanceof CalendarPersistenceError
-					&& error.code === 'calendar_event_version_conflict';
-				if (!isVersionConflict && !hasLocalEvent(deleteToFlush.event.id)) {
-					options.context.restoreCalendarEvent(deleteToFlush.event);
-				}
-				if (isVersionConflict) {
-					options.persistenceOrder.clearPersistedUpdatedAt(deleteToFlush.event.id);
-				}
-				options.showPersistenceError(
-					error,
-					options.context.text.deleteError,
-					options.context.text.calendarDeleteVersionConflictError
-				);
-				await options.context.refreshCalendar();
-				hidePendingDeleteAfterRefresh();
-			} finally {
-				options.finishPersistence();
-			}
-		});
-	}
-
-	function deleteExpectedUpdatedAt(deleteToFlush: NonNullable<typeof pendingDelete>): string | undefined {
-		return options.persistenceOrder.persistedUpdatedAt(
-			deleteToFlush.event.id,
-			deleteToFlush.expectedUpdatedAt
-		);
+	function isCalendarEventVersionConflict(error: unknown): boolean {
+		return error instanceof CalendarPersistenceError && error.code === 'calendar_event_version_conflict';
 	}
 
 	function hasLocalEvent(eventID: string): boolean {
@@ -163,7 +199,13 @@ export function createCalendarDeletePersistenceActions(
 
 	return {
 		deleteEvent,
-		flushPendingDelete,
-		flushPendingDeleteOnPageHide
+		flushPendingDelete
 	};
+}
+
+function settleDeleteIntent(operation: Promise<unknown>): Promise<CalendarDeleteIntentResult> {
+	return operation.then(
+		() => ({ isSuccessful: true }),
+		(error: unknown) => ({ isSuccessful: false, error })
+	);
 }

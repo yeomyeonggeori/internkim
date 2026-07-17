@@ -118,7 +118,6 @@
 
 	onMount(() => {
 		void loadParticipantCandidates();
-		window.addEventListener('pagehide', eventActions.flushPendingDeleteOnPageHide);
 		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
@@ -165,7 +164,6 @@
 			text
 		});
 		return () => {
-			window.removeEventListener('pagehide', eventActions.flushPendingDeleteOnPageHide);
 			uninstallCalendarPageLifecycle();
 			void eventActions.flushPendingDelete();
 		};

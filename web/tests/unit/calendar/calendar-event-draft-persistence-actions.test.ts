@@ -205,9 +205,56 @@ test('forgets a pending draft deleted before its failed create request completes
 	expect(scenario.notifications).toEqual([]);
 });
 
+test('deletes a server orphan with the POST version when the draft disappears during metadata application', async () => {
+	const originalDraft = calendarTestEvent('draft-metadata-orphan', '');
+	const titledDraft = calendarTestEvent('draft-metadata-orphan', 'Draft title');
+	const postUpdatedAt = '2026-07-17T04:00:00Z';
+	const deletedEvents: Array<{ eventID: string; expectedUpdatedAt: string | undefined }> = [];
+	const deleteIntentEventIDs: string[] = [];
+	let resolveMetadata: () => void = () => {};
+	let reportMetadataStarted: () => void = () => {};
+	const metadataStarted = new Promise<void>((resolve) => {
+		reportMetadataStarted = resolve;
+	});
+	const pendingMetadata = new Promise<void>((resolve) => {
+		resolveMetadata = resolve;
+	});
+	const scenario = createPersistenceScenario([titledDraft], () => [], {
+		writeEvent: async (_path, _method, event) => ({
+			...calendarServerEvent(event.id, event.title ?? ''),
+			updatedAt: postUpdatedAt
+		}),
+		applyServerMetadata: async () => {
+			reportMetadataStarted();
+			await pendingMetadata;
+		},
+		deleteEvent: async (eventID, expectedUpdatedAt) => {
+			deletedEvents.push({ eventID, expectedUpdatedAt });
+		},
+		createDeleteIntent: async (eventID) => {
+			deleteIntentEventIDs.push(eventID);
+			return { operationID: 'draft-metadata-orphan-operation', executeAt: '2026-07-17T04:00:05Z' };
+		}
+	});
+	scenario.draftEvents.addCreatedEvent(originalDraft);
+
+	const savePromise = scenario.actions.saveUpdatedEvent(titledDraft);
+	await metadataStarted;
+	await scenario.actions.deleteEvent(titledDraft.id);
+	resolveMetadata();
+	await savePromise;
+	await scenario.actions.flushPendingDelete();
+
+	expect(deletedEvents).toEqual([{ eventID: titledDraft.id, expectedUpdatedAt: postUpdatedAt }]);
+	expect(deleteIntentEventIDs).toEqual([]);
+});
+
 test('does not refresh a draft deleted while server metadata is being applied', async () => {
 	const originalDraft = calendarTestEvent('draft-metadata-delete', '');
 	const titledDraft = calendarTestEvent('draft-metadata-delete', 'Draft title');
+	const postUpdatedAt = '2026-07-17T05:00:00Z';
+	const deletedEvents: Array<{ eventID: string; expectedUpdatedAt: string | undefined }> = [];
+	const deleteIntentEventIDs: string[] = [];
 	let rejectMetadata: (error: Error) => void = () => {};
 	let reportMetadataStarted: () => void = () => {};
 	const metadataStarted = new Promise<void>((resolve) => {
@@ -217,12 +264,21 @@ test('does not refresh a draft deleted while server metadata is being applied', 
 		rejectMetadata = reject;
 	});
 	const scenario = createPersistenceScenario([titledDraft], () => [titledDraft], {
-		writeEvent: async (_path, _method, event) => calendarServerEvent(event.id, event.title ?? ''),
+		writeEvent: async (_path, _method, event) => ({
+			...calendarServerEvent(event.id, event.title ?? ''),
+			updatedAt: postUpdatedAt
+		}),
 		applyServerMetadata: async () => {
 			reportMetadataStarted();
 			await pendingMetadata;
 		},
-		deleteEvent: async () => {}
+		deleteEvent: async (eventID, expectedUpdatedAt) => {
+			deletedEvents.push({ eventID, expectedUpdatedAt });
+		},
+		createDeleteIntent: async (eventID) => {
+			deleteIntentEventIDs.push(eventID);
+			return { operationID: 'draft-metadata-delete-operation', executeAt: '2026-07-17T05:00:05Z' };
+		}
 	});
 	scenario.draftEvents.addCreatedEvent(originalDraft);
 
@@ -236,4 +292,6 @@ test('does not refresh a draft deleted while server metadata is being applied', 
 	expect(scenario.events()).toEqual([]);
 	expect(scenario.refreshCount()).toBe(0);
 	expect(scenario.notifications).toEqual([]);
+	expect(deletedEvents).toEqual([{ eventID: titledDraft.id, expectedUpdatedAt: postUpdatedAt }]);
+	expect(deleteIntentEventIDs).toEqual([]);
 });

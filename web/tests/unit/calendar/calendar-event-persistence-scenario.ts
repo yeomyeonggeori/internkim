@@ -102,7 +102,12 @@ export function createPersistenceScenario(
 		deleteEvent: async () => {
 			throw targetUnavailableError();
 		},
-		deleteEventOnPageHide: () => {},
+		createDeleteIntent: async () => {
+			throw targetUnavailableError();
+		},
+		cancelDeleteIntent: async () => {
+			throw targetUnavailableError();
+		},
 		applyServerMetadata: async () => {},
 		...persistedOverrides
 	};
