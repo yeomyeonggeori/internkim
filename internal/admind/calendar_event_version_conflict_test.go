@@ -89,7 +89,7 @@ func TestCalendarStaleUpdateCannotRestoreDeletedEvent(t *testing.T) {
 	}
 	originalEvent.Title = "Stale title"
 
-	errorValue := service.writeCalendarEventIfCurrentVersion(contextValue, originalEvent, originalEvent.UpdatedAt)
+	errorValue := service.writeCalendarEventIfCurrentVersionWithOrigin(contextValue, originalEvent, originalEvent.UpdatedAt, nil)
 	if !errors.Is(errorValue, errCalendarEventVersionConflict) {
 		t.Fatalf("stale update error = %v", errorValue)
 	}

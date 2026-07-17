@@ -55,17 +55,6 @@ func (service *Service) reconcileCalendarRemoteDeletionDuringPush(ctx context.Co
 	return true, nil
 }
 
-func (service *Service) reconcileCalendarLocalDeletionDuringPush(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, observedAt time.Time) error {
-	remoteObject, errorValue := service.guardedCalendarGet(ctx, client, row, row.RemoteHref)
-	if errorValue != nil {
-		if isCalDAVObjectNotFound(errorValue) {
-			return nil
-		}
-		return errorValue
-	}
-	return service.reconcileCalendarLocalDeletionAgainstRemoteObject(ctx, account, client, row, remoteObject, observedAt)
-}
-
 func (service *Service) reconcileCalendarLocalDeletionAgainstRemoteObject(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, remoteObject calDAVCalendarObject, observedAt time.Time) error {
 	remoteEvent, errorValue := decodeRemoteCalendarObject(remoteObject, account.AccountEmail)
 	if errorValue != nil {
