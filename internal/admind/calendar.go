@@ -78,6 +78,8 @@ type calendarEventWriteRequest struct {
 	ReminderLeadHours int                           `json:"reminderLeadHours"`
 	AllowDuplicate    bool                          `json:"allowDuplicate"`
 	ExpectedUpdatedAt string                        `json:"expectedUpdatedAt"`
+	MutationClientID  *string                       `json:"mutationClientID"`
+	MutationSequence  *int64                        `json:"mutationSequence"`
 }
 
 type calendarEventDeleteRequest struct {
@@ -156,6 +158,12 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.serveCalendarActorImage(responseWriter, request, path)
 	case request.Method == http.MethodPost && path == "/events":
 		service.createCalendarEvent(responseWriter, request)
+	case request.Method == http.MethodPut && isCalendarDeleteIntentPath(path):
+		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
+		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
+	case request.Method == http.MethodDelete && isCalendarDeleteIntentPath(path):
+		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
+		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
 	case request.Method == http.MethodPut && strings.HasPrefix(path, "/events/"):
 		service.updateCalendarEvent(responseWriter, request, strings.TrimPrefix(path, "/events/"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/events/"):
@@ -181,6 +189,11 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	default:
 		http.NotFound(responseWriter, request)
 	}
+}
+
+func isCalendarDeleteIntentPath(path string) bool {
+	_, _, found := parseCalendarDeleteIntentPath(path)
+	return found
 }
 
 func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
@@ -302,6 +315,11 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	mutationOrigin, errorValue := normalizeCalendarMutationOrigin(payload.MutationClientID, payload.MutationSequence)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
 	if !hasCalendarEventUserEditableChanges(existingEvent, event) {
 		existingEvent = service.calendarEventWithParticipantImages(request, existingEvent)
 		service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), existingEvent))
@@ -322,7 +340,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	event.RawICS = regeneratedRawICS
-	if errorValue := service.writeCalendarEventIfCurrentVersion(request.Context(), event, expectedUpdatedAt); errorValue != nil {
+	if errorValue := service.writeCalendarEventIfCurrentVersionWithOrigin(request.Context(), event, expectedUpdatedAt, mutationOrigin); errorValue != nil {
 		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
 			return
 		}

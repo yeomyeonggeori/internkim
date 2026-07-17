@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"strings"
@@ -106,20 +105,28 @@ func (service *Service) readRemoteCalendarAccountByProvider(ctx context.Context,
 		return remoteCalendarAccount{}, false, errorValue
 	}
 	defer database.Close()
-	row := database.QueryRowContext(ctx, `
+	return readRemoteCalendarAccountByProviderWithRunner(ctx, database, provider)
+}
+
+func readRemoteCalendarAccountByProviderWithRunner(ctx context.Context, queryRunner calendarSQLRunner, provider string) (remoteCalendarAccount, bool, error) {
+	rows, errorValue := queryRunner.QueryContext(ctx, `
 SELECT id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, selected_calendar_id, selected_calendar_summary, selected_calendar_access_role, selected_calendar_url, selected_calendar_selected_at, selected_calendar_readiness_status, initial_sync_completed_at, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
 FROM calendar_remote_accounts
 WHERE provider = ?
 ORDER BY updated_at DESC
 LIMIT 1`, strings.TrimSpace(provider))
-	account, errorValue := scanRemoteCalendarAccount(row)
-	if errorValue == nil {
-		return account, true, nil
+	if errorValue != nil {
+		return remoteCalendarAccount{}, false, errorValue
 	}
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return remoteCalendarAccount{}, false, nil
+	defer rows.Close()
+	if !rows.Next() {
+		return remoteCalendarAccount{}, false, rows.Err()
 	}
-	return remoteCalendarAccount{}, false, errorValue
+	account, errorValue := scanRemoteCalendarAccount(rows)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, false, errorValue
+	}
+	return account, true, nil
 }
 
 func (service *Service) listRemoteCalendarAccountsByProvider(ctx context.Context, provider string) ([]remoteCalendarAccount, error) {
