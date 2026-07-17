@@ -121,8 +121,8 @@ func FlowDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "task.add", Description: "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 		{Name: "task.list", Description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:task.list", SideEffectClass: "read"},
-		{Name: "task.update", Description: "Update fields on an existing task — title, status, dates, size, category, and more. Identify the task by taskID (from a prior list result) or by a text query. If no patch fields are provided the task is automatically marked complete.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
-		{Name: "task.delete", Description: "Permanently delete a task. Identify the task by taskID or by query plus weekCode and targetPersonHint. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
+		{Name: "task.update", Description: "Update explicit fields on an existing task. taskID must be copied from a task.list result; use task.list first when the ID is unknown. At least one mutable field is required.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "task.delete", Description: "Permanently delete a task by the exact taskID from a task.list result. Use task.list first when the ID is unknown. Requires approval; this action is irreversible.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
 	}
 }
 
@@ -213,14 +213,11 @@ func flowTaskListInputSchema() json.RawMessage {
 
 func flowTaskUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("taskID", jsonschema.String().WithDescription("ID of the task to update, from a prior task.list result. Provide either taskID or query+weekCode+targetPersonHint to identify the task.")),
-		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword search to locate the task when taskID is unknown, e.g. 'budget report'. Used together with weekCode and targetPersonHint.")),
-		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the task owner when identifying by query, e.g. 'Alice'. Leave empty for the requester's own tasks.")),
-		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week of the task in YYYY-WNN format, e.g. '2026-W26'. Helps disambiguate when multiple tasks match the query.")),
+		jsonschema.Required("taskID", jsonschema.String().WithDescription("Exact ID of the task to update, copied from a task.list result.")),
 		jsonschema.Field("title", jsonschema.String().WithDescription("New task title. Omit to leave the title unchanged.")),
 		jsonschema.Field("goal", jsonschema.String().WithDescription("Definition of done or success criterion for this task. Omit to leave unchanged.")),
-		jsonschema.Field("status", jsonschema.String().WithDescription("New task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단'. Providing no patch fields at all automatically sets status to '완료'.")),
-		jsonschema.Field("size", jsonschema.String().WithDescription("Effort size estimate for the task, e.g. 'S', 'M', 'L', 'XL'. Omit to leave unchanged.")),
+		jsonschema.Field("status", jsonschema.StringEnum("예정", "진행", "완료", "요청", "일시정지", "기각", "중단").WithDescription("New task status. Omit to leave unchanged.")),
+		jsonschema.Field("size", jsonschema.StringEnum("XS", "S", "M", "L", "XL", "XXL").WithDescription("Effort size estimate. Omit to leave unchanged.")),
 		jsonschema.Field("category", jsonschema.String().WithDescription("Business category label for the task. Omit to leave unchanged.")),
 		jsonschema.Field("type", jsonschema.String().WithDescription("Task type classification, e.g. 'task', 'milestone'. Omit to leave unchanged.")),
 		jsonschema.Field("startDate", jsonschema.String().WithDescription("Task start date in YYYY-MM-DD format, e.g. '2026-06-23'. Omit to leave unchanged.")),
@@ -233,10 +230,7 @@ func flowTaskUpdateInputSchema() json.RawMessage {
 
 func flowTaskDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("taskID", jsonschema.String().WithDescription("ID of the task to delete, from a prior task.list result. Provide either taskID or query+weekCode+targetPersonHint.")),
-		jsonschema.Field("query", jsonschema.String().WithDescription("Keyword to locate the task when taskID is unknown, e.g. 'old planning task'. Used together with weekCode and targetPersonHint.")),
-		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the task owner when identifying by query, e.g. 'Alice'. Leave empty for the requester's own tasks.")),
-		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week of the task in YYYY-WNN format, e.g. '2026-W26'. Helps disambiguate when multiple tasks match the query.")),
+		jsonschema.Required("taskID", jsonschema.String().WithDescription("Exact ID of the task to delete, copied from a task.list result.")),
 	).RawMessage()
 }
 

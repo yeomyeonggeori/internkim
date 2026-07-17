@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,28 +55,22 @@ const (
 )
 
 type flowTaskUpdateInput struct {
-	TaskID           string  `json:"taskID"`
-	Query            string  `json:"query"`
-	TargetPersonHint string  `json:"targetPersonHint"`
-	WeekCode         string  `json:"weekCode"`
-	Title            *string `json:"title"`
-	Goal             *string `json:"goal"`
-	Status           *string `json:"status"`
-	Size             *string `json:"size"`
-	Category         *string `json:"category"`
-	Type             *string `json:"type"`
-	StartDate        *string `json:"startDate"`
-	EndDate          *string `json:"endDate"`
-	Flag             *int    `json:"flag"`
-	RequestReason    *string `json:"requestReason"`
-	DecisionReason   *string `json:"decisionReason"`
+	TaskID         string  `json:"taskID"`
+	Title          *string `json:"title"`
+	Goal           *string `json:"goal"`
+	Status         *string `json:"status"`
+	Size           *string `json:"size"`
+	Category       *string `json:"category"`
+	Type           *string `json:"type"`
+	StartDate      *string `json:"startDate"`
+	EndDate        *string `json:"endDate"`
+	Flag           *int    `json:"flag"`
+	RequestReason  *string `json:"requestReason"`
+	DecisionReason *string `json:"decisionReason"`
 }
 
 type flowTaskDeleteInput struct {
-	TaskID           string `json:"taskID"`
-	Query            string `json:"query"`
-	TargetPersonHint string `json:"targetPersonHint"`
-	WeekCode         string `json:"weekCode"`
+	TaskID string `json:"taskID"`
 }
 
 type flowSummaryForTool struct {
@@ -119,6 +114,8 @@ type flowTaskForTool struct {
 }
 
 const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
+
+var flowTaskDeleteNotFoundError = errors.New("flow task delete target not found")
 
 func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
@@ -189,10 +186,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 			summary.Members = members
 		}
 	}
-	if input.TaskID == "" && input.TargetPersonHint == "" {
-		input.TargetPersonHint = request.Context.RequesterEmail
-	}
-	task, failure := resolveFlowTaskUpdateTarget(input, summary)
+	task, failure := resolveFlowTaskUpdateTarget(input.TaskID, summary.Tasks)
 	if failure != nil {
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
 	}
@@ -255,29 +249,15 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
+	result, errorValue := service.deleteFlowTask(ctx, input.TaskID, request.Context.RequesterEmail)
+	if errors.Is(errorValue, flowTaskDeleteNotFoundError) {
+		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
+	}
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if input.TaskID == "" && input.TargetPersonHint == "" {
-		input.TargetPersonHint = request.Context.RequesterEmail
-	}
-	task, failure := resolveFlowTaskDeleteTarget(input, summary)
-	if failure != nil {
-		if failure.ErrorCode == "flow_task_not_found" {
-			return capabilities.ToolInvokeResponse{
-				Provider:        "internkim",
-				SelectedBackend: "device",
-				ToolName:        request.ToolName,
-				Status:          "deleted",
-				Result:          json.RawMessage(`{"status":"deleted","alreadyDeleted":true}`),
-			}, nil
-		}
-		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
-	}
-	result, errorValue := service.deleteFlowTask(ctx, task.ID, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
+	if !flowTaskDeleteEvidenceMatchesTaskID(result, input.TaskID) {
+		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
@@ -306,23 +286,11 @@ type flowTaskAddCandidate struct {
 }
 
 type flowTaskUpdateFailure struct {
-	ErrorCode    string                    `json:"errorCode"`
-	FailureStage string                    `json:"failureStage"`
-	Message      string                    `json:"message"`
-	Candidates   []flowTaskUpdateCandidate `json:"candidates,omitempty"`
-	Retryable    bool                      `json:"retryable"`
-	SafeRetry    bool                      `json:"safeRetry"`
-}
-
-type flowTaskUpdateCandidate struct {
-	ID          string `json:"id"`
-	OwnerName   string `json:"ownerName"`
-	Content     string `json:"content"`
-	Status      string `json:"status"`
-	WeekCode    string `json:"weekCode"`
-	StartDate   string `json:"startDate,omitempty"`
-	EndDate     string `json:"endDate,omitempty"`
-	MatchReason string `json:"matchReason,omitempty"`
+	ErrorCode    string `json:"errorCode"`
+	FailureStage string `json:"failureStage"`
+	Message      string `json:"message"`
+	Retryable    bool   `json:"retryable"`
+	SafeRetry    bool   `json:"safeRetry"`
 }
 
 func flowTaskResponseStatus(result json.RawMessage) string {
@@ -374,6 +342,10 @@ func flowTaskAddStatuses() []string {
 	return []string{"예정", "진행", "완료", "일시정지", "기각", "중단"}
 }
 
+func flowTaskUpdateStatuses() []string {
+	return append(flowTaskAddStatuses(), "요청")
+}
+
 func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error) {
 	var input flowTaskListInput
 	if len(bytes.TrimSpace(document)) > 0 {
@@ -400,18 +372,11 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	if len(bytes.TrimSpace(document)) == 0 {
 		return flowTaskUpdateInput{}, fmt.Errorf("task.update input is required")
 	}
-	document, errorValue := normalizeLegacyFlowTaskTitle(document)
-	if errorValue != nil {
-		return flowTaskUpdateInput{}, errorValue
-	}
 	var input flowTaskUpdateInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskUpdateInput{}, errorValue
 	}
 	input.TaskID = strings.TrimSpace(input.TaskID)
-	input.Query = strings.TrimSpace(input.Query)
-	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
-	input.WeekCode = strings.TrimSpace(input.WeekCode)
 	trimStringPointer(&input.Title)
 	trimStringPointer(&input.Goal)
 	trimStringPointer(&input.Status)
@@ -422,8 +387,21 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	trimStringPointer(&input.EndDate)
 	trimStringPointer(&input.RequestReason)
 	trimStringPointer(&input.DecisionReason)
-	if input.TaskID == "" && input.Query == "" {
-		return flowTaskUpdateInput{}, fmt.Errorf("taskID or query is required")
+	if input.Size != nil {
+		normalizedSize := strings.ToUpper(*input.Size)
+		input.Size = &normalizedSize
+	}
+	if input.TaskID == "" {
+		return flowTaskUpdateInput{}, fmt.Errorf("taskID is required")
+	}
+	if !hasFlowTaskUpdatePatch(input) {
+		return flowTaskUpdateInput{}, fmt.Errorf("task.update requires at least one mutable field")
+	}
+	if input.Status != nil && !containsString(flowTaskUpdateStatuses(), *input.Status) {
+		return flowTaskUpdateInput{}, fmt.Errorf("status is not allowed")
+	}
+	if input.Size != nil && !containsString(flowTaskAddSizes(), *input.Size) {
+		return flowTaskUpdateInput{}, fmt.Errorf("size is not allowed")
 	}
 	return input, nil
 }
@@ -433,15 +411,12 @@ func decodeFlowTaskDeleteInput(document json.RawMessage) (flowTaskDeleteInput, e
 		return flowTaskDeleteInput{}, fmt.Errorf("task.delete input is required")
 	}
 	var input flowTaskDeleteInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskDeleteInput{}, errorValue
 	}
 	input.TaskID = strings.TrimSpace(input.TaskID)
-	input.Query = strings.TrimSpace(input.Query)
-	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
-	input.WeekCode = strings.TrimSpace(input.WeekCode)
-	if input.TaskID == "" && input.Query == "" {
-		return flowTaskDeleteInput{}, fmt.Errorf("taskID or query is required")
+	if input.TaskID == "" {
+		return flowTaskDeleteInput{}, fmt.Errorf("taskID is required")
 	}
 	return input, nil
 }
@@ -464,28 +439,6 @@ func decodeStrictFlowTaskInput(document json.RawMessage, value any) error {
 		return fmt.Errorf("task input contains trailing data")
 	}
 	return nil
-}
-
-func normalizeLegacyFlowTaskTitle(document json.RawMessage) (json.RawMessage, error) {
-	var fields map[string]json.RawMessage
-	if errorValue := json.Unmarshal(document, &fields); errorValue != nil {
-		return nil, errorValue
-	}
-	legacyContent, hasLegacyContent := fields["content"]
-	_, hasTitle := fields["title"]
-	if hasTitle && hasLegacyContent {
-		return nil, fmt.Errorf("task input cannot contain both title and content")
-	}
-	if !hasLegacyContent {
-		return document, nil
-	}
-	fields["title"] = legacyContent
-	delete(fields, "content")
-	normalizedDocument, errorValue := json.Marshal(fields)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return normalizedDocument, nil
 }
 
 func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail string) ([]flowMemberForTool, error) {
@@ -671,10 +624,26 @@ func (service Service) deleteFlowTask(ctx context.Context, taskID string, reques
 	if readError != nil {
 		return nil, readError
 	}
+	if httpResponse.StatusCode == http.StatusNotFound {
+		return nil, flowTaskDeleteNotFoundError
+	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("flow task delete failed: %s", strings.TrimSpace(string(body)))
 	}
 	return json.RawMessage(body), nil
+}
+
+func flowTaskDeleteEvidenceMatchesTaskID(document json.RawMessage, taskID string) bool {
+	var evidence struct {
+		Status string `json:"status"`
+		Task   struct {
+			ID string `json:"id"`
+		} `json:"task"`
+	}
+	if errorValue := json.Unmarshal(document, &evidence); errorValue != nil {
+		return false
+	}
+	return evidence.Status == "deleted" && evidence.Task.ID == taskID
 }
 
 type flowTaskFilter struct {
@@ -899,139 +868,27 @@ func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
 	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }
 
-func resolveFlowTaskUpdateTarget(input flowTaskUpdateInput, summary flowSummaryForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
-	candidates := flowTaskUpdateCandidates(input, summary)
-	if len(candidates) == 1 {
-		return candidates[0], nil
+func resolveFlowTaskUpdateTarget(taskID string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
+	for _, task := range tasks {
+		if task.ID == taskID {
+			return task, nil
+		}
 	}
-	failure := flowTaskUpdateFailure{
-		ErrorCode:    "flow_task_not_found",
-		FailureStage: "target_resolution",
-		Message:      "task.update target was not found; ask the user to identify the task",
-		Retryable:    true,
-		SafeRetry:    true,
-	}
-	if len(candidates) > 1 {
-		failure.ErrorCode = "flow_task_ambiguous"
-		failure.Message = "task.update target is ambiguous; ask the user to choose one candidate"
-		failure.Candidates = flowTaskUpdateCandidateSummaries(candidates, "matched")
-	}
+	failure := flowTaskNotFoundFailure("task.update")
 	return flowTaskForTool{}, &failure
 }
 
-func resolveFlowTaskDeleteTarget(input flowTaskDeleteInput, summary flowSummaryForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
-	return resolveFlowTaskUpdateTarget(flowTaskUpdateInput{
-		TaskID:           input.TaskID,
-		Query:            input.Query,
-		TargetPersonHint: input.TargetPersonHint,
-		WeekCode:         input.WeekCode,
-	}, summary)
-}
-
-func flowTaskUpdateCandidates(input flowTaskUpdateInput, summary flowSummaryForTool) []flowTaskForTool {
-	if input.TaskID != "" {
-		return matchingFlowTasksByID(summary.Tasks, input.TaskID)
+func flowTaskNotFoundFailure(toolName string) flowTaskUpdateFailure {
+	return flowTaskUpdateFailure{
+		ErrorCode:    "flow_task_not_found",
+		FailureStage: "target_resolution",
+		Message:      toolName + " target was not found; use task.list to discover the exact taskID",
+		Retryable:    true,
+		SafeRetry:    true,
 	}
-	tasks := filterFlowTasksByPerson(summary.Tasks, input.TargetPersonHint, summary.Members)
-	return matchingFlowTasksByQuery(tasks, input.Query)
-}
-
-func filterFlowTasksByPerson(tasks []flowTaskForTool, targetPersonHint string, members []flowMemberForTool) []flowTaskForTool {
-	if strings.TrimSpace(targetPersonHint) == "" {
-		return tasks
-	}
-	matches := matchingFlowMembers(targetPersonHint, members)
-	if len(matches) == 0 {
-		return []flowTaskForTool{}
-	}
-	memberIDs := map[string]bool{}
-	for _, member := range matches {
-		memberIDs[member.ID] = true
-	}
-	filteredTasks := []flowTaskForTool{}
-	for _, task := range tasks {
-		if memberIDs[task.OwnerID] || intersectsFlowMemberIDs(memberIDs, task.ParticipantIDs) {
-			filteredTasks = append(filteredTasks, task)
-		}
-	}
-	return filteredTasks
-}
-
-func matchingFlowTasksByID(tasks []flowTaskForTool, taskID string) []flowTaskForTool {
-	matches := []flowTaskForTool{}
-	for _, task := range tasks {
-		if strings.EqualFold(strings.TrimSpace(task.ID), strings.TrimSpace(taskID)) {
-			matches = append(matches, task)
-		}
-	}
-	return matches
-}
-
-func matchingFlowTasksByQuery(tasks []flowTaskForTool, query string) []flowTaskForTool {
-	normalizedQuery := normalizeFlowSearchText(query)
-	matches := []flowTaskForTool{}
-	for _, task := range tasks {
-		if strings.Contains(normalizeFlowSearchText(flowTaskSearchDocument(task)), normalizedQuery) {
-			matches = append(matches, task)
-		}
-	}
-	return matches
-}
-
-func flowTaskSearchDocument(task flowTaskForTool) string {
-	return strings.Join([]string{
-		task.ID,
-		task.OwnerName,
-		strings.Join(task.ParticipantNames, " "),
-		task.Business,
-		task.Type,
-		task.Content,
-		task.Goal,
-		task.Size,
-		task.Status,
-		task.StartDate,
-		task.EndDate,
-		task.WeekCode,
-		task.RequestReason,
-		task.DecisionReason,
-	}, " ")
-}
-
-func normalizeFlowSearchText(value string) string {
-	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
-}
-
-func intersectsFlowMemberIDs(memberIDs map[string]bool, taskMemberIDs []string) bool {
-	for _, taskMemberID := range taskMemberIDs {
-		if memberIDs[taskMemberID] {
-			return true
-		}
-	}
-	return false
-}
-
-func flowTaskUpdateCandidateSummaries(tasks []flowTaskForTool, reason string) []flowTaskUpdateCandidate {
-	candidates := make([]flowTaskUpdateCandidate, 0, len(tasks))
-	for _, task := range tasks {
-		candidates = append(candidates, flowTaskUpdateCandidate{
-			ID:          task.ID,
-			OwnerName:   task.OwnerName,
-			Content:     task.Content,
-			Status:      task.Status,
-			WeekCode:    task.WeekCode,
-			StartDate:   task.StartDate,
-			EndDate:     task.EndDate,
-			MatchReason: reason,
-		})
-	}
-	return candidates
 }
 
 func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput) flowTaskForTool {
-	if !hasFlowTaskUpdatePatch(input) {
-		task.Status = "완료"
-		return task
-	}
 	if input.Title != nil {
 		task.Content = *input.Title
 	}

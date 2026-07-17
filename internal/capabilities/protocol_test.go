@@ -179,16 +179,24 @@ func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.update")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
-	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate", "content")
+	assertSchemaHasProperties(t, schema, "taskID", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
+	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content")
+	assertSchemaRequires(t, schema, "taskID")
+	if descriptorForTool(t, FlowDescriptors(), "task.update").Version != "2" {
+		t.Fatal("task.update descriptor must use the exact-ID v2 contract")
+	}
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.update", "success", "write_task", "task")
 }
 
 func TestFlowDescriptorIncludesTaskDeleteInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.delete")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode")
-	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate", "content")
+	assertSchemaHasProperties(t, schema, "taskID")
+	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content")
+	assertSchemaRequires(t, schema, "taskID")
+	if descriptorForTool(t, FlowDescriptors(), "task.delete").Version != "2" {
+		t.Fatal("task.delete descriptor must use the exact-ID v2 contract")
+	}
 	assertDescriptorApproval(t, FlowDescriptors(), "task.delete", true)
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.delete", "success", "delete_task", "task")
 }
