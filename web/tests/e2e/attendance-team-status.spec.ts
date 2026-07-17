@@ -285,6 +285,9 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByTestId('team-status-calendar-event-card')).toHaveAttribute('data-slot', 'card');
 		const calendarEventItem = dialog.getByTestId('team-status-calendar-event');
 		await expect(calendarEventItem.locator('.calendar-event-content')).toBeVisible();
+		await expect(calendarEventItem).toHaveCount(1);
+		await expect(calendarEventItem.locator('[role="button"]')).toHaveCount(0);
+		await expect(calendarEventItem.locator('[tabindex]')).toHaveCount(0);
 		const calendarTimeRange = calendarEventItem.locator('[data-slot="time-range-text"]');
 		await expect(calendarTimeRange).toHaveAccessibleName('10:00-11:00');
 		await expect(calendarTimeRange).toHaveClass(/font-mono/);

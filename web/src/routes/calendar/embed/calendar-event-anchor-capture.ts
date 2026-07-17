@@ -37,13 +37,17 @@ export function recentCalendarEventAnchorForID(eventID: string): DraftPopoverAnc
 	return lastEventAnchorCapture.anchor;
 }
 
-export function calendarEventAnchorFromElement(element: HTMLElement): DraftPopoverAnchor {
+export function calendarEventAnchorFromElement(
+	element: HTMLElement,
+	originElement: HTMLElement = calendarEventFocusOrigin(element)
+): DraftPopoverAnchor {
 	const rectangle = element.getBoundingClientRect();
 	const anchorRectangle = anchorRectangleFromElement(element) ?? rectangle;
 	const titleEndClientX = shouldUseTitleEndClientX(element) ? anchorRectangle.right : rectangle.right;
 	return {
 		clientX: rectangle.right,
 		clientY: anchorRectangle.top + anchorRectangle.height / 2,
+		originElement,
 		leftClientX: rectangle.left,
 		rightClientX: rectangle.right,
 		topClientY: rectangle.top,
@@ -53,6 +57,10 @@ export function calendarEventAnchorFromElement(element: HTMLElement): DraftPopov
 		titleBottomClientY: anchorRectangle.bottom,
 		preferredSide: preferredPopoverSideFromElement(element)
 	};
+}
+
+function calendarEventFocusOrigin(element: HTMLElement): HTMLElement {
+	return element.querySelector<HTMLElement>('.calendar-dayflow-event-activator') ?? element;
 }
 
 export function canonicalCalendarEventAnchorForID(stageElement: HTMLElement | null, eventID: string): DraftPopoverAnchor | null {

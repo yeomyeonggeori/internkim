@@ -1,3 +1,5 @@
+import { hasCalendarEventGestureMoved } from './calendar-event-gesture';
+
 export type CalendarEventActivationGuard = {
 	shouldSuppressActivation: (event: MouseEvent) => boolean;
 	destroy: () => void;
@@ -16,7 +18,6 @@ type PointerEventGesture = {
 	hasMoved: boolean;
 };
 
-const eventMoveThresholdPx = 8;
 const activationSuppressionDurationMs = 800;
 
 export function createCalendarEventActivationGuard(stageElement: HTMLElement): CalendarEventActivationGuard {
@@ -43,13 +44,22 @@ export function createCalendarEventActivationGuard(stageElement: HTMLElement): C
 		if (gesture.hasMoved) return;
 		gesture = {
 			...gesture,
-			hasMoved: hasPointerMoved(gesture, event)
+			hasMoved: hasCalendarEventGestureMoved(
+				{ clientX: gesture.startClientX, clientY: gesture.startClientY },
+				event
+			)
 		};
 	};
 
 	const handlePointerEnd = (event: PointerEvent): void => {
 		if (!gesture || gesture.pointerID !== event.pointerId) return;
-		if (gesture.hasMoved) {
+		const hasMoved =
+			gesture.hasMoved ||
+			hasCalendarEventGestureMoved(
+				{ clientX: gesture.startClientX, clientY: gesture.startClientY },
+				event
+			);
+		if (hasMoved) {
 			movedActivation = {
 				eventID: gesture.eventID,
 				expiresAt: Date.now() + activationSuppressionDurationMs
@@ -95,8 +105,4 @@ function eventIDFromTarget(stageElement: HTMLElement, target: EventTarget | null
 function normalizedEventID(eventID: string | undefined): string | null {
 	if (!eventID) return null;
 	return eventID.split('::')[0] ?? null;
-}
-
-function hasPointerMoved(gesture: PointerEventGesture, event: PointerEvent): boolean {
-	return Math.hypot(event.clientX - gesture.startClientX, event.clientY - gesture.startClientY) > eventMoveThresholdPx;
 }

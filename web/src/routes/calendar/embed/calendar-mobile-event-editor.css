@@ -388,6 +388,18 @@ html.dark .calendar-mobile-event-editor .mobile-event-participants-field .calend
 	outline: none;
 }
 
+@media (forced-colors: active) {
+	.calendar-mobile-event-editor .mobile-event-field input:focus-visible,
+	.calendar-mobile-event-editor .mobile-event-field textarea:focus-visible,
+	.calendar-mobile-event-editor .mobile-event-field select:focus-visible,
+	.calendar-mobile-event-editor .mobile-event-title-row input:focus-visible,
+	.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-input-shell:focus-within {
+		outline: 2px solid Highlight;
+		outline-offset: 2px;
+		box-shadow: none;
+	}
+}
+
 @media (max-width: 430px) {
 	.calendar-mobile-event-editor .df-mobile-event-drawer-header {
 		min-height: 60px;

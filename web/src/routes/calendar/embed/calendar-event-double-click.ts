@@ -1,12 +1,12 @@
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import { createCalendarEventActivationGuard } from './calendar-event-activation-guard';
 import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
+import { normalizedCalendarEventID } from './calendar-event-elements';
+import { installCalendarEventTouchActivation } from './calendar-event-touch-activation';
 
 export type CalendarEventDoubleClickOptions = {
 	stageElement: HTMLElement;
 	openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
-	openMobileEvent: (eventID: string) => void;
-	isMobileEventEditor: () => boolean;
 };
 
 export function installCalendarEventDoubleClick(options: CalendarEventDoubleClickOptions): () => void {
@@ -16,7 +16,7 @@ export function installCalendarEventDoubleClick(options: CalendarEventDoubleClic
 		if (!(event.target instanceof Element)) return;
 		const eventElement = editableEventElementFromTarget(options.stageElement, event.target);
 		if (!eventElement) return;
-		const eventID = normalizedEventID(eventElement.dataset.eventId);
+		const eventID = normalizedCalendarEventID(eventElement.dataset.eventId);
 		if (!eventID) return;
 		if (activationGuard.shouldSuppressActivation(event)) {
 			event.preventDefault();
@@ -26,18 +26,16 @@ export function installCalendarEventDoubleClick(options: CalendarEventDoubleClic
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		if (options.isMobileEventEditor()) {
-			event.stopImmediatePropagation();
-			options.openMobileEvent(eventID);
-			return;
-		}
+		event.stopImmediatePropagation();
 		options.openEvent(eventID, calendarEventAnchorFromElement(eventElement));
 	};
 
 	options.stageElement.addEventListener('dblclick', handleDoubleClick, true);
+	const stopTouchActivation = installCalendarEventTouchActivation(options);
 
 	return () => {
 		options.stageElement.removeEventListener('dblclick', handleDoubleClick, true);
+		stopTouchActivation();
 		activationGuard.destroy();
 	};
 }
@@ -49,9 +47,4 @@ function editableEventElementFromTarget(stageElement: HTMLElement, target: Eleme
 	if (!eventElement || !stageElement.contains(eventElement)) return null;
 	if (eventElement.classList.contains('calendar-month-direct-event')) return null;
 	return eventElement;
-}
-
-function normalizedEventID(eventID: string | undefined): string | null {
-	if (!eventID) return null;
-	return eventID.split('::')[0] ?? null;
 }
