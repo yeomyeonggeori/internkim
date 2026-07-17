@@ -19,7 +19,6 @@ type CalendarPageAppOptionsContext = {
 	getToolbarDate: () => Date;
 	loadEvents: (startDate: Date, endDate: Date) => void;
 	setVisibleDate: (date: Date) => void;
-	selectCalendarEvent: (eventID: string) => void;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
@@ -68,7 +67,7 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 					: middle;
 				context.setVisibleDate(visibleDate);
 			},
-			onEventClick: (event) => context.selectCalendarEvent(event.id),
+			onEventDoubleClick: () => false,
 			onEventCreate: context.saveCreatedEvent,
 			onEventUpdate: context.saveUpdatedEvent,
 			onEventDelete: context.deleteEvent
