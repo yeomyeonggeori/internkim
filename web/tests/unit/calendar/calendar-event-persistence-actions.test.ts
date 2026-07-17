@@ -13,6 +13,12 @@ import {
 	type CalendarEvent
 } from './calendar-event-persistence-scenario';
 
+test('does not expose a pagehide delete action', () => {
+	const scenario = createPersistenceScenario([]);
+
+	expect('flushPendingDeleteOnPageHide' in scenario.actions).toBe(false);
+});
+
 test('invalidates pending loads before update delete and draft persistence callbacks', async () => {
 	const persistedEvent = calendarTestEvent('local-mutation-event', 'Updated title');
 	const draftEvent = calendarTestEvent('local-draft-event', '');
@@ -149,7 +155,10 @@ test('does not refresh a deleted event after stale metadata application fails', 
 			reportMetadataStarted();
 			await pendingMetadata;
 		},
-		deleteEvent: async () => {}
+		createDeleteIntent: async (_eventID, operationID) => ({
+			operationID,
+			executeAt: '2026-07-17T01:00:05Z'
+		})
 	});
 
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
@@ -180,7 +189,10 @@ test('does not restore an event deleted while its update is pending', async () =
 			reportWriteStarted();
 			return pendingWrite;
 		},
-		deleteEvent: async () => {}
+		createDeleteIntent: async (_eventID, operationID) => ({
+			operationID,
+			executeAt: '2026-07-17T01:00:05Z'
+		})
 	});
 
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);

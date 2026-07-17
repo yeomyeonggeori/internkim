@@ -32,7 +32,6 @@ export type CalendarEventPersistenceActions = {
 	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
-	flushPendingDeleteOnPageHide: () => void;
 	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 };
 
@@ -115,7 +114,9 @@ export function createCalendarEventPersistenceActions(
 				`/calendar/api/events/${encodeURIComponent(event.id)}`,
 				'PUT',
 				event,
-				persistenceOrder.persistedUpdatedAt(event.id, visibleUpdatedAt)
+				persistenceOrder.persistedUpdatedAt(event.id, visibleUpdatedAt),
+				persistenceOrder.clientID,
+				revision
 			);
 		} catch (error) {
 			try {
@@ -221,7 +222,6 @@ export function createCalendarEventPersistenceActions(
 		saveUpdatedEvent,
 		deleteEvent,
 		flushPendingDelete: deletePersistence.flushPendingDelete,
-		flushPendingDeleteOnPageHide: deletePersistence.flushPendingDeleteOnPageHide,
 		persistCreatedEvent: draftPersistence.persistCreatedEvent
 	};
 }

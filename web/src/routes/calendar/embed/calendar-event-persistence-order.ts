@@ -1,4 +1,5 @@
 export class CalendarEventPersistenceOrder {
+	readonly clientID = globalThis.crypto.randomUUID();
 	private readonly latestActionRevisions = new Map<string, number>();
 	private readonly pendingActions = new Map<string, Promise<void>>();
 	private readonly persistedUpdatedAtByEventID = new Map<string, string>();

@@ -120,9 +120,19 @@ export function createCalendarDraftEventPersistenceActions(
 		options.draftEventDOM.scheduleDraftEventVisibilitySync();
 		try {
 			await options.persistedEvents.applyServerMetadata(event.id, savedEvent);
+			if (options.draftEvents.wasDeletedDuringCreate(event.id)) {
+				options.draftEvents.removeDraftEvent(event.id);
+				await deleteCreatedServerEvent(event.id, savedEvent.updatedAt);
+				return;
+			}
 			if (!hasLocalEvent(event.id)) return;
 			options.markEventPersisted();
 		} catch (error) {
+			if (options.draftEvents.wasDeletedDuringCreate(event.id)) {
+				options.draftEvents.removeDraftEvent(event.id);
+				await deleteCreatedServerEvent(event.id, savedEvent.updatedAt);
+				return;
+			}
 			if (!hasLocalEvent(event.id)) return;
 			options.showPersistenceError(error, options.context.text.saveError);
 			await options.context.refreshCalendar();
@@ -140,6 +150,14 @@ export function createCalendarDraftEventPersistenceActions(
 		expectedUpdatedAt: string | undefined
 	): Promise<void> {
 		try {
+			await deleteCreatedServerEvent(eventID, expectedUpdatedAt);
+		} finally {
+			options.finishPersistence();
+		}
+	}
+
+	async function deleteCreatedServerEvent(eventID: string, expectedUpdatedAt: string | undefined): Promise<void> {
+		try {
 			await options.persistedEvents.deleteEvent(eventID, expectedUpdatedAt);
 			options.context.invalidatePendingEventLoad();
 			options.context.removeCalendarEvent(eventID);
@@ -152,8 +170,6 @@ export function createCalendarDraftEventPersistenceActions(
 				options.context.text.calendarDeleteVersionConflictError
 			);
 			await options.context.refreshCalendar();
-		} finally {
-			options.finishPersistence();
 		}
 	}
 

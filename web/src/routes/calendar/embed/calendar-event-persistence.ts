@@ -25,6 +25,8 @@ export type CalendarEvent = {
 export type CalendarEventPayload = {
 	eventID: string;
 	expectedUpdatedAt?: string;
+	mutationClientID?: string;
+	mutationSequence?: number;
 	title: string;
 	description: string;
 	location: string;
@@ -38,6 +40,11 @@ export type CalendarEventPayload = {
 
 type CalendarEventsResponse = {
 	events: CalendarEvent[];
+};
+
+export type CalendarDeleteIntent = {
+	operationID: string;
+	executeAt: string;
 };
 
 const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
@@ -99,19 +106,40 @@ export async function deletePersistedCalendarEvent(
 	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
 }
 
-export function deletePersistedCalendarEventOnPageHide(
+export async function createCalendarEventDeleteIntent(
 	eventID: string,
-	expectedUpdatedAt: string | undefined
-): void {
-	void fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
+	operationID: string,
+	clientID: string,
+	sequence: number,
+	expectedUpdatedAt: string,
+	errorFallback: string
+): Promise<CalendarDeleteIntent> {
+	const response = await fetch(calendarDeleteIntentPath(eventID, operationID), {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ clientID, sequence, expectedUpdatedAt }),
+		keepalive: true
+	});
+	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
+	return (await response.json()) as CalendarDeleteIntent;
+}
+
+export async function cancelCalendarEventDeleteIntent(
+	eventID: string,
+	operationID: string,
+	clientID: string,
+	sequence: number,
+	errorFallback: string
+): Promise<void> {
+	const response = await fetch(calendarDeleteIntentPath(eventID, operationID), {
 		method: 'DELETE',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ expectedUpdatedAt }),
+		body: JSON.stringify({ clientID, sequence }),
 		keepalive: true
-	}).catch((error: unknown) => {
-		console.warn('calendar delete keepalive request failed', { error });
 	});
+	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
 }
 
 export async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
@@ -145,4 +173,8 @@ function decodeCalendarPersistenceErrorCode(responseBody: string): CalendarPersi
 function responseBodyErrorMessage(message: string, fallback: string): string {
 	if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
 	return message;
+}
+
+function calendarDeleteIntentPath(eventID: string, operationID: string): string {
+	return `/calendar/api/events/${encodeURIComponent(eventID)}/delete-intents/${encodeURIComponent(operationID)}`;
 }
