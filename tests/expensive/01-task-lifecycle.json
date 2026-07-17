@@ -7,7 +7,7 @@
   "capabilityToolDescriptors": [
     {"name": "task.delete", "requiresApproval": true}
   ],
-  "initialToolNames": ["task.add", "task.list", "task.update", "task.delete"],
+  "initialToolNames": ["task.add"],
   "steps": [
     {
       "prompt": "이번 주 금요일까지 고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무를 내 업무 목록에 추가해줘. 업무 제목은 '고객지원 분기 결산 누락 항목 확인'으로 해줘.",

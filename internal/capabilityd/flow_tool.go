@@ -15,12 +15,25 @@ import (
 )
 
 type flowTaskAddInput struct {
-	Prompt           string `json:"prompt"`
-	Title            string `json:"title"`
-	EndDate          string `json:"endDate"`
-	TargetPersonHint string `json:"targetPersonHint"`
-	WeekCode         string `json:"weekCode"`
-	AllowDuplicate   bool   `json:"allowDuplicate"`
+	Title                  string   `json:"title"`
+	Goal                   string   `json:"goal"`
+	Size                   string   `json:"size"`
+	Status                 string   `json:"status"`
+	StartDate              string   `json:"startDate"`
+	EndDate                string   `json:"endDate"`
+	TargetPersonHint       string   `json:"targetPersonHint"`
+	ParticipantPersonHints []string `json:"participantPersonHints"`
+}
+
+type flowTaskCreatePayload struct {
+	OwnerID        string   `json:"ownerID"`
+	ParticipantIDs []string `json:"participantIDs"`
+	Content        string   `json:"content"`
+	Goal           string   `json:"goal,omitempty"`
+	Size           string   `json:"size,omitempty"`
+	Status         string   `json:"status,omitempty"`
+	StartDate      string   `json:"startDate,omitempty"`
+	EndDate        string   `json:"endDate,omitempty"`
 }
 
 type flowTaskListInput struct {
@@ -135,15 +148,19 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if ownerResolution.Failure != nil {
 		return flowTaskAddErrorResponse(request.ToolName, *ownerResolution.Failure), nil
 	}
-	payload := map[string]any{
-		"prompt":         input.Prompt,
-		"title":          input.Title,
-		"endDate":        input.EndDate,
-		"ownerID":        ownerResolution.OwnerID,
-		"weekCode":       input.WeekCode,
-		"requesterEmail": request.Context.RequesterEmail,
-		"source":         "chat",
-		"allowDuplicate": input.AllowDuplicate,
+	participantIDs, participantFailure := resolveFlowParticipantIDs(input.ParticipantPersonHints, ownerResolution.OwnerID, members)
+	if participantFailure != nil {
+		return flowTaskAddErrorResponse(request.ToolName, *participantFailure), nil
+	}
+	payload := flowTaskCreatePayload{
+		OwnerID:        ownerResolution.OwnerID,
+		ParticipantIDs: participantIDs,
+		Content:        input.Title,
+		Goal:           input.Goal,
+		Size:           input.Size,
+		Status:         input.Status,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
 	}
 	result, errorValue := service.postFlowTask(ctx, payload, request.Context.RequesterEmail)
 	if errorValue != nil {
@@ -325,23 +342,36 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	if len(bytes.TrimSpace(document)) == 0 {
 		return flowTaskAddInput{}, fmt.Errorf("task.add input is required")
 	}
-	document, errorValue := normalizeLegacyFlowTaskTitle(document)
-	if errorValue != nil {
-		return flowTaskAddInput{}, errorValue
-	}
 	var input flowTaskAddInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskAddInput{}, errorValue
 	}
-	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.Title = strings.TrimSpace(input.Title)
+	input.Goal = strings.TrimSpace(input.Goal)
+	input.Size = strings.ToUpper(strings.TrimSpace(input.Size))
+	input.Status = strings.TrimSpace(input.Status)
+	input.StartDate = strings.TrimSpace(input.StartDate)
 	input.EndDate = strings.TrimSpace(input.EndDate)
 	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
-	input.WeekCode = strings.TrimSpace(input.WeekCode)
-	if input.Prompt == "" {
-		return flowTaskAddInput{}, fmt.Errorf("prompt is required")
+	input.ParticipantPersonHints = uniqueTrimmedStringValues(input.ParticipantPersonHints)
+	if input.Title == "" {
+		return flowTaskAddInput{}, fmt.Errorf("title is required")
+	}
+	if input.Size != "" && !containsString(flowTaskAddSizes(), input.Size) {
+		return flowTaskAddInput{}, fmt.Errorf("size is not allowed")
+	}
+	if input.Status != "" && !containsString(flowTaskAddStatuses(), input.Status) {
+		return flowTaskAddInput{}, fmt.Errorf("status is not allowed")
 	}
 	return input, nil
+}
+
+func flowTaskAddSizes() []string {
+	return []string{"XS", "S", "M", "L", "XL", "XXL"}
+}
+
+func flowTaskAddStatuses() []string {
+	return []string{"예정", "진행", "완료", "일시정지", "기각", "중단"}
 }
 
 func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error) {
@@ -558,14 +588,12 @@ func flowTaskUpdateErrorResponse(toolName string, failure flowTaskUpdateFailure)
 	}
 }
 
-func (service Service) postFlowTask(ctx context.Context, payload map[string]any, requesterEmail string) (json.RawMessage, error) {
+func (service Service) postFlowTask(ctx context.Context, payload flowTaskCreatePayload, requesterEmail string) (json.RawMessage, error) {
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/quick", bytes.NewReader(document))
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks", bytes.NewReader(document))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -607,8 +635,6 @@ func (service Service) putFlowTask(ctx context.Context, task flowTaskForTool, re
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/"+url.PathEscape(task.ID), bytes.NewReader(document))
 	if errorValue != nil {
 		return nil, errorValue
@@ -631,8 +657,6 @@ func (service Service) putFlowTask(ctx context.Context, task flowTaskForTool, re
 }
 
 func (service Service) deleteFlowTask(ctx context.Context, taskID string, requesterEmail string) (json.RawMessage, error) {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/"+url.PathEscape(taskID), nil)
 	if errorValue != nil {
 		return nil, errorValue
