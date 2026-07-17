@@ -5,130 +5,44 @@ description: Generate HTML-first presentation slides and attach requested HTML, 
 
 # Presentation
 
-Create a useful, visually strong deck and attach the requested files. HTML-first: `slides.html` is the source of truth, `DESIGN.md` the design brief, and HTML is the default deliverable. PDF and PPTX are derived; PPTX is image-backed by default to preserve the HTML render.
+Create a useful, visually strong deck and attach accepted output. HTML-first means `slides.html` is the source of truth, `DESIGN.md` the design brief, and HTML is the layout surface and default deliverable; PPTX is image-backed by default. Keep supplied facts exact and do not invent current dates, people, values, or claims.
 
 ## Workflow
 
-1. Decide the requested format and slide spine before writing files.
-2. Use the `file.write` tool directly to create `tmp/<deck-slug>/slides.html` first. Do not use `filesystem.mount.write`, `file.pick`, shell heredocs, or `echo` to write deck source files.
-3. Make `slides.html` complete in that first write: full HTML document, CSS, all slide sections, all required source facts, `data-visual-system`, and `data-slide-role` on every slide.
-4. Immediately after `slides.html`, add the compact helper files `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt`. The static review checks their substance; they must not delay the primary source file.
-5. Run `/workspace/skills/presentation/scripts/build.sh` with `terminal.run` from `workingDirectoryPath: "tmp/<deck-slug>"`. HTML is the source of truth for every format: iterate with the default command, which builds and reviews the HTML each time.
-6. Inspect `build/review/slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and each `fit-review-XX.md`, including `visualQualityScore`, `staticGatePassed`, `qualityGatePassed`, `visualEvidenceReliable`, `needsDesignRevision`, and design warnings.
-7. If `staticGatePassed=false`, `needsDesignRevision=true`, or rendered image evidence shows fit or design problems, revise `slides.html` with targeted `file.edit` patches and rebuild. Keep revising while the score improves, and never deliver without a reviewed build of the final source; stop when the gate passes, the score stalls across two rebuilds, or a budget status observation says consolidate or finalize. Preserve the design-source marker, requested slide count, source-fact ledger intent, `data-visual-system`, and `data-slide-role`.
-8. After the loop ends, convert once for PDF/PPTX requests, then deliver accepted outputs from `tmp/<deck-slug>/build/` plus requested source files with `file.deliver`. Use one call and a `files` array when delivering multiple files.
+1. Decide the output format, slide count, audience, and story spine before writing. Pick one deck archetype and make each slide's job, claim, proof, and visual structure clear.
+2. Resolve revisions from the latest compatible artifact in recent same-conversation posts. Older PDF or Markdown files are supporting material. For an existing deck, work only in `artifacts/<deck-slug>/`, keep the same slug, and use `restore_source.py` when the controller-free source must be recovered. Treat `slides.html` as the canonical controller-free source; make targeted `file.edit` changes and never reconstruct an existing deck with whole-file `file.write`.
+3. For a new deck, use the `file.write` tool directly to create the complete `slides.html`; Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`, shell heredocs, or echo. Add `DESIGN.md`, `deck-brief.md`, and `required-visible-text.txt` immediately so they must not delay the primary source file.
+4. Put `data-visual-system` on the body and `data-slide-role` on every slide. Use the requested language, a complete HTML document, visible source facts, and spoken notes. Preserve the design-source marker, requested slide count, source-fact ledger intent.
+5. Build from the persistent artifact workspace with the bundled script. The command shape is:
 
-Use this build command shape:
+   ```json
+   {"command": "/workspace/skills/presentation/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
+   ```
 
-```json
-{
-  "command": "/workspace/skills/presentation/scripts/build.sh",
-  "workingDirectoryPath": "tmp/<deck-slug>"
-}
-```
+   For a final PPTX conversion use:
 
-For PPTX requests, convert with one final build after the review loop:
+   ```json
+   {"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
+   ```
 
-```json
-{
-  "command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh",
-  "workingDirectoryPath": "tmp/<deck-slug>"
-}
-```
+   With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence. Use `FORMATS=pptx` only for the final conversion, then use `file.deliver` for `artifacts/<deck-slug>/build/<deck-slug>.html` or `artifacts/<deck-slug>/build/<deck-slug>.pptx`. Do not call `terminal.run` with an `arguments` array alone.
+6. Inspect `slide-review.json`, contact sheets, `fit-review-XX.md`, and rendered image evidence. Check `needsDesignRevision`, `qualityGatePassed`, `visualQualityScore`, `visualEvidenceReliable`, expected visible text, and design warnings. revise `slides.html` with targeted `file.edit` while the score improves. A clean export is not acceptance. Remaining review notes are not a delivery blocker after the required review loop. Do not spend delivery budget creating or attaching internal review-decision files.
+7. Attach accepted outputs with the `files` array when delivering multiple files. Report the format and any remaining visual uncertainty honestly.
 
-For PDF requests convert with `FORMATS=pdf`, and for all outputs `FORMATS=all`, in that final build only; every conversion reads the same `slides.html`. `build.sh` uses the working directory name as the output name. With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence.
+## Design contract
 
-Do not call `terminal.run` with an `arguments` array alone.
+Use the vocabulary of title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask. Reject shallow content: generic cards, claims without examples, raw `<table>` or bare `<ul>`, and slides that only restate the prompt. Add a worked example, target-versus-actual metrics, and risk/evidence/response/owner where relevant. End with a decision or next action.
 
-Deliver generated files such as `tmp/<deck-slug>/build/<deck-slug>.html` or `tmp/<deck-slug>/build/<deck-slug>.pptx` with `file.deliver`. Do not use shell `cp`, do not deliver from a skill directory, and do not expose `/workspace`, `/tmp`, `file://`, or sandbox paths.
+Pick one deck archetype and make its `deck-brief.md` state the story spine, slide count, visual system, signature move, and what would be too shallow. A board or quarterly deck needs KPI cards, status chips, variance bars, owner-date timelines, risk matrices, approval panels, or another recurring primitive—not the same 2x2 card dashboard on every slide. Avoid bullet-only decks. Read `assets/layouts.md` and `assets/minimal-design.md` first; use its `colors`, `typography`, and `layout` vocabulary, then consult `assets/composition-seeds.md`, `assets/visual-styles.md`, and `assets/webfonts.md` when needed.
 
-Give every slide `<aside class="notes">` with 2-4 spoken sentences in the request language, readable aloud verbatim; they never render on the slide.
+Use claim-style titles, exact organization, product, and period, and preserve original period wording exactly. Preserve exact source values and show `제공된 자료 없음` when a source value is missing. Required facts go one per line in `required-visible-text.txt`: one source fact or must-appear phrase per line. This is a source ledger, not a token filter; represent them naturally in rendered text. Do not replace Korean period wording.
 
-There is no template to fill in; the content, layout, and HTML source are your responsibility.
+## Source and visual quality
 
-## Imagery
+`DESIGN.md` may use Stitch-compatible YAML front matter followed by `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, and `Anti-default Check`. It must express a design thesis and a recurring signature move. A dark theme is not a visual system. Every slide should fill the 16:9 frame safely, avoid cropped or hidden text, and use readable type and meaningful visual hierarchy.
 
-When a slide needs photography, fetch a CC0 photo in one command and reference the local file — `python3 scripts/fetch_image.py "<english query>" assets/images/<name>.jpg`. Prefer fetched or user-provided files over hotlinks; generation is the last resort.
+Do not use emoji as functional icons or bullets. Paperlogy is the default display and body font, with local WOFF2 fallback and the CSS stack `"Paperlogy", "Noto Sans KR", system-ui`. Follow `webfonts.md` for web fonts and never paste base64 font data into source. With `PRESENTATION_PPTX_MODE=native`, native text-backed PPTX is available when editable text is explicitly required; otherwise use image-backed PPTX.
 
-## Company Data
+## Delivery rules
 
-For IR, 회사소개, and proposal decks pull real data instead of inventing: `company.info.get`, `company.metric.list` (growth series), `company.record.list` (연혁·funding·products). Logo: `/workspace/circles/staff/company/logo.png` if present.
-
-## Content Quality
-
-Useful before beautiful: a good deck gives the audience a decision, explanation, lesson, or next action they did not already have.
-
-Build the story spine before authoring: situation, tension, thesis, proof, and close.
-
-Reject shallow content: generic cards, claims without examples, or slides that only restate the prompt are not enough. When source material is thin, create realistic but clearly labeled assumptions or example data. Prefer concrete evidence, a worked example, scenario numbers, workflow states, or a recommendation.
-
-Each slide needs a job: what the audience should learn, decide, or remember; what claim the title makes; what proof supports it; and what visual structure makes it easier to scan.
-
-Use the user's language for slide titles and table headers. Do not write English section titles such as `Executive Summary` when the request is Korean. Show only dates from the source material; never stamp today's date.
-
-Pick one deck archetype, such as pitch, executive briefing, or status report, and use it to decide information density, section sequence, and ending.
-
-Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask.
-
-For executive, board, quarterly review, roadmap, investor-style, or design-quality decks, choose a named visual style plus composition seed and make the decision visible. Read `assets/visual-styles.md` and `assets/composition-seeds.md` when more direction is needed, after `slides.html` exists. Start with the approval ask, recommendation, or board decision; show the exact organization, product, and period; preserve the original period wording exactly; use source metrics, target-versus-actual metrics, deltas, implications, owners, dates, and `제공된 자료 없음` when values are missing. Preserve exact source values such as `412,000,000 KRW`, mark status as met, missed, at risk, or not provided, use risk/evidence/response/owner for risks, and end with the exact next actions.
-
-Quarterly review decks usually follow the six-slide board spine in `composition-seeds.md`, which carries the board-floor composition set. Use claim-style titles such as `성장은 확인됐지만 품질 스프린트 승인이 필요합니다`, not topic labels such as `요약`.
-
-Do not deliver a board deck made of plain white title slides, unstyled tables, bare bullet lists, or the same 2x2 card dashboard across slides. Use an executive artifact surface: KPI cards, status chips, variance bars, owner-date timelines, risk matrices, approval panels, and at least one recurring primitive that makes the deck recognizable.
-
-## Source Files
-
-`slides.html` is the source of truth and the first file written: `<!-- design-source: DESIGN.md -->` included, chosen colors/typography mirrored in CSS, one main message per slide, `data-visual-system` on `<body>`, `data-slide-role` on every `<section class="slide">`, one top-level section per slide.
-
-`DESIGN.md` matters less than the deck itself. If created, use Stitch-compatible YAML front matter with only `colors`, `typography`, `layout`, then headings: `Style Prompt`, `Visual Identity Gate`, `Scene`, `Design Thesis`, `Visual System`, `Signature Move`, `Anti-default Check`.
-
-`deck-brief.md` is an optional planning note, not a deliverable: archetype, story spine, slide count, visual system, signature move, what would be too shallow.
-
-`required-visible-text.txt` is an optional source-fact ledger for review, not a token filter: one source fact or must-appear phrase per line, then represent those facts in `slides.html` with natural layout copy, tables, charts, or labels — organization, product, exact period wording, metric and target values, owners, dates, missing-value labels such as `제공된 자료 없음`. Do not replace Korean period wording such as `2026년 2분기` with `2026 Q2`.
-
-HTML is the layout surface; browser rendering feeds PDF, review images, and image-backed PPTX. Without Chromium (or with `PRESENTATION_PPTX_MODE=native`) the build falls back to native text-backed PPTX:
-
-- Complete HTML document with `<style>` in the head.
-- Canonical geometry: `.slide { width: 1600px; height: 900px; }`.
-- `@page { size: 1600px 900px; margin: 0; }`.
-- Fixed 16:9 frame: every slide is the same flex column — header `flex: none`, body `flex: 1 1 0; min-height: 0`, footer `flex: none; margin-top: auto` — so the footer sits on the identical baseline on every slide. Never absolutely position the footer.
-- Fill the frame: give the body `display: flex; flex-direction: column; justify-content: space-between; gap` and stretch major blocks (card grids, tables, charts) with `flex: 1; min-height: 0`, centering card interiors vertically; do not stack everything in the top half.
-- Fit-safe containers with `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Use `flex: none` (never `flex: 0`, which collapses the row to zero height) for natural-height rows.
-- No `overflow: hidden` on variable text containers unless cropped content is intentional.
-- Text floors at 1600x900: body text 20px or larger; captions, labels, and footers 16px or larger.
-
-Avoid bullet-only decks; each slide needs visible structure. Read `assets/layouts.md` for structures, `assets/visual-styles.md` for identity, `assets/composition-seeds.md` against sparse decks, `assets/minimal-design.md` for a sober style.
-
-If a `file.edit` patch misses its target text, rewrite the file with `file.write` instead of retrying. Preserve the user's explicit constraints: slide count, output format, scope, and their exact wording.
-
-Before building, scan `slides.html`. Revise slides that are only a raw `<table>` or bare `<ul>` into cards, a matrix, a timeline, a scoreboard, or a decision panel. If two slides share the same `.grid`+`.card` surface as the primary composition, convert one into a timeline rail, risk matrix, evidence wall, variance scoreboard, or approval panel. A dark theme is not a visual system; name and render the recurring primitive that makes the deck recognizable — not colored side stripes, tiny rail labels, or border-plus-shadow white cards.
-
-## Fonts
-
-Read `assets/webfonts.md` before writing CSS for Korean-heavy or design-sensitive decks. Paperlogy is the default display and body font, and the exporter injects local WOFF2 fallback before rendering HTML/PDF/PPTX. Also `@import` Pretendard, Freesentation, or Noto Sans KR in `slides.html` so the raw source renders with real typography, keeping Paperlogy first in the stack for offline fallback. Do not paste base64 font data into `slides.html`.
-
-Use the default CSS stack `"Paperlogy", "Noto Sans KR", system-ui, sans-serif`. Do not use emoji as functional icons or bullets; use text labels, CSS markers, inline SVG, or simple shapes.
-
-## Review and Delivery
-
-Every build creates PNGs, `slide-review.json`, `slide-review.md`, contact sheets, `fit-review.json`, and `fit-review-XX.md` when browser rendering or native preview rendering is available. Check each contact sheet with its matching fit review. Every expected visible text item must appear fully inside the slide frame. Missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision is revision input. If `visualEvidenceReliable=false`, the review came from fallback images rather than the browser and cannot prove visual quality.
-
-Review substance and surface: request fit, story flow, claim titles, credible examples, and readability. A clean export is not acceptance. The static source review always runs, even when browser rendering is unavailable, so `staticGatePassed` and the design warnings stay authoritative without render images. `qualityGatePassed=true` additionally requires browser render evidence and passing fit checks.
-
-If `slide-review.json` says `staticGatePassed=false` or `needsDesignRevision: true`, resolve the listed warnings and rebuild before delivery unless the user only asked for a mechanical export. Change the composition, not just the colors.
-
-Before delivery, compare the deck against the user's source facts. Check that required company names, period wording, metric values, dates, owners, targets, missed targets, and explicit missing-value labels are present. If the source says a value is unavailable, include `제공된 자료 없음` in the relevant table or note rather than omitting the field.
-
-Remaining visual review notes are not a delivery blocker after the required review and revision loop. If requested PPTX/PDF/HTML exists and is usable after the improvement budget, attach it and mention top remaining notes briefly, including when `visualEvidenceReliable=false` meant visual fit could not be verified. Do not spend delivery budget creating or attaching internal review-decision files unless the user asks.
-
-After delivering a below-gate build, judge your trajectory honestly: offer one more improvement round via `ask.confirm` only when the review score was still climbing and you can name the concrete next fix; if it stalled or regressed, say plainly this is your best result with the current approach rather than offering more.
-
-## Revisions and Formats
-
-For revisions, edit the same `<deck-slug>`. If `tmp/<deck-slug>/slides.html` is gone, restore editable source from `artifacts/<deck-slug>/source/`, apply changes, rebuild, and deliver with `overwrite: true`.
-
-If the user does not name a format, build with the default command, run the review loop, and attach only HTML. If the user asks for PDF, build `FORMATS=pdf` and attach HTML plus PDF. If the user asks for PPTX, build `FORMATS=pptx` and attach HTML, PDF when browser rendering worked, and PPTX. Default PPTX is image-backed from slide PNG captures; use `PRESENTATION_PPTX_MODE=native` only when the user explicitly needs editable PowerPoint text. Default PDF keeps selectable text when Chromium is available.
-
-## Validating an Existing PPTX
-
-To check an existing `.pptx` for empty slides, missing titles, excessive shapes, or leftover default fonts: `python3 /workspace/skills/presentation/scripts/skill_runtime.py python /workspace/skills/presentation/scripts/validate_pptx.py <file>.pptx` (bootstraps `python-pptx` on first use).
+HTML is the default deliverable. PDF and PPTX are derived from the same `slides.html`; deliver the source with generated output when requested. Do not spend delivery budget on internal review files, and do not claim visual acceptance when `visualEvidenceReliable` is false. Source review, rendered text checks, and the requested review loop are required before delivery.

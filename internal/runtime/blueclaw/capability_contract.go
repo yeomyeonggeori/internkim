@@ -8,7 +8,6 @@ import (
 
 type CapabilityContract struct {
 	Version                    int                       `json:"version"`
-	ToolNames                  []string                  `json:"toolNames"`
 	ToolDescriptors            []capabilities.Descriptor `json:"toolDescriptors"`
 	RoutingCandidates          []string                  `json:"routingCandidates"`
 	PolicyResourceReplacements map[string]string         `json:"policyResourceReplacements"`
@@ -17,8 +16,7 @@ type CapabilityContract struct {
 
 func CurrentCapabilityContract() CapabilityContract {
 	return CapabilityContract{
-		Version:                    1,
-		ToolNames:                  capabilities.DefaultToolNames(),
+		Version:                    2,
 		ToolDescriptors:            capabilities.DefaultToolDescriptors(),
 		RoutingCandidates:          capabilities.RoutingCandidates(),
 		PolicyResourceReplacements: currentPolicyResourceReplacements(),

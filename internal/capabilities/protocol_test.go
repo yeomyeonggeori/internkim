@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type schemaDocument struct {
@@ -45,20 +47,6 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestCompanionToolNamesComeFromDescriptors(t *testing.T) {
-	descriptors := CompanionToolDescriptors()
-	toolNames := CompanionToolNames()
-
-	if len(descriptors) != len(toolNames) {
-		t.Fatalf("expected descriptor and tool name counts to match")
-	}
-	for index, descriptor := range descriptors {
-		if toolNames[index] != descriptor.Name {
-			t.Fatalf("expected tool name %q, got %q", descriptor.Name, toolNames[index])
-		}
-	}
-}
-
 func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	expectedReplacements := map[string]string{
 		"calendar.event.add":        "calendar.add",
@@ -93,7 +81,7 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	}
 
 	currentToolNames := map[string]bool{}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		currentToolNames[toolName] = true
 	}
 	for legacyToolName, currentToolName := range replacements {
@@ -120,10 +108,17 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 			t.Fatalf("expected Google Workspace to be disabled by default, got %+v", descriptor)
 		}
 	}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		if strings.HasPrefix(toolName, "google.") {
-			t.Fatalf("expected default tools to omit Google Workspace, got %+v", DefaultToolNames())
+			t.Fatalf("expected default tools to omit Google Workspace, got %+v", defaultToolNames())
 		}
+	}
+}
+
+func TestRegisteredToolDescriptorsIncludeOptionalCapabilities(t *testing.T) {
+	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google.gmail.send")
+	if descriptor.CanonicalName != "google.gmail.send" {
+		t.Fatalf("unexpected registered descriptor: %+v", descriptor)
 	}
 }
 
@@ -133,22 +128,22 @@ func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
 			t.Fatalf("expected personal calendar connection start to be absent, got %+v", descriptor)
 		}
 	}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		if toolName == "calendar.connection.start" {
-			t.Fatalf("expected default tools to omit personal calendar connection start, got %+v", DefaultToolNames())
+			t.Fatalf("expected default tools to omit personal calendar connection start, got %+v", defaultToolNames())
 		}
 	}
 }
 
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete", "channel.update"} {
-		if !containsString(DefaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
+		if !containsString(defaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to include %q, got %+v", toolName, defaultToolNames())
 		}
 	}
 	for _, toolName := range []string{"platform.dm.send", "platform.dm.inspect", "mattermost.context.inspect", "mattermost.post.search", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete"} {
-		if containsString(DefaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, DefaultToolNames())
+		if containsString(defaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, defaultToolNames())
 		}
 	}
 }
@@ -256,8 +251,8 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	}
 	assertDescriptorApproval(t, WebDescriptors(), "web.search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
-	if !containsString(DefaultToolNames(), "web.search") || !containsString(DefaultToolNames(), "web.fetch") {
-		t.Fatalf("expected web tools in defaults, got %+v", DefaultToolNames())
+	if !containsString(defaultToolNames(), "web.search") || !containsString(defaultToolNames(), "web.fetch") {
+		t.Fatalf("expected web tools in defaults, got %+v", defaultToolNames())
 	}
 }
 
@@ -270,8 +265,8 @@ func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "document.read") {
-		t.Fatalf("expected document.read in default tools, got %+v", DefaultToolNames())
+	if !containsString(defaultToolNames(), "document.read") {
+		t.Fatalf("expected document.read in default tools, got %+v", defaultToolNames())
 	}
 }
 
@@ -283,8 +278,8 @@ func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "image.read") {
-		t.Fatalf("expected image.read in default tools, got %+v", DefaultToolNames())
+	if !containsString(defaultToolNames(), "image.read") {
+		t.Fatalf("expected image.read in default tools, got %+v", defaultToolNames())
 	}
 }
 
@@ -485,6 +480,33 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	}
 }
 
+func TestDefaultDescriptorsSatisfyCanonicalProviderContract(t *testing.T) {
+	descriptors := DefaultToolDescriptors()
+	if errorValue := capabilityprotocol.ValidateDescriptorSet(descriptors); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, descriptor := range descriptors {
+		if descriptor.Name == "" || descriptor.CanonicalName == "" || descriptor.Namespace == "" || descriptor.ModelName == "" {
+			t.Fatalf("descriptor identity is incomplete: %+v", descriptor)
+		}
+		if !descriptor.InputSchemaStrict || !descriptor.OutputSchemaStrict || len(descriptor.InputSchema) == 0 || len(descriptor.OutputSchema) == 0 {
+			t.Fatalf("descriptor schemas are not strict: %+v", descriptor)
+		}
+	}
+}
+
+func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
+	for _, toolName := range []string{"message.send", "mail.message.send", "google.gmail.send"} {
+		descriptor := descriptorForTool(t, append(DefaultToolDescriptors(), GoogleWorkspaceDescriptors()...), toolName)
+		if !descriptor.Idempotency.Supported || descriptor.Idempotency.Scope != "operation" {
+			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)
+		}
+	}
+	if descriptorForTool(t, FlowDescriptors(), "task.add").Idempotency.Supported {
+		t.Fatal("task.add must not inherit idempotency from its name")
+	}
+}
+
 func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName string, expectedApproval bool) {
 	t.Helper()
 	for _, descriptor := range descriptors {
@@ -650,6 +672,14 @@ func stringSliceContains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func defaultToolNames() []string {
+	toolNames := make([]string, 0, len(DefaultToolDescriptors()))
+	for _, descriptor := range DefaultToolDescriptors() {
+		toolNames = append(toolNames, descriptor.Name)
+	}
+	return toolNames
 }
 
 func containsString(values []string, target string) bool {

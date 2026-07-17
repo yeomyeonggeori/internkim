@@ -2,8 +2,6 @@ package blueclaw
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,11 +12,8 @@ import (
 
 func TestCapabilityContractUsesCurrentDefinitions(t *testing.T) {
 	contract := CurrentCapabilityContract()
-	if contract.Version != 1 {
-		t.Fatalf("contract version = %d, want 1", contract.Version)
-	}
-	if !reflect.DeepEqual(contract.ToolNames, capabilities.DefaultToolNames()) {
-		t.Fatalf("contract tool names do not match current capabilities")
+	if contract.Version != 2 {
+		t.Fatalf("contract version = %d, want 2", contract.Version)
 	}
 	if !reflect.DeepEqual(contract.ToolDescriptors, capabilities.DefaultToolDescriptors()) {
 		t.Fatalf("contract tool descriptors do not match current capabilities")
@@ -159,16 +154,15 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityConfiguration["unixSocketPath"] != "" {
 		t.Fatalf("expected capability unix socket path to be omitted for guest runtime, got %q", capabilityConfiguration["unixSocketPath"])
 	}
-	capabilityToolNames := capabilityConfiguration["toolNames"].([]any)
-	if !containsStringValue(capabilityToolNames, "user.confirm") {
-		t.Fatalf("expected companion capability tools, got %+v", capabilityToolNames)
+	if _, hasToolNames := capabilityConfiguration["toolNames"]; hasToolNames {
+		t.Fatalf("expected descriptor-only capability configuration, got %+v", capabilityConfiguration)
 	}
 	capabilityToolDescriptors := capabilityConfiguration["toolDescriptors"].([]any)
 	if !containsDescriptor(capabilityToolDescriptors, "browser.open", "inputSchema") {
 		t.Fatalf("expected browser.open descriptor with input schema, got %+v", capabilityToolDescriptors)
 	}
-	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
-		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
+	if containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
+		t.Fatalf("expected user.confirm to avoid recursive approval, got %+v", capabilityToolDescriptors)
 	}
 	if !containsCompletionEvidence(capabilityToolDescriptors, "message.send", "success", "send_message", "message") {
 		t.Fatalf("expected platform message send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
@@ -265,30 +259,12 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected recovery budget %s=%v, got %+v", key, expectedValue, recoveryBudget)
 		}
 	}
-	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
-	defaultProfile := agentProfiles[0].(map[string]any)
-	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range blueclawNativeToolNames {
-		if !containsStringValue(allowedToolNames, expectedToolName) {
-			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
-		}
-	}
-	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
-		if containsStringValue(allowedToolNames, disabledToolName) {
-			t.Fatalf("expected default profile to omit disabled Google Workspace tool %q, got %+v", disabledToolName, allowedToolNames)
-		}
+	if runtimeConfiguration["agentProfiles"] != nil {
+		t.Fatalf("expected Blueclaw to own its default tool profile, got %+v", runtimeConfiguration["agentProfiles"])
 	}
 	capabilityConfiguration = runtimeConfiguration["capabilities"].(map[string]any)
-	capabilityToolNames = capabilityConfiguration["toolNames"].([]any)
-	for _, expectedToolName := range capabilities.DefaultToolNames() {
-		if !containsStringValue(capabilityToolNames, expectedToolName) {
-			t.Fatalf("expected capability tool list to include default tool %q, got %+v", expectedToolName, capabilityToolNames)
-		}
-	}
-	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
-		if containsStringValue(capabilityToolNames, disabledToolName) {
-			t.Fatalf("expected capability tool list to omit disabled Google Workspace tool %q, got %+v", disabledToolName, capabilityToolNames)
-		}
+	if _, hasToolNames := capabilityConfiguration["toolNames"]; hasToolNames {
+		t.Fatalf("expected descriptor-only capability configuration, got %+v", capabilityConfiguration)
 	}
 	terminal := runtimeConfiguration["terminal"].(map[string]any)
 	if terminal["mode"] != "firecrackerGuest" {
@@ -432,10 +408,10 @@ func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
 		t.Fatalf("expected admin task diagnostic gate, got %+v", agentConfiguration)
 	}
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
-	if len(agentProfiles) != 2 {
+	if len(agentProfiles) != 1 {
 		t.Fatalf("expected diagnostic profile, got %+v", agentProfiles)
 	}
-	diagnosticProfile := agentProfiles[1].(map[string]any)
+	diagnosticProfile := agentProfiles[0].(map[string]any)
 	if diagnosticProfile["name"] != BlueclawSDKDTopologyDiagnosticProfileName {
 		t.Fatalf("expected SDKD diagnostic profile, got %+v", diagnosticProfile)
 	}
@@ -534,45 +510,6 @@ func TestBlueclawRuntimeConfigOptionsRejectInvalidGenerationEnvironment(t *testi
 	_, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
 	if errorValue == nil || !strings.Contains(errorValue.Error(), BlueclawTestGenerationSeedEnvironment) {
 		t.Fatalf("expected seed environment error, got %v", errorValue)
-	}
-}
-
-func TestBlueclawRuntimeKnowsBuiltinSkillToolsWithoutExposingAllByDefault(t *testing.T) {
-	allowedToolNames := stringSet(BlueclawDefaultAllowedToolNames())
-	skillScopedToolNames := stringSet([]string{
-		"site.build",
-		"site.repair",
-		"site.preview",
-	})
-	disabledSkillToolNames := stringSet([]string{
-		"google.docs.create",
-		"google.sheets.create",
-		"google.gmail.send",
-	})
-	skillPaths, errorValue := filepath.Glob(filepath.Join("..", "..", "..", "assets", "blueclaw-workspace", "skills", "*", "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(skillPaths) == 0 {
-		t.Fatal("expected built-in skills to be present")
-	}
-
-	for _, skillPath := range skillPaths {
-		for _, toolName := range parseSkillAllowedToolNames(t, skillPath) {
-			if disabledSkillToolNames[toolName] {
-				continue
-			}
-			if allowedToolNames[toolName] || skillScopedToolNames[toolName] {
-				continue
-			}
-			t.Fatalf("expected built-in skill tool %q from %s to be default-allowed or explicitly skill-scoped", toolName, skillPath)
-		}
-	}
-
-	for toolName := range skillScopedToolNames {
-		if allowedToolNames[toolName] {
-			t.Fatalf("expected skill-scoped tool %q not to be exposed by the default runtime profile", toolName)
-		}
 	}
 }
 
@@ -774,42 +711,6 @@ func containsStringValue(values []any, expectedValue string) bool {
 		}
 	}
 	return false
-}
-
-func stringSet(values []string) map[string]bool {
-	set := map[string]bool{}
-	for _, value := range values {
-		set[value] = true
-	}
-	return set
-}
-
-func parseSkillAllowedToolNames(t *testing.T, skillPath string) []string {
-	t.Helper()
-	document, errorValue := os.ReadFile(skillPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	allowedToolNames := []string{}
-	isReadingAllowedTools := false
-	for _, line := range strings.Split(string(document), "\n") {
-		trimmedLine := strings.TrimSpace(line)
-		if trimmedLine == "allowed-tools:" {
-			isReadingAllowedTools = true
-			continue
-		}
-		if !isReadingAllowedTools {
-			continue
-		}
-		if trimmedLine == "" {
-			continue
-		}
-		if !strings.HasPrefix(trimmedLine, "- ") {
-			break
-		}
-		allowedToolNames = append(allowedToolNames, strings.TrimSpace(strings.TrimPrefix(trimmedLine, "- ")))
-	}
-	return allowedToolNames
 }
 
 func containsDescriptor(values []any, expectedName string, expectedField string) bool {

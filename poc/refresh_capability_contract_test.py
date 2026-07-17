@@ -36,10 +36,7 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             policy_document = self.read_json(tenant_path / 'policy.json')
             self.assertEqual(runtime_document['baseURL'], 'http://preserve-tenant-15')
             self.assertEqual(runtime_document['languageModel'], {'model': 'preserve-me'})
-            self.assertEqual(
-                runtime_document['capabilities']['toolNames'],
-                self.contract_document()['toolNames'],
-            )
+            self.assertNotIn('toolNames', runtime_document['capabilities'])
             self.assertEqual(
                 runtime_document['capabilities']['toolDescriptors'],
                 self.contract_document()['toolDescriptors'],
@@ -83,14 +80,14 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             self.assertEqual((tenant_path / 'runtime.json').read_text(), first_runtime_document)
             self.assertEqual((tenant_path / 'policy.json').read_text(), first_policy_document)
 
-    def test_rejects_descriptor_names_that_do_not_match_tool_names(self):
+    def test_rejects_duplicate_descriptor_names(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             contract_path = Path(temporary_directory) / 'capability-contract.json'
             contract_document = self.contract_document()
-            contract_document['toolDescriptors'][0]['name'] = 'wrong.name'
+            contract_document['toolDescriptors'][0]['name'] = contract_document['toolDescriptors'][1]['name']
             self.write_json(contract_path, contract_document)
 
-            with self.assertRaisesRegex(ValueError, 'descriptor names'):
+            with self.assertRaisesRegex(ValueError, 'unique'):
                 REFRESH_CAPABILITY_CONTRACT.load_contract(contract_path)
 
     def contract_document(self):
@@ -102,8 +99,7 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             'site.publish',
         ]
         return {
-            'version': 1,
-            'toolNames': tool_names,
+            'version': 2,
             'toolDescriptors': [
                 {'name': tool_name, 'version': '1'}
                 for tool_name in tool_names

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -86,7 +87,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "google.drive.import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 }
 
-var capabilityToolApprovalRequirements = buildCapabilityToolApprovalRequirements()
+var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()
 
 type capabilityApprovalFailure struct {
 	ErrorCode    string `json:"errorCode"`
@@ -94,15 +95,18 @@ type capabilityApprovalFailure struct {
 	Message      string `json:"message"`
 }
 
-func buildCapabilityToolApprovalRequirements() map[string]bool {
-	descriptors := capabilities.DeviceDescriptors()
-	descriptors = append(descriptors, capabilities.ArtifactDescriptors()...)
-	descriptors = append(descriptors, capabilities.GoogleWorkspaceDescriptors()...)
-	requirements := make(map[string]bool, len(descriptors))
+func buildCapabilityToolDescriptorsByCanonicalName() map[string]capabilities.Descriptor {
+	descriptors := capabilities.RegisteredToolDescriptors()
+	byCanonicalName := make(map[string]capabilities.Descriptor, len(descriptors))
 	for _, descriptor := range descriptors {
-		requirements[strings.TrimSpace(descriptor.Name)] = descriptor.RequiresApproval
+		byCanonicalName[descriptor.CanonicalName] = descriptor
 	}
-	return requirements
+	return byCanonicalName
+}
+
+func capabilityToolDescriptorFor(toolName string) (capabilities.Descriptor, bool) {
+	descriptor, found := capabilityToolDescriptorsByCanonicalName[strings.TrimSpace(toolName)]
+	return descriptor, found
 }
 
 func capabilityToolRouteFor(toolName string) (capabilityToolRoute, bool) {
@@ -164,10 +168,14 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if response, isDenied := service.capabilityToolApprovalDeniedResponse(ctx, request); isDenied {
+	descriptor, hasDescriptor := capabilityToolDescriptorFor(request.ToolName)
+	if !hasDescriptor {
+		return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
+	}
+	if response, isDenied := service.capabilityToolApprovalDeniedResponse(ctx, request, descriptor); isDenied {
 		return response, nil
 	}
-	toolRoute, hasToolRoute := capabilityToolRouteFor(request.ToolName)
+	toolRoute, hasToolRoute := capabilityToolRouteFor(descriptor.CanonicalName)
 
 	router := CapabilityRouter{
 		CompanionAvailable:     strings.TrimSpace(service.Configuration.CompanionBaseURL) != "",
@@ -198,8 +206,8 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
 }
 
-func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
-	if !toolRequiresApproval(request.ToolName) {
+func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context, request capabilities.ToolInvokeRequest, descriptor capabilities.Descriptor) (capabilities.ToolInvokeResponse, bool) {
+	if !descriptor.RequiresApproval {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	if request.Context.IsApprovalContinuation || request.Context.IsScheduledRun {
@@ -230,10 +238,6 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 		FailureStage:    "authorization",
 		Result:          result,
 	}, true
-}
-
-func toolRequiresApproval(toolName string) bool {
-	return capabilityToolApprovalRequirements[strings.TrimSpace(toolName)]
 }
 
 // A reply into the same thread or channel the user is already talking in
@@ -315,7 +319,8 @@ func companionRequiredBrowserErrorCode(errorValue error) string {
 }
 
 func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.ToolInvokeRequest, error) {
-	request := capabilities.ToolInvokeRequest{ToolName: toolName}
+	canonicalToolName := strings.TrimSpace(toolName)
+	request := capabilities.ToolInvokeRequest{ToolName: canonicalToolName}
 	if reader == nil {
 		return request, nil
 	}
@@ -329,9 +334,11 @@ func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.To
 	if errorValue := json.Unmarshal(document, &request); errorValue != nil {
 		return capabilities.ToolInvokeRequest{}, errorValue
 	}
-	if strings.TrimSpace(request.ToolName) == "" {
-		request.ToolName = toolName
+	bodyToolName := strings.TrimSpace(request.ToolName)
+	if bodyToolName != "" && bodyToolName != canonicalToolName {
+		return capabilities.ToolInvokeRequest{}, fmt.Errorf("tool name mismatch: URL operation %q does not match body operation %q", canonicalToolName, bodyToolName)
 	}
+	request.ToolName = canonicalToolName
 	toolContext, errorValue := validateToolInvokeContext(request.Context)
 	if errorValue != nil {
 		return capabilities.ToolInvokeRequest{}, errorValue
