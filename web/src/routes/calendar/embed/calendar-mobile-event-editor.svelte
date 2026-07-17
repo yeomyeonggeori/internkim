@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, tick } from 'svelte';
+	import { getContext } from 'svelte';
 	import { type Event as DayFlowEvent, type MobileEventProps } from '@dayflow/core';
 	import { calendarText } from '../text';
 	import { isDraftEventID } from './calendar-draft-event-params';
@@ -7,14 +7,17 @@
 	import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 	import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
 	import CalendarMobileEventEditorFields from './calendar-mobile-event-editor-fields.svelte';
+	import { installCalendarMobileEventDialogFocus } from './calendar-mobile-event-dialog-focus';
 	import {
 		calendarMobileEditorStartDateTimeChanges,
 		calendarMobileEditorUpdatedEvent
 	} from './calendar-mobile-event-editor-state';
 	import {
+		mobileEventEditorActivationContextKey,
 		mobileEventEditorLocaleContextKey,
 		mobileEventEditorParticipantsContextKey,
 		mobileEventEditorPersistenceContextKey,
+		type MobileEventEditorActivationContext,
 		type MobileEventEditorLocaleContext,
 		type MobileEventEditorParticipantsContext,
 		type MobileEventEditorPersistenceContext
@@ -22,6 +25,9 @@
 	import './calendar-mobile-event-editor.css';
 
 	let { isOpen, onClose, onSave, onEventDelete, draftEvent, app }: MobileEventProps = $props();
+	const activationContext = getContext<MobileEventEditorActivationContext | undefined>(
+		mobileEventEditorActivationContextKey
+	);
 	const persistence = getContext<MobileEventEditorPersistenceContext | undefined>(mobileEventEditorPersistenceContextKey);
 	const localeContext = getContext<MobileEventEditorLocaleContext | undefined>(mobileEventEditorLocaleContextKey);
 	const participantsContext = getContext<MobileEventEditorParticipantsContext | undefined>(
@@ -41,6 +47,7 @@
 	let calendarID = $state('');
 	let isEditorOpen = $state(false);
 	let titleInputElement: HTMLInputElement | undefined = $state();
+	let dialogElement: HTMLElement | undefined = $state();
 
 	const text = $derived(localeContext?.getText() ?? calendarText.ko);
 	const draftText = $derived(text.draftPopover);
@@ -51,6 +58,7 @@
 	const canDelete = $derived(Boolean(draftEvent && canEdit && onEventDelete));
 	const editorTitle = $derived(isDraftEvent ? text.newEvent : text.editEvent);
 	const canSave = $derived(Boolean(draftEvent && canEdit && isValidEventForm()));
+	const isActivationAllowed = $derived(Boolean(draftEvent && activationContext?.getActiveEventID() === draftEvent.id));
 
 	function loadDraftEvent(event: DayFlowEvent): void {
 		const startDate = eventStartDate(event);
@@ -130,7 +138,6 @@
 		if (!(target instanceof HTMLInputElement)) return;
 		if (target.dataset.mobileEditorField !== 'title') return;
 		if (event.key === 'Enter') void saveEvent();
-		if (event.key === 'Escape') closeEditor();
 	}
 
 	function editorAction(target: EventTarget | null): 'close' | 'save' | 'delete' | null {
@@ -191,6 +198,7 @@
 		});
 		if (persistence) {
 			isEditorOpen = false;
+			clearEditorActivation();
 			onClose();
 			await persistence.saveEvent(updatedEvent);
 			return;
@@ -200,13 +208,21 @@
 
 	function closeEditor(): void {
 		isEditorOpen = false;
+		clearEditorActivation();
 		onClose();
 	}
 
 	function deleteEvent(): void {
 		if (!draftEvent || !onEventDelete) return;
+		const stageElement = activationContext?.getStageElement();
 		isEditorOpen = false;
+		clearEditorActivation();
 		onEventDelete(draftEvent.id);
+		requestAnimationFrame(() => stageElement?.focus({ preventScroll: true }));
+	}
+
+	function clearEditorActivation(): void {
+		if (draftEvent) activationContext?.clearActiveEvent(draftEvent.id);
 	}
 
 	function draftPopoverState(): DraftPopoverState {
@@ -261,7 +277,7 @@
 	}
 
 	$effect(() => {
-		if (!isOpen || !draftEvent) {
+		if (!isOpen || !draftEvent || !isActivationAllowed) {
 			loadedEventKey = '';
 			isEditorOpen = false;
 			return;
@@ -297,11 +313,14 @@
 	});
 
 	$effect(() => {
-		if (!isEditorOpen || !isDraftEvent || !canEdit || !titleInputElement) return;
-		void tick().then(() => {
-			titleInputElement?.focus({ preventScroll: true });
-			titleInputElement?.select();
+		if (!isEditorOpen || !dialogElement || (canEdit && !titleInputElement)) return;
+		const stopDialogFocus = installCalendarMobileEventDialogFocus({
+			dialogElement,
+			initialFocusElement: canEdit ? titleInputElement : undefined,
+			closeDialog: closeEditor
 		});
+		if (isDraftEvent && canEdit) titleInputElement?.select();
+		return stopDialogFocus;
 	});
 </script>
 
@@ -313,12 +332,19 @@
 			aria-label={draftText.cancel}
 			data-mobile-editor-action="close"
 		></button>
-		<section class="df-mobile-event-drawer-panel df-animate-slide-up">
+		<div
+			bind:this={dialogElement}
+			class="df-mobile-event-drawer-panel df-animate-slide-up"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="calendar-mobile-event-editor-title"
+			tabindex="-1"
+		>
 			<header class="df-mobile-event-drawer-header">
 				<button type="button" class="df-mobile-event-drawer-header-action" data-mobile-editor-action="close">
 					{draftText.cancel}
 				</button>
-				<span class="df-mobile-event-drawer-title">{editorTitle}</span>
+				<span id="calendar-mobile-event-editor-title" class="df-mobile-event-drawer-title">{editorTitle}</span>
 				{#if canEdit}
 					<button
 						type="button"
@@ -356,6 +382,6 @@
 				}}
 				bind:titleInputElement
 			/>
-		</section>
+		</div>
 	</div>
 {/if}

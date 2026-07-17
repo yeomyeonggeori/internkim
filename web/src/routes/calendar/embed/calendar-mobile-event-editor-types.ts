@@ -14,6 +14,12 @@ export type MobileEventEditorParticipantsContext = {
 	getCandidates: () => CalendarParticipant[];
 };
 
+export type MobileEventEditorActivationContext = {
+	getActiveEventID: () => string | null;
+	getStageElement: () => HTMLElement | null;
+	clearActiveEvent: (eventID: string) => void;
+};
+
 export type MobileEventEditorCalendar = {
 	id: string;
 	name: string;
@@ -22,3 +28,4 @@ export type MobileEventEditorCalendar = {
 export const mobileEventEditorPersistenceContextKey = Symbol.for('internkim.calendar.mobileEventEditorPersistence');
 export const mobileEventEditorLocaleContextKey = Symbol.for('internkim.calendar.mobileEventEditorLocale');
 export const mobileEventEditorParticipantsContextKey = Symbol.for('internkim.calendar.mobileEventEditorParticipants');
+export const mobileEventEditorActivationContextKey = Symbol.for('internkim.calendar.mobileEventEditorActivation');

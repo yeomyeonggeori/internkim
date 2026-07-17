@@ -22,6 +22,7 @@ type CalendarPageAppOptionsContext = {
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
+	closeMobileEventEditor: () => void;
 };
 
 export function createCalendarPageAppOptions(context: CalendarPageAppOptionsContext): CalendarPageAppOptions {
@@ -59,6 +60,9 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 			})
 		],
 		callbacks: {
+			onMobileEventDetailToggle: (event) => {
+				if (!event) context.closeMobileEventEditor();
+			},
 			onVisibleRangeChange: (startDate, endDate) => {
 				context.loadEvents(startDate, endDate);
 				const middle = new Date((startDate.getTime() + endDate.getTime()) / 2);
