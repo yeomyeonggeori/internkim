@@ -484,21 +484,29 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	}
 }
 
-func TestDecodeFlowTaskUpdateInputAcceptsLegacyContentAlias(t *testing.T) {
-	input, errorValue := decodeFlowTaskUpdateInput([]byte(`{"taskID":"task-1","content":" 이전 제목 "}`))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if input.Title == nil || *input.Title != "이전 제목" {
-		t.Fatalf("title = %#v", input.Title)
+func TestDecodeFlowTaskUpdateInputRejectsLegacyAndResolutionFields(t *testing.T) {
+	for _, document := range []string{
+		`{"taskID":"task-1","content":"이전 제목"}`,
+		`{"taskID":"task-1","query":"이전 제목","status":"완료"}`,
+		`{"taskID":"task-1","targetPersonHint":"staff","status":"완료"}`,
+		`{"taskID":"task-1","weekCode":"26W24","status":"완료"}`,
+	} {
+		_, errorValue := decodeFlowTaskUpdateInput([]byte(document))
+		if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
+			t.Fatalf("document = %s error = %v", document, errorValue)
+		}
 	}
 }
 
-func TestDecodeFlowTaskUpdateInputRejectsTitleAndLegacyContentConflict(t *testing.T) {
-	document := []byte(`{"taskID":"task-1","title":"새 제목","content":"이전 제목"}`)
-	_, errorValue := decodeFlowTaskUpdateInput(document)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "both title and content") {
-		t.Fatalf("error = %v", errorValue)
+func TestDecodeFlowTaskUpdateInputRequiresTaskIDAndPatch(t *testing.T) {
+	for _, document := range []string{
+		`{"status":"완료"}`,
+		`{"taskID":"task-1"}`,
+		`{"taskID":" "}`,
+	} {
+		if _, errorValue := decodeFlowTaskUpdateInput([]byte(document)); errorValue == nil {
+			t.Fatalf("document = %s expected validation error", document)
+		}
 	}
 }
 
@@ -534,69 +542,31 @@ func TestFlowTaskUpdateResolvesByTaskIDAcrossAllTasks(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.update",
-		Input:    []byte(`{"taskID":"deck-1","status":"완료","targetPersonHint":"","weekCode":"2026-W28"}`),
+		Input:    []byte(`{"taskID":"deck-1","status":"완료"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if response.IsError {
-		t.Fatalf("expected taskID to resolve regardless of week/person hint, got error response %+v", response)
+		t.Fatalf("expected exact taskID to resolve, got error response %+v", response)
 	}
 	if updatedPayload["status"] != "완료" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 }
 
-func TestFlowTaskUpdateQueryOnlyDefaultsToComplete(t *testing.T) {
-	var updatedPayload map[string]any
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
-				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
-					t.Fatal(errorValue)
-				}
-				return flowToolJSONResponse(`{"id":"task-1","status":"완료"}`), nil
-			default:
-				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task.update",
-		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
-		},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.IsError || response.Status != "완료" {
-		t.Fatalf("response = %+v", response)
-	}
-	if updatedPayload["status"] != "완료" {
-		t.Fatalf("updated payload = %+v", updatedPayload)
-	}
-}
-
-func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
+func TestFlowTaskUpdateMissingExactIDReturnsTypedNotFound(t *testing.T) {
 	putCalled := false
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 준비","size":"XS","status":"진행","weekCode":"26W24"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+				return flowToolJSONResponse(`{"members":[],"tasks":[{"id":"task-1","content":"회의","status":"진행"}]}`), nil
 			case request.Method == http.MethodPut:
 				putCalled = true
-				return flowToolJSONResponse(`{"id":"task-1"}`), nil
+				return flowToolJSONResponse(`{"id":"missing-task","status":"완료"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -606,22 +576,16 @@ func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.update",
-		Input:    []byte(`{"query":"회의"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
-		},
+		Input:    []byte(`{"taskID":"missing-task","status":"완료"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "flow_task_ambiguous" || !response.SafeRetry {
+	if !response.IsError || response.ErrorCode != "flow_task_not_found" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if putCalled {
-		t.Fatal("ambiguous update must not write")
-	}
-	if !strings.Contains(string(response.Result), "task-1") || !strings.Contains(string(response.Result), "task-2") {
-		t.Fatalf("result = %s", string(response.Result))
+		t.Fatal("missing exact taskID must not write")
 	}
 }
 
@@ -631,8 +595,6 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary?week=26W24":
-				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"weeklyTasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodDelete && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				deletedRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
 				return flowToolJSONResponse(`{"status":"deleted","task":{"id":"task-1"}}`), nil
@@ -645,7 +607,7 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.delete",
-		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
+		Input:    []byte(`{"taskID":"task-1"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -658,6 +620,61 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 	}
 	if deletedRequesterEmail != "staff@example.com" {
 		t.Fatalf("requester email = %q", deletedRequesterEmail)
+	}
+}
+
+func TestDecodeFlowTaskDeleteInputRejectsResolutionFields(t *testing.T) {
+	for _, document := range []string{
+		`{"query":"회의"}`,
+		`{"taskID":"task-1","targetPersonHint":"staff"}`,
+		`{"taskID":"task-1","weekCode":"26W24"}`,
+	} {
+		_, errorValue := decodeFlowTaskDeleteInput([]byte(document))
+		if errorValue == nil {
+			t.Fatalf("document = %s expected validation error", document)
+		}
+	}
+}
+
+func TestFlowTaskDeleteNotFoundReturnsTypedFailure(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			response := flowToolJSONResponse(`{"error":"task not found"}`)
+			response.StatusCode = http.StatusNotFound
+			return response, nil
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.delete",
+		Input:    []byte(`{"taskID":"missing-task"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "flow_task_not_found" || response.Status == "deleted" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestFlowTaskDeleteReturnsTypedNotFoundWithoutExactEvidence(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return flowToolJSONResponse(`{"status":"deleted","task":{"id":"other-task"}}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.delete",
+		Input:    []byte(`{"taskID":"task-1"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "flow_task_not_found" || response.Status == "deleted" {
+		t.Fatalf("response = %+v error = %v", response, errorValue)
 	}
 }
 
