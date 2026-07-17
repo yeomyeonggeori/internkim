@@ -30,10 +30,25 @@
 	}
 
 	@media (max-width: 767px) {
+		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event,
+		.calendar-stage.calendar-stage-week .df-week-all-day-event-layer .df-event {
+			height: 24px !important;
+			min-height: 24px !important;
+			line-height: 24px !important;
+		}
+
 		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event:not(.calendar-multi-day-all-day-proxy) {
 			right: 4px !important;
 			left: 4px !important;
 			width: calc(100% - 8px) !important;
+		}
+
+		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event .calendar-event-content,
+		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event .calendar-event-title,
+		.calendar-stage.calendar-stage-week .df-week-all-day-event-layer .df-event .calendar-event-content,
+		.calendar-stage.calendar-stage-week .df-week-all-day-event-layer .df-event .calendar-event-title {
+			height: 24px;
+			line-height: 24px;
 		}
 
 		.calendar-stage.calendar-stage-day .df-day-event.df-event-timed:not(.df-right-panel-event-card):not(

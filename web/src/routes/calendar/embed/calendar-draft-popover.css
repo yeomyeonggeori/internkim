@@ -2,3 +2,16 @@
 @import './calendar-draft-popover-title-row.css';
 @import './calendar-draft-popover-fields.css';
 @import './calendar-draft-popover-footer.css';
+
+@media (forced-colors: active) {
+	.calendar-page .draft-popover-title-row input:focus-visible,
+	.calendar-page .draft-popover-field input:focus-visible,
+	.calendar-page .draft-popover-field textarea:focus-visible,
+	.calendar-page .draft-popover-field select:focus-visible,
+	.calendar-page .draft-popover-date-time-summary:focus-visible,
+	.calendar-page .calendar-participant-input-shell:focus-within {
+		outline: 2px solid Highlight;
+		outline-offset: 2px;
+		box-shadow: none;
+	}
+}
