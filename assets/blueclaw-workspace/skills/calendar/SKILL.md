@@ -1,90 +1,22 @@
 ---
 name: calendar
 description: Read or write the workspace calendar with calendar capability operations. Use this whenever the user asks to add, find, update, cancel, delete, or check meetings, schedules, 일정, 캘린더, 미팅, 회의, 약속, or reminders, even if they do not explicitly say "calendar."
-allowed-tools: calendar.add calendar.list calendar.update calendar.delete
+tool-references: calendar.add calendar.list calendar.update calendar.delete
 ---
 
 # Workspace Calendar
 
-Use the typed calendar tools directly with their fields. The runtime supplies requester identity and approval. The Work calendar is exposed through CalDAV and ICS, so Google Calendar, Apple Calendar, iPhone, and Mac clients can subscribe or sync without making Google Calendar the default write path.
-
-## Operations
-
-### `calendar.add`
-
-Create an event. This does not require approval.
-
-Required fields:
-
-- `title`
-- `startISO`
-- `endISO`
-
-Optional fields:
-
-- `description`
-- `location`
-- `timeZone`
-- `isAllDay`
-- `color`
-- `people`
-- `includeRequester`
-- `reminderLeadHours`
-
-Use RFC 3339 timestamps with timezone offsets, for example `2026-05-20T10:00:00+09:00`.
-
-### `calendar.list`
-
-Read events. This does not require approval.
-
-Optional fields:
-
-- `startISO`
-- `endISO`
-- `query`
-- `limit`
-
-Use both `startISO` and `endISO` together when narrowing a date range.
-
-### `calendar.update`
-
-Update an existing event. This does not require approval. Use an `eventID` only when it came from a successful observation; otherwise use `query` with the user's distinctive title wording.
-
-Required fields:
-
-- `title`
-- `startISO`
-- `endISO`
-
-Set either `eventID` or `query` when changing the title. If the title stays unchanged, the runtime can use that title to find the event when both are omitted. Other optional fields are the same as `calendar.add`.
-
-### `calendar.delete`
-
-Delete an event by observed `eventID` or distinctive `query`. This requires approval.
+Call the typed calendar operations directly; their descriptors define fields and results. The Work calendar is exposed through CalDAV and ICS, so clients can subscribe or sync without making Google Calendar the default write path.
 
 ## Rules
 
-- Prefer the Work calendar operations over Google Workspace operations for ordinary schedule requests.
-- Decide by the user's intent, not by the noun they used. A meeting, appointment, attendance block, location-based visit, or time block is a calendar event. A deliverable, deadline, todo, request, handoff, or completion target is work.
-- If the user asks to add a schedule but the content is a deadline-driven deliverable, create the work item with `task.add` and also create a calendar deadline/reminder when a due time is given.
-- If the user says a task-like item is complete, use `task.update` before considering `calendar.update`.
-- Do not mark calendar events with `[완료]` for task-like completion. Update or delete calendar events only when the user clearly asks to change, cancel, delete, or reschedule a calendar event.
-- Do not ask for approval before `calendar.add`, `calendar.list`, or `calendar.update`.
-- Ask for approval before `calendar.delete`.
-- If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the runtime temporal context before invoking an operation.
-- If the date, time, or duration is ambiguous, ask one concise question before writing.
-- For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
-- Put attendee/person hints in `people` as names, @handles, or emails. Use the names the user gave; do not invent account IDs or handles.
-- For ordinary calendar adds, the requester is an attendee by default. Put the other attendees in `people`; the runtime adds the requester. Set `includeRequester: false` only for delegated entries, announcements, all-hands events, or someone else's calendar where the requester is not attending.
-- If the event is for everyone, set `people` to `["전체"]` or `["@all"]`; do not rely on an empty `people` list for announcements.
-- The calendar stores attendees and the channel post already shows them as an attendee line — do not also restate attendee names inside `description`.
-- Choose `reminderLeadHours` from `1, 2, 3, 6, 12, 24, 48`.
-- Use `48` for overseas travel, long trips, or events needing two-day preparation.
-- Use `24` for domestic travel to another city or when uncertain.
-- Use `12` or `6` for external meetings or half-day preparation.
-- Use `1` for same-day internal online meetings.
-- When reporting created, updated, or listed events, prefer a compact Markdown table (columns like 일시/일정/장소/메모) over prose lists.
-- Do not say an event was created, changed, or deleted until the operation succeeds.
-- To update or delete an event the user names instead of giving an `eventID`, call `calendar.update` or `calendar.delete` directly with `query` set to a distinctive keyword from the event (a person or topic name). The runtime resolves the event across all dates and fails if the query matches zero or several events — you do not need a separate `calendar.list` step. Only react to the operation's own result: if it reports several candidates, ask which one; if it reports none, tell the user no matching event exists.
-- External attendee invitation is not supported by the Work calendar operation yet. If the user asks to invite people, create the event with attendee names in the description and mention that CalDAV clients can add invitations after sync.
-- Google Calendar integration is via the Work calendar's CalDAV/ICS sync URL. Do not use Google credential files, shell scripts, or Google-only operations unless the user explicitly asks for a Google Workspace bridge and that operation is available.
+- Prefer Work calendar operations over Google Workspace operations for ordinary schedule requests.
+- Decide by the user's intent, not by the noun they used. Meetings, appointments, attendance blocks, visits, and time blocks are calendar events; deliverables, deadlines, todos, requests, handoffs, and completion targets are work.
+- For a deadline-driven deliverable with a due time, call `task.add` and also `calendar.add` for the deadline or reminder.
+- For completion of a task-like item, use `task.update`. Do not mark calendar events with `[완료]`.
+- Do not ask approval before `calendar.add`, `calendar.list`, or `calendar.update`; ask before `calendar.delete`.
+- Resolve relative dates from runtime temporal context. Ask one concise question when date, time, or duration is ambiguous.
+- For all-day events, set `isAllDay` and use the next-day boundary for the end. Put attendee hints in `people` using only names, @handles, or emails supplied by the user; the requester is included by default unless the entry is delegated or an announcement.
+- Use `people` as `["전체"]` or `["@all"]` for everyone. Choose reminder leads from 1, 2, 3, 6, 12, 24, or 48 hours according to preparation needs.
+- When a named event lacks an ID, call update or delete with distinctive `query`; let the operation report none or multiple candidates. Do not claim success until it succeeds.
+- Report created, updated, or listed events in a compact Markdown table. External attendee invitations are not supported; mention that CalDAV clients can add them after sync.

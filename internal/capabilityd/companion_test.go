@@ -156,6 +156,43 @@ func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) 
 	}
 }
 
+func TestDecodeToolInvokeRequestRejectsOperationMismatch(t *testing.T) {
+	_, errorValue := decodeToolInvokeRequest("site.status", strings.NewReader(`{
+		"toolName": "site.delete",
+		"input": {}
+	}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "tool name mismatch") {
+		t.Fatalf("expected URL/body operation mismatch, got %v", errorValue)
+	}
+}
+
+func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("site.delete")
+	if !found {
+		t.Fatal("expected site.delete descriptor")
+	}
+	if descriptor.CanonicalName != "site.delete" {
+		t.Fatalf("expected canonical site.delete descriptor, got %+v", descriptor)
+	}
+	if descriptor.PolicyResource != "tool:site.delete" {
+		t.Fatalf("expected descriptor policy resource, got %q", descriptor.PolicyResource)
+	}
+	if !descriptor.RequiresApproval {
+		t.Fatal("expected site.delete descriptor to require approval")
+	}
+	if _, found := capabilityToolDescriptorFor("site."); found {
+		t.Fatal("expected prefix-only operation to have no descriptor")
+	}
+}
+
+func TestInvokeCapabilityToolRejectsUnknownPrefixOperation(t *testing.T) {
+	service := Service{}
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "company.unknown", strings.NewReader(`{"input":{}}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capability tool is not configured") {
+		t.Fatalf("expected unknown prefix operation to be rejected, got %v", errorValue)
+	}
+}
+
 func TestCompanionStructuredProviderRejectsDeniedToolResponse(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		result, _ := json.Marshal(capabilities.DenialResult{
@@ -461,7 +498,8 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 				Context:  testCase.context,
 			}
 			service := Service{}
-			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+			descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 			if isDenied != testCase.requiresApproval {
 				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
 			}
@@ -485,7 +523,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if isDenied {
 			t.Fatalf("expected self direct message to be pre-approved, got %+v", response)
 		}
@@ -498,7 +537,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected direct message to a different person to require approval")
 		}
@@ -512,7 +552,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플","personHints":["샘플"]}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected multi-recipient directMessage to require approval")
 		}
@@ -528,7 +569,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected resolution failure to require approval")
 		}
@@ -937,6 +979,15 @@ func assertCapabilityApprovalRequired(t *testing.T, response capabilities.ToolIn
 	if failure.ErrorCode != response.ErrorCode || failure.FailureStage != response.FailureStage || failure.Message != expectedMessage {
 		t.Fatalf("unexpected approval failure: %+v response=%+v", failure, response)
 	}
+}
+
+func descriptorForCapabilityToolTest(t *testing.T, toolName string) capabilities.Descriptor {
+	t.Helper()
+	descriptor, found := capabilityToolDescriptorFor(toolName)
+	if !found {
+		t.Fatalf("expected descriptor for %s", toolName)
+	}
+	return descriptor
 }
 
 func jsonResponse(response any) *http.Response {
