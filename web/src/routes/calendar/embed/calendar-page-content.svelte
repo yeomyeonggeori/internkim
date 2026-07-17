@@ -21,6 +21,7 @@
 
 	type CalendarPageContentProps = {
 		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
+		activeMobileEditorEventID: string | null;
 		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
@@ -61,18 +62,21 @@
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
 		changeCalendarView: (view: ViewType) => void;
 		clearSelectedEvent: () => void;
+		clearActiveMobileEditorEvent: (eventID: string) => void;
 		searchText?: string;
 		stageElement?: HTMLElement | null;
 	};
 
 	let {
 		auditEvent,
+		activeMobileEditorEventID,
 		calendar,
 		calendarOptions,
 		participantCandidates,
 		cancelPopover,
 		changeCalendarView,
 		clearSelectedEvent,
+		clearActiveMobileEditorEvent,
 		conflicts,
 		createQuickEvent,
 		currentMonthTitle,
@@ -135,7 +139,9 @@
 		{refreshCalendar}
 	/>
 	<CalendarStage
+		{activeMobileEditorEventID}
 		{calendar}
+		{clearActiveMobileEditorEvent}
 		{clearSelectedEvent}
 		events={stageEvents}
 		{participantCandidates}

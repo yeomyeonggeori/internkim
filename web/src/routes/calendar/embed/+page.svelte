@@ -232,7 +232,11 @@
 </svelte:head>
 
 <CalendarPageContent
+	activeMobileEditorEventID={state.activeMobileEditorEventID}
 	calendar={calendar}
+	clearActiveMobileEditorEvent={(eventID) => {
+		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
+	}}
 	conflicts={state.calendarConflicts}
 	dismissConflict={conflictActions.dismissCalendarConflict}
 	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}

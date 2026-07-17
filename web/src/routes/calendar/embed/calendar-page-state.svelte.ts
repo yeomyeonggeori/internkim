@@ -28,6 +28,7 @@ export class CalendarEmbedPageState {
 	toolbarDate: Date;
 	toolbarView: ViewType;
 	selectedAuditEventID = $state<string | null>(null);
+	activeMobileEditorEventID = $state<string | null>(null);
 	pendingEventID: string | null;
 	draftPopover = $state<DraftPopoverState | null>(null);
 	calendarConflicts = $state<CalendarConflict[]>([]);

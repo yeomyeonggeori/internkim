@@ -15,9 +15,11 @@
 	import CalendarMonthScrollOverlay from './calendar-month-scroll-overlay.svelte';
 	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
 	import {
+		mobileEventEditorActivationContextKey,
 		mobileEventEditorLocaleContextKey,
 		mobileEventEditorParticipantsContextKey,
 		mobileEventEditorPersistenceContextKey,
+		type MobileEventEditorActivationContext,
 		type MobileEventEditorLocaleContext,
 		type MobileEventEditorParticipantsContext,
 		type MobileEventEditorPersistenceContext
@@ -34,7 +36,9 @@
 	};
 
 	type CalendarStageProps = {
+		activeMobileEditorEventID: string | null;
 		calendar: ReturnType<typeof useCalendarApp>;
+		clearActiveMobileEditorEvent: (eventID: string) => void;
 		clearSelectedEvent: () => void;
 		events: DayFlowEvent[];
 		participantCandidates: CalendarParticipant[];
@@ -62,7 +66,9 @@
 	};
 
 	let {
+		activeMobileEditorEventID,
 		calendar,
+		clearActiveMobileEditorEvent,
 		clearSelectedEvent,
 		events,
 		participantCandidates,
@@ -85,6 +91,12 @@
 		toolbarDate,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarStageProps = $props();
+
+	setContext<MobileEventEditorActivationContext>(mobileEventEditorActivationContextKey, {
+		getActiveEventID: () => activeMobileEditorEventID,
+		getStageElement: () => stageElement,
+		clearActiveEvent: (eventID) => clearActiveMobileEditorEvent(eventID)
+	});
 
 	setContext<MobileEventEditorPersistenceContext>(mobileEventEditorPersistenceContextKey, {
 		saveEvent: (event) => saveMovedEvent(event)
