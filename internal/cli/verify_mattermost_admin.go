@@ -328,8 +328,6 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 
 func mattermostScenarioCreatedResourceToolName(eventName string) (string, bool) {
 	switch eventName {
-	case "tool.capability.invoke.result":
-		return "", true
 	case "tool.task.add.result":
 		return "task.add", true
 	case "tool.calendar.add.result":
@@ -379,7 +377,11 @@ func mattermostScenarioHasSiteEvidence(result mattermostScenarioResult) bool {
 			return true
 		}
 		for _, event := range step.TaskEvents {
-			if strings.Contains(event.Name, "site.") || strings.Contains(event.Body, "site.") {
+			toolName, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "requested")
+			if !isDirectToolEvent {
+				toolName, isDirectToolEvent = mattermostScenarioDirectToolName(event.Name, "result")
+			}
+			if isDirectToolEvent && strings.HasPrefix(toolName, "site.") {
 				return true
 			}
 		}

@@ -26,3 +26,7 @@ file-tool flows designed for the default `xlow` ceiling.
 
 Task, calendar, and website lifecycle scenarios use `--auto-confirm` to click
 real Mattermost approval buttons and wait for the approved task to finish.
+
+Each retained scenario artifact directory contains `result.json`, per-step
+event files, downloaded attachments, UI evidence, and a machine-readable
+`manifest.json` indexing those artifacts and informational timing metrics.

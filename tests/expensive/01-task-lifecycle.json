@@ -1,6 +1,8 @@
 {
   "name": "task-lifecycle",
   "requiresSDKD": true,
+  "expectedLLMProvider": "openrouter",
+  "expectedLLMModel": "xiaomi/mimo-v2.5",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/internkim-flow"],
   "allowedTools": ["conversation.history", "memory.search", "task.add", "task.list", "task.update", "task.delete"],
   "capabilityToolNames": ["task.add", "task.list", "task.update", "task.delete"],

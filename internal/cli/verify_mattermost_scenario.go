@@ -19,6 +19,8 @@ import (
 type mattermostScenario struct {
 	Name                      string                             `json:"name"`
 	RequiresSDKD              bool                               `json:"requiresSDKD"`
+	ExpectedLLMProvider       string                             `json:"expectedLLMProvider"`
+	ExpectedLLMModel          string                             `json:"expectedLLMModel"`
 	SkillDirectoryPaths       []string                           `json:"skillDirectoryPaths"`
 	AllowedTools              []string                           `json:"allowedTools"`
 	CapabilityToolNames       []string                           `json:"capabilityToolNames"`
@@ -36,8 +38,8 @@ type mattermostScenarioExposureEvidence struct {
 }
 
 type mattermostScenarioInstructionEvidence struct {
-	ExposedToolNames          []string            `json:"exposedToolNames"`
-	SelectedSkillAllowedTools map[string][]string `json:"selectedSkillAllowedTools"`
+	ExposedToolNames            []string            `json:"exposedToolNames"`
+	SelectedSkillToolReferences map[string][]string `json:"selectedSkillToolReferences"`
 }
 
 type mattermostScenarioWorkingSetEvidence struct {
@@ -270,7 +272,21 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 }
 
 func isMattermostScenarioToolResultEvent(name string) bool {
-	return strings.HasPrefix(name, "tool.") && strings.HasSuffix(name, ".result")
+	_, isDirectToolEvent := mattermostScenarioDirectToolName(name, "result")
+	return isDirectToolEvent
+}
+
+func mattermostScenarioDirectToolName(eventName string, phase string) (string, bool) {
+	prefix := "tool."
+	suffix := "." + phase
+	if !strings.HasPrefix(eventName, prefix) || !strings.HasSuffix(eventName, suffix) {
+		return "", false
+	}
+	toolName := strings.TrimSuffix(strings.TrimPrefix(eventName, prefix), suffix)
+	if toolName == "" || toolName == "capability.invoke" || toolName == "task.history" {
+		return "", false
+	}
+	return toolName, true
 }
 
 func validateMattermostScenarioResult(scenario mattermostScenario, result *mattermostScenarioResult) error {
@@ -282,7 +298,7 @@ func validateMattermostScenarioResult(scenario mattermostScenario, result *matte
 	}
 	for stepIndex, expectedStep := range scenario.Steps {
 		if scenario.RequiresSDKD {
-			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario.MaximumModelTier); errorValue != nil {
+			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -406,7 +422,7 @@ func validateMattermostScenarioSelectedSkills(stepIndex int, scenario mattermost
 		if skillName == "." || skillName == "/" || skillName == "" {
 			continue
 		}
-		if _, isSelected := instruction.SelectedSkillAllowedTools[skillName]; !isSelected {
+		if _, isSelected := instruction.SelectedSkillToolReferences[skillName]; !isSelected {
 			return fmt.Errorf("Mattermost scenario step %d did not select skill %q", stepIndex, skillName)
 		}
 	}
@@ -601,7 +617,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 	return nil
 }
 
-func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, maximumModelTier string) error {
+func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
 	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
 	requiredSchemaNameSet := testStringSet(requiredSchemaNames)
 	successfulSchemaNames := map[string]bool{}
@@ -637,8 +653,14 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		if strings.TrimSpace(call.Provider) == "" || strings.TrimSpace(call.Model) == "" || strings.TrimSpace(call.SelectedBackend) == "" {
 			return fmt.Errorf("Mattermost scenario step %d has incomplete model provenance for authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
-		if !isMattermostScenarioModelTierAtOrBelow(call.ModelTier, maximumModelTier) {
-			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s reported model tier %q above maximum %q", stepIndex, call.SchemaName, call.ModelTier, maximumModelTier)
+		if !isMattermostScenarioModelTierAtOrBelow(call.ModelTier, scenario.MaximumModelTier) {
+			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s reported model tier %q above maximum %q", stepIndex, call.SchemaName, call.ModelTier, scenario.MaximumModelTier)
+		}
+		if scenario.ExpectedLLMProvider != "" && call.Provider != scenario.ExpectedLLMProvider {
+			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected provider %q, expected %q", stepIndex, call.SchemaName, call.Provider, scenario.ExpectedLLMProvider)
+		}
+		if scenario.ExpectedLLMModel != "" && call.Model != scenario.ExpectedLLMModel {
+			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected model %q, expected %q", stepIndex, call.SchemaName, call.Model, scenario.ExpectedLLMModel)
 		}
 		successfulSchemaNames[call.SchemaName] = true
 	}
@@ -765,25 +787,9 @@ func toolResultOutputContains(body string, fragment string) bool {
 func countMattermostScenarioToolEvents(events []mattermostScenarioTaskEvent, toolName string) int {
 	count := 0
 	for _, event := range events {
-		if event.Name == "tool."+toolName+".requested" || isRequestedCapabilityOperation(event, toolName) {
+		if event.Name == "tool."+toolName+".requested" {
 			count++
 		}
 	}
 	return count
-}
-
-func isRequestedCapabilityOperation(event mattermostScenarioTaskEvent, operation string) bool {
-	if event.Name != "tool.capability.invoke.requested" {
-		return false
-	}
-	var body struct {
-		Operation string `json:"operation"`
-		Input     struct {
-			Operation string `json:"operation"`
-		} `json:"input"`
-	}
-	if json.Unmarshal([]byte(event.Body), &body) != nil {
-		return false
-	}
-	return body.Operation == operation || body.Input.Operation == operation
 }

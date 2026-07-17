@@ -131,11 +131,11 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{
 		{TaskEvents: []mattermostScenarioTaskEvent{
 			{
-				Name: "tool.capability.invoke.result",
+				Name: "tool.task.add.result",
 				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"},"content":"{\"id\":\"ignored-task\"}"}}`,
 			},
 			{
-				Name: "tool.capability.invoke.result",
+				Name: "tool.calendar.add.result",
 				Body: `{"tool":"calendar.add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
 			},
 			{
@@ -149,11 +149,11 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 		}},
 		{TaskEvents: []mattermostScenarioTaskEvent{
 			{
-				Name: "tool.capability.invoke.result",
+				Name: "tool.task.add.result",
 				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`,
 			},
 			{
-				Name: "tool.capability.invoke.result",
+				Name: "tool.task.list.result",
 				Body: `{"tool":"task.list","output":{"data":{"id":"must-not-delete"}}}`,
 			},
 			{
@@ -250,7 +250,7 @@ func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *test
 	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return "", nil }}
 	admin := mattermostScenarioAdmin{remote: remote}
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-		Name: "tool.capability.invoke.result",
+		Name: "tool.task.add.result",
 		Body: `{"tool":"task.add","output":{"data":{"taskID":"task-1"}}}`,
 	}}}}}
 
@@ -265,9 +265,9 @@ func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *test
 
 func TestMattermostScenarioCreatedResourcesIgnoreMalformedAndFailedResults(t *testing.T) {
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{
-		{Name: "tool.capability.invoke.result", Body: `not-json`},
-		{Name: "tool.capability.invoke.result", Body: `{"tool":"calendar.add","output":{"data":{"errorCode":"operation_failed"}}}`},
-		{Name: "tool.capability.invoke.requested", Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`},
+		{Name: "tool.task.add.result", Body: `not-json`},
+		{Name: "tool.calendar.add.result", Body: `{"tool":"calendar.add","output":{"data":{"errorCode":"operation_failed"}}}`},
+		{Name: "tool.task.add.requested", Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`},
 	}}}}
 
 	resourceIDs := collectMattermostScenarioCreatedResourceIDs(result)
@@ -300,7 +300,7 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 		ChannelID:      "channel",
 		ConversationID: "thread:channel:root",
 		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.capability.invoke.requested",
+			Name: "tool.site.create.requested",
 			Body: `{"operation":"site.create"}`,
 		}}}},
 	}
@@ -326,7 +326,13 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 func TestMattermostScenarioCleanupSkipsSitesWithoutSiteEvidence(t *testing.T) {
 	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return `[]`, nil }}
 	admin := mattermostScenarioAdmin{remote: remote}
-	result := mattermostScenarioResult{ConversationID: "thread:channel:root"}
+	result := mattermostScenarioResult{
+		ConversationID: "thread:channel:root",
+		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
+			Name: "tool.capability.invoke.result",
+			Body: `{"operation":"site.create","siteID":"site-1"}`,
+		}}}},
+	}
 
 	if errorValue := admin.cleanup(context.Background(), result, ""); errorValue != nil {
 		t.Fatal(errorValue)

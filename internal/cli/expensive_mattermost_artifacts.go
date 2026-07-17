@@ -3,12 +3,36 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 )
+
+type expensiveMattermostEvidenceManifest struct {
+	SchemaVersion int                                     `json:"schemaVersion"`
+	ScenarioName  string                                  `json:"scenarioName"`
+	TurnCount     int                                     `json:"turnCount"`
+	ResultPath    string                                  `json:"resultPath"`
+	Steps         []expensiveMattermostEvidenceStepRecord `json:"steps"`
+}
+
+type expensiveMattermostEvidenceStepRecord struct {
+	StepIndex          int      `json:"stepIndex"`
+	TaskRunID          string   `json:"taskRunID"`
+	TaskStatus         string   `json:"taskStatus"`
+	EventPath          string   `json:"eventPath"`
+	AttachmentPaths    []string `json:"attachmentPaths,omitempty"`
+	WorkspaceFilePaths []string `json:"workspaceFilePaths,omitempty"`
+	UIArtifactPaths    []string `json:"uiArtifactPaths,omitempty"`
+	LLMCallCount       int      `json:"llmCallCount"`
+	AgentStepCount     int      `json:"agentStepCount"`
+	ToolCallCount      int      `json:"toolCallCount"`
+	ProcessingMS       int64    `json:"processingMs"`
+}
 
 func writeExpensiveMattermostEvidence(directoryPath string, result mattermostScenarioResult) error {
 	if errorValue := os.MkdirAll(directoryPath, 0o755); errorValue != nil {
@@ -27,7 +51,74 @@ func writeExpensiveMattermostEvidence(directoryPath string, result mattermostSce
 			return errorValue
 		}
 	}
-	return writeExpensiveJSONArtifact(filepath.Join(directoryPath, "result.json"), sanitizeMattermostScenarioResult(result))
+	if errorValue := writeExpensiveJSONArtifact(filepath.Join(directoryPath, "result.json"), sanitizeMattermostScenarioResult(result)); errorValue != nil {
+		return errorValue
+	}
+	return writeExpensiveMattermostEvidenceManifest(directoryPath, result)
+}
+
+func writeExpensiveMattermostEvidenceManifest(directoryPath string, result mattermostScenarioResult) error {
+	manifest := expensiveMattermostEvidenceManifest{
+		SchemaVersion: 1,
+		ScenarioName:  result.ScenarioName,
+		TurnCount:     result.TurnCount,
+		ResultPath:    "result.json",
+		Steps:         make([]expensiveMattermostEvidenceStepRecord, 0, len(result.Steps)),
+	}
+	for stepIndex, step := range result.Steps {
+		record := expensiveMattermostEvidenceStepRecord{
+			StepIndex:      stepIndex,
+			TaskRunID:      step.TaskRunID,
+			TaskStatus:     step.TaskStatus,
+			EventPath:      filepath.ToSlash(filepath.Join("events", fmt.Sprintf("step-%02d.json", stepIndex+1))),
+			LLMCallCount:   step.LLMCallCount,
+			AgentStepCount: step.AgentStepCount,
+			ToolCallCount:  step.ToolCallCount,
+			ProcessingMS:   step.ProcessingMS,
+		}
+		for _, file := range step.Attachments {
+			record.AttachmentPaths = append(record.AttachmentPaths, filepath.ToSlash(filepath.Join("files", fmt.Sprintf("step-%02d", stepIndex+1), filepath.Base(file.Filename))))
+		}
+		for _, file := range step.WorkspaceFiles {
+			record.WorkspaceFilePaths = append(record.WorkspaceFilePaths, file.Path)
+		}
+		uiDirectoryPath := filepath.Join(directoryPath, "ui", fmt.Sprintf("step-%02d", stepIndex+1))
+		uiPaths, errorValue := expensiveMattermostEvidenceFiles(uiDirectoryPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		record.UIArtifactPaths = uiPaths
+		manifest.Steps = append(manifest.Steps, record)
+	}
+	return writeExpensiveJSONArtifact(filepath.Join(directoryPath, "manifest.json"), manifest)
+}
+
+func expensiveMattermostEvidenceFiles(directoryPath string) ([]string, error) {
+	if _, errorValue := os.Stat(directoryPath); errors.Is(errorValue, os.ErrNotExist) {
+		return nil, nil
+	} else if errorValue != nil {
+		return nil, errorValue
+	}
+	paths := []string{}
+	errorValue := filepath.Walk(directoryPath, func(filePath string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if information.IsDir() {
+			return nil
+		}
+		relativePath, errorValue := filepath.Rel(filepath.Dir(filepath.Dir(directoryPath)), filePath)
+		if errorValue != nil {
+			return errorValue
+		}
+		paths = append(paths, filepath.ToSlash(relativePath))
+		return nil
+	})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	sort.Strings(paths)
+	return paths, nil
 }
 
 func sanitizeMattermostScenarioResult(result mattermostScenarioResult) mattermostScenarioResult {

@@ -283,7 +283,7 @@ func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {
 		if event.Name == "agent.action" {
 			result.AgentStepCount++
 		}
-		if strings.HasPrefix(event.Name, "tool.") && strings.HasSuffix(event.Name, ".requested") {
+		if _, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "requested"); isDirectToolEvent {
 			result.ToolCallCount++
 		}
 	}
@@ -535,7 +535,7 @@ func convertMattermostScenarioPost(post mattermostProbePost) mattermostScenarioP
 
 func findMattermostScenarioPublicURL(message string) string {
 	for _, candidate := range mattermostScenarioURLPattern.FindAllString(message, -1) {
-		trimmedCandidate := strings.TrimRight(candidate, ".,;:!?*]")
+		trimmedCandidate := strings.TrimRight(candidate, ".,;:!?*]}'\"")
 		if strings.Contains(trimmedCandidate, "example.test") {
 			return trimmedCandidate
 		}
@@ -546,7 +546,7 @@ func findMattermostScenarioPublicURL(message string) string {
 func findMattermostScenarioEventPublicURL(events []mattermostScenarioTaskEvent) string {
 	for eventIndex := len(events) - 1; eventIndex >= 0; eventIndex-- {
 		event := events[eventIndex]
-		if !strings.HasPrefix(event.Name, "tool.") || !strings.HasSuffix(event.Name, ".result") {
+		if _, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "result"); !isDirectToolEvent {
 			continue
 		}
 		if publicURL := findMattermostScenarioPublicURL(event.Body); publicURL != "" {

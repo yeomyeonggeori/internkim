@@ -68,6 +68,31 @@ func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioRequiresExactSelectedLLMProviderAndModel(t *testing.T) {
+	scenario := mattermostScenario{
+		Name:                "sdkd",
+		RequiresSDKD:        true,
+		MaximumModelTier:    "low",
+		ExpectedLLMProvider: "openrouter",
+		ExpectedLLMModel:    "xiaomi/mimo-v2.5",
+		Steps:               []mattermostScenarioStep{{Prompt: "work"}},
+	}
+	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+		Prompt: "work",
+		TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+		},
+	}}}
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
+		t.Fatalf("validate exact model provenance: %v", errorValue)
+	}
+	result.Steps[0].TaskEvents[1].Body = strings.Replace(result.Steps[0].TaskEvents[1].Body, "xiaomi/mimo-v2.5", "other/model", 1)
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "selected model") {
+		t.Fatalf("expected exact model failure, got %v", errorValue)
+	}
+}
+
 func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 	scenario := mattermostScenario{
 		Name:                "exposure",
@@ -79,7 +104,7 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task.add"],"selectedSkillAllowedTools":{"internkim-flow":["task.add"]}}`},
+			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task.add"],"selectedSkillToolReferences":{"internkim-flow":["task.add"]}}`},
 			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task.add"],"selectedSkillToolIDs":["task.add"],"selectionSource":"selected_skills","usedFallbackGroups":false}}`},
 			{Name: "tool.task.add.requested"},
 		},
@@ -195,7 +220,7 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 			ExpectedToolCalls:      []string{"task.add"},
 			ExpectedEvents:         []string{"task.completed"},
 			ExpectedEventCounts: []mattermostScenarioEventCount{{
-				Name:         "tool.capability.invoke.result",
+				Name:         "tool.task.add.result",
 				BodyFragment: "task.add",
 				Count:        1,
 			}},
@@ -207,7 +232,7 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 		TaskEvents: []mattermostScenarioTaskEvent{
 			{Name: "task.completed"},
 			{Name: "tool.task.add.requested", Body: `{"operation":"task.add"}`},
-			{Name: "tool.capability.invoke.result", Body: "task.add report"},
+			{Name: "tool.task.add.result", Body: "task.add report"},
 		},
 	}
 	result := mattermostScenarioResult{
@@ -363,6 +388,10 @@ func TestMattermostScenarioOutputFragmentRequiresToolResult(t *testing.T) {
 	if errorValue := validateMattermostScenario(invalidScenario); errorValue == nil {
 		t.Fatal("expected outputFragment on a request event to be rejected")
 	}
+	invalidScenario.Steps[0].ExpectedEventCounts[0].Name = "tool.capability.invoke.result"
+	if errorValue := validateMattermostScenario(invalidScenario); errorValue == nil {
+		t.Fatal("expected outputFragment on the hidden dispatcher result to be rejected")
+	}
 }
 
 func TestMattermostScenarioAnyToolExpectationNeedsOneCandidate(t *testing.T) {
@@ -398,15 +427,12 @@ func TestMattermostScenarioBoundaryRejectsUnknownAndTrailingData(t *testing.T) {
 }
 
 func TestMattermostScenarioToolEvidenceRequiresRequestedEvent(t *testing.T) {
-	events := []mattermostScenarioTaskEvent{{Name: "tool.capability.invoke.result", Body: `{"operation":"task.add"}`}}
+	events := []mattermostScenarioTaskEvent{{Name: "tool.task.add.result", Body: `{"operation":"task.add"}`}}
 	if countMattermostScenarioToolEvents(events, "task.add") != 0 {
 		t.Fatal("expected result events not to count as tool requests")
 	}
-	events = append(events,
-		mattermostScenarioTaskEvent{Name: "tool.capability.invoke.requested", Body: `{"operation":"task.add"}`},
-		mattermostScenarioTaskEvent{Name: "tool.capability.invoke.requested", Body: `{"input":{"operation":"task.add"}}`},
-	)
-	if countMattermostScenarioToolEvents(events, "task.add") != 2 {
-		t.Fatal("expected both capability request shapes to count")
+	events = append(events, mattermostScenarioTaskEvent{Name: "tool.task.add.requested"})
+	if countMattermostScenarioToolEvents(events, "task.add") != 1 {
+		t.Fatal("expected direct typed request event to count")
 	}
 }
