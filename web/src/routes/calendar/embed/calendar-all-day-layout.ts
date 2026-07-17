@@ -62,7 +62,7 @@ export function clearCalendarAllDayLayout(stageElement: HTMLElement | null): voi
 function syncDayAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.dayAllDayRow);
 	if (!rowElement) return;
-	const eventElements = visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event, ${dayFlowSelector.multiDayProxy}`);
+	const eventElements = visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event`);
 	const eventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, dayVisibleRange(currentDate));
 	const rowCount = allDayEventRowCount(eventRowIndexes);
 	const rowHeight = dayAllDayRowHeight(rowCount);
@@ -77,7 +77,7 @@ function syncDayAllDayLayout(stageElement: HTMLElement, currentDate: Date, event
 function syncWeekAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.weekAllDayRow);
 	if (!rowElement) return;
-	const eventElements = visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event, ${dayFlowSelector.multiDayProxy}`);
+	const eventElements = visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event`);
 	const compactEventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, weekVisibleRange(currentDate));
 	const rowCount = allDayEventRowCount(compactEventRowIndexes);
 	const rowHeight = allDayRowHeight(rowCount);
@@ -94,7 +94,7 @@ function clearDayAllDayLayout(stageElement: HTMLElement): void {
 	if (!rowElement) return;
 	rowElement.style.removeProperty('--calendar-day-all-day-row-height');
 	delete rowElement.dataset.eventRows;
-	for (const eventElement of visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event, ${dayFlowSelector.multiDayProxy}`)) {
+	for (const eventElement of visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event`)) {
 		clearAllDayEventGeometry(eventElement);
 	}
 }
@@ -104,7 +104,7 @@ function clearWeekAllDayLayout(stageElement: HTMLElement): void {
 	for (const rowElement of stageElement.querySelectorAll<HTMLElement>(dayFlowSelector.weekAllDayRow)) {
 		delete rowElement.dataset.eventRows;
 	}
-	for (const eventElement of visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event, ${dayFlowSelector.multiDayProxy}`)) {
+	for (const eventElement of visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event`)) {
 		clearAllDayEventGeometry(eventElement);
 	}
 }
