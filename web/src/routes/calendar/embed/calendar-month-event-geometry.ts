@@ -44,18 +44,25 @@ type MonthWeekMeasure = {
 	cellsByDateKey: Map<string, MonthDateCellMeasure>;
 };
 
-const monthEventHeight = 16;
+type MonthEventGeometry = {
+	eventHeight: number;
+	moreButtonHeight: number;
+};
+
+const compactMonthWidth = 768;
+const compactMonthEventHeight = 24;
+const desktopMonthEventHeight = 16;
 const monthEventTopOffset = 34;
 const monthEventLaneGap = 3;
 const monthEventHorizontalInset = 4;
 const monthMoreButtonBottomInset = 6;
-const monthMoreButtonHeight = 16;
 const monthWeekGridSelector = '.df-month-week-grid';
 const monthDateCellSelector = '.df-month-day-cell[data-date]';
 
 export function measureMonthEventPlacements(stageElement: HTMLElement | null, events: DayFlowEvent[]): MonthEventPlacementResult {
 	if (!stageElement) return { placements: [], morePlacements: [] };
 	const stageRectangle = stageElement.getBoundingClientRect();
+	const geometry = monthEventGeometry(stageRectangle.width);
 	const weekMeasures = measuredMonthWeeks(stageElement, stageRectangle);
 	const weeks = weekMeasures.map((weekMeasure) => weekMeasure.week);
 	const weekMeasureByID = new Map(weekMeasures.map((weekMeasure) => [weekMeasure.week.id, weekMeasure]));
@@ -63,7 +70,11 @@ export function measureMonthEventPlacements(stageElement: HTMLElement | null, ev
 	const shouldReserveMoreByWeekID = new Map(
 		weekMeasures.map((weekMeasure) => [
 			weekMeasure.week.id,
-			segments.some((segment) => segment.weekID === weekMeasure.week.id && isSegmentOutsideVisibleLanes(segment, weekMeasure, false))
+			segments.some(
+				(segment) =>
+					segment.weekID === weekMeasure.week.id &&
+					isSegmentOutsideVisibleLanes(segment, weekMeasure, false, geometry)
+			)
 		])
 	);
 	const placements: MonthEventPlacement[] = [];
@@ -74,7 +85,14 @@ export function measureMonthEventPlacements(stageElement: HTMLElement | null, ev
 		const startCell = weekMeasure.cellsByDateKey.get(segment.startDateKey);
 		const endCell = weekMeasure.cellsByDateKey.get(segment.endDateKey);
 		if (!startCell || !endCell) continue;
-		if (isSegmentOutsideVisibleLanes(segment, weekMeasure, shouldReserveMoreByWeekID.get(segment.weekID) ?? false)) {
+		if (
+			isSegmentOutsideVisibleLanes(
+				segment,
+				weekMeasure,
+				shouldReserveMoreByWeekID.get(segment.weekID) ?? false,
+				geometry
+			)
+		) {
 			for (const cell of hiddenSegmentDateCells(segment, weekMeasure)) {
 				const moreID = `${segment.weekID}::more::${cell.dateKey}`;
 				const existingSummary = hiddenSegmentsByMoreID.get(moreID);
@@ -86,14 +104,19 @@ export function measureMonthEventPlacements(stageElement: HTMLElement | null, ev
 			}
 			continue;
 		}
-		placements.push(placementFromSegment(segment, startCell, endCell));
+		placements.push(placementFromSegment(segment, startCell, endCell, geometry));
 	}
 	return {
 		placements,
 		morePlacements: Array.from(hiddenSegmentsByMoreID.entries()).map(([id, summary]) =>
-			morePlacementFromSummary(id, summary.weekID, summary.cell, summary.segments)
+			morePlacementFromSummary(id, summary.weekID, summary.cell, summary.segments, geometry)
 		)
 	};
+}
+
+function monthEventGeometry(stageWidth: number): MonthEventGeometry {
+	const eventHeight = stageWidth < compactMonthWidth ? compactMonthEventHeight : desktopMonthEventHeight;
+	return { eventHeight, moreButtonHeight: eventHeight };
 }
 
 function hiddenSegmentDateCells(segment: MonthEventSegment, weekMeasure: MonthWeekMeasure): MonthDateCellMeasure[] {
@@ -149,31 +172,36 @@ function measuredMonthDateCell(cellElement: HTMLElement, stageRectangle: DOMRect
 function isSegmentOutsideVisibleLanes(
 	segment: MonthEventSegment,
 	weekMeasure: MonthWeekMeasure,
-	shouldReserveMoreButton: boolean
+	shouldReserveMoreButton: boolean,
+	geometry: MonthEventGeometry
 ): boolean {
 	const spannedCells = weekMeasure.week.dateKeys
 		.filter((dateKey) => dateKey >= segment.startDateKey && dateKey <= segment.endDateKey)
 		.map((dateKey) => weekMeasure.cellsByDateKey.get(dateKey))
 		.filter((cell): cell is MonthDateCellMeasure => Boolean(cell));
 	if (spannedCells.length === 0) return false;
-	const visibleLaneCount = Math.max(1, Math.min(...spannedCells.map((cell) => visibleLaneCountForCell(cell, shouldReserveMoreButton))));
+	const visibleLaneCount = Math.max(
+		1,
+		Math.min(...spannedCells.map((cell) => visibleLaneCountForCell(cell, shouldReserveMoreButton, geometry)))
+	);
 	return segment.lane >= visibleLaneCount;
 }
 
 function placementFromSegment(
 	segment: MonthEventSegment,
 	startCell: MonthDateCellMeasure,
-	endCell: MonthDateCellMeasure
+	endCell: MonthDateCellMeasure,
+	geometry: MonthEventGeometry
 ): MonthEventPlacement {
 	const left = startCell.left + monthEventHorizontalInset;
 	const width = Math.max(28, endCell.right - startCell.left - monthEventHorizontalInset * 2);
-	const top = startCell.top + monthEventTopOffset + segment.lane * (monthEventHeight + monthEventLaneGap);
+	const top = startCell.top + monthEventTopOffset + segment.lane * (geometry.eventHeight + monthEventLaneGap);
 	return {
 		...segment,
 		left: Math.round(left),
 		top: Math.round(top),
 		width: Math.round(Math.min(width, endCell.right - left - monthEventHorizontalInset)),
-		height: monthEventHeight
+		height: geometry.eventHeight
 	};
 }
 
@@ -181,7 +209,8 @@ function morePlacementFromSummary(
 	id: string,
 	weekID: string,
 	cell: MonthDateCellMeasure,
-	hiddenSegments: MonthEventSegment[]
+	hiddenSegments: MonthEventSegment[],
+	geometry: MonthEventGeometry
 ): MonthMorePlacement {
 	const left = cell.left + monthEventHorizontalInset;
 	return {
@@ -189,16 +218,20 @@ function morePlacementFromSummary(
 		weekID,
 		dateKey: cell.dateKey,
 		left: Math.round(left),
-		top: Math.round(cell.bottom - monthMoreButtonBottomInset - monthMoreButtonHeight),
+		top: Math.round(cell.bottom - monthMoreButtonBottomInset - geometry.moreButtonHeight),
 		width: Math.round(Math.max(28, cell.width - monthEventHorizontalInset * 2)),
-		height: monthMoreButtonHeight,
+		height: geometry.moreButtonHeight,
 		count: hiddenSegments.length,
 		hiddenSegments
 	};
 }
 
-function visibleLaneCountForCell(cell: MonthDateCellMeasure, shouldReserveMoreButton: boolean): number {
-	const reservedMoreHeight = shouldReserveMoreButton ? monthMoreButtonHeight + monthEventLaneGap : 0;
+function visibleLaneCountForCell(
+	cell: MonthDateCellMeasure,
+	shouldReserveMoreButton: boolean,
+	geometry: MonthEventGeometry
+): number {
+	const reservedMoreHeight = shouldReserveMoreButton ? geometry.moreButtonHeight + monthEventLaneGap : 0;
 	const availableHeight = cell.height - monthEventTopOffset - monthMoreButtonBottomInset - reservedMoreHeight;
-	return Math.floor(availableHeight / (monthEventHeight + monthEventLaneGap));
+	return Math.floor(availableHeight / (geometry.eventHeight + monthEventLaneGap));
 }
