@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,10 +19,24 @@ func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t 
 	}
 	result := mattermostScenarioResult{
 		ScenarioName: "document-lifecycle",
+		TurnCount:    1,
 		Steps: []mattermostScenarioStepResult{{
-			Attachments: []downloadedMattermostFile{file},
-			TaskEvents:  []mattermostScenarioTaskEvent{{TaskEventID: "event-1", Name: "task.completed"}},
+			TaskRunID:      "task-1",
+			TaskStatus:     "completed",
+			LLMCallCount:   2,
+			AgentStepCount: 1,
+			ToolCallCount:  1,
+			ProcessingMS:   1234,
+			Attachments:    []downloadedMattermostFile{file},
+			TaskEvents:     []mattermostScenarioTaskEvent{{TaskEventID: "event-1", Name: "task.completed"}},
 		}},
+	}
+	uiDirectoryPath := filepath.Join(directoryPath, "ui", "step-01")
+	if errorValue := os.MkdirAll(uiDirectoryPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(uiDirectoryPath, "mattermost-dm.png"), []byte("screenshot"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 
 	if errorValue := writeExpensiveMattermostEvidence(directoryPath, result); errorValue != nil {
@@ -42,6 +57,27 @@ func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t 
 	eventsDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "events", "step-01.json"))
 	if errorValue != nil || !strings.Contains(string(eventsDocument), "event-1") {
 		t.Fatalf("events=%s error=%v", eventsDocument, errorValue)
+	}
+	manifestDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "manifest.json"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var manifest expensiveMattermostEvidenceManifest
+	if errorValue := json.Unmarshal(manifestDocument, &manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if manifest.SchemaVersion != 1 || manifest.ResultPath != "result.json" || len(manifest.Steps) != 1 {
+		t.Fatalf("unexpected manifest=%+v", manifest)
+	}
+	step := manifest.Steps[0]
+	if step.TaskRunID != "task-1" || step.EventPath != "events/step-01.json" || step.LLMCallCount != 2 || step.ProcessingMS != 1234 {
+		t.Fatalf("unexpected manifest step=%+v", step)
+	}
+	if len(step.AttachmentPaths) != 1 || step.AttachmentPaths[0] != "files/step-01/분기 결산.docx" {
+		t.Fatalf("unexpected attachment paths=%v", step.AttachmentPaths)
+	}
+	if len(step.UIArtifactPaths) != 1 || step.UIArtifactPaths[0] != "ui/step-01/mattermost-dm.png" {
+		t.Fatalf("unexpected UI paths=%v", step.UIArtifactPaths)
 	}
 }
 

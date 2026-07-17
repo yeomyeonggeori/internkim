@@ -1,6 +1,8 @@
 {
   "name": "document-lifecycle",
   "requiresSDKD": true,
+  "expectedLLMProvider": "openrouter",
+  "expectedLLMModel": "xiaomi/mimo-v2.5",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/document"],
   "allowedTools": ["conversation.history", "memory.search", "terminal.run", "file.preview", "file.delete", "file.deliver"],
   "initialToolNames": ["terminal.run", "file.preview", "file.deliver"],
@@ -10,6 +12,9 @@
       "expectedToolCalls": ["terminal.run", "file.deliver"],
       "expectedAttachments": [".docx"],
       "expectedDocumentText": ["분기 결산 운영 검토", "초안", "운영팀"],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "private/people/*/documents/*.docx"}
+      ],
       "expectedEventCounts": [
         {"name": "tool.terminal.run.requested", "bodyFragment": "분기 결산 운영 검토", "count": 1},
         {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1}
@@ -25,6 +30,9 @@
         {"name": "tool.file.preview.result", "outputFragment": "분기 결산 운영 검토", "count": 1}
       ],
       "expectedReplyFragments": ["분기 결산 운영 검토", "초안", "운영팀"],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "private/people/*/documents/*.docx"}
+      ],
       "expectedTaskStatus": "completed"
     },
     {
@@ -32,6 +40,9 @@
       "expectedToolCalls": ["terminal.run", "file.deliver"],
       "expectedAttachments": [".docx"],
       "expectedDocumentText": ["분기 결산 운영 검토", "검토 완료", "재무팀"],
+      "expectedWorkspaceFiles": [
+        {"pathGlob": "private/people/*/documents/*.docx"}
+      ],
       "expectedEventCounts": [
         {"name": "tool.terminal.run.requested", "bodyFragment": "검토 완료", "count": 1},
         {"name": "tool.terminal.run.requested", "bodyFragment": "재무팀", "count": 1},

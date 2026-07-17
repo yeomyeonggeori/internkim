@@ -2123,7 +2123,7 @@ for expected_tool in $(printf '%%s' "$expected_tools_json" | jq -r '.[]'); do
     echo "expected tool.$expected_tool.requested, but no task was created for probe prompt" >&2
     exit 1
   fi
-  if ! jq -e --arg name "tool.$expected_tool.requested" --arg fragment "$expected_tool" --arg operation "\"operation\":\"$expected_tool\"" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; ((.name == $name) and ((.body // "") | tostring | contains($fragment))) or ((.name == "tool.capability.invoke.requested") and ((.body // "") | tostring | contains($operation))))' "$task_detail_file" >/dev/null; then
+  if ! jq -e --arg name "tool.$expected_tool.requested" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == $name)' "$task_detail_file" >/dev/null; then
     echo "expected requested tool event for $expected_tool in task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
     exit 1
