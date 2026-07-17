@@ -14,10 +14,6 @@ const calendarEventVersionConflictErrorCode = "calendar_event_version_conflict"
 
 var errCalendarEventVersionConflict = errors.New("calendar event version conflict")
 
-func (service *Service) writeCalendarEventIfCurrentVersion(ctx context.Context, event calendarEvent, expectedUpdatedAt string) error {
-	return service.writeCalendarEventIfCurrentVersionWithOrigin(ctx, event, expectedUpdatedAt, nil)
-}
-
 func (service *Service) writeCalendarEventIfCurrentVersionWithOrigin(ctx context.Context, event calendarEvent, expectedUpdatedAt string, origin *calendarMutationOrigin) error {
 	candidateUpdatedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, time.Now().UTC())
 	if errorValue != nil {

@@ -71,11 +71,12 @@ func TestSelectedCalendarSwitchWaitsForInFlightPutWithoutBlockingLocalWrites(t *
 		selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
 		switchResult <- selectedCalendarSaveResult{account: selectedAccount, error: errorValue}
 	}()
+	waitForCalendarSwitchWaiter(t, service)
 	var earlySwitchResult *selectedCalendarSaveResult
 	select {
 	case result := <-switchResult:
 		earlySwitchResult = &result
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 	localWriteResult := make(chan error, 1)
 	go func() {
@@ -150,7 +151,8 @@ func TestSelectedCalendarSwitchWaitsForInFlightDeleteCleanup(t *testing.T) {
 		t.Fatal("calendar DELETE did not start")
 	}
 	switchResult := startSelectedCalendarSwitch(ctx, service, account)
-	earlyResult, completedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	waitForCalendarSwitchWaiter(t, service)
+	earlyResult, completedEarly := waitForSelectedCalendarSwitch(switchResult, 0)
 	close(client.release)
 	waitForCalendarPush(t, pushResult, "calendar DELETE")
 	if completedEarly {
@@ -208,7 +210,8 @@ func TestSelectedCalendarSwitchWaitsForInFlightUIDQueryCleanup(t *testing.T) {
 		t.Fatal("calendar UID query did not start")
 	}
 	switchResult := startSelectedCalendarSwitch(ctx, service, account)
-	earlyResult, completedEarly := waitForSelectedCalendarSwitch(switchResult, 100*time.Millisecond)
+	waitForCalendarSwitchWaiter(t, service)
+	earlyResult, completedEarly := waitForSelectedCalendarSwitch(switchResult, 0)
 	close(client.release)
 	waitForCalendarPush(t, pushResult, "calendar UID query")
 	if completedEarly {
@@ -274,11 +277,30 @@ func startSelectedCalendarSwitch(ctx context.Context, service *Service, account 
 }
 
 func waitForSelectedCalendarSwitch(result <-chan selectedCalendarSaveResult, timeout time.Duration) (selectedCalendarSaveResult, bool) {
+	if timeout == 0 {
+		select {
+		case selectedResult := <-result:
+			return selectedResult, true
+		default:
+			return selectedCalendarSaveResult{}, false
+		}
+	}
 	select {
 	case selectedResult := <-result:
 		return selectedResult, true
 	case <-time.After(timeout):
 		return selectedCalendarSaveResult{}, false
+	}
+}
+
+func waitForCalendarSwitchWaiter(t *testing.T, service *Service) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for service.calendarSwitchWaiters.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("selected calendar switch did not wait for the remote mutation")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
