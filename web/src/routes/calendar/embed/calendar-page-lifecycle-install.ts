@@ -1,12 +1,11 @@
 import { tick } from 'svelte';
 import type { ViewType } from '@dayflow/svelte';
 import type { CalendarLocaleText } from '../text';
-import type { DraftPopoverState } from './calendar-draft-popover-state';
+import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
 import { installCalendarEmbedLifecycle } from './calendar-embed-lifecycle';
 import type { CalendarDraftPopoverActions } from './calendar-draft-popover-actions';
 import type { CalendarEventActions } from './calendar-event-actions';
 import type { CalendarEventLoader } from './calendar-event-loader';
-import type { CalendarPageEventDetailsActions } from './calendar-page-event-details';
 import type { CalendarPageEventSelectionActions } from './calendar-page-event-selection';
 import { createCalendarPageLifecycleOptions } from './calendar-page-lifecycle-options';
 import type { CalendarPageMessageActions } from './calendar-page-messages';
@@ -25,7 +24,6 @@ type CalendarPageLifecycleInstallContext = {
 	deleteEvent: (eventID: string) => Promise<void>;
 	draftPopoverActions: CalendarDraftPopoverActions;
 	eventActions: CalendarEventActions;
-	eventDetails: CalendarPageEventDetailsActions;
 	eventLoader: CalendarEventLoader;
 	eventSelection: CalendarPageEventSelectionActions;
 	getCurrentView: () => ViewType;
@@ -39,6 +37,7 @@ type CalendarPageLifecycleInstallContext = {
 	getToolbarDate: () => Date;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
+	openEventEditor: (eventID: string, anchor: DraftPopoverAnchor) => void;
 	pageMessages: CalendarPageMessageActions;
 	pageNavigation: CalendarPageNavigation;
 	rangePreview: CalendarPageRangePreviewActions;
