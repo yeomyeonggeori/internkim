@@ -55,6 +55,9 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`,
 	if errorValue != nil || affectedRows == 0 {
 		return false, errorValue
 	}
+	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, snapshotEvent.ID, deletedAt, nil); errorValue != nil {
+		return false, errorValue
+	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, snapshotEvent.ID); errorValue != nil {
 		return false, errorValue
 	}

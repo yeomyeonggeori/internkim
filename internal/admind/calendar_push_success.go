@@ -52,6 +52,10 @@ func (service *Service) persistCalendarPushSuccessForDeletedEvent(ctx context.Co
 		_ = transaction.Rollback()
 		return errorValue
 	}
+	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, eventID, "", nil); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if _, errorValue := transaction.ExecContext(ctx, `UPDATE calendar_outbox SET if_match_etag = ?, remote_href = ? WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status = ?`, strings.TrimSpace(remoteETag), strings.TrimSpace(remoteHref), strings.TrimSpace(row.AccountID), normalizeCalendarOutboxTargetURL(row.TargetCalendarURL), strings.TrimSpace(eventUID), calendarOutboxOperationDelete, calendarOutboxStatusPending); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue

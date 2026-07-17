@@ -28,7 +28,16 @@ func (service *Service) prepareCalendarOutboxForWrite(ctx context.Context, event
 }
 
 func (service *Service) prepareCalendarOutboxForDelete(ctx context.Context, event calendarEvent) (calendarOutboxRow, bool, error) {
-	account, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return calendarOutboxRow{}, false, errorValue
+	}
+	defer database.Close()
+	return prepareCalendarOutboxForDeleteWithRunner(ctx, database, event)
+}
+
+func prepareCalendarOutboxForDeleteWithRunner(ctx context.Context, queryRunner calendarSQLRunner, event calendarEvent) (calendarOutboxRow, bool, error) {
+	account, found, errorValue := readRemoteCalendarAccountByProviderWithRunner(ctx, queryRunner, remoteCalendarProviderGoogle)
 	if errorValue != nil {
 		return calendarOutboxRow{}, false, errorValue
 	}
@@ -39,11 +48,12 @@ func (service *Service) prepareCalendarOutboxForDelete(ctx context.Context, even
 		return calendarOutboxRow{}, false, calendarOutboxTargetUnavailableError(account.ID)
 	}
 	return calendarOutboxRow{
-		AccountID:   account.ID,
-		EventID:     event.ID,
-		EventUID:    event.UID,
-		Operation:   calendarOutboxOperationDelete,
-		IfMatchETag: event.RemoteETag,
-		RemoteHref:  event.RemoteHref,
+		AccountID:         account.ID,
+		EventID:           event.ID,
+		EventUID:          event.UID,
+		Operation:         calendarOutboxOperationDelete,
+		IfMatchETag:       event.RemoteETag,
+		RemoteHref:        event.RemoteHref,
+		TargetCalendarURL: activeRemoteCalendarTarget(account).CalendarURL,
 	}, true, nil
 }
