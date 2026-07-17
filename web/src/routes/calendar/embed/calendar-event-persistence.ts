@@ -49,10 +49,12 @@ export type CalendarDeleteIntent = {
 
 const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
 const calendarEventVersionConflictErrorCode = 'calendar_event_version_conflict';
+const calendarDeleteIntentConflictErrorCode = 'calendar_delete_intent_conflict';
 
 export type CalendarPersistenceErrorCode =
 	| typeof calendarTargetUnavailableErrorCode
 	| typeof calendarEventVersionConflictErrorCode
+	| typeof calendarDeleteIntentConflictErrorCode
 	| 'unknown';
 
 export class CalendarPersistenceError extends Error {
@@ -122,7 +124,7 @@ export async function createCalendarEventDeleteIntent(
 		keepalive: true
 	});
 	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
-	return (await response.json()) as CalendarDeleteIntent;
+	return parseCalendarDeleteIntent(await response.json(), errorFallback);
 }
 
 export async function cancelCalendarEventDeleteIntent(
@@ -167,7 +169,19 @@ function decodeCalendarPersistenceErrorCode(responseBody: string): CalendarPersi
 	if (!document || typeof document !== 'object' || !('code' in document)) return 'unknown';
 	if (document.code === calendarTargetUnavailableErrorCode) return calendarTargetUnavailableErrorCode;
 	if (document.code === calendarEventVersionConflictErrorCode) return calendarEventVersionConflictErrorCode;
+	if (document.code === calendarDeleteIntentConflictErrorCode) return calendarDeleteIntentConflictErrorCode;
 	return 'unknown';
+}
+
+function parseCalendarDeleteIntent(document: unknown, fallback: string): CalendarDeleteIntent {
+	if (!isCalendarDeleteIntent(document)) throw new CalendarPersistenceError('unknown', fallback);
+	return document;
+}
+
+function isCalendarDeleteIntent(document: unknown): document is CalendarDeleteIntent {
+	if (!document || typeof document !== 'object') return false;
+	if (!('operationID' in document) || !('executeAt' in document)) return false;
+	return typeof document.operationID === 'string' && typeof document.executeAt === 'string';
 }
 
 function responseBodyErrorMessage(message: string, fallback: string): string {
