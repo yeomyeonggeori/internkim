@@ -18,9 +18,10 @@
 			button: string;
 		};
 		morePlacements: MonthMorePlacement[];
+		selectedEventID: string | null;
 		handleMoreButtonClick: (event: MouseEvent, placement: MonthMorePlacement) => void;
-		handleMoreEventClick: (event: MouseEvent, segment: MonthEventSegment) => void;
-		handleMoreEventDoubleClick: (event: MouseEvent, segment: MonthEventSegment) => void;
+		handleMoreEventClick: (event: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
+		handleMoreEventDoubleClick: (event: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
 	};
 
 	let {
@@ -28,6 +29,7 @@
 		localeCode,
 		monthMoreText,
 		morePlacements,
+		selectedEventID,
 		handleMoreButtonClick,
 		handleMoreEventClick,
 		handleMoreEventDoubleClick
@@ -41,25 +43,41 @@
 		data-date-key={placement.dateKey}
 		style={monthMorePlacementStyle(placement)}
 		aria-label={monthMoreAriaLabel(monthMoreText.ariaLabel, placement, localeCode)}
+		aria-controls={`calendar-month-more-popover-${placement.dateKey}`}
+		aria-expanded={activeMorePlacement?.id === placement.id}
+		aria-haspopup="dialog"
 		onclick={(event) => handleMoreButtonClick(event, placement)}
 	>
 		{monthMoreButtonText(monthMoreText.button, placement.count)}
 	</button>
 {/each}
 {#if activeMorePlacement}
-	<div class="calendar-month-more-popover" style={monthMorePopoverStyle(activeMorePlacement)}>
-		<div class="calendar-month-more-popover-title">{formattedMonthMoreDate(activeMorePlacement.dateKey, localeCode)}</div>
+	<div
+		id={`calendar-month-more-popover-${activeMorePlacement.dateKey}`}
+		class="calendar-month-more-popover"
+		style={monthMorePopoverStyle(activeMorePlacement)}
+		role="dialog"
+		aria-labelledby={`calendar-month-more-popover-title-${activeMorePlacement.dateKey}`}
+	>
+		<div
+			id={`calendar-month-more-popover-title-${activeMorePlacement.dateKey}`}
+			class="calendar-month-more-popover-title"
+		>
+			{formattedMonthMoreDate(activeMorePlacement.dateKey, localeCode)}
+		</div>
 		<div class="calendar-month-more-popover-list">
 			{#each activeMorePlacement.hiddenSegments as segment (segment.id)}
 				<button
 					type="button"
 					class="calendar-month-more-popover-event"
+					class:internkim-calendar-event-focused={segment.eventID === selectedEventID}
 					data-event-id={segment.eventID}
-					onclick={(event) => handleMoreEventClick(event, segment)}
-					ondblclick={(event) => handleMoreEventDoubleClick(event, segment)}
+					aria-pressed={segment.eventID === selectedEventID}
+					onclick={(event) => handleMoreEventClick(event, segment, activeMorePlacement.dateKey)}
+					ondblclick={(event) => handleMoreEventDoubleClick(event, segment, activeMorePlacement.dateKey)}
 				>
 					<span class="calendar-month-more-popover-event-title">{segment.titleOnlyText}</span>
-					<span class="calendar-month-more-popover-event-date">{monthMoreEventDateText(segment)}</span>
+					<span class="calendar-month-more-popover-event-date">{monthMoreEventDateText(segment, localeCode)}</span>
 				</button>
 			{/each}
 		</div>

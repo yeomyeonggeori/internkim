@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { routeCalendarBackgroundAPI } from './calendar-embed-test-utils';
+import { routeCalendarBackgroundAPI, routeCalendarParticipants } from './calendar-embed-test-utils';
 
 test.describe('calendar localization', () => {
 	test('updates embedded calendar labels when language changes', async ({ page }) => {
@@ -37,6 +37,7 @@ test.describe('calendar localization', () => {
 			googleOAuthConfigured: false,
 			canManageGoogleOAuth: false
 		});
+		await routeCalendarParticipants(page, []);
 
 		await page.goto('/calendar/');
 		let calendarFrame = page.frameLocator('iframe');

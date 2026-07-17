@@ -1,5 +1,30 @@
 import { dayFlowEventSelectorForID } from './calendar-dayflow-dom-adapter';
 
+const calendarEventTargetSelector =
+	'[data-event-id].df-event, [data-event-id].df-month-segment-event, .calendar-multi-day-all-day-proxy[data-event-id], .calendar-month-more-popover-event[data-event-id]';
+
+export function calendarEventElementFromTarget(
+	stageElement: HTMLElement,
+	target: EventTarget | null
+): HTMLElement | null {
+	if (!(target instanceof Element)) return null;
+	const eventElement = target.closest<HTMLElement>(calendarEventTargetSelector);
+	if (!eventElement || !stageElement.contains(eventElement)) return null;
+	return eventElement;
+}
+
+export function normalizedCalendarEventID(eventID: string | undefined): string | null {
+	if (!eventID) return null;
+	return eventID.split('::')[0] ?? null;
+}
+
+export function isCalendarMonthEventLayerElement(eventElement: HTMLElement): boolean {
+	return (
+		eventElement.classList.contains('calendar-month-direct-event') ||
+		eventElement.classList.contains('calendar-month-more-popover-event')
+	);
+}
+
 export function openCalendarEventDetailPanel(stageElement: HTMLElement | null, eventID: string): void {
 	const eventElement = calendarEventElementByID(stageElement, eventID);
 	if (!eventElement) return;
@@ -10,16 +35,26 @@ export function focusCalendarEventElement(stageElement: HTMLElement | null, even
 	const eventElements = calendarEventElementsByID(stageElement, eventID).filter(isVisibleCalendarEventElement);
 	const eventElement = eventElements[0] ?? calendarEventElementByID(stageElement, eventID);
 	if (!eventElement) return;
-	clearFocusedCalendarEventElements(stageElement);
-	for (const element of eventElements.length > 0 ? eventElements : [eventElement]) {
-		element.classList.add('internkim-calendar-event-focused');
+	const focusedElements = eventElements.length > 0 ? eventElements : [eventElement];
+	const focusedElementSet = new Set(focusedElements);
+	for (const element of stageElement?.querySelectorAll<HTMLElement>('.internkim-calendar-event-focused') ?? []) {
+		if (focusedElementSet.has(element)) continue;
+		element.classList.remove('internkim-calendar-event-focused');
+		syncCalendarEventPressedState(element, false);
+	}
+	for (const element of focusedElements) {
+		if (!element.classList.contains('internkim-calendar-event-focused')) {
+			element.classList.add('internkim-calendar-event-focused');
+		}
+		syncCalendarEventPressedState(element, true);
 	}
 }
 
 export function clearFocusedCalendarEventElements(stageElement: HTMLElement | null): void {
 	if (!stageElement) return;
-	for (const element of stageElement.querySelectorAll('.internkim-calendar-event-focused')) {
+	for (const element of stageElement.querySelectorAll<HTMLElement>('.internkim-calendar-event-focused')) {
 		element.classList.remove('internkim-calendar-event-focused');
+		syncCalendarEventPressedState(element, false);
 	}
 }
 
@@ -43,6 +78,12 @@ export function isVisibleCalendarEventElement(element: HTMLElement): boolean {
 function calendarEventElementByID(stageElement: HTMLElement | null, eventID: string): HTMLElement | null {
 	const eventElements = calendarEventElementsByID(stageElement, eventID);
 	return eventElements.find(isVisibleCalendarEventElement) ?? eventElements[0] ?? null;
+}
+
+function syncCalendarEventPressedState(element: HTMLElement, isPressed: boolean): void {
+	if (!element.hasAttribute('aria-pressed')) return;
+	const value = String(isPressed);
+	if (element.getAttribute('aria-pressed') !== value) element.setAttribute('aria-pressed', value);
 }
 
 function detailOpenEventForElement(element: HTMLElement): MouseEvent {
