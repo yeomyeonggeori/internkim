@@ -3,8 +3,6 @@
 	import { ViewType } from '@dayflow/svelte';
 	import { onMount } from 'svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
-	import { calendarEventAnchorForEventID } from './calendar-draft-popover-anchor';
-	import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
 	import {
 		type MonthEventPlacement,
 		type MonthMorePlacement
@@ -14,6 +12,7 @@
 		eventsWithMonthDragPreview,
 		type MonthEventDragState
 	} from './calendar-month-event-drag';
+	import { createCalendarMonthEventActivation } from './calendar-month-event-activation';
 	import { createMonthEventMeasurementController } from './calendar-month-event-measurement';
 	import { monthEventPlacementStyle } from './calendar-month-event-layer-format';
 	import CalendarMonthMoreLayer from './calendar-month-more-layer.svelte';
@@ -29,7 +28,6 @@
 		};
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
-		selectEvent: (eventID: string) => void;
 		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		stageElement: HTMLElement | null;
@@ -43,7 +41,6 @@
 		monthMoreText,
 		openEvent,
 		saveMovedEvent,
-		selectEvent,
 		selectDate,
 		selectedEventID,
 		stageElement,
@@ -85,6 +82,12 @@
 			placements = nextPlacements;
 		}
 	});
+	const eventActivation = createCalendarMonthEventActivation({
+		getStageElement: () => stageElement,
+		openEvent: (eventID, anchor) => openEvent(eventID, anchor),
+		selectDate: (dateKey) => selectDate(dateKey),
+		shouldSuppressEventActivation
+	});
 
 	$effect(() => {
 		stageElement;
@@ -104,7 +107,11 @@
 			isActive: () => Boolean(activeMorePlacementID),
 			clearActiveMorePlacement: () => {
 				activeMorePlacementID = null;
-			}
+			},
+			getActivePopoverElement: () =>
+				stageElement?.querySelector<HTMLElement>('.calendar-month-more-popover') ?? null,
+			getActiveTriggerElement: () =>
+				stageElement?.querySelector<HTMLElement>('.calendar-month-more-button[aria-expanded="true"]') ?? null
 		});
 	});
 
@@ -120,28 +127,8 @@
 		if (pointerEvent.button !== 0) return;
 		const event = events.find((calendarEvent) => calendarEvent.id === placement.eventID);
 		if (!event) return;
-		selectDate(placement.startDateKey);
-		selectEvent(placement.eventID);
+		eventActivation.selectDate(placement);
 		dragController.startDrag(pointerEvent, event);
-	}
-
-	function handleClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
-		mouseEvent.preventDefault();
-		mouseEvent.stopPropagation();
-		if (shouldSuppressEventActivation()) return;
-		selectDate(placement.startDateKey);
-		selectEvent(placement.eventID);
-	}
-
-	function handleDoubleClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
-		mouseEvent.preventDefault();
-		mouseEvent.stopPropagation();
-		if (shouldSuppressEventActivation()) return;
-		if (!(mouseEvent.currentTarget instanceof HTMLElement)) return;
-		selectDate(placement.startDateKey);
-		selectEvent(placement.eventID);
-		const anchor = calendarEventAnchorForEventID(stageElement, placement.eventID) ?? calendarEventAnchorFromElement(mouseEvent.currentTarget);
-		openEvent(placement.eventID, anchor);
 	}
 
 	function handleMoreButtonClick(mouseEvent: MouseEvent, placement: MonthMorePlacement): void {
@@ -149,29 +136,11 @@
 		mouseEvent.stopPropagation();
 		activeMorePlacementID = activeMorePlacementID === placement.id ? null : placement.id;
 	}
-
-	function handleMoreEventClick(mouseEvent: MouseEvent, segment: MonthMorePlacement['hiddenSegments'][number]): void {
-		mouseEvent.preventDefault();
-		mouseEvent.stopPropagation();
-		selectDate(segment.startDateKey);
-		selectEvent(segment.eventID);
-	}
-
-	function handleMoreEventDoubleClick(mouseEvent: MouseEvent, segment: MonthMorePlacement['hiddenSegments'][number]): void {
-		mouseEvent.preventDefault();
-		mouseEvent.stopPropagation();
-		if (!(mouseEvent.currentTarget instanceof HTMLElement)) return;
-		selectDate(segment.startDateKey);
-		selectEvent(segment.eventID);
-		openEvent(segment.eventID, calendarEventAnchorFromElement(mouseEvent.currentTarget));
-	}
-
 	function shouldSuppressEventActivation(): boolean {
 		if (Date.now() <= suppressedEventActivationUntil) return true;
 		suppressedEventActivationUntil = 0;
 		return false;
 	}
-
 </script>
 
 {#if toolbarView === ViewType.MONTH}
@@ -187,8 +156,9 @@
 				data-event-id={placement.eventID}
 				style={monthEventPlacementStyle(placement)}
 				aria-label={placement.titleText}
-				onclick={(event) => handleClick(event, placement)}
-				ondblclick={(event) => handleDoubleClick(event, placement)}
+				aria-pressed={placement.eventID === selectedEventID}
+				onclick={(event) => eventActivation.handleDirectEventClick(event, placement)}
+				ondblclick={(event) => eventActivation.handleDirectEventDoubleClick(event, placement)}
 				onpointerdown={(event) => handlePointerDown(event, placement)}
 			>
 				<span class="calendar-event-content calendar-month-event-content">
@@ -201,9 +171,10 @@
 			{localeCode}
 			{monthMoreText}
 			{morePlacements}
+			{selectedEventID}
 			{handleMoreButtonClick}
-			{handleMoreEventClick}
-			{handleMoreEventDoubleClick}
+			handleMoreEventClick={eventActivation.handleOverflowEventClick}
+			handleMoreEventDoubleClick={eventActivation.handleOverflowEventDoubleClick}
 		/>
 	</div>
 {/if}

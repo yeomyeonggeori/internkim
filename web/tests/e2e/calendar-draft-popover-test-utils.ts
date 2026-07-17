@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { routeCalendarParticipants } from './calendar-embed-test-utils';
 
 export type CalendarDraftPopoverEvent = {
 	id: string;
@@ -20,6 +21,7 @@ export async function routeCalendarAPI(page: Page): Promise<void> {
 	await page.route('**/calendar/api/events?**', async (route) => {
 		await route.fulfill({ json: { events: [] } });
 	});
+	await routeCalendarParticipants(page, []);
 	await page.route('**/calendar/api/sync', async (route) => {
 		await route.fulfill({
 			json: {

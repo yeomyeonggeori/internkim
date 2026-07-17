@@ -17,6 +17,47 @@ test.describe('calendar route shell', () => {
 		await expectRouteCalendarFrameToFillContent(page);
 	});
 
+	test('keeps event clicks inside the calendar shell', async ({ context, page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/');
+
+		const eventButton = page.frameLocator('iframe').locator('[data-event-id="event-2026-06-15"]:visible').first();
+		await expect(eventButton).toBeVisible();
+		await eventButton.click();
+
+		await expect(eventButton).toHaveClass(/internkim-calendar-event-focused/);
+		await expect(page.frameLocator('iframe').locator('.calendar-draft-popover')).toHaveCount(0);
+		expect(context.pages()).toHaveLength(1);
+	});
+
+	test('opens an event popover on double click inside the calendar shell', async ({ context, page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/');
+
+		const calendarFrame = page.frameLocator('iframe');
+		const eventButton = calendarFrame.locator('[data-event-id="event-2026-06-15"]:visible').first();
+		await expect(eventButton).toBeVisible();
+		await eventButton.dblclick();
+
+		await expect(calendarFrame.locator('.calendar-draft-popover')).toBeVisible();
+		expect(context.pages()).toHaveLength(1);
+	});
+
+	test('opens the compact editor for a month event in a narrow calendar shell', async ({ context, page }) => {
+		await page.setViewportSize({ width: 600, height: 900 });
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/');
+
+		const calendarFrame = page.frameLocator('iframe');
+		const eventButton = calendarFrame.locator('[data-event-id="event-2026-06-15"]:visible').first();
+		await expect(eventButton).toBeVisible();
+		await eventButton.dblclick();
+
+		await expect(calendarFrame.locator('.calendar-mobile-event-editor')).toBeVisible();
+		await expect(calendarFrame.locator('.calendar-draft-popover')).toHaveCount(0);
+		expect(context.pages()).toHaveLength(1);
+	});
+
 	test('opens subscription settings from the embedded toolbar', async ({ page }) => {
 		await page.goto('/calendar/');
 
