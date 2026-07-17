@@ -124,6 +124,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			openEventDetails: (eventID) => eventDetails.openEventDetails(eventID),
 			openMobileEventEditor: (event) => {
 				context.state.draftPopover = null;
+				context.state.activeMobileEditorEventID = event.id;
 				calendar.app.onMobileEventDetailToggle(event);
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
@@ -163,10 +164,12 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		getToolbarDate: () => context.state.toolbarDate,
 		loadEvents: eventLoader.loadEvents,
 		setVisibleDate: context.setVisibleDate,
-		selectCalendarEvent: (eventID) => eventSelection.selectCalendarEvent(eventID),
 		saveCreatedEvent: eventActions.saveCreatedEvent,
 		saveUpdatedEvent: eventActions.saveUpdatedEvent,
-		deleteEvent: eventActions.deleteEvent
+		deleteEvent: eventActions.deleteEvent,
+		closeMobileEventEditor: () => {
+			context.state.activeMobileEditorEventID = null;
+		}
 	}));
 
 	const eventSelection = createCalendarPageEventSelection({
