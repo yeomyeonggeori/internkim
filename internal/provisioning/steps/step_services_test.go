@@ -15,16 +15,18 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"defaultBudgetClass",
 		"defaultTaskLevel",
 		"firecrackerGuest",
-		"runtime-profile-google-tool",
 		"runtime-capability-google-tool",
-		"file.deliver",
-		"ask.confirm",
 		"runtime-config-mirror-drift",
 		"runtime-outbound-network-disabled",
 		"runtime-outbound-network-cidr",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected runtime contract check to contain %q", expectedFragment)
+		}
+	}
+	for _, staleFragment := range []string{"runtime-profile-missing-tools", "runtime-profile-google-tool", "mandatory_profile_tools"} {
+		if strings.Contains(command, staleFragment) {
+			t.Fatalf("expected runtime contract check to omit stale profile validation %q", staleFragment)
 		}
 	}
 }

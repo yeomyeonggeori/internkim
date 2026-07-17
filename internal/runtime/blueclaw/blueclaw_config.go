@@ -85,39 +85,14 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
 }
 
-var blueclawNativeToolNames = []string{
-	"terminal.run",
-	"ask.input",
-	"ask.confirm",
-	"file.deliver",
-	"skill.search",
-	"file.read",
-	"file.write",
-	"file.edit",
-	"file.patch",
-	"file.preview",
-	"file.delete",
-	"image.read",
-}
-
-func BlueclawDefaultAllowedToolNames() []string {
-	return uniqueStringList(blueclawNativeToolNames)
-}
-
 func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
-	agentProfiles := []map[string]any{
-		{
-			"name":             "default",
-			"allowedToolNames": BlueclawDefaultAllowedToolNames(),
-		},
-	}
 	if !allowAdminTaskDiagnostic {
-		return agentProfiles
+		return nil
 	}
-	return append(agentProfiles, map[string]any{
+	return []map[string]any{{
 		"name":             BlueclawSDKDTopologyDiagnosticProfileName,
 		"allowedToolNames": []string{BlueclawSDKDTopologyDiagnosticToolSentinel},
-	})
+	}}
 }
 
 func removeDefaultSkillScopedToolNames(toolNames []string) []string {
@@ -305,7 +280,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
 			"vsockCID":        CapabilityVSockHostCID,
 			"vsockPort":       capabilityVSockPort,
-			"toolNames":       capabilities.DefaultToolNames(),
 			"toolDescriptors": capabilities.DefaultToolDescriptors(),
 			"routing": map[string]any{
 				"candidates": capabilities.RoutingCandidates(),

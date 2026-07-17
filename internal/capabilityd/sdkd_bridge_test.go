@@ -182,7 +182,7 @@ func TestSDKDBridgePreservesCancellation(t *testing.T) {
 	})}
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(func() {
-		_ = server.Shutdown(context.Background())
+		_ = server.Close()
 		_ = listener.Close()
 	})
 

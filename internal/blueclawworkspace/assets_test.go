@@ -439,7 +439,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	content := string(document)
 	for _, expectedText := range []string{
 		"latest compatible artifact in recent same-conversation posts",
-		"older PDF or Markdown files are supporting material",
+		"Older PDF or Markdown files are supporting material",
 		"work only in `artifacts/<deck-slug>/`",
 		"`slides.html` as the canonical controller-free source",
 		"restore_source.py",
@@ -622,7 +622,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"status chips",
 		"raw `<table>` or bare `<ul>`",
 		"same 2x2 card dashboard",
-		"board-floor composition set",
+		"A board or quarterly deck needs KPI cards",
 		"composition-seeds.md",
 		"visual-styles.md",
 		"webfonts.md",
@@ -722,7 +722,6 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 		}
 	}
 }
-
 
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")

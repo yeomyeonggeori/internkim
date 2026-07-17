@@ -422,8 +422,8 @@ if capabilities.get("endpoint") != "http://internkim-capability":
     print("runtime-capability-endpoint")
     raise SystemExit
 
-for tool_name in capabilities.get("toolNames", []):
-    if str(tool_name).startswith("google."):
+for descriptor in capabilities.get("toolDescriptors", []):
+    if descriptor.get("namespace") == "google":
         print("runtime-capability-google-tool")
         raise SystemExit
 
@@ -459,23 +459,6 @@ if outbound_network.get("networkCIDR") != "172.31.0.0/30":
 if outbound_network.get("guestGateway") != "172.31.0.1":
     print("runtime-outbound-network-gateway")
     raise SystemExit
-
-profile_tool_names = []
-for profile in runtime_configuration.get("agentProfiles", []):
-    if profile.get("name") == "default":
-        profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
-        break
-
-mandatory_profile_tools = {"terminal.run", "ask.input", "ask.confirm", "file.deliver", "skill.search", "file.read", "file.write", "file.edit", "file.patch", "file.preview", "image.read"}
-missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
-if missing_tools:
-    print("runtime-profile-missing-tools:" + ",".join(missing_tools))
-    raise SystemExit
-
-for tool_name in profile_tool_names:
-    if tool_name.startswith("google."):
-        print("runtime-profile-google-tool")
-        raise SystemExit
 
 print("ok")
 PY`
