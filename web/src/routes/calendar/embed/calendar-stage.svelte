@@ -55,7 +55,6 @@
 		navigateToDateKey: (dateKey: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
-		selectEvent: (eventID: string) => void;
 		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
@@ -82,7 +81,6 @@
 		navigateToDateKey,
 		openEvent,
 		saveMovedEvent,
-		selectEvent,
 		selectDate,
 		selectedEventID,
 		timelineRangePreviewSegments,
@@ -178,7 +176,6 @@
 		{monthMoreText}
 		{openEvent}
 		{saveMovedEvent}
-		{selectEvent}
 		{selectDate}
 		{selectedEventID}
 		{stageElement}

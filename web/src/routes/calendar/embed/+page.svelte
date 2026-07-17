@@ -258,7 +258,6 @@
 	{localeCode}
 	selectedEventID={state.selectedAuditEventID}
 	openEvent={openCalendarEvent}
-	selectEvent={eventSelection.selectCalendarEvent}
 	selectDate={selectedMonthDate.selectMonthDate}
 	saveMovedEvent={eventSelection.saveMovedMonthEvent}
 	bind:stageElement={state.calendarStageElement}
