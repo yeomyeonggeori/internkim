@@ -226,8 +226,9 @@ func (admin mattermostScenarioAdmin) workspaceDownload(contextValue context.Cont
 
 func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, result mattermostScenarioResult, email string) error {
 	cleanupErrors := []error{}
-	if errorValue := admin.deleteCreatedResources(contextValue, result, email); errorValue != nil {
-		cleanupErrors = append(cleanupErrors, errorValue)
+	resourceCleanupError := admin.deleteCreatedResources(contextValue, result, email)
+	if resourceCleanupError != nil {
+		cleanupErrors = append(cleanupErrors, resourceCleanupError)
 	}
 	conversationID := firstNonEmptyString(result.ConversationID, result.ChannelID)
 	if errorValue := admin.deleteConversationTasks(contextValue, conversationID); errorValue != nil {
@@ -238,7 +239,7 @@ func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, resul
 			cleanupErrors = append(cleanupErrors, errorValue)
 		}
 	}
-	if normalizedEmail := strings.TrimSpace(email); normalizedEmail != "" {
+	if normalizedEmail := strings.TrimSpace(email); normalizedEmail != "" && resourceCleanupError == nil {
 		if _, errorValue := admin.request(contextValue, "DELETE", "/admin/api/people?email="+url.QueryEscape(normalizedEmail), nil); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario person: %w", errorValue))
 		}
