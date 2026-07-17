@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
-	"strings"
 	"time"
 )
 
@@ -27,6 +26,14 @@ func (service *Service) writeCalendarEventWithSource(ctx context.Context, event 
 }
 
 func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, event calendarEvent, source string, candidateUpdatedAt time.Time) error {
+	return service.writeCalendarEventWithSourceLockedAndOrigin(ctx, event, source, candidateUpdatedAt, nil)
+}
+
+func (service *Service) writeCalendarEventWithSourceLockedAndOrigin(ctx context.Context, event calendarEvent, source string, candidateUpdatedAt time.Time, origin *calendarMutationOrigin) error {
+	return service.writeCalendarEventWithSourceLockedAndOriginIfCurrent(ctx, event, source, candidateUpdatedAt, origin, "")
+}
+
+func (service *Service) writeCalendarEventWithSourceLockedAndOriginIfCurrent(ctx context.Context, event calendarEvent, source string, candidateUpdatedAt time.Time, origin *calendarMutationOrigin, expectedUpdatedAt string) error {
 	var previousEvent calendarEvent
 	if source == calendarSourceLocal {
 		existing, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
@@ -58,6 +65,18 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
+	if expectedUpdatedAt != "" {
+		var matchingVersions int
+		errorValue := transaction.QueryRowContext(ctx, `SELECT COUNT(*) FROM calendar_events WHERE id = ? AND updated_at = ? AND deleted_at = ''`, event.ID, expectedUpdatedAt).Scan(&matchingVersions)
+		if errorValue != nil {
+			_ = transaction.Rollback()
+			return errorValue
+		}
+		if matchingVersions != 1 {
+			_ = transaction.Rollback()
+			return errCalendarEventVersionConflict
+		}
+	}
 	if source == calendarSourceLocal {
 		logicalTime, errorValue := service.allocateCalendarConflictTime(ctx, transaction, event.UID, candidateUpdatedAt)
 		if errorValue != nil {
@@ -73,7 +92,7 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 			return errorValue
 		}
 	}
-	if errorValue := service.persistCalendarEventMutationWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+	if errorValue := service.persistCalendarEventMutationWithOrigin(ctx, transaction, event, updatedAt, origin); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -96,11 +115,18 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 }
 
 func (service *Service) persistCalendarEventMutationWithTransaction(ctx context.Context, transaction *sql.Tx, event calendarEvent, updatedAt string) error {
+	return service.persistCalendarEventMutationWithOrigin(ctx, transaction, event, updatedAt, nil)
+}
+
+func (service *Service) persistCalendarEventMutationWithOrigin(ctx context.Context, transaction *sql.Tx, event calendarEvent, updatedAt string, origin *calendarMutationOrigin) error {
 	previousEvent, previousEventFound, errorValue := readCalendarEventWindowMutationEvent(ctx, transaction, event.ID)
 	if errorValue != nil {
 		return errorValue
 	}
 	if errorValue := persistCalendarEventWithTransaction(ctx, transaction, event, updatedAt); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, event.ID, updatedAt, origin); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := deleteCalendarEventDeletionClock(ctx, transaction, event.UID); errorValue != nil {
@@ -221,46 +247,9 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	if errorValue != nil {
 		return errorValue
 	}
-	deletedAt := candidateDeletedAt.Format(time.RFC3339Nano)
-	if source == calendarSourceLocal {
-		logicalTime, errorValue := service.allocateCalendarConflictTime(ctx, transaction, event.UID, candidateDeletedAt)
-		if errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
-		deletedAt = logicalTime.Format(time.RFC3339Nano)
-		if errorValue := persistCalendarEventFieldClocks(ctx, transaction, event.UID, []string{calendarEventDeletionClockField}, deletedAt); errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
-	}
-	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", deletedAt, deletedAt, strings.TrimSpace(eventID))
-	if errorValue != nil {
+	if _, errorValue := service.persistCalendarEventDeletionWithTransaction(ctx, transaction, event, source, candidateDeletedAt, outboxRow, shouldSignalSync); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
-	}
-	affectedRows, errorValue := result.RowsAffected()
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if affectedRows == 0 {
-		_ = transaction.Rollback()
-		return sql.ErrNoRows
-	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, eventID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if shouldSignalSync {
-		if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, outboxRow, deletedAt); errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
 	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue

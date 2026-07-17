@@ -15,20 +15,17 @@ const calendarEventVersionConflictErrorCode = "calendar_event_version_conflict"
 var errCalendarEventVersionConflict = errors.New("calendar event version conflict")
 
 func (service *Service) writeCalendarEventIfCurrentVersion(ctx context.Context, event calendarEvent, expectedUpdatedAt string) error {
+	return service.writeCalendarEventIfCurrentVersionWithOrigin(ctx, event, expectedUpdatedAt, nil)
+}
+
+func (service *Service) writeCalendarEventIfCurrentVersionWithOrigin(ctx context.Context, event calendarEvent, expectedUpdatedAt string, origin *calendarMutationOrigin) error {
 	candidateUpdatedAt, errorValue := service.reserveCalendarConflictCandidateTime(ctx, time.Now().UTC())
 	if errorValue != nil {
 		return errorValue
 	}
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
-	currentEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found || strings.TrimSpace(currentEvent.UpdatedAt) != strings.TrimSpace(expectedUpdatedAt) {
-		return errCalendarEventVersionConflict
-	}
-	return service.writeCalendarEventWithSourceLocked(ctx, event, calendarSourceLocal, candidateUpdatedAt)
+	return service.writeCalendarEventWithSourceLockedAndOriginIfCurrent(ctx, event, calendarSourceLocal, candidateUpdatedAt, origin, expectedUpdatedAt)
 }
 
 func (service *Service) softDeleteCalendarEventIfCurrentVersion(ctx context.Context, eventID string, expectedUpdatedAt string) error {

@@ -142,6 +142,10 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`, deletedAt, deletedAt, stri
 		_ = transaction.Rollback()
 		return sql.ErrNoRows
 	}
+	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, event.ID, deletedAt, nil); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
