@@ -62,6 +62,10 @@ func (service *Service) createCalendarDeleteIntentRequest(responseWriter http.Re
 		writeCalendarDeleteIntentError(responseWriter, request, eventID, operationID, errorValue)
 		return
 	}
+	if intent.Status == calendarDeleteIntentStatusCanceled || intent.Status == calendarDeleteIntentStatusConflicted {
+		writeCalendarErrorCode(responseWriter, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
+		return
+	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(responseWriter).Encode(calendarDeleteIntentResponse{OperationID: intent.OperationID, ExecuteAt: intent.ExecuteAt})
