@@ -86,7 +86,7 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 	if requestedAt.IsZero() {
 		return fmt.Errorf("calendar delete intent %q requested_at is invalid", intent.OperationID)
 	}
-	if _, errorValue := service.persistCalendarEventDeletionWithTransaction(ctx, transaction, event, calendarSourceLocal, requestedAt, outboxRow, shouldSignalSync); errorValue != nil {
+	if _, errorValue := service.persistCalendarDeleteIntentEventDeletionWithTransaction(ctx, transaction, event, requestedAt, outboxRow, shouldSignalSync); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := resolveCalendarDeleteIntent(ctx, transaction, intent.OperationID, calendarDeleteIntentStatusExecuted, now); errorValue != nil {

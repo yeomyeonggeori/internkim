@@ -298,7 +298,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
 	existingEvent, found, errorValue := service.readCalendarEventByID(request.Context(), eventID)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 		return
 	}
 	if !found {
@@ -307,17 +307,17 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	}
 	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	mutationOrigin, errorValue := normalizeCalendarMutationOrigin(payload.MutationClientID, payload.MutationSequence)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	if !hasCalendarEventUserEditableChanges(existingEvent, event) {
@@ -336,7 +336,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	event.RemoteHref = existingEvent.RemoteHref
 	regeneratedRawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 		return
 	}
 	event.RawICS = regeneratedRawICS
@@ -347,12 +347,15 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
 			return
 		}
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 		return
 	}
 	persistedEvent, found, errorValue := service.readCalendarEventByID(request.Context(), event.ID)
 	if errorValue != nil || !found {
-		http.Error(responseWriter, "failed to read updated calendar event", http.StatusInternalServerError)
+		if errorValue == nil {
+			errorValue = sql.ErrNoRows
+		}
+		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 		return
 	}
 	event = persistedEvent

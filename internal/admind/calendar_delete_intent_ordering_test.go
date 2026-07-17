@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,7 @@ func TestCalendarDeleteIntentDeletesExpectedVersionUsingRequestClock(t *testing.
 
 func TestCalendarDeleteIntentSupersedesSameClientEarlierMutation(t *testing.T) {
 	service := newCalendarTestService(t)
+	account := seedAccountWithDiscovery(t, service)
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-earlier-mutation")
 	actionAt := time.Now().UTC().Add(-calendarDeleteIntentDelay - time.Second)
 	intent := createCalendarDeleteIntentForTest(t, service, event, "earlier-mutation-operation", "page-a", 2, actionAt)
@@ -37,12 +39,48 @@ func TestCalendarDeleteIntentSupersedesSameClientEarlierMutation(t *testing.T) {
 	if updateResponse.Code != 200 {
 		t.Fatalf("late PUT status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
 	}
+	var latePutEvent calendarEvent
+	if errorValue := json.Unmarshal(updateResponse.Body.Bytes(), &latePutEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if errorValue := service.processDueCalendarDeleteIntents(context.Background(), time.Now().UTC()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	projection, found, errorValue := service.readCalendarEventProjectionByID(context.Background(), event.ID)
 	if errorValue != nil || !found || !projection.IsDeleted {
 		t.Fatalf("projection found = %v deleted = %v error = %v", found, projection.IsDeleted, errorValue)
+	}
+	if projection.DeletedAt != intent.RequestedAt {
+		t.Errorf("deletedAt = %q, request clock = %q", projection.DeletedAt, intent.RequestedAt)
+	}
+	if !parseCalendarConflictTime(projection.Event.UpdatedAt).After(parseCalendarConflictTime(latePutEvent.UpdatedAt)) {
+		t.Errorf("storage revision = %q, late PUT revision = %q", projection.Event.UpdatedAt, latePutEvent.UpdatedAt)
+	}
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	fieldClocks, errorValue := readCalendarEventFieldClocksForUID(context.Background(), database, event.UID)
+	database.Close()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deletionClock := fieldClocks[calendarEventDeletionClockField].Format(time.RFC3339Nano)
+	if deletionClock != intent.RequestedAt {
+		t.Errorf("deletion field clock = %q, request clock = %q", deletionClock, intent.RequestedAt)
+	}
+	outboxRows, errorValue := service.listPendingCalendarOutbox(context.Background(), account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteOutboxCreatedAt := ""
+	for _, row := range outboxRows {
+		if row.EventID == event.ID && row.Operation == calendarOutboxOperationDelete {
+			deleteOutboxCreatedAt = row.CreatedAt
+		}
+	}
+	if deleteOutboxCreatedAt != intent.RequestedAt {
+		t.Errorf("delete outbox createdAt = %q, request clock = %q", deleteOutboxCreatedAt, intent.RequestedAt)
 	}
 	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusExecuted)
 }
