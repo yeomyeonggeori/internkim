@@ -11,7 +11,26 @@
 	const attendance = new AttendanceState(text.loadFailed);
 	setAttendanceState(attendance);
 
-	onMount(() => attendance.load());
+	function refreshServerClock(): void {
+		void attendance.refreshServerClock();
+	}
+
+	function refreshVisibleServerClock(): void {
+		if (document.visibilityState !== 'visible') return;
+		refreshServerClock();
+	}
+
+	onMount(() => {
+		void attendance.load();
+		window.addEventListener('focus', refreshServerClock);
+		window.addEventListener('pageshow', refreshServerClock);
+		document.addEventListener('visibilitychange', refreshVisibleServerClock);
+		return () => {
+			window.removeEventListener('focus', refreshServerClock);
+			window.removeEventListener('pageshow', refreshServerClock);
+			document.removeEventListener('visibilitychange', refreshVisibleServerClock);
+		};
+	});
 
 	$effect(() => {
 		attendance.selectedMonth;
