@@ -157,10 +157,38 @@ func TestCalendarUpdateValidatesMutationIdentityPair(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			event := seedCalendarDeleteIntentEvent(t, service, "mutation-origin-validation-"+string(rune('a'+index)))
 			response := sendCalendarMutationUpdate(t, service, event, "Changed", event.UpdatedAt, testCase.clientID, testCase.sequence, testCase.includeClientID, testCase.includeSequence)
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
-			}
+			assertCalendarErrorCode(t, response, http.StatusBadRequest, "calendar_mutation_invalid_request")
 		})
+	}
+}
+
+func TestCalendarMutationErrorsUseStableCodes(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := seedCalendarDeleteIntentEvent(t, service, "mutation-origin-stable-errors")
+
+	malformedRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+event.ID, strings.NewReader(`{`))
+	malformedRequest.Header.Set("Content-Type", "application/json")
+	malformedRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	malformedResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(malformedResponse, malformedRequest)
+	assertCalendarErrorCode(t, malformedResponse, http.StatusBadRequest, "calendar_mutation_invalid_request")
+
+	invalidExpectedResponse := sendCalendarMutationUpdate(t, service, event, "Changed", "invalid", "page-a", 1, true, true)
+	assertCalendarErrorCode(t, invalidExpectedResponse, http.StatusBadRequest, "calendar_mutation_invalid_request")
+
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `CREATE TRIGGER fail_mutation_origin_insert BEFORE INSERT ON calendar_event_mutation_origins BEGIN SELECT RAISE(ABORT, 'sensitive mutation sqlite detail'); END`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	database.Close()
+	internalResponse := sendCalendarMutationUpdate(t, service, event, "Changed", event.UpdatedAt, "page-a", 1, true, true)
+	assertCalendarErrorCode(t, internalResponse, http.StatusInternalServerError, "calendar_internal_error")
+	if strings.Contains(internalResponse.Body.String(), "sensitive mutation sqlite detail") {
+		t.Fatalf("response exposed sqlite detail: %s", internalResponse.Body.String())
 	}
 }
 
