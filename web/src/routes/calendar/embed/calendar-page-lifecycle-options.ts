@@ -8,7 +8,6 @@ import type { CalendarEventLoader } from './calendar-event-loader';
 import type { MonthRangeSelection } from './calendar-month-range-action';
 import type { CalendarSelectedMonthDateActions } from './calendar-month-selection';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
-import type { CalendarPageEventDetailsActions } from './calendar-page-event-details';
 import type { CalendarPageEventSelectionActions } from './calendar-page-event-selection';
 import type { CalendarPageMessageActions } from './calendar-page-messages';
 import type { CalendarPageNavigation } from './calendar-page-navigation';
@@ -23,7 +22,6 @@ type CalendarPageLifecycleOptionsContext = {
 	deleteEvent: CalendarEventActions['deleteEvent'];
 	draftPopoverActions: CalendarDraftPopoverActions;
 	eventActions: CalendarEventActions;
-	eventDetails: CalendarPageEventDetailsActions;
 	eventLoader: CalendarEventLoader;
 	eventSelection: CalendarPageEventSelectionActions;
 	getDraftPopover: () => DraftPopoverState | null;
@@ -37,6 +35,7 @@ type CalendarPageLifecycleOptionsContext = {
 	getToolbarDate: () => Date;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
+	openEventEditor: CalendarEmbedLifecycleOptions['eventDoubleClick']['openEvent'];
 	pageMessages: CalendarPageMessageActions;
 	pageNavigation: CalendarPageNavigation;
 	rangePreview: CalendarPageRangePreviewActions;
@@ -76,9 +75,7 @@ export function createCalendarPageLifecycleOptions(
 		wheelNavigation: wheelNavigation(context),
 		draftPopoverDismiss: draftPopoverDismiss(context),
 		eventDoubleClick: {
-			openEvent: context.eventDetails.openEventDetails,
-			openMobileEvent: context.eventActions.openEventMobileEditor,
-			isMobileEventEditor: context.getIsMobileTwoDayWeekView
+			openEvent: context.openEventEditor
 		},
 		eventSelection: {
 			clearSelectedEvent: context.eventSelection.clearSelectedEvent,
