@@ -210,6 +210,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		errorFallback: () => context.text.error,
 		getStageElement: () => context.state.calendarStageElement,
+		getSelectedEventID: () => context.state.selectedAuditEventID,
 		getToolbarView: () => context.state.toolbarView,
 		getToolbarDate: () => context.state.toolbarDate,
 		getCalendarEvents: () => calendar.app.getAllEvents(),
