@@ -275,6 +275,30 @@ func TestCalendarEventUpdateUsesUnchangedTitleAsTarget(t *testing.T) {
 	}
 }
 
+func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			if requestCount == 1 {
+				return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"Conflicted event","updatedAt":"2026-07-16T00:00:00Z"}]}`), nil
+			}
+			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventID":"event-1","title":"Conflicted event","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+	})
+
+	assertCalendarToolVersionConflict(t, response, errorValue)
+	if requestCount != 2 {
+		t.Fatalf("request count = %d", requestCount)
+	}
+}
+
 func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
 	_, errorValue := decodeCalendarEventDeleteInput([]byte(`{}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventID") {
@@ -337,9 +361,50 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 	}
 }
 
+func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			if requestCount == 1 {
+				return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"Conflicted event","updatedAt":"2026-07-16T00:00:00Z"}]}`), nil
+			}
+			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.delete",
+		Input:    []byte(`{"eventID":"event-1"}`),
+	})
+
+	assertCalendarToolVersionConflict(t, response, errorValue)
+	if requestCount != 2 {
+		t.Fatalf("request count = %d", requestCount)
+	}
+}
+
 func calendarToolJSONResponse(document string) *http.Response {
+	return calendarToolJSONStatusResponse(http.StatusOK, document)
+}
+
+func assertCalendarToolVersionConflict(t *testing.T, response capabilities.ToolInvokeResponse, errorValue error) {
+	t.Helper()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_version_conflict" || response.FailureStage != "persistence" {
+		t.Fatalf("response = %+v", response)
+	}
+	if !response.Retryable || response.SafeRetry {
+		t.Fatalf("version conflict retry contract = %+v", response)
+	}
+}
+
+func calendarToolJSONStatusResponse(statusCode int, document string) *http.Response {
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(document)),
 	}
