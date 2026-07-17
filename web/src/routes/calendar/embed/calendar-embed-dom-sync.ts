@@ -42,14 +42,16 @@ export function scheduleCalendarMultiDayProxyLayoutSync(
 	stageElement: HTMLElement | null,
 	currentView: CalendarViewType,
 	currentDate: Date,
-	events: () => DayFlowEvent[]
+	events: () => DayFlowEvent[],
+	selectedEventID: () => string | null
 ): void {
 	multiDayProxyLayoutScheduler(() =>
 		syncCalendarMultiDayProxyLayout({
 			stageElement,
 			currentView,
 			currentDate,
-			events: events()
+			events: events(),
+			selectedEventID: selectedEventID()
 		})
 	);
 }

@@ -14,6 +14,7 @@ type CalendarPageRenderSyncContext = {
 	errorFallback: () => string;
 	getCalendarEvents: () => DayFlowEvent[];
 	getStageElement: () => HTMLElement | null;
+	getSelectedEventID: () => string | null;
 	getToolbarDate: () => Date;
 	getToolbarView: () => ViewType;
 	isBrowser: () => boolean;
@@ -40,7 +41,8 @@ export function createCalendarPageRenderSync(
 			context.getStageElement(),
 			context.getToolbarView(),
 			context.getToolbarDate(),
-			context.getCalendarEvents
+			context.getCalendarEvents,
+			context.getSelectedEventID
 		);
 		scheduleCalendarAllDayLayoutSync(
 			context.getStageElement(),

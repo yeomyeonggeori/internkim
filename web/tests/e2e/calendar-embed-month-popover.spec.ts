@@ -166,7 +166,7 @@ test.describe('embedded calendar month popovers', () => {
 		});
 		expect(hiddenEventRowDisplay.title).toMatch(/^More Edit Event \d+$/);
 		expect(hiddenEventRowDisplay.title).not.toMatch(/\d{2}:\d{2}/);
-		expect(hiddenEventRowDisplay.date).toMatch(/^6\.17 \d{2}:00$/);
+		expect(hiddenEventRowDisplay.date).toMatch(/^6\. 17\. \d{2}:00$/);
 		expect(hiddenEventRowDisplay.markerWidth).toBe('3px');
 		expect(hiddenEventRowDisplay.markerBackground).toBe('rgb(59, 130, 246)');
 		const hiddenEventGeometry = await hiddenEventRow.evaluate((element) => {

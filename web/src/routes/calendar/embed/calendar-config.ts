@@ -16,7 +16,7 @@ export type CalendarDayFlowLocaleText = {
 
 export const calendarColors = {
 	eventColor: '#eff6ff',
-	eventSelectedColor: 'rgb(59, 130, 246)',
+	eventSelectedColor: 'rgb(37, 99, 235)',
 	lineColor: '#3b82f6',
 	textColor: '#1e3a8a'
 };

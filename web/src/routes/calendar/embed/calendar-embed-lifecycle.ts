@@ -6,6 +6,8 @@ import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dis
 import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
 import { installCalendarEventDoubleClick } from './calendar-event-double-click';
 import type { CalendarEventDoubleClickOptions } from './calendar-event-double-click';
+import { installCalendarEventKeyboardActivation } from './calendar-event-keyboard-activation';
+import type { CalendarEventKeyboardActivationOptions } from './calendar-event-keyboard-activation';
 import { installCalendarEventAnchorCapture } from './calendar-event-anchor-capture';
 import { installCalendarEventSelection } from './calendar-event-selection';
 import type { CalendarEventSelectionOptions } from './calendar-event-selection';
@@ -49,6 +51,7 @@ export type CalendarEmbedLifecycleOptions = {
 	wheelNavigation: Omit<CalendarWheelNavigationOptions, 'stageElement'>;
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
 	eventDoubleClick: Omit<CalendarEventDoubleClickOptions, 'stageElement'>;
+	eventKeyboardActivation: Omit<CalendarEventKeyboardActivationOptions, 'stageElement'>;
 	eventSelection: Omit<CalendarEventSelectionOptions, 'stageElement'>;
 	monthKeyboardNavigation: CalendarMonthKeyboardNavigationOptions;
 	keyboardDelete: CalendarKeyboardDeleteContext;
@@ -134,6 +137,10 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 	const stopTimelineScrollState = installCalendarTimelineScrollState(stageElement);
 	const stopDraftPopoverDismiss = installCalendarDraftPopoverDismiss({ stageElement, ...options.draftPopoverDismiss });
 	const stopEventDoubleClick = installCalendarEventDoubleClick({ stageElement, ...options.eventDoubleClick });
+	const stopEventKeyboardActivation = installCalendarEventKeyboardActivation({
+		stageElement,
+		...options.eventKeyboardActivation
+	});
 	const stopEventSelection = installCalendarEventSelection({ stageElement, ...options.eventSelection });
 	const stopEventAnchorCapture = installCalendarEventAnchorCapture(stageElement);
 	return () => {
@@ -144,6 +151,7 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 		stopTimelineScrollState();
 		stopDraftPopoverDismiss();
 		stopEventDoubleClick();
+		stopEventKeyboardActivation();
 		stopEventSelection();
 		stopEventAnchorCapture();
 	};
