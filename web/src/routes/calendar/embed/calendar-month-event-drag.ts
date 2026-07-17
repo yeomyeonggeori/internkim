@@ -1,4 +1,5 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
+import { hasCalendarEventGestureMoved } from './calendar-event-gesture';
 import { moveMonthEventToDate } from './calendar-month-event-model';
 
 export type MonthEventDragState = {
@@ -109,7 +110,10 @@ export function eventsWithMonthDragPreview(
 }
 
 export function hasMonthEventPointerMoved(state: MonthEventDragState, pointerEvent: PointerEvent): boolean {
-	return Math.hypot(pointerEvent.clientX - state.startClientX, pointerEvent.clientY - state.startClientY) > 6;
+	return hasCalendarEventGestureMoved(
+		{ clientX: state.startClientX, clientY: state.startClientY },
+		pointerEvent
+	);
 }
 
 export function monthDateKeyFromPoint(
