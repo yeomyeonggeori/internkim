@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 
 import {
+	calendarPersistenceErrorFromResponse
+} from '../../../src/routes/calendar/embed/calendar-event-persistence';
+
+import {
 	calendarServerEvent,
 	calendarTestEvent,
 	calendarVersionedTestEvent,
@@ -169,6 +173,40 @@ test('refreshes the server event after Undo cancellation fails', async () => {
 	expect(scenario.events().map((event) => event.title)).toEqual(['Remote title']);
 	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
 	expect(scenario.refreshCount()).toBe(1);
+});
+
+test('reloads the latest server event after a delete intent cancellation conflict', async () => {
+	const persistedEvent = calendarVersionedTestEvent('intent-cancel-conflict', 'Stale title', initialUpdatedAt);
+	const remoteEvent = calendarVersionedTestEvent(
+		'intent-cancel-conflict',
+		'Remote title',
+		'2026-07-17T02:00:00Z'
+	);
+	const conflictError = await calendarPersistenceErrorFromResponse(
+		new Response(JSON.stringify({ code: 'calendar_delete_intent_conflict' }), {
+			status: 409,
+			headers: { 'Content-Type': 'application/json' }
+		}),
+		'Could not delete the event.'
+	);
+	const scenario = createPersistenceScenario([persistedEvent], () => [remoteEvent], {
+		createDeleteIntent: async (_eventID, operationID) => ({
+			operationID,
+			executeAt: '2026-07-17T01:00:05Z'
+		}),
+		cancelDeleteIntent: async () => {
+			throw conflictError;
+		}
+	});
+
+	await scenario.actions.deleteEvent(persistedEvent.id);
+	scenario.undoPendingDelete();
+	await waitForQueuedPersistence();
+
+	expect(conflictError.code).toBe('calendar_delete_intent_conflict');
+	expect(scenario.refreshCount()).toBe(1);
+	expect(scenario.events().map((event) => event.title)).toEqual(['Remote title']);
+	expect(scenario.notifications).toEqual(['Could not delete the event.']);
 });
 
 test('refreshes the server value after undo follows a failed pending update', async () => {
