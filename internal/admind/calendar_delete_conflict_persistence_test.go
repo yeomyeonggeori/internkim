@@ -55,7 +55,7 @@ func TestDeleteConflictRemoteRestoreRollsBackAllStateOnPersistenceFailure(t *tes
 		},
 	}
 	observedAt := deletedAt.Add(2 * time.Minute)
-	if errorValue := service.reconcileCalendarLocalDeletionDuringPush(ctx, account, client, rows[0], observedAt); errorValue == nil {
+	if errorValue := service.reconcileCalendarLocalDeletionAgainstRemoteObject(ctx, account, client, rows[0], client.getObjects[event.RemoteHref], observedAt); errorValue == nil {
 		t.Fatal("expected persistence failure")
 	}
 
