@@ -26,6 +26,42 @@ func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOw
 	return missingFlowOwnerResolution()
 }
 
+func resolveFlowParticipantIDs(personHints []string, ownerID string, members []flowMemberForTool) ([]string, *flowTaskAddFailure) {
+	participantIDs := []string{strings.TrimSpace(ownerID)}
+	for _, personHint := range personHints {
+		resolution := resolveFlowOwnerHint(personHint, members)
+		if resolution.Failure != nil {
+			return nil, flowParticipantFailure(personHint, *resolution.Failure)
+		}
+		participantIDs = append(participantIDs, resolution.OwnerID)
+	}
+	return uniqueFlowParticipantIDs(participantIDs), nil
+}
+
+func flowParticipantFailure(personHint string, failure flowTaskAddFailure) *flowTaskAddFailure {
+	failure.Message = "task participant " + strings.TrimSpace(personHint) + " was not uniquely resolved"
+	if failure.ErrorCode == "flow_owner_ambiguous" {
+		failure.ErrorCode = "flow_participant_ambiguous"
+		return &failure
+	}
+	failure.ErrorCode = "flow_participant_not_found"
+	return &failure
+}
+
+func uniqueFlowParticipantIDs(participantIDs []string) []string {
+	uniqueIDs := make([]string, 0, len(participantIDs))
+	seen := map[string]bool{}
+	for _, participantID := range participantIDs {
+		participantID = strings.TrimSpace(participantID)
+		if participantID == "" || seen[participantID] {
+			continue
+		}
+		seen[participantID] = true
+		uniqueIDs = append(uniqueIDs, participantID)
+	}
+	return uniqueIDs
+}
+
 func missingFlowOwnerResolution() flowOwnerResolution {
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
 		ErrorCode:    "flow_owner_not_found",

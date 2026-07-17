@@ -153,15 +153,20 @@ func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 	}
 }
 
-func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
+func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.add")
 
-	assertSchemaHasProperties(t, schema, "prompt", "title", "endDate", "targetPersonHint", "weekCode", "allowDuplicate")
-	assertSchemaRequires(t, schema, "prompt")
-	if stringSliceContains(schema.Required, "title") || stringSliceContains(schema.Required, "endDate") {
-		t.Fatalf("expected title and endDate to be optional in %+v", schema.Required)
+	assertSchemaHasProperties(t, schema, "title", "goal", "size", "status", "startDate", "endDate", "targetPersonHint", "participantPersonHints")
+	assertSchemaRequires(t, schema, "title")
+	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
+		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
 	}
-	assertSchemaOmitsProperties(t, schema, "content", "description", "assignee", "dueDate")
+	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
+	for _, descriptor := range FlowDescriptors() {
+		if descriptor.Name == "task.add" && descriptor.Version != "2" {
+			t.Fatalf("task.add version = %q", descriptor.Version)
+		}
+	}
 }
 
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
