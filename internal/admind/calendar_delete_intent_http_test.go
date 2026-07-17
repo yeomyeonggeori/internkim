@@ -1,8 +1,10 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -94,9 +96,7 @@ func TestCalendarDeleteIntentCreateIsDurableAndIdempotent(t *testing.T) {
 	}
 
 	mismatchResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, "operation-a", `{"clientID":"page-a","sequence":3,"expectedUpdatedAt":"`+event.UpdatedAt+`"}`)
-	if mismatchResponse.Code != http.StatusConflict {
-		t.Fatalf("operation mismatch status = %d body = %s", mismatchResponse.Code, mismatchResponse.Body.String())
-	}
+	assertCalendarErrorCode(t, mismatchResponse, http.StatusConflict, "calendar_delete_intent_conflict")
 }
 
 func TestCalendarDeleteIntentCancelIsIdempotent(t *testing.T) {
@@ -152,9 +152,7 @@ func TestCalendarDeleteIntentCancelRejectsWrongIdentityOrOlderSequence(t *testin
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			response := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, event.ID, "operation-cancel-ordering", testCase.payload)
-			if response.Code != http.StatusConflict {
-				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
-			}
+			assertCalendarErrorCode(t, response, http.StatusConflict, "calendar_delete_intent_conflict")
 			assertCalendarDeleteIntentStatus(t, service, "operation-cancel-ordering", calendarDeleteIntentStatusPending)
 		})
 	}
@@ -183,26 +181,54 @@ func TestCalendarDeleteIntentHTTPValidation(t *testing.T) {
 		operation  string
 		payload    string
 		wantStatus int
+		wantCode   string
 	}{
-		{name: "missing client", method: http.MethodPut, operation: "missing-client", payload: `{"sequence":1,"expectedUpdatedAt":"` + event.UpdatedAt + `"}`, wantStatus: http.StatusBadRequest},
-		{name: "zero sequence", method: http.MethodPut, operation: "zero-sequence", payload: `{"clientID":"page-a","sequence":0,"expectedUpdatedAt":"` + event.UpdatedAt + `"}`, wantStatus: http.StatusBadRequest},
-		{name: "invalid expected version", method: http.MethodPut, operation: "invalid-version", payload: `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"bad"}`, wantStatus: http.StatusBadRequest},
-		{name: "stale expected version", method: http.MethodPut, operation: "stale-version", payload: `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"2026-01-01T00:00:00Z"}`, wantStatus: http.StatusConflict},
-		{name: "cancel missing client", method: http.MethodDelete, operation: "missing-cancel-client", payload: `{"sequence":2}`, wantStatus: http.StatusBadRequest},
-		{name: "cancel zero sequence", method: http.MethodDelete, operation: "zero-cancel-sequence", payload: `{"clientID":"page-a","sequence":0}`, wantStatus: http.StatusBadRequest},
+		{name: "malformed create", method: http.MethodPut, operation: "malformed-create", payload: `{`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "missing client", method: http.MethodPut, operation: "missing-client", payload: `{"sequence":1,"expectedUpdatedAt":"` + event.UpdatedAt + `"}`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "zero sequence", method: http.MethodPut, operation: "zero-sequence", payload: `{"clientID":"page-a","sequence":0,"expectedUpdatedAt":"` + event.UpdatedAt + `"}`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "invalid expected version", method: http.MethodPut, operation: "invalid-version", payload: `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"bad"}`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "stale expected version", method: http.MethodPut, operation: "stale-version", payload: `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"2026-01-01T00:00:00Z"}`, wantStatus: http.StatusConflict, wantCode: "calendar_event_version_conflict"},
+		{name: "malformed cancel", method: http.MethodDelete, operation: "malformed-cancel", payload: `{`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "cancel missing client", method: http.MethodDelete, operation: "missing-cancel-client", payload: `{"sequence":2}`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
+		{name: "cancel zero sequence", method: http.MethodDelete, operation: "zero-cancel-sequence", payload: `{"clientID":"page-a","sequence":0}`, wantStatus: http.StatusBadRequest, wantCode: "calendar_mutation_invalid_request"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			response := sendCalendarDeleteIntentHTTPRequest(service, testCase.method, event.ID, testCase.operation, testCase.payload)
-			if response.Code != testCase.wantStatus {
-				t.Fatalf("status = %d, want %d body = %s", response.Code, testCase.wantStatus, response.Body.String())
-			}
+			assertCalendarErrorCode(t, response, testCase.wantStatus, testCase.wantCode)
 		})
 	}
 
 	notFoundResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, "missing-event", "missing-event-operation", `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"`+event.UpdatedAt+`"}`)
-	if notFoundResponse.Code != http.StatusNotFound {
-		t.Fatalf("missing event status = %d body = %s", notFoundResponse.Code, notFoundResponse.Body.String())
+	assertCalendarErrorCode(t, notFoundResponse, http.StatusNotFound, "calendar_delete_intent_not_found")
+}
+
+func TestCalendarDeleteIntentInternalErrorUsesStableCode(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-internal-error")
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), `CREATE TRIGGER fail_delete_intent_insert BEFORE INSERT ON calendar_delete_intents BEGIN SELECT RAISE(ABORT, 'sensitive delete intent sqlite detail'); END`); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	database.Close()
+
+	var logOutput bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+	defer slog.SetDefault(previousLogger)
+	response := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, "internal-error-operation", `{"clientID":"page-a","sequence":1,"expectedUpdatedAt":"`+event.UpdatedAt+`"}`)
+	assertCalendarErrorCode(t, response, http.StatusInternalServerError, "calendar_internal_error")
+	if strings.Contains(response.Body.String(), "sensitive delete intent sqlite detail") {
+		t.Fatalf("response exposed sqlite detail: %s", response.Body.String())
+	}
+	for _, expectedLogField := range []string{`"event_id":"` + event.ID + `"`, `"operation_id":"internal-error-operation"`, `"error":`, "sensitive delete intent sqlite detail"} {
+		if !strings.Contains(logOutput.String(), expectedLogField) {
+			t.Fatalf("log output missing %s: %s", expectedLogField, logOutput.String())
+		}
 	}
 }
 
@@ -242,4 +268,21 @@ func calendarDeleteIntentRowCount(t *testing.T, service *Service, operationID st
 		t.Fatal(errorValue)
 	}
 	return count
+}
+
+func assertCalendarErrorCode(t *testing.T, response *httptest.ResponseRecorder, expectedStatus int, expectedCode string) {
+	t.Helper()
+	if response.Code != expectedStatus {
+		t.Fatalf("status = %d, want %d body = %s", response.Code, expectedStatus, response.Body.String())
+	}
+	if contentType := response.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
+		t.Fatalf("content type = %q body = %s", contentType, response.Body.String())
+	}
+	var payload calendarMutationErrorResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &payload); errorValue != nil {
+		t.Fatalf("decode error response: %v body = %s", errorValue, response.Body.String())
+	}
+	if payload.Code != expectedCode {
+		t.Fatalf("error code = %q, want %q", payload.Code, expectedCode)
+	}
 }

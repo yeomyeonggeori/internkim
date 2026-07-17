@@ -4,9 +4,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+)
+
+const (
+	calendarDeleteIntentConflictErrorCode = "calendar_delete_intent_conflict"
+	calendarDeleteIntentNotFoundErrorCode = "calendar_delete_intent_not_found"
 )
 
 type calendarDeleteIntentCreateRequest struct {
@@ -39,12 +45,12 @@ func (service *Service) handleCalendarDeleteIntent(responseWriter http.ResponseW
 func (service *Service) createCalendarDeleteIntentRequest(responseWriter http.ResponseWriter, request *http.Request, eventID string, operationID string) {
 	var payload calendarDeleteIntentCreateRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	expectedUpdatedAt, errorValue := validateCalendarDeleteIntentCreateRequest(payload)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	intent, errorValue := service.createCalendarDeleteIntent(request.Context(), eventID, operationID, calendarDeleteIntentCreate{
@@ -53,7 +59,7 @@ func (service *Service) createCalendarDeleteIntentRequest(responseWriter http.Re
 		ExpectedUpdatedAt: expectedUpdatedAt,
 	}, time.Now().UTC())
 	if errorValue != nil {
-		writeCalendarDeleteIntentError(responseWriter, request, errorValue)
+		writeCalendarDeleteIntentError(responseWriter, request, eventID, operationID, errorValue)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
@@ -64,19 +70,19 @@ func (service *Service) createCalendarDeleteIntentRequest(responseWriter http.Re
 func (service *Service) cancelCalendarDeleteIntentRequest(responseWriter http.ResponseWriter, request *http.Request, eventID string, operationID string) {
 	var payload calendarDeleteIntentCancelRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	if strings.TrimSpace(payload.ClientID) == "" {
-		http.Error(responseWriter, "clientID is required", http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	if payload.Sequence <= 0 {
-		http.Error(responseWriter, "sequence must be a positive integer", http.StatusBadRequest)
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
 	if errorValue := service.cancelCalendarDeleteIntent(request.Context(), eventID, operationID, payload.ClientID, payload.Sequence, time.Now().UTC()); errorValue != nil {
-		writeCalendarDeleteIntentError(responseWriter, request, errorValue)
+		writeCalendarDeleteIntentError(responseWriter, request, eventID, operationID, errorValue)
 		return
 	}
 	responseWriter.WriteHeader(http.StatusNoContent)
@@ -92,14 +98,25 @@ func validateCalendarDeleteIntentCreateRequest(payload calendarDeleteIntentCreat
 	return normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
 }
 
-func writeCalendarDeleteIntentError(responseWriter http.ResponseWriter, request *http.Request, errorValue error) {
+func writeCalendarDeleteIntentError(responseWriter http.ResponseWriter, request *http.Request, eventID string, operationID string, errorValue error) {
 	switch {
 	case errors.Is(errorValue, sql.ErrNoRows):
-		http.NotFound(responseWriter, request)
-	case errors.Is(errorValue, errCalendarEventVersionConflict), errors.Is(errorValue, errCalendarDeleteIntentPayloadMismatch), errors.Is(errorValue, errCalendarDeleteIntentNotPending):
-		http.Error(responseWriter, errorValue.Error(), http.StatusConflict)
+		writeCalendarErrorCode(responseWriter, http.StatusNotFound, calendarDeleteIntentNotFoundErrorCode)
+	case errors.Is(errorValue, errCalendarEventVersionConflict):
+		writeCalendarErrorCode(responseWriter, http.StatusConflict, calendarEventVersionConflictErrorCode)
+	case errors.Is(errorValue, errCalendarDeleteIntentPayloadMismatch), errors.Is(errorValue, errCalendarDeleteIntentNotPending):
+		writeCalendarErrorCode(responseWriter, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
 	default:
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		slog.ErrorContext(
+			request.Context(),
+			"calendar delete intent request failed",
+			"method", request.Method,
+			"path", request.URL.Path,
+			"event_id", strings.TrimSpace(eventID),
+			"operation_id", strings.TrimSpace(operationID),
+			"error", errorValue,
+		)
+		writeCalendarErrorCode(responseWriter, http.StatusInternalServerError, calendarInternalErrorCode)
 	}
 }
 
