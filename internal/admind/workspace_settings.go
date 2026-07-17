@@ -27,7 +27,7 @@ const (
 
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
-		TimeZone: "system",
+		TimeZone: workspaceSystemTimeZone,
 		Language: workspaceLanguageKorean,
 	}
 }
@@ -99,20 +99,6 @@ func (service *Service) workspaceSettingsPath() string {
 	return filepath.Join(service.Configuration.StateDirectory, "workspace-settings.json")
 }
 
-func (service *Service) workspaceTimeLocation() (*time.Location, string) {
-	settings, errorValue := service.readWorkspaceSettings()
-	if errorValue == nil {
-		timeZone := strings.TrimSpace(settings.TimeZone)
-		if timeZone != "" && timeZone != "system" {
-			location, loadError := time.LoadLocation(timeZone)
-			if loadError == nil {
-				return location, timeZone
-			}
-		}
-	}
-	return time.Local, systemTimeZoneName()
-}
-
 func (service *Service) workspaceLanguage() string {
 	settings, errorValue := service.readWorkspaceSettings()
 	if errorValue != nil {
@@ -129,7 +115,7 @@ func normalizeWorkspaceSettings(settings workspaceSettings) (workspaceSettings, 
 			return workspaceSettings{}, errorValue
 		}
 	}
-	if normalized.TimeZone == "system" {
+	if normalized.TimeZone == workspaceSystemTimeZone {
 		return normalized, nil
 	}
 	if _, errorValue := time.LoadLocation(normalized.TimeZone); errorValue != nil {
@@ -160,16 +146,6 @@ func validateWorkspaceLanguage(language string) error {
 		return nil
 	}
 	return fmt.Errorf("language must be ko or en")
-}
-
-func systemTimeZoneName() string {
-	if timeZone := strings.TrimSpace(os.Getenv("TZ")); timeZone != "" {
-		return timeZone
-	}
-	if time.Local != nil && strings.TrimSpace(time.Local.String()) != "" {
-		return time.Local.String()
-	}
-	return "Local"
 }
 
 func (service *Service) syncMattermostWorkspaceChannelDisplayNames(ctx context.Context, language string) error {

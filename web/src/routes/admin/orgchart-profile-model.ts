@@ -1,3 +1,4 @@
+import { orgchartGroupMembership } from '../../lib/orgchart/group-membership';
 import type { UserRecord } from '../../lib/orgchart/types';
 import type { OrgProfileUpdate } from './admin-api';
 
@@ -9,24 +10,24 @@ export type OrgProfileSnapshot = {
 };
 
 export function normalizeOrgProfileRecord(record: UserRecord): UserRecord {
-	const primaryGroupID = primaryGroupIDOf(record);
+	const membership = orgchartGroupMembership(record);
 	return {
 		...record,
 		name: record.name ?? '',
 		jobTitle: record.jobTitle?.trim() ?? '',
-		group: primaryGroupID,
-		primaryGroupID,
-		groupIDs: groupIDsFromPrimary(primaryGroupID),
+		group: membership.primaryGroupID,
+		primaryGroupID: membership.primaryGroupID,
+		groupIDs: membership.groupIDs,
 		supervisorID: record.supervisorID ?? ''
 	};
 }
 
 export function orgProfileSnapshot(record: UserRecord): OrgProfileSnapshot {
-	const primaryGroupID = primaryGroupIDOf(record);
+	const membership = orgchartGroupMembership(record);
 	return {
 		jobTitle: record.jobTitle?.trim() ?? '',
-		primaryGroupID,
-		groupIDs: groupIDsFromPrimary(primaryGroupID),
+		primaryGroupID: membership.primaryGroupID,
+		groupIDs: membership.groupIDs,
 		supervisorID: record.supervisorID ?? ''
 	};
 }
@@ -47,16 +48,4 @@ export function orgProfileUpdate(record: UserRecord): OrgProfileUpdate {
 		groupIDs: snapshot.groupIDs,
 		supervisorID: snapshot.supervisorID
 	};
-}
-
-function primaryGroupIDOf(record: UserRecord): string {
-	return record.primaryGroupID?.trim() || record.group?.trim() || firstGroupID(record.groupIDs);
-}
-
-function groupIDsFromPrimary(primaryGroupID: string): string[] {
-	return primaryGroupID ? [primaryGroupID] : [];
-}
-
-function firstGroupID(groupIDs: string[] | undefined): string {
-	return groupIDs?.find((groupID) => groupID.trim())?.trim() ?? '';
 }
