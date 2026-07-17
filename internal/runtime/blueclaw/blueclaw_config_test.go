@@ -727,10 +727,14 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "api:flow.definition", "admin") {
 		t.Fatalf("expected admin Flow definition API rule, got %+v", resourceAccess)
 	}
-	for _, toolName := range []string{"task.add", "task.list", "task.update", "task.delete"} {
-		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
-			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
-		}
+	if !containsPolicyResource(resourceAccess, "tool:task.add", "staff") {
+		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:task.list", "staff") {
+		t.Fatalf("expected staff Flow task list tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:task.update", "staff") {
+		t.Fatalf("expected staff Flow update tool rule, got %+v", resourceAccess)
 	}
 	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete"} {
 		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
