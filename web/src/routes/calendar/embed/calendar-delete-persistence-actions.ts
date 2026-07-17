@@ -4,7 +4,11 @@ import {
 	calendarDeleteUndoTimeoutMs,
 	type showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
-import { CalendarPersistenceError } from './calendar-event-persistence';
+import {
+	CalendarPersistenceError,
+	calendarEventVersionConflictErrorCode,
+	isCalendarPersistenceErrorCode
+} from './calendar-event-persistence';
 import { CalendarEventPersistenceOrder } from './calendar-event-persistence-order';
 import type { CalendarPersistedEventActions } from './calendar-persisted-event-actions';
 
@@ -28,6 +32,8 @@ export type CalendarDeletePersistenceActions = {
 type CalendarDeleteIntentResult =
 	| { isSuccessful: true }
 	| { isSuccessful: false; error: unknown };
+
+const calendarDeleteIntentCancellationRetryDelaysMs = [100, 200] as const;
 
 type PendingCalendarDelete = {
 	event: DayFlowEvent;
@@ -71,9 +77,58 @@ export function createCalendarDeletePersistenceActions(
 			actionLabel: options.context.text.deleteUndoAction,
 			undo: () => undoPendingDelete(eventID)
 		});
-		void registrationResult.then((result) =>
-			options.persistenceOrder.runLatestAction(eventID, revision, () =>
-				handleDeleteIntentRegistration(deleteAction, result)
+		void registrationResult.then(async (result) => {
+			const cancellationResult = await cancelAmbiguousDeleteIntentRegistration(
+				eventID,
+				operationID,
+				revision,
+				result
+			);
+			await options.persistenceOrder.runLatestAction(eventID, revision, () =>
+				handleDeleteIntentRegistration(deleteAction, result, cancellationResult)
+			);
+		});
+	}
+
+	async function cancelAmbiguousDeleteIntentRegistration(
+		eventID: string,
+		operationID: string,
+		revision: number,
+		registrationResult: CalendarDeleteIntentResult
+	): Promise<CalendarDeleteIntentResult> {
+		if (registrationResult.isSuccessful || !isAmbiguousRegistrationFailure(registrationResult.error)) {
+			return { isSuccessful: true };
+		}
+		return cancelDeleteIntentWithRetry(eventID, operationID, revision + 1);
+	}
+
+	async function cancelDeleteIntentWithRetry(
+		eventID: string,
+		operationID: string,
+		sequence: number
+	): Promise<CalendarDeleteIntentResult> {
+		let cancellationResult = await cancelDeleteIntent(eventID, operationID, sequence);
+		for (const retryDelay of calendarDeleteIntentCancellationRetryDelaysMs) {
+			if (cancellationResult.isSuccessful || !isRetryableCancellationFailure(cancellationResult.error)) {
+				return cancellationResult;
+			}
+			await waitForDeleteIntentCancellationRetry(retryDelay);
+			cancellationResult = await cancelDeleteIntent(eventID, operationID, sequence);
+		}
+		return cancellationResult;
+	}
+
+	function cancelDeleteIntent(
+		eventID: string,
+		operationID: string,
+		sequence: number
+	): Promise<CalendarDeleteIntentResult> {
+		return settleDeleteIntent(
+			options.persistedEvents.cancelDeleteIntent(
+				eventID,
+				operationID,
+				options.persistenceOrder.clientID,
+				sequence
 			)
 		);
 	}
@@ -83,13 +138,10 @@ export function createCalendarDeletePersistenceActions(
 		const deleteAction = pendingDelete;
 		clearPendingDelete(deleteAction, true);
 		const revision = options.persistenceOrder.beginAction(eventID);
-		const cancellationResult = settleDeleteIntent(
-			options.persistedEvents.cancelDeleteIntent(
-				eventID,
-				deleteAction.operationID,
-				options.persistenceOrder.clientID,
-				revision
-			)
+		const cancellationResult = cancelDeleteIntentWithRetry(
+			eventID,
+			deleteAction.operationID,
+			revision
 		);
 		options.context.invalidatePendingEventLoad();
 		if (!hasLocalEvent(eventID)) {
@@ -130,7 +182,8 @@ export function createCalendarDeletePersistenceActions(
 
 	async function handleDeleteIntentRegistration(
 		deleteAction: PendingCalendarDelete,
-		result: CalendarDeleteIntentResult
+		result: CalendarDeleteIntentResult,
+		cancellationResult: CalendarDeleteIntentResult
 	): Promise<void> {
 		if (result.isSuccessful) {
 			options.persistenceOrder.clearPersistedUpdatedAt(deleteAction.event.id);
@@ -143,7 +196,8 @@ export function createCalendarDeletePersistenceActions(
 		options.beginPersistence();
 		try {
 			const isVersionConflict = isCalendarEventVersionConflict(result.error);
-			if (!isVersionConflict && !hasLocalEvent(deleteAction.event.id)) {
+			const isCancellationUnconfirmed = !cancellationResult.isSuccessful;
+			if (!isVersionConflict && !isCancellationUnconfirmed && !hasLocalEvent(deleteAction.event.id)) {
 				options.context.restoreCalendarEvent(deleteAction.event);
 			}
 			if (isVersionConflict) {
@@ -151,7 +205,12 @@ export function createCalendarDeletePersistenceActions(
 			}
 			showDeletePersistenceError(result.error);
 			await options.context.refreshCalendar();
-			hidePendingDeleteAfterRefresh();
+			if (isCancellationUnconfirmed) {
+				options.context.removeCalendarEvent(deleteAction.event.id);
+				options.refreshEventCountAfterRender();
+			} else {
+				hidePendingDeleteAfterRefresh();
+			}
 		} finally {
 			options.finishPersistence();
 		}
@@ -169,7 +228,12 @@ export function createCalendarDeletePersistenceActions(
 			if (options.persistenceOrder.isLatestAction(eventID, revision)) {
 				options.persistenceOrder.clearPersistedUpdatedAt(eventID);
 			}
-			hidePendingDeleteAfterRefresh();
+			if (result.isSuccessful) {
+				hidePendingDeleteAfterRefresh();
+			} else {
+				options.context.removeCalendarEvent(eventID);
+				options.refreshEventCountAfterRender();
+			}
 		} finally {
 			options.finishPersistence();
 		}
@@ -184,7 +248,16 @@ export function createCalendarDeletePersistenceActions(
 	}
 
 	function isCalendarEventVersionConflict(error: unknown): boolean {
-		return error instanceof CalendarPersistenceError && error.code === 'calendar_event_version_conflict';
+		return isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode);
+	}
+
+	function isAmbiguousRegistrationFailure(error: unknown): boolean {
+		return !(error instanceof CalendarPersistenceError) || error.code === 'unknown';
+	}
+
+	function isRetryableCancellationFailure(error: unknown): boolean {
+		if (!(error instanceof CalendarPersistenceError)) return true;
+		return error.code === 'unknown' || error.code === 'calendar_target_unavailable';
 	}
 
 	function hasLocalEvent(eventID: string): boolean {
@@ -201,6 +274,10 @@ export function createCalendarDeletePersistenceActions(
 		deleteEvent,
 		flushPendingDelete
 	};
+}
+
+function waitForDeleteIntentCancellationRetry(delay: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 function settleDeleteIntent(operation: Promise<unknown>): Promise<CalendarDeleteIntentResult> {

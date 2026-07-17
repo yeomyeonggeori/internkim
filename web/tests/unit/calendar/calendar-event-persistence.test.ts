@@ -63,7 +63,10 @@ test('rejects invalid delete intent response fields with the localized fallback'
 	const originalFetch = globalThis.fetch;
 	const responseDocuments: unknown[] = [
 		{ operationID: 'operation-without-execute-at' },
-		{ operationID: 7, executeAt: '2026-07-17T05:00:05Z' }
+		{ operationID: 7, executeAt: '2026-07-17T05:00:05Z' },
+		{ operationID: '   ', executeAt: '2026-07-17T05:00:05Z' },
+		{ operationID: 'different-operation', executeAt: '2026-07-17T05:00:05Z' },
+		{ operationID: 'operation-4', executeAt: 'not-a-timestamp' }
 	];
 	let responseIndex = 0;
 	const errors: unknown[] = [];
@@ -98,6 +101,9 @@ test('rejects invalid delete intent response fields with the localized fallback'
 				: null
 		)
 	).toEqual([
+		{ code: 'unknown', message: 'Could not delete the event.' },
+		{ code: 'unknown', message: 'Could not delete the event.' },
+		{ code: 'unknown', message: 'Could not delete the event.' },
 		{ code: 'unknown', message: 'Could not delete the event.' },
 		{ code: 'unknown', message: 'Could not delete the event.' }
 	]);

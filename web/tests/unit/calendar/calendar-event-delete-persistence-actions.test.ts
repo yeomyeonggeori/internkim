@@ -76,6 +76,78 @@ test('waits for a preceding PUT before recovering from delete intent registratio
 	expect(scenario.refreshCount()).toBe(1);
 });
 
+test('cancels an ambiguous failed registration before restoring the event', async () => {
+	const persistedEvent = calendarVersionedTestEvent(
+		'ambiguous-intent-registration',
+		'Persisted title',
+		initialUpdatedAt
+	);
+	let createdOperationID = '';
+	let canceledOperationID = '';
+	let createdClientID = '';
+	let canceledClientID = '';
+	let createSequence = 0;
+	let cancelSequence = 0;
+	let isCanceled = false;
+	const scenario = createPersistenceScenario([persistedEvent], () => {
+		expect(isCanceled).toBe(true);
+		return [persistedEvent];
+	}, {
+		createDeleteIntent: async (_eventID, operationID, clientID, sequence) => {
+			createdOperationID = operationID;
+			createdClientID = clientID;
+			createSequence = sequence;
+			throw new TypeError('response connection closed');
+		},
+		cancelDeleteIntent: async (_eventID, operationID, clientID, sequence) => {
+			canceledOperationID = operationID;
+			canceledClientID = clientID;
+			cancelSequence = sequence;
+			isCanceled = true;
+		}
+	});
+
+	await scenario.actions.deleteEvent(persistedEvent.id);
+	await waitForQueuedPersistence();
+
+	expect(canceledOperationID).toBe(createdOperationID);
+	expect(canceledClientID).toBe(createdClientID);
+	expect(cancelSequence).toBe(createSequence + 1);
+	expect(scenario.events().map((event) => event.id)).toEqual([persistedEvent.id]);
+	expect(scenario.refreshCount()).toBe(1);
+});
+
+test('keeps an ambiguously deleted event hidden when compensation cancellation fails', async () => {
+	const persistedEvent = calendarVersionedTestEvent(
+		'failed-intent-compensation',
+		'Persisted title',
+		initialUpdatedAt
+	);
+	let createdOperationID = '';
+	const canceledOperationIDs: string[] = [];
+	const scenario = createPersistenceScenario([persistedEvent], () => [persistedEvent], {
+		createDeleteIntent: async (_eventID, operationID) => {
+			createdOperationID = operationID;
+			throw new TypeError('response connection closed');
+		},
+		cancelDeleteIntent: async (_eventID, operationID) => {
+			canceledOperationIDs.push(operationID);
+			throw targetUnavailableError();
+		}
+	});
+
+	await scenario.actions.deleteEvent(persistedEvent.id);
+	await waitForDeleteIntentCompensation();
+
+	expect(canceledOperationIDs).toEqual([
+		createdOperationID,
+		createdOperationID,
+		createdOperationID
+	]);
+	expect(scenario.events()).toEqual([]);
+	expect(scenario.refreshCount()).toBe(1);
+});
+
 test('starts Undo cancellation and restores the event before intent registration settles', async () => {
 	const persistedEvent = calendarVersionedTestEvent('immediate-intent-cancel', 'Persisted title', initialUpdatedAt);
 	let resolveCreate: (value: { operationID: string; executeAt: string }) => void = () => {};
@@ -141,7 +213,7 @@ test('handles Undo cancellation failure without waiting for intent registration 
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
 	scenario.undoPendingDelete();
-	await waitForQueuedPersistence();
+	await waitForDeleteIntentCompensation();
 	const refreshCountBeforeRegistrationSettled = scenario.refreshCount();
 	resolveCreate({ operationID, executeAt: '2026-07-17T01:00:05Z' });
 	await waitForQueuedPersistence();
@@ -150,7 +222,7 @@ test('handles Undo cancellation failure without waiting for intent registration 
 	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
 });
 
-test('refreshes the server event after Undo cancellation fails', async () => {
+test('keeps the event hidden after Undo cancellation cannot be confirmed', async () => {
 	const persistedEvent = calendarVersionedTestEvent('intent-cancel-failure', 'Persisted title', initialUpdatedAt);
 	const remoteEvent = calendarVersionedTestEvent('intent-cancel-failure', 'Remote title', '2026-07-17T02:00:00Z');
 	let cancelCount = 0;
@@ -167,15 +239,15 @@ test('refreshes the server event after Undo cancellation fails', async () => {
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
 	scenario.undoPendingDelete();
-	await waitForQueuedPersistence();
+	await waitForDeleteIntentCompensation();
 
-	expect(cancelCount).toBe(1);
-	expect(scenario.events().map((event) => event.title)).toEqual(['Remote title']);
+	expect(cancelCount).toBe(3);
+	expect(scenario.events()).toEqual([]);
 	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
 	expect(scenario.refreshCount()).toBe(1);
 });
 
-test('reloads the latest server event after a delete intent cancellation conflict', async () => {
+test('keeps the event hidden after a delete intent cancellation conflict', async () => {
 	const persistedEvent = calendarVersionedTestEvent('intent-cancel-conflict', 'Stale title', initialUpdatedAt);
 	const remoteEvent = calendarVersionedTestEvent(
 		'intent-cancel-conflict',
@@ -205,11 +277,11 @@ test('reloads the latest server event after a delete intent cancellation conflic
 
 	expect(conflictError.code).toBe('calendar_delete_intent_conflict');
 	expect(scenario.refreshCount()).toBe(1);
-	expect(scenario.events().map((event) => event.title)).toEqual(['Remote title']);
+	expect(scenario.events()).toEqual([]);
 	expect(scenario.notifications).toEqual(['Could not delete the event.']);
 });
 
-test('refreshes the server value after undo follows a failed pending update', async () => {
+test('keeps the event hidden when undo cancellation fails behind a failed pending update', async () => {
 	const serverEvent = calendarTestEvent('failed-update-undo', 'Server title');
 	const optimisticEvent = calendarTestEvent('failed-update-undo', 'Optimistic title');
 	let rejectWrite: (error: Error) => void = () => {};
@@ -233,13 +305,13 @@ test('refreshes the server value after undo follows a failed pending update', as
 	scenario.undoPendingDelete();
 	rejectWrite(targetUnavailableError());
 	await save;
-	await waitForQueuedPersistence();
+	await waitForDeleteIntentCompensation();
 
-	expect(scenario.events().map((event) => event.title)).toEqual(['Server title']);
+	expect(scenario.events()).toEqual([]);
 	expect(scenario.refreshCount()).toBe(1);
 });
 
-test('refreshes the saved value after undo follows a successful pending update', async () => {
+test('keeps the event hidden when undo cancellation fails behind a successful pending update', async () => {
 	const serverEvent = calendarTestEvent('successful-update-undo', 'Server title');
 	const optimisticEvent = calendarTestEvent('successful-update-undo', 'Optimistic title');
 	let resolveWrite: (event: CalendarEvent) => void = () => {};
@@ -265,9 +337,9 @@ test('refreshes the saved value after undo follows a successful pending update',
 	refreshedEvents = [optimisticEvent];
 	resolveWrite(calendarServerEvent(optimisticEvent.id, optimisticEvent.title));
 	await save;
-	await waitForQueuedPersistence();
+	await waitForDeleteIntentCompensation();
 
-	expect(scenario.events().map((event) => event.title)).toEqual(['Optimistic title']);
+	expect(scenario.events()).toEqual([]);
 	expect(scenario.refreshCount()).toBe(1);
 });
 
@@ -399,4 +471,8 @@ test('restores an optimistically deleted event after delete reports target unava
 
 async function waitForQueuedPersistence(): Promise<void> {
 	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitForDeleteIntentCompensation(): Promise<void> {
+	await new Promise<void>((resolve) => setTimeout(resolve, 500));
 }
