@@ -133,6 +133,32 @@ func TestCalendarDeleteIntentCancelIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCalendarDeleteIntentCancelBeforeCreateUsesStableHTTPContract(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-cancel-before-create-http")
+	operationID := "cancel-before-create-http"
+
+	for attempt := 0; attempt < 2; attempt++ {
+		response := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, event.ID, operationID, `{"clientID":"page-a","sequence":3}`)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("cancel attempt %d status = %d body = %s", attempt+1, response.Code, response.Body.String())
+		}
+	}
+	lowerCancelResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, event.ID, operationID, `{"clientID":"page-a","sequence":2}`)
+	assertCalendarErrorCode(t, lowerCancelResponse, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
+	differentClientResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, event.ID, operationID, `{"clientID":"page-b","sequence":4}`)
+	assertCalendarErrorCode(t, differentClientResponse, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
+
+	createResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, operationID, `{"clientID":"page-a","sequence":2,"expectedUpdatedAt":"`+event.UpdatedAt+`"}`)
+	if createResponse.Code != http.StatusAccepted {
+		t.Fatalf("late create status = %d body = %s", createResponse.Code, createResponse.Body.String())
+	}
+	assertCalendarDeleteIntentStatus(t, service, operationID, calendarDeleteIntentStatusCanceled)
+
+	missingEventResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, "missing-event", "missing-cancel-operation", `{"clientID":"page-a","sequence":1}`)
+	assertCalendarErrorCode(t, missingEventResponse, http.StatusNotFound, calendarDeleteIntentNotFoundErrorCode)
+}
+
 func TestCalendarDeleteIntentCancelRejectsWrongIdentityOrOlderSequence(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-cancel-ordering")
