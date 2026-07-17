@@ -11,12 +11,18 @@ import {
 const initialUpdatedAt = '2026-07-17T01:00:00Z';
 const savedUpdatedAt = '2026-07-17T02:00:00Z';
 
-test('normal delete uses the persisted version returned by a preceding PUT', async () => {
-	const previousEvent = calendarVersionedTestEvent('normal-delete-version', 'Previous title', initialUpdatedAt);
-	const updatedEvent = calendarVersionedTestEvent('normal-delete-version', 'Updated title', initialUpdatedAt);
+test('starts a higher-sequence delete intent while the preceding PUT is pending', async () => {
+	const previousEvent = calendarVersionedTestEvent('immediate-delete-intent', 'Previous title', initialUpdatedAt);
+	const updatedEvent = calendarVersionedTestEvent('immediate-delete-intent', 'Updated title', initialUpdatedAt);
 	let resolveWrite: (event: CalendarEvent) => void = () => {};
 	let reportWriteStarted: () => void = () => {};
-	let deleteExpectedUpdatedAt: string | undefined;
+	let isWritePending = true;
+	let intentStartedWhileWritePending = false;
+	let writeClientID: string | undefined;
+	let writeSequence: number | undefined;
+	let intentClientID: string | undefined;
+	let intentSequence: number | undefined;
+	let intentExpectedUpdatedAt: string | undefined;
 	const writeStarted = new Promise<void>((resolve) => {
 		reportWriteStarted = resolve;
 	});
@@ -24,57 +30,25 @@ test('normal delete uses the persisted version returned by a preceding PUT', asy
 		resolveWrite = resolve;
 	});
 	const scenario = createPersistenceScenario([updatedEvent], () => [], {
-		writeEvent: async () => {
+		writeEvent: async (_path, _method, _event, _expectedUpdatedAt, mutationClientID, mutationSequence) => {
+			writeClientID = mutationClientID;
+			writeSequence = mutationSequence;
 			reportWriteStarted();
 			return pendingWrite;
 		},
-		deleteEvent: async (_eventID, expectedUpdatedAt) => {
-			deleteExpectedUpdatedAt = expectedUpdatedAt;
+		createDeleteIntent: async (_eventID, operationID, clientID, sequence, expectedUpdatedAt) => {
+			intentStartedWhileWritePending = isWritePending;
+			intentClientID = clientID;
+			intentSequence = sequence;
+			intentExpectedUpdatedAt = expectedUpdatedAt;
+			return { operationID, executeAt: '2026-07-17T01:00:05Z' };
 		}
 	});
 
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
 	await writeStarted;
 	await scenario.actions.deleteEvent(updatedEvent.id);
-	const flush = scenario.actions.flushPendingDelete();
-	resolveWrite({
-		...calendarServerEvent(updatedEvent.id, updatedEvent.title),
-		updatedAt: savedUpdatedAt
-	});
-	await Promise.all([save, flush]);
-
-	expect(deleteExpectedUpdatedAt).toBe(savedUpdatedAt);
-});
-
-test('pagehide delete waits for a preceding PUT and uses its persisted version', async () => {
-	const previousEvent = calendarVersionedTestEvent('pagehide-delete-version', 'Previous title', initialUpdatedAt);
-	const updatedEvent = calendarVersionedTestEvent('pagehide-delete-version', 'Updated title', initialUpdatedAt);
-	let resolveWrite: (event: CalendarEvent) => void = () => {};
-	let reportWriteStarted: () => void = () => {};
-	const pagehideDeleteVersions: Array<string | undefined> = [];
-	const writeStarted = new Promise<void>((resolve) => {
-		reportWriteStarted = resolve;
-	});
-	const pendingWrite = new Promise<CalendarEvent>((resolve) => {
-		resolveWrite = resolve;
-	});
-	const scenario = createPersistenceScenario([updatedEvent], () => [], {
-		writeEvent: async () => {
-			reportWriteStarted();
-			return pendingWrite;
-		},
-		deleteEventOnPageHide: (_eventID, expectedUpdatedAt) => {
-			pagehideDeleteVersions.push(expectedUpdatedAt);
-		}
-	});
-
-	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
-	await writeStarted;
-	await scenario.actions.deleteEvent(updatedEvent.id);
-	scenario.actions.flushPendingDeleteOnPageHide();
-
-	expect(pagehideDeleteVersions).toEqual([]);
-
+	isWritePending = false;
 	resolveWrite({
 		...calendarServerEvent(updatedEvent.id, updatedEvent.title),
 		updatedAt: savedUpdatedAt
@@ -82,20 +56,24 @@ test('pagehide delete waits for a preceding PUT and uses its persisted version',
 	await save;
 	await waitForQueuedPersistence();
 
-	expect(pagehideDeleteVersions).toEqual([savedUpdatedAt]);
+	expect(intentStartedWhileWritePending).toBe(true);
+	expect(typeof writeClientID).toBe('string');
+	expect(intentClientID).toBe(writeClientID);
+	expect(intentSequence).toBe((writeSequence ?? 0) + 1);
+	expect(intentExpectedUpdatedAt).toBe(initialUpdatedAt);
 });
 
-test('delete version conflict refreshes without restoring the stale snapshot', async () => {
+test('delete intent version conflict refreshes without restoring the stale snapshot', async () => {
 	const deletedEvent = calendarVersionedTestEvent('cross-tab-delete', 'Stale title', initialUpdatedAt);
 	const remoteEvent = calendarVersionedTestEvent('cross-tab-delete', 'Remote title', savedUpdatedAt);
 	const scenario = createPersistenceScenario([deletedEvent], () => [remoteEvent], {
-		deleteEvent: async () => {
+		createDeleteIntent: async () => {
 			throw new CalendarPersistenceError('calendar_event_version_conflict', 'Could not delete the event.');
 		}
 	});
 
 	await scenario.actions.deleteEvent(deletedEvent.id);
-	await scenario.actions.flushPendingDelete();
+	await waitForQueuedPersistence();
 
 	expect(scenario.restoredEventTitles).toEqual([]);
 	expect(scenario.events().map((event) => event.title)).toEqual(['Remote title']);

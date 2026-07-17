@@ -7,7 +7,7 @@ test.describe('calendar draft popover edit mode', () => {
 	});
 
 	test('opens existing events in edit mode and deletes them from the popover', async ({ page }) => {
-		let deleteCount = 0;
+		let deleteIntentCount = 0;
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({
@@ -26,9 +26,19 @@ test.describe('calendar draft popover edit mode', () => {
 				}
 			});
 		});
-		await page.route('**/calendar/api/events/existing-event', async (route) => {
-			if (route.request().method() === 'DELETE') deleteCount += 1;
-			await route.fulfill({ json: {} });
+		await page.route('**/calendar/api/events/existing-event/delete-intents/*', async (route) => {
+			if (route.request().method() !== 'PUT') {
+				await route.fulfill({ status: 204, body: '' });
+				return;
+			}
+			deleteIntentCount += 1;
+			const operationID = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+			await route.fulfill({
+				json: {
+					operationID,
+					executeAt: '2026-06-08T12:00:05.000Z'
+				}
+			});
 		});
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
@@ -40,7 +50,7 @@ test.describe('calendar draft popover edit mode', () => {
 
 		await page.getByRole('button', { name: '삭제' }).click();
 
-		await expect.poll(() => deleteCount).toBe(1);
+		await expect.poll(() => deleteIntentCount).toBe(1);
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.getByText('기존 일정')).toHaveCount(0);
 	});

@@ -2,9 +2,11 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayFlowEvent } from './calendar-event-mapping';
 import {
-	deletePersistedCalendarEventOnPageHide,
+	cancelCalendarEventDeleteIntent,
+	createCalendarEventDeleteIntent,
 	deletePersistedCalendarEvent,
 	writeCalendarEvent,
+	type CalendarDeleteIntent,
 	type CalendarEvent
 } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -24,10 +26,19 @@ export type CalendarPersistedEventActions = {
 		path: string,
 		method: 'POST' | 'PUT',
 		event: DayFlowEvent,
-		expectedUpdatedAt?: string
+		expectedUpdatedAt?: string,
+		mutationClientID?: string,
+		mutationSequence?: number
 	) => Promise<CalendarEvent>;
 	deleteEvent: (eventID: string, expectedUpdatedAt?: string) => Promise<void>;
-	deleteEventOnPageHide: (eventID: string, expectedUpdatedAt?: string) => void;
+	createDeleteIntent: (
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number,
+		expectedUpdatedAt: string
+	) => Promise<CalendarDeleteIntent>;
+	cancelDeleteIntent: (eventID: string, operationID: string, clientID: string, sequence: number) => Promise<void>;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -39,7 +50,9 @@ export function createCalendarPersistedEventActions(
 		path: string,
 		method: 'POST' | 'PUT',
 		event: DayFlowEvent,
-		expectedUpdatedAt?: string
+		expectedUpdatedAt?: string,
+		mutationClientID?: string,
+		mutationSequence?: number
 	): Promise<CalendarEvent> {
 		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 		const currentExpectedUpdatedAt = expectedUpdatedAt
@@ -48,6 +61,9 @@ export function createCalendarPersistedEventActions(
 			...calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone),
 			...(method === 'PUT' && currentExpectedUpdatedAt !== undefined
 				? { expectedUpdatedAt: currentExpectedUpdatedAt }
+				: {}),
+			...(method === 'PUT' && mutationClientID !== undefined && mutationSequence !== undefined
+				? { mutationClientID, mutationSequence }
 				: {})
 		};
 		return writeCalendarEvent(path, method, payload, context.text.saveError);
@@ -57,8 +73,30 @@ export function createCalendarPersistedEventActions(
 		await deletePersistedCalendarEvent(eventID, expectedUpdatedAt, context.text.deleteError);
 	}
 
-	function deleteEventOnPageHide(eventID: string, expectedUpdatedAt?: string): void {
-		deletePersistedCalendarEventOnPageHide(eventID, expectedUpdatedAt);
+	async function createDeleteIntent(
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number,
+		expectedUpdatedAt: string
+	): Promise<CalendarDeleteIntent> {
+		return createCalendarEventDeleteIntent(
+			eventID,
+			operationID,
+			clientID,
+			sequence,
+			expectedUpdatedAt,
+			context.text.deleteError
+		);
+	}
+
+	async function cancelDeleteIntent(
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number
+	): Promise<void> {
+		await cancelCalendarEventDeleteIntent(eventID, operationID, clientID, sequence, context.text.deleteError);
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {
@@ -93,7 +131,8 @@ export function createCalendarPersistedEventActions(
 	return {
 		writeEvent,
 		deleteEvent,
-		deleteEventOnPageHide,
+		createDeleteIntent,
+		cancelDeleteIntent,
 		applyServerMetadata
 	};
 }
