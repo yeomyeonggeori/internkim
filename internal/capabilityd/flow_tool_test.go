@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +19,7 @@ func TestResolveFlowOwnerUsesRequesterWhenTargetPersonHintIsEmpty(t *testing.T) 
 		{ID: "lee", Name: "lee", Email: "lee@example.com"},
 		{ID: "iam", Name: "iam", Email: "iam@example.com"},
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "lee에게 10분 회의 추가해줘"}, "iam@example.com", members)
+	resolution := resolveFlowOwner(flowTaskAddInput{Title: "10분 회의"}, "iam@example.com", members)
 	if resolution.OwnerID != "iam" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -49,7 +50,7 @@ func TestResolveFlowOwnerMatchesTargetPersonHint(t *testing.T) {
 		{name: "member id", value: "lee-1"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "업무 요청해줘", TargetPersonHint: testCase.value}, "", members)
+			resolution := resolveFlowOwner(flowTaskAddInput{Title: "업무 요청", TargetPersonHint: testCase.value}, "", members)
 			if resolution.OwnerID != "lee-1" {
 				t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 			}
@@ -61,7 +62,7 @@ func TestResolveFlowOwnerFallsBackToRequesterEmail(t *testing.T) {
 	members := []flowMemberForTool{
 		{ID: "staff", Name: "Staff", Email: "staff@example.com", MattermostUsername: "staff"},
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{Prompt: "10분 회의 추가해줘"}, "staff@example.com", members)
+	resolution := resolveFlowOwner(flowTaskAddInput{Title: "10분 회의"}, "staff@example.com", members)
 	if resolution.OwnerID != "staff" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -90,9 +91,43 @@ func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestResolveFlowParticipantIDsUsesSharedPersonHints(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "owner", Name: "Owner", Email: "owner@example.com", MattermostUsername: "owner"},
+		{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"},
+	}
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"@internkim", "kim@example.com", "김인턴"}, "owner", members)
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	if len(participantIDs) != 2 || participantIDs[0] != "owner" || participantIDs[1] != "kim" {
+		t.Fatalf("participantIDs = %+v", participantIDs)
+	}
+}
+
+func TestResolveFlowParticipantIDsUsesContainedNameMatch(t *testing.T) {
+	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"인턴"}, "owner", members)
+	if failure != nil || len(participantIDs) != 2 || participantIDs[0] != "owner" || participantIDs[1] != "kim" {
+		t.Fatalf("participantIDs=%+v failure=%+v", participantIDs, failure)
+	}
+}
+
+func TestResolveFlowParticipantIDsReturnsTypedAmbiguity(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "lee", Name: "샘플", Email: "lee@example.com", MattermostUsername: "lee"},
+		{ID: "kim", Name: "샘플", Email: "kim@example.com", MattermostUsername: "kim"},
+	}
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"샘플"}, "owner", members)
+	if participantIDs != nil || failure == nil || failure.ErrorCode != "flow_participant_ambiguous" || len(failure.Candidates) != 2 {
+		t.Fatalf("participantIDs=%+v failure=%+v", participantIDs, failure)
+	}
+}
+
 func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 	var summaryRequesterEmail string
 	var taskRequesterEmail string
+	var payload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -100,40 +135,8 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				summaryRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
 				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
 				taskRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
-				return flowToolJSONResponse(`{"id":"task-1"}`), nil
-			default:
-				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"10분 회의"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
-		},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if summaryRequesterEmail != "staff@example.com" || taskRequesterEmail != "staff@example.com" {
-		t.Fatalf("requester headers summary=%q task=%q", summaryRequesterEmail, taskRequesterEmail)
-	}
-}
-
-func TestFlowTaskAddPropagatesExplicitTitleEndDateAndDuplicateConfirmation(t *testing.T) {
-	var payload map[string]any
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -147,7 +150,7 @@ func TestFlowTaskAddPropagatesExplicitTitleEndDateAndDuplicateConfirmation(t *te
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무","title":" 고객지원 분기 결산 누락 항목 확인 ","endDate":" 2026-07-17 ","allowDuplicate":true}`),
+		Input:    []byte(`{"title":"10분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -155,34 +158,152 @@ func TestFlowTaskAddPropagatesExplicitTitleEndDateAndDuplicateConfirmation(t *te
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["allowDuplicate"] != true {
-		t.Fatalf("allowDuplicate = %#v", payload["allowDuplicate"])
+	if summaryRequesterEmail != "staff@example.com" || taskRequesterEmail != "staff@example.com" {
+		t.Fatalf("requester headers summary=%q task=%q", summaryRequesterEmail, taskRequesterEmail)
 	}
-	if payload["title"] != "고객지원 분기 결산 누락 항목 확인" {
-		t.Fatalf("title = %#v", payload["title"])
+}
+
+func TestFlowTaskWritesPreserveCallerContext(t *testing.T) {
+	testCases := []struct {
+		name   string
+		invoke func(Service, context.Context) error
+	}{
+		{name: "add", invoke: func(service Service, requestContext context.Context) error {
+			_, errorValue := service.postFlowTask(requestContext, flowTaskCreatePayload{OwnerID: "staff", ParticipantIDs: []string{"staff"}, Content: "업무"}, "staff@example.com")
+			return errorValue
+		}},
+		{name: "update", invoke: func(service Service, requestContext context.Context) error {
+			_, errorValue := service.putFlowTask(requestContext, flowTaskForTool{ID: "task-1"}, "staff@example.com")
+			return errorValue
+		}},
+		{name: "delete", invoke: func(service Service, requestContext context.Context) error {
+			_, errorValue := service.deleteFlowTask(requestContext, "task-1", "staff@example.com")
+			return errorValue
+		}},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			requestStarted := make(chan bool, 1)
+			service := Service{
+				Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					_, hasDeadline := request.Context().Deadline()
+					requestStarted <- hasDeadline
+					<-request.Context().Done()
+					return nil, request.Context().Err()
+				})},
+			}
+			requestContext, cancelRequest := context.WithCancel(context.Background())
+			result := make(chan error, 1)
+			go func() {
+				result <- testCase.invoke(service, requestContext)
+			}()
+
+			select {
+			case hasDeadline := <-requestStarted:
+				if hasDeadline {
+					t.Fatal("flow task request added a child deadline")
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("flow task request did not reach transport")
+			}
+			cancelRequest()
+			select {
+			case errorValue := <-result:
+				if !errors.Is(errorValue, context.Canceled) {
+					t.Fatalf("error = %v", errorValue)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("caller cancellation did not stop flow task request")
+			}
+		})
+	}
+}
+
+func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
+	var payload map[string]any
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}]}`), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				return flowToolJSONResponse(`{"id":"task-1"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.add",
+		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","goal":" 누락 항목 확인 ","size":" s ","status":"예정","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["content"] != "고객지원 분기 결산 누락 항목 확인" {
+		t.Fatalf("content = %#v", payload["content"])
 	}
 	if payload["endDate"] != "2026-07-17" {
 		t.Fatalf("endDate = %#v", payload["endDate"])
 	}
+	if payload["goal"] != "누락 항목 확인" || payload["size"] != "S" || payload["status"] != "예정" || payload["startDate"] != "2026-07-15" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	for _, fieldName := range []string{"prompt", "title", "targetPersonHint", "participantPersonHints", "requesterEmail", "source", "weekCode", "allowDuplicate", "duplicatePolicy"} {
+		if _, found := payload[fieldName]; found {
+			t.Fatalf("unexpected payload field %q in %#v", fieldName, payload)
+		}
+	}
+	participantIDs, ok := payload["participantIDs"].([]any)
+	if !ok || len(participantIDs) != 2 || participantIDs[0] != "staff" || participantIDs[1] != "kim" {
+		t.Fatalf("participantIDs = %#v", payload["participantIDs"])
+	}
 }
 
-func TestDecodeFlowTaskAddInputAcceptsLegacyContentAlias(t *testing.T) {
-	input, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":"업무 추가","content":" 이전 제목 "}`))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if input.Title != "이전 제목" {
-		t.Fatalf("title = %q", input.Title)
+func TestDecodeFlowTaskAddInputRejectsLegacyPromptAndContent(t *testing.T) {
+	for _, document := range []string{`{"prompt":"업무 추가"}`, `{"content":"업무 추가"}`} {
+		if _, errorValue := decodeFlowTaskAddInput([]byte(document)); errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
+			t.Fatalf("error = %v for %s", errorValue, document)
+		}
 	}
 }
 
 func TestDecodeFlowTaskAddInputTrimsCanonicalFields(t *testing.T) {
-	input, errorValue := decodeFlowTaskAddInput([]byte(`{"prompt":" 업무 추가 ","title":" 정확한 제목 ","endDate":" 2026-07-17 "}`))
+	input, errorValue := decodeFlowTaskAddInput([]byte(`{"title":" 정확한 제목 ","goal":" 목표 ","size":" m ","status":" 진행 ","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","targetPersonHint":" @lee ","participantPersonHints":[" @kim ","@kim"," "]}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if input.Prompt != "업무 추가" || input.Title != "정확한 제목" || input.EndDate != "2026-07-17" {
+	if input.Title != "정확한 제목" || input.Goal != "목표" || input.Size != "M" || input.Status != "진행" || input.StartDate != "2026-07-15" || input.EndDate != "2026-07-17" || input.TargetPersonHint != "@lee" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
 		t.Fatalf("input = %+v", input)
+	}
+}
+
+func TestDecodeFlowTaskAddInputRejectsInvalidTypedFields(t *testing.T) {
+	for _, testCase := range []struct {
+		document     string
+		errorMessage string
+	}{
+		{document: `{}`, errorMessage: "title is required"},
+		{document: `{"title":"업무","size":"HUGE"}`, errorMessage: "size is not allowed"},
+		{document: `{"title":"업무","status":"unknown"}`, errorMessage: "status is not allowed"},
+		{document: `{"title":"업무","extra":true}`, errorMessage: "unknown field"},
+		{document: `{"title":"업무","weekCode":"26W29"}`, errorMessage: "unknown field"},
+		{document: `{"title":"업무","allowDuplicate":true}`, errorMessage: "unknown field"},
+	} {
+		_, errorValue := decodeFlowTaskAddInput([]byte(testCase.document))
+		if errorValue == nil || !strings.Contains(errorValue.Error(), testCase.errorMessage) {
+			t.Fatalf("error = %v for %s", errorValue, testCase.document)
+		}
 	}
 }
 
@@ -194,7 +315,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"lee","name":"샘플","email":"lee@example.com","mattermostUsername":"lee"},{"id":"kim","name":"샘플","email":"kim@example.com","mattermostUsername":"kim"}]}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"task-1"}`), nil
 			default:
@@ -206,7 +327,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"업무 요청해줘","targetPersonHint":"샘플"}`),
+		Input:    []byte(`{"title":"업무 요청","targetPersonHint":"샘플"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -225,15 +346,17 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 	}
 }
 
-func TestFlowTaskAddReturnsSkippedDuplicateStatus(t *testing.T) {
+func TestFlowTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) {
+	postCalled := false
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
-				return flowToolJSONResponse(`{"status":"skipped_duplicate","duplicateTask":{"id":"task-1"}}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"lee","name":"샘플","email":"lee@example.com"},{"id":"kim","name":"샘플","email":"kim@example.com"}]}`), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				postCalled = true
+				return flowToolJSONResponse(`{"id":"task-1"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -243,16 +366,14 @@ func TestFlowTaskAddReturnsSkippedDuplicateStatus(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"10분 회의"}`),
-		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
-		},
+		Input:    []byte(`{"title":"공동 업무","participantPersonHints":["샘플"]}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "skipped_duplicate" {
-		t.Fatalf("status = %q", response.Status)
+	if !response.IsError || response.ErrorCode != "flow_participant_ambiguous" || postCalled {
+		t.Fatalf("response=%+v postCalled=%t", response, postCalled)
 	}
 }
 
@@ -290,7 +411,7 @@ func TestFlowTaskAddAddsParticipantPresentations(t *testing.T) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(`{"members":[{"id":"rain","name":"김테스트","email":"rain@example.com","mattermostUsername":"rain"}]}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
 				return flowToolJSONResponse(`{"id":"task-1","participantIDs":["rain"],"participantNames":["김테스트"],"content":"경산 일정","status":"진행"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -301,7 +422,7 @@ func TestFlowTaskAddAddsParticipantPresentations(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task.add",
-		Input:    []byte(`{"prompt":"경산 일정"}`),
+		Input:    []byte(`{"title":"경산 일정"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -332,7 +453,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 					t.Fatal(errorValue)
 				}
 				return flowToolJSONResponse(`{"id":"task-1","content":"15분 회의","status":"진행"}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"new-task"}`), nil
 			default:
@@ -373,25 +494,11 @@ func TestDecodeFlowTaskUpdateInputAcceptsLegacyContentAlias(t *testing.T) {
 	}
 }
 
-func TestDecodeFlowTaskInputRejectsTitleAndLegacyContentConflict(t *testing.T) {
-	testCases := []struct {
-		document string
-		decode   func([]byte) error
-	}{
-		{document: `{"prompt":"업무 추가","title":"같은 제목","content":"같은 제목"}`, decode: func(document []byte) error {
-			_, errorValue := decodeFlowTaskAddInput(document)
-			return errorValue
-		}},
-		{document: `{"taskID":"task-1","title":"새 제목","content":"이전 제목"}`, decode: func(document []byte) error {
-			_, errorValue := decodeFlowTaskUpdateInput(document)
-			return errorValue
-		}},
-	}
-	for _, testCase := range testCases {
-		errorValue := testCase.decode([]byte(testCase.document))
-		if errorValue == nil || !strings.Contains(errorValue.Error(), "both title and content") {
-			t.Fatalf("error = %v for %s", errorValue, testCase.document)
-		}
+func TestDecodeFlowTaskUpdateInputRejectsTitleAndLegacyContentConflict(t *testing.T) {
+	document := []byte(`{"taskID":"task-1","title":"새 제목","content":"이전 제목"}`)
+	_, errorValue := decodeFlowTaskUpdateInput(document)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "both title and content") {
+		t.Fatalf("error = %v", errorValue)
 	}
 }
 

@@ -119,7 +119,7 @@ func MattermostDescriptors() []Descriptor {
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "task.add", Description: "Create a new workspace task from a natural-language prompt. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "task.add", Description: "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 		{Name: "task.list", Description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:task.list", SideEffectClass: "read"},
 		{Name: "task.update", Description: "Update fields on an existing task — title, status, dates, size, category, and more. Identify the task by taskID (from a prior list result) or by a text query. If no patch fields are provided the task is automatically marked complete.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 		{Name: "task.delete", Description: "Permanently delete a task. Identify the task by taskID or by query plus weekCode and targetPersonHint. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
@@ -188,12 +188,14 @@ func completionEvidence(mode string, action string, targetKind string) *Completi
 
 func flowTaskAddInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("prompt", jsonschema.String().WithDescription("Natural-language description of the task to create, e.g. 'Prepare the Q3 budget report by Friday'. The system uses this to generate the structured task fields.")),
-		jsonschema.Field("title", jsonschema.String().WithDescription("Exact task title when the user explicitly provides one. Preserve the user's wording verbatim. Leave empty to infer a concise title from prompt.")),
-		jsonschema.Field("endDate", jsonschema.String().WithDescription("Task due date in YYYY-MM-DD format when the user explicitly provides one. Leave empty to infer it from prompt.")),
+		jsonschema.Required("title", jsonschema.String().WithDescription("Concise task title. Preserve the user's exact title when they provide one; otherwise derive it directly from their request.")),
+		jsonschema.Field("goal", jsonschema.String().WithDescription("Definition of done or desired outcome. Omit when the title already states the complete outcome.")),
+		jsonschema.Field("size", jsonschema.StringEnum("XS", "S", "M", "L", "XL", "XXL").WithDescription("Effort size using the work-size rubric. Omit when the request does not support a useful estimate.")),
+		jsonschema.Field("status", jsonschema.StringEnum("예정", "진행", "완료", "일시정지", "기각", "중단").WithDescription("Initial task status. Defaults to 예정. The runtime may change delegated tasks to 요청.")),
+		jsonschema.Field("startDate", jsonschema.String().WithDescription("Start date in YYYY-MM-DD format. Resolve relative dates from the current date. Omit when the user did not specify one.")),
+		jsonschema.Field("endDate", jsonschema.String().WithDescription("Due date in YYYY-MM-DD format. Resolve relative dates from the current date. Omit when the user did not specify one.")),
 		jsonschema.Field("targetPersonHint", jsonschema.String().WithDescription("Name or email of the person the task belongs to, e.g. 'Alice' or 'alice@example.com'. Leave empty to assign to the requester themselves.")),
-		jsonschema.Field("weekCode", jsonschema.String().WithDescription("Work-week the task belongs to in YYYY-WNN format, e.g. '2026-W26'. Leave empty to use the current week.")),
-		jsonschema.Field("allowDuplicate", jsonschema.Boolean().WithDescription("If true, create the task even if a similar one already exists. Defaults to false, which deduplicates by content.")),
+		jsonschema.Field("participantPersonHints", jsonschema.Array(jsonschema.String()).WithDescription("Names, @handles, or emails of additional participants explicitly named by the user. The owner is included automatically.")),
 	).RawMessage()
 }
 
