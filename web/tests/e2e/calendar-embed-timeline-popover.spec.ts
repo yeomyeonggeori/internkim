@@ -59,6 +59,47 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expect(page.getByLabel('제목')).toHaveValue('Double Click Timeline Event');
 	});
 
+	test('switches existing day event editors at the compact viewport boundary', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'compact-boundary-event',
+				title: 'Compact Boundary Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+		await page.setViewportSize({ width: 767, height: 900 });
+		await openCalendarEmbed(page, '일');
+
+		const eventBlock = page.locator(
+			'.calendar-stage [data-event-id="compact-boundary-event"].df-day-event:not(.df-right-panel-event-card)'
+		);
+		await expect(eventBlock).toBeVisible();
+		expect(await page.evaluate(() => window.innerWidth)).toBe(767);
+		await eventBlock.click();
+		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await eventBlock.dblclick();
+		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await page
+			.locator('.calendar-mobile-event-editor .df-mobile-event-drawer-header-action')
+			.filter({ hasText: '취소' })
+			.click();
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+
+		await page.setViewportSize({ width: 768, height: 900 });
+		await page.reload();
+		await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
+		expect(await page.evaluate(() => window.innerWidth)).toBe(768);
+		await expect(eventBlock).toBeVisible();
+		await eventBlock.dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+	});
+
 	test('anchors day multi-day proxy popovers to the clicked proxy block', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{

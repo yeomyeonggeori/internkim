@@ -116,7 +116,7 @@ export function createCalendarDraftPopoverActions(
 		anchor: DraftPopoverAnchor | null,
 		shouldWaitForRenderedAnchor: boolean
 	): void {
-		context.selectEvent(event.id);
+		if (mode === 'create') context.selectEvent(event.id);
 		const popover = draftPopoverStateFromEvent(event, mode, anchor, context.getStageElement());
 		context.setDraftPopover({
 			...popover,

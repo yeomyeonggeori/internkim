@@ -32,12 +32,12 @@
 	.calendar-stage.calendar-stage-day .df-right-panel-event-card.df-day-event.internkim-calendar-event-focused,
 	.calendar-stage .df-right-panel-event-card.internkim-calendar-event-focused,
 	.calendar-stage .calendar-multi-day-all-day-proxy.internkim-calendar-event-focused {
-		border-color: #3b82f6 !important;
-		background: #3b82f6 !important;
+		border-color: #2563eb !important;
+		background: #2563eb !important;
 		color: #ffffff !important;
 		box-shadow:
-			0 0 0 1px #3b82f6,
-			0 8px 16px rgb(59 130 246 / 0.18) !important;
+			0 0 0 1px #2563eb,
+			0 8px 16px rgb(37 99 235 / 0.18) !important;
 		transition: none !important;
 	}
 
@@ -59,6 +59,40 @@
 		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;
 		color: #ffffff !important;
 		box-shadow: 0 8px 18px rgb(100 115 201 / 0.2) !important;
+	}
+
+	@media (forced-colors: active) {
+		.calendar-stage.calendar-stage-day .df-day-event.df-event-timed.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-week .df-week-event.df-event-timed.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-week .df-week-all-day-event-layer .df-event.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-day .df-right-panel-event-card.df-day-event.internkim-calendar-event-focused,
+		.calendar-stage .df-right-panel-event-card.internkim-calendar-event-focused,
+		.calendar-stage .calendar-multi-day-all-day-proxy.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-day
+			.df-day-event.df-event-timed.draft-empty-title-event.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-week
+			.df-week-event.df-event-timed.draft-empty-title-event.internkim-calendar-event-focused,
+		.calendar-stage.calendar-stage-day
+			.df-right-panel-event-card.df-day-event.draft-empty-title-event.internkim-calendar-event-focused,
+		.calendar-stage .df-right-panel-event-card.draft-empty-title-event.internkim-calendar-event-focused {
+			border-color: Highlight !important;
+			background: Highlight !important;
+			color: HighlightText !important;
+			box-shadow: none !important;
+			forced-color-adjust: none;
+		}
+
+		.calendar-stage.calendar-stage-day .df-day-event.df-event-timed.internkim-calendar-event-focused::before,
+		.calendar-stage.calendar-stage-week .df-week-event.df-event-timed.internkim-calendar-event-focused::before,
+		.calendar-stage.calendar-stage-day .df-day-content-all-day-lane .df-event.internkim-calendar-event-focused::before,
+		.calendar-stage.calendar-stage-week .df-week-all-day-event-layer .df-event.internkim-calendar-event-focused::before,
+		.calendar-stage.calendar-stage-day
+			.df-right-panel-event-card.df-day-event.internkim-calendar-event-focused::before,
+		.calendar-stage .df-right-panel-event-card.internkim-calendar-event-focused::before,
+		.calendar-stage .calendar-multi-day-all-day-proxy.internkim-calendar-event-focused::before {
+			background: HighlightText !important;
+		}
 	}
 
 	.calendar-stage .df-event.calendar-timeline-lane-adjusted,

@@ -13,6 +13,7 @@ import type { CalendarSelectedMonthDateActions } from './calendar-month-selectio
 import type { CalendarPageNavigation } from './calendar-page-navigation';
 import type { MonthRangeSelection } from './calendar-month-range-action';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
+import { installCalendarStageLayoutResizeSync } from './calendar-stage-layout-resize';
 
 type CalendarPageEffectsCalendar = {
 	app: {
@@ -90,6 +91,15 @@ export function installCalendarPageEffects(context: CalendarPageEffectsContext):
 		context.calendar.events;
 		context.getVisibleEvents();
 		context.renderSync.scheduleCalendarEventDOMSync();
+	});
+
+	$effect(() => {
+		const stageElement = context.getStageElement();
+		if (!context.isBrowser() || !stageElement) return;
+		return installCalendarStageLayoutResizeSync(
+			stageElement,
+			context.renderSync.scheduleCalendarEventDOMSync
+		);
 	});
 
 	$effect(() => {

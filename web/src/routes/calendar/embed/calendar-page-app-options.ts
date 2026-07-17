@@ -19,10 +19,10 @@ type CalendarPageAppOptionsContext = {
 	getToolbarDate: () => Date;
 	loadEvents: (startDate: Date, endDate: Date) => void;
 	setVisibleDate: (date: Date) => void;
-	selectCalendarEvent: (eventID: string) => void;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
+	closeMobileEventEditor: () => void;
 };
 
 export function createCalendarPageAppOptions(context: CalendarPageAppOptionsContext): CalendarPageAppOptions {
@@ -60,6 +60,9 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 			})
 		],
 		callbacks: {
+			onMobileEventDetailToggle: (event) => {
+				if (!event) context.closeMobileEventEditor();
+			},
 			onVisibleRangeChange: (startDate, endDate) => {
 				context.loadEvents(startDate, endDate);
 				const middle = new Date((startDate.getTime() + endDate.getTime()) / 2);
@@ -68,7 +71,7 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 					: middle;
 				context.setVisibleDate(visibleDate);
 			},
-			onEventClick: (event) => context.selectCalendarEvent(event.id),
+			onEventDoubleClick: () => false,
 			onEventCreate: context.saveCreatedEvent,
 			onEventUpdate: (event) => context.saveUpdatedEvent(event),
 			onEventDelete: context.deleteEvent

@@ -1,4 +1,8 @@
-import { clearFocusedCalendarEventElements } from './calendar-event-elements';
+import {
+	calendarEventElementFromTarget,
+	clearFocusedCalendarEventElements,
+	normalizedCalendarEventID
+} from './calendar-event-elements';
 
 export type CalendarEventSelectionOptions = {
 	stageElement: HTMLElement;
@@ -8,12 +12,14 @@ export type CalendarEventSelectionOptions = {
 
 export function installCalendarEventSelection(options: CalendarEventSelectionOptions): () => void {
 	const handlePointerDown = (event: PointerEvent): void => {
-		if (!(event.target instanceof Element)) return;
-		if (event.target.closest('.calendar-draft-popover')) return;
-		const eventElement = event.target.closest<HTMLElement>(
-			'[data-event-id].df-event, [data-event-id].df-month-segment-event, .calendar-multi-day-all-day-proxy[data-event-id]'
-		);
-		const eventID = normalizedEventID(eventElement?.dataset.eventId);
+		if (
+			event.target instanceof Element &&
+			event.target.closest('.calendar-draft-popover, .calendar-mobile-event-editor')
+		) {
+			return;
+		}
+		const eventElement = calendarEventElementFromTarget(options.stageElement, event.target);
+		const eventID = normalizedCalendarEventID(eventElement?.dataset.eventId);
 		if (eventID) {
 			options.selectEvent(eventID);
 			return;
@@ -27,9 +33,4 @@ export function installCalendarEventSelection(options: CalendarEventSelectionOpt
 	return () => {
 		document.removeEventListener('pointerdown', handlePointerDown, true);
 	};
-}
-
-function normalizedEventID(eventID: string | undefined): string | null {
-	if (!eventID) return null;
-	return eventID.split('::')[0] ?? null;
 }
