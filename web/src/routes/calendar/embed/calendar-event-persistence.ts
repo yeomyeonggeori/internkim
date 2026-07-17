@@ -47,9 +47,9 @@ export type CalendarDeleteIntent = {
 	executeAt: string;
 };
 
-const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
-const calendarEventVersionConflictErrorCode = 'calendar_event_version_conflict';
-const calendarDeleteIntentConflictErrorCode = 'calendar_delete_intent_conflict';
+export const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
+export const calendarEventVersionConflictErrorCode = 'calendar_event_version_conflict';
+export const calendarDeleteIntentConflictErrorCode = 'calendar_delete_intent_conflict';
 
 export type CalendarPersistenceErrorCode =
 	| typeof calendarTargetUnavailableErrorCode
@@ -65,6 +65,13 @@ export class CalendarPersistenceError extends Error {
 		super(message);
 		this.name = 'CalendarPersistenceError';
 	}
+}
+
+export function isCalendarPersistenceErrorCode(
+	error: unknown,
+	code: CalendarPersistenceErrorCode
+): error is CalendarPersistenceError {
+	return error instanceof CalendarPersistenceError && error.code === code;
 }
 
 export async function fetchCalendarEvents(startDate: Date, endDate: Date, errorFallback: string): Promise<CalendarEvent[]> {
@@ -124,7 +131,7 @@ export async function createCalendarEventDeleteIntent(
 		keepalive: true
 	});
 	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
-	return parseCalendarDeleteIntent(await response.json(), errorFallback);
+	return parseCalendarDeleteIntent(await response.json(), operationID, errorFallback);
 }
 
 export async function cancelCalendarEventDeleteIntent(
@@ -173,15 +180,25 @@ function decodeCalendarPersistenceErrorCode(responseBody: string): CalendarPersi
 	return 'unknown';
 }
 
-function parseCalendarDeleteIntent(document: unknown, fallback: string): CalendarDeleteIntent {
-	if (!isCalendarDeleteIntent(document)) throw new CalendarPersistenceError('unknown', fallback);
+function parseCalendarDeleteIntent(
+	document: unknown,
+	expectedOperationID: string,
+	fallback: string
+): CalendarDeleteIntent {
+	if (!isCalendarDeleteIntent(document, expectedOperationID)) {
+		throw new CalendarPersistenceError('unknown', fallback);
+	}
 	return document;
 }
 
-function isCalendarDeleteIntent(document: unknown): document is CalendarDeleteIntent {
+function isCalendarDeleteIntent(
+	document: unknown,
+	expectedOperationID: string
+): document is CalendarDeleteIntent {
 	if (!document || typeof document !== 'object') return false;
 	if (!('operationID' in document) || !('executeAt' in document)) return false;
-	return typeof document.operationID === 'string' && typeof document.executeAt === 'string';
+	if (document.operationID !== expectedOperationID || typeof document.executeAt !== 'string') return false;
+	return document.executeAt.trim() !== '' && !Number.isNaN(Date.parse(document.executeAt));
 }
 
 function responseBodyErrorMessage(message: string, fallback: string): string {

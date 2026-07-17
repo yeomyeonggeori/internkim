@@ -11,7 +11,12 @@ import {
 	showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
 import type { CalendarEvent } from './calendar-event-persistence';
-import { CalendarPersistenceError } from './calendar-event-persistence';
+import {
+	CalendarPersistenceError,
+	calendarEventVersionConflictErrorCode,
+	calendarTargetUnavailableErrorCode,
+	isCalendarPersistenceErrorCode
+} from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
 import { CalendarEventPersistenceOrder } from './calendar-event-persistence-order';
@@ -203,18 +208,17 @@ export function createCalendarEventPersistenceActions(
 		fallback: string,
 		versionConflictMessage: string
 	): string {
-		if (!(error instanceof CalendarPersistenceError)) return fallback;
-		if (error.code === 'calendar_target_unavailable') {
+		if (isCalendarPersistenceErrorCode(error, calendarTargetUnavailableErrorCode)) {
 			return options.context.text.calendarTargetUnavailableError;
 		}
-		if (error.code === 'calendar_event_version_conflict') {
+		if (isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode)) {
 			return versionConflictMessage;
 		}
-		return error.message;
+		return error instanceof CalendarPersistenceError ? error.message : fallback;
 	}
 
 	function isCalendarEventVersionConflict(error: unknown): boolean {
-		return error instanceof CalendarPersistenceError && error.code === 'calendar_event_version_conflict';
+		return isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode);
 	}
 
 	return {

@@ -99,6 +99,33 @@ func TestCalendarDeleteIntentCreateIsDurableAndIdempotent(t *testing.T) {
 	assertCalendarErrorCode(t, mismatchResponse, http.StatusConflict, "calendar_delete_intent_conflict")
 }
 
+func TestCalendarDeleteIntentDuplicateCreateRejectsRejectedTerminalState(t *testing.T) {
+	for _, status := range []string{calendarDeleteIntentStatusCanceled, calendarDeleteIntentStatusConflicted} {
+		t.Run(status, func(t *testing.T) {
+			service := newCalendarTestService(t)
+			event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-terminal-"+status)
+			operationID := "terminal-operation-" + status
+			payload := `{"clientID":"page-a","sequence":2,"expectedUpdatedAt":"` + event.UpdatedAt + `"}`
+			createResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, operationID, payload)
+			if createResponse.Code != http.StatusAccepted {
+				t.Fatalf("create status = %d body = %s", createResponse.Code, createResponse.Body.String())
+			}
+			database, errorValue := service.openCalendarDatabase(context.Background())
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			_, errorValue = database.ExecContext(context.Background(), `UPDATE calendar_delete_intents SET status = ?, resolved_at = ? WHERE operation_id = ?`, status, time.Now().UTC().Format(time.RFC3339Nano), operationID)
+			database.Close()
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+
+			duplicateResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, operationID, payload)
+			assertCalendarErrorCode(t, duplicateResponse, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
+		})
+	}
+}
+
 func TestCalendarDeleteIntentCancelIsIdempotent(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-cancel")
@@ -150,9 +177,7 @@ func TestCalendarDeleteIntentCancelBeforeCreateUsesStableHTTPContract(t *testing
 	assertCalendarErrorCode(t, differentClientResponse, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
 
 	createResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodPut, event.ID, operationID, `{"clientID":"page-a","sequence":2,"expectedUpdatedAt":"`+event.UpdatedAt+`"}`)
-	if createResponse.Code != http.StatusAccepted {
-		t.Fatalf("late create status = %d body = %s", createResponse.Code, createResponse.Body.String())
-	}
+	assertCalendarErrorCode(t, createResponse, http.StatusConflict, calendarDeleteIntentConflictErrorCode)
 	assertCalendarDeleteIntentStatus(t, service, operationID, calendarDeleteIntentStatusCanceled)
 
 	missingEventResponse := sendCalendarDeleteIntentHTTPRequest(service, http.MethodDelete, "missing-event", "missing-cancel-operation", `{"clientID":"page-a","sequence":1}`)
