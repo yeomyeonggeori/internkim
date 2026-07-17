@@ -80,6 +80,13 @@ export async function routeCalendarShellAPI(page: Page): Promise<void> {
 	await page.route('**/calendar/api/participants', async (route) => {
 		await route.fulfill({ json: { participants: [] } });
 	});
+	await page.route('**/calendar/api/google-calendars**', async (route) => {
+		if (route.request().method() !== 'GET') {
+			await route.fallback();
+			return;
+		}
+		await route.fulfill({ json: { accountEmail: '', calendars: [] } });
+	});
 	await page.route('**/calendar/api/remote-sync', async (route) => {
 		await route.fulfill({ json: { synced: false } });
 	});
@@ -115,6 +122,7 @@ export async function routeConnectedGoogleCalendarAccount(page: Page): Promise<v
 export async function routeWritableGoogleCalendars(page: Page, options: GoogleCalendarRouteOptions): Promise<void> {
 	const accountEmail = options.accountEmail ?? 'calendar-admin@example.com';
 	const calendars = (options.calendars ?? defaultWritableGoogleCalendars).map(normalizeGoogleCalendarRouteEntry);
+	await page.unroute('**/calendar/api/google-calendars**');
 	await page.route('**/calendar/api/google-calendars**', async (route) => {
 		if (route.request().method() === 'GET') {
 			await route.fulfill({

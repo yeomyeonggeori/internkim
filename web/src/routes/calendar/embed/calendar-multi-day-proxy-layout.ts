@@ -6,12 +6,21 @@ import {
 	dayFlowWeekAllDayCells
 } from './calendar-dayflow-dom-adapter';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
+import {
+	calendarMultiDayProxyClass,
+	removeUnusedCalendarMultiDayProxyElements,
+	reusableCalendarMultiDayProxyElements,
+	syncCalendarMultiDayProxyElements,
+	type CalendarMultiDayProxyElementLayout,
+	type ReusableCalendarMultiDayProxyElements
+} from './calendar-multi-day-proxy-elements';
 
 type CalendarMultiDayProxyLayoutContext = {
 	stageElement: HTMLElement | null;
 	currentView: CalendarViewType;
 	currentDate: Date;
 	events: DayFlowEvent[];
+	selectedEventID: string | null;
 };
 
 type ProxySegment = {
@@ -21,77 +30,103 @@ type ProxySegment = {
 	rowIndex: number;
 };
 
-const proxyClass = 'calendar-multi-day-all-day-proxy';
-const proxyStartClass = 'calendar-multi-day-all-day-proxy-start';
 const hiddenRegularClass = 'calendar-multi-day-regular-hidden';
 const proxyTop = 2;
-const proxyHeight = 16;
+const compactProxyWidth = 768;
+const compactProxyHeight = 24;
+const desktopProxyHeight = 16;
 const proxyGap = 4;
 const proxyInset = 4;
 
 export function syncCalendarMultiDayProxyLayout(context: CalendarMultiDayProxyLayoutContext): void {
 	const { stageElement } = context;
 	if (!stageElement) return;
-	clearCalendarMultiDayProxyLayout(stageElement);
+	const proxyHeight = stageElement.getBoundingClientRect().width < compactProxyWidth ? compactProxyHeight : desktopProxyHeight;
+	const reusableProxyElements = reusableCalendarMultiDayProxyElements(stageElement);
 	if (context.currentView === ViewType.WEEK) {
-		syncWeekMultiDayProxyLayout(context);
-		return;
+		syncWeekMultiDayProxyLayout(context, reusableProxyElements, proxyHeight);
+	} else if (context.currentView === ViewType.DAY) {
+		syncDayMultiDayProxyLayout(context, reusableProxyElements, proxyHeight);
+	} else {
+		clearCalendarMultiDayRegularLayout(stageElement);
 	}
-	if (context.currentView === ViewType.DAY) {
-		syncDayMultiDayProxyLayout(context);
-	}
+	removeUnusedCalendarMultiDayProxyElements(reusableProxyElements);
 }
 
 export function clearCalendarMultiDayProxyLayout(stageElement: HTMLElement | null): void {
 	if (!stageElement) return;
-	for (const proxyElement of stageElement.querySelectorAll<HTMLElement>(`.${proxyClass}`)) {
+	for (const proxyElement of stageElement.querySelectorAll<HTMLElement>(`.${calendarMultiDayProxyClass}`)) {
 		proxyElement.remove();
 	}
-	for (const eventElement of stageElement.querySelectorAll<HTMLElement>(`.${hiddenRegularClass}`)) {
-		eventElement.classList.remove(hiddenRegularClass);
-	}
-	stageElement.style.removeProperty('--calendar-multi-day-all-day-rows');
+	clearCalendarMultiDayRegularLayout(stageElement);
 }
 
-function syncWeekMultiDayProxyLayout(context: CalendarMultiDayProxyLayoutContext): void {
+function clearCalendarMultiDayRegularLayout(stageElement: HTMLElement): void {
+	syncRegularMultiDayVisibility(stageElement, []);
+	syncProxyRowCount(stageElement, null);
+}
+
+function syncWeekMultiDayProxyLayout(
+	context: CalendarMultiDayProxyLayoutContext,
+	reusableProxyElements: ReusableCalendarMultiDayProxyElements,
+	proxyHeight: number
+): void {
 	const rowElement = context.stageElement?.querySelector<HTMLElement>(dayFlowSelector.weekAllDayRow);
-	if (!rowElement) return;
+	if (!rowElement) {
+		if (context.stageElement) clearCalendarMultiDayRegularLayout(context.stageElement);
+		return;
+	}
 	const layerElement = context.stageElement?.querySelector<HTMLElement>(dayFlowSelector.weekAllDayEventLayer) ?? rowElement;
 	const cells = dayFlowWeekAllDayCells(rowElement);
-	if (cells.length === 0) return;
+	if (cells.length === 0) {
+		if (context.stageElement) clearCalendarMultiDayRegularLayout(context.stageElement);
+		return;
+	}
 	const visibleStartDate = startOfWeek(context.currentDate);
 	const visibleEndDate = addDays(visibleStartDate, cells.length - 1);
 	const segments = multiDayProxySegments(context.events, visibleStartDate, visibleEndDate);
-	hideRegularMultiDaySegments(context.stageElement, segments);
-	for (const segment of segments) {
+	const layerRectangle = layerElement.getBoundingClientRect();
+	const cellRectangles = cells.map((cell) => cell.getBoundingClientRect());
+	const layouts = segments.flatMap<CalendarMultiDayProxyElementLayout>((segment) => {
 		const firstDayIndex = Math.max(0, localDayDiff(visibleStartDate, segment.startDate));
 		const lastDayIndex = Math.min(cells.length - 1, localDayDiff(visibleStartDate, segment.endDate));
-		const firstCell = cells[firstDayIndex];
-		const lastCell = cells[lastDayIndex];
-		if (!firstCell || !lastCell) continue;
-		const layerRectangle = layerElement.getBoundingClientRect();
-		const firstCellRectangle = firstCell.getBoundingClientRect();
-		const lastCellRectangle = lastCell.getBoundingClientRect();
+		const firstCellRectangle = cellRectangles[firstDayIndex];
+		const lastCellRectangle = cellRectangles[lastDayIndex];
+		if (!firstCellRectangle || !lastCellRectangle) return [];
 		const left = firstCellRectangle.left - layerRectangle.left + proxyInset;
 		const width = lastCellRectangle.right - firstCellRectangle.left - proxyInset * 2;
-		layerElement.appendChild(createProxyElement(segment, left, width));
-	}
-	context.stageElement?.style.setProperty('--calendar-multi-day-all-day-rows', String(segments.length));
+		return [proxyLayout(segment, left, width, segment.event.id === context.selectedEventID, proxyHeight)];
+	});
+	syncRegularMultiDayVisibility(context.stageElement, segments);
+	syncCalendarMultiDayProxyElements(layerElement, layouts, reusableProxyElements);
+	if (context.stageElement) syncProxyRowCount(context.stageElement, layouts.length);
 }
 
-function syncDayMultiDayProxyLayout(context: CalendarMultiDayProxyLayoutContext): void {
+function syncDayMultiDayProxyLayout(
+	context: CalendarMultiDayProxyLayoutContext,
+	reusableProxyElements: ReusableCalendarMultiDayProxyElements,
+	proxyHeight: number
+): void {
 	const layerElement = context.stageElement?.querySelector<HTMLElement>(dayFlowSelector.dayAllDayLane);
-	if (!layerElement) return;
+	if (!layerElement) {
+		if (context.stageElement) clearCalendarMultiDayRegularLayout(context.stageElement);
+		return;
+	}
 	const visibleDate = startOfDay(context.currentDate);
 	const segments = multiDayProxySegments(context.events, visibleDate, visibleDate);
 	const layerRectangle = layerElement.getBoundingClientRect();
-	hideRegularMultiDaySegments(context.stageElement, segments);
-	for (const segment of segments) {
-		const left = proxyInset;
-		const width = layerRectangle.width - proxyInset * 2;
-		layerElement.appendChild(createProxyElement(segment, left, width));
-	}
-	context.stageElement?.style.setProperty('--calendar-multi-day-all-day-rows', String(segments.length));
+	const layouts = segments.map((segment) =>
+		proxyLayout(
+			segment,
+			proxyInset,
+			layerRectangle.width - proxyInset * 2,
+			segment.event.id === context.selectedEventID,
+			proxyHeight
+		)
+	);
+	syncRegularMultiDayVisibility(context.stageElement, segments);
+	syncCalendarMultiDayProxyElements(layerElement, layouts, reusableProxyElements);
+	if (context.stageElement) syncProxyRowCount(context.stageElement, layouts.length);
 }
 
 function multiDayProxySegments(events: DayFlowEvent[], visibleStartDate: Date, visibleEndDate: Date): ProxySegment[] {
@@ -107,39 +142,43 @@ function multiDayProxySegments(events: DayFlowEvent[], visibleStartDate: Date, v
 			}));
 }
 
-function hideRegularMultiDaySegments(stageElement: HTMLElement | null, segments: ProxySegment[]): void {
+function syncRegularMultiDayVisibility(stageElement: HTMLElement | null, segments: ProxySegment[]): void {
 	if (!stageElement) return;
 	const eventIDs = new Set(segments.map((segment) => segment.event.id));
-	if (eventIDs.size === 0) return;
 	for (const eventElement of dayFlowTimedEventElements(stageElement)) {
 		const eventID = eventElement.dataset.eventId;
-		if (!eventID || !eventIDs.has(eventID)) continue;
-		eventElement.classList.add(hiddenRegularClass);
+		const shouldHide = Boolean(eventID && eventIDs.has(eventID));
+		if (eventElement.classList.contains(hiddenRegularClass) === shouldHide) continue;
+		eventElement.classList.toggle(hiddenRegularClass, shouldHide);
 	}
 }
 
-function createProxyElement(
+function proxyLayout(
 	segment: ProxySegment,
 	left: number,
-	width: number
-): HTMLElement {
-	const proxyElement = document.createElement('button');
-	proxyElement.type = 'button';
-	proxyElement.className = `${proxyClass} df-event`;
-	proxyElement.dataset.eventId = `${segment.event.id}::multi-day-proxy`;
-	proxyElement.style.left = `${Math.round(left)}px`;
-	proxyElement.style.top = `${proxyTop + segment.rowIndex * (proxyHeight + proxyGap)}px`;
-	proxyElement.style.width = `${Math.max(28, Math.round(width))}px`;
-	proxyElement.style.height = `${proxyHeight}px`;
-	proxyElement.appendChild(createProxyStartElement(segment));
-	return proxyElement;
+	width: number,
+	isSelected: boolean,
+	proxyHeight: number
+): CalendarMultiDayProxyElementLayout {
+	return {
+		eventID: `${segment.event.id}::multi-day-proxy`,
+		height: proxyHeight,
+		isSelected,
+		label: `${segment.event.title} ${formatEventTime(eventStartDate(segment.event))}`,
+		left: Math.round(left),
+		top: proxyTop + segment.rowIndex * (proxyHeight + proxyGap),
+		width: Math.max(28, Math.round(width))
+	};
 }
 
-function createProxyStartElement(segment: ProxySegment): HTMLElement {
-	const startElement = document.createElement('span');
-	startElement.className = proxyStartClass;
-	startElement.textContent = `${segment.event.title} ${formatEventTime(eventStartDate(segment.event))}`;
-	return startElement;
+function syncProxyRowCount(stageElement: HTMLElement, rowCount: number | null): void {
+	const property = '--calendar-multi-day-all-day-rows';
+	if (rowCount === null) {
+		if (stageElement.style.getPropertyValue(property)) stageElement.style.removeProperty(property);
+		return;
+	}
+	const value = String(rowCount);
+	if (stageElement.style.getPropertyValue(property) !== value) stageElement.style.setProperty(property, value);
 }
 
 function isMultiDayTimedEvent(event: DayFlowEvent): boolean {
