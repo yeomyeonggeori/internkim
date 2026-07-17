@@ -24,6 +24,7 @@
 		savePopover: () => void;
 		text: CalendarLocaleText;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
+		stageElement: HTMLElement | null;
 	};
 
 	let {
@@ -38,7 +39,8 @@
 		repositionPopover,
 		savePopover,
 		text,
-		updatePopover
+		updatePopover,
+		stageElement
 	}: Props = $props();
 
 	const auditRows = $derived(
@@ -75,6 +77,7 @@
 		{participantCandidates}
 		{auditRows}
 		auditLabel={text.eventAudit}
+		dialogLabel={popover.mode === 'edit' ? text.editEvent : text.newEvent}
 		{localeCode}
 		{isSaving}
 		text={popoverText}
@@ -83,5 +86,6 @@
 		{savePopover}
 		{cancelPopover}
 		{deletePopover}
+		{stageElement}
 	/>
 {/if}

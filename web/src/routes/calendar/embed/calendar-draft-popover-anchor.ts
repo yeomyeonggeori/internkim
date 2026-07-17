@@ -42,12 +42,14 @@ export function calendarEventAnchorForEventID(
 ): DraftPopoverAnchor | null {
 	if (anchor) {
 		const anchoredElement = calendarEventElementForAnchor(stageElement, eventID, anchor);
-		if (anchoredElement) return calendarEventAnchorFromElement(anchoredElement);
+		if (anchoredElement) return calendarEventAnchorFromElement(anchoredElement, anchor.originElement);
 	}
 	const canonicalAnchor = canonicalCalendarEventAnchorForID(stageElement, eventID);
-	if (canonicalAnchor) return canonicalAnchor;
+	if (canonicalAnchor) {
+		return anchor?.originElement ? { ...canonicalAnchor, originElement: anchor.originElement } : canonicalAnchor;
+	}
 	const eventElement = calendarEventElementForAnchor(stageElement, eventID, anchor);
-	return eventElement ? calendarEventAnchorFromElement(eventElement) : null;
+	return eventElement ? calendarEventAnchorFromElement(eventElement, anchor?.originElement) : null;
 }
 
 export function genericEventAnchorForEventID(
@@ -71,6 +73,7 @@ export function anchorFromElement(element: EventTarget | Element | null): DraftP
 	return {
 		clientX: rectangle.right - Math.min(18, rectangle.width / 2),
 		clientY: rectangle.top + Math.min(40, rectangle.height / 2),
+		...(element instanceof HTMLElement ? { originElement: element } : {}),
 		leftClientX: rectangle.left,
 		topClientY: rectangle.top,
 		bottomClientY: rectangle.top + titleHeight,

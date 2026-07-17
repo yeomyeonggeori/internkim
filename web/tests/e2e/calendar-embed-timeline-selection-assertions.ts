@@ -13,7 +13,7 @@ export async function expectCalendarEventSelectedBlue(page: Page, selector: stri
 		};
 	}, selector);
 	expect(style).toEqual({
-		backgroundColor: 'rgb(59, 130, 246)',
+		backgroundColor: 'rgb(37, 99, 235)',
 		beforeBackgroundColor: 'rgb(255, 255, 255)',
 		color: 'rgb(255, 255, 255)'
 	});

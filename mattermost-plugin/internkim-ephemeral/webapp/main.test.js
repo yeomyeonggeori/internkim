@@ -129,6 +129,8 @@ describe('internkim mattermost webapp plugin', () => {
 			'https://poc0-t01.intern.kim/auth/mattermost/start?return=%2Fflow%2F': 'none',
 			'https://poc0-t01.intern.kim/auth/mattermost/start?return=%2Fcalendar%2F': 'block',
 		});
+		const links = collectElements(secondTree, (node) => node.type === 'a');
+		expect(links.map((link) => link.props.href)).toEqual(['https://poc0-t01.intern.kim/calendar/']);
 	});
 
 	test('links only to the browser view for the active tab', () => {
