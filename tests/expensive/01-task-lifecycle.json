@@ -20,8 +20,9 @@
     },
     {
       "prompt": "방금 추가한 업무 제목을 '고객지원 분기 결산 검토 완료'로 바꿔줘. 금요일까지 확인을 끝내는 목표는 그대로 유지해줘.",
-      "expectedToolCalls": ["task.update"],
+      "expectedToolCalls": ["task.list", "task.update"],
       "expectedEventCounts": [
+        {"name": "tool.task.list.result", "outputFragment": "고객지원 분기 결산 누락 항목 확인", "count": 1},
         {"name": "tool.task.update.requested", "bodyFragment": "고객지원 분기 결산 검토 완료", "count": 1, "exact": true},
         {"name": "tool.task.update.result", "outputFragment": "고객지원 분기 결산 검토 완료", "count": 1}
       ],
@@ -39,9 +40,10 @@
     {
       "prompt": "방금 확인한 '고객지원 분기 결산 검토 완료' 업무를 삭제해줘.",
       "approvalAction": "approve",
-      "expectedToolCalls": ["task.delete"],
+      "expectedToolCalls": ["task.list", "task.delete"],
       "expectedEvents": ["confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
+        {"name": "tool.task.list.result", "outputFragment": "고객지원 분기 결산 검토 완료", "count": 1},
         {"name": "tool.task.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.task.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
