@@ -10,6 +10,14 @@ import {
 } from './attendance-api';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
 import { currentMonthInTimeZone } from './shared/attendance-date';
+import {
+	type AttendanceServerClock,
+	attendanceServerTime
+} from './shared/attendance-server-clock';
+import { AttendanceServerClockSync } from './attendance-server-clock-sync';
+
+const selectedMonthSummaryLoadTarget = 'selectedMonthSummary';
+const currentMonthSummaryLoadTarget = 'currentMonthSummary';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
 export type AttendanceAbsenceKind = 'leave' | 'other';
@@ -101,6 +109,8 @@ export type AttendanceMember = {
 
 export type AttendanceSummary = {
 	month: string;
+	serverTime?: string;
+	timeZoneAuthoritative?: boolean;
 	currentUserEmail: string;
 	isAdmin: boolean;
 	timeZone: string;
@@ -122,11 +132,30 @@ export class AttendanceState {
 	selectedDate = $state<string>('');
 	isLoading = $state<boolean>(false);
 	errorMessage = $state<string>('');
+	serverClock = $state<AttendanceServerClock | null>(null);
 
 	private loadFailedMessage: string;
+	private readonly serverClockSync: AttendanceServerClockSync<AttendanceSummary>;
+	private activeLoadCount = 0;
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
+		this.serverClockSync = new AttendanceServerClockSync({
+			requestSummary: (month) => fetchAttendanceSummary({ month }),
+			applySummarySnapshot: (summary, serverClock) => {
+				this.serverClock = serverClock;
+				if (this.summary) {
+					this.summary.serverTime = summary.serverTime;
+					this.summary.timeZone = summary.timeZone;
+					this.summary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+				}
+				if (this.currentMonthSummary) {
+					this.currentMonthSummary.serverTime = summary.serverTime;
+					this.currentMonthSummary.timeZone = summary.timeZone;
+					this.currentMonthSummary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+				}
+			}
+		});
 		const persisted = readPersistedAttendanceFilters();
 		if (persisted.selectedMonth) this.selectedMonth = persisted.selectedMonth;
 		if (persisted.chartMode) this.chartMode = persisted.chartMode;
@@ -140,34 +169,60 @@ export class AttendanceState {
 	}
 
 	async load() {
+		this.activeLoadCount += 1;
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const next = await this.fetchSummaryForMonth(this.selectedMonth);
-			this.summary = next;
-			this.selectedMonth = next.month;
+			const next = await this.serverClockSync.loadSummary(
+				this.selectedMonth,
+				(summary) => {
+					this.summary = summary;
+					this.selectedMonth = summary.month;
+				},
+				selectedMonthSummaryLoadTarget
+			);
+			if (!next) return;
 			await this.refreshCurrentMonthSnapshot(next);
 		} catch (error) {
+			this.serverClockSync.invalidateLoadTarget(currentMonthSummaryLoadTarget);
 			this.errorMessage = error instanceof Error ? error.message : this.loadFailedMessage;
 			this.summary = null;
 			this.currentMonthSummary = null;
 		} finally {
-			this.isLoading = false;
+			this.activeLoadCount -= 1;
+			this.isLoading = this.activeLoadCount > 0;
 		}
 	}
 
-	private fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
-		return fetchAttendanceSummary({ month });
+	currentServerTime(monotonicTimestampMilliseconds: number = performance.now()): Date {
+		if (!this.serverClock) return new Date(Number.NaN);
+		return attendanceServerTime(this.serverClock, monotonicTimestampMilliseconds);
+	}
+
+	refreshServerClock(): Promise<boolean> {
+		return this.serverClockSync.refresh(this.selectedMonth);
 	}
 
 	private async refreshCurrentMonthSnapshot(filteredSummary: AttendanceSummary) {
 		const currentMonth = currentMonthInTimeZone(filteredSummary.timeZone);
 		if (filteredSummary.month === currentMonth) {
-			this.currentMonthSummary = filteredSummary;
+			this.serverClockSync.applySummaryToLoadTarget(
+				filteredSummary,
+				(summary) => {
+					this.currentMonthSummary = summary;
+				},
+				currentMonthSummaryLoadTarget
+			);
 			return;
 		}
 		try {
-			this.currentMonthSummary = await this.fetchSummaryForMonth(currentMonth);
+			await this.serverClockSync.loadSummary(
+				currentMonth,
+				(summary) => {
+					this.currentMonthSummary = summary;
+				},
+				currentMonthSummaryLoadTarget
+			);
 		} catch {
 			this.currentMonthSummary = null;
 		}
