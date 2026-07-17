@@ -203,6 +203,49 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 	}
 }
 
+func TestMattermostScenarioCleanupPreservesProbeIdentityUntilExactTaskCleanupSucceeds(t *testing.T) {
+	taskDeleteAttempts := 0
+	personDeleteAttempts := 0
+	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
+		switch {
+		case strings.Contains(script, "/flow/api/tasks/task-created-before-failure"):
+			taskDeleteAttempts++
+			if taskDeleteAttempts == 1 {
+				return "503", nil
+			}
+			return "204", nil
+		case strings.Contains(script, "/admin/api/people?email=probe%40example.com"):
+			personDeleteAttempts++
+			return `{}`, nil
+		default:
+			return `{}`, nil
+		}
+	}}
+	admin := mattermostScenarioAdmin{remote: remote}
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
+		Name: "tool.task.add.result",
+		Body: `{"tool":"task.add","output":{"data":{"id":"task-created-before-failure"}}}`,
+	}}}}}
+
+	firstCleanupError := admin.cleanup(context.Background(), result, "probe@example.com")
+	if firstCleanupError == nil || !strings.Contains(firstCleanupError.Error(), "task-created-before-failure") {
+		t.Fatalf("first cleanup error = %v", firstCleanupError)
+	}
+	if personDeleteAttempts != 0 {
+		t.Fatalf("person was deleted before resource cleanup succeeded")
+	}
+	if errorValue := admin.cleanup(context.Background(), result, "probe@example.com"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if taskDeleteAttempts != 2 || personDeleteAttempts != 1 {
+		t.Fatalf("task delete attempts = %d, person delete attempts = %d", taskDeleteAttempts, personDeleteAttempts)
+	}
+	joinedScripts := strings.Join(remote.scripts, "\n")
+	if strings.Count(joinedScripts, "/flow/api/tasks/task-created-before-failure") != 2 {
+		t.Fatalf("cleanup did not retry the exact task ID:\n%s", joinedScripts)
+	}
+}
+
 func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *testing.T) {
 	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return "", nil }}
 	admin := mattermostScenarioAdmin{remote: remote}
