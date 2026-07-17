@@ -28,7 +28,9 @@ type AllDayEventPlacement = {
 const emptyDayAllDayRowHeight = 48;
 const compactAllDayRowHeight = 36;
 const compactDayAllDayRowHeight = 46;
-const allDayEventHeight = 16;
+const compactAllDayWidth = 768;
+const compactAllDayEventHeight = 24;
+const desktopAllDayEventHeight = 16;
 const allDayEventGap = 4;
 const allDaySingleEventTop = 7;
 const allDayStackEventTop = 2;
@@ -62,30 +64,44 @@ export function clearCalendarAllDayLayout(stageElement: HTMLElement | null): voi
 function syncDayAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.dayAllDayRow);
 	if (!rowElement) return;
+	const eventHeight = allDayEventHeightForStage(stageElement);
 	const eventElements = visibleDayFlowElements(rowElement, `${dayFlowSelector.dayAllDayLane} .df-event`);
-	const eventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, dayVisibleRange(currentDate));
+	const eventRowIndexes = compactAllDayEventRowIndexes(
+		rowElement,
+		eventElements,
+		events,
+		dayVisibleRange(currentDate),
+		eventHeight
+	);
 	const rowCount = allDayEventRowCount(eventRowIndexes);
-	const rowHeight = dayAllDayRowHeight(rowCount);
+	const rowHeight = dayAllDayRowHeight(rowCount, eventHeight);
 	rowElement.style.setProperty('--calendar-day-all-day-row-height', `${rowHeight}px`);
 	rowElement.dataset.eventRows = String(rowCount);
 	eventElements.forEach((eventElement) => {
 		const rowIndex = eventRowIndexes.get(eventElement) ?? 0;
-		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, true);
+		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, true, eventHeight);
 	});
 }
 
 function syncWeekAllDayLayout(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
 	const rowElement = stageElement.querySelector<HTMLElement>(dayFlowSelector.weekAllDayRow);
 	if (!rowElement) return;
+	const eventHeight = allDayEventHeightForStage(stageElement);
 	const eventElements = visibleDayFlowElements(stageElement, `${dayFlowSelector.weekAllDayEventLayer} .df-event`);
-	const compactEventRowIndexes = compactAllDayEventRowIndexes(rowElement, eventElements, events, weekVisibleRange(currentDate));
+	const compactEventRowIndexes = compactAllDayEventRowIndexes(
+		rowElement,
+		eventElements,
+		events,
+		weekVisibleRange(currentDate),
+		eventHeight
+	);
 	const rowCount = allDayEventRowCount(compactEventRowIndexes);
-	const rowHeight = allDayRowHeight(rowCount);
+	const rowHeight = allDayRowHeight(rowCount, eventHeight);
 	stageElement.style.setProperty('--calendar-week-all-day-row-content-height', `${rowHeight}px`);
 	rowElement.dataset.eventRows = String(rowCount);
 	eventElements.forEach((eventElement) => {
 		const rowIndex = compactEventRowIndexes.get(eventElement) ?? 0;
-		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, false);
+		applyAllDayEventGeometry(eventElement, rowCount, rowIndex, false, eventHeight);
 	});
 }
 
@@ -109,10 +125,10 @@ function clearWeekAllDayLayout(stageElement: HTMLElement): void {
 	}
 }
 
-function allDayEventRowIndex(rowElement: HTMLElement, eventElement: HTMLElement): number {
+function allDayEventRowIndex(rowElement: HTMLElement, eventElement: HTMLElement, eventHeight: number): number {
 	const rowRectangle = rowElement.getBoundingClientRect();
 	const eventRectangle = eventElement.getBoundingClientRect();
-	const rowStride = allDayEventHeight + allDayEventGap;
+	const rowStride = eventHeight + allDayEventGap;
 	return Math.max(0, Math.round((eventRectangle.top - rowRectangle.top - allDayStackEventTop) / rowStride));
 }
 
@@ -120,11 +136,12 @@ function compactAllDayEventRowIndexes(
 	rowElement: HTMLElement,
 	eventElements: HTMLElement[],
 	events: DayFlowEvent[],
-	visibleRange: AllDayVisibleRange
+	visibleRange: AllDayVisibleRange,
+	eventHeight: number
 ): Map<HTMLElement, number> {
 	const indexedEvents = indexedCalendarEvents(events);
 	const eventPlacements = eventElements
-		.map((eventElement) => allDayEventPlacement(rowElement, eventElement, indexedEvents, visibleRange))
+		.map((eventElement) => allDayEventPlacement(rowElement, eventElement, indexedEvents, visibleRange, eventHeight))
 		.sort(compareAllDayEventPlacements);
 	const rowRightEdges: number[] = [];
 	const rowIndexByEventElement = new Map<HTMLElement, number>();
@@ -169,28 +186,29 @@ function firstAvailableAllDayRowIndex(rowRightEdges: number[], eventLeft: number
 	return rowIndex >= 0 ? rowIndex : rowRightEdges.length;
 }
 
-function allDayRowHeight(rowCount: number): number {
+function allDayRowHeight(rowCount: number, eventHeight: number): number {
 	if (rowCount <= 1) return compactAllDayRowHeight;
-	return Math.max(compactAllDayRowHeight, allDayStackEventTop + rowCount * (allDayEventHeight + allDayEventGap) + allDayEventGap);
+	return Math.max(compactAllDayRowHeight, allDayStackEventTop + rowCount * (eventHeight + allDayEventGap) + allDayEventGap);
 }
 
-function dayAllDayRowHeight(rowCount: number): number {
+function dayAllDayRowHeight(rowCount: number, eventHeight: number): number {
 	if (rowCount === 0) return emptyDayAllDayRowHeight;
 	if (rowCount === 1) return compactDayAllDayRowHeight;
-	return Math.max(compactDayAllDayRowHeight, allDayRowHeight(rowCount));
+	return Math.max(compactDayAllDayRowHeight, allDayRowHeight(rowCount, eventHeight));
 }
 
 function allDayEventPlacement(
 	rowElement: HTMLElement,
 	eventElement: HTMLElement,
 	indexedEvents: Map<string, IndexedCalendarEvent>,
-	visibleRange: AllDayVisibleRange
+	visibleRange: AllDayVisibleRange,
+	eventHeight: number
 ): AllDayEventPlacement {
 	const eventID = eventIDFromElement(eventElement);
 	const indexedEvent = eventID ? indexedEvents.get(eventID) : null;
 	return {
 		eventElement,
-		rowIndex: allDayEventRowIndex(rowElement, eventElement),
+		rowIndex: allDayEventRowIndex(rowElement, eventElement, eventHeight),
 		...allDayEventHorizontalSpan(eventElement),
 		displayOrder: indexedEvent
 			? calendarEventDisplayOrderCandidate(
@@ -245,20 +263,37 @@ function addDays(date: Date, days: number): Date {
 	return nextDate;
 }
 
-function allDayEventTop(rowCount: number, rowIndex: number, shouldCenterCompactRows: boolean): number {
-	if (shouldCenterCompactRows && rowCount > 0 && rowCount <= 2) {
-		const groupHeight = rowCount * allDayEventHeight + (rowCount - 1) * allDayEventGap;
-		return Math.round((compactDayAllDayRowHeight - groupHeight) / 2) - allDayStackEventTop + rowIndex * (allDayEventHeight + allDayEventGap);
+function allDayEventTop(
+	rowCount: number,
+	rowIndex: number,
+	shouldCenterCompactRows: boolean,
+	eventHeight: number
+): number {
+	const groupHeight = rowCount * eventHeight + Math.max(0, rowCount - 1) * allDayEventGap;
+	if (shouldCenterCompactRows && rowCount > 0 && rowCount <= 2 && groupHeight <= compactDayAllDayRowHeight) {
+		return Math.round((compactDayAllDayRowHeight - groupHeight) / 2) - allDayStackEventTop + rowIndex * (eventHeight + allDayEventGap);
 	}
 	if (rowCount <= 1) return allDaySingleEventTop;
-	return allDayStackEventTop + rowIndex * (allDayEventHeight + allDayEventGap);
+	return allDayStackEventTop + rowIndex * (eventHeight + allDayEventGap);
 }
 
-function applyAllDayEventGeometry(eventElement: HTMLElement, rowCount: number, rowIndex: number, shouldCenterCompactRows: boolean): void {
-	eventElement.style.top = `${allDayEventTop(rowCount, rowIndex, shouldCenterCompactRows)}px`;
-	eventElement.style.height = `${allDayEventHeight}px`;
-	eventElement.style.minHeight = `${allDayEventHeight}px`;
-	eventElement.style.lineHeight = `${allDayEventHeight}px`;
+function applyAllDayEventGeometry(
+	eventElement: HTMLElement,
+	rowCount: number,
+	rowIndex: number,
+	shouldCenterCompactRows: boolean,
+	eventHeight: number
+): void {
+	eventElement.style.top = `${allDayEventTop(rowCount, rowIndex, shouldCenterCompactRows, eventHeight)}px`;
+	eventElement.style.height = `${eventHeight}px`;
+	eventElement.style.minHeight = `${eventHeight}px`;
+	eventElement.style.lineHeight = `${eventHeight}px`;
+}
+
+function allDayEventHeightForStage(stageElement: HTMLElement): number {
+	return stageElement.getBoundingClientRect().width < compactAllDayWidth
+		? compactAllDayEventHeight
+		: desktopAllDayEventHeight;
 }
 
 function clearAllDayEventGeometry(eventElement: HTMLElement): void {
