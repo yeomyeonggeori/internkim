@@ -1,6 +1,7 @@
 export type DraftPopoverAnchor = {
 	clientX: number;
 	clientY: number;
+	originElement?: HTMLElement;
 	leftClientX?: number;
 	rightClientX?: number;
 	topClientY?: number;
