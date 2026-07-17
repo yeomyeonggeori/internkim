@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,18 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
+
+const calendarEventVersionConflictCode = "calendar_event_version_conflict"
+
+type calendarToolRequestError struct {
+	statusCode int
+	errorCode  string
+	message    string
+}
+
+func (errorValue *calendarToolRequestError) Error() string {
+	return errorValue.message
+}
 
 type calendarEventWriteInput struct {
 	EventID           string                    `json:"eventID"`
@@ -153,6 +166,9 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	path := "/calendar/api/events/" + url.PathEscape(input.EventID)
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPut, path, calendarEventWritePayload(input), request.Context.RequesterEmail)
 	if errorValue != nil {
+		if response, isVersionConflict := calendarToolVersionConflictResponse(request.ToolName, errorValue); isVersionConflict {
+			return response, nil
+		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return calendarToolResponse(request.ToolName, "updated", result), nil
@@ -169,6 +185,9 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	path := "/calendar/api/events/" + url.PathEscape(target.ID)
 	payload := map[string]any{"expectedUpdatedAt": target.UpdatedAt}
 	if _, errorValue := service.sendCalendarToolRequest(ctx, http.MethodDelete, path, payload, request.Context.RequesterEmail); errorValue != nil {
+		if response, isVersionConflict := calendarToolVersionConflictResponse(request.ToolName, errorValue); isVersionConflict {
+			return response, nil
+		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": target.ID, "deleted": true})
@@ -469,9 +488,43 @@ func (service Service) sendCalendarToolRequest(ctx context.Context, method strin
 		return nil, readError
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf("calendar tool failed: %s", strings.TrimSpace(string(responseBody)))
+		message := strings.TrimSpace(string(responseBody))
+		var failureDocument struct {
+			Code string `json:"code"`
+		}
+		if errorValue := json.Unmarshal(responseBody, &failureDocument); errorValue == nil && strings.TrimSpace(failureDocument.Code) != "" {
+			return nil, &calendarToolRequestError{
+				statusCode: httpResponse.StatusCode,
+				errorCode:  strings.TrimSpace(failureDocument.Code),
+				message:    "calendar tool failed: " + message,
+			}
+		}
+		return nil, fmt.Errorf("calendar tool failed: %s", message)
 	}
 	return json.RawMessage(responseBody), nil
+}
+
+func calendarToolVersionConflictResponse(toolName string, errorValue error) (capabilities.ToolInvokeResponse, bool) {
+	var requestError *calendarToolRequestError
+	if !errors.As(errorValue, &requestError) || requestError.statusCode != http.StatusConflict || requestError.errorCode != calendarEventVersionConflictCode {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	message := "calendar event changed after it was loaded"
+	result, _ := json.Marshal(map[string]string{"errorCode": calendarEventVersionConflictCode, "message": message})
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        toolName,
+		Status:          "error",
+		Content:         message,
+		IsError:         true,
+		Message:         message,
+		ErrorCode:       calendarEventVersionConflictCode,
+		FailureStage:    "persistence",
+		Retryable:       true,
+		SafeRetry:       false,
+		Result:          result,
+	}, true
 }
 
 func setCalendarRequesterEmailHeader(request *http.Request, requesterEmail string) {
