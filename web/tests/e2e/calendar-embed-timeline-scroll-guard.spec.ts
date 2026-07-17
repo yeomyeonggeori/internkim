@@ -31,6 +31,27 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
+	test('does not open a day event popover when only pointer up reports movement', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'pointer-up-moved-day-event',
+				title: 'Pointer Up Moved Day Event',
+				startISO: '2026-06-08T09:00:00+09:00',
+				endISO: '2026-06-08T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '일');
+		const eventSelector =
+			'.calendar-stage [data-event-id="pointer-up-moved-day-event"].df-day-event:not(.df-right-panel-event-card)';
+		await expect(page.locator(eventSelector)).toBeVisible();
+
+		await dispatchMovedPointerActivation(page, eventSelector, { dispatchPointerMove: false });
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+	});
+
 	test('does not open a day event popover after a touch scroll gesture', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await routeCalendarEvents(page, [
@@ -131,11 +152,12 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 });
 
 type MovedPointerActivationOptions = {
+	dispatchPointerMove?: boolean;
 	pointerType?: string;
 };
 
 async function dispatchMovedPointerActivation(page: Page, selector: string, options: MovedPointerActivationOptions = {}): Promise<void> {
-	await page.evaluate(async ({ targetSelector, pointerType }) => {
+	await page.evaluate(async ({ dispatchPointerMove, targetSelector, pointerType }) => {
 		const target = document.querySelector<HTMLElement>(targetSelector);
 		if (!target) throw new Error(`Missing calendar event: ${targetSelector}`);
 		target.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -166,9 +188,13 @@ async function dispatchMovedPointerActivation(page: Page, selector: string, opti
 			clientY: movedClientY
 		};
 		target.dispatchEvent(new PointerEvent('pointerdown', startPointerEvent));
-		document.dispatchEvent(new PointerEvent('pointermove', movedPointerEvent));
+		if (dispatchPointerMove) document.dispatchEvent(new PointerEvent('pointermove', movedPointerEvent));
 		window.dispatchEvent(new PointerEvent('pointerup', movedPointerEvent));
 		target.dispatchEvent(new MouseEvent('click', movedMouseEvent));
 		target.dispatchEvent(new MouseEvent('dblclick', movedMouseEvent));
-	}, { targetSelector: selector, pointerType: options.pointerType ?? 'mouse' });
+	}, {
+		dispatchPointerMove: options.dispatchPointerMove ?? true,
+		targetSelector: selector,
+		pointerType: options.pointerType ?? 'mouse'
+	});
 }

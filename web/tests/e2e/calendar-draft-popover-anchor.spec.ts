@@ -192,7 +192,7 @@ test.describe('calendar draft popover anchors', () => {
 		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.12 10:00/ })).toBeVisible();
 	});
 
-	test('keeps compact date time summaries and action buttons accessible on a narrow viewport', async ({ page }) => {
+	test('keeps compact event editor actions accessible on a narrow viewport', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 640 });
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
@@ -220,46 +220,37 @@ test.describe('calendar draft popover anchors', () => {
 		await waitForClientHydration(page);
 
 		await page.locator('.calendar-month-direct-event[data-event-id="narrow-popover-event"]').dblclick();
-		const popover = page.locator('.calendar-draft-popover');
-		await expect(popover).toBeVisible();
+		const editor = page.locator('.calendar-mobile-event-editor');
+		await expect(editor).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(editor.locator('.df-mobile-event-drawer-header-action').filter({ hasText: '취소' })).toBeVisible();
+		await expect(editor.getByRole('button', { name: '완료' })).toBeVisible();
+		await expect(editor.locator('input[data-mobile-editor-field="title"]')).toHaveValue('좁은 화면 일정');
+		const deleteButton = editor.getByRole('button', { name: '삭제' });
+		await deleteButton.scrollIntoViewIfNeeded();
+		await expect(deleteButton).toBeVisible();
 
 		const geometry = await page.evaluate(() => {
-			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
-			const scrollContainer = document.querySelector<HTMLElement>('.draft-popover-body');
-			const startSummary = document.querySelector<HTMLButtonElement>('.calendar-draft-popover [data-date-time-summary="start"]');
-			const endSummary = document.querySelector<HTMLButtonElement>('.calendar-draft-popover [data-date-time-summary="end"]');
-			const deleteButton = document.querySelector<HTMLButtonElement>('.draft-popover-delete');
-			const cancelButton = document.querySelector<HTMLButtonElement>('.draft-popover-cancel');
-			const completeButton = document.querySelector<HTMLButtonElement>('.draft-popover-complete');
-			if (!popover || !scrollContainer || !startSummary || !endSummary || !deleteButton || !cancelButton || !completeButton) {
-				throw new Error('Missing narrow popover elements');
-			}
-			const popoverRectangle = popover.getBoundingClientRect();
-			const startSummaryRectangle = startSummary.getBoundingClientRect();
-			const endSummaryRectangle = endSummary.getBoundingClientRect();
-			const buttonRectangles = [deleteButton, cancelButton, completeButton].map((button) => button.getBoundingClientRect());
+			const panel = document.querySelector<HTMLElement>('.calendar-mobile-event-editor .df-mobile-event-drawer-panel');
+			const body = document.querySelector<HTMLElement>('.calendar-mobile-event-editor .df-mobile-event-drawer-body');
+			if (!panel || !body) throw new Error('Missing compact event editor elements');
+			const panelRectangle = panel.getBoundingClientRect();
 			return {
-				popoverBottom: Math.round(popoverRectangle.bottom),
-				popoverLeft: Math.round(popoverRectangle.left),
-				popoverRight: Math.round(popoverRectangle.right),
-				popoverTop: Math.round(popoverRectangle.top),
-				scrollOverflowY: window.getComputedStyle(scrollContainer).overflowY,
-				startSummaryRight: Math.round(startSummaryRectangle.right),
-				endSummaryRight: Math.round(endSummaryRectangle.right),
-				maxButtonBottom: Math.max(...buttonRectangles.map((rectangle) => Math.round(rectangle.bottom))),
+				panelBottom: Math.round(panelRectangle.bottom),
+				panelLeft: Math.round(panelRectangle.left),
+				panelRight: Math.round(panelRectangle.right),
+				panelTop: Math.round(panelRectangle.top),
+				scrollOverflowY: window.getComputedStyle(body).overflowY,
 				viewportHeight: window.innerHeight,
 				viewportWidth: window.innerWidth
 			};
 		});
 
-		expect(geometry.popoverTop).toBeGreaterThanOrEqual(0);
-		expect(geometry.popoverLeft).toBeGreaterThanOrEqual(0);
-		expect(geometry.popoverRight).toBeLessThanOrEqual(geometry.viewportWidth);
-		expect(geometry.popoverBottom).toBeLessThanOrEqual(geometry.viewportHeight);
-		expect(geometry.startSummaryRight).toBeLessThanOrEqual(geometry.popoverRight - 12);
-		expect(geometry.endSummaryRight).toBeLessThanOrEqual(geometry.popoverRight - 12);
-		expect(geometry.maxButtonBottom).toBeLessThanOrEqual(geometry.viewportHeight);
-		expect(geometry.scrollOverflowY).toBe('scroll');
+		expect(geometry.panelTop).toBeGreaterThanOrEqual(0);
+		expect(geometry.panelLeft).toBeGreaterThanOrEqual(0);
+		expect(geometry.panelRight).toBeLessThanOrEqual(geometry.viewportWidth);
+		expect(geometry.panelBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+		expect(geometry.scrollOverflowY).toBe('auto');
 	});
 
 	test('keeps more popovers and edit actions accessible when viewport height is limited', async ({ page }) => {

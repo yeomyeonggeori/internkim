@@ -38,6 +38,7 @@
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
 	import { fetchCalendarParticipants } from './calendar-participants';
+	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import './calendar-page.css';
 
 	const text = createPageText(calendarText);
@@ -53,6 +54,7 @@
 		pendingEventID: initialCalendarEventID()
 	});
 	const isMobile = new IsMobile();
+	const isCompactEventEditor = $derived(isMobile.current);
 	const isMobileTwoDayWeekView = $derived(isCalendarMobileTwoDayWeekView(state.toolbarView, isMobile.current));
 	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
 	const controller = createCalendarPageController({
@@ -132,7 +134,6 @@
 			deleteEvent: eventActions.deleteEvent,
 			draftPopoverActions,
 			eventActions,
-			eventDetails,
 			eventLoader,
 			eventSelection,
 			getCurrentView: currentCalendarView,
@@ -146,6 +147,7 @@
 			getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 			initialCalendarDate,
 			initialCalendarView,
+			openEventEditor: openCalendarEvent,
 			pageMessages,
 			pageNavigation,
 			rangePreview,
@@ -200,6 +202,15 @@
 		draftPopoverActions.createQuickDraftPopover(event);
 	}
 
+	function openCalendarEvent(eventID: string, anchor: DraftPopoverAnchor): void {
+		eventSelection.selectCalendarEvent(eventID);
+		if (isCompactEventEditor) {
+			eventActions.openEventMobileEditor(eventID);
+			return;
+		}
+		eventDetails.openEventDetails(eventID, anchor);
+	}
+
 	function openCalendarSettings(): void {
 		requestCalendarSettingsOpen();
 	}
@@ -221,7 +232,11 @@
 </svelte:head>
 
 <CalendarPageContent
+	activeMobileEditorEventID={state.activeMobileEditorEventID}
 	calendar={calendar}
+	clearActiveMobileEditorEvent={(eventID) => {
+		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
+	}}
 	conflicts={state.calendarConflicts}
 	dismissConflict={conflictActions.dismissCalendarConflict}
 	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}
@@ -242,8 +257,7 @@
 	stageEvents={stageEvents}
 	{localeCode}
 	selectedEventID={state.selectedAuditEventID}
-	openEvent={eventDetails.openEventDetails}
-	selectEvent={eventSelection.selectCalendarEvent}
+	openEvent={openCalendarEvent}
 	selectDate={selectedMonthDate.selectMonthDate}
 	saveMovedEvent={eventSelection.saveMovedMonthEvent}
 	bind:stageElement={state.calendarStageElement}

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
 import {
 	expectMonthEventFullBlockFocused,
@@ -25,13 +25,16 @@ test.describe('embedded calendar month interactions', () => {
 
 		await openCalendarEmbed(page, '월');
 		await navigateEmbeddedCalendar(page, '2026-06-09');
-		await page.locator('[data-event-id="focused-all-day-event"].calendar-month-direct-event').click();
+		const eventBlock = page.locator('[data-event-id="focused-all-day-event"].calendar-month-direct-event');
+		await expect(eventBlock).toHaveAttribute('aria-pressed', 'false');
+		await eventBlock.click();
 
 		await expectMonthEventFullBlockFocused(page, 'focused-all-day-event');
+		await expect(eventBlock).toHaveAttribute('aria-pressed', 'true');
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
-	test('selects a month event when activated from the keyboard', async ({ page }) => {
+	test('opens a month event editor when activated from the keyboard', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'keyboard-selected-month-event',
@@ -49,7 +52,66 @@ test.describe('embedded calendar month interactions', () => {
 		await page.keyboard.press('Enter');
 
 		await expectMonthEventFullBlockFocused(page, 'keyboard-selected-month-event');
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.getByLabel('제목')).toHaveValue('Keyboard Selected Month Event');
+	});
+
+	test('aligns the selected month date when opening another date event from the keyboard', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'keyboard-aligned-month-event',
+				title: 'Keyboard Aligned Month Event',
+				startISO: '2026-06-18T09:00:00+09:00',
+				endISO: '2026-06-18T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+		const eventBlock = page.locator('[data-event-id="keyboard-aligned-month-event"].calendar-month-direct-event');
+		await eventBlock.focus();
+		await page.keyboard.press('Enter');
+
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-18');
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+	});
+
+	test('opens the correct month event with one selection invocation from a synthesized accessible click', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await routeCalendarEvents(page, [
+			{
+				id: 'accessible-month-event',
+				title: 'Accessible Month Event',
+				startISO: '2026-06-18T09:00:00+09:00',
+				endISO: '2026-06-18T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-17');
+		const eventBlock = page.locator('[data-event-id="accessible-month-event"].calendar-month-direct-event');
+		const selectionInvocationCount = await eventBlock.evaluate((element) => {
+			const eventClassList = element.classList;
+			const originalAdd = DOMTokenList.prototype.add;
+			let invocationCount = 0;
+			DOMTokenList.prototype.add = function (this: DOMTokenList, ...tokens: string[]): void {
+				if (this === eventClassList && tokens.includes('internkim-calendar-event-focused')) invocationCount += 1;
+				Reflect.apply(originalAdd, this, tokens);
+			};
+			try {
+				element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+				return invocationCount;
+			} finally {
+				DOMTokenList.prototype.add = originalAdd;
+			}
+		});
+
+		expect(selectionInvocationCount).toBe(1);
+		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-18');
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.getByLabel('제목')).toHaveValue('Accessible Month Event');
 	});
 
 	test('opens a month event popover only on double click after selecting it', async ({ page }) => {
@@ -76,6 +138,22 @@ test.describe('embedded calendar month interactions', () => {
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.getByLabel('제목')).toHaveValue('Double Click Month Event');
 	});
+
+	for (const activation of ['Enter', 'synthesized click', 'pointer double click'] as const) {
+		test(`restores the second split month segment after ${activation}`, async ({ page }) => {
+			const { firstSegment, secondSegment } = await openSplitMonthEvent(page);
+
+			await activateSplitMonthSegment(page, secondSegment, activation);
+			const dialog = page.getByRole('dialog', { name: '일정 편집' });
+			await expect(dialog).toBeVisible();
+			await dialog.getByLabel('장소').focus();
+
+			await page.keyboard.press('Escape');
+
+			await expect(secondSegment).toBeFocused();
+			await expect(firstSegment).not.toBeFocused();
+		});
+	}
 
 	test('does not open a month event popover after a moved pointer gesture', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 720 });
@@ -288,4 +366,44 @@ test.describe('embedded calendar month interactions', () => {
 
 async function selectedMonthDateKey(page: Page): Promise<string> {
 	return page.locator('.calendar-stage').evaluate((element) => element.getAttribute('data-calendar-selected-date-key') ?? '');
+}
+
+async function openSplitMonthEvent(page: Page): Promise<{ firstSegment: Locator; secondSegment: Locator }> {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await routeCalendarEvents(page, [
+		{
+			id: 'split-month-origin-event',
+			title: 'Split Month Origin Event',
+			startISO: '2026-06-06T09:00:00+09:00',
+			endISO: '2026-06-09T10:00:00+09:00',
+			isAllDay: false
+		}
+	]);
+	await openCalendarEmbed(page, '월');
+	await navigateEmbeddedCalendar(page, '2026-06-08');
+	const segments = page.locator('[data-event-id="split-month-origin-event"].calendar-month-direct-event');
+	await expect(segments).toHaveCount(2);
+	const firstSegment = segments.first();
+	const secondSegment = segments.nth(1);
+	await expect(firstSegment).toBeVisible();
+	await expect(secondSegment).toBeVisible();
+	return { firstSegment, secondSegment };
+}
+
+async function activateSplitMonthSegment(
+	page: Page,
+	segment: Locator,
+	activation: 'Enter' | 'synthesized click' | 'pointer double click'
+): Promise<void> {
+	if (activation === 'Enter') {
+		await segment.focus();
+		await page.keyboard.press('Enter');
+		return;
+	}
+	if (activation === 'synthesized click') {
+		await segment.focus();
+		await segment.dispatchEvent('click');
+		return;
+	}
+	await segment.dblclick();
 }
