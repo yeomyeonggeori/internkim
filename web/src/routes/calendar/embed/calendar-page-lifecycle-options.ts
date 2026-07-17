@@ -77,6 +77,9 @@ export function createCalendarPageLifecycleOptions(
 		eventDoubleClick: {
 			openEvent: context.openEventEditor
 		},
+		eventKeyboardActivation: {
+			openEvent: context.openEventEditor
+		},
 		eventSelection: {
 			clearSelectedEvent: context.eventSelection.clearSelectedEvent,
 			selectEvent: context.eventSelection.selectCalendarEvent
