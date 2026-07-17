@@ -4,7 +4,8 @@
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarParticipant } from './calendar-participants';
-	import CalendarEventContent from './calendar-event-content.svelte';
+	import CalendarDayFlowEventActivator from './calendar-dayflow-event-activator.svelte';
+	import { installCalendarDayFlowEventActivation } from './calendar-dayflow-event-activation';
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
@@ -122,9 +123,14 @@
 	$effect(() => {
 		const currentStageElement = stageElement;
 		if (!currentStageElement) return;
+		const stopDayFlowEventActivation = installCalendarDayFlowEventActivation({
+			stageElement: currentStageElement,
+			openEvent: (eventID, anchor) => openEvent(eventID, anchor)
+		});
 		currentStageElement.addEventListener('click', handleStageDateClick, true);
 		return () => {
 			currentStageElement.removeEventListener('click', handleStageDateClick, true);
+			stopDayFlowEventActivation();
 		};
 	});
 
@@ -138,15 +144,18 @@
 	class:calendar-stage-week={toolbarView === ViewType.WEEK}
 	class:calendar-stage-month={toolbarView === ViewType.MONTH}
 	class:calendar-stage-mobile-two-day-week={isMobileTwoDayWeekView}
+	tabindex="-1"
+	role="region"
+	aria-label={text.pageTitle}
 >
 	<DayFlowCalendar
 		{calendar}
-		eventContentDay={CalendarEventContent}
-		eventContentWeek={CalendarEventContent}
-		eventContentMonth={CalendarEventContent}
-		eventContentAllDayDay={CalendarEventContent}
-		eventContentAllDayWeek={CalendarEventContent}
-		eventContentAllDayMonth={CalendarEventContent}
+		eventContentDay={CalendarDayFlowEventActivator}
+		eventContentWeek={CalendarDayFlowEventActivator}
+		eventContentMonth={CalendarDayFlowEventActivator}
+		eventContentAllDayDay={CalendarDayFlowEventActivator}
+		eventContentAllDayWeek={CalendarDayFlowEventActivator}
+		eventContentAllDayMonth={CalendarDayFlowEventActivator}
 		mobileEventDetail={CalendarMobileEventEditor}
 	/>
 
