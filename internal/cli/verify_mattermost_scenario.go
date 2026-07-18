@@ -614,11 +614,24 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 	}
 	for _, eventCount := range expected.ExpectedEventCounts {
 		observedCount := countMattermostScenarioExpectedEvents(events, eventCount)
+		if eventCount.Count > 0 && observedCount == 0 {
+			return missingMattermostScenarioEventError(stepIndex, eventCount)
+		}
 		if errorValue := recordMattermostScenarioCount(result, stepIndex, "event", eventCount.Name, eventCount.Count, observedCount, eventCount.Exact); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
+}
+
+func missingMattermostScenarioEventError(stepIndex int, expectation mattermostScenarioEventCount) error {
+	if expectation.OutputFragment != "" {
+		return fmt.Errorf("Mattermost scenario step %d is missing event %q with output containing %q", stepIndex, expectation.Name, expectation.OutputFragment)
+	}
+	if expectation.BodyFragment != "" {
+		return fmt.Errorf("Mattermost scenario step %d is missing event %q with body containing %q", stepIndex, expectation.Name, expectation.BodyFragment)
+	}
+	return fmt.Errorf("Mattermost scenario step %d is missing event %q", stepIndex, expectation.Name)
 }
 
 func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
