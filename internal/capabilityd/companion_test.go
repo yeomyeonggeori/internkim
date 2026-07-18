@@ -171,6 +171,31 @@ func TestDecodeToolInvokeRequestRejectsOperationMismatch(t *testing.T) {
 	}
 }
 
+func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
+	testCases := []struct {
+		toolName string
+		input    string
+	}{
+		{toolName: "site.publish", input: `{"siteID":42}`},
+		{toolName: "site.publish", input: `{"siteID":" site-1 "}`},
+		{toolName: "site.delete", input: `{"siteID":"site-1","confirm":"DELETE"}`},
+		{toolName: "site.delete", input: `{"siteID":"site-1","userConfirmed":true}`},
+	}
+	for _, testCase := range testCases {
+		response, errorValue := (Service{}).invokeCapabilityTool(
+			context.Background(),
+			testCase.toolName,
+			strings.NewReader(`{"context":{"requesterPersonID":"person-1","isApprovalContinuation":true},"input":`+testCase.input+`}`),
+		)
+		if errorValue != nil {
+			t.Fatalf("%s returned an unexpected error: %v", testCase.toolName, errorValue)
+		}
+		if !response.IsError || response.ErrorCode != "invalid_input" || response.FailureStage != "input_schema" {
+			t.Fatalf("%s accepted input %s: %+v", testCase.toolName, testCase.input, response)
+		}
+	}
+}
+
 func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
 	descriptor, found := capabilityToolDescriptorFor("site.delete")
 	if !found {
@@ -184,6 +209,9 @@ func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
 	}
 	if !descriptor.RequiresApproval {
 		t.Fatal("expected site.delete descriptor to require approval")
+	}
+	if !descriptor.RequiresUserPresence {
+		t.Fatal("expected site.delete descriptor to require user presence")
 	}
 	if _, found := capabilityToolDescriptorFor("site."); found {
 		t.Fatal("expected prefix-only operation to have no descriptor")
@@ -434,8 +462,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"calendar.delete",
 		"mail.connection.start",
 		"mail.message.send",
-		"site.rollback",
-		"site.unpublish",
 		"site.delete",
 		"google.gmail.send",
 	}
@@ -447,6 +473,32 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 			}
 			assertCapabilityApprovalRequired(t, response, toolName)
 		})
+	}
+}
+
+func TestInvokeCapabilityToolSiteDeleteInjectsInternalApprovalProof(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var input map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&input); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if input["confirm"] != "DELETE" || input["userConfirmed"] != true {
+				t.Fatalf("expected internal approval proof, got %+v", input)
+			}
+			return siteToolJSONResponse(`{"siteID":"site-1","status":"deleted"}`), nil
+		})},
+	}
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "site.delete", strings.NewReader(`{
+		"input":{"siteID":"site-1","reason":"Remove obsolete launch page"},
+		"context":{"requesterPersonID":"person-1","isApprovalContinuation":true}
+	}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || string(response.Result) != `{"deleted":true,"siteID":"site-1"}` {
+		t.Fatalf("unexpected delete response %+v", response)
 	}
 }
 
@@ -959,7 +1011,7 @@ func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}
-	_, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true}`))
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
 	if errorValue == nil {
 		t.Fatal("expected missing companion to fail")
 	}

@@ -21,54 +21,62 @@ func (service *Service) reconcileSiteSourcesToStaffCircle() {
 }
 
 func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
+	pathsChanged, errorValue := service.moveSiteSourceToStaffCircle(site)
+	if errorValue != nil || !pathsChanged {
+		return errorValue
+	}
+	return service.storeSite(site)
+}
+
+func (service *Service) moveSiteSourceToStaffCircle(site *SiteRecord) (bool, error) {
 	siteID := strings.TrimSpace(site.SiteID)
 	if siteID == "" {
-		return nil
+		return false, nil
 	}
 	workspaceRoot := service.Configuration.BlueclawWorkspacePath
 	targetProjectHostPath := service.siteProjectStorageHostPath(siteID)
 	targetDraftHostPath := filepath.Join(targetProjectHostPath, "draft")
 	if errorValue := service.ensureSiteWorkspaceStoragePath(siteID); errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 
 	workspaceSourceHostPath := locateSiteSourceHostPath(workspaceRoot, site, targetDraftHostPath)
 	if workspaceSourceHostPath != "" {
 		if workspaceSourceHostPath != targetDraftHostPath {
 			if errorValue := relocateDirectory(workspaceSourceHostPath, targetDraftHostPath); errorValue != nil {
-				return errorValue
+				return false, errorValue
 			}
 			_ = os.Remove(filepath.Dir(workspaceSourceHostPath))
 		}
 		healStaffCirclePermissions(targetDraftHostPath)
 		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
-			return errorValue
+			return false, errorValue
 		}
-		return service.recordStaffCircleSitePaths(site, siteID)
+		return setStaffCircleSitePaths(site, siteID), nil
 	}
 
 	ledgerSourceHostPath := service.siteSourceLedgerPath(siteID)
 	if !directoryHasEntries(ledgerSourceHostPath) {
 		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
-			return errorValue
+			return false, errorValue
 		}
-		return service.recordStaffCircleSitePaths(site, siteID)
+		return setStaffCircleSitePaths(site, siteID), nil
 	}
 	if !looksLikeSiteDraftDirectory(targetDraftHostPath) {
 		if isExistingDirectory(targetDraftHostPath) {
 			if errorValue := os.RemoveAll(targetDraftHostPath); errorValue != nil {
-				return errorValue
+				return false, errorValue
 			}
 		}
 		if errorValue := copyDirectoryIntoStaffCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
-			return errorValue
+			return false, errorValue
 		}
 	}
 	healStaffCirclePermissions(targetDraftHostPath)
 	if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
-	return service.recordStaffCircleSitePaths(site, siteID)
+	return setStaffCircleSitePaths(site, siteID), nil
 }
 
 func copyDirectoryIntoStaffCircle(sourcePath string, targetPath string) error {
@@ -137,18 +145,18 @@ func relocateDirectory(sourcePath string, targetPath string) error {
 	return os.RemoveAll(sourcePath)
 }
 
-func (service *Service) recordStaffCircleSitePaths(site *SiteRecord, siteID string) error {
+func setStaffCircleSitePaths(site *SiteRecord, siteID string) bool {
 	draftPath := siteDraftWorkspacePath(siteID, site.Slug, "")
 	projectPath := siteProjectAliasWorkspacePath(siteID, site.Slug)
 	appPath := filepath.ToSlash(filepath.Join(draftPath, "app"))
 	if site.WorkspacePath == projectPath && site.SourceWorkspacePath == draftPath && site.DraftPath == draftPath && site.AppWorkspacePath == appPath {
-		return nil
+		return false
 	}
 	site.WorkspacePath = projectPath
 	site.SourceWorkspacePath = draftPath
 	site.DraftPath = draftPath
 	site.AppWorkspacePath = appPath
-	return service.storeSite(site)
+	return true
 }
 
 func healStaffCirclePermissions(rootPath string) {

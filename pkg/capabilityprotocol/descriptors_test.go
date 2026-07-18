@@ -153,6 +153,37 @@ func TestCanonicalizeDescriptorsRejectsOpenObjectSchema(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeDescriptorsRejectsUnresolvableSchemas(t *testing.T) {
+	testCases := []struct {
+		name         string
+		mutateSchema func(*Descriptor)
+	}{
+		{
+			name: "input",
+			mutateSchema: func(descriptor *Descriptor) {
+				descriptor.InputSchema = json.RawMessage(`{"type":"object","$ref":"#/$defs/missing","additionalProperties":false}`)
+			},
+		},
+		{
+			name: "result",
+			mutateSchema: func(descriptor *Descriptor) {
+				descriptor.ResultContract = &ToolResultContract{
+					Schema: json.RawMessage(`{"type":"object","$ref":"#/$defs/missing","additionalProperties":false}`),
+				}
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			descriptor := validTestDescriptor("task.add")
+			testCase.mutateSchema(&descriptor)
+			if descriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); descriptors != nil {
+				t.Fatalf("expected unresolvable %s schema to fail closed: %#v", testCase.name, descriptors)
+			}
+		})
+	}
+}
+
 func TestValidateDescriptorAcceptsCanonicalUnavailableStates(t *testing.T) {
 	for _, state := range []string{CapabilityAvailable, CapabilityNotAllowed, CapabilityNotConnected, CapabilityNotReady} {
 		descriptor := validTestDescriptor("task.add")
@@ -182,10 +213,18 @@ func TestCanonicalizeDescriptorsValidatesResultContracts(t *testing.T) {
 			ResultField:    "taskID",
 			EffectIdentity: ResourceEffectIdentityID,
 		}},
+		EvidenceCondition: &EvidenceCondition{
+			ResultField: "taskID",
+			Equals:      json.RawMessage(`"task-1"`),
+		},
 	}
 	descriptors := CanonicalizeDescriptors([]Descriptor{validDescriptor})
 	if len(descriptors) != 1 || !isStrictSchema(descriptors[0].ResultContract.Schema) {
 		t.Fatalf("expected strict result contract, got %+v", descriptors)
+	}
+	if descriptors[0].ResultContract.EvidenceCondition == validDescriptor.ResultContract.EvidenceCondition ||
+		string(descriptors[0].ResultContract.EvidenceCondition.Equals) != `"task-1"` {
+		t.Fatalf("expected canonical evidence condition copy, got %+v", descriptors[0].ResultContract.EvidenceCondition)
 	}
 
 	for _, contract := range []*ToolResultContract{
@@ -194,12 +233,67 @@ func TestCanonicalizeDescriptorsValidatesResultContracts(t *testing.T) {
 		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: "unknown"}}},
 		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}}},
 		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}, {ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}}},
+		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"required":["passed"],"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "missing", Equals: json.RawMessage(`true`)}},
+		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "passed", Equals: json.RawMessage(`true`)}},
+		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"required":["passed"],"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "passed"}},
+		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"required":["passed"],"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "passed", Equals: json.RawMessage(`"true"`)}},
 	} {
 		descriptor := validTestDescriptor("task.add")
 		descriptor.ResultContract = contract
 		if canonicalDescriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); canonicalDescriptors != nil {
 			t.Fatalf("expected invalid result contract to fail closed: %+v", canonicalDescriptors)
 		}
+	}
+}
+
+func TestValidateResultContractAcceptsOnlyCanonicalArrayEffectIdentities(t *testing.T) {
+	effect := ResourceEffectContract{
+		ObjectType:     "file",
+		Effect:         "updated",
+		ResultField:    "paths",
+		EffectIdentity: ResourceEffectIdentityPath,
+	}
+	validContract := &ToolResultContract{
+		Schema:  json.RawMessage(`{"type":"object","properties":{"paths":{"type":"array","items":{"type":"string"},"minItems":1,"uniqueItems":true}},"required":["paths"],"additionalProperties":false}`),
+		Effects: []ResourceEffectContract{effect},
+	}
+	if errorValue := validateResultContract(validContract); errorValue != nil {
+		t.Fatalf("expected canonical string array identity, got %v", errorValue)
+	}
+	for _, schema := range []json.RawMessage{
+		json.RawMessage(`{"type":"object","properties":{"paths":{"type":"array","items":{"type":"string"},"uniqueItems":true}},"required":["paths"],"additionalProperties":false}`),
+		json.RawMessage(`{"type":"object","properties":{"paths":{"type":"array","items":{"type":"string"},"minItems":1}},"required":["paths"],"additionalProperties":false}`),
+		json.RawMessage(`{"type":"object","properties":{"paths":{"type":"array","items":{"type":"number"},"minItems":1,"uniqueItems":true}},"required":["paths"],"additionalProperties":false}`),
+	} {
+		contract := &ToolResultContract{Schema: schema, Effects: []ResourceEffectContract{effect}}
+		if errorValue := validateResultContract(contract); errorValue == nil {
+			t.Fatalf("expected noncanonical array identity rejection for %s", schema)
+		}
+	}
+}
+
+func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *testing.T) {
+	modelVisibleDescriptor := validTestDescriptor("task.add")
+	if errorValue := ValidateDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue != nil {
+		t.Fatalf("expected the shared descriptor validator to preserve legacy provider compatibility: %v", errorValue)
+	}
+	if errorValue := ValidateModelVisibleCapabilityDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue == nil ||
+		!strings.Contains(errorValue.Error(), "model-visible capability resultContract is required") {
+		t.Fatalf("expected generated capability result contract rejection, got %v", errorValue)
+	}
+
+	hiddenDescriptor := validTestDescriptor("llm.text")
+	hiddenDescriptor.ModelVisibility = ModelVisibilityHidden
+	hiddenDescriptor.ModelVisible = false
+	if errorValue := ValidateModelVisibleCapabilityDescriptorSet([]Descriptor{hiddenDescriptor}); errorValue != nil {
+		t.Fatalf("expected hidden capability without a result contract: %v", errorValue)
+	}
+
+	modelVisibleDescriptor.ResultContract = &ToolResultContract{
+		Schema: json.RawMessage(`{"type":"object","properties":{"taskID":{"type":"string"}},"required":["taskID"],"additionalProperties":false}`),
+	}
+	if errorValue := ValidateModelVisibleCapabilityDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue != nil {
+		t.Fatalf("expected typed model-visible capability: %v", errorValue)
 	}
 }
 

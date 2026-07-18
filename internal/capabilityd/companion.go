@@ -14,6 +14,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type CapabilityRouter struct {
@@ -177,6 +178,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if response, isDenied := service.capabilityToolApprovalDeniedResponse(ctx, request, descriptor); isDenied {
 		return response, nil
 	}
+	if errorValue := capabilityschema.Validate(descriptor.InputSchema, request.Input); errorValue != nil {
+		return capabilityInvalidInputResponse(request.ToolName, errorValue), nil
+	}
 	toolRoute, hasToolRoute := capabilityToolRouteFor(descriptor.CanonicalName)
 
 	router := CapabilityRouter{
@@ -206,6 +210,28 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		return toolRoute.Handler(service, ctx, request)
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
+}
+
+func capabilityInvalidInputResponse(toolName string, errorValue error) capabilities.ToolInvokeResponse {
+	message := errorValue.Error()
+	result, _ := json.Marshal(map[string]string{
+		"errorCode":    "invalid_input",
+		"failureStage": "input_schema",
+		"message":      message,
+	})
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        strings.TrimSpace(toolName),
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Status:          "error",
+		Content:         message,
+		IsError:         true,
+		Message:         message,
+		ErrorCode:       "invalid_input",
+		FailureStage:    "input_schema",
+		Result:          result,
+	}
 }
 
 func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context, request capabilities.ToolInvokeRequest, descriptor capabilities.Descriptor) (capabilities.ToolInvokeResponse, bool) {

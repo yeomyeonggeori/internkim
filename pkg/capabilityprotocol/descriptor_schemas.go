@@ -6,33 +6,10 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
-func browserOpenInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("url", jsonschema.String()),
-		jsonschema.Field("startURL", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserSnapshotInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Field("interactive", jsonschema.Boolean())).RawMessage()
-}
-
-func browserScreenshotInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Field("ttlSeconds", jsonschema.Integer())).RawMessage()
-}
-
 func browserHandoffInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("url", jsonschema.String()),
 		jsonschema.Field("message", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserTargetInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
 	).RawMessage()
 }
 

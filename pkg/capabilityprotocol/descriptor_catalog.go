@@ -1,5 +1,17 @@
 package capabilityprotocol
 
+func mustGeneratedToolDescriptor(name string) Descriptor {
+	return MustGeneratedToolDescriptors(name)[0]
+}
+
+func deviceBrowserDescriptor(name string, description string) Descriptor {
+	descriptor := mustGeneratedToolDescriptor(name)
+	descriptor.Description = description
+	descriptor.PrivacyClass = "device_browser"
+	descriptor.RequiresUserPresence = false
+	return descriptor
+}
+
 func CompanionToolDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors([]Descriptor{
 		NewDescriptor(DescriptorDefinition{
@@ -54,7 +66,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "file.pick",
 				Namespace:       "file",
 				ModelName:       "file.pick",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Ask the user to choose local files and upload them through the companion.",
@@ -78,7 +90,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.create",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.create",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Connect a user-selected local directory as a filesystem mount.",
@@ -101,7 +113,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.list",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.list",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "List connected local filesystem mounts.",
@@ -124,7 +136,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.pause",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.pause",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Pause access to a connected local filesystem mount.",
@@ -147,7 +159,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.resume",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.resume",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Resume access to a paused local filesystem mount.",
@@ -170,7 +182,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.revoke",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.revoke",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Permanently revoke a connected local filesystem mount.",
@@ -193,7 +205,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.status",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.status",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Read the status of one or all connected local filesystem mounts.",
@@ -216,7 +228,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.stat",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.stat",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Read metadata for a path inside a connected local filesystem mount.",
@@ -239,7 +251,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.list_directory",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.list_directory",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "List a directory inside a connected local filesystem mount.",
@@ -262,7 +274,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.read",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.read",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Read a file inside a connected local filesystem mount.",
@@ -285,7 +297,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.write",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.write",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Write a file inside a connected local filesystem mount.",
@@ -308,7 +320,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.mkdir",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.mkdir",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Create a directory inside a connected local filesystem mount.",
@@ -331,7 +343,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.rename",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.rename",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Rename a path inside a connected local filesystem mount.",
@@ -354,7 +366,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.delete",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.delete",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Delete a path inside a connected local filesystem mount.",
@@ -377,7 +389,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.truncate",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.truncate",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Resize a file inside a connected local filesystem mount.",
@@ -400,7 +412,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.chmod",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.chmod",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Change permissions on a path inside a connected local filesystem mount.",
@@ -423,7 +435,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "filesystem.mount.watch",
 				Namespace:       "filesystem",
 				ModelName:       "filesystem.mount.watch",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "List paths changed since a given time in a connected local filesystem mount.",
@@ -440,82 +452,16 @@ func CompanionToolDescriptors() []Descriptor {
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
 			},
 		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.open",
-				CanonicalName:   "browser.open",
-				Namespace:       "browser",
-				ModelName:       "browser.open",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Open a URL in the user's local browser.",
-				Version:              "1",
-				PrivacyClass:         "user_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: true,
-				WorksOffline:         false,
-				InputSchema:          browserOpenInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.open",
-				SideEffect:           SideEffectConnect,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.snapshot",
-				CanonicalName:   "browser.snapshot",
-				Namespace:       "browser",
-				ModelName:       "browser.snapshot",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Read the current local browser page structure.",
-				Version:              "1",
-				PrivacyClass:         "user_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserSnapshotInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.snapshot",
-				SideEffect:           SideEffectRead,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.screenshot",
-				CanonicalName:   "browser.screenshot",
-				Namespace:       "browser",
-				ModelName:       "browser.screenshot",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Capture the visible local browser page.",
-				Version:              "1",
-				PrivacyClass:         "user_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserScreenshotInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.screenshot",
-				SideEffect:           SideEffectRead,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
+		mustGeneratedToolDescriptor("browser.open"),
+		mustGeneratedToolDescriptor("browser.snapshot"),
+		mustGeneratedToolDescriptor("browser.screenshot"),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
 				Name:            "browser.handoff",
 				CanonicalName:   "browser.handoff",
 				Namespace:       "browser",
 				ModelName:       "browser.handoff",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Hand browser control to the user for an interactive step.",
@@ -532,36 +478,14 @@ func CompanionToolDescriptors() []Descriptor {
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
 			},
 		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.click",
-				CanonicalName:   "browser.click",
-				Namespace:       "browser",
-				ModelName:       "browser.click",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Click a target in the user's local browser.",
-				Version:              "1",
-				PrivacyClass:         "user_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserTargetInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.click",
-				SideEffect:           SideEffectExternalWrite,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
+		mustGeneratedToolDescriptor("browser.click"),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
 				Name:            "browser.fill",
 				CanonicalName:   "browser.fill",
 				Namespace:       "browser",
 				ModelName:       "browser.fill",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Fill text into a target in the user's local browser.",
@@ -584,7 +508,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "browser.select",
 				Namespace:       "browser",
 				ModelName:       "browser.select",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Select a value in the user's local browser.",
@@ -607,7 +531,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "browser.press",
 				Namespace:       "browser",
 				ModelName:       "browser.press",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Press a key in the user's local browser.",
@@ -630,7 +554,7 @@ func CompanionToolDescriptors() []Descriptor {
 				CanonicalName:   "browser.wait",
 				Namespace:       "browser",
 				ModelName:       "browser.wait",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Wait for a browser target or a bounded interval.",
@@ -749,82 +673,16 @@ func CompanionLLMDescriptors() []Descriptor {
 
 func DeviceBrowserDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors([]Descriptor{
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.open",
-				CanonicalName:   "browser.open",
-				Namespace:       "browser",
-				ModelName:       "browser.open",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Open a URL in the device browser.",
-				Version:              "1",
-				PrivacyClass:         "device_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserOpenInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.open",
-				SideEffect:           SideEffectConnect,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.snapshot",
-				CanonicalName:   "browser.snapshot",
-				Namespace:       "browser",
-				ModelName:       "browser.snapshot",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Read the current device browser page structure.",
-				Version:              "1",
-				PrivacyClass:         "device_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserSnapshotInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.snapshot",
-				SideEffect:           SideEffectRead,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
-		NewDescriptor(DescriptorDefinition{
-			Identity: DescriptorIdentity{
-				Name:            "browser.click",
-				CanonicalName:   "browser.click",
-				Namespace:       "browser",
-				ModelName:       "browser.click",
-				ModelVisibility: ModelVisibilityVisible,
-			},
-			Metadata: DescriptorMetadata{
-				Description:          "Click a target in the device browser.",
-				Version:              "1",
-				PrivacyClass:         "device_browser",
-				EstimatedLatency:     "interactive",
-				RequiresUserPresence: false,
-				WorksOffline:         false,
-				InputSchema:          browserTargetInputSchema(),
-				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.click",
-				SideEffect:           SideEffectExternalWrite,
-				Availability:         AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:          IdempotencyMetadata{Scope: "operation"},
-			},
-		}),
+		deviceBrowserDescriptor("browser.open", "Open an exact HTTP or HTTPS URL in the device browser."),
+		deviceBrowserDescriptor("browser.snapshot", "Read the current device browser page structure."),
+		deviceBrowserDescriptor("browser.click", "Click one exact target from the current device browser snapshot."),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
 				Name:            "browser.fill",
 				CanonicalName:   "browser.fill",
 				Namespace:       "browser",
 				ModelName:       "browser.fill",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Fill text into a target in the device browser.",
@@ -847,7 +705,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				CanonicalName:   "browser.select",
 				Namespace:       "browser",
 				ModelName:       "browser.select",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Select a value in the device browser.",
@@ -870,7 +728,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				CanonicalName:   "browser.press",
 				Namespace:       "browser",
 				ModelName:       "browser.press",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Press a key in the device browser.",
@@ -893,7 +751,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				CanonicalName:   "browser.wait",
 				Namespace:       "browser",
 				ModelName:       "browser.wait",
-				ModelVisibility: ModelVisibilityVisible,
+				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
 				Description:          "Wait for a browser target or a bounded interval.",

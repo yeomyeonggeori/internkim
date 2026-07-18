@@ -1,9 +1,13 @@
 package capabilityprotocol
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 const (
@@ -157,8 +161,19 @@ func canonicalResultContract(contract *ToolResultContract) *ToolResultContract {
 		return nil
 	}
 	return &ToolResultContract{
-		Schema:  strictSchema(contract.Schema),
-		Effects: append([]ResourceEffectContract{}, contract.Effects...),
+		Schema:            strictSchema(contract.Schema),
+		Effects:           append([]ResourceEffectContract{}, contract.Effects...),
+		EvidenceCondition: canonicalEvidenceCondition(contract.EvidenceCondition),
+	}
+}
+
+func canonicalEvidenceCondition(condition *EvidenceCondition) *EvidenceCondition {
+	if condition == nil {
+		return nil
+	}
+	return &EvidenceCondition{
+		ResultField: strings.TrimSpace(condition.ResultField),
+		Equals:      append(json.RawMessage{}, condition.Equals...),
 	}
 }
 
@@ -182,6 +197,18 @@ func ValidateDescriptorSet(descriptors []Descriptor) error {
 			return fmt.Errorf("duplicate model name %q for %s and %s", descriptor.ModelName, previous, descriptor.Name)
 		}
 		modelNames[descriptor.ModelName] = descriptor.Name
+	}
+	return nil
+}
+
+func ValidateModelVisibleCapabilityDescriptorSet(descriptors []Descriptor) error {
+	if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
+		return errorValue
+	}
+	for index, descriptor := range descriptors {
+		if descriptor.ModelVisibility == ModelVisibilityVisible && descriptor.ResultContract == nil {
+			return fmt.Errorf("descriptor %d: model-visible capability resultContract is required", index)
+		}
 	}
 	return nil
 }
@@ -232,8 +259,14 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if !descriptor.InputSchemaStrict || !isStrictSchema(descriptor.InputSchema) {
 		return fmt.Errorf("inputSchema must be a strict object schema")
 	}
+	if errorValue := resolveDescriptorSchema(descriptor.InputSchema); errorValue != nil {
+		return fmt.Errorf("inputSchema cannot be resolved: %w", errorValue)
+	}
 	if !descriptor.OutputSchemaStrict || !isStrictSchema(descriptor.OutputSchema) {
 		return fmt.Errorf("outputSchema must be a strict object schema")
+	}
+	if errorValue := resolveDescriptorSchema(descriptor.OutputSchema); errorValue != nil {
+		return fmt.Errorf("outputSchema cannot be resolved: %w", errorValue)
 	}
 	if errorValue := validateResultContract(descriptor.ResultContract); errorValue != nil {
 		return errorValue
@@ -263,6 +296,12 @@ func validateResultContract(contract *ToolResultContract) error {
 	if !isStrictSchema(contract.Schema) {
 		return fmt.Errorf("resultContract.schema must be a strict object schema")
 	}
+	if errorValue := resolveDescriptorSchema(contract.Schema); errorValue != nil {
+		return fmt.Errorf("resultContract.schema cannot be resolved: %w", errorValue)
+	}
+	if errorValue := validateEvidenceCondition(contract.Schema, contract.EvidenceCondition); errorValue != nil {
+		return errorValue
+	}
 	seenEffects := map[string]bool{}
 	for _, effectContract := range contract.Effects {
 		objectType := strings.TrimSpace(effectContract.ObjectType)
@@ -276,8 +315,8 @@ func validateResultContract(contract *ToolResultContract) error {
 			effectContract.EffectIdentity != ResourceEffectIdentityURL {
 			return fmt.Errorf("resultContract effectIdentity is invalid")
 		}
-		if !schemaRequiresStringField(contract.Schema, resultField) {
-			return fmt.Errorf("resultContract resultField must name a required string property")
+		if !schemaRequiresEffectIdentityField(contract.Schema, resultField) {
+			return fmt.Errorf("resultContract resultField must name a required string or nonempty unique string array property")
 		}
 		effectKey := objectType + "\x00" + effect
 		if seenEffects[effectKey] {
@@ -288,7 +327,47 @@ func validateResultContract(contract *ToolResultContract) error {
 	return nil
 }
 
-func schemaRequiresStringField(document json.RawMessage, fieldName string) bool {
+func validateEvidenceCondition(schema json.RawMessage, condition *EvidenceCondition) error {
+	if condition == nil {
+		return nil
+	}
+	resultField := strings.TrimSpace(condition.ResultField)
+	if len(bytes.TrimSpace(condition.Equals)) == 0 || !json.Valid(condition.Equals) {
+		return fmt.Errorf("resultContract evidenceCondition.equals must be valid JSON")
+	}
+	if !schemaAcceptsEvidenceValue(schema, resultField, condition.Equals) {
+		return fmt.Errorf("resultContract evidenceCondition must match a required result property")
+	}
+	return nil
+}
+
+func schemaAcceptsEvidenceValue(document json.RawMessage, fieldName string, value json.RawMessage) bool {
+	var schema jsonschema.Schema
+	if json.Unmarshal(document, &schema) != nil || !slices.Contains(schema.Required, fieldName) {
+		return false
+	}
+	property, isDefined := schema.Properties[fieldName]
+	if !isDefined {
+		return false
+	}
+	var instance any
+	if json.Unmarshal(value, &instance) != nil {
+		return false
+	}
+	resolvedProperty, errorValue := property.Resolve(nil)
+	return errorValue == nil && resolvedProperty.Validate(instance) == nil
+}
+
+func resolveDescriptorSchema(document json.RawMessage) error {
+	var schema jsonschema.Schema
+	if errorValue := json.Unmarshal(document, &schema); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := schema.Resolve(nil)
+	return errorValue
+}
+
+func schemaRequiresEffectIdentityField(document json.RawMessage, fieldName string) bool {
 	var schema struct {
 		Properties map[string]json.RawMessage `json:"properties"`
 		Required   []string                   `json:"required"`
@@ -297,17 +376,21 @@ func schemaRequiresStringField(document json.RawMessage, fieldName string) bool 
 		return false
 	}
 	var property struct {
-		Type string `json:"type"`
+		Type        string `json:"type"`
+		MinItems    int    `json:"minItems"`
+		UniqueItems bool   `json:"uniqueItems"`
+		Items       struct {
+			Type string `json:"type"`
+		} `json:"items"`
 	}
-	if json.Unmarshal(schema.Properties[fieldName], &property) != nil || property.Type != "string" {
+	if json.Unmarshal(schema.Properties[fieldName], &property) != nil {
 		return false
 	}
-	for _, requiredField := range schema.Required {
-		if requiredField == fieldName {
-			return true
-		}
+	if !slices.Contains(schema.Required, fieldName) {
+		return false
 	}
-	return false
+	return property.Type == "string" ||
+		property.Type == "array" && property.Items.Type == "string" && property.MinItems >= 1 && property.UniqueItems
 }
 
 func strictSchema(document json.RawMessage) json.RawMessage {
