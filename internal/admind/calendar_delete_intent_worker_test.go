@@ -35,7 +35,8 @@ func TestCalendarDeleteIntentWorkerUsesDynamicExpiryTimer(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-worker-expiry")
 	intent := createCalendarDeleteIntentForTest(t, service, event, "worker-expiry-operation", "page-a", 2, time.Now().UTC())
-	executeAt := time.Now().UTC().Add(400 * time.Millisecond)
+	drainCalendarDeleteIntentWakeUp(service)
+	executeAt := time.Now().UTC().Add(10 * time.Second)
 	setCalendarDeleteIntentSchedule(t, service, intent.OperationID, executeAt)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,11 +45,16 @@ func TestCalendarDeleteIntentWorkerUsesDynamicExpiryTimer(t *testing.T) {
 		service.runCalendarDeleteIntentLoop(ctx)
 		close(done)
 	}()
-	time.Sleep(80 * time.Millisecond)
+	service.signalCalendarDeleteIntentWakeUp()
+	waitForCalendarDeleteIntentCondition(t, time.Second, func() bool {
+		return len(service.calendarDeleteIntentWakeUp) == 0
+	})
 	if _, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID); errorValue != nil || !found {
 		cancel()
 		t.Fatalf("event before expiry found = %v error = %v", found, errorValue)
 	}
+	setCalendarDeleteIntentSchedule(t, service, intent.OperationID, time.Now().UTC().Add(-time.Second))
+	service.signalCalendarDeleteIntentWakeUp()
 	waitForCalendarDeleteIntentCondition(t, 2*time.Second, func() bool {
 		projection, found, errorValue := service.readCalendarEventProjectionByID(context.Background(), event.ID)
 		return errorValue == nil && found && projection.IsDeleted
@@ -66,11 +72,21 @@ func TestCalendarDeleteIntentCreationWakesIdleWorker(t *testing.T) {
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-worker-wake")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	waitStarted := make(chan struct{}, 1)
+	waiter := func(ctx context.Context, waitDuration time.Duration, wakeUp <-chan struct{}) bool {
+		waitStarted <- struct{}{}
+		return waitForCalendarDeleteIntentWorker(ctx, waitDuration, wakeUp)
+	}
 	go func() {
-		service.runCalendarDeleteIntentLoop(ctx)
+		service.runCalendarDeleteIntentLoopWithWaiter(ctx, waiter)
 		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-waitStarted:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("delete intent worker did not enter idle wait")
+	}
 	createCalendarDeleteIntentForTest(t, service, event, "worker-wake-operation", "page-a", 2, time.Now().UTC().Add(-calendarDeleteIntentDelay-time.Second))
 
 	waitForCalendarDeleteIntentCondition(t, time.Second, func() bool {
@@ -82,6 +98,13 @@ func TestCalendarDeleteIntentCreationWakesIdleWorker(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("delete intent worker did not stop after wake test cancellation")
+	}
+}
+
+func TestCalendarDeleteIntentWorkerSchedulesPeriodicCleanupWhileIdle(t *testing.T) {
+	waitDuration := calendarDeleteIntentWorkerWaitDuration(time.Now().UTC(), time.Time{}, false, nil)
+	if waitDuration != calendarDeleteIntentCleanupInterval {
+		t.Fatalf("idle wait duration = %s", waitDuration)
 	}
 }
 
@@ -178,6 +201,13 @@ func setCalendarDeleteIntentSchedule(t *testing.T, service *Service, operationID
 	formattedExecuteAt := executeAt.UTC().Format(time.RFC3339Nano)
 	if _, errorValue := database.ExecContext(context.Background(), `UPDATE calendar_delete_intents SET execute_at = ?, next_attempt_at = ? WHERE operation_id = ?`, formattedExecuteAt, formattedExecuteAt, operationID); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+func drainCalendarDeleteIntentWakeUp(service *Service) {
+	select {
+	case <-service.calendarDeleteIntentWakeUp:
+	default:
 	}
 }
 
