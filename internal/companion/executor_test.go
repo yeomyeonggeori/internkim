@@ -349,6 +349,9 @@ func TestBrowserScreenshotUploadsDevicePathOnly(t *testing.T) {
 	if !strings.Contains(string(response.Result), "/tmp/internkim-companion-files/screen.png") {
 		t.Fatalf("screenshot did not return device path: %s", string(response.Result))
 	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || response.Status != "ok" {
+		t.Fatalf("unexpected screenshot identity: %+v", response)
+	}
 }
 
 func TestBrowserControlToolsUseRuntime(t *testing.T) {

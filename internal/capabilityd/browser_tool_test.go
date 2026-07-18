@@ -31,7 +31,7 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected device browser response: %v", errorValue)
 	}
-	if response.Provider != "device" || response.ToolName != "browser.open" {
+	if response.Provider != "device" || response.ToolName != "browser.open" || response.Outcome != capabilities.ToolOutcomeSucceeded {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	if len(calls) != 3 {

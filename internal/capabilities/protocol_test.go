@@ -66,15 +66,9 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 		"platform.message.update":   "message.update",
 		"site.app.create":           "site.create",
 		"site.app.delete":           "site.delete",
-		"site.app.diff":             "site.diff",
-		"site.app.history":          "site.history",
-		"site.app.logs":             "site.logs",
 		"site.app.preview":          "site.preview",
 		"site.app.publish":          "site.publish",
-		"site.app.restore":          "site.restore",
-		"site.app.rollback":         "site.rollback",
 		"site.app.status":           "site.status",
-		"site.app.unpublish":        "site.unpublish",
 	}
 	replacements := LegacyToolNameReplacements()
 	if !reflect.DeepEqual(replacements, expectedReplacements) {
@@ -387,25 +381,129 @@ func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	}
 }
 
-func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
-	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.create")
-	previewSchema := descriptorSchema(t, SiteAppDescriptors(), "site.preview")
-	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.publish")
-	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.status")
-	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.history")
-	diffSchema := descriptorSchema(t, SiteAppDescriptors(), "site.diff")
-	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.delete")
+func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
+	for _, descriptorSet := range []struct {
+		descriptors []Descriptor
+		toolNames   []string
+	}{
+		{descriptors: CompanionToolDescriptors(), toolNames: []string{"browser.open", "browser.snapshot", "browser.screenshot", "browser.click"}},
+		{descriptors: DeviceBrowserDescriptors(), toolNames: []string{"browser.open", "browser.snapshot", "browser.click"}},
+	} {
+		for _, toolName := range descriptorSet.toolNames {
+			descriptor := descriptorForTool(t, descriptorSet.descriptors, toolName)
+			if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+				t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
+			}
+		}
+	}
 
-	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
+	openSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.open")
+	snapshotSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.snapshot")
+	clickSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.click")
+	assertSchemaHasProperties(t, openSchema, "url")
+	assertSchemaRequires(t, openSchema, "url")
+	assertSchemaOmitsProperties(t, openSchema, "startURL")
+	assertSchemaOmitsProperties(t, snapshotSchema, "interactive")
+	assertSchemaHasProperties(t, clickSchema, "target", "ref", "selector")
+	if clickSchema.MinProperties != 1 {
+		t.Fatalf("browser.click minProperties = %d, want 1", clickSchema.MinProperties)
+	}
+}
+
+func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
+	hiddenDefaultToolNames := []string{
+		"file.pick",
+		"filesystem.mount.create",
+		"filesystem.mount.list",
+		"filesystem.mount.pause",
+		"filesystem.mount.resume",
+		"filesystem.mount.revoke",
+		"filesystem.mount.status",
+		"filesystem.mount.stat",
+		"filesystem.mount.list_directory",
+		"filesystem.mount.read",
+		"filesystem.mount.write",
+		"filesystem.mount.mkdir",
+		"filesystem.mount.rename",
+		"filesystem.mount.delete",
+		"filesystem.mount.truncate",
+		"filesystem.mount.chmod",
+		"filesystem.mount.watch",
+		"browser.handoff",
+		"browser.fill",
+		"browser.select",
+		"browser.press",
+		"browser.wait",
+		"image.generate",
+		"mail.message.move",
+		"mail.message.mark",
+	}
+	defaultDescriptors := DefaultToolDescriptors()
+	for _, toolName := range hiddenDefaultToolNames {
+		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+			t.Fatalf("%s must remain registered but hidden: %+v", toolName, descriptor)
+		}
+	}
+	for _, toolName := range []string{"browser.fill", "browser.select", "browser.press", "browser.wait"} {
+		descriptor := descriptorForTool(t, DeviceBrowserDescriptors(), toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+			t.Fatalf("device %s must remain registered but hidden: %+v", toolName, descriptor)
+		}
+	}
+}
+
+func TestContractedWebsiteAndReadToolsRemainModelVisible(t *testing.T) {
+	defaultDescriptors := DefaultToolDescriptors()
+	for _, toolName := range []string{"browser.open", "browser.snapshot", "browser.screenshot", "browser.click", "document.read", "image.read"} {
+		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
+			t.Fatalf("%s must remain typed and model-visible: %+v", toolName, descriptor)
+		}
+	}
+}
+
+func TestSiteAppDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
+	descriptors := SiteAppDescriptors()
+	expectedToolNames := []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete"}
+	actualToolNames := make([]string, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		actualToolNames = append(actualToolNames, descriptor.Name)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", descriptor.Name)
+		}
+		if descriptor.Name == "site.delete" && (!descriptor.RequiresApproval || !descriptor.RequiresUserPresence) {
+			t.Fatalf("site.delete must require runtime approval and user presence")
+		}
+	}
+	if !reflect.DeepEqual(actualToolNames, expectedToolNames) {
+		t.Fatalf("site tools = %v, want %v", actualToolNames, expectedToolNames)
+	}
+	for _, removedToolName := range []string{"site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
+		if containsString(actualToolNames, removedToolName) {
+			t.Fatalf("removed site tool %q is still model-visible", removedToolName)
+		}
+	}
+
+	createSchema := descriptorSchema(t, descriptors, "site.create")
+	statusSchema := descriptorSchema(t, descriptors, "site.status")
+	previewSchema := descriptorSchema(t, descriptors, "site.preview")
+	publishSchema := descriptorSchema(t, descriptors, "site.publish")
+	deleteSchema := descriptorSchema(t, descriptors, "site.delete")
+
+	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope", "content")
 	assertSchemaRequires(t, createSchema, "slug")
-	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
-	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
-	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
-	assertSchemaHasProperties(t, statusSchema, "siteID", "slug", "scope", "checkLive")
-	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
-	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
-	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")
-	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
+	assertSchemaHasProperties(t, statusSchema, "siteReference", "checkLive")
+	assertSchemaRequires(t, statusSchema, "siteReference")
+	assertSchemaHasProperties(t, previewSchema, "siteID", "previewID")
+	assertSchemaRequires(t, previewSchema, "siteID")
+	assertSchemaHasProperties(t, publishSchema, "siteID", "message", "previewID")
+	assertSchemaRequires(t, publishSchema, "siteID")
+	assertSchemaHasProperties(t, deleteSchema, "siteID", "reason")
+	assertSchemaRequires(t, deleteSchema, "siteID")
+	assertSchemaOmitsProperties(t, previewSchema, "slug")
+	assertSchemaOmitsProperties(t, publishSchema, "slug")
+	assertSchemaOmitsProperties(t, deleteSchema, "slug", "confirm", "userConfirmed")
 }
 
 func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
@@ -416,6 +514,14 @@ func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
 	descriptor := descriptorForTool(t, ArtifactDescriptors(), "artifact.review")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected artifact.review descriptor: %+v", descriptor)
+	}
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("artifact.review result contract = %+v", descriptor.ResultContract)
+	}
+	if descriptor.ResultContract.EvidenceCondition == nil ||
+		descriptor.ResultContract.EvidenceCondition.ResultField != "passed" ||
+		string(descriptor.ResultContract.EvidenceCondition.Equals) != "true" {
+		t.Fatalf("artifact.review evidence condition = %+v", descriptor.ResultContract.EvidenceCondition)
 	}
 }
 
@@ -473,6 +579,41 @@ func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testin
 	if descriptor.RequiresApproval {
 		t.Fatalf("site.publish should not require approval: %+v", descriptor)
 	}
+}
+
+func TestSiteAppDescriptorsDeclareExactResultContracts(t *testing.T) {
+	descriptors := SiteAppDescriptors()
+	expectedEffects := map[string]string{
+		"site.create":  "created",
+		"site.preview": "previewed",
+		"site.publish": "published",
+		"site.delete":  "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 1 {
+			t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
+		}
+		effect := descriptor.ResultContract.Effects[0]
+		if effect.ObjectType != "website" ||
+			effect.Effect != expectedEffect ||
+			effect.ResultField != "siteID" ||
+			effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effect = %+v", toolName, effect)
+		}
+	}
+
+	statusDescriptor := descriptorForTool(t, descriptors, "site.status")
+	if statusDescriptor.ResultContract == nil || len(statusDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("site.status result contract = %+v", statusDescriptor.ResultContract)
+	}
+	createResultSchema := decodeSchema(t, "site.create result", descriptorForTool(t, descriptors, "site.create").ResultContract.Schema)
+	publishResultSchema := decodeSchema(t, "site.publish result", descriptorForTool(t, descriptors, "site.publish").ResultContract.Schema)
+	deleteResultSchema := decodeSchema(t, "site.delete result", descriptorForTool(t, descriptors, "site.delete").ResultContract.Schema)
+	assertSchemaRequires(t, createResultSchema, "siteID", "sourceWorkspacePath", "appWorkspacePath")
+	assertSchemaRequires(t, publishResultSchema, "siteID", "sourceWorkspacePath", "sourceSHA256", "publishedURL", "currentVersionID")
+	assertSchemaRequires(t, deleteResultSchema, "siteID", "deleted")
+	assertDescriptorCompletionEvidence(t, descriptors, "site.delete", "success", "delete_site", "site")
 }
 
 func TestSiteAppCreateDescriptorHasContentSchema(t *testing.T) {

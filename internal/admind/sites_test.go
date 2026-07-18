@@ -16,13 +16,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestSiteGatewayLifecycle(t *testing.T) {
 	service, commandLog := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:           "demo",
 		Title:          "Demo",
 		RequestedBy:    "owner@example.com",
@@ -34,11 +35,12 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 	writeTestWorkspaceBuild(t, site, "hello dynamic site")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		Message:            "Publish demo prototype",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish demo prototype",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -123,7 +125,7 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 
 func TestSiteResponsesHidePublishedURLUntilPublished(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "visibility-demo",
 		Title:       "Visibility Demo",
 		RequestedBy: "owner@example.com",
@@ -154,7 +156,7 @@ func TestSiteResponsesHidePublishedURLUntilPublished(t *testing.T) {
 
 func TestSiteListCanIncludeLiveHTTPStatus(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "live-status",
 		Title:       "Live Status",
 		RequestedBy: "owner@example.com",
@@ -177,7 +179,7 @@ func TestSiteListCanIncludeLiveHTTPStatus(t *testing.T) {
 
 func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "empty-index",
 		RequestedBy: "owner@example.com",
 	})
@@ -188,10 +190,11 @@ func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil {
 		t.Fatal("expected readiness probe failure")
@@ -209,7 +212,7 @@ func TestSitePublishBlockedByPublishedSiteLimit(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	var firstPublishedSiteID string
 	for index := 0; index < publishedSiteLimit; index++ {
-		publishedSite, errorValue := service.createSiteRecord(siteCreateRequest{
+		publishedSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 			Slug:        "published-" + strconv.Itoa(index),
 			RequestedBy: "owner@example.com",
 		})
@@ -224,7 +227,7 @@ func TestSitePublishBlockedByPublishedSiteLimit(t *testing.T) {
 			firstPublishedSiteID = publishedSite.SiteID
 		}
 	}
-	draftSite, errorValue := service.createSiteRecord(siteCreateRequest{
+	draftSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "draft-overflow",
 		RequestedBy: "owner@example.com",
 	})
@@ -274,7 +277,7 @@ func TestSitePublishedURLFallsBackToFleetDomainWithoutDeviceURL(t *testing.T) {
 func TestSitePublishSurfacesPocketBaseRestartError(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	service.RunCommand = siteRestartErrorCommand
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "backend-restart",
 		RequestedBy: "owner@example.com",
 	})
@@ -288,10 +291,11 @@ func TestSitePublishSurfacesPocketBaseRestartError(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "systemctl restart") || !strings.Contains(errorValue.Error(), "restart unavailable") {
 		t.Fatalf("expected restart failure, got %v", errorValue)
@@ -305,7 +309,7 @@ func TestSitePublishSurfacesPocketBaseRestartError(t *testing.T) {
 func TestSitePublishIgnoresRestartErrorWithoutPocketBaseBackend(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	service.RunCommand = siteRestartErrorCommand
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "frontend-restart",
 		RequestedBy: "owner@example.com",
 	})
@@ -315,10 +319,11 @@ func TestSitePublishIgnoresRestartErrorWithoutPocketBaseBackend(t *testing.T) {
 	writeTestWorkspaceBuild(t, site, "frontend")
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -330,7 +335,7 @@ func TestSitePublishIgnoresRestartErrorWithoutPocketBaseBackend(t *testing.T) {
 
 func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	service, commandLog := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "default-build",
 		Title:       "Default Build",
 		RequestedBy: "owner@example.com",
@@ -344,16 +349,17 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
 	}
-	if _, statError := os.Stat(filepath.Join(site.HostSourcePath, "DESIGN.md")); !os.IsNotExist(statError) {
-		t.Fatalf("site create should not materialize editable source in admind cache: %v", statError)
+	if _, statError := os.Stat(filepath.Join(site.HostSourcePath, "DESIGN.md")); statError != nil {
+		t.Fatalf("site create should stage editable source before commit: %v", statError)
 	}
 	writeTestWorkspaceBuild(t, site, "Default Build")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		Message:            "Publish default prototype",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish default prototype",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -379,7 +385,7 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 
 func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:          "preview-flow",
 		Title:         "Preview Flow",
 		RequestedBy:   "owner@example.com",
@@ -390,21 +396,23 @@ func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
 	}
 	writeTestWorkspaceBuild(t, site, "published version")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		Message:            "Publish stable version",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish stable version",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "draft preview version")
 	site, errorValue = service.previewSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -421,11 +429,12 @@ func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
 		t.Fatalf("expected preview response, status=%d body=%q", previewResponse.Code, previewResponse.Body.String())
 	}
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		RequestedBy:        "owner@example.com",
-		Message:            "Publish preview version",
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish preview version",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -509,7 +518,7 @@ func TestSiteRevisionEntriesMarkPublishedVersions(t *testing.T) {
 
 func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "rollback-revision", RequestedBy: "owner@example.com"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "rollback-revision", RequestedBy: "owner@example.com"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -691,7 +700,7 @@ func TestSiteCreateMaterializesScaffoldDistContentAndManifest(t *testing.T) {
 			{Title: "소개", Body: "이 사이트는 예시입니다."},
 		},
 	}
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "content-site", Title: "Content Site"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "content-site", Title: "Content Site"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -731,7 +740,7 @@ func TestSiteCreateMaterializesScaffoldDistContentAndManifest(t *testing.T) {
 
 func TestSitePristinePublishSucceedsWithoutAppDistOrFreshnessCheck(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "pristine-publish", Title: "Pristine Publish"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "pristine-publish", Title: "Pristine Publish"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -744,9 +753,10 @@ func TestSitePristinePublishSucceedsWithoutAppDistOrFreshnessCheck(t *testing.T)
 	}
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -765,7 +775,7 @@ func TestSitePristinePublishSucceedsWithoutAppDistOrFreshnessCheck(t *testing.T)
 
 func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "content-only-republish", Title: "Content Only"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "content-only-republish", Title: "Content Only"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -774,9 +784,10 @@ func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -791,9 +802,10 @@ func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 	setFileModTime(t, contentPath, time.Now().UTC().Add(2*time.Hour))
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -812,7 +824,7 @@ func TestSiteContentOnlyChangeRepublishesWithoutBuild(t *testing.T) {
 // Blueclaw's own pathIsSiteDesignOrControlFile classification.
 func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "design-only-republish", Title: "Design Only"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "design-only-republish", Title: "Design Only"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -822,9 +834,10 @@ func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 	designPath := filepath.Join(site.HostSourcePath, "DESIGN.md")
 	writeFile(t, designPath, validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -834,9 +847,10 @@ func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 	setFileModTime(t, designPath, time.Now().UTC().Add(2*time.Hour))
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected DESIGN.md-only edit to publish without a rebuild, got %v", errorValue)
@@ -845,7 +859,7 @@ func TestSiteDesignDocumentChangeRepublishesWithoutBuild(t *testing.T) {
 
 func TestSiteModifiedSourceWithoutRebuildIsRejected(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "modified-source", Title: "Modified Source"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "modified-source", Title: "Modified Source"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -861,9 +875,10 @@ func TestSiteModifiedSourceWithoutRebuildIsRejected(t *testing.T) {
 	}
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/dist is stale") {
 		t.Fatalf("expected stale build rejection for edited source without a rebuild, got %v", errorValue)
@@ -872,7 +887,7 @@ func TestSiteModifiedSourceWithoutRebuildIsRejected(t *testing.T) {
 
 func TestSitePublishRejectsInvalidApplicationContentFile(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-content", Title: "Invalid Content"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "invalid-content", Title: "Invalid Content"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -882,9 +897,10 @@ func TestSitePublishRejectsInvalidApplicationContentFile(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"), `{"siteName":"","sections":[]}`)
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/public/site-content.json is invalid") {
 		t.Fatalf("expected invalid content rejection, got %v", errorValue)
@@ -893,7 +909,7 @@ func TestSitePublishRejectsInvalidApplicationContentFile(t *testing.T) {
 
 func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "blocks-content", Title: "Blocks Content"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "blocks-content", Title: "Blocks Content"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -902,9 +918,10 @@ func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -929,9 +946,10 @@ func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
 	setFileModTime(t, contentPath, time.Now().UTC().Add(2*time.Hour))
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -944,7 +962,7 @@ func TestSitePublishAcceptsBlocksApplicationContentFile(t *testing.T) {
 
 func TestSitePublishRejectsApplicationContentFileWithUnknownBlockVariant(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-block-variant", Title: "Invalid Block Variant"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "invalid-block-variant", Title: "Invalid Block Variant"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -954,9 +972,10 @@ func TestSitePublishRejectsApplicationContentFileWithUnknownBlockVariant(t *test
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "public", "site-content.json"), `{"siteName":"Invalid Block Variant","blocks":[{"variant":"testimonial","title":"Bad"}]}`)
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/public/site-content.json is invalid") {
 		t.Fatalf("expected invalid block variant rejection, got %v", errorValue)
@@ -988,43 +1007,135 @@ func TestValidateSiteContentAcceptsBlocksOrSectionsButRequiresOne(t *testing.T) 
 	}
 }
 
-func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
+func TestSiteCreateRejectsDuplicateSlug(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
+	_, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if firstSite.Slug == secondSite.Slug {
-		t.Fatalf("expected unique slug, got %q", secondSite.Slug)
-	}
-	if !strings.HasPrefix(secondSite.Slug, "portfolio-") {
-		t.Fatalf("expected slug to preserve requested base, got %q", secondSite.Slug)
-	}
-	if !strings.Contains(secondSite.Slug, "owner-example-com") {
-		t.Fatalf("expected collision suffix to include requester, got %q", secondSite.Slug)
-	}
-	if firstSite.PublishedURL == secondSite.PublishedURL {
-		t.Fatalf("expected unique published URLs")
+	_, errorValue = service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "site slug already exists") {
+		t.Fatalf("expected duplicate slug rejection, got %v", errorValue)
 	}
 }
 
-func TestSiteCreateUsesRequesterTimestampSlug(t *testing.T) {
-	slug := siteSlugWithSuffix("portfolio", siteCreationSlugSuffix(siteCreateRequest{
-		RequestedBy: "owner@example.com",
-	}, siteIdentity{DisplayName: "Owner Example"}, time.Date(2026, 6, 1, 5, 29, 17, 0, time.UTC)))
+func TestSiteCreateRejectsConcurrentDuplicateSlug(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	errorsByRequest := make(chan error, 2)
+	start := make(chan struct{})
+	waitGroup := sync.WaitGroup{}
+	for range 2 {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			_, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "portfolio"})
+			errorsByRequest <- errorValue
+		}()
+	}
+	close(start)
+	waitGroup.Wait()
+	close(errorsByRequest)
 
-	if slug != "portfolio-owner-example-20260601t052917z" {
-		t.Fatalf("unexpected requester timestamp slug %q", slug)
+	successCount := 0
+	duplicateCount := 0
+	for errorValue := range errorsByRequest {
+		if errorValue == nil {
+			successCount++
+			continue
+		}
+		if strings.Contains(errorValue.Error(), "site slug already exists") {
+			duplicateCount++
+		}
+	}
+	if successCount != 1 || duplicateCount != 1 {
+		t.Fatalf("expected one create and one duplicate rejection, successes=%d duplicates=%d", successCount, duplicateCount)
+	}
+}
+
+func TestSiteCreateMaterializationFailureLeavesNoRecordAndCanRetry(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	runCommand := service.RunCommand
+	shouldFailMaterialization := true
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		if shouldFailMaterialization && name == "git" {
+			return nil, errors.New("git initialization failed")
+		}
+		return runCommand(ctx, name, arguments...)
+	}
+
+	createSite := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, "/admin/api/sites", strings.NewReader(`{"slug":"retryable-site","title":"Retryable Site"}`))
+		response := httptest.NewRecorder()
+		service.createSite(response, request)
+		return response
+	}
+
+	failedResponse := createSite()
+	if failedResponse.Code != http.StatusInternalServerError {
+		t.Fatalf("failed create status = %d, body = %q", failedResponse.Code, failedResponse.Body.String())
+	}
+	if site := service.findSiteBySlug("retryable-site"); site != nil {
+		t.Fatalf("failed create left a site record: %+v", site)
+	}
+	if usedPorts := service.usedSitePorts(); len(usedPorts) != 0 {
+		t.Fatalf("failed create left reserved ports: %+v", usedPorts)
+	}
+	if strings.Contains(readTrimmedFile(service.siteRegistryPath()), "retryable-site") {
+		t.Fatal("failed create persisted the slug")
+	}
+	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
+	if directoryHasEntries(filepath.Join(staffSitesPath, siteIDStorageDirectoryName)) {
+		t.Fatal("failed create left staged site storage")
+	}
+	if _, errorValue := os.Lstat(filepath.Join(staffSitesPath, "retryable-site")); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("failed create left the slug alias: %v", errorValue)
+	}
+	if directoryHasEntries(filepath.Join(filepath.Dir(service.Configuration.SitesRoot), "site-sources")) {
+		t.Fatal("failed create left staged source files")
+	}
+
+	shouldFailMaterialization = false
+	retryResponse := createSite()
+	if retryResponse.Code != http.StatusOK {
+		t.Fatalf("retry status = %d, body = %q", retryResponse.Code, retryResponse.Body.String())
+	}
+	if site := service.findSiteBySlug("retryable-site"); site == nil {
+		t.Fatal("retry did not create the site")
+	}
+}
+
+func TestSiteCreateRequiresExplicitSlug(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	for _, payload := range []siteCreateRequest{
+		{Title: "Portfolio", RequestedBy: "owner@example.com"},
+		{Slug: "Portfolio", RequestedBy: "owner@example.com"},
+	} {
+		_, errorValue := service.createSiteRecord(context.Background(), payload)
+		if errorValue == nil || !strings.Contains(errorValue.Error(), "site slug is required") {
+			t.Fatalf("expected canonical explicit slug requirement, got %v", errorValue)
+		}
+	}
+}
+
+func TestSiteCreateDoesNotReuseConversationSite(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	firstSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "first-site", ConversationID: "thread-1"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "second-site", ConversationID: "thread-1"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if firstSite.SiteID == secondSite.SiteID {
+		t.Fatalf("expected distinct exact site identities, got %s", firstSite.SiteID)
 	}
 }
 
 func TestSiteCreateIgnoresStaleStaffCircleSourceWorkspacePath(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:                "current-site",
 		SourceWorkspacePath: "/workspace/circles/staff/sites/other-site/draft",
 	})
@@ -1039,9 +1150,21 @@ func TestSiteCreateIgnoresStaleStaffCircleSourceWorkspacePath(t *testing.T) {
 	}
 }
 
+func TestSitePublishRejectsBodyPathSiteIDMismatch(t *testing.T) {
+	service := &Service{}
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/sites/site-1/publish", strings.NewReader(`{"siteID":"site-2"}`))
+	response := httptest.NewRecorder()
+
+	service.publishSiteFromRequest(response, request, "site-1")
+
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "siteID does not match request path") {
+		t.Fatalf("expected exact siteID rejection, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
 func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "source-bundle",
 		Title:       "Source Bundle",
 		RequestedBy: "owner@example.com",
@@ -1075,7 +1198,7 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 
 func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "quality-report",
 		Title:       "Quality Report",
 		RequestedBy: "owner@example.com",
@@ -1101,9 +1224,9 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 		SiteID:              site.SiteID,
 		RequestedBy:         "owner@example.com",
 		Message:             "Publish with quality report",
+		SourceWorkspacePath: site.SourceWorkspacePath,
 		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
 		SourceBundleFormat:  "tar.gz",
-		SourceWorkspacePath: site.SourceWorkspacePath,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1122,7 +1245,7 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 
 func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:           "portfolio-demo",
 		Title:          "Portfolio Demo",
 		Prompt:         "김인턴 포트폴리오 사이트를 만들어줘",
@@ -1161,7 +1284,7 @@ func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
 
 func TestSitePublishRequiresOwnerOrEditor(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "private-site",
 		Title:       "Private Site",
 		RequestedBy: "owner@example.com",
@@ -1186,7 +1309,7 @@ func TestSitePublishRequiresOwnerOrEditor(t *testing.T) {
 
 func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "api-demo"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "api-demo"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1196,9 +1319,10 @@ func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1228,15 +1352,16 @@ func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 }
 
 func publishStaticTestSite(t *testing.T, service *Service, slug string) *SiteRecord {
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: slug})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: slug})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "frontend")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1245,7 +1370,7 @@ func publishStaticTestSite(t *testing.T, service *Service, slug string) *SiteRec
 }
 
 func publishPocketBaseTestSite(t *testing.T, service *Service, slug string) *SiteRecord {
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: slug})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: slug})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1255,9 +1380,10 @@ func publishPocketBaseTestSite(t *testing.T, service *Service, slug string) *Sit
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1381,11 +1507,11 @@ func TestReconcileSkipsPublishingSites(t *testing.T) {
 
 func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "first"})
+	firstSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "first"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "second"})
+	secondSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "second"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1405,7 +1531,7 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 
 func TestLoadSitesReconcilesInterruptedPublishingToFailed(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "interrupted"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "interrupted"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1426,7 +1552,7 @@ func TestLoadSitesReconcilesInterruptedPublishingToFailed(t *testing.T) {
 
 func TestFailedNeverPublishedSiteReleasesPort(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	failedSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "failed-never-published"})
+	failedSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "failed-never-published"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1436,7 +1562,7 @@ func TestFailedNeverPublishedSiteReleasesPort(t *testing.T) {
 		t.Fatalf("expected failed never-published site to release port %d", failedSite.Port)
 	}
 
-	nextSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "reuses-port"})
+	nextSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "reuses-port"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1447,7 +1573,7 @@ func TestFailedNeverPublishedSiteReleasesPort(t *testing.T) {
 
 func TestPublishedFailedSiteKeepsPort(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "published-then-failed"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "published-then-failed"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1466,7 +1592,7 @@ func TestPublishedFailedSiteKeepsPort(t *testing.T) {
 
 func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "terminal-writable"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "terminal-writable"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1507,7 +1633,7 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 
 func TestWriteSiteRepairsBrokenSlugAliasDirectory(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "read-repairs-alias"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "read-repairs-alias"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1535,7 +1661,7 @@ func TestWriteSiteRepairsBrokenSlugAliasDirectory(t *testing.T) {
 
 func TestSiteListRepairsBrokenSlugAliasDirectory(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "list-repairs-alias"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "list-repairs-alias"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1559,7 +1685,7 @@ func TestSiteListRepairsBrokenSlugAliasDirectory(t *testing.T) {
 
 func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "publish-repairs-permissions"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "publish-repairs-permissions"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1574,9 +1700,10 @@ func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
 	writeTestWorkspaceBuild(t, site, "published after permission repair")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1589,7 +1716,7 @@ func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
 
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "delete-me"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "delete-me"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1604,7 +1731,7 @@ func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
 
 func TestSiteWorkspacePublishRejectsArbitrarySourcePaths(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "workspace-only"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "workspace-only"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1620,15 +1747,16 @@ func TestSiteWorkspacePublishRejectsArbitrarySourcePaths(t *testing.T) {
 
 func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "stale-build"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "stale-build"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "first build")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1639,9 +1767,10 @@ func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 	sourceModTime := time.Now().UTC().Add(2 * time.Hour)
 	setFileModTime(t, sourcePath, sourceModTime)
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/dist is stale") {
 		t.Fatalf("expected stale build rejection, got %v", errorValue)
@@ -1650,9 +1779,10 @@ func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 	writeTestWorkspaceBuild(t, site, "fresh build")
 	setDirectoryFilesModTime(t, filepath.Join(site.HostSourcePath, "app", "dist"), sourceModTime.Add(time.Hour))
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1665,16 +1795,17 @@ func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 
 func TestSitePublishRejectsUnapprovedPocketBaseHooks(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "hook-demo"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "hook-demo"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "workspace")
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks", "main.pb.js"), "routerAdd('GET', '/x', () => {})")
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil {
 		t.Fatal("expected unapproved PocketBase hook rejection")
@@ -1683,16 +1814,17 @@ func TestSitePublishRejectsUnapprovedPocketBaseHooks(t *testing.T) {
 
 func TestSitePublishIgnoresPocketBaseHookMetadataFiles(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "hook-metadata-demo"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "hook-metadata-demo"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "workspace")
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks", ".gitkeep"), "")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1704,7 +1836,7 @@ func TestSitePublishIgnoresPocketBaseHookMetadataFiles(t *testing.T) {
 
 func TestSiteLifecycleRequiresOwnerOrConfirmation(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "owned", RequestedBy: "owner@example.com"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "owned", RequestedBy: "owner@example.com"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1808,7 +1940,7 @@ func assertSiteAliasSymlinkTarget(t *testing.T, service *Service, site *SiteReco
 
 func publishSiteResponse(t *testing.T, service *Service, site *SiteRecord) *httptest.ResponseRecorder {
 	t.Helper()
-	requestBody := `{"requestedBy":"owner@example.com","sourceBundleBase64":"` + testSourceBundleBase64(t, site.HostSourcePath) + `","sourceBundleFormat":"tar.gz"}`
+	requestBody := `{"requestedBy":"owner@example.com","sourceWorkspacePath":"` + site.SourceWorkspacePath + `","sourceBundleBase64":"` + testSourceBundleBase64(t, site.HostSourcePath) + `","sourceBundleFormat":"tar.gz"}`
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/sites/"+site.SiteID+"/publish", strings.NewReader(requestBody))
 	response := httptest.NewRecorder()
 	service.publishSiteFromRequest(response, request, site.SiteID)
@@ -1876,6 +2008,9 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	if errorValue := os.RemoveAll(filepath.Join(site.HostSourcePath, "app", "dist")); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "dist", "assets"), 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1885,6 +2020,7 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#101010", "#fefefe"))
 	writeTestBuildQuality(t, site.HostSourcePath)
 }
 

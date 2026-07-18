@@ -78,7 +78,7 @@ func TestDocumentReadRejectsUnsupportedInputFields(t *testing.T) {
 		if !response.IsError || response.ErrorCode != "invalid_input" {
 			t.Fatalf("expected invalid input response, got %+v", response)
 		}
-		if response.Provider != "markitdown" || response.SelectedBackend != capabilities.LLMBackendRemote || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeFailed || response.Effects == nil || len(response.Effects) != 0 {
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
 			t.Fatalf("unexpected document error identity: %+v", response)
 		}
 	}
@@ -316,7 +316,7 @@ func TestImageReadRejectsUnsupportedInputFields(t *testing.T) {
 		if !response.IsError || response.ErrorCode != "invalid_input" {
 			t.Fatalf("expected invalid input response, got %+v", response)
 		}
-		if response.Provider != "workspace" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeFailed || response.Effects == nil || len(response.Effects) != 0 {
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
 			t.Fatalf("unexpected image error identity: %+v", response)
 		}
 	}

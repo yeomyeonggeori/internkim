@@ -591,13 +591,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:site.preview", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.history", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.diff", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.logs", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.restore", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.repair", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.rollback", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.unpublish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}...)
