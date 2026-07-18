@@ -50,7 +50,9 @@ async function performApprovalAction(botReply: Locator, page: Page): Promise<voi
 	if (approvalAction !== 'approve') {
 		throw new Error(`Unsupported Mattermost approval action: ${approvalAction}`);
 	}
-	const approvalButton = await findVisibleButton(botReply);
+	const approvalButton = botReply
+		.getByRole('button', { name: /^(confirm|approve|확인|승인)$/i })
+		.last();
 	await verify(approvalButton).toBeVisible();
 	await page.screenshot({ path: join(artifactDirectory, 'approval-before.png'), fullPage: true });
 	const actionResponse = page.waitForResponse((response) =>
@@ -59,22 +61,6 @@ async function performApprovalAction(botReply: Locator, page: Page): Promise<voi
 	await approvalButton.click();
 	await actionResponse;
 	await page.screenshot({ path: join(artifactDirectory, 'approval-after.png'), fullPage: true });
-}
-
-async function findVisibleButton(container: Locator): Promise<Locator> {
-	const buttons = container.getByRole('button');
-	await verify.poll(async () => {
-		const buttonCount = await buttons.count();
-		for (let index = 0; index < buttonCount; index += 1) {
-			if (await buttons.nth(index).isVisible()) return true;
-		}
-		return false;
-	}).toBe(true);
-	const buttonCount = await buttons.count();
-	for (let index = 0; index < buttonCount; index += 1) {
-		if (await buttons.nth(index).isVisible()) return buttons.nth(index);
-	}
-	throw new Error('Expected a visible Mattermost approval button');
 }
 
 function hasRequiredEnvironment(): boolean {
