@@ -204,12 +204,17 @@ func resolveMattermostScenarioRuntimeValues(scenario *mattermostScenario, curren
 	}
 	nextFriday := currentTime.AddDate(0, 0, (int(time.Friday)-int(currentTime.Weekday())+7)%7).Format("2006-01-02")
 	for stepIndex := range scenario.Steps {
+		scenario.Steps[stepIndex].Prompt = replaceMattermostScenarioRuntimeValues(scenario.Steps[stepIndex].Prompt, nextFriday)
 		for eventIndex := range scenario.Steps[stepIndex].ExpectedEventCounts {
 			eventCount := &scenario.Steps[stepIndex].ExpectedEventCounts[eventIndex]
-			eventCount.BodyFragment = strings.ReplaceAll(eventCount.BodyFragment, "{{nextFriday}}", nextFriday)
-			eventCount.OutputFragment = strings.ReplaceAll(eventCount.OutputFragment, "{{nextFriday}}", nextFriday)
+			eventCount.BodyFragment = replaceMattermostScenarioRuntimeValues(eventCount.BodyFragment, nextFriday)
+			eventCount.OutputFragment = replaceMattermostScenarioRuntimeValues(eventCount.OutputFragment, nextFriday)
 		}
 	}
+}
+
+func replaceMattermostScenarioRuntimeValues(value string, nextFriday string) string {
+	return strings.ReplaceAll(value, "{{nextFriday}}", nextFriday)
 }
 
 func requireJSONEnd(decoder *json.Decoder) error {
