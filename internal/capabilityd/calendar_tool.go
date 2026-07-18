@@ -155,7 +155,7 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilityMutationResponse(request.ToolName, "created", normalizedResult)
+	return capabilitySuccessResponse(request.ToolName, "created", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -208,7 +208,7 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilityMutationResponse(request.ToolName, "updated", normalizedResult)
+	return capabilitySuccessResponse(request.ToolName, "updated", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -232,7 +232,7 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": target.EventID, "deleted": true})
-	return capabilityMutationResponse(request.ToolName, "deleted", result)
+	return capabilitySuccessResponse(request.ToolName, "deleted", result)
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWriteInput, error) {

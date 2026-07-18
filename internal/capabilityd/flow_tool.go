@@ -171,7 +171,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if taskID == "" {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
 	}
-	return capabilityMutationResponse(request.ToolName, flowTaskResponseStatus(result), result)
+	return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
 }
 
 func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -202,7 +202,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	if taskID != input.TaskID || !flowTaskUpdateResultMatchesInput(result, input) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
 	}
-	return capabilityMutationResponse(request.ToolName, flowTaskResponseStatus(result), result)
+	return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
 }
 
 func (service Service) invokeFlowTaskList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -263,7 +263,7 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
 	result, _ = json.Marshal(map[string]any{"taskID": input.TaskID, "deleted": true})
-	return capabilityMutationResponse(request.ToolName, "deleted", result)
+	return capabilitySuccessResponse(request.ToolName, "deleted", result)
 }
 
 func flowTaskResultID(result json.RawMessage) string {
