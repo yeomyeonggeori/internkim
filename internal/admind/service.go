@@ -113,6 +113,10 @@ type Service struct {
 	calendarOAuthTokenMutex    sync.Mutex
 	calendarNotificationMutex  sync.Mutex
 	calendarNotificationStates map[string]*calendarNotificationReconciliationState
+	calendarNotificationLive   chan calendarNotificationReconciliationJob
+	calendarNotificationRepair chan calendarNotificationReconciliationJob
+	calendarNotificationCtx    context.Context
+	calendarNotificationGroup  sync.WaitGroup
 	calendarSwitchWaiters      atomic.Int64
 	calendarStoreWriteMutex    sync.Mutex
 	calendarCandidateClock     calendarConflictCandidateClock
@@ -343,6 +347,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startMattermostAttendanceStatusSync(ctx)
+	service.startCalendarNotificationReconciliation(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)

@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"log/slog"
 	"time"
 )
 
@@ -200,7 +199,7 @@ ON CONFLICT(id) DO UPDATE SET
 }
 
 func (service *Service) finishCalendarEventPersistence(ctx context.Context, event calendarEvent) calendarEvent {
-	service.upsertCalendarNotifications(ctx, event)
+	service.reconcileCalendarEventNotifications(ctx, event.ID)
 	return service.applyCalendarMattermostProjection(ctx, event)
 }
 
@@ -255,9 +254,7 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 		return errorValue
 	}
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
-			slog.WarnContext(ctx, "calendar notification cancel failed", "event_id", eventID, "error", errorValue)
-		}
+		service.reconcileCalendarEventNotifications(ctx, eventID)
 		service.applyCalendarMattermostProjectionByID(ctx, event.ID)
 	})
 	if shouldSignalSync {
