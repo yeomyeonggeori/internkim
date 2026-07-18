@@ -301,23 +301,18 @@ func (service *Service) startCalendarNotificationWorker(ctx context.Context) {
 	}()
 }
 
-func (service *Service) upsertCalendarNotifications(ctx context.Context, event calendarEvent) {
+func (service *Service) upsertCalendarNotifications(ctx context.Context, event calendarEvent) error {
 	notifyAt, shouldNotify := calendarNotificationTime(event, time.Now().UTC())
 	if !shouldNotify {
-		if errorValue := service.cancelCalendarNotifications(ctx, event.ID); errorValue != nil {
-			log.Printf("calendar notification cancel failed: %v", errorValue)
-		}
-		return
+		return service.cancelCalendarNotifications(ctx, event.ID)
 	}
 	targets, errorValue := service.calendarNotificationTargets(ctx, event)
 	if errorValue != nil {
-		log.Printf("calendar notification target resolve failed: %v", errorValue)
-		return
+		return fmt.Errorf("resolve calendar notification targets: %w", errorValue)
 	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
-		log.Printf("calendar notification database open failed: %v", errorValue)
-		return
+		return errorValue
 	}
 	defer database.Close()
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
@@ -325,11 +320,10 @@ func (service *Service) upsertCalendarNotifications(ctx context.Context, event c
 	for _, target := range targets {
 		targetKeys[target.Key] = true
 		if errorValue := upsertCalendarNotificationTarget(ctx, database, event.ID, target, notifyAt, updatedAt); errorValue != nil {
-			log.Printf("calendar notification upsert failed: %v", errorValue)
-			return
+			return errorValue
 		}
 	}
-	service.cancelStaleCalendarNotifications(ctx, database, event.ID, targetKeys, updatedAt)
+	return service.cancelStaleCalendarNotifications(ctx, database, event.ID, targetKeys, updatedAt)
 }
 
 func upsertCalendarNotificationTarget(ctx context.Context, database *sql.DB, eventID string, target calendarNotificationTarget, notifyAt time.Time, updatedAt string) error {
@@ -346,7 +340,8 @@ ON CONFLICT(event_id, recipient_key) DO UPDATE SET
 	sent_at = '',
 	error = '',
 	updated_at = excluded.updated_at
-WHERE calendar_event_notifications.status != 'sent'`,
+WHERE calendar_event_notifications.status != 'sent'
+	OR calendar_event_notifications.notify_at != excluded.notify_at`,
 		eventID,
 		target.Key,
 		target.TargetType,
@@ -519,30 +514,35 @@ func calendarMattermostUserDisplayName(user mattermostUserRecord) string {
 	return firstNonEmpty(user.Nickname, user.DisplayName, strings.TrimSpace(strings.Join([]string{user.FirstName, user.LastName}, " ")), user.Username, user.Email)
 }
 
-func (service *Service) cancelStaleCalendarNotifications(ctx context.Context, database *sql.DB, eventID string, targetKeys map[string]bool, updatedAt string) {
+func (service *Service) cancelStaleCalendarNotifications(ctx context.Context, database *sql.DB, eventID string, targetKeys map[string]bool, updatedAt string) error {
 	rows, errorValue := database.QueryContext(ctx, "SELECT recipient_key FROM calendar_event_notifications WHERE event_id = ? AND status = 'pending'", eventID)
 	if errorValue != nil {
-		log.Printf("calendar stale notification query failed: %v", errorValue)
-		return
+		return errorValue
 	}
-	defer rows.Close()
+	staleRecipientKeys := []string{}
 	for rows.Next() {
 		var recipientKey string
 		if errorValue := rows.Scan(&recipientKey); errorValue != nil {
-			log.Printf("calendar stale notification scan failed: %v", errorValue)
-			return
+			_ = rows.Close()
+			return errorValue
 		}
-		if targetKeys[recipientKey] {
-			continue
-		}
-		if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_notifications SET status = 'canceled', updated_at = ? WHERE event_id = ? AND recipient_key = ? AND status = 'pending'", updatedAt, eventID, recipientKey); errorValue != nil {
-			log.Printf("calendar stale notification cancel failed: %v", errorValue)
-			return
+		if !targetKeys[recipientKey] {
+			staleRecipientKeys = append(staleRecipientKeys, recipientKey)
 		}
 	}
 	if errorValue := rows.Err(); errorValue != nil {
-		log.Printf("calendar stale notification rows failed: %v", errorValue)
+		_ = rows.Close()
+		return errorValue
 	}
+	if errorValue := rows.Close(); errorValue != nil {
+		return errorValue
+	}
+	for _, recipientKey := range staleRecipientKeys {
+		if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_notifications SET status = 'canceled', updated_at = ? WHERE event_id = ? AND recipient_key = ? AND status = 'pending'", updatedAt, eventID, recipientKey); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (service *Service) cancelCalendarNotifications(ctx context.Context, eventID string) error {
