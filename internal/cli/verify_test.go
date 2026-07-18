@@ -348,13 +348,42 @@ func TestMattermostPromptScriptUsesPhaseBudgets(t *testing.T) {
 		"health_timeout_seconds=120",
 		"registration_timeout_seconds=60",
 		`seq 1 "$health_timeout_seconds"`,
-		`seq 1 "$reply_timeout_seconds"`,
+		`[ "$reply_waited_seconds" -lt "$reply_timeout_seconds" ]`,
 		`seq 1 "$registration_timeout_seconds"`,
-		`seq 1 "$completion_timeout_seconds"`,
-		`seq 1 "$public_url_timeout_seconds"`,
+		`[ "$completion_waited_seconds" -lt "$completion_timeout_seconds" ]`,
+		`[ "$public_url_waited_seconds" -lt "$public_url_timeout_seconds" ]`,
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected prompt script to contain %q", fragment)
+		}
+	}
+}
+
+func TestMattermostPromptScriptAllowsUnboundedScenarioObservation(t *testing.T) {
+	script := verifyMattermostPromptScript("p", false, 0, false, true, nil, nil, true, true, true)
+	for _, fragment := range []string{
+		"timeout_seconds=0",
+		`[ "$reply_timeout_seconds" -le 0 ]`,
+		`[ "$completion_timeout_seconds" -le 0 ]`,
+		`[ "$public_url_timeout_seconds" -le 0 ]`,
+		"--connect-timeout 10 --max-time 30",
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected unbounded prompt script to contain %q", fragment)
+		}
+	}
+	for _, fragment := range []string{
+		`seq 1 "$reply_timeout_seconds"`,
+		`seq 1 "$completion_timeout_seconds"`,
+		`seq 1 "$public_url_timeout_seconds"`,
+	} {
+		if strings.Contains(script, fragment) {
+			t.Fatalf("expected unbounded prompt script to omit %q", fragment)
+		}
+	}
+	for _, line := range strings.Split(script, "\n") {
+		if strings.Contains(line, "curl ") && !strings.Contains(line, "curl failure") && !strings.Contains(line, "--max-time") {
+			t.Fatalf("expected bounded curl request, got %q", strings.TrimSpace(line))
 		}
 	}
 }

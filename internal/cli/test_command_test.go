@@ -32,8 +32,8 @@ func TestParseTestArgumentsUsesPromptAndDefaults(t *testing.T) {
 	if configuration.ShouldReuseFleet || configuration.ShouldKeepArtifacts {
 		t.Fatalf("unexpected reuse/keep defaults: %+v", configuration)
 	}
-	if configuration.MaximumModelTier != "xlow" {
-		t.Fatalf("expected xlow maximum model tier by default: %+v", configuration)
+	if configuration.MaximumModelTier != "low" {
+		t.Fatalf("expected low maximum model tier by default: %+v", configuration)
 	}
 	if configuration.TimeoutSeconds != 0 {
 		t.Fatalf("expected no expensive-scenario deadline by default: %+v", configuration)
@@ -160,16 +160,16 @@ func TestParseTestArgumentsRejectsNegativeTimeout(t *testing.T) {
 	}
 }
 
-func TestExpensiveScenarioContextLeavesZeroTimeoutUnlimited(t *testing.T) {
-	scenarioContext, cancel := expensiveScenarioContext(context.Background(), 0)
+func TestScenarioObservationContextLeavesZeroTimeoutUnlimited(t *testing.T) {
+	scenarioContext, cancel := scenarioObservationContext(context.Background(), 0)
 	defer cancel()
 	if _, hasDeadline := scenarioContext.Deadline(); hasDeadline {
 		t.Fatal("expected zero timeout to leave the scenario context without a deadline")
 	}
 }
 
-func TestExpensiveScenarioContextAppliesPositiveTimeout(t *testing.T) {
-	scenarioContext, cancel := expensiveScenarioContext(context.Background(), 1)
+func TestScenarioObservationContextAppliesPositiveTimeout(t *testing.T) {
+	scenarioContext, cancel := scenarioObservationContext(context.Background(), 1)
 	defer cancel()
 	if _, hasDeadline := scenarioContext.Deadline(); !hasDeadline {
 		t.Fatal("expected positive timeout to apply a scenario deadline")
@@ -217,15 +217,6 @@ func TestLocalFleetScenarioTargetUsesSupportedVirtualMachineSSH(t *testing.T) {
 		if !strings.Contains(joinedArguments, expected) {
 			t.Fatalf("Local Fleet remote arguments missing %q: %v", expected, arguments)
 		}
-	}
-}
-
-func TestPromptTimeoutSecondsPreservesExistingDefault(t *testing.T) {
-	if timeoutSeconds := promptTimeoutSeconds(0); timeoutSeconds != defaultPromptTimeoutSeconds {
-		t.Fatalf("expected prompt timeout default %d, got %d", defaultPromptTimeoutSeconds, timeoutSeconds)
-	}
-	if timeoutSeconds := promptTimeoutSeconds(120); timeoutSeconds != 120 {
-		t.Fatalf("expected configured prompt timeout, got %d", timeoutSeconds)
 	}
 }
 
