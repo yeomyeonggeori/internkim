@@ -155,11 +155,11 @@ func WebDescriptors() []Descriptor {
 }
 
 func FileDescriptors() []Descriptor {
-	return canonicalizeDescriptors([]Descriptor{
-		{Name: "document.read", CanonicalName: "document.read", Namespace: "document", ModelName: "document.read", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Read a workspace document (PDF, Office, HTML, text, etc.) and return its content as Markdown. Use this to read files at /workspace paths; do not run a shell command to cat files. For image files use image.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "image.read", CanonicalName: "image.read", Namespace: "image", ModelName: "image.read", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Read a workspace image file (PNG, JPG, etc.) and return it as a base64-encoded attachment for vision analysis. Use this for image files at /workspace paths; for text/document files use document.read instead.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "image.generate", CanonicalName: "image.generate", Namespace: "image", ModelName: "image.generate", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image.read instead if you need to read an existing image file.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: imageGenerateInputSchema(), PolicyResource: "tool:image.generate", SideEffectClass: "external_write", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "external_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-	})
+	descriptors := capabilityprotocol.MustGeneratedToolDescriptors("document.read", "image.read")
+	descriptors = append(descriptors,
+		Descriptor{Name: "image.generate", CanonicalName: "image.generate", Namespace: "image", ModelName: "image.generate", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image.read instead if you need to read an existing image file.", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: imageGenerateInputSchema(), PolicyResource: "tool:image.generate", SideEffectClass: "external_write", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "external_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
+	)
+	return canonicalizeDescriptors(descriptors)
 }
 
 func PlatformMessageDescriptors() []Descriptor {
@@ -264,22 +264,6 @@ func webFetchInputSchema() json.RawMessage {
 		jsonschema.Field("maxContentTokens", jsonschema.Integer().WithDescription("Soft cap on tokens returned per URL. Defaults to 50000; maximum is 100000. Reduce when fetching many URLs.")),
 		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String()).WithDescription("If set, only URLs from these domains are fetched; others are skipped with an error. Useful for safety when the URL list is dynamic.")),
 		jsonschema.Field("blockedDomains", jsonschema.Array(jsonschema.String()).WithDescription("Domains to refuse fetching even if present in urls, e.g. [\"malicious.example\"]. Supplements the built-in block list.")),
-	).RawMessage()
-}
-
-func documentReadInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
-		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the file, e.g. /workspace/shared/report.pdf. Provide either path or materialID.")),
-		jsonschema.Field("maxPages", jsonschema.Integer().WithDescription("Maximum number of pages to extract from a PDF. Range 0–500; 0 means use the default. Omit for non-paginated files.")),
-		jsonschema.Field("maxOutputBytes", jsonschema.Integer().WithDescription("Soft cap on the returned Markdown size in bytes. Defaults to 200000 (200 KB); maximum is 1000000 (1 MB). Reduce for very large files when you only need a summary.")),
-	).RawMessage()
-}
-
-func imageReadInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("materialID", jsonschema.String().WithDescription("Internal material ID from a prior file reference. Provide either materialID or path, not both.")),
-		jsonschema.Field("path", jsonschema.String().WithDescription("Absolute workspace path to the image file, e.g. /workspace/shared/logo.png. Supported formats: PNG, JPG, WEBP. Maximum file size 8 MB.")),
 	).RawMessage()
 }
 
