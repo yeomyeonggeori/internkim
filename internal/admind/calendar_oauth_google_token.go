@@ -2,20 +2,30 @@ package admind
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
 )
 
 func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, token *oauth2.Token, email string) (remoteCalendarAccount, error) {
+	unlock := lockGoogleOAuthAccountState(&service.calendarRemoteMutex, &service.calendarOAuthTokenMutex)
+	defer unlock()
+	if errorValue := service.recoverGoogleOAuthTokenFilesLocked(ctx); errorValue != nil {
+		return remoteCalendarAccount{}, errorValue
+	}
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	existingAccounts, errorValue := service.listRemoteCalendarAccountsByProvider(ctx, remoteCalendarProviderGoogle)
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
 	existing, found := findRemoteCalendarAccountByEmail(existingAccounts, normalizedEmail)
-	accountID := googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(normalizedEmail)
+	accountID := newGoogleOAuthAccountID(normalizedEmail)
 	tokenPath := service.calendarTokenFilePath(accountID)
 	if found {
 		accountID = existing.ID
@@ -23,16 +33,27 @@ func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, toke
 			tokenPath = existing.TokenFilePath
 		}
 	}
+	if !service.canDeleteCalendarTokenFile(tokenPath) {
+		return remoteCalendarAccount{}, fmt.Errorf("google calendar token path is outside the managed secrets directory")
+	}
 	key, errorValue := service.loadOrCreateCalendarTokenEncryptionKey()
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
 	payload := oauthTokenPayloadFromOAuth2Token(token)
-	if errorValue := writeCalendarTokenFile(tokenPath, key, payload); errorValue != nil {
+	pendingTokenPath := tokenPath + calendarTokenAccountPendingSuffix
+	if errorValue := writeCalendarTokenFile(pendingTokenPath, key, payload); errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
-	if errorValue := service.resetGoogleOAuthAccountConnectionsExcept(ctx, accountID); errorValue != nil {
-		return remoteCalendarAccount{}, errorValue
+	if errorValue := validateCalendarTokenFile(pendingTokenPath, key); errorValue != nil {
+		return remoteCalendarAccount{}, errors.Join(
+			fmt.Errorf("validate pending google calendar token file: %w", errorValue),
+			deleteCalendarTokenFile(pendingTokenPath),
+		)
+	}
+	tokenBackupPath, errorValue := service.activatePendingGoogleOAuthToken(pendingTokenPath, tokenPath, key)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, errors.Join(errorValue, deleteCalendarTokenFile(pendingTokenPath))
 	}
 	account := remoteCalendarAccount{
 		ID:            accountID,
@@ -52,7 +73,60 @@ func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, toke
 		account.SelectedCalendarSelectedAt = existing.SelectedCalendarSelectedAt
 		account.InitialSyncCompletedAt = existing.InitialSyncCompletedAt
 	}
-	return service.upsertRemoteCalendarAccount(ctx, account)
+	savedAccount, errorValue := service.replaceGoogleOAuthAccounts(ctx, account, existingAccounts)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, service.rollbackGoogleOAuthTokenActivation(tokenPath, pendingTokenPath, tokenBackupPath, errorValue)
+	}
+	if errorValue := deleteCalendarTokenFile(pendingTokenPath); errorValue != nil {
+		slog.WarnContext(ctx, "committed google calendar pending token cleanup deferred", "account_id", savedAccount.ID, "error", errorValue)
+	}
+	if tokenBackupPath != "" {
+		if errorValue := service.removeCalendarTokenResetQuarantine(tokenBackupPath); errorValue != nil {
+			slog.WarnContext(ctx, "replaced google calendar token backup cleanup deferred", "account_id", savedAccount.ID, "error", errorValue)
+		}
+	}
+	return savedAccount, nil
+}
+
+func newGoogleOAuthAccountID(email string) string {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	digest := sha256.Sum256([]byte(normalizedEmail))
+	return googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(normalizedEmail) + "_" + fmt.Sprintf("%x", digest[:6])
+}
+
+func (service *Service) activatePendingGoogleOAuthToken(pendingTokenPath string, tokenPath string, key []byte) (string, error) {
+	if !service.canDeleteCalendarTokenFile(tokenPath) {
+		return "", fmt.Errorf("google calendar token path is outside the managed secrets directory")
+	}
+	backupPath, errorValue := service.quarantineCalendarTokenForReset(tokenPath)
+	if errorValue != nil {
+		return "", fmt.Errorf("back up current google calendar token file: %w", errorValue)
+	}
+	if errorValue := service.promotePendingGoogleOAuthToken(pendingTokenPath, tokenPath); errorValue != nil {
+		return "", errors.Join(
+			fmt.Errorf("activate google calendar token file: %w", errorValue),
+			restoreCalendarTokenFromResetQuarantine(tokenPath, backupPath),
+		)
+	}
+	if errorValue := validateCalendarTokenFile(tokenPath, key); errorValue != nil {
+		return "", errors.Join(
+			fmt.Errorf("validate active google calendar token file: %w", errorValue),
+			deleteCalendarTokenFile(tokenPath),
+			restoreCalendarTokenFromResetQuarantine(tokenPath, backupPath),
+		)
+	}
+	return backupPath, nil
+}
+
+func (service *Service) rollbackGoogleOAuthTokenActivation(tokenPath string, pendingTokenPath string, backupPath string, cause error) error {
+	rollbackError := deleteCalendarTokenFile(tokenPath)
+	if errorValue := restoreCalendarTokenFromResetQuarantine(tokenPath, backupPath); errorValue != nil {
+		rollbackError = errors.Join(rollbackError, fmt.Errorf("restore previous google calendar token file: %w", errorValue))
+	}
+	if errorValue := deleteCalendarTokenFile(pendingTokenPath); errorValue != nil {
+		rollbackError = errors.Join(rollbackError, fmt.Errorf("delete pending google calendar token file: %w", errorValue))
+	}
+	return errors.Join(cause, rollbackError)
 }
 
 func findRemoteCalendarAccountByEmail(accounts []remoteCalendarAccount, email string) (remoteCalendarAccount, bool) {
@@ -101,9 +175,12 @@ type persistingGoogleOAuthTokenSource struct {
 	account remoteCalendarAccount
 	inner   oauth2.TokenSource
 	latest  *oauth2.Token
+	mutex   sync.Mutex
 }
 
 func (source *persistingGoogleOAuthTokenSource) Token() (*oauth2.Token, error) {
+	source.mutex.Lock()
+	defer source.mutex.Unlock()
 	token, errorValue := source.inner.Token()
 	if errorValue != nil {
 		return nil, errorValue
@@ -111,7 +188,15 @@ func (source *persistingGoogleOAuthTokenSource) Token() (*oauth2.Token, error) {
 	if source.latest != nil && token.AccessToken == source.latest.AccessToken && token.Expiry.Equal(source.latest.Expiry) {
 		return token, nil
 	}
-	source.latest = token
+	source.service.calendarOAuthTokenMutex.Lock()
+	defer source.service.calendarOAuthTokenMutex.Unlock()
+	hasAccount, errorValue := source.service.hasGoogleOAuthAccount(context.Background(), source.account.ID)
+	if errorValue != nil {
+		return token, errorValue
+	}
+	if !hasAccount {
+		return token, fmt.Errorf("google calendar account %s was removed before token persistence", source.account.ID)
+	}
 	key, errorValue := source.service.loadOrCreateCalendarTokenEncryptionKey()
 	if errorValue != nil {
 		return token, errorValue
@@ -120,7 +205,21 @@ func (source *persistingGoogleOAuthTokenSource) Token() (*oauth2.Token, error) {
 	if errorValue := writeCalendarTokenFile(source.account.TokenFilePath, key, payload); errorValue != nil {
 		return token, errorValue
 	}
+	source.latest = token
 	return token, nil
+}
+
+func (service *Service) hasGoogleOAuthAccount(ctx context.Context, accountID string) (bool, error) {
+	accounts, errorValue := service.listRemoteCalendarAccountsByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	for _, account := range accounts {
+		if strings.TrimSpace(account.ID) == strings.TrimSpace(accountID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func oauthTokenPayloadFromOAuth2Token(token *oauth2.Token) oauthTokenPayload {
