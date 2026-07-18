@@ -85,6 +85,11 @@ CREATE TABLE IF NOT EXISTS calendar_remote_event_sync_state (
 	updated_at TEXT NOT NULL,
 	PRIMARY KEY(account_id, calendar_url, event_uid)
 )`)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_remote_event_sync_state_event_uid_idx ON calendar_remote_event_sync_state(event_uid)")
 	return errorValue
 }
 
@@ -238,7 +243,15 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_created_idx ON calendar_outbox(account_id, created_at)"); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_event_idx ON calendar_outbox(account_id, target_calendar_url, event_uid, id)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_status_event_idx ON calendar_outbox(account_id, target_calendar_url, status, event_uid, operation)"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_event_idx ON calendar_outbox(account_id, target_calendar_url, event_uid, id)")
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_event_uid_idx ON calendar_outbox(event_uid)")
 	return errorValue
 }
