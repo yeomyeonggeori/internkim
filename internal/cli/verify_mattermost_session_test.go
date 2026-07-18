@@ -598,6 +598,23 @@ func TestMattermostScenarioCleanupIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioCleanupDeletesUndeletedMessageSideEffects(t *testing.T) {
+	mattermost := &fakeMattermostProbeAPI{}
+	admin := &fakeMattermostScenarioAdminAPI{}
+	session := newTestMattermostScenarioSession(mattermostScenario{}, mattermost, admin)
+	session.result.Steps = []mattermostScenarioStepResult{
+		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message.send.result", Body: `{"output":{"data":{"messageIDs":["sent-1","sent-2"],"deliveryStatus":"sent"}}}`}}},
+		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message.delete.result", Body: `{"output":{"data":{"messageIDs":["sent-2"],"deliveryStatus":"deleted"}}}`}}},
+	}
+
+	if errorValue := session.cleanup(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(mattermost.deletedPostIDs) != 1 || mattermost.deletedPostIDs[0] != "sent-1" {
+		t.Fatalf("unexpected side-effect cleanup: %#v", mattermost.deletedPostIDs)
+	}
+}
+
 func TestMattermostScenarioCleanupAttemptsEveryResourceAfterFailures(t *testing.T) {
 	postError := errors.New("post cleanup failed")
 	userError := errors.New("user cleanup failed")

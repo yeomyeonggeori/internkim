@@ -356,6 +356,7 @@ var realMattermostScenarioNames = map[string]bool{
 	"calendar-lifecycle": true,
 	"website-lifecycle":  true,
 	"document-lifecycle": true,
+	"message-lifecycle":  true,
 }
 
 func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
