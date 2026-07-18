@@ -46,6 +46,7 @@ func (service Service) invokeWebTool(ctx context.Context, request capabilities.T
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
 		Status:          "ok",
 		Result:          result,
 	}, nil
@@ -571,6 +572,7 @@ func webToolErrorResponse(toolName string, message string, code string, retryabl
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         message,
 		IsError:         true,
