@@ -140,10 +140,16 @@ func TestMattermostScenarioReportsStatusBeforeMissingExposure(t *testing.T) {
 }
 
 func TestResolveMattermostScenarioRuntimeValuesUsesNextFriday(t *testing.T) {
-	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{ExpectedEventCounts: []mattermostScenarioEventCount{{BodyFragment: "{{nextFriday}}"}}}}}
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{
+		Prompt:              "다가오는 금요일({{nextFriday}})까지 업무를 추가해줘",
+		ExpectedEventCounts: []mattermostScenarioEventCount{{BodyFragment: "{{nextFriday}}"}},
+	}}}
 	resolveMattermostScenarioRuntimeValues(&scenario, time.Date(2026, time.July, 16, 12, 0, 0, 0, time.UTC))
 	if got := scenario.Steps[0].ExpectedEventCounts[0].BodyFragment; got != "2026-07-17" {
 		t.Fatalf("expected next Friday, got %q", got)
+	}
+	if got := scenario.Steps[0].Prompt; got != "다가오는 금요일(2026-07-17)까지 업무를 추가해줘" {
+		t.Fatalf("expected prompt runtime value, got %q", got)
 	}
 }
 
