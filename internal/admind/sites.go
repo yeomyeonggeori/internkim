@@ -51,7 +51,12 @@ const (
 	siteIDStorageDirectoryName    = ".ids"
 )
 
-var sitePersistenceMutex sync.Mutex
+var (
+	siteCreationMutex      sync.Mutex
+	sitePersistenceMutex   sync.Mutex
+	invalidSiteSlugError   = errors.New("site slug is required and must be valid")
+	duplicateSiteSlugError = errors.New("site slug already exists")
+)
 
 type SiteRecord struct {
 	SiteID              string             `json:"siteID"`
@@ -97,7 +102,6 @@ type SiteRecord struct {
 	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
 	LastError           string             `json:"lastError,omitempty"`
 	LiveHTTPStatus      int                `json:"liveHTTPStatus,omitempty"`
-	NextOperation       string             `json:"nextOperation,omitempty"`
 }
 
 type siteCreateRequest struct {
@@ -554,49 +558,39 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	site := service.reusableSiteForCreate(payload)
-	if site == nil {
-		createdSite, errorValue := service.createSiteRecord(payload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		site = createdSite
-	}
-	if errorValue := service.materializeSiteSourceWorkspace(request.Context(), site, payload.Content); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	site, errorValue := service.createSiteRecord(request.Context(), payload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), siteCreateErrorStatus(errorValue))
 		return
 	}
 	service.writeSiteCreateRecord(responseWriter, site, payload.Content)
 }
 
-// reusableSiteForCreate returns the conversation's existing site so repeated
-// create requests update it in place instead of spawning duplicates. A new site
-// is created only for a conversation that does not yet have one; deleting the
-// existing site is the explicit way to start over.
-func (service *Service) reusableSiteForCreate(payload siteCreateRequest) *SiteRecord {
-	conversationID := strings.TrimSpace(payload.ConversationID)
-	if conversationID == "" {
-		return nil
+func siteCreateErrorStatus(errorValue error) int {
+	if errors.Is(errorValue, invalidSiteSlugError) || errors.Is(errorValue, duplicateSiteSlugError) {
+		return http.StatusBadRequest
 	}
-	for _, site := range service.siteList() {
-		if site != nil && strings.EqualFold(strings.TrimSpace(site.ConversationID), conversationID) {
-			return site
-		}
-	}
-	return nil
+	return http.StatusInternalServerError
 }
 
-// materializeSiteSourceWorkspace provisions the managed scaffold and the editable
-// staff-circle workspace for a site. Blueclaw no longer writes site source; the
-// admin service owns the scaffold and the editable workspace. content is only
-// applied when explicitly provided (create); repair passes nil so existing
-// edits are never overwritten.
 func (service *Service) materializeSiteSourceWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) error {
-	if errorValue := service.prepareSiteWorkspace(ctx, site, content); errorValue != nil {
+	pathsChanged, errorValue := service.prepareSiteSourceWorkspace(ctx, site, content)
+	if errorValue != nil || !pathsChanged {
 		return errorValue
 	}
-	return service.migrateSiteSourceToStaffCircle(site)
+	return service.storeSite(site)
+}
+
+func (service *Service) stageSiteSourceWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) error {
+	_, errorValue := service.prepareSiteSourceWorkspace(ctx, site, content)
+	return errorValue
+}
+
+func (service *Service) prepareSiteSourceWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) (bool, error) {
+	if errorValue := service.prepareSiteWorkspace(ctx, site, content); errorValue != nil {
+		return false, errorValue
+	}
+	return service.moveSiteSourceToStaffCircle(site)
 }
 
 // repairSiteFromRequest re-materializes any missing managed scaffold files into
@@ -711,7 +705,11 @@ func (service *Service) publishSiteFromRequest(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	payload.SiteID = firstNonEmpty(payload.SiteID, siteID)
+	if payload.SiteID != "" && strings.TrimSpace(payload.SiteID) != siteID {
+		http.Error(responseWriter, "siteID does not match request path", http.StatusBadRequest)
+		return
+	}
+	payload.SiteID = siteID
 	site, errorValue := service.publishSite(request.Context(), payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -809,26 +807,7 @@ func siteAPIResponse(site *SiteRecord) *SiteRecord {
 		copiedSite.AppWorkspacePath = filepath.ToSlash(filepath.Join(personalDraftPath, "app"))
 		copiedSite.WorkspacePath = siteOwnerProjectWorkspacePath(&copiedSite)
 	}
-	copiedSite.NextOperation = siteNextOperation(&copiedSite)
 	return &copiedSite
-}
-
-// siteNextOperation gives the agent a deterministic, machine-actionable next
-// step for the site's current lifecycle status. It carries no user-facing
-// prose; it is a routing hint the model can act on directly.
-func siteNextOperation(site *SiteRecord) string {
-	switch site.Status {
-	case SiteStatusDraft:
-		return "site.create succeeded and is not published yet. Compose app/public/site-content.json, then call site.publish with siteID=" + site.SiteID + " when the content is ready. Do not call site.create again for this site."
-	case SiteStatusPublishing:
-		return "publish is in progress. Call site.status with siteID=" + site.SiteID + " again to check for completion."
-	case SiteStatusUnpublished:
-		return "site is unpublished. Call site.publish with siteID=" + site.SiteID + " to republish, or site.restore if this was not intended."
-	case SiteStatusFailed:
-		return "last operation failed (see lastError). Call site.repair with siteID=" + site.SiteID + " to re-materialize the workspace, or fix the reported cause and retry the same operation."
-	default:
-		return ""
-	}
 }
 
 func (service *Service) writeSiteLogs(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -860,17 +839,34 @@ func decodeSitePublishRequest(reader io.Reader) (sitePublishRequest, error) {
 	return payload, json.Unmarshal(document, &payload)
 }
 
-func deriveSiteSlug(slug string, title string) string {
-	for _, candidate := range []string{slug, title} {
-		if normalized := normalizeSiteSlug(candidate); isValidSiteSlug(normalized) {
-			return normalized
-		}
+func (service *Service) createSiteRecord(ctx context.Context, payload siteCreateRequest) (*SiteRecord, error) {
+	siteCreationMutex.Lock()
+	defer siteCreationMutex.Unlock()
+
+	site, errorValue := service.newUnpersistedSiteRecord(payload)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return "site-" + randomHex(6)
+	if errorValue := service.validateSiteStagingPaths(site); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := service.stageSiteSourceWorkspace(ctx, site, payload.Content); errorValue != nil {
+		return nil, errors.Join(errorValue, service.removeStagedSite(site))
+	}
+	if errorValue := service.commitNewSite(site); errorValue != nil {
+		return nil, errors.Join(errorValue, service.removeStagedSite(site))
+	}
+	return site, nil
 }
 
-func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord, error) {
-	baseSlug := deriveSiteSlug(payload.Slug, payload.Title)
+func (service *Service) newUnpersistedSiteRecord(payload siteCreateRequest) (*SiteRecord, error) {
+	slug := strings.TrimSpace(payload.Slug)
+	if slug != normalizeSiteSlug(slug) || !isValidSiteSlug(slug) {
+		return nil, invalidSiteSlugError
+	}
+	if service.findSiteBySlug(slug) != nil {
+		return nil, duplicateSiteSlugError
+	}
 	port, errorValue := service.allocateSitePort()
 	if errorValue != nil {
 		return nil, errorValue
@@ -879,10 +875,6 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 	siteID := randomHex(12)
 	createdBy := siteCreatorIdentity(payload)
 	ownerIdentity := siteOwnerIdentity(payload, createdBy)
-	slug, errorValue := service.availableSiteSlug(baseSlug, siteID, siteCreationSlugSuffix(payload, createdBy, now))
-	if errorValue != nil {
-		return nil, errorValue
-	}
 	site := &SiteRecord{
 		SiteID:              siteID,
 		Slug:                slug,
@@ -913,78 +905,26 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
-	return site, service.storeSite(site)
+	return site, nil
 }
 
-func (service *Service) availableSiteSlug(baseSlug string, siteID string, preferredSuffix string) (string, error) {
-	if service.findSiteBySlug(baseSlug) == nil {
-		return baseSlug, nil
+func (service *Service) validateSiteStagingPaths(site *SiteRecord) error {
+	paths := []string{
+		service.siteProjectAliasHostPath(site),
+		service.siteProjectStorageHostPath(site.SiteID),
+		site.HostSourcePath,
 	}
-	for _, candidateSuffix := range siteSlugCandidateSuffixes(siteID, preferredSuffix) {
-		candidateSlug := siteSlugWithSuffix(baseSlug, candidateSuffix)
-		if isValidSiteSlug(candidateSlug) && service.findSiteBySlug(candidateSlug) == nil {
-			return candidateSlug, nil
-		}
-	}
-	return "", errors.New("site slug already exists")
-}
-
-func siteSlugCandidateSuffixes(siteID string, preferredSuffix string) []string {
-	suffixes := []string{}
-	if strings.TrimSpace(preferredSuffix) != "" {
-		suffixes = append(suffixes, preferredSuffix)
-		if len(siteID) >= 6 {
-			suffixes = append(suffixes, siteSlugWithSuffix(preferredSuffix, siteID[:6]))
-		}
-	}
-	for _, suffixLength := range []int{6, 8, 12} {
-		if len(siteID) >= suffixLength {
-			suffixes = append(suffixes, siteID[:suffixLength])
-		}
-	}
-	return suffixes
-}
-
-func siteCreationSlugSuffix(payload siteCreateRequest, createdBy siteIdentity, createdAt time.Time) string {
-	requesterToken := siteRequesterSlugToken(payload, createdBy)
-	timestampToken := createdAt.UTC().Format("20060102t150405z")
-	return siteSlugWithSuffix(requesterToken, timestampToken)
-}
-
-func siteRequesterSlugToken(payload siteCreateRequest, createdBy siteIdentity) string {
-	for _, value := range []string{
-		createdBy.PersonID,
-		createdBy.PlatformUserID,
-		createdBy.DisplayName,
-		payload.RequestedBy,
-		payload.Owner,
-	} {
-		token := normalizeSiteSlugToken(value)
-		if token != "" {
-			return token
-		}
-	}
-	return "requester"
-}
-
-func normalizeSiteSlugToken(value string) string {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	builder := strings.Builder{}
-	previousHyphen := false
-	for _, character := range normalized {
-		isAllowedLetter := character >= 'a' && character <= 'z'
-		isAllowedDigit := character >= '0' && character <= '9'
-		if isAllowedLetter || isAllowedDigit {
-			builder.WriteRune(character)
-			previousHyphen = false
+	for _, path := range paths {
+		_, errorValue := os.Lstat(path)
+		if errors.Is(errorValue, os.ErrNotExist) {
 			continue
 		}
-		if !previousHyphen && builder.Len() > 0 {
-			builder.WriteByte('-')
-			previousHyphen = true
+		if errorValue != nil {
+			return errorValue
 		}
+		return fmt.Errorf("site staging path already exists: %s", path)
 	}
-	return strings.Trim(builder.String(), "-")
+	return nil
 }
 
 func (service *Service) publishSite(ctx context.Context, payload sitePublishRequest) (*SiteRecord, error) {
@@ -1279,6 +1219,9 @@ func validateWorkspaceOnlyPublish(payload sitePublishRequest) error {
 
 func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *SiteRecord, payload sitePublishRequest) error {
 	if strings.TrimSpace(payload.SourceBundleBase64) != "" {
+		if strings.TrimSpace(payload.SourceWorkspacePath) == "" || strings.TrimSpace(payload.SourceWorkspacePath) != strings.TrimSpace(site.SourceWorkspacePath) {
+			return errors.New("sourceWorkspacePath does not match site")
+		}
 		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
 			return errorValue
 		}
@@ -2699,6 +2642,75 @@ func (service *Service) prepareSiteWorkspaceForResponse(site *SiteRecord) (*Site
 	return site, nil
 }
 
+func (service *Service) commitNewSite(site *SiteRecord) error {
+	sitePersistenceMutex.Lock()
+	defer sitePersistenceMutex.Unlock()
+
+	document, errorValue := service.sitesDocumentWithNewSite(site)
+	if errorValue != nil {
+		return errorValue
+	}
+	path := service.siteRegistryPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeFileAtomically(path, append(document, '\n'), 0o600); errorValue != nil {
+		return errorValue
+	}
+	service.mutex.Lock()
+	copiedSite := *site
+	service.sites[site.SiteID] = &copiedSite
+	service.mutex.Unlock()
+	return nil
+}
+
+func (service *Service) sitesDocumentWithNewSite(site *SiteRecord) ([]byte, error) {
+	sites := service.siteListIncludingDeleted()
+	for _, existingSite := range sites {
+		if existingSite.SiteID == site.SiteID {
+			return nil, errors.New("site ID already exists")
+		}
+		if existingSite.Status != SiteStatusDeleted && existingSite.Slug == site.Slug {
+			return nil, duplicateSiteSlugError
+		}
+	}
+	copiedSite := *site
+	sites = append(sites, &copiedSite)
+	sort.Slice(sites, func(leftIndex int, rightIndex int) bool {
+		return sites[leftIndex].CreatedAt.Before(sites[rightIndex].CreatedAt)
+	})
+	return json.MarshalIndent(siteStateDocument{Sites: sites}, "", "  ")
+}
+
+func (service *Service) siteListIncludingDeleted() []*SiteRecord {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	sites := make([]*SiteRecord, 0, len(service.sites))
+	for _, site := range service.sites {
+		copiedSite := *site
+		sites = append(sites, &copiedSite)
+	}
+	return sites
+}
+
+func (service *Service) removeStagedSite(site *SiteRecord) error {
+	paths := []string{
+		service.siteProjectAliasHostPath(site),
+		service.siteProjectStorageHostPath(site.SiteID),
+		site.HostSourcePath,
+	}
+	removalErrors := []error{}
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		if errorValue := os.RemoveAll(path); errorValue != nil {
+			removalErrors = append(removalErrors, fmt.Errorf("remove staged site path %s: %w", path, errorValue))
+		}
+	}
+	return errors.Join(removalErrors...)
+}
+
 func (service *Service) storeSite(site *SiteRecord) error {
 	if site == nil {
 		return nil
@@ -3041,25 +3053,6 @@ func siteServiceName(siteID string) string {
 
 func normalizeSiteSlug(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func siteSlugWithSuffix(baseSlug string, suffix string) string {
-	cleanSuffix := strings.Trim(strings.ToLower(strings.TrimSpace(suffix)), "-")
-	if cleanSuffix == "" {
-		return strings.Trim(baseSlug, "-")
-	}
-	maxBaseLength := 63 - len(cleanSuffix) - 1
-	if maxBaseLength < 1 {
-		return cleanSuffix
-	}
-	cleanBase := strings.Trim(baseSlug, "-")
-	if len(cleanBase) > maxBaseLength {
-		cleanBase = strings.Trim(cleanBase[:maxBaseLength], "-")
-	}
-	if cleanBase == "" {
-		return cleanSuffix
-	}
-	return cleanBase + "-" + cleanSuffix
 }
 
 func isValidSiteSlug(value string) bool {

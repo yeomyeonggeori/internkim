@@ -202,6 +202,15 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityLanguageModel["model"] != BlueclawDefaultModelName {
 		t.Fatalf("expected default runtime model %q, got %+v", BlueclawDefaultModelName, capabilityLanguageModel)
 	}
+	for sectionName, section := range map[string]map[string]any{
+		"languageModel":            languageModel,
+		"languageModel.capability": capabilityLanguageModel,
+		"capabilities":             capabilityConfiguration,
+	} {
+		if _, hasBackend := section["backend"]; hasBackend {
+			t.Fatalf("expected %s to omit backend selection, got %+v", sectionName, section)
+		}
+	}
 	if _, hasHighModel := capabilityLanguageModel["highModel"]; hasHighModel {
 		t.Fatalf("expected no per-tier highModel in production config; tier defaults are owned by blueclaw, got %+v", capabilityLanguageModel)
 	}
@@ -332,7 +341,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if _, isFound := mattermost["botTokenPath"]; isFound {
 		t.Fatal("expected Mattermost bot token path to be omitted")
 	}
-	forbiddenFragments := []string{"apiKeyPath", "botTokenPath", "signingSecretPath", "wrapperPath", "modelPath", "backend"}
+	forbiddenFragments := []string{"apiKeyPath", "botTokenPath", "signingSecretPath", "wrapperPath", "modelPath"}
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(document, fragment) {
 			t.Fatalf("expected runtime config to omit %q", fragment)
@@ -704,6 +713,16 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	}
 	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
 		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
+	}
+	for _, toolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete"} {
+		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
+			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
+		}
+	}
+	for _, toolName := range []string{"site.history", "site.diff", "site.logs", "site.restore", "site.repair", "site.rollback", "site.unpublish"} {
+		if containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
+			t.Fatalf("expected removed %s policy to be absent, got %+v", toolName, resourceAccess)
+		}
 	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)

@@ -112,7 +112,7 @@ func loadGeneratedCatalog(fileSystem fs.FS) (loadedGeneratedCatalog, error) {
 	if catalog.ProtocolVersion != manifest.ProtocolVersion {
 		return loadedGeneratedCatalog{}, fmt.Errorf("generated capability catalog protocol version does not match manifest")
 	}
-	if errorValue := ValidateDescriptorSet(catalog.Tools); errorValue != nil {
+	if errorValue := ValidateModelVisibleCapabilityDescriptorSet(catalog.Tools); errorValue != nil {
 		return loadedGeneratedCatalog{}, fmt.Errorf("validate generated capability catalog: %w", errorValue)
 	}
 	return loadedGeneratedCatalog{
@@ -252,8 +252,9 @@ func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.OutputSchema = append(json.RawMessage{}, descriptor.OutputSchema...)
 	if descriptor.ResultContract != nil {
 		descriptor.ResultContract = &ToolResultContract{
-			Schema:  append(json.RawMessage{}, descriptor.ResultContract.Schema...),
-			Effects: append([]ResourceEffectContract{}, descriptor.ResultContract.Effects...),
+			Schema:            append(json.RawMessage{}, descriptor.ResultContract.Schema...),
+			Effects:           append([]ResourceEffectContract{}, descriptor.ResultContract.Effects...),
+			EvidenceCondition: canonicalEvidenceCondition(descriptor.ResultContract.EvidenceCondition),
 		}
 	}
 	if descriptor.CompletionEvidence != nil {

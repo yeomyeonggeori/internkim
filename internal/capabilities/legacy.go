@@ -17,15 +17,9 @@ var legacyToolNameReplacements = map[string]string{
 	"platform.message.update":   "message.update",
 	"site.app.create":           "site.create",
 	"site.app.delete":           "site.delete",
-	"site.app.diff":             "site.diff",
-	"site.app.history":          "site.history",
-	"site.app.logs":             "site.logs",
 	"site.app.preview":          "site.preview",
 	"site.app.publish":          "site.publish",
-	"site.app.restore":          "site.restore",
-	"site.app.rollback":         "site.rollback",
 	"site.app.status":           "site.status",
-	"site.app.unpublish":        "site.unpublish",
 }
 
 func LegacyToolNameReplacements() map[string]string {

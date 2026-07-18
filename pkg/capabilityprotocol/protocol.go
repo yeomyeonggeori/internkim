@@ -115,8 +115,14 @@ type CompletionEvidenceDescriptor struct {
 }
 
 type ToolResultContract struct {
-	Schema  json.RawMessage          `json:"schema"`
-	Effects []ResourceEffectContract `json:"effects,omitempty"`
+	Schema            json.RawMessage          `json:"schema"`
+	Effects           []ResourceEffectContract `json:"effects,omitempty"`
+	EvidenceCondition *EvidenceCondition       `json:"evidenceCondition,omitempty"`
+}
+
+type EvidenceCondition struct {
+	ResultField string          `json:"resultField"`
+	Equals      json.RawMessage `json:"equals"`
 }
 
 type ResourceEffectContract struct {
@@ -150,19 +156,31 @@ type RegistryResponse struct {
 }
 
 type ToolInvokeRequest struct {
-	ToolName             string            `json:"toolName"`
-	Input                json.RawMessage   `json:"input"`
-	IdempotencyKey       string            `json:"idempotencyKey,omitempty"`
-	Context              ToolInvokeContext `json:"context,omitempty"`
-	Actor                ActorContext      `json:"actor,omitempty"`
-	ExecutionMode        string            `json:"executionMode"`
-	RequiresUserPresence bool              `json:"requiresUserPresence"`
-	PrivacyClass         string            `json:"privacyClass"`
-	SessionID            string            `json:"sessionID"`
-	ParentJobID          string            `json:"parentJobID,omitempty"`
-	GrantID              string            `json:"grantID,omitempty"`
-	ResourceScope        ResourceScope     `json:"resourceScope,omitempty"`
-	TimeoutSecond        int               `json:"timeoutSecond"`
+	ToolName             string              `json:"toolName"`
+	Input                json.RawMessage     `json:"input"`
+	IdempotencyKey       string              `json:"idempotencyKey,omitempty"`
+	Context              ToolInvokeContext   `json:"context,omitempty"`
+	Actor                ActorContext        `json:"actor,omitempty"`
+	Transport            ToolInvokeTransport `json:"transport,omitempty"`
+	ExecutionMode        string              `json:"executionMode"`
+	RequiresUserPresence bool                `json:"requiresUserPresence"`
+	PrivacyClass         string              `json:"privacyClass"`
+	SessionID            string              `json:"sessionID"`
+	ParentJobID          string              `json:"parentJobID,omitempty"`
+	GrantID              string              `json:"grantID,omitempty"`
+	ResourceScope        ResourceScope       `json:"resourceScope,omitempty"`
+	TimeoutSecond        int                 `json:"timeoutSecond"`
+}
+
+type ToolInvokeTransport struct {
+	SiteSourceBundle *SiteSourceBundle `json:"siteSourceBundle,omitempty"`
+}
+
+type SiteSourceBundle struct {
+	WorkspacePath string `json:"workspacePath"`
+	ContentBase64 string `json:"contentBase64"`
+	Format        string `json:"format"`
+	SHA256        string `json:"sha256"`
 }
 
 type ToolInvokeContext struct {

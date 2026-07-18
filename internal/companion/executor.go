@@ -1274,6 +1274,8 @@ func toolResponse(toolName string, result any) (capabilities.ToolInvokeResponse,
 		Provider:        "companion",
 		SelectedBackend: capabilities.LLMBackendCompanionLocal,
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Status:          "ok",
 		Result:          document,
 	}, nil
 }

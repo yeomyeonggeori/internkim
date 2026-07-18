@@ -138,7 +138,7 @@ func TestValidateSiteContentPages(t *testing.T) {
 
 func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "image-republish", Title: "Image Republish"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "image-republish", Title: "Image Republish"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -153,9 +153,10 @@ func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
 	writeFile(t, imagePath, "fake-jpeg-bytes")
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatalf("first publish with public image failed: %v", errorValue)
@@ -165,9 +166,10 @@ func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
 	setFileModTime(t, filepath.Join(site.HostSourcePath, "app", "public", "images", "about.jpg"), time.Now().UTC().Add(2*time.Hour))
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatalf("second publish after adding a public image must stay content-only, got: %v", errorValue)
@@ -176,7 +178,7 @@ func TestSitePublishTwiceWithPublicImagesStaysContentOnly(t *testing.T) {
 
 func TestAuthEnabledPublishBootstrapsPocketBaseRuntime(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "auth-bootstrap", Title: "Auth Bootstrap"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "auth-bootstrap", Title: "Auth Bootstrap"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -193,9 +195,10 @@ func TestAuthEnabledPublishBootstrapsPocketBaseRuntime(t *testing.T) {
 	writeFile(t, contentPath, authDocument)
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatalf("auth-enabled publish failed: %v", errorValue)

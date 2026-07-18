@@ -1,7 +1,11 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+
+	googlejsonschema "github.com/google/jsonschema-go/jsonschema"
 )
 
 type Schema struct {
@@ -53,7 +57,7 @@ func Boolean() Schema {
 }
 
 func Integer() Schema {
-	return typedSchema("number")
+	return typedSchema("integer")
 }
 
 func Number() Schema {
@@ -103,6 +107,29 @@ func (schema Schema) RawMessage() json.RawMessage {
 		return json.RawMessage(`{"type":"object","properties":{}}`)
 	}
 	return json.RawMessage(content)
+}
+
+func Validate(schemaDocument json.RawMessage, inputDocument json.RawMessage) error {
+	normalizedInput := inputDocument
+	if len(bytes.TrimSpace(normalizedInput)) == 0 {
+		normalizedInput = json.RawMessage(`{}`)
+	}
+	var input any
+	if errorValue := json.Unmarshal(normalizedInput, &input); errorValue != nil {
+		return errors.New("tool input is not valid JSON")
+	}
+	var schema googlejsonschema.Schema
+	if errorValue := json.Unmarshal(schemaDocument, &schema); errorValue != nil {
+		return errors.New("tool input schema is invalid")
+	}
+	resolvedSchema, errorValue := schema.Resolve(nil)
+	if errorValue != nil {
+		return errors.New("tool input schema cannot be resolved")
+	}
+	if errorValue := resolvedSchema.Validate(input); errorValue != nil {
+		return errors.New("tool input does not match its descriptor schema")
+	}
+	return nil
 }
 
 func typedSchema(schemaType string) Schema {

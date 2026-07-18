@@ -303,7 +303,7 @@ func TestNormalizeSiteDesignHexColorExpandsAndLowercases(t *testing.T) {
 
 func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "themed-site", Title: "Themed Site"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "themed-site", Title: "Themed Site"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -313,9 +313,10 @@ func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#336699", "#ffffff"))
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -332,7 +333,7 @@ func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 
 func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-design", Title: "Invalid Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "invalid-design", Title: "Invalid Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -342,9 +343,10 @@ func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), "not a design document")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "DESIGN.md front matter is invalid") {
 		t.Fatalf("expected invalid DESIGN.md rejection, got %v", errorValue)
@@ -353,7 +355,7 @@ func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 
 func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "fully-invalid-design", Title: "Fully Invalid Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "fully-invalid-design", Title: "Fully Invalid Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -370,9 +372,10 @@ func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T)
 		"---\n")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil {
 		t.Fatal("expected publish to reject the fully-invalid DESIGN.md")
@@ -392,7 +395,7 @@ func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T)
 
 func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "legacy-no-design", Title: "Legacy No Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "legacy-no-design", Title: "Legacy No Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -404,9 +407,10 @@ func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 	}
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -421,7 +425,7 @@ func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 
 func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "legacy-freshness",
 		Title:       "Legacy Freshness",
 		RequestedBy: "owner@example.com",
@@ -475,10 +479,10 @@ func TestCatalogFontFamilyOrDefaultReplacesGenericKeywords(t *testing.T) {
 
 func TestParseSiteDesignStylePreset(t *testing.T) {
 	cases := map[string]string{
-		"":                      "editorial",
-		"style: brutalist":      "brutalist",
-		"style: \"soft\"":       "soft",
-		"style: PLAYFUL":        "playful",
+		"":                 "editorial",
+		"style: brutalist": "brutalist",
+		"style: \"soft\"":  "soft",
+		"style: PLAYFUL":   "playful",
 	}
 	for frontMatter, expected := range cases {
 		preset, errorValue := parseSiteDesignStylePreset(frontMatter)

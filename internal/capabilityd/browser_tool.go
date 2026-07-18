@@ -100,6 +100,7 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
 		Status:          "ok",
 		Result:          document,
 	}, nil
@@ -203,6 +204,7 @@ func captchaBlockedResponse(toolName string, snapshotText string) (capabilities.
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         message,
 		IsError:         true,
