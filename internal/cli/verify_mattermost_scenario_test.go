@@ -374,8 +374,10 @@ func TestMattermostScenarioTreatsReadCountMismatchAsObservation(t *testing.T) {
 }
 
 func TestMaximumMattermostScenarioModelTierPreservesProductionMode(t *testing.T) {
-	if got := maximumMattermostScenarioModelTier(testCommandConfiguration{MaximumModelTier: "low"}); got != "low" {
-		t.Fatalf("expected low model maximum, got %q", got)
+	for _, modelTier := range []string{"xlow", "low", "medium", "high", "xhigh", "max"} {
+		if got := maximumMattermostScenarioModelTier(testCommandConfiguration{MaximumModelTier: modelTier}); got != modelTier {
+			t.Fatalf("expected %s model maximum, got %q", modelTier, got)
+		}
 	}
 	if got := maximumMattermostScenarioModelTier(testCommandConfiguration{ShouldUseRealModels: true}); got != "" {
 		t.Fatalf("expected production mode to remain unrestricted, got %q", got)

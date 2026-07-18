@@ -4354,6 +4354,17 @@ func (s *sshClient) runResultWithTimeout(cmd string, timeout time.Duration) (str
 	return runSSHCommandWithRetry(s.sshpassBin, args, timeout)
 }
 
+func (s *sshClient) runResultWithContext(contextValue context.Context, commandText string) (string, error) {
+	var arguments []string
+	remoteCommand := s.privilegedCommand(commandText)
+	if s.pass == "" {
+		arguments = s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)
+		return runSSHCommandWithContext(contextValue, "ssh", arguments)
+	}
+	arguments = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...)
+	return runSSHCommandWithContext(contextValue, s.sshpassBin, arguments)
+}
+
 func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
 	target := fmt.Sprintf("%s@%s", s.user, s.host)
 	commandName := "ssh"
@@ -4390,6 +4401,29 @@ func runSSHCommandWithRetry(commandName string, arguments []string, timeout time
 			output = append(output, []byte("\nssh command timed out")...)
 		}
 		cancel()
+		return errorValue
+	})
+	return string(output), errorValue
+}
+
+func runSSHCommandWithContext(contextValue context.Context, commandName string, arguments []string) (string, error) {
+	var output []byte
+	var errorValue error
+	errorValue = retryOperation(retryOptions{
+		AttemptCount: 8,
+		DelayForAttempt: func(attemptIndex int) time.Duration {
+			return time.Duration(attemptIndex+1) * time.Second
+		},
+		ShouldRetry: func(errorValue error) bool {
+			return contextValue.Err() == nil && errorValue != nil && isRetryableSSHFailure(string(output))
+		},
+		SleepAfterFinalAttempt: true,
+	}, func(int) error {
+		command := exec.CommandContext(contextValue, commandName, arguments...)
+		output, errorValue = command.CombinedOutput()
+		if contextValue.Err() != nil {
+			errorValue = contextValue.Err()
+		}
 		return errorValue
 	})
 	return string(output), errorValue

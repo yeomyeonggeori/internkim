@@ -272,7 +272,7 @@ func normalizeOptions(options Options) (Options, error) {
 		return options, errors.New("maximum model tier cannot be combined with real models")
 	}
 	if !options.ShouldUseRealModels && maximumModelTier == "" {
-		maximumModelTier = "xlow"
+		maximumModelTier = "low"
 	}
 	options.MaximumModelTier = maximumModelTier
 	return options, nil

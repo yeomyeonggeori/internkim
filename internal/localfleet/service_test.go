@@ -180,8 +180,8 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
 		t.Fatalf("expected test up plan to preserve tier model names:\n%s", joinedPlans)
 	}
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='xlow'") {
-		t.Fatalf("expected test up plan to cap models at xlow:\n%s", joinedPlans)
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='low'") {
+		t.Fatalf("expected test up plan to cap models at low:\n%s", joinedPlans)
 	}
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
