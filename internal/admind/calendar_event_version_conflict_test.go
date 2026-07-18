@@ -46,6 +46,68 @@ func TestCalendarCreateReturnsPersistedEventVersion(t *testing.T) {
 	}
 }
 
+func TestCalendarGetEventReturnsPersistedVersion(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := newLocalTestCalendarEvent("single-event-version", "Single event")
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events/"+event.ID, nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("get status = %d body = %s", response.Code, response.Body.String())
+	}
+	var returnedEvent calendarEvent
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &returnedEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedEvent := readRequiredCalendarEvent(t, service, event.ID)
+	if returnedEvent.ID != event.ID || returnedEvent.UpdatedAt != storedEvent.UpdatedAt {
+		t.Fatalf("returned event = %+v", returnedEvent)
+	}
+}
+
+func TestCalendarGetEventReturnsNotFound(t *testing.T) {
+	service := newCalendarTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events/missing-event", nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("get status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestCalendarGetEventTreatsEscapedActorImageSuffixAsEventID(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := newLocalTestCalendarEvent("event/actor-image", "Escaped actor image suffix")
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events/event%2Factor-image", nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("get status = %d body = %s", response.Code, response.Body.String())
+	}
+	var returnedEvent calendarEvent
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &returnedEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if returnedEvent.ID != event.ID {
+		t.Fatalf("returned event ID = %q", returnedEvent.ID)
+	}
+}
+
 func TestCalendarUpdateRejectsStaleEventVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
@@ -126,6 +188,44 @@ func TestCalendarDeleteRejectsStaleEventVersion(t *testing.T) {
 		t.Fatalf("current delete status = %d body = %s", currentResponse.Code, currentResponse.Body.String())
 	}
 	if _, found, errorValue := service.readCalendarEventByID(contextValue, event.ID); errorValue != nil || found {
+		t.Fatalf("deleted event found=%v error=%v", found, errorValue)
+	}
+}
+
+func TestCalendarUpdateAcceptsLegacyPayloadWithoutExpectedVersion(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := newLocalTestCalendarEvent("legacy-web-update", "Original title")
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedEvent := readRequiredCalendarEvent(t, service, event.ID)
+
+	response := sendCalendarEventUpdate(t, service, storedEvent, "Legacy title", "")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("legacy update status = %d body = %s", response.Code, response.Body.String())
+	}
+	if updatedEvent := readRequiredCalendarEvent(t, service, event.ID); updatedEvent.Title != "Legacy title" {
+		t.Fatalf("updated event = %+v", updatedEvent)
+	}
+}
+
+func TestCalendarDeleteAcceptsLegacyRequestWithoutBody(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := newLocalTestCalendarEvent("legacy-web-delete", "Original title")
+	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodDelete, "/calendar/api/events/"+event.ID, nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("legacy delete status = %d body = %s", response.Code, response.Body.String())
+	}
+	if _, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID); errorValue != nil || found {
 		t.Fatalf("deleted event found=%v error=%v", found, errorValue)
 	}
 }
