@@ -36,9 +36,9 @@ func enqueueCalendarChannelProjection(ctx context.Context, executor sqlContextEx
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue := executor.ExecContext(ctx, `
-	INSERT INTO calendar_channel_outbox (event_id, attempt_count, last_error, created_at, updated_at, last_attempted_at)
-	VALUES (?, 0, '', ?, ?, '')
-	ON CONFLICT(event_id) DO UPDATE SET updated_at = excluded.updated_at`,
+	INSERT INTO calendar_channel_outbox (event_id, generation, lease_owner, lease_generation, attempt_count, last_error, created_at, updated_at, last_attempted_at)
+	VALUES (?, 1, '', 0, 0, '', ?, ?, '')
+	ON CONFLICT(event_id) DO UPDATE SET generation = calendar_channel_outbox.generation + 1, updated_at = excluded.updated_at`,
 		eventID,
 		now,
 		now,
@@ -153,43 +153,67 @@ func (service *Service) applyFlowMattermostProjectionByID(ctx context.Context, t
 }
 
 func (service *Service) applyCalendarMattermostProjection(ctx context.Context, event calendarEvent) calendarEvent {
-	nextEvent, errorValue := service.trySyncCalendarMattermostLog(ctx, event)
-	if errorValue != nil {
-		_ = service.markCalendarMattermostProjectionAttempt(ctx, event.ID, errorValue)
+	if errorValue := service.applyCalendarMattermostProjectionByID(ctx, event.ID); errorValue != nil {
 		return event
 	}
-	_ = service.deleteCalendarMattermostProjectionOutbox(ctx, event.ID)
+	nextEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil || !found {
+		return event
+	}
 	return nextEvent
 }
 
 func (service *Service) applyCalendarMattermostProjectionByID(ctx context.Context, eventID string) error {
+	lease, acquired, errorValue := service.acquireCalendarProjectionLease(ctx, eventID)
+	if errorValue != nil || !acquired {
+		return errorValue
+	}
+	for {
+		errorValue = service.applyCalendarMattermostProjectionGeneration(ctx, eventID)
+		if errorValue != nil {
+			nextLease, hasNextGeneration, releaseError := service.releaseCalendarProjectionLeaseAfterFailure(ctx, lease, errorValue)
+			if releaseError != nil {
+				return releaseError
+			}
+			if !hasNextGeneration {
+				return errorValue
+			}
+			lease = nextLease
+			continue
+		}
+		nextLease, hasNextGeneration, errorValue := service.completeCalendarProjectionGeneration(ctx, lease)
+		if errorValue != nil {
+			return errorValue
+		}
+		if !hasNextGeneration {
+			return nil
+		}
+		lease = nextLease
+	}
+}
+
+func (service *Service) applyCalendarMattermostProjectionGeneration(ctx context.Context, eventID string) error {
 	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, eventID)
 	if errorValue != nil {
 		return errorValue
 	}
 	if !found {
-		return service.deleteCalendarMattermostProjectionOutbox(ctx, eventID)
+		return nil
 	}
 	if projection.IsDeleted {
 		if errorValue := service.tryDeleteCalendarMattermostLog(ctx, projection.Event); errorValue != nil {
-			if markError := service.markCalendarMattermostProjectionAttempt(ctx, eventID, errorValue); markError != nil {
-				return markError
-			}
 			return errorValue
 		}
 		if errorValue := service.updateCalendarEventMattermostPostID(ctx, projection.Event.ID, ""); errorValue != nil {
 			return errorValue
 		}
-		return service.deleteCalendarMattermostProjectionOutbox(ctx, projection.Event.ID)
+		return nil
 	}
-	nextEvent, errorValue := service.trySyncCalendarMattermostLog(ctx, projection.Event)
+	_, errorValue = service.trySyncCalendarMattermostLog(ctx, projection.Event)
 	if errorValue != nil {
-		if markError := service.markCalendarMattermostProjectionAttempt(ctx, eventID, errorValue); markError != nil {
-			return markError
-		}
 		return errorValue
 	}
-	return service.deleteCalendarMattermostProjectionOutbox(ctx, nextEvent.ID)
+	return nil
 }
 
 func (service *Service) markFlowMattermostProjectionAttempt(ctx context.Context, taskID string, cause error) error {

@@ -32,6 +32,12 @@ export type CalendarEventUpdatePayload = {
 	participants: CalendarTestParticipant[];
 };
 
+export type CalendarDeleteIntentRequests = {
+	registeredEventIDs: string[];
+	canceledEventIDs: string[];
+	releaseRegistrationFailures: () => void;
+};
+
 type CalendarTestAccountStatus = {
 	connected: boolean;
 	needsReauth: boolean;
@@ -189,28 +195,51 @@ export async function routeCalendarEventCreates(page: Page): Promise<CalendarEve
 	return createdEvents;
 }
 
-export async function routeCalendarEventDeletes(page: Page): Promise<string[]> {
-	return routeCalendarEventDeletesWithFailures(page, []);
+export async function routeCalendarDeleteIntents(page: Page): Promise<CalendarDeleteIntentRequests> {
+	return routeCalendarDeleteIntentsWithFailures(page, []);
 }
 
-export async function routeCalendarEventDeletesWithFailures(page: Page, failingEventIDs: string[]): Promise<string[]> {
-	const deletedEventIDs: string[] = [];
-	const failingEventIDSet = new Set(failingEventIDs);
-	await page.route('**/calendar/api/events/*', async (route) => {
-		if (route.request().method() !== 'DELETE') {
-			await route.fulfill({ json: {} });
-			return;
-		}
-		const eventID = decodeURIComponent(route.request().url().split('/').pop() ?? '');
-		deletedEventIDs.push(eventID);
-		if (failingEventIDSet.has(eventID)) {
-			failingEventIDSet.delete(eventID);
-			await route.fulfill({ status: 500, body: 'delete failed' });
-			return;
-		}
-		await route.fulfill({ json: { ok: true } });
+export async function routeCalendarDeleteIntentsWithFailures(
+	page: Page,
+	failingRegistrationEventIDs: string[]
+): Promise<CalendarDeleteIntentRequests> {
+	const registeredEventIDs: string[] = [];
+	const canceledEventIDs: string[] = [];
+	const failingEventIDSet = new Set(failingRegistrationEventIDs);
+	let releaseRegistrationFailures = (): void => {};
+	const registrationFailureRelease = new Promise<void>((resolve) => {
+		releaseRegistrationFailures = resolve;
 	});
-	return deletedEventIDs;
+	await page.route('**/calendar/api/events/*/delete-intents/*', async (route) => {
+		const request = route.request();
+		const { eventID, operationID } = calendarDeleteIntentTarget(request.url());
+		if (request.method() === 'PUT') {
+			registeredEventIDs.push(eventID);
+			if (failingEventIDSet.delete(eventID)) {
+				await registrationFailureRelease;
+				await route.fulfill({ status: 500, body: 'delete intent registration failed' });
+				return;
+			}
+			await route.fulfill({
+				json: {
+					operationID,
+					executeAt: '2026-06-08T00:00:05.000Z'
+				}
+			});
+			return;
+		}
+		if (request.method() === 'DELETE') {
+			canceledEventIDs.push(eventID);
+			await route.fulfill({ status: 204, body: '' });
+			return;
+		}
+		await route.fallback();
+	});
+	return {
+		registeredEventIDs,
+		canceledEventIDs,
+		releaseRegistrationFailures
+	};
 }
 
 export async function browserDateKey(page: Page): Promise<string> {
@@ -299,6 +328,18 @@ function isCalendarTestParticipant(value: unknown): value is CalendarTestPartici
 		hasValidEmail &&
 		hasValidImage
 	);
+}
+
+function calendarDeleteIntentTarget(requestURL: string): { eventID: string; operationID: string } {
+	const pathSegments = new URL(requestURL).pathname.split('/');
+	const deleteIntentsIndex = pathSegments.lastIndexOf('delete-intents');
+	const eventID = pathSegments[deleteIntentsIndex - 1];
+	const operationID = pathSegments[deleteIntentsIndex + 1];
+	if (!eventID || !operationID) throw new Error(`Invalid calendar delete intent URL: ${requestURL}`);
+	return {
+		eventID: decodeURIComponent(eventID),
+		operationID: decodeURIComponent(operationID)
+	};
 }
 
 export async function computedPseudoStyle(

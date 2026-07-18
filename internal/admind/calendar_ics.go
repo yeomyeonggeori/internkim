@@ -109,6 +109,10 @@ func calendarEventFromCalendarObject(path string, calendar *ical.Calendar, actor
 	description, _ := eventValue.Props.Text(ical.PropDescription)
 	location, _ := eventValue.Props.Text(ical.PropLocation)
 	color, _ := eventValue.Props.Text(ical.PropColor)
+	remoteModifiedAt := ""
+	if modifiedAt, modifiedAtError := eventValue.Props.DateTime(ical.PropLastModified, time.UTC); modifiedAtError == nil && !modifiedAt.IsZero() {
+		remoteModifiedAt = modifiedAt.UTC().Format(time.RFC3339Nano)
+	}
 	startProperty := eventValue.Props.Get(ical.PropDateTimeStart)
 	rawICS, errorValue := encodeExistingCalendar(calendar)
 	if errorValue != nil {
@@ -132,6 +136,7 @@ func calendarEventFromCalendarObject(path string, calendar *ical.Calendar, actor
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    actorEmail,
 		CreatedByName:     actorEmail,
+		RemoteModifiedAt:  remoteModifiedAt,
 		RawICS:            rawICS,
 	}, nil
 }

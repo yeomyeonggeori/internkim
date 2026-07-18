@@ -20,14 +20,24 @@ type CalendarEventLoaderContext = {
 
 export type CalendarEventLoader = {
 	hasVisibleRange: () => boolean;
+	invalidatePendingLoad: () => void;
 	loadEvents: (startDate: Date, endDate: Date) => Promise<void>;
 	refreshCurrentRange: () => Promise<void>;
 	renderVisibleEvents: (events: DayFlowEvent[]) => void;
 };
 
-export function createCalendarEventLoader(context: CalendarEventLoaderContext): CalendarEventLoader {
+type CalendarEventLoaderDependencies = {
+	fetchEvents: typeof fetchCalendarEvents;
+};
+
+export function createCalendarEventLoader(
+	context: CalendarEventLoaderContext,
+	dependencies: Partial<CalendarEventLoaderDependencies> = {}
+): CalendarEventLoader {
 	let visibleRange: { startDate: Date; endDate: Date } | null = null;
 	let loadEventsRequestID = 0;
+	let isLoadPending = false;
+	const fetchEvents = dependencies.fetchEvents ?? fetchCalendarEvents;
 
 	function hasVisibleRange(): boolean {
 		return visibleRange !== null;
@@ -36,11 +46,12 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 	async function loadEvents(startDate: Date, endDate: Date): Promise<void> {
 		if (!context.isBrowser()) return;
 		const requestID = (loadEventsRequestID += 1);
+		isLoadPending = true;
 		visibleRange = { startDate, endDate };
 		context.setIsLoading(true);
 		context.setErrorMessage('');
 		try {
-			const calendarEvents = await fetchCalendarEvents(startDate, endDate, context.errorFallback());
+			const calendarEvents = await fetchEvents(startDate, endDate, context.errorFallback());
 			if (requestID !== loadEventsRequestID) return;
 			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
 			context.setVisibleEvents(events);
@@ -52,8 +63,17 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 			context.setVisibleEvents([]);
 			context.setErrorMessage(error instanceof Error ? error.message : context.errorFallback());
 		} finally {
-			if (requestID === loadEventsRequestID) context.setIsLoading(false);
+			if (requestID !== loadEventsRequestID) return;
+			isLoadPending = false;
+			context.setIsLoading(false);
 		}
+	}
+
+	function invalidatePendingLoad(): void {
+		if (!isLoadPending) return;
+		loadEventsRequestID += 1;
+		isLoadPending = false;
+		context.setIsLoading(false);
 	}
 
 	async function refreshCurrentRange(): Promise<void> {
@@ -94,6 +114,7 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 
 	return {
 		hasVisibleRange,
+		invalidatePendingLoad,
 		loadEvents,
 		refreshCurrentRange,
 		renderVisibleEvents

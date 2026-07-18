@@ -2,39 +2,31 @@ package admind
 
 import (
 	"context"
+	"database/sql"
+	"sort"
+	"time"
 )
 
 type calendarBackfillEvent struct {
-	ID         string
-	UID        string
-	RemoteHref string
+	ID             string
+	UID            string
+	RawICS         string
+	RemoteETag     string
+	RemoteHref     string
+	RemoteSource   string
+	UpdatedAt      string
+	DeletedAt      string
+	FieldChangedAt map[string]time.Time
+	AcknowledgedAt map[string]time.Time
+	PendingActions map[string]bool
 }
 
-func (service *Service) enqueueCalendarBackfillOutbox(ctx context.Context, account remoteCalendarAccount) error {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	transaction, errorValue := database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	shouldSignalSync, errorValue := enqueueCalendarBackfillOutboxWithRunner(ctx, transaction, account)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return errorValue
-	}
-	if shouldSignalSync {
-		service.signalCalendarSyncWakeUp()
-	}
-	return nil
+type calendarBackfillFieldGroup struct {
+	ChangedAt string
+	Fields    []string
 }
 
-func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner calendarSQLRunner, account remoteCalendarAccount) (bool, error) {
+func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, transaction *sql.Tx, account remoteCalendarAccount) (bool, error) {
 	if !remoteCalendarAccountCanWrite(account) {
 		return false, nil
 	}
@@ -42,53 +34,137 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, queryRunner ca
 	if target.CalendarURL == "" {
 		return false, nil
 	}
-	events, errorValue := readCalendarBackfillEvents(ctx, queryRunner)
+	events, errorValue := readCalendarBackfillState(ctx, transaction, account.ID, target.CalendarURL)
 	if errorValue != nil {
 		return false, errorValue
 	}
 	shouldSignalSync := false
 	for _, event := range events {
-		if remoteCalendarHrefBelongsToTarget(event.RemoteHref, target) {
+		belongsToTarget := remoteCalendarHrefBelongsToTarget(event.RemoteHref, target)
+		if event.DeletedAt != "" {
+			enqueued, errorValue := enqueueCalendarDeletionBackfill(ctx, transaction, account, target, event, belongsToTarget)
+			if errorValue != nil {
+				return false, errorValue
+			}
+			shouldSignalSync = shouldSignalSync || enqueued
 			continue
 		}
-		hasPendingPut, errorValue := hasPendingCalendarPutForTargetWithRunner(ctx, queryRunner, account.ID, event.UID, target)
-		if errorValue != nil {
-			return false, errorValue
-		}
-		if hasPendingPut {
+		changedFields := calendarBackfillChangedFields(event, belongsToTarget)
+		if len(changedFields) == 0 {
 			continue
 		}
-		if errorValue := enqueueCalendarOutboxWithRunner(ctx, queryRunner, calendarOutboxRow{
-			AccountID:     account.ID,
-			EventID:       event.ID,
-			EventUID:      event.UID,
-			Operation:     calendarOutboxOperationPut,
-			ChangedFields: calendarAllUserEditableFields(),
-		}); errorValue != nil {
-			return false, errorValue
+		if event.PendingActions[calendarOutboxOperationPut] {
+			continue
+		}
+		remoteHref := ""
+		remoteETag := ""
+		if belongsToTarget {
+			remoteHref = event.RemoteHref
+			remoteETag = event.RemoteETag
+		}
+		for _, group := range calendarBackfillFieldGroups(event, changedFields) {
+			if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, calendarOutboxRow{
+				AccountID:     account.ID,
+				EventID:       event.ID,
+				EventUID:      event.UID,
+				Operation:     calendarOutboxOperationPut,
+				IfMatchETag:   remoteETag,
+				RemoteHref:    remoteHref,
+				ChangedFields: group.Fields,
+			}, group.ChangedAt); errorValue != nil {
+				return false, errorValue
+			}
 		}
 		shouldSignalSync = true
 	}
 	return shouldSignalSync, nil
 }
 
-func readCalendarBackfillEvents(ctx context.Context, queryRunner calendarSQLRunner) ([]calendarBackfillEvent, error) {
-	rows, errorValue := queryRunner.QueryContext(ctx, `
-SELECT id, uid, remote_href
-FROM calendar_events
-WHERE deleted_at = ''
-ORDER BY start_at, title`)
-	if errorValue != nil {
-		return nil, errorValue
+func enqueueCalendarDeletionBackfill(ctx context.Context, transaction *sql.Tx, account remoteCalendarAccount, target remoteCalendarTarget, event calendarBackfillEvent, belongsToTarget bool) (bool, error) {
+	deletedAt := event.FieldChangedAt[calendarEventDeletionClockField]
+	if deletedAt.IsZero() || !deletedAt.After(event.AcknowledgedAt[calendarEventDeletionClockField]) {
+		return false, nil
 	}
-	defer rows.Close()
-	events := []calendarBackfillEvent{}
-	for rows.Next() {
-		var event calendarBackfillEvent
-		if errorValue := rows.Scan(&event.ID, &event.UID, &event.RemoteHref); errorValue != nil {
-			return nil, errorValue
+	if !belongsToTarget && !calendarBackfillTargetHasEventEvidence(event) {
+		return false, nil
+	}
+	if event.PendingActions[calendarOutboxOperationDelete] {
+		return false, nil
+	}
+	row := calendarOutboxRow{
+		AccountID: account.ID,
+		EventID:   event.ID,
+		EventUID:  event.UID,
+		Operation: calendarOutboxOperationDelete,
+	}
+	if belongsToTarget {
+		row.IfMatchETag = event.RemoteETag
+		row.RemoteHref = event.RemoteHref
+	}
+	if errorValue := enqueueCalendarOutboxWithRunner(ctx, transaction, row, deletedAt.Format(time.RFC3339Nano)); errorValue != nil {
+		return false, errorValue
+	}
+	return true, nil
+}
+
+func calendarBackfillChangedFields(event calendarBackfillEvent, belongsToTarget bool) []string {
+	fields := calendarAllUserEditableFields()
+	hasTargetEvidence := calendarBackfillTargetHasEventEvidence(event)
+	if !belongsToTarget && !hasTargetEvidence {
+		return fields
+	}
+	if event.RemoteSource == remoteCalendarProviderGoogle && !calendarBackfillEventHasFieldClock(event, fields) && !hasTargetEvidence {
+		return nil
+	}
+	result := []string{}
+	for _, field := range fields {
+		if calendarBackfillFieldChangedAt(event, field).After(event.AcknowledgedAt[field]) {
+			result = append(result, field)
 		}
-		events = append(events, event)
 	}
-	return events, rows.Err()
+	return result
+}
+
+func calendarBackfillEventHasFieldClock(event calendarBackfillEvent, fields []string) bool {
+	for _, field := range fields {
+		if !event.FieldChangedAt[field].IsZero() {
+			return true
+		}
+	}
+	return false
+}
+
+func calendarBackfillFieldGroups(event calendarBackfillEvent, fields []string) []calendarBackfillFieldGroup {
+	fieldsByChangedAt := map[string][]string{}
+	for _, field := range fields {
+		changedAt := calendarBackfillFieldChangedAt(event, field)
+		fieldsByChangedAt[changedAt.UTC().Format(time.RFC3339Nano)] = append(fieldsByChangedAt[changedAt.UTC().Format(time.RFC3339Nano)], field)
+	}
+	changedTimes := make([]string, 0, len(fieldsByChangedAt))
+	for changedAt := range fieldsByChangedAt {
+		changedTimes = append(changedTimes, changedAt)
+	}
+	sort.Strings(changedTimes)
+	groups := make([]calendarBackfillFieldGroup, 0, len(changedTimes))
+	for _, changedAt := range changedTimes {
+		groups = append(groups, calendarBackfillFieldGroup{ChangedAt: changedAt, Fields: fieldsByChangedAt[changedAt]})
+	}
+	return groups
+}
+
+func calendarBackfillFieldChangedAt(event calendarBackfillEvent, field string) time.Time {
+	changedAt := event.FieldChangedAt[field]
+	if !changedAt.IsZero() {
+		return changedAt
+	}
+	return calendarExistingEventFieldClockBaseline(event.RawICS, event.RemoteHref, event.UpdatedAt)
+}
+
+func calendarBackfillTargetHasEventEvidence(event calendarBackfillEvent) bool {
+	for _, field := range calendarAllUserEditableFields() {
+		if !event.AcknowledgedAt[field].IsZero() {
+			return true
+		}
+	}
+	return false
 }
