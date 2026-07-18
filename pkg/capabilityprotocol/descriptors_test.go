@@ -273,6 +273,19 @@ func TestValidateResultContractAcceptsOnlyCanonicalArrayEffectIdentities(t *test
 	}
 }
 
+func TestValidateResultContractAcceptsDistinctIdentitiesForOneEffect(t *testing.T) {
+	contract := &ToolResultContract{
+		Schema: json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"publishedURL":{"type":"string"}},"required":["siteID","publishedURL"],"additionalProperties":false}`),
+		Effects: []ResourceEffectContract{
+			{ObjectType: "website", Effect: "published", ResultField: "siteID", EffectIdentity: ResourceEffectIdentityID},
+			{ObjectType: "website", Effect: "published", ResultField: "publishedURL", EffectIdentity: ResourceEffectIdentityURL},
+		},
+	}
+	if errorValue := validateResultContract(contract); errorValue != nil {
+		t.Fatalf("expected distinct effect identities to be valid: %v", errorValue)
+	}
+}
+
 func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *testing.T) {
 	modelVisibleDescriptor := validTestDescriptor("task.add")
 	modelVisibleDescriptor.ResultContract = nil

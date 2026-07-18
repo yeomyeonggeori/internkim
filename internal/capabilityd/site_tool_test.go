@@ -128,7 +128,10 @@ func TestSiteAppPublishUsesExactSiteID(t *testing.T) {
 	if strings.Join(requests, ",") != "POST /admin/api/sites/site-1/publish" {
 		t.Fatalf("unexpected requests: %+v", requests)
 	}
-	if response.Status != "published" || len(response.Effects) != 1 || response.Effects[0].ID != "site-1" {
+	if response.Status != "published" ||
+		len(response.Effects) != 2 ||
+		response.Effects[0].ID != "site-1" ||
+		response.Effects[1].URL != "https://demo.example" {
 		t.Fatalf("unexpected publish response: %+v", response)
 	}
 	if strings.Contains(string(response.Result), `"owner"`) || !strings.Contains(string(response.Result), `"sourceSHA256":"`+transport.SiteSourceBundle.SHA256+`"`) {
