@@ -137,6 +137,13 @@ type mattermostScenarioWorkspaceResult struct {
 	Content string `json:"content"`
 }
 
+type mattermostScenarioRuntimeValues struct {
+	NextFriday string
+	Tomorrow   string
+}
+
+var mattermostScenarioTimeZone = time.FixedZone("Asia/Seoul", 9*60*60)
+
 type mattermostScenarioEfficiencyObservation struct {
 	StepIndex int    `json:"stepIndex"`
 	Kind      string `json:"kind"`
@@ -202,18 +209,31 @@ func resolveMattermostScenarioExpectedValues(scenario *mattermostScenario, curre
 	if scenario == nil {
 		return
 	}
-	nextFriday := currentTime.AddDate(0, 0, (int(time.Friday)-int(currentTime.Weekday())+7)%7).Format("2006-01-02")
+	runtimeValues := mattermostScenarioValuesAt(currentTime)
 	for stepIndex := range scenario.Steps {
 		for eventIndex := range scenario.Steps[stepIndex].ExpectedEventCounts {
 			eventCount := &scenario.Steps[stepIndex].ExpectedEventCounts[eventIndex]
-			eventCount.BodyFragment = replaceMattermostScenarioRuntimeValues(eventCount.BodyFragment, nextFriday)
-			eventCount.OutputFragment = replaceMattermostScenarioRuntimeValues(eventCount.OutputFragment, nextFriday)
+			eventCount.BodyFragment = replaceMattermostScenarioRuntimeValues(eventCount.BodyFragment, runtimeValues)
+			eventCount.OutputFragment = replaceMattermostScenarioRuntimeValues(eventCount.OutputFragment, runtimeValues)
 		}
 	}
 }
 
-func replaceMattermostScenarioRuntimeValues(value string, nextFriday string) string {
-	return strings.ReplaceAll(value, "{{nextFriday}}", nextFriday)
+func mattermostScenarioValuesAt(currentTime time.Time) mattermostScenarioRuntimeValues {
+	localTime := currentTime.In(mattermostScenarioTimeZone)
+	daysUntilFriday := (int(time.Friday) - int(localTime.Weekday()) + 7) % 7
+	if daysUntilFriday == 0 {
+		daysUntilFriday = 7
+	}
+	return mattermostScenarioRuntimeValues{
+		NextFriday: localTime.AddDate(0, 0, daysUntilFriday).Format("2006-01-02"),
+		Tomorrow:   localTime.AddDate(0, 0, 1).Format("2006-01-02"),
+	}
+}
+
+func replaceMattermostScenarioRuntimeValues(value string, runtimeValues mattermostScenarioRuntimeValues) string {
+	value = strings.ReplaceAll(value, "{{nextFriday}}", runtimeValues.NextFriday)
+	return strings.ReplaceAll(value, "{{tomorrow}}", runtimeValues.Tomorrow)
 }
 
 func requireJSONEnd(decoder *json.Decoder) error {
@@ -621,7 +641,92 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 			return errorValue
 		}
 	}
+	return validateMattermostScenarioCalendarMutationIDs(stepIndex, expected, events)
+}
+
+func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
+	if !containsMattermostScenarioString(expected.ExpectedToolCalls, "calendar.list") {
+		return nil
+	}
+	for eventIndex, event := range events {
+		toolName, isMutation := mattermostScenarioCalendarMutationName(event.Name)
+		if !isMutation || !containsMattermostScenarioString(expected.ExpectedToolCalls, toolName) {
+			continue
+		}
+		eventID := mattermostScenarioCalendarMutationEventID(event.Body)
+		if eventID == "" {
+			return fmt.Errorf("Mattermost scenario step %d %s request has no eventID", stepIndex, toolName)
+		}
+		if !listedMattermostScenarioCalendarEventIDs(events[:eventIndex])[eventID] {
+			return fmt.Errorf("Mattermost scenario step %d %s used eventID %q before calendar.list returned it", stepIndex, toolName, eventID)
+		}
+	}
 	return nil
+}
+
+func mattermostScenarioCalendarMutationName(eventName string) (string, bool) {
+	for _, toolName := range []string{"calendar.update", "calendar.delete"} {
+		if eventName == "tool."+toolName+".requested" {
+			return toolName, true
+		}
+	}
+	return "", false
+}
+
+func mattermostScenarioCalendarMutationEventID(body string) string {
+	var request struct {
+		Input struct {
+			EventID string `json:"eventID"`
+		} `json:"input"`
+	}
+	if json.Unmarshal([]byte(body), &request) != nil {
+		return ""
+	}
+	return strings.TrimSpace(request.Input.EventID)
+}
+
+func listedMattermostScenarioCalendarEventIDs(events []mattermostScenarioTaskEvent) map[string]bool {
+	eventIDs := map[string]bool{}
+	for _, event := range events {
+		for _, eventID := range mattermostScenarioCalendarListEventIDs(event) {
+			eventIDs[eventID] = true
+		}
+	}
+	return eventIDs
+}
+
+func mattermostScenarioCalendarListEventIDs(event mattermostScenarioTaskEvent) []string {
+	if event.Name != "tool.calendar.list.result" {
+		return nil
+	}
+	var observation struct {
+		Output struct {
+			Content string          `json:"content"`
+			Data    json.RawMessage `json:"data"`
+		} `json:"output"`
+	}
+	if json.Unmarshal([]byte(event.Body), &observation) != nil {
+		return nil
+	}
+	document := observation.Output.Data
+	if len(document) == 0 {
+		document = json.RawMessage(observation.Output.Content)
+	}
+	var result struct {
+		Events []struct {
+			EventID string `json:"eventID"`
+		} `json:"events"`
+	}
+	if json.Unmarshal(document, &result) != nil {
+		return nil
+	}
+	eventIDs := make([]string, 0, len(result.Events))
+	for _, eventValue := range result.Events {
+		if eventID := strings.TrimSpace(eventValue.EventID); eventID != "" {
+			eventIDs = append(eventIDs, eventID)
+		}
+	}
+	return eventIDs
 }
 
 func missingMattermostScenarioEventError(stepIndex int, expectation mattermostScenarioEventCount) error {

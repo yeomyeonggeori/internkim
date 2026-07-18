@@ -28,6 +28,57 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 	}
 }
 
+func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testing.T) {
+	scenario, errorValue := loadMattermostScenario("../../tests/expensive/04-website-lifecycle.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if scenario.Steps[0].ExpectedToolCallCounts["site.status"] != 1 || scenario.Steps[0].ExpectedExactToolCallCounts["site.create"] != 1 {
+		t.Fatalf("unexpected create discovery contract: %#v", scenario.Steps[0])
+	}
+	for stepIndex, step := range scenario.Steps[1:] {
+		if !containsMattermostScenarioString(step.ExpectedToolCalls, "site.status") {
+			t.Fatalf("step %d does not resolve the site before mutation: %#v", stepIndex+2, step)
+		}
+		if !strings.Contains(step.Prompt, "브릿지웍스 상담 안내 사이트") {
+			t.Fatalf("step %d does not identify the site independently: %q", stepIndex+2, step.Prompt)
+		}
+	}
+}
+
+func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
+	scenario, errorValue := loadMattermostScenario("../../tests/expensive/09-document-lifecycle.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(scenario.Steps) != 5 {
+		t.Fatalf("expected one delete turn with button approval, got %d steps", len(scenario.Steps))
+	}
+	if !containsMattermostScenarioString(scenario.CapabilityToolNames, "document.read") ||
+		!containsMattermostScenarioString(scenario.InitialToolNames, "document.read") ||
+		containsMattermostScenarioString(scenario.AllowedTools, "file.preview") {
+		t.Fatalf("unexpected document tool exposure: %#v", scenario)
+	}
+	for _, stepIndex := range []int{1, 3} {
+		if !containsMattermostScenarioString(scenario.Steps[stepIndex].ExpectedToolCalls, "document.read") {
+			t.Fatalf("step %d does not use document.read: %#v", stepIndex+1, scenario.Steps[stepIndex])
+		}
+	}
+	deleteStep := scenario.Steps[len(scenario.Steps)-1]
+	if deleteStep.ApprovalAction != mattermostScenarioApprovalApprove ||
+		!containsMattermostScenarioString(deleteStep.ExpectedEvents, "confirmation.requested") ||
+		!containsMattermostScenarioString(deleteStep.ExpectedEvents, "approval.executed") {
+		t.Fatalf("unexpected delete approval flow: %#v", deleteStep)
+	}
+	skillDocument, errorValue := os.ReadFile("../../assets/blueclaw-workspace/skills/document/SKILL.md")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(skillDocument), "tool-references: document.read") {
+		t.Fatal("document skill does not reference document.read")
+	}
+}
+
 func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
 	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
@@ -162,15 +213,68 @@ func TestMattermostScenarioReportsStatusBeforeMissingExposure(t *testing.T) {
 
 func TestResolveMattermostScenarioExpectedValuesKeepsPromptNatural(t *testing.T) {
 	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{
-		Prompt:              "다가오는 금요일까지 업무를 추가해줘",
-		ExpectedEventCounts: []mattermostScenarioEventCount{{BodyFragment: "{{nextFriday}}"}},
+		Prompt: "다가오는 금요일까지 업무를 추가해줘",
+		ExpectedEventCounts: []mattermostScenarioEventCount{
+			{BodyFragment: "{{nextFriday}}"},
+			{OutputFragment: "{{tomorrow}}T10:00:00+09:00"},
+		},
 	}}}
 	resolveMattermostScenarioExpectedValues(&scenario, time.Date(2026, time.July, 16, 12, 0, 0, 0, time.UTC))
 	if got := scenario.Steps[0].ExpectedEventCounts[0].BodyFragment; got != "2026-07-17" {
 		t.Fatalf("expected next Friday, got %q", got)
 	}
+	if got := scenario.Steps[0].ExpectedEventCounts[1].OutputFragment; got != "2026-07-17T10:00:00+09:00" {
+		t.Fatalf("expected tomorrow in Asia/Seoul, got %q", got)
+	}
 	if got := scenario.Steps[0].Prompt; got != "다가오는 금요일까지 업무를 추가해줘" {
 		t.Fatalf("expected natural user prompt, got %q", got)
+	}
+}
+
+func TestResolveMattermostScenarioExpectedValuesUsesStrictFutureDatesInAsiaSeoul(t *testing.T) {
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{
+		ExpectedEventCounts: []mattermostScenarioEventCount{
+			{BodyFragment: "{{nextFriday}}"},
+			{OutputFragment: "{{tomorrow}}"},
+		},
+	}}}
+
+	resolveMattermostScenarioExpectedValues(&scenario, time.Date(2026, time.July, 17, 16, 0, 0, 0, time.UTC))
+
+	if got := scenario.Steps[0].ExpectedEventCounts[0].BodyFragment; got != "2026-07-24" {
+		t.Fatalf("expected strict-future Friday in Asia/Seoul, got %q", got)
+	}
+	if got := scenario.Steps[0].ExpectedEventCounts[1].OutputFragment; got != "2026-07-19" {
+		t.Fatalf("expected tomorrow in Asia/Seoul, got %q", got)
+	}
+}
+
+func TestMattermostScenarioCalendarMutationUsesListedEventID(t *testing.T) {
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.update"}}
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
+		{Name: "tool.calendar.update.requested", Body: `{"input":{"eventID":"event-1"}}`},
+	}
+
+	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue != nil {
+		t.Fatalf("validate listed calendar event ID: %v", errorValue)
+	}
+
+	events[1].Body = `{"input":{"eventID":"event-2"}}`
+	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue == nil {
+		t.Fatal("expected unlisted calendar event ID to fail")
+	}
+}
+
+func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing.T) {
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.delete"}}
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.calendar.delete.requested", Body: `{"input":{"eventID":"event-1"}}`},
+		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
+	}
+
+	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue == nil {
+		t.Fatal("expected calendar mutation before list to fail")
 	}
 }
 

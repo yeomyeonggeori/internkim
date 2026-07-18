@@ -1,6 +1,7 @@
 ---
 name: document
 description: Create, read, edit, and attach text documents — .docx by default, PDF on request — authored from a markdown source of truth. Use for Word documents, reports, memos, letters, templates, tracked changes review, comments, document cleanup, 워드, 문서, 보고서, 메모, 서식, PDF 보고서, or docx requests. Do not use for spreadsheets, slide decks, or manipulating existing PDF files. For standardized company forms and contracts (견적서, 품의서, 증명서, 근로계약서, NDA, quotation, invoice, certificate, contract) follow the paperwork skill, which reuses these scripts with its own document specs.
+tool-references: document.read
 ---
 
 # DOCX Documents
@@ -10,8 +11,8 @@ Create or modify Word documents as local `.docx` files, then validate and attach
 ## Workflow
 
 1. Clarify only when a missing source file, legal recipient, or required approval makes safe work impossible. For a new report, memo, guide, or template, choose a useful title, audience framing, sections, and structure from intent.
-2. For an earlier document, use the workspace file in `~/documents/`, not a delivered attachment. If `content.md` exists beside it, revise that markdown source; otherwise use the bundled editor for an append or a task-local script through the bundled runtime for a rewrite.
-3. For a newly uploaded file, preview it before exact extraction. Work directly in `~/documents/`; keep the markdown source beside the output for follow-up edits.
+2. For an earlier document, use the workspace file in `~/documents/`, not a delivered attachment. Read the exact workspace path with `document.read` before answering or changing it. If `content.md` exists beside it, revise that markdown source; otherwise use the bundled editor for an append or a task-local script through the bundled runtime for a rewrite.
+3. For a newly uploaded file, read its exact workspace path with `document.read` before extraction. Work directly in `~/documents/`; keep the markdown source beside the output for follow-up edits.
 4. For content-first documents, write complete markdown and export with `scripts/export_document.py`. Use `scripts/create_docx.py` with a spec only when precise margins, orientation, tables, columns, or fonts are the point. Let the typed file operation and bundled scripts define payload details rather than copying schemas into this guide.
 5. Run `scripts/validate_docx.py` through `scripts/skill_runtime.py`, passing source names, dates, totals, and key labels as required text and unsupported claims as forbidden text. Read warnings and revise real quality problems before delivery.
 6. Save the accepted final to `~/documents/<title>.docx` and deliver it. Keep the same filename for later edits or deletion; do not deliver intermediate files unless requested.
@@ -30,4 +31,4 @@ Bundled scripts own dependency setup through `skill_runtime.py`, which selects t
 
 ## Final check
 
-Reopen or validate the file, confirm required source facts and visible headings, inspect table fit and Korean glyphs, then attach only the accepted output. For a contract, preserve every standard clause and checklist item from its governing spec and state in the reply that it is a draft for review.
+Read the accepted file with `document.read` or validate it with the bundled validator, confirm required source facts and visible headings, inspect table fit and Korean glyphs, then attach only the accepted output. For a contract, preserve every standard clause and checklist item from its governing spec and state in the reply that it is a draft for review.
