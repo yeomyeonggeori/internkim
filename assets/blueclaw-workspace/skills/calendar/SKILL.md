@@ -18,5 +18,5 @@ Call the typed calendar operations directly; their descriptors define fields and
 - Resolve relative dates from runtime temporal context. Ask one concise question when date, time, or duration is ambiguous.
 - For all-day events, set `isAllDay` and use the next-day boundary for the end. Put attendee hints in `people` using only names, @handles, or emails supplied by the user; the requester is included by default unless the entry is delegated or an announcement.
 - Use `people` as `["전체"]` or `["@all"]` for everyone. Choose reminder leads from 1, 2, 3, 6, 12, 24, or 48 hours according to preparation needs.
-- When a named event lacks an ID, call update or delete with distinctive `query`; let the operation report none or multiple candidates. Do not claim success until it succeeds.
+- When a named event lacks an ID, call `calendar.list`, resolve exactly one matching event, and pass its exact `eventID` to `calendar.update` or `calendar.delete`. Ask the user when the list returns none or multiple plausible events.
 - Report created, updated, or listed events in a compact Markdown table. External attendee invitations are not supported; mention that CalDAV clients can add them after sync.
