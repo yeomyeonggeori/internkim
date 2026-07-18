@@ -18,6 +18,7 @@ type calendarBackfillEvent struct {
 	DeletedAt      string
 	FieldChangedAt map[string]time.Time
 	AcknowledgedAt map[string]time.Time
+	PendingActions map[string]bool
 }
 
 type calendarBackfillFieldGroup struct {
@@ -33,7 +34,7 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, transaction *s
 	if target.CalendarURL == "" {
 		return false, nil
 	}
-	events, errorValue := readCalendarBackfillEvents(ctx, transaction, account.ID, target.CalendarURL)
+	events, errorValue := readCalendarBackfillState(ctx, transaction, account.ID, target.CalendarURL)
 	if errorValue != nil {
 		return false, errorValue
 	}
@@ -52,11 +53,7 @@ func enqueueCalendarBackfillOutboxWithRunner(ctx context.Context, transaction *s
 		if len(changedFields) == 0 {
 			continue
 		}
-		hasPendingPut, errorValue := hasPendingCalendarPutForTargetWithRunner(ctx, transaction, account.ID, event.UID, target)
-		if errorValue != nil {
-			return false, errorValue
-		}
-		if hasPendingPut {
+		if event.PendingActions[calendarOutboxOperationPut] {
 			continue
 		}
 		remoteHref := ""
@@ -91,9 +88,8 @@ func enqueueCalendarDeletionBackfill(ctx context.Context, transaction *sql.Tx, a
 	if !belongsToTarget && !calendarBackfillTargetHasEventEvidence(event) {
 		return false, nil
 	}
-	hasPendingDelete, errorValue := hasPendingCalendarDeleteForTargetWithRunner(ctx, transaction, account.ID, event.UID, target)
-	if errorValue != nil || hasPendingDelete {
-		return false, errorValue
+	if event.PendingActions[calendarOutboxOperationDelete] {
+		return false, nil
 	}
 	row := calendarOutboxRow{
 		AccountID: account.ID,
@@ -109,57 +105,6 @@ func enqueueCalendarDeletionBackfill(ctx context.Context, transaction *sql.Tx, a
 		return false, errorValue
 	}
 	return true, nil
-}
-
-func hasPendingCalendarDeleteForTargetWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string, eventUID string, target remoteCalendarTarget) (bool, error) {
-	rows, errorValue := queryRunner.QueryContext(ctx, `
-SELECT id
-FROM calendar_outbox
-WHERE account_id = ? AND target_calendar_url = ? AND event_uid = ? AND operation = ? AND status IN (?, ?)
-LIMIT 1`, accountID, normalizeCalendarOutboxTargetURL(target.CalendarURL), eventUID, calendarOutboxOperationDelete, calendarOutboxStatusPending, calendarOutboxStatusBlocked)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	defer rows.Close()
-	return rows.Next(), rows.Err()
-}
-
-func readCalendarBackfillEvents(ctx context.Context, queryRunner calendarSQLRunner, accountID string, calendarURL string) ([]calendarBackfillEvent, error) {
-	rows, errorValue := queryRunner.QueryContext(ctx, `
-	SELECT event.id, event.uid, event.raw_ics, event.remote_etag, event.remote_href, event.remote_source, event.updated_at, event.deleted_at
-	FROM calendar_events event
-WHERE event.deleted_at = '' OR EXISTS (
-	SELECT 1 FROM calendar_event_field_clocks clock
-	WHERE clock.event_uid = event.uid AND clock.field = ?
-)
-ORDER BY start_at, title`, calendarEventDeletionClockField)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	events := []calendarBackfillEvent{}
-	for rows.Next() {
-		var event calendarBackfillEvent
-		if errorValue := rows.Scan(&event.ID, &event.UID, &event.RawICS, &event.RemoteETag, &event.RemoteHref, &event.RemoteSource, &event.UpdatedAt, &event.DeletedAt); errorValue != nil {
-			return nil, errorValue
-		}
-		events = append(events, event)
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return nil, errorValue
-	}
-	fieldClocks, errorValue := readCalendarEventFieldClocks(ctx, queryRunner)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	for index := range events {
-		events[index].FieldChangedAt = fieldClocks[events[index].UID]
-		events[index].AcknowledgedAt, errorValue = readCalendarTargetFieldAcknowledgements(ctx, queryRunner, accountID, calendarURL, events[index].UID)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-	}
-	return events, nil
 }
 
 func calendarBackfillChangedFields(event calendarBackfillEvent, belongsToTarget bool) []string {
