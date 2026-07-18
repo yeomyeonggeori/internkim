@@ -143,10 +143,13 @@ func readCalendarTokenFile(path string, key []byte) (oauthTokenPayload, error) {
 }
 
 func deleteCalendarTokenFile(path string) error {
-	if errorValue := os.Remove(path); errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+	if errorValue := os.Remove(path); errorValue != nil {
+		if errors.Is(errorValue, os.ErrNotExist) {
+			return nil
+		}
 		return errorValue
 	}
-	return nil
+	return syncParentDirectory(path)
 }
 
 func writeFileAtomically(path string, payload []byte, mode os.FileMode) error {
@@ -180,7 +183,33 @@ func writeFileAtomically(path string, payload []byte, mode os.FileMode) error {
 		cleanup()
 		return errorValue
 	}
-	return nil
+	return syncParentDirectory(path)
+}
+
+func renameCalendarTokenFile(sourcePath string, destinationPath string) error {
+	if errorValue := os.Rename(sourcePath, destinationPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := syncParentDirectory(destinationPath); errorValue != nil {
+		rollbackError := os.Rename(destinationPath, sourcePath)
+		if rollbackError == nil {
+			rollbackError = syncParentDirectory(sourcePath)
+		}
+		return errors.Join(errorValue, rollbackError)
+	}
+	if filepath.Dir(sourcePath) == filepath.Dir(destinationPath) {
+		return nil
+	}
+	return syncParentDirectory(sourcePath)
+}
+
+func syncParentDirectory(path string) error {
+	directory, errorValue := os.Open(filepath.Dir(path))
+	if errorValue != nil {
+		return errorValue
+	}
+	defer directory.Close()
+	return directory.Sync()
 }
 
 func sanitizeCalendarSecretComponent(value string) string {
