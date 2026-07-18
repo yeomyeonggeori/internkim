@@ -111,6 +111,8 @@ type Service struct {
 	calendarSyncCycleMutex     sync.Mutex
 	calendarRemoteMutex        sync.Mutex
 	calendarOAuthTokenMutex    sync.Mutex
+	calendarNotificationMutex  sync.Mutex
+	calendarNotificationStates map[string]*calendarNotificationReconciliationState
 	calendarSwitchWaiters      atomic.Int64
 	calendarStoreWriteMutex    sync.Mutex
 	calendarCandidateClock     calendarConflictCandidateClock
@@ -306,6 +308,7 @@ func NewService(configuration Configuration) *Service {
 		mailBackend:                standardMailBackend{},
 		calendarSyncWakeUp:         make(chan struct{}, 1),
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
+		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
 		companyShareAttempts:       map[string]companyShareAttempt{},
 		requestMetrics:             newAdminRequestMetrics(),
