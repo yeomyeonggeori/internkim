@@ -191,20 +191,19 @@ func loadMattermostScenario(filePath string) (mattermostScenario, error) {
 	if errorValue := requireJSONEnd(decoder); errorValue != nil {
 		return mattermostScenario{}, errorValue
 	}
-	resolveMattermostScenarioRuntimeValues(&scenario, time.Now())
+	resolveMattermostScenarioExpectedValues(&scenario, time.Now())
 	if errorValue := validateMattermostScenario(scenario); errorValue != nil {
 		return mattermostScenario{}, errorValue
 	}
 	return scenario, nil
 }
 
-func resolveMattermostScenarioRuntimeValues(scenario *mattermostScenario, currentTime time.Time) {
+func resolveMattermostScenarioExpectedValues(scenario *mattermostScenario, currentTime time.Time) {
 	if scenario == nil {
 		return
 	}
 	nextFriday := currentTime.AddDate(0, 0, (int(time.Friday)-int(currentTime.Weekday())+7)%7).Format("2006-01-02")
 	for stepIndex := range scenario.Steps {
-		scenario.Steps[stepIndex].Prompt = replaceMattermostScenarioRuntimeValues(scenario.Steps[stepIndex].Prompt, nextFriday)
 		for eventIndex := range scenario.Steps[stepIndex].ExpectedEventCounts {
 			eventCount := &scenario.Steps[stepIndex].ExpectedEventCounts[eventIndex]
 			eventCount.BodyFragment = replaceMattermostScenarioRuntimeValues(eventCount.BodyFragment, nextFriday)
