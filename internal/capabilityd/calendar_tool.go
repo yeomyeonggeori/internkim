@@ -151,11 +151,11 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	if isCalendarDuplicateCandidateResult(result) {
 		return calendarToolDuplicateCandidateResponse(request.ToolName, result), nil
 	}
-	normalizedResult, event, errorValue := normalizeCalendarEventResult(result, input.EventID)
+	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, input.EventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolMutationResponse(request.ToolName, "created", normalizedResult, event.EventID, "created"), nil
+	return capabilityMutationResponse(request.ToolName, "created", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -204,11 +204,11 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	normalizedResult, event, errorValue := normalizeCalendarEventResult(result, target.EventID)
+	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, target.EventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolMutationResponse(request.ToolName, "updated", normalizedResult, event.EventID, "updated"), nil
+	return capabilityMutationResponse(request.ToolName, "updated", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -232,7 +232,7 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": target.EventID, "deleted": true})
-	return calendarToolMutationResponse(request.ToolName, "deleted", result, target.EventID, "deleted"), nil
+	return capabilityMutationResponse(request.ToolName, "deleted", result)
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWriteInput, error) {
@@ -682,16 +682,6 @@ func calendarToolResponse(toolName string, status string, result json.RawMessage
 		Status:          status,
 		Result:          result,
 	}
-}
-
-func calendarToolMutationResponse(toolName string, status string, result json.RawMessage, eventID string, effect string) capabilities.ToolInvokeResponse {
-	response := calendarToolResponse(toolName, status, result)
-	response.Effects = []capabilities.ResourceEffect{{
-		ObjectType: "calendar",
-		Effect:     effect,
-		ID:         eventID,
-	}}
-	return response
 }
 
 func isCalendarDuplicateCandidateResult(result json.RawMessage) bool {
