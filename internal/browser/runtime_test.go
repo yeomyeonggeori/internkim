@@ -147,6 +147,31 @@ func TestAgentBrowserRuntimeNavigateUsesSnapshotURLWhenCurrentURLIsStale(t *test
 	}
 }
 
+func TestAgentBrowserRuntimeNavigateRecordsCaptureTimeWithoutSnapshot(t *testing.T) {
+	capturedAt := time.Date(2026, 7, 19, 1, 2, 3, 0, time.UTC)
+	runner := &sequenceCommandRunner{results: []commandResult{
+		{output: []byte("ok\n")},
+		{output: []byte("https://example.com/dashboard\n")},
+		{errorValue: errors.New("snapshot failed")},
+	}}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+		Now:                func() time.Time { return capturedAt },
+	}
+
+	result, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com/dashboard"})
+
+	if errorValue != nil {
+		t.Fatalf("expected current URL to preserve successful navigation: %v", errorValue)
+	}
+	if result.CapturedAt != capturedAt.Format(time.RFC3339) {
+		t.Fatalf("expected canonical capture time, got %+v", result)
+	}
+}
+
 func TestAgentBrowserRuntimeStartsSessionAfterOpenSettleTimeout(t *testing.T) {
 	runner := &openTimeoutCommandRunner{
 		currentURL: "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4",
