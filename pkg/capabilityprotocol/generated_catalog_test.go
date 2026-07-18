@@ -15,8 +15,8 @@ func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 8 {
-		t.Fatalf("expected eight generated tool descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) != 10 {
+		t.Fatalf("expected ten generated tool descriptors, got %d", len(catalog.tools))
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)
@@ -44,10 +44,12 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 		"calendar.list",
 		"calendar.update",
 		"calendar.delete",
+		"document.read",
+		"image.read",
 	}
 	firstDescriptors := MustGeneratedToolDescriptors(names...)
-	if len(firstDescriptors) != 8 {
-		t.Fatalf("expected eight tool descriptors, got %d", len(firstDescriptors))
+	if len(firstDescriptors) != 10 {
+		t.Fatalf("expected ten tool descriptors, got %d", len(firstDescriptors))
 	}
 	firstDescriptors[0].InputSchema[0] = 'x'
 	firstDescriptors[0].ResultContract.Effects[0].Effect = "changed"

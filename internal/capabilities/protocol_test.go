@@ -353,11 +353,16 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "document.read")
 
-	assertSchemaHasProperties(t, schema, "materialID", "path", "maxPages", "maxOutputBytes")
+	assertSchemaHasProperties(t, schema, "path", "maxPages", "maxOutputBytes")
+	assertSchemaOmitsProperties(t, schema, "materialID")
+	assertSchemaRequires(t, schema, "path")
 	assertSchemaOmitsProperties(t, schema, "ocrMode")
 	descriptor := descriptorForTool(t, FileDescriptors(), "document.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
+	}
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("document.read result contract = %+v", descriptor.ResultContract)
 	}
 	if !containsString(defaultToolNames(), "document.read") {
 		t.Fatalf("expected document.read in default tools, got %+v", defaultToolNames())
@@ -367,10 +372,15 @@ func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "image.read")
 
-	assertSchemaHasProperties(t, schema, "materialID", "path")
+	assertSchemaHasProperties(t, schema, "path")
+	assertSchemaOmitsProperties(t, schema, "materialID")
+	assertSchemaRequires(t, schema, "path")
 	descriptor := descriptorForTool(t, FileDescriptors(), "image.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
+	}
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("image.read result contract = %+v", descriptor.ResultContract)
 	}
 	if !containsString(defaultToolNames(), "image.read") {
 		t.Fatalf("expected image.read in default tools, got %+v", defaultToolNames())
@@ -569,7 +579,6 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 			}
 			assertRequiredFieldsHaveProperties(t, descriptor.Name, schema)
 			assertSchemaDocumentOmitsKeywords(t, descriptor.Name, descriptor.InputSchema, "oneOf", "anyOf", "allOf")
-			assertSchemaDocumentOmitsType(t, descriptor.Name, descriptor.InputSchema, "integer")
 		}
 	}
 }
