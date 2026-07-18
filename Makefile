@@ -54,6 +54,8 @@ check: build build-companion
 	cd web && bun run test:unit
 	cd mattermost-plugin/internkim-ephemeral && bun test webapp
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
+	cd .dependency/blueclaw/protocol && bun run generate:check
+	cd .dependency/blueclaw/protocol && bun run generate:check --target ../../../pkg/capabilityprotocol/generated
 	cd .dependency/blueclaw/protocol && bun run build
 	cd .dependency/blueclaw/protocol && bun test
 	cd .dependency/blueclaw/sdkd && bun install --frozen-lockfile
