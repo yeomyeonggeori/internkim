@@ -46,6 +46,27 @@ func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
+	for _, schemaName := range []string{"blueclaw_operation_contract", "blueclaw_operation_contract_review"} {
+		t.Run(schemaName, func(t *testing.T) {
+			scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+			result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+				Prompt: "work",
+				TaskEvents: []mattermostScenarioTaskEvent{
+					{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+					{Name: "llm.call", Body: `{"schemaName":"` + schemaName + `","transport":"capability","provider":"openrouter","model":"model","selectedBackend":"remote","usedFallback":true}`},
+					{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+				},
+			}}}
+
+			errorValue := validateMattermostScenarioResult(scenario, &result)
+			if errorValue == nil || !strings.Contains(errorValue.Error(), schemaName) {
+				t.Fatalf("expected %s fallback to fail, got %v", schemaName, errorValue)
+			}
+		})
+	}
+}
+
 func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{

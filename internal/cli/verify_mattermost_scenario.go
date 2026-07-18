@@ -636,7 +636,14 @@ func missingMattermostScenarioEventError(stepIndex int, expectation mattermostSc
 
 func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
 	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
-	requiredSchemaNameSet := testStringSet(requiredSchemaNames)
+	authoritativeSchemaNameSet := testStringSet([]string{
+		"blueclaw_agent_turn_action",
+		"blueclaw_agent_turn_finalizer",
+		"blueclaw_turn_router",
+		"blueclaw_recovery_decision",
+		"blueclaw_operation_contract",
+		"blueclaw_operation_contract_review",
+	})
 	successfulSchemaNames := map[string]bool{}
 	for _, event := range events {
 		if event.Name != "llm.call" {
@@ -655,7 +662,7 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		if json.Unmarshal([]byte(event.Body), &call) != nil {
 			continue
 		}
-		if !requiredSchemaNameSet[call.SchemaName] {
+		if !authoritativeSchemaNameSet[call.SchemaName] {
 			continue
 		}
 		if call.Transport != "sdkd" {
