@@ -119,7 +119,7 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 		Content:   content,
 		Backend:   backend,
 		Model:     model,
-		Warnings:  helperResponse.Warnings,
+		Warnings:  warnings,
 		Truncated: isTruncated,
 	}
 	resultDocument, errorValue := json.Marshal(result)
