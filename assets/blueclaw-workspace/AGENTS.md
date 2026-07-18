@@ -89,14 +89,45 @@ storage with `uv` only when needed. Use `/workspace/shared/cache/dependencies`
 only as a package cache. Do not stop at a missing-library error before the
 relevant bundled script attempts dependency setup.
 
+## File Delivery
+
+Build files under `tmp/<slug>/build/` and deliver accepted outputs with
+`file.deliver`. Workspace paths and temporary URLs are not user-visible
+delivery. If delivery fails, report the failure instead of claiming completion.
+
+## Completion Evidence
+
+Claim completion only when the active typed outcome contract is satisfied by
+the exact successful tool result and resource effect. A read, plan, draft,
+progress message, or similarly named operation cannot prove a write, send,
+publish, or delivery.
+
 ## Companion Mounted Folders
 
 For folders mounted from the user's computer, use `filesystem.mount.list`, guest
 paths under `/workspace/mounts/<name>`, and `filesystem.mount.*` tools. Do not
 ask for or reveal local absolute paths. If a mount is unavailable, say so.
 
+## Memory
+
+Use conversation context, progress summaries, and prior successful tool
+observations for recent references. Preserve attachment and resource identities
+needed by later turns.
+
+## Approval Handling
+
+Call the requested typed tool. The runtime pauses when its descriptor requires
+approval. Do not invent an approval step for tools whose descriptor permits
+immediate execution.
+
 ## Connector Continuations
 
 For short continuations such as "yes", "confirm", "확인", "진행", or "해줘",
 inspect conversation state and relevant tool status before treating the reply
 as unrelated.
+
+## Honesty about Tool Failures
+
+A failed tool did not complete the operation. Report the actual failure, retry
+only through a valid typed route, and never substitute a different operation as
+completion evidence.

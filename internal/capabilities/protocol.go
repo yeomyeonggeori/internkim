@@ -24,11 +24,20 @@ const (
 	CapabilityNotConnected = capabilityprotocol.CapabilityNotConnected
 	CapabilityNotReady     = capabilityprotocol.CapabilityNotReady
 	CapabilityNotAllowed   = capabilityprotocol.CapabilityNotAllowed
+
+	ToolOutcomeSucceeded = capabilityprotocol.ToolOutcomeSucceeded
+	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
+	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
 )
 
 type Descriptor = capabilityprotocol.Descriptor
 type ToolDescriptor = capabilityprotocol.ToolDescriptor
 type CompletionEvidenceDescriptor = capabilityprotocol.CompletionEvidenceDescriptor
+type ToolResultContract = capabilityprotocol.ToolResultContract
+type ResourceEffectContract = capabilityprotocol.ResourceEffectContract
+type ResourceEffect = capabilityprotocol.ResourceEffect
+type ToolOutcome = capabilityprotocol.ToolOutcome
+type ResourceEffectIdentity = capabilityprotocol.ResourceEffectIdentity
 type AvailabilityMetadata = capabilityprotocol.AvailabilityMetadata
 type IdempotencyMetadata = capabilityprotocol.IdempotencyMetadata
 type RegistryResponse = capabilityprotocol.RegistryResponse
@@ -168,10 +177,10 @@ func MattermostDescriptors() []Descriptor {
 
 func FlowDescriptors() []Descriptor {
 	return canonicalizeDescriptors([]Descriptor{
-		{Name: "task.add", CanonicalName: "task.add", Namespace: "task", ModelName: "task.add", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "task.list", CanonicalName: "task.list", Namespace: "task", ModelName: "task.list", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:task.list", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "task.update", CanonicalName: "task.update", Namespace: "task", ModelName: "task.update", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Update explicit fields on an existing task. taskID must be copied from a task.list result; use task.list first when the ID is unknown. At least one mutable field is required.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "task.delete", CanonicalName: "task.delete", Namespace: "task", ModelName: "task.delete", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Permanently delete a task by the exact taskID from a task.list result. Use task.list first when the ID is unknown. Requires approval; this action is irreversible.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "destructive", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
+		{Name: "task.add", CanonicalName: "task.add", Namespace: "task", ModelName: "task.add", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.", Version: "3", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), ResultContract: taskResultContract(flowTaskResultSchema(), "created"), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
+		{Name: "task.list", CanonicalName: "task.list", Namespace: "task", ModelName: "task.list", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.", Version: "2", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:task.list", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), ResultContract: &capabilityprotocol.ToolResultContract{Schema: flowTaskListResultSchema()}, InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
+		{Name: "task.update", CanonicalName: "task.update", Namespace: "task", ModelName: "task.update", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Update explicit fields on an existing task. taskID must be copied from a task.list result; use task.list first when the ID is unknown. At least one mutable field is required.", Version: "3", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), ResultContract: taskResultContract(flowTaskResultSchema(), "updated"), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
+		{Name: "task.delete", CanonicalName: "task.delete", Namespace: "task", ModelName: "task.delete", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Permanently delete a task by the exact taskID from a task.list result. Use task.list first when the ID is unknown. Requires approval; this action is irreversible.", Version: "3", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), ResultContract: taskResultContract(flowTaskDeleteResultSchema(), "deleted"), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "destructive", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
 	})
 }
 
@@ -280,6 +289,68 @@ func flowTaskUpdateInputSchema() json.RawMessage {
 func flowTaskDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("taskID", jsonschema.String().WithDescription("Exact ID of the task to delete, copied from a task.list result.")),
+	).RawMessage()
+}
+
+func taskResultContract(schema json.RawMessage, effect string) *capabilityprotocol.ToolResultContract {
+	return &capabilityprotocol.ToolResultContract{
+		Schema: schema,
+		Effects: []capabilityprotocol.ResourceEffectContract{{
+			ObjectType:     "task",
+			Effect:         effect,
+			ResultField:    "taskID",
+			EffectIdentity: capabilityprotocol.ResourceEffectIdentityID,
+		}},
+	}
+}
+
+func flowTaskResultSchema() json.RawMessage {
+	personSchema := jsonschema.Object(
+		jsonschema.Field("personID", jsonschema.String()),
+		jsonschema.Field("displayName", jsonschema.String()),
+		jsonschema.Field("email", jsonschema.String()),
+		jsonschema.Field("mattermostUsername", jsonschema.String()),
+		jsonschema.Field("mention", jsonschema.String()),
+	)
+	return jsonschema.Object(
+		jsonschema.Required("taskID", jsonschema.String()),
+		jsonschema.Field("ownerID", jsonschema.String()),
+		jsonschema.Field("ownerName", jsonschema.String()),
+		jsonschema.Field("participantIDs", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("participantNames", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("participantPresentations", jsonschema.Array(personSchema)),
+		jsonschema.Field("business", jsonschema.String()),
+		jsonschema.Field("type", jsonschema.String()),
+		jsonschema.Field("content", jsonschema.String()),
+		jsonschema.Field("goal", jsonschema.String()),
+		jsonschema.Field("size", jsonschema.String()),
+		jsonschema.Field("status", jsonschema.String()),
+		jsonschema.Field("startDate", jsonschema.String()),
+		jsonschema.Field("endDate", jsonschema.String()),
+		jsonschema.Field("weekCode", jsonschema.String()),
+		jsonschema.Field("flag", jsonschema.Integer()),
+		jsonschema.Field("requestReason", jsonschema.String()),
+		jsonschema.Field("decisionReason", jsonschema.String()),
+		jsonschema.Field("mattermostPostID", jsonschema.String()),
+	).RawMessage()
+}
+
+func flowTaskListResultSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("tasks", jsonschema.Array(jsonschema.Raw(flowTaskResultSchema()))),
+		jsonschema.Required("count", jsonschema.Integer()),
+		jsonschema.Required("scope", jsonschema.String()),
+		jsonschema.Field("weekFrom", jsonschema.Integer()),
+		jsonschema.Field("weekTo", jsonschema.Integer()),
+		jsonschema.Field("statusFilter", jsonschema.String()),
+		jsonschema.Field("ownerID", jsonschema.String()),
+	).RawMessage()
+}
+
+func flowTaskDeleteResultSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("taskID", jsonschema.String()),
+		jsonschema.Required("deleted", jsonschema.Raw(json.RawMessage(`{"type":"boolean","const":true}`))),
 	).RawMessage()
 }
 

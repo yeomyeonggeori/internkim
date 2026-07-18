@@ -9,7 +9,7 @@ import (
 const (
 	ModelVisibilityVisible = "visible"
 	ModelVisibilityHidden  = "hidden"
-	AvailabilityOK         = "ok"
+	AvailabilityOK         = CapabilityAvailable
 )
 
 const (
@@ -42,6 +42,20 @@ var sideEffectClasses = map[string]struct{}{
 	SideEffectWorkspaceWrite:  {},
 }
 
+var estimatedLatencies = map[string]struct{}{
+	"low":         {},
+	"medium":      {},
+	"high":        {},
+	"interactive": {},
+}
+
+var availabilityStates = map[string]struct{}{
+	CapabilityAvailable:    {},
+	CapabilityNotAllowed:   {},
+	CapabilityNotConnected: {},
+	CapabilityNotReady:     {},
+}
+
 type DescriptorIdentity struct {
 	Name            string
 	CanonicalName   string
@@ -59,6 +73,7 @@ type DescriptorMetadata struct {
 	WorksOffline         bool
 	InputSchema          json.RawMessage
 	OutputSchema         json.RawMessage
+	ResultContract       *ToolResultContract
 	PolicyResource       string
 	SideEffect           string
 	RequiresApproval     bool
@@ -90,6 +105,7 @@ func NewDescriptor(definition DescriptorDefinition) Descriptor {
 		OutputSchema:         strictSchema(definition.Metadata.OutputSchema),
 		InputSchemaStrict:    true,
 		OutputSchemaStrict:   true,
+		ResultContract:       canonicalResultContract(definition.Metadata.ResultContract),
 		PolicyResource:       definition.Metadata.PolicyResource,
 		SideEffectClass:      definition.Metadata.SideEffect,
 		SideEffect:           definition.Metadata.SideEffect,
@@ -132,6 +148,17 @@ func canonicalizeSchemas(descriptors []Descriptor) {
 	for index := range descriptors {
 		descriptors[index].InputSchema = strictSchema(descriptors[index].InputSchema)
 		descriptors[index].OutputSchema = strictSchema(descriptors[index].OutputSchema)
+		descriptors[index].ResultContract = canonicalResultContract(descriptors[index].ResultContract)
+	}
+}
+
+func canonicalResultContract(contract *ToolResultContract) *ToolResultContract {
+	if contract == nil {
+		return nil
+	}
+	return &ToolResultContract{
+		Schema:  strictSchema(contract.Schema),
+		Effects: append([]ResourceEffectContract{}, contract.Effects...),
 	}
 }
 
@@ -172,8 +199,8 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if strings.TrimSpace(descriptor.PrivacyClass) == "" {
 		return fmt.Errorf("privacyClass is required")
 	}
-	if strings.TrimSpace(descriptor.EstimatedLatency) == "" {
-		return fmt.Errorf("estimatedLatency is required")
+	if _, found := estimatedLatencies[descriptor.EstimatedLatency]; !found {
+		return fmt.Errorf("estimatedLatency is invalid")
 	}
 	if strings.TrimSpace(descriptor.Description) == "" {
 		return fmt.Errorf("description is required")
@@ -208,6 +235,9 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if !descriptor.OutputSchemaStrict || !isStrictSchema(descriptor.OutputSchema) {
 		return fmt.Errorf("outputSchema must be a strict object schema")
 	}
+	if errorValue := validateResultContract(descriptor.ResultContract); errorValue != nil {
+		return errorValue
+	}
 	if _, found := sideEffectClasses[descriptor.SideEffect]; !found {
 		return fmt.Errorf("sideEffect %q is invalid", descriptor.SideEffect)
 	}
@@ -217,13 +247,67 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if strings.TrimSpace(descriptor.PolicyResource) == "" {
 		return fmt.Errorf("policyResource is required")
 	}
-	if descriptor.Availability.State != AvailabilityOK {
-		return fmt.Errorf("availability.state must be %q", AvailabilityOK)
+	if _, found := availabilityStates[descriptor.Availability.State]; !found {
+		return fmt.Errorf("availability.state is invalid")
 	}
-	if descriptor.Idempotency.Scope == "" {
+	if strings.TrimSpace(descriptor.Idempotency.Scope) == "" {
 		return fmt.Errorf("idempotency.scope is required")
 	}
 	return nil
+}
+
+func validateResultContract(contract *ToolResultContract) error {
+	if contract == nil {
+		return nil
+	}
+	if !isStrictSchema(contract.Schema) {
+		return fmt.Errorf("resultContract.schema must be a strict object schema")
+	}
+	seenEffects := map[string]bool{}
+	for _, effectContract := range contract.Effects {
+		objectType := strings.TrimSpace(effectContract.ObjectType)
+		effect := strings.TrimSpace(effectContract.Effect)
+		resultField := strings.TrimSpace(effectContract.ResultField)
+		if objectType == "" || effect == "" || resultField == "" {
+			return fmt.Errorf("resultContract effect must include objectType, effect, and resultField")
+		}
+		if effectContract.EffectIdentity != ResourceEffectIdentityID &&
+			effectContract.EffectIdentity != ResourceEffectIdentityPath &&
+			effectContract.EffectIdentity != ResourceEffectIdentityURL {
+			return fmt.Errorf("resultContract effectIdentity is invalid")
+		}
+		if !schemaRequiresStringField(contract.Schema, resultField) {
+			return fmt.Errorf("resultContract resultField must name a required string property")
+		}
+		effectKey := objectType + "\x00" + effect
+		if seenEffects[effectKey] {
+			return fmt.Errorf("resultContract effect is duplicated")
+		}
+		seenEffects[effectKey] = true
+	}
+	return nil
+}
+
+func schemaRequiresStringField(document json.RawMessage, fieldName string) bool {
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	if json.Unmarshal(document, &schema) != nil {
+		return false
+	}
+	var property struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(schema.Properties[fieldName], &property) != nil || property.Type != "string" {
+		return false
+	}
+	for _, requiredField := range schema.Required {
+		if requiredField == fieldName {
+			return true
+		}
+	}
+	return false
 }
 
 func strictSchema(document json.RawMessage) json.RawMessage {
