@@ -95,6 +95,16 @@ CREATE TABLE IF NOT EXISTS calendar_event_notifications (
 	if errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx, `
+CREATE INDEX IF NOT EXISTS calendar_event_notifications_status_notify_at_idx
+ON calendar_event_notifications(status, notify_at)`); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx, `
+CREATE INDEX IF NOT EXISTS calendar_events_active_end_start_idx
+ON calendar_events(end_at, start_at) WHERE deleted_at = ''`); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS calendar_properties (
 	calendar_path TEXT NOT NULL,
