@@ -143,7 +143,7 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	if failure != nil {
 		return *failure, nil
 	}
-	resolvedInput, errorValue := injectCalendarEventID(request.Input, target.ID)
+	resolvedInput, errorValue := mergeCalendarEventUpdateInput(request.Input, target.Event)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -185,17 +185,6 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": target.ID, "deleted": true})
 	return calendarToolResponse(request.ToolName, "deleted", result), nil
-}
-
-func injectCalendarEventID(document json.RawMessage, eventID string) (json.RawMessage, error) {
-	values := map[string]any{}
-	if len(bytes.TrimSpace(document)) > 0 {
-		if errorValue := json.Unmarshal(document, &values); errorValue != nil {
-			return nil, errorValue
-		}
-	}
-	values["eventID"] = eventID
-	return json.Marshal(values)
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {
