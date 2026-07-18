@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,6 +29,12 @@ type documentReadInput struct {
 	Path           string `json:"path"`
 	MaxPages       int    `json:"maxPages"`
 	MaxOutputBytes int    `json:"maxOutputBytes"`
+}
+
+type documentReadInputDocument struct {
+	Path           string `json:"path"`
+	MaxPages       *int   `json:"maxPages"`
+	MaxOutputBytes *int   `json:"maxOutputBytes"`
 }
 
 type imageReadInput struct {
@@ -55,8 +62,22 @@ type documentReadResult struct {
 	Content   string   `json:"content"`
 	Backend   string   `json:"backend,omitempty"`
 	Model     string   `json:"model,omitempty"`
-	Warnings  []string `json:"warnings,omitempty"`
-	Truncated bool     `json:"truncated,omitempty"`
+	Warnings  []string `json:"warnings"`
+	Truncated bool     `json:"truncated"`
+}
+
+type imageReadAttachment struct {
+	DevicePath    string `json:"devicePath"`
+	Filename      string `json:"filename"`
+	ContentType   string `json:"contentType"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	ContentBase64 string `json:"contentBase64"`
+}
+
+type imageReadResult struct {
+	Status      string                `json:"status"`
+	Path        string                `json:"path"`
+	Attachments []imageReadAttachment `json:"attachments"`
 }
 
 type documentConversionAttempt struct {
@@ -68,25 +89,29 @@ type documentConversionAttempt struct {
 func (service Service) invokeDocumentReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodeDocumentReadInput(request.Input)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
 	}
 	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
 	}
 	contentType := detectWorkspaceFileContentType(hostPath)
 	if strings.HasPrefix(contentType, "image/") {
-		return documentReadErrorResponse(request.ToolName, "image files must be read with image.read", "use_image_read", "content_type", false), nil
+		return fileReadErrorResponse(request.ToolName, "image files must be read with image.read", "use_image_read", "content_type", false), nil
 	}
 	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "markitdown_conversion", true), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "markitdown_conversion", true), nil
 	}
 	content := strings.TrimSpace(helperResponse.Content)
 	if content == "" {
-		return documentReadErrorResponse(request.ToolName, "converted file content was empty", "document_read_empty", "markitdown_conversion", false), nil
+		return fileReadErrorResponse(request.ToolName, "converted file content was empty", "document_read_empty", "markitdown_conversion", false), nil
 	}
 	content, isTruncated := truncateTextByBytes(content, input.MaxOutputBytes)
+	warnings := helperResponse.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
 	result := documentReadResult{
 		Status:    "ok",
 		Path:      agentPath,
@@ -105,6 +130,8 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 		Provider:        "markitdown",
 		SelectedBackend: selectedDocumentBackend(backend),
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         []capabilities.ResourceEffect{},
 		Status:          "ok",
 		Content:         content,
 		Result:          resultDocument,
@@ -114,36 +141,36 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 func (service Service) invokeImageReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodeImageReadInput(request.Input)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
 	}
 	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
 	}
 	contentType := detectWorkspaceFileContentType(hostPath)
 	if !strings.HasPrefix(contentType, "image/") {
-		return documentReadErrorResponse(request.ToolName, "non-image files must be read with document.read or file.read", "use_document_read", "content_type", false), nil
+		return fileReadErrorResponse(request.ToolName, "non-image files must be read with document.read or file.read", "use_document_read", "content_type", false), nil
 	}
 	fileInformation, errorValue := os.Stat(hostPath)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "image_stat_failed", "path_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "image_stat_failed", "path_validation", false), nil
 	}
 	if fileInformation.Size() > maximumInputImagePartBytes {
-		return documentReadErrorResponse(request.ToolName, "image is larger than the model input limit", "image_too_large", "image_read", false), nil
+		return fileReadErrorResponse(request.ToolName, "image is larger than the model input limit", "image_too_large", "image_read", false), nil
 	}
 	document, errorValue := os.ReadFile(hostPath)
 	if errorValue != nil {
-		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "image_read_failed", "image_read", true), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "image_read_failed", "image_read", true), nil
 	}
-	result := map[string]any{
-		"status": "ok",
-		"path":   agentPath,
-		"attachments": []map[string]any{{
-			"devicePath":    agentPath,
-			"filename":      filepath.Base(agentPath),
-			"contentType":   contentType,
-			"sizeBytes":     fileInformation.Size(),
-			"contentBase64": base64.StdEncoding.EncodeToString(document),
+	result := imageReadResult{
+		Status: "ok",
+		Path:   agentPath,
+		Attachments: []imageReadAttachment{{
+			DevicePath:    agentPath,
+			Filename:      filepath.Base(agentPath),
+			ContentType:   contentType,
+			SizeBytes:     fileInformation.Size(),
+			ContentBase64: base64.StdEncoding.EncodeToString(document),
 		}},
 	}
 	resultDocument, errorValue := json.Marshal(result)
@@ -154,6 +181,8 @@ func (service Service) invokeImageReadTool(ctx context.Context, request capabili
 		Provider:        "workspace",
 		SelectedBackend: capabilities.LLMBackendDevice,
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         []capabilities.ResourceEffect{},
 		Status:          "ok",
 		Content:         "image loaded",
 		Result:          resultDocument,
@@ -161,29 +190,34 @@ func (service Service) invokeImageReadTool(ctx context.Context, request capabili
 }
 
 func decodeDocumentReadInput(document json.RawMessage) (documentReadInput, error) {
-	var input documentReadInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	var documentInput documentReadInputDocument
+	if errorValue := decodeStrictFileReadInput(document, &documentInput); errorValue != nil {
 		return documentReadInput{}, errorValue
 	}
-	input.Path = strings.TrimSpace(input.Path)
-	if input.Path == "" {
+	path := strings.TrimSpace(documentInput.Path)
+	if path == "" {
 		return documentReadInput{}, errors.New("path is required")
 	}
-	if input.MaxPages < 0 || input.MaxPages > 500 {
-		return documentReadInput{}, errors.New("maxPages must be between 0 and 500")
+	maxPages := 0
+	if documentInput.MaxPages != nil {
+		if *documentInput.MaxPages < 1 || *documentInput.MaxPages > 500 {
+			return documentReadInput{}, errors.New("maxPages must be between 1 and 500")
+		}
+		maxPages = *documentInput.MaxPages
 	}
-	if input.MaxOutputBytes == 0 {
-		input.MaxOutputBytes = defaultFileReadMaximumOutputBytes
+	maxOutputBytes := defaultFileReadMaximumOutputBytes
+	if documentInput.MaxOutputBytes != nil {
+		maxOutputBytes = *documentInput.MaxOutputBytes
 	}
-	if input.MaxOutputBytes < 1024 || input.MaxOutputBytes > hardFileReadMaximumOutputBytes {
+	if maxOutputBytes < 1024 || maxOutputBytes > hardFileReadMaximumOutputBytes {
 		return documentReadInput{}, fmt.Errorf("maxOutputBytes must be between 1024 and %d", hardFileReadMaximumOutputBytes)
 	}
-	return input, nil
+	return documentReadInput{Path: path, MaxPages: maxPages, MaxOutputBytes: maxOutputBytes}, nil
 }
 
 func decodeImageReadInput(document json.RawMessage) (imageReadInput, error) {
 	var input imageReadInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictFileReadInput(document, &input); errorValue != nil {
 		return imageReadInput{}, errorValue
 	}
 	input.Path = strings.TrimSpace(input.Path)
@@ -191,6 +225,22 @@ func decodeImageReadInput(document json.RawMessage) (imageReadInput, error) {
 		return imageReadInput{}, errors.New("path is required")
 	}
 	return input, nil
+}
+
+func decodeStrictFileReadInput(document json.RawMessage, destination any) error {
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(destination); errorValue != nil {
+		return errorValue
+	}
+	var trailingDocument json.RawMessage
+	if errorValue := decoder.Decode(&trailingDocument); errorValue != io.EOF {
+		if errorValue == nil {
+			return errors.New("input must contain one JSON value")
+		}
+		return errorValue
+	}
+	return nil
 }
 
 func (service Service) resolveFileReadPath(path string) (string, string, error) {
@@ -406,7 +456,7 @@ func truncateTextByBytes(value string, maximumBytes int) (string, bool) {
 	return value[:endIndex], true
 }
 
-func documentReadErrorResponse(toolName string, message string, code string, stage string, retryable bool) capabilities.ToolInvokeResponse {
+func fileReadErrorResponse(toolName string, message string, code string, stage string, retryable bool) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(map[string]any{
 		"status":       "error",
 		"message":      message,
@@ -415,10 +465,13 @@ func documentReadErrorResponse(toolName string, message string, code string, sta
 		"retryable":    retryable,
 		"safeRetry":    retryable,
 	})
+	provider, selectedBackend := fileReadErrorIdentity(toolName)
 	return capabilities.ToolInvokeResponse{
-		Provider:        "markitdown",
-		SelectedBackend: capabilities.LLMBackendRemote,
+		Provider:        provider,
+		SelectedBackend: selectedBackend,
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Effects:         []capabilities.ResourceEffect{},
 		Status:          "error",
 		IsError:         true,
 		Message:         message,
@@ -428,4 +481,11 @@ func documentReadErrorResponse(toolName string, message string, code string, sta
 		SafeRetry:       retryable,
 		Result:          result,
 	}
+}
+
+func fileReadErrorIdentity(toolName string) (string, string) {
+	if strings.TrimSpace(toolName) == "image.read" {
+		return "workspace", capabilities.LLMBackendDevice
+	}
+	return "markitdown", capabilities.LLMBackendRemote
 }
