@@ -8,12 +8,16 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 func TestCapabilityContractUsesCurrentDefinitions(t *testing.T) {
 	contract := CurrentCapabilityContract()
-	if contract.Version != 2 {
-		t.Fatalf("contract version = %d, want 2", contract.Version)
+	if contract.Version != 3 {
+		t.Fatalf("contract version = %d, want 3", contract.Version)
+	}
+	if contract.ProtocolIdentity != capabilityprotocol.GeneratedProtocolIdentity() {
+		t.Fatalf("contract protocol identity does not match generated protocol")
 	}
 	if !reflect.DeepEqual(contract.ToolDescriptors, capabilities.DefaultToolDescriptors()) {
 		t.Fatalf("contract tool descriptors do not match current capabilities")
@@ -64,6 +68,13 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	if capabilityConfiguration["protocolVersion"] != expectedIdentity.ProtocolVersion {
+		t.Fatalf("unexpected capability protocol version: %+v", capabilityConfiguration)
+	}
+	if capabilityConfiguration["aggregateProtocolHash"] != expectedIdentity.AggregateProtocolHash {
+		t.Fatalf("unexpected capability aggregate hash: %+v", capabilityConfiguration)
+	}
 	if capabilityConfiguration["transport"] != "" {
 		t.Fatalf("expected empty transport for direct execution, got %q", capabilityConfiguration["transport"])
 	}
@@ -80,8 +91,12 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if _, hasSDKD := languageModel["sdkd"]; hasSDKD {
-		t.Fatalf("expected direct execution to omit host SDKD bridge configuration, got %+v", languageModel)
+	if languageModel["defaultProvider"] != "sdkd" {
+		t.Fatalf("expected direct execution to use SDKD, got %+v", languageModel)
+	}
+	sdkd := languageModel["sdkd"].(map[string]any)
+	if sdkd["endpoint"] != "http://internkim/_internkim/sdkd" || sdkd["unixSocketPath"] != "/run/internkim/capability.sock" {
+		t.Fatalf("expected direct execution to use the capabilityd SDKD bridge, got %+v", sdkd)
 	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "remote" {

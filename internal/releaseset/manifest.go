@@ -10,11 +10,14 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
-const ManifestVersion = 1
+const ManifestVersion = 2
 
 type Manifest struct {
+	capabilityprotocol.ProtocolIdentity
 	ManifestVersion         int                  `json:"manifestVersion"`
 	ReleaseID               string               `json:"releaseID"`
 	Channel                 string               `json:"channel"`
@@ -54,6 +57,7 @@ type ChannelHistoryEntry struct {
 
 func NewManifest(releaseID string, channel string, components map[string]Component) Manifest {
 	return Manifest{
+		ProtocolIdentity:        capabilityprotocol.GeneratedProtocolIdentity(),
 		ManifestVersion:         ManifestVersion,
 		ReleaseID:               strings.TrimSpace(releaseID),
 		Channel:                 firstNonEmpty(channel, "stable"),
@@ -66,6 +70,9 @@ func NewManifest(releaseID string, channel string, components map[string]Compone
 func (manifest Manifest) Validate() error {
 	if manifest.ManifestVersion != ManifestVersion {
 		return fmt.Errorf("unsupported release manifest version %d", manifest.ManifestVersion)
+	}
+	if errorValue := manifest.ProtocolIdentity.Validate(); errorValue != nil {
+		return fmt.Errorf("release protocol identity is invalid: %w", errorValue)
 	}
 	if strings.TrimSpace(manifest.ReleaseID) == "" {
 		return errors.New("release id is required")

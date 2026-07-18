@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type CapabilityContract struct {
+	capabilityprotocol.ProtocolIdentity
 	Version                    int                       `json:"version"`
 	ToolDescriptors            []capabilities.Descriptor `json:"toolDescriptors"`
 	RoutingCandidates          []string                  `json:"routingCandidates"`
@@ -16,7 +18,8 @@ type CapabilityContract struct {
 
 func CurrentCapabilityContract() CapabilityContract {
 	return CapabilityContract{
-		Version:                    2,
+		ProtocolIdentity:           capabilityprotocol.GeneratedProtocolIdentity(),
+		Version:                    3,
 		ToolDescriptors:            capabilities.DefaultToolDescriptors(),
 		RoutingCandidates:          capabilities.RoutingCandidates(),
 		PolicyResourceReplacements: currentPolicyResourceReplacements(),

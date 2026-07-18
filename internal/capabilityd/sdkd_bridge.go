@@ -5,16 +5,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const sdkdMaximumBodyBytes = 8 * 1024 * 1024
 
 var errSDKDRequestTooLarge = errors.New("SDKD request exceeds 8 MiB")
+var errSDKDHealthInvalid = errors.New("SDKD health response is invalid")
+
+type sdkdHealthResponse struct {
+	capabilityprotocol.ProtocolIdentity
+	Status string `json:"status"`
+}
 
 func (service Service) handleSDKDStructured(responseWriter http.ResponseWriter, request *http.Request) {
 	service.handleSDKDBridge(responseWriter, request)
@@ -22,6 +31,99 @@ func (service Service) handleSDKDStructured(responseWriter http.ResponseWriter, 
 
 func (service Service) handleSDKDChat(responseWriter http.ResponseWriter, request *http.Request) {
 	service.handleSDKDBridge(responseWriter, request)
+}
+
+func (service Service) handleSDKDHealth(responseWriter http.ResponseWriter, request *http.Request) {
+	health, errorValue := service.fetchSDKDHealth(request.Context())
+	if errorValue != nil {
+		if errors.Is(errorValue, errSDKDHealthInvalid) {
+			writeSDKDBridgeInvalidResponse(responseWriter)
+			return
+		}
+		writeSDKDBridgeUnavailable(responseWriter)
+		return
+	}
+	service.writeJSON(responseWriter, health)
+}
+
+func (service Service) sdkdHealth(ctx context.Context) map[string]any {
+	health, errorValue := service.fetchSDKDHealth(ctx)
+	if errorValue != nil {
+		reason := "unavailable"
+		if errors.Is(errorValue, errSDKDHealthInvalid) {
+			reason = "malformed"
+		}
+		return map[string]any{
+			"ok":     false,
+			"status": "unhealthy",
+			"reason": reason,
+		}
+	}
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	if health.ProtocolIdentity != expectedIdentity {
+		return map[string]any{
+			"ok":                    false,
+			"status":                "unhealthy",
+			"reason":                "protocol identity mismatch",
+			"protocolVersion":       health.ProtocolVersion,
+			"aggregateProtocolHash": health.AggregateProtocolHash,
+		}
+	}
+	return map[string]any{
+		"ok":                    true,
+		"status":                health.Status,
+		"protocolVersion":       health.ProtocolVersion,
+		"aggregateProtocolHash": health.AggregateProtocolHash,
+	}
+}
+
+func (service Service) fetchSDKDHealth(ctx context.Context) (sdkdHealthResponse, error) {
+	request, errorValue := service.newSDKDHealthRequest(ctx)
+	if errorValue != nil {
+		return sdkdHealthResponse{}, errorValue
+	}
+	response, errorValue := service.sdkdHTTPClient().Do(request)
+	if errorValue != nil {
+		return sdkdHealthResponse{}, errorValue
+	}
+	if response.Body == nil {
+		return sdkdHealthResponse{}, errSDKDHealthInvalid
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return sdkdHealthResponse{}, fmt.Errorf("SDKD health returned status %d", response.StatusCode)
+	}
+	document, errorValue := io.ReadAll(io.LimitReader(response.Body, sdkdMaximumBodyBytes+1))
+	if errorValue != nil {
+		return sdkdHealthResponse{}, errorValue
+	}
+	if len(document) > sdkdMaximumBodyBytes {
+		return sdkdHealthResponse{}, errSDKDHealthInvalid
+	}
+	return decodeSDKDHealthResponse(document)
+}
+
+func (service Service) newSDKDHealthRequest(ctx context.Context) (*http.Request, error) {
+	if strings.TrimSpace(service.Configuration.SDKDSocketPath) == "" {
+		return nil, errors.New("SDKD socket path is not configured")
+	}
+	return http.NewRequestWithContext(ctx, http.MethodGet, "http://blueclaw-sdkd/health", nil)
+}
+
+func decodeSDKDHealthResponse(document []byte) (sdkdHealthResponse, error) {
+	var health sdkdHealthResponse
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(&health); errorValue != nil {
+		return sdkdHealthResponse{}, fmt.Errorf("%w: %v", errSDKDHealthInvalid, errorValue)
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		return sdkdHealthResponse{}, fmt.Errorf("%w: trailing content", errSDKDHealthInvalid)
+	}
+	if health.Status != "ok" || health.ProtocolIdentity.Validate() != nil {
+		return sdkdHealthResponse{}, errSDKDHealthInvalid
+	}
+	return health, nil
 }
 
 func (service Service) handleSDKDBridge(responseWriter http.ResponseWriter, request *http.Request) {

@@ -30,6 +30,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type Configuration struct {
@@ -335,6 +336,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
+	multiplexer.HandleFunc("GET /_internkim/sdkd/health", service.handleSDKDHealth)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
 }
@@ -352,15 +354,23 @@ func (service Service) handleHealth(responseWriter http.ResponseWriter, request 
 
 func (service Service) platformHealth(ctx context.Context) map[string]any {
 	mattermost := service.mattermostHealth(ctx)
+	sdkd := service.sdkdHealth(ctx)
+	protocolIdentity := capabilityprotocol.GeneratedProtocolIdentity()
 	status := "ok"
 	if value, _ := mattermost["ok"].(bool); !value {
 		status = "unhealthy"
 	}
+	if value, _ := sdkd["ok"].(bool); !value {
+		status = "unhealthy"
+	}
 	return map[string]any{
-		"status":     status,
-		"mattermost": mattermost,
-		"providers":  service.providerHealth(ctx),
-		"checkedAt":  time.Now().UTC(),
+		"status":                status,
+		"protocolVersion":       protocolIdentity.ProtocolVersion,
+		"aggregateProtocolHash": protocolIdentity.AggregateProtocolHash,
+		"mattermost":            mattermost,
+		"sdkd":                  sdkd,
+		"providers":             service.providerHealth(ctx),
+		"checkedAt":             time.Now().UTC(),
 	}
 }
 

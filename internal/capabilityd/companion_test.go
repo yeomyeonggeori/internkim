@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const testCompanionBackend = capabilities.LLMBackendCompanionLocal
@@ -47,6 +48,10 @@ func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 	}
 	if !response.LocalOnly {
 		t.Fatal("expected local-only mode to be reported")
+	}
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	if response.ProtocolVersion != expectedIdentity.ProtocolVersion || response.AggregateProtocolHash != expectedIdentity.AggregateProtocolHash {
+		t.Fatalf("expected generated protocol identity, got protocolVersion=%q aggregateProtocolHash=%q", response.ProtocolVersion, response.AggregateProtocolHash)
 	}
 	if len(response.CompanionCapabilities) != 1 || response.CompanionCapabilities[0].Name != "llm.structured" {
 		t.Fatalf("unexpected companion capabilities: %+v", response.CompanionCapabilities)

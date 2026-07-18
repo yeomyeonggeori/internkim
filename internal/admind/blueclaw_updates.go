@@ -705,6 +705,8 @@ func refreshBlueclawCapabilityContract(document string) (string, error) {
 	contract := blueclawruntime.CurrentCapabilityContract()
 	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
 		delete(capabilitiesSection, "toolNames")
+		capabilitiesSection["protocolVersion"] = contract.ProtocolVersion
+		capabilitiesSection["aggregateProtocolHash"] = contract.AggregateProtocolHash
 		capabilitiesSection["toolDescriptors"] = contract.ToolDescriptors
 		if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
 			routing["candidates"] = contract.RoutingCandidates

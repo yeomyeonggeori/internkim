@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY bin/internkim-capabilityd /usr/local/bin/internkim-capabilityd
 COPY bin/blueclaw /usr/local/bin/blueclaw
+COPY bin/blueclaw-sdkd /usr/local/bin/blueclaw-sdkd
 COPY bin/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
 COPY bin/internkim-admind /usr/local/bin/internkim-admind
-RUN chmod 0755 /usr/local/bin/internkim-capabilityd /usr/local/bin/blueclaw /usr/local/bin/internkim-admind \
+RUN chmod 0755 /usr/local/bin/internkim-capabilityd /usr/local/bin/blueclaw /usr/local/bin/blueclaw-sdkd /usr/local/bin/internkim-admind \
     && chmod 4755 /usr/local/bin/blueclaw-posix-helper
 
 COPY migrations /opt/blueclaw/migrations
