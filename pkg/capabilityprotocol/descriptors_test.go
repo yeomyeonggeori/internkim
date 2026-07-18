@@ -20,6 +20,7 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 		EstimatedLatency:   "medium",
 		InputSchema:        json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"title":{"type":"string"}}},"labels":{"type":"object","additionalProperties":{"type":"string"}}}}`),
 		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
+		ResultContract:     emptyTestResultContract(),
 		InputSchemaStrict:  true,
 		OutputSchemaStrict: true,
 		PolicyResource:     "tool:task.add",
@@ -274,17 +275,16 @@ func TestValidateResultContractAcceptsOnlyCanonicalArrayEffectIdentities(t *test
 
 func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *testing.T) {
 	modelVisibleDescriptor := validTestDescriptor("task.add")
-	if errorValue := ValidateDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue != nil {
-		t.Fatalf("expected the shared descriptor validator to preserve legacy provider compatibility: %v", errorValue)
-	}
-	if errorValue := ValidateModelVisibleCapabilityDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue == nil ||
+	modelVisibleDescriptor.ResultContract = nil
+	if errorValue := ValidateDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue == nil ||
 		!strings.Contains(errorValue.Error(), "model-visible capability resultContract is required") {
-		t.Fatalf("expected generated capability result contract rejection, got %v", errorValue)
+		t.Fatalf("expected shared model-visible result contract rejection, got %v", errorValue)
 	}
 
 	hiddenDescriptor := validTestDescriptor("llm.text")
 	hiddenDescriptor.ModelVisibility = ModelVisibilityHidden
 	hiddenDescriptor.ModelVisible = false
+	hiddenDescriptor.ResultContract = nil
 	if errorValue := ValidateModelVisibleCapabilityDescriptorSet([]Descriptor{hiddenDescriptor}); errorValue != nil {
 		t.Fatalf("expected hidden capability without a result contract: %v", errorValue)
 	}
@@ -299,12 +299,38 @@ func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *t
 
 func TestMustCanonicalizeModelVisibleDescriptorsFailsClosed(t *testing.T) {
 	modelVisibleDescriptor := validTestDescriptor("task.add")
+	modelVisibleDescriptor.ResultContract = nil
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected model-visible descriptor without a result contract to panic")
 		}
 	}()
 	MustCanonicalizeModelVisibleDescriptors([]Descriptor{modelVisibleDescriptor})
+}
+
+func TestValidateDescriptorRejectsInvalidCompletionEvidence(t *testing.T) {
+	testCases := []CompletionEvidenceDescriptor{
+		{Mode: "complete", Action: "write_task", TargetKind: "task"},
+		{Mode: "success", TargetKind: "task"},
+		{Mode: "success", Action: "write_task"},
+		{Mode: "success", Action: " write_task", TargetKind: "task"},
+	}
+	for _, completionEvidence := range testCases {
+		descriptor := validTestDescriptor("task.add")
+		descriptor.CompletionEvidence = &completionEvidence
+		if errorValue := ValidateDescriptor(descriptor); errorValue == nil {
+			t.Fatalf("expected invalid completion evidence rejection: %+v", completionEvidence)
+		}
+	}
+}
+
+func TestValidateDescriptorRejectsRequiredIdempotencyWithoutSupport(t *testing.T) {
+	descriptor := validTestDescriptor("task.add")
+	descriptor.Idempotency.Required = true
+
+	if errorValue := ValidateDescriptor(descriptor); errorValue == nil {
+		t.Fatal("expected required idempotency without support to fail")
+	}
 }
 
 func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
@@ -351,6 +377,7 @@ func validTestDescriptor(name string) Descriptor {
 		EstimatedLatency:   "low",
 		InputSchema:        json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
+		ResultContract:     emptyTestResultContract(),
 		InputSchemaStrict:  true,
 		OutputSchemaStrict: true,
 		PolicyResource:     "tool:" + name,
@@ -358,5 +385,11 @@ func validTestDescriptor(name string) Descriptor {
 		SideEffect:         SideEffectWorkspaceWrite,
 		Availability:       AvailabilityMetadata{State: AvailabilityOK},
 		Idempotency:        IdempotencyMetadata{Scope: "operation"},
+	}
+}
+
+func emptyTestResultContract() *ToolResultContract {
+	return &ToolResultContract{
+		Schema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 	}
 }

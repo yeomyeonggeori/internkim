@@ -212,15 +212,7 @@ func ValidateDescriptorSet(descriptors []Descriptor) error {
 }
 
 func ValidateModelVisibleCapabilityDescriptorSet(descriptors []Descriptor) error {
-	if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
-		return errorValue
-	}
-	for index, descriptor := range descriptors {
-		if descriptor.ModelVisibility == ModelVisibilityVisible && descriptor.ResultContract == nil {
-			return fmt.Errorf("descriptor %d: model-visible capability resultContract is required", index)
-		}
-	}
-	return nil
+	return ValidateDescriptorSet(descriptors)
 }
 
 func ValidateDescriptor(descriptor Descriptor) error {
@@ -266,6 +258,9 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if descriptor.ModelVisible != (descriptor.ModelVisibility == ModelVisibilityVisible) {
 		return fmt.Errorf("modelVisible does not match modelVisibility")
 	}
+	if descriptor.ModelVisibility == ModelVisibilityVisible && descriptor.ResultContract == nil {
+		return fmt.Errorf("model-visible capability resultContract is required")
+	}
 	if !descriptor.InputSchemaStrict || !isStrictSchema(descriptor.InputSchema) {
 		return fmt.Errorf("inputSchema must be a strict object schema")
 	}
@@ -293,8 +288,30 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if _, found := availabilityStates[descriptor.Availability.State]; !found {
 		return fmt.Errorf("availability.state is invalid")
 	}
+	if errorValue := validateCompletionEvidence(descriptor.CompletionEvidence); errorValue != nil {
+		return errorValue
+	}
+	if descriptor.Idempotency.Required && !descriptor.Idempotency.Supported {
+		return fmt.Errorf("idempotency.required requires idempotency.supported")
+	}
 	if strings.TrimSpace(descriptor.Idempotency.Scope) == "" {
 		return fmt.Errorf("idempotency.scope is required")
+	}
+	return nil
+}
+
+func validateCompletionEvidence(evidence *CompletionEvidenceDescriptor) error {
+	if evidence == nil {
+		return nil
+	}
+	if evidence.Mode != "success" {
+		return fmt.Errorf("completionEvidence.mode is invalid")
+	}
+	if strings.TrimSpace(evidence.Action) == "" || strings.TrimSpace(evidence.TargetKind) == "" {
+		return fmt.Errorf("completionEvidence.action and targetKind are required")
+	}
+	if evidence.Action != strings.TrimSpace(evidence.Action) || evidence.TargetKind != strings.TrimSpace(evidence.TargetKind) {
+		return fmt.Errorf("completionEvidence.action and targetKind must not have surrounding whitespace")
 	}
 	return nil
 }
