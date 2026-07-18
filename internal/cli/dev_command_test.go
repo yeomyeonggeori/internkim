@@ -241,19 +241,41 @@ func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
 func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
 		ScenarioName:          "slides",
+		ScenarioFilePath:      "scenarios/slides.json",
 		ArtifactDirectoryPath: "artifacts",
+		MaximumModelTier:      "low",
+		HasStrictAssertions:   true,
 		IsLiveLanguageModel:   true,
 		Seed:                  "7",
 	})
 	expectedArguments := []string{
 		"run", "./cmd/blueclaw-lab", "virtual-session",
 		"--scenario", "slides",
+		"--scenario-file", "scenarios/slides.json",
 		"--artifact-dir", "artifacts",
+		"--maximum-model-tier", "low",
+		"--strict-assertions",
 		"--seed", "7",
 		"--live-llm",
 	}
 	if !reflect.DeepEqual(arguments, expectedArguments) {
 		t.Fatalf("unexpected command arguments:\n got: %#v\nwant: %#v", arguments, expectedArguments)
+	}
+}
+
+func TestParseDevVirtualSessionArgumentsForwardsStrictScenarioFile(t *testing.T) {
+	arguments, errorValue := parseDevVirtualSessionArguments([]string{
+		"--scenario-file", "scenarios/task-lifecycle.json",
+		"--maximum-model-tier", "low",
+		"--strict-assertions",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if arguments.ScenarioFilePath != "scenarios/task-lifecycle.json" ||
+		arguments.MaximumModelTier != "low" ||
+		!arguments.HasStrictAssertions {
+		t.Fatalf("unexpected arguments: %+v", arguments)
 	}
 }
 
