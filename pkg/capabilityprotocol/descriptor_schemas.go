@@ -233,10 +233,24 @@ func attentionTriageInputSchema() json.RawMessage {
 }
 
 func ToolInvokeOutputSchema() json.RawMessage {
+	resourceEffectSchema := jsonschema.Object(
+		jsonschema.Required("objectType", jsonschema.String()),
+		jsonschema.Required("effect", jsonschema.String()),
+		jsonschema.Field("id", jsonschema.String()),
+		jsonschema.Field("path", jsonschema.String()),
+		jsonschema.Field("url", jsonschema.String()),
+		jsonschema.Field("visibility", jsonschema.String()),
+		jsonschema.Field("durability", jsonschema.String()),
+		jsonschema.Field("filename", jsonschema.String()),
+		jsonschema.Field("contentType", jsonschema.String()),
+		jsonschema.Field("summary", jsonschema.String()),
+	)
 	return jsonschema.Object(
-		jsonschema.Field("provider", jsonschema.String()),
-		jsonschema.Field("selectedBackend", jsonschema.String()),
-		jsonschema.Field("toolName", jsonschema.String()),
+		jsonschema.Required("provider", jsonschema.String()),
+		jsonschema.Required("selectedBackend", jsonschema.String()),
+		jsonschema.Required("toolName", jsonschema.String()),
+		jsonschema.Field("outcome", jsonschema.StringEnum(string(ToolOutcomeSucceeded), string(ToolOutcomeFailed), string(ToolOutcomeDenied))),
+		jsonschema.Field("effects", jsonschema.Array(resourceEffectSchema)),
 		jsonschema.Field("status", jsonschema.String()),
 		jsonschema.Field("content", jsonschema.String()),
 		jsonschema.Field("isError", jsonschema.Boolean()),
@@ -245,6 +259,6 @@ func ToolInvokeOutputSchema() json.RawMessage {
 		jsonschema.Field("failureStage", jsonschema.String()),
 		jsonschema.Field("retryable", jsonschema.Boolean()),
 		jsonschema.Field("safeRetry", jsonschema.Boolean()),
-		jsonschema.Field("result", jsonschema.Raw(json.RawMessage(`{}`))),
+		jsonschema.Required("result", jsonschema.Raw(json.RawMessage(`{}`))),
 	).RawMessage()
 }

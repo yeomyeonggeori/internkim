@@ -19,7 +19,7 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 		PrivacyClass:       "workspace_task",
 		EstimatedLatency:   "medium",
 		InputSchema:        json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"title":{"type":"string"}}},"labels":{"type":"object","additionalProperties":{"type":"string"}}}}`),
-		OutputSchema:       ToolInvokeOutputSchema(),
+		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
 		InputSchemaStrict:  true,
 		OutputSchemaStrict: true,
 		PolicyResource:     "tool:task.add",
@@ -153,6 +153,56 @@ func TestCanonicalizeDescriptorsRejectsOpenObjectSchema(t *testing.T) {
 	}
 }
 
+func TestValidateDescriptorAcceptsCanonicalUnavailableStates(t *testing.T) {
+	for _, state := range []string{CapabilityAvailable, CapabilityNotAllowed, CapabilityNotConnected, CapabilityNotReady} {
+		descriptor := validTestDescriptor("task.add")
+		descriptor.Availability.State = state
+		if errorValue := ValidateDescriptor(descriptor); errorValue != nil {
+			t.Fatalf("state %q: %v", state, errorValue)
+		}
+	}
+}
+
+func TestValidateDescriptorRejectsUnknownLatency(t *testing.T) {
+	descriptor := validTestDescriptor("task.add")
+	descriptor.EstimatedLatency = "instant"
+
+	if errorValue := ValidateDescriptor(descriptor); errorValue == nil {
+		t.Fatal("expected unknown latency rejection")
+	}
+}
+
+func TestCanonicalizeDescriptorsValidatesResultContracts(t *testing.T) {
+	validDescriptor := validTestDescriptor("task.add")
+	validDescriptor.ResultContract = &ToolResultContract{
+		Schema: json.RawMessage(`{"type":"object","properties":{"taskID":{"type":"string"}},"required":["taskID"]}`),
+		Effects: []ResourceEffectContract{{
+			ObjectType:     "task",
+			Effect:         "created",
+			ResultField:    "taskID",
+			EffectIdentity: ResourceEffectIdentityID,
+		}},
+	}
+	descriptors := CanonicalizeDescriptors([]Descriptor{validDescriptor})
+	if len(descriptors) != 1 || !isStrictSchema(descriptors[0].ResultContract.Schema) {
+		t.Fatalf("expected strict result contract, got %+v", descriptors)
+	}
+
+	for _, contract := range []*ToolResultContract{
+		{Schema: json.RawMessage(`{"type":"string"}`)},
+		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}}},
+		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: "unknown"}}},
+		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}}},
+		{Schema: json.RawMessage(`{"type":"object"}`), Effects: []ResourceEffectContract{{ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}, {ObjectType: "task", Effect: "created", ResultField: "taskID", EffectIdentity: ResourceEffectIdentityID}}},
+	} {
+		descriptor := validTestDescriptor("task.add")
+		descriptor.ResultContract = contract
+		if canonicalDescriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); canonicalDescriptors != nil {
+			t.Fatalf("expected invalid result contract to fail closed: %+v", canonicalDescriptors)
+		}
+	}
+}
+
 func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
 	for _, descriptors := range [][]Descriptor{CompanionToolDescriptors(), CompanionLLMDescriptors(), DeviceBrowserDescriptors()} {
 		if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
@@ -195,8 +245,8 @@ func validTestDescriptor(name string) Descriptor {
 		Version:            "1",
 		PrivacyClass:       "task",
 		EstimatedLatency:   "low",
-		InputSchema:        json.RawMessage(`{"type":"object","properties":{}}`),
-		OutputSchema:       ToolInvokeOutputSchema(),
+		InputSchema:        json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
 		InputSchemaStrict:  true,
 		OutputSchemaStrict: true,
 		PolicyResource:     "tool:" + name,

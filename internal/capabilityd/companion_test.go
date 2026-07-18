@@ -965,7 +965,7 @@ func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 
 func assertCapabilityApprovalRequired(t *testing.T, response capabilities.ToolInvokeResponse, toolName string) {
 	t.Helper()
-	if response.Status != "denied" || !response.IsError {
+	if response.Status != "denied" || response.Outcome != capabilities.ToolOutcomeDenied || !response.IsError {
 		t.Fatalf("expected approval denial, got %+v", response)
 	}
 	if response.ToolName != toolName || response.ErrorCode != "approval_required" || response.FailureStage != "authorization" {

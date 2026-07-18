@@ -173,6 +173,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsCompletionEvidence(capabilityToolDescriptors, "mail.message.send", "success", "send_email", "email") {
 		t.Fatalf("expected mail send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
 	}
+	if !containsResultContract(capabilityToolDescriptors, "task.add", "taskID", "task", "created") {
+		t.Fatalf("expected task.add canonical result contract, got %+v", capabilityToolDescriptors)
+	}
 	routing := capabilityConfiguration["routing"].(map[string]any)
 	if routing["localOnly"] != false {
 		t.Fatalf("expected default routing to allow remote fallback, got %v", routing["localOnly"])
@@ -741,6 +744,31 @@ func containsCompletionEvidence(values []any, expectedName string, expectedMode 
 			return false
 		}
 		return evidence["mode"] == expectedMode && evidence["action"] == expectedAction && evidence["targetKind"] == expectedTargetKind
+	}
+	return false
+}
+
+func containsResultContract(values []any, expectedName string, expectedProperty string, expectedObjectType string, expectedEffect string) bool {
+	for _, value := range values {
+		descriptor, ok := value.(map[string]any)
+		if !ok || descriptor["name"] != expectedName {
+			continue
+		}
+		contract, ok := descriptor["resultContract"].(map[string]any)
+		if !ok {
+			return false
+		}
+		schema, _ := contract["schema"].(map[string]any)
+		properties, _ := schema["properties"].(map[string]any)
+		effects, _ := contract["effects"].([]any)
+		if _, hasProperty := properties[expectedProperty]; !hasProperty || len(effects) != 1 {
+			return false
+		}
+		effect, _ := effects[0].(map[string]any)
+		return effect["objectType"] == expectedObjectType &&
+			effect["effect"] == expectedEffect &&
+			effect["resultField"] == expectedProperty &&
+			effect["effectIdentity"] == "id"
 	}
 	return false
 }
