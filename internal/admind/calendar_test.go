@@ -357,7 +357,7 @@ func newCalendarTestService(t *testing.T) *Service {
 	if errorValue := os.WriteFile(filepath.Join(adminUIPath, "index.html"), []byte("<script></script>"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	return NewService(Configuration{
+	service := NewService(Configuration{
 		StateDirectory:           filepath.Join(rootPath, "state", "admin"),
 		CompanionJobPath:         filepath.Join(rootPath, "state", "companion-jobs.json"),
 		CalendarDatabasePath:     filepath.Join(rootPath, "state", "calendar.sqlite"),
@@ -367,6 +367,13 @@ func newCalendarTestService(t *testing.T) *Service {
 		AdminUIPath:              adminUIPath,
 		CalendarSyncDisabled:     true,
 	})
+	notificationContext, cancelNotifications := context.WithCancel(context.Background())
+	service.startCalendarNotificationWorkers(notificationContext)
+	t.Cleanup(func() {
+		cancelNotifications()
+		service.calendarNotificationGroup.Wait()
+	})
+	return service
 }
 
 func newCalendarMattermostTestService(t *testing.T, transport roundTripFunc) *Service {
