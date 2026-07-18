@@ -641,7 +641,10 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 			return errorValue
 		}
 	}
-	return validateMattermostScenarioCalendarMutationIDs(stepIndex, expected, events)
+	if errorValue := validateMattermostScenarioCalendarMutationIDs(stepIndex, expected, events); errorValue != nil {
+		return errorValue
+	}
+	return validateMattermostScenarioMessageMutationIDs(stepIndex, expected, events, result)
 }
 
 func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
@@ -699,25 +702,12 @@ func mattermostScenarioCalendarListEventIDs(event mattermostScenarioTaskEvent) [
 	if event.Name != "tool.calendar.list.result" {
 		return nil
 	}
-	var observation struct {
-		Output struct {
-			Content string          `json:"content"`
-			Data    json.RawMessage `json:"data"`
-		} `json:"output"`
-	}
-	if json.Unmarshal([]byte(event.Body), &observation) != nil {
-		return nil
-	}
-	document := observation.Output.Data
-	if len(document) == 0 {
-		document = json.RawMessage(observation.Output.Content)
-	}
 	var result struct {
 		Events []struct {
 			EventID string `json:"eventID"`
 		} `json:"events"`
 	}
-	if json.Unmarshal(document, &result) != nil {
+	if json.Unmarshal(mattermostScenarioToolResultData(event), &result) != nil {
 		return nil
 	}
 	eventIDs := make([]string, 0, len(result.Events))
@@ -727,6 +717,115 @@ func mattermostScenarioCalendarListEventIDs(event mattermostScenarioTaskEvent) [
 		}
 	}
 	return eventIDs
+}
+
+func validateMattermostScenarioMessageMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent, result *mattermostScenarioResult) error {
+	lineageIDs := priorMattermostScenarioMessageIDs(stepIndex, result)
+	searchIDs := map[string]bool{}
+	for eventIndex, event := range events {
+		if event.Name == "tool.message.search.result" {
+			addMattermostScenarioMessageIDs(searchIDs, mattermostScenarioMessageResultIDs(event))
+			continue
+		}
+		toolName, isMutation := mattermostScenarioMessageMutationName(event.Name)
+		if !isMutation || !containsMattermostScenarioString(expected.ExpectedToolCalls, toolName) {
+			continue
+		}
+		messageIDs := mattermostScenarioMessageMutationRequestIDs(event)
+		if len(messageIDs) == 0 {
+			return fmt.Errorf("Mattermost scenario step %d %s request has no message ID", stepIndex, toolName)
+		}
+		for _, messageID := range messageIDs {
+			if containsMattermostScenarioString(expected.ExpectedToolCalls, "message.search") && !searchIDs[messageID] {
+				return fmt.Errorf("Mattermost scenario step %d %s used message ID %q before message.search returned it at event %d", stepIndex, toolName, messageID, eventIndex)
+			}
+			if len(lineageIDs) > 0 && !lineageIDs[messageID] {
+				return fmt.Errorf("Mattermost scenario step %d %s used message ID %q outside the scenario mutation lineage", stepIndex, toolName, messageID)
+			}
+		}
+	}
+	return nil
+}
+
+func mattermostScenarioMessageMutationName(eventName string) (string, bool) {
+	for _, toolName := range []string{"message.update", "message.delete"} {
+		if eventName == "tool."+toolName+".requested" {
+			return toolName, true
+		}
+	}
+	return "", false
+}
+
+func mattermostScenarioMessageMutationRequestIDs(event mattermostScenarioTaskEvent) []string {
+	var request struct {
+		Input struct {
+			MessageID  string   `json:"messageID"`
+			MessageIDs []string `json:"messageIDs"`
+		} `json:"input"`
+	}
+	if json.Unmarshal([]byte(event.Body), &request) != nil {
+		return nil
+	}
+	messageIDs := append([]string{}, request.Input.MessageIDs...)
+	if messageID := strings.TrimSpace(request.Input.MessageID); messageID != "" {
+		messageIDs = append(messageIDs, messageID)
+	}
+	return trimmedNonEmptyValues(messageIDs)
+}
+
+func priorMattermostScenarioMessageIDs(stepIndex int, result *mattermostScenarioResult) map[string]bool {
+	messageIDs := map[string]bool{}
+	if result == nil || stepIndex <= 0 {
+		return messageIDs
+	}
+	for _, step := range result.Steps[:min(stepIndex, len(result.Steps))] {
+		for _, event := range step.TaskEvents {
+			if event.Name != "tool.message.send.result" && event.Name != "tool.message.update.result" {
+				continue
+			}
+			addMattermostScenarioMessageIDs(messageIDs, mattermostScenarioMessageResultIDs(event))
+		}
+	}
+	return messageIDs
+}
+
+func addMattermostScenarioMessageIDs(destination map[string]bool, messageIDs []string) {
+	for _, messageID := range messageIDs {
+		if normalizedMessageID := strings.TrimSpace(messageID); normalizedMessageID != "" {
+			destination[normalizedMessageID] = true
+		}
+	}
+}
+
+func mattermostScenarioMessageResultIDs(event mattermostScenarioTaskEvent) []string {
+	var result struct {
+		MessageID  string   `json:"messageID"`
+		MessageIDs []string `json:"messageIDs"`
+	}
+	if json.Unmarshal(mattermostScenarioToolResultData(event), &result) != nil {
+		return nil
+	}
+	messageIDs := append([]string{}, result.MessageIDs...)
+	if messageID := strings.TrimSpace(result.MessageID); messageID != "" {
+		messageIDs = append(messageIDs, messageID)
+	}
+	return trimmedNonEmptyValues(messageIDs)
+}
+
+func mattermostScenarioToolResultData(event mattermostScenarioTaskEvent) json.RawMessage {
+	var observation struct {
+		Output struct {
+			Content string          `json:"content"`
+			Data    json.RawMessage `json:"data"`
+		} `json:"output"`
+	}
+	if json.Unmarshal([]byte(event.Body), &observation) != nil {
+		return nil
+	}
+	if len(bytes.TrimSpace(observation.Output.Data)) > 0 {
+		return observation.Output.Data
+	}
+	return json.RawMessage(strings.TrimSpace(observation.Output.Content))
 }
 
 func missingMattermostScenarioEventError(stepIndex int, expectation mattermostScenarioEventCount) error {

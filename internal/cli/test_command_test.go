@@ -92,7 +92,7 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{
 		"expensive",
 		"--scenario", "task-lifecycle",
-		"--scenario", "direct-message-send",
+		"--scenario", "message-lifecycle",
 		"--maximum-model-tier", "high",
 		"--llm-provider", "sdkd",
 		"--llm-endpoint", "http://sdkd.test",
@@ -107,7 +107,7 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	if configuration.Suite != testSuiteExpensive || configuration.Prompt != "" || configuration.MaximumModelTier != "high" {
 		t.Fatalf("unexpected expensive suite configuration: %+v", configuration)
 	}
-	if len(configuration.ScenarioNames) != 2 || configuration.ScenarioNames[0] != "task-lifecycle" || configuration.ScenarioNames[1] != "direct-message-send" {
+	if len(configuration.ScenarioNames) != 2 || configuration.ScenarioNames[0] != "task-lifecycle" || configuration.ScenarioNames[1] != "message-lifecycle" {
 		t.Fatalf("unexpected scenario selection: %+v", configuration.ScenarioNames)
 	}
 	if configuration.LanguageModelProvider != "sdkd" || configuration.LanguageModelEndpoint != "http://sdkd.test" || configuration.LanguageModelSocket != "/tmp/sdkd.sock" || configuration.LanguageModelAuthKeyPath != "/tmp/sdkd-auth-key" || configuration.LanguageModelExecutionMode != "auto" {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -476,8 +477,8 @@ func (session *mattermostScenarioSession) cleanup(contextValue context.Context) 
 		cleanupErrors = append(cleanupErrors, errorValue)
 	}
 	if session.adminToken != "" {
-		for _, post := range session.result.Posts {
-			if errorValue := session.mattermost.DeletePost(contextValue, session.adminToken, post.ID); errorValue != nil {
+		for _, postID := range mattermostScenarioCleanupPostIDs(session.result) {
+			if errorValue := session.mattermost.DeletePost(contextValue, session.adminToken, postID); errorValue != nil {
 				cleanupErrors = append(cleanupErrors, errorValue)
 			}
 		}
@@ -491,6 +492,48 @@ func (session *mattermostScenarioSession) cleanup(contextValue context.Context) 
 		session.isCleanupFinished = true
 	}
 	return errors.Join(cleanupErrors...)
+}
+
+func mattermostScenarioCleanupPostIDs(result mattermostScenarioResult) []string {
+	postIDs := []string{}
+	seenPostIDs := map[string]bool{}
+	for _, post := range result.Posts {
+		postIDs = appendUniqueMattermostScenarioPostID(postIDs, seenPostIDs, post.ID)
+	}
+	deletedPostIDs := mattermostScenarioResultMessageIDs(result, "tool.message.delete.result")
+	sentMessageIDs := mattermostScenarioResultMessageIDs(result, "tool.message.send.result")
+	remainingMessageIDs := make([]string, 0, len(sentMessageIDs))
+	for messageID := range sentMessageIDs {
+		if !deletedPostIDs[messageID] {
+			remainingMessageIDs = append(remainingMessageIDs, messageID)
+		}
+	}
+	sort.Strings(remainingMessageIDs)
+	for _, messageID := range remainingMessageIDs {
+		postIDs = appendUniqueMattermostScenarioPostID(postIDs, seenPostIDs, messageID)
+	}
+	return postIDs
+}
+
+func mattermostScenarioResultMessageIDs(result mattermostScenarioResult, eventName string) map[string]bool {
+	messageIDs := map[string]bool{}
+	for _, step := range result.Steps {
+		for _, event := range step.TaskEvents {
+			if event.Name == eventName {
+				addMattermostScenarioMessageIDs(messageIDs, mattermostScenarioMessageResultIDs(event))
+			}
+		}
+	}
+	return messageIDs
+}
+
+func appendUniqueMattermostScenarioPostID(postIDs []string, seenPostIDs map[string]bool, postID string) []string {
+	postID = strings.TrimSpace(postID)
+	if postID == "" || seenPostIDs[postID] {
+		return postIDs
+	}
+	seenPostIDs[postID] = true
+	return append(postIDs, postID)
 }
 
 func mattermostScenarioEventIDSet(events []mattermostScenarioTaskEvent) map[string]bool {

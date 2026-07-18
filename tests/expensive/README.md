@@ -9,6 +9,7 @@ when every step satisfies its strict assertions.
 ./internkim test expensive --scenario task-lifecycle --auto-confirm
 ./internkim test expensive --run-id <prepared-run> --skip-provisioning --scenario task-lifecycle --auto-confirm
 ./internkim test expensive --scenario document-lifecycle
+./internkim test expensive --scenario message-lifecycle --auto-confirm
 ./internkim test expensive --maximum-model-tier high
 ./internkim test expensive --real
 ./internkim test full
@@ -24,8 +25,9 @@ file-tool flows designed for the default `xlow` ceiling.
 `cheap` runs only non-paid checks. `expensive` does not include `cheap`.
 `full` runs `cheap` first and then every expensive scenario.
 
-Task, calendar, and website lifecycle scenarios use `--auto-confirm` to click
-real Mattermost approval buttons and wait for the approved task to finish.
+Task, calendar, website, document, and message lifecycle scenarios use
+`--auto-confirm` to click real Mattermost approval buttons and wait for the
+approved task to finish.
 
 Each retained scenario artifact directory contains `result.json`, per-step
 event files, downloaded attachments, UI evidence, and a machine-readable
