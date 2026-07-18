@@ -10,9 +10,10 @@ import (
 )
 
 type schemaDocument struct {
-	Type       string         `json:"type"`
-	Properties map[string]any `json:"properties"`
-	Required   []string       `json:"required"`
+	Type          string         `json:"type"`
+	Properties    map[string]any `json:"properties"`
+	Required      []string       `json:"required"`
+	MinProperties int            `json:"minProperties"`
 }
 
 func TestToolInvokeRequestRoundTrip(t *testing.T) {
@@ -139,10 +140,15 @@ func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T)
 	descriptor := descriptorForTool(t, CalendarDescriptors(), "calendar.update")
 	schema := descriptorSchema(t, CalendarDescriptors(), "calendar.update")
 
-	if descriptor.Version != "2" {
+	if descriptor.Version != "3" {
 		t.Fatalf("calendar.update version = %q", descriptor.Version)
 	}
-	assertSchemaHasProperties(t, schema, "eventID", "query", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	assertSchemaHasProperties(t, schema, "eventID", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	assertSchemaOmitsProperties(t, schema, "query")
+	assertSchemaRequires(t, schema, "eventID")
+	if schema.MinProperties != 2 {
+		t.Fatalf("calendar.update minProperties = %d", schema.MinProperties)
+	}
 	for _, fieldName := range []string{"title", "description", "location", "startISO", "endISO"} {
 		if stringSliceContains(schema.Required, fieldName) {
 			t.Fatalf("expected omitted %s to preserve the stored value", fieldName)
@@ -192,6 +198,9 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	assertSchemaHasProperties(t, schema, "taskID", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content")
 	assertSchemaRequires(t, schema, "taskID")
+	if schema.MinProperties != 2 {
+		t.Fatalf("task.update minProperties = %d", schema.MinProperties)
+	}
 	if descriptorForTool(t, FlowDescriptors(), "task.update").Version != "3" {
 		t.Fatal("task.update descriptor must use the canonical-result v3 contract")
 	}
@@ -243,6 +252,41 @@ func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
 	listDescriptor := descriptorForTool(t, FlowDescriptors(), "task.list")
 	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
 		t.Fatalf("task.list result contract = %+v", listDescriptor.ResultContract)
+	}
+}
+
+func TestCalendarDescriptorsDeclareCanonicalResults(t *testing.T) {
+	expectedEffects := map[string]string{
+		"calendar.add":    "created",
+		"calendar.update": "updated",
+		"calendar.delete": "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, CalendarDescriptors(), toolName)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", toolName)
+		}
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+		}
+		if errorValue := json.Unmarshal(descriptor.ResultContract.Schema, &schema); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, hasEventID := schema.Properties["eventID"]; !hasEventID || !stringSliceContains(schema.Required, "eventID") {
+			t.Fatalf("%s result schema must require eventID", toolName)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 ||
+			descriptor.ResultContract.Effects[0].ObjectType != "calendar" ||
+			descriptor.ResultContract.Effects[0].Effect != expectedEffect ||
+			descriptor.ResultContract.Effects[0].ResultField != "eventID" ||
+			descriptor.ResultContract.Effects[0].EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+	}
+	listDescriptor := descriptorForTool(t, CalendarDescriptors(), "calendar.list")
+	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("calendar.list result contract = %+v", listDescriptor.ResultContract)
 	}
 }
 
