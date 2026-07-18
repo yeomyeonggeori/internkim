@@ -53,8 +53,8 @@ func TestSiteAppCreatePropagatesConversationContext(t *testing.T) {
 	if response.Effects[0].ObjectType != "website" || response.Effects[0].Effect != "created" || response.Effects[0].ID != "site-1" {
 		t.Fatalf("unexpected create effect: %+v", response.Effects)
 	}
-	if strings.Contains(string(response.Result), `"owner"`) || !strings.Contains(string(response.Result), `"sourceFiles"`) {
-		t.Fatalf("expected projected create result with internal source files, got %s", response.Result)
+	if strings.Contains(string(response.Result), `"owner"`) || strings.Contains(string(response.Result), `"sourceFiles"`) {
+		t.Fatalf("expected canonical create result without internal fields, got %s", response.Result)
 	}
 }
 

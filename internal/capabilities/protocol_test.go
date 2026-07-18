@@ -321,11 +321,12 @@ func TestCalendarDescriptorsDeclareCanonicalResults(t *testing.T) {
 }
 
 func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
-	contextSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.context")
-	searchSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.search")
-	sendSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.send")
-	updateSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.update")
-	deleteSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.delete")
+	descriptors := PlatformMessageDescriptors()
+	contextSchema := descriptorSchema(t, descriptors, "message.context")
+	searchSchema := descriptorSchema(t, descriptors, "message.search")
+	sendSchema := descriptorSchema(t, descriptors, "message.send")
+	updateSchema := descriptorSchema(t, descriptors, "message.update")
+	deleteSchema := descriptorSchema(t, descriptors, "message.delete")
 
 	assertSchemaHasProperties(t, contextSchema)
 	assertSchemaHasProperties(t, searchSchema, "scope", "channelName", "channelID", "personHint", "authoredBy", "queries", "limit", "cursor")
@@ -346,6 +347,33 @@ func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.update", "success", "update_message", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.delete", "success", "delete_message", "message")
+	expectedEffects := map[string]struct {
+		effect      string
+		resultField string
+	}{
+		"message.send":   {effect: "sent", resultField: "messageIDs"},
+		"message.update": {effect: "updated", resultField: "messageID"},
+		"message.delete": {effect: "deleted", resultField: "messageIDs"},
+	}
+	for toolName, expected := range expectedEffects {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible {
+			t.Fatalf("%s must use its visible generated v2 descriptor: %+v", toolName, descriptor)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+		effect := descriptor.ResultContract.Effects[0]
+		if effect.ObjectType != "message" || effect.Effect != expected.effect || effect.ResultField != expected.resultField || effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effect = %+v", toolName, effect)
+		}
+	}
+	for _, toolName := range []string{"message.context", "message.search"} {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		if descriptor.Version != "2" || descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+			t.Fatalf("%s generated read contract = %+v", toolName, descriptor)
+		}
+	}
 }
 
 func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
@@ -358,6 +386,14 @@ func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
 		t.Fatalf("unexpected channel update policy resource")
 	}
 	assertDescriptorCompletionEvidence(t, descriptors, "channel.update", "success", "update_channel", "channel")
+	descriptor := descriptorForTool(t, descriptors, "channel.update")
+	if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || len(descriptor.ResultContract.Effects) != 1 {
+		t.Fatalf("channel.update must use its visible generated v2 descriptor: %+v", descriptor)
+	}
+	effect := descriptor.ResultContract.Effects[0]
+	if effect.ObjectType != "channel" || effect.Effect != "updated" || effect.ResultField != "channelID" || effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+		t.Fatalf("channel.update effect = %+v", effect)
+	}
 }
 
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
@@ -484,12 +520,6 @@ func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
 		"company.document.search",
 		"company.document.update",
 		"web.fetch",
-		"message.context",
-		"message.search",
-		"message.send",
-		"message.update",
-		"message.delete",
-		"channel.update",
 		"mail.connection.status",
 		"mail.connection.start",
 		"mail.message.list",
@@ -514,9 +544,22 @@ func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
 	}
 }
 
-func TestContractedWebsiteAndReadToolsRemainModelVisible(t *testing.T) {
+func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 	defaultDescriptors := DefaultToolDescriptors()
-	for _, toolName := range []string{"browser.open", "browser.snapshot", "browser.screenshot", "browser.click", "document.read", "image.read"} {
+	for _, toolName := range []string{
+		"browser.open",
+		"browser.snapshot",
+		"browser.screenshot",
+		"browser.click",
+		"document.read",
+		"image.read",
+		"message.context",
+		"message.search",
+		"message.send",
+		"message.update",
+		"message.delete",
+		"channel.update",
+	} {
 		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
 		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
 			t.Fatalf("%s must remain typed and model-visible: %+v", toolName, descriptor)

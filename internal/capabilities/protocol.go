@@ -137,19 +137,17 @@ func FileDescriptors() []Descriptor {
 }
 
 func PlatformMessageDescriptors() []Descriptor {
-	return canonicalizeDescriptors(hideUncontractedManualDescriptors([]Descriptor{
-		{Name: "message.context", CanonicalName: "message.context", Namespace: "message", ModelName: "message.context", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Return metadata about the current Mattermost conversation context — the active channel, thread, and requester identity. Call this first when you need to know where the conversation is happening before sending or searching messages.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageContextInputSchema(), PolicyResource: "tool:message.context", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "message.search", CanonicalName: "message.search", Namespace: "message", ModelName: "message.search", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Search past Mattermost messages in a channel, thread, or DM conversation. Use this to find what was said, retrieve prior messages, or check history. Do not use this to send a message — use message.send.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSearchInputSchema(), PolicyResource: "tool:message.search", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "message.send", CanonicalName: "message.send", Namespace: "message", ModelName: "message.send", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Send a Mattermost message to a channel, thread, or DM. Requires approval before delivering. For DM to multiple people set personHints instead of personHint to fan out with a single approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSendInputSchema(), PolicyResource: "tool:message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_message", "message"), Idempotency: IdempotencyMetadata{Supported: true, Scope: "operation"}, OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "external_send", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}},
-		{Name: "message.update", CanonicalName: "message.update", Namespace: "message", ModelName: "message.update", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Edit the text of an existing Mattermost message or change its pinned state. Requires the messageID from a prior search or send result — never invent an ID. Requires approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageUpdateInputSchema(), PolicyResource: "tool:message.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_message", "message"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "external_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "message.delete", CanonicalName: "message.delete", Namespace: "message", ModelName: "message.delete", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Permanently delete one or more Mattermost messages by their IDs (up to 25 at once). Requires the messageIDs from a prior search result — never invent IDs. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageDeleteInputSchema(), PolicyResource: "tool:message.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_message", "message"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "destructive", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-	}))
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"message.context",
+		"message.search",
+		"message.send",
+		"message.update",
+		"message.delete",
+	))
 }
 
 func MattermostDescriptors() []Descriptor {
-	return canonicalizeDescriptors(hideUncontractedManualDescriptors([]Descriptor{
-		{Name: "channel.update", CanonicalName: "channel.update", Namespace: "channel", ModelName: "channel.update", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Update a Mattermost channel's display name, header text, or member list. Provide channelID or channelName to identify the channel. At least one of displayName, header, or inviteeHints must be set. Requires approval.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelUpdateInputSchema(), PolicyResource: "tool:channel.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_channel", "channel"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "external_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-	}))
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors("channel.update"))
 }
 
 func FlowDescriptors() []Descriptor {
@@ -226,60 +224,6 @@ func imageGenerateInputSchema() json.RawMessage {
 		jsonschema.Required("prompt", jsonschema.String().WithDescription("Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list.")),
 		jsonschema.Required("path", jsonschema.String().WithDescription("Absolute workspace path to save the generated PNG, e.g. /workspace/shared/logo.png. Must be under /workspace and end in .png.")),
 		jsonschema.Field("aspectRatio", jsonschema.StringEnum("1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3").WithDescription("Output aspect ratio. Defaults to 1:1 if omitted.")),
-	).RawMessage()
-}
-
-func platformMessageContextInputSchema() json.RawMessage {
-	return jsonschema.Object().RawMessage()
-}
-
-func platformMessageSearchInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel").WithDescription("Where to search. 'currentThread' and 'currentChannel' use the active conversation context. 'directMessage' searches a DM with a person; set personHint. 'channel' searches a specific channel; set channelName or channelID.")),
-		jsonschema.Field("channelName", jsonschema.String().WithDescription("For scope=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide channelName or channelID.")),
-		jsonschema.Field("channelID", jsonschema.String().WithDescription("For scope=channel: the internal Mattermost channel ID from a prior context or search result. Provide channelName or channelID.")),
-		jsonschema.Field("personHint", jsonschema.String().WithDescription("For scope=directMessage: name or email of the DM counterpart, e.g. 'Alice' or 'alice@example.com'.")),
-		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone").WithDescription("Filter by author. 'assistant' returns only bot messages, 'requester' returns only the requesting user's messages, 'anyone' returns all. Defaults to 'anyone'.")),
-		jsonschema.Field("queries", jsonschema.Array(jsonschema.String()).WithDescription("One or more keyword search strings matched against message content. Each entry is a separate query; results are unioned. Do not put author names or dates here.")),
-		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Maximum number of messages to return. Defaults to 20.")),
-		jsonschema.Field("cursor", jsonschema.String().WithDescription("Pagination cursor from a previous search response. Omit on the first call.")),
-	).RawMessage()
-}
-
-func platformMessageSendInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("targetType", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel").WithDescription("Where to deliver the message. 'directMessage' sends a DM to personHint or personHints. 'currentThread' replies in the active thread. 'currentChannel' posts in the active channel. 'channel' posts in the channel named by channelName or channelID.")),
-		jsonschema.Required("message", jsonschema.String().WithDescription("The message text to send. Supports Markdown formatting.")),
-		jsonschema.Field("channelName", jsonschema.String().WithDescription("For targetType=channel: the channel name as shown in Mattermost (without the # prefix), e.g. 'general' or '광장'. Provide channelName or channelID.")),
-		jsonschema.Field("channelID", jsonschema.String().WithDescription("For targetType=channel: the internal Mattermost channel ID from a prior context or search result. Provide channelName or channelID.")),
-		jsonschema.Field("personHint", jsonschema.String().WithDescription("For targetType=directMessage: name or email of the single recipient, e.g. 'Alice' or 'alice@example.com'. Use personHints for multiple recipients.")),
-		jsonschema.Field("personHints", jsonschema.Array(jsonschema.String()).WithDescription("For targetType=directMessage: send the same DM to several people at once. Takes precedence over personHint; the tool fans out with one approval and returns a per-recipient delivery rollup.")),
-		jsonschema.Field("pin", jsonschema.Boolean().WithDescription("If true, pin the message in the channel after sending. Defaults to false.")),
-		jsonschema.Field("reason", jsonschema.String().WithDescription("Optional human-readable reason for this send shown in the approval prompt, e.g. 'weekly status update'. Helps the approver understand intent.")),
-	).RawMessage()
-}
-
-func platformMessageUpdateInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("messageID", jsonschema.String().WithDescription("ID of the message to update. Must come from a prior message.search or message.send result — never invent an ID.")),
-		jsonschema.Field("message", jsonschema.String().WithDescription("New text content for the message. Omit to leave the text unchanged.")),
-		jsonschema.Field("isPinned", jsonschema.Boolean().WithDescription("Set to true to pin the message or false to unpin it. Omit to leave pin state unchanged.")),
-	).RawMessage()
-}
-
-func platformMessageDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String()).WithDescription("IDs of messages to delete. Must come from a prior message.search result — never invent IDs. Maximum 25 IDs per call.")),
-	).RawMessage()
-}
-
-func mattermostChannelUpdateInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("channelID", jsonschema.String().WithDescription("Internal Mattermost channel ID from a prior context or search result. Provide either channelID or channelName.")),
-		jsonschema.Field("channelName", jsonschema.String().WithDescription("Channel name as shown in Mattermost (without the # prefix), e.g. 'general'. Provide either channelName or channelID.")),
-		jsonschema.Field("header", jsonschema.String().WithDescription("New header text displayed below the channel name. Set to empty string to clear the header.")),
-		jsonschema.Field("displayName", jsonschema.String().WithDescription("New human-readable channel display name shown in the sidebar, e.g. 'Team Announcements'.")),
-		jsonschema.Field("inviteeHints", jsonschema.Array(jsonschema.String()).WithDescription("Names or emails of people to invite to the channel, e.g. [\"Alice\", \"bob@example.com\"]. They will be added as members.")),
 	).RawMessage()
 }
 
