@@ -91,29 +91,20 @@ func (service Service) invokeSiteAppTool(ctx context.Context, request capabiliti
 	if response, isResolutionFailure := siteAppResolutionFailureResponse(request.ToolName, result); isResolutionFailure {
 		return response, nil
 	}
-	response := capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
-		Result:          result,
-	}
 	projectedResult, errorValue := projectCanonicalSiteAppResult(request, result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	response.Result = projectedResult
-	descriptor, isRegistered := siteAppDescriptor(request.ToolName)
+	_, isRegistered := siteAppDescriptor(request.ToolName)
 	if !isRegistered {
 		return capabilities.ToolInvokeResponse{}, errors.New("site tool descriptor is missing")
 	}
-	response.Effects, errorValue = capabilities.ProjectResourceEffects(descriptor.ResultContract, response.Result)
+	response, errorValue := capabilitySuccessResponse(request.ToolName, "ok", projectedResult)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if len(response.Effects) > 0 {
-		siteID, errorValue := siteAppResultID(response.Result)
+		siteID, errorValue := siteAppResultID(projectedResult)
 		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
@@ -195,7 +186,6 @@ func projectSiteCreateResult(record siteAppRecord) (json.RawMessage, error) {
 		"status":              record.Status,
 		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
 		"appWorkspacePath":    strings.TrimSpace(record.AppWorkspacePath),
-		"sourceFiles":         record.SourceFiles,
 	})
 }
 
