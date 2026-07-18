@@ -65,18 +65,12 @@ func TestCalendarEventWindowBenchmarkHistoryFixtureKeepsRequestedWindowStable(t 
 	}
 }
 
-func TestCalendarEventWindowBenchmarkQueryPlanReportsCandidateIndexScan(t *testing.T) {
+func TestCalendarEventWindowQueryPlanUsesProductionRangeIndex(t *testing.T) {
 	service := newCalendarEventWindowHistoryBenchmarkService(t)
 	baselinePlan := strings.Join(calendarEventWindowBenchmarkQueryPlan(t, service), "\n")
-	t.Logf("baseline calendar event query plan:\n%s", baselinePlan)
-	if !strings.Contains(baselinePlan, "SCAN calendar_events") {
-		t.Fatalf("baseline calendar event query plan = %q", baselinePlan)
-	}
-	createCalendarEventWindowBenchmarkRangeIndex(t, service)
-	indexedPlan := strings.Join(calendarEventWindowBenchmarkQueryPlan(t, service), "\n")
-	t.Logf("indexed calendar event query plan:\n%s", indexedPlan)
-	if !strings.Contains(indexedPlan, "SCAN calendar_events USING INDEX "+calendarEventWindowBenchmarkRangeIndexName) {
-		t.Fatalf("indexed calendar event query plan = %q", indexedPlan)
+	t.Logf("calendar event query plan:\n%s", baselinePlan)
+	if !strings.Contains(baselinePlan, "SCAN calendar_events USING INDEX calendar_events_active_end_start_idx") {
+		t.Fatalf("calendar event query plan = %q", baselinePlan)
 	}
 }
 

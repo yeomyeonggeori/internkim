@@ -54,6 +54,90 @@ func TestCalendarActiveRemoteSourceQueryUsesRemoteSourceUIDIndex(t *testing.T) {
 	)
 }
 
+func TestCalendarConflictClockOutboxQueryUsesEventUIDIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`SELECT created_at FROM calendar_outbox WHERE event_uid = ?`,
+		"calendar_outbox_event_uid_idx",
+		"event@internkim",
+	)
+}
+
+func TestCalendarConflictClockRemoteStateQueryUsesEventUIDIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`SELECT last_seen_at, missing_detected_at FROM calendar_remote_event_sync_state WHERE event_uid = ?`,
+		"calendar_remote_event_sync_state_event_uid_idx",
+		"event@internkim",
+	)
+}
+
+func TestCalendarDeleteIntentCleanupUsesResolvedAtIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`DELETE FROM calendar_delete_intents WHERE status IN (?, ?, ?) AND resolved_at != '' AND resolved_at < ?`,
+		"calendar_delete_intents_status_resolved_at_idx",
+		calendarDeleteIntentStatusCanceled,
+		calendarDeleteIntentStatusExecuted,
+		calendarDeleteIntentStatusConflicted,
+		"2026-01-01T00:00:00Z",
+	)
+}
+
+func TestCalendarBackfillPendingActionQueryUsesStatusIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`SELECT event_uid, operation FROM calendar_outbox WHERE account_id = ? AND target_calendar_url = ? AND status IN (?, ?)`,
+		"calendar_outbox_account_target_status_event_idx",
+		"account",
+		"/calendars/company/",
+		calendarOutboxStatusPending,
+		calendarOutboxStatusBlocked,
+	)
+}
+
+func TestCalendarPendingNotificationQueryUsesStatusNotifyAtIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`SELECT event_id, recipient_key FROM calendar_event_notifications WHERE status = 'pending' AND notify_at <= ? ORDER BY notify_at`,
+		"calendar_event_notifications_status_notify_at_idx",
+		"2026-01-01T00:00:00Z",
+	)
+}
+
+func TestCalendarNotificationStartupEventQueryUsesDeletedEndIndex(t *testing.T) {
+	service := newCalendarTestService(t)
+	database := openCalendarQueryPlanTestDatabase(t, service)
+	defer database.Close()
+	assertCalendarQueryPlanUsesIndex(
+		t,
+		database,
+		`SELECT id FROM calendar_events WHERE deleted_at = '' AND end_at >= ? ORDER BY end_at`,
+		"calendar_events_active_end_start_idx",
+		"2026-01-01T00:00:00Z",
+	)
+}
+
 func openCalendarQueryPlanTestDatabase(t *testing.T, service *Service) *sql.DB {
 	t.Helper()
 	database, errorValue := service.openCalendarDatabase(context.Background())
