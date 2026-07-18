@@ -90,7 +90,6 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.text", CanonicalName: "llm.text", Namespace: "llm", ModelName: "llm.text", ModelVisibility: capabilityprotocol.ModelVisibilityHidden, ModelVisible: false, Description: "Generate free-form text using the device LLM. Internal capability used by Blueclaw's LLM backend; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: capabilityprotocol.TextLLMInputSchema(), SideEffectClass: capabilityprotocol.SideEffectComputation, OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, PolicyResource: "tool:llm.text", SideEffect: capabilityprotocol.SideEffectComputation, Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
 		{Name: "llm.structured", CanonicalName: "llm.structured", Namespace: "llm", ModelName: "llm.structured", ModelVisibility: capabilityprotocol.ModelVisibilityHidden, ModelVisible: false, Description: "Generate structured JSON output using the device LLM. Internal capability used by Blueclaw's LLM backend for structured extraction; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: capabilityprotocol.StructuredLLMInputSchema(), SideEffectClass: capabilityprotocol.SideEffectComputation, OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, PolicyResource: "tool:llm.structured", SideEffect: capabilityprotocol.SideEffectComputation, Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
 		{Name: "embedding.create", CanonicalName: "embedding.create", Namespace: "embedding", ModelName: "embedding.create", ModelVisibility: capabilityprotocol.ModelVisibilityHidden, ModelVisible: false, Description: "Generate vector embeddings for text using the device embedding model. Internal capability used for semantic search and memory retrieval; not directly called by the agent loop.", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: capabilityprotocol.EmbeddingInputSchema(), SideEffectClass: capabilityprotocol.SideEffectComputation, OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, PolicyResource: "tool:embedding.create", SideEffect: capabilityprotocol.SideEffectComputation, Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "platform.reply", CanonicalName: "platform.reply", Namespace: "platform", ModelName: "platform.reply", ModelVisibility: capabilityprotocol.ModelVisibilityHidden, ModelVisible: false, Description: "Send a reply in the current platform conversation context and return delivery evidence such as visibility and native attachment count. Internal shorthand used by the platform reply path; use message.send for explicit delivery targeting.", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformReplyInputSchema(), SideEffectClass: "platform_reply", CompletionEvidence: completionEvidence("success", "send_reply", "message"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, PolicyResource: "tool:platform.reply", SideEffect: "platform_reply", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
 	}
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
@@ -102,48 +101,6 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
-}
-
-func platformReplyInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("replyTargetID", jsonschema.String()),
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("rawEventID", jsonschema.String()),
-		jsonschema.Field("outboxID", jsonschema.String()),
-		jsonschema.Field("replyKind", jsonschema.String()),
-		jsonschema.Field("attachments", jsonschema.Array(jsonschema.Object(
-			jsonschema.Field("devicePath", jsonschema.String()),
-			jsonschema.Field("filename", jsonschema.String()),
-			jsonschema.Field("contentType", jsonschema.String()),
-			jsonschema.Field("sizeBytes", jsonschema.Integer()),
-			jsonschema.Field("title", jsonschema.String()),
-			jsonschema.Field("contentBase64", jsonschema.String()),
-		))),
-		jsonschema.Field("recoveryActions", jsonschema.Array(jsonschema.Object(
-			jsonschema.Field("kind", jsonschema.String()),
-			jsonschema.Field("delivery", jsonschema.String()),
-			jsonschema.Field("downloadURL", jsonschema.String()),
-			jsonschema.Field("connectCommand", jsonschema.String()),
-			jsonschema.Field("platformUserID", jsonschema.String()),
-		))),
-		jsonschema.Field("interaction", jsonschema.Object(
-			jsonschema.Required("interactionID", jsonschema.String()),
-			jsonschema.Required("taskRunID", jsonschema.String()),
-			jsonschema.Required("kind", jsonschema.String()),
-			jsonschema.Field("message", jsonschema.String()),
-			jsonschema.Field("question", jsonschema.String()),
-			jsonschema.Field("options", jsonschema.Array(jsonschema.Object(
-				jsonschema.Required("key", jsonschema.String()),
-				jsonschema.Required("label", jsonschema.String()),
-				jsonschema.Field("shortLabel", jsonschema.String()),
-				jsonschema.Field("value", jsonschema.String()),
-			))),
-			jsonschema.Field("recommendedOptionKey", jsonschema.String()),
-			jsonschema.Field("selectionMode", jsonschema.String()),
-			jsonschema.Field("responseLanguage", jsonschema.String()),
-			jsonschema.Field("targetPlatformUserID", jsonschema.String()),
-		)),
-	).RawMessage()
 }
 
 func CompanyDescriptors() []Descriptor {
