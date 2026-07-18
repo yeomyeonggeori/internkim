@@ -171,15 +171,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if taskID == "" {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
 	}
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Effects:         flowTaskEffects([]string{taskID}, "created"),
-		Status:          flowTaskResponseStatus(result),
-		Result:          result,
-	}, nil
+	return capabilityMutationResponse(request.ToolName, flowTaskResponseStatus(result), result)
 }
 
 func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -210,15 +202,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	if taskID != input.TaskID || !flowTaskUpdateResultMatchesInput(result, input) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
 	}
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Effects:         flowTaskEffects([]string{taskID}, "updated"),
-		Status:          flowTaskResponseStatus(result),
-		Result:          result,
-	}, nil
+	return capabilityMutationResponse(request.ToolName, flowTaskResponseStatus(result), result)
 }
 
 func (service Service) invokeFlowTaskList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -279,15 +263,7 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
 	result, _ = json.Marshal(map[string]any{"taskID": input.TaskID, "deleted": true})
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Effects:         flowTaskEffects([]string{input.TaskID}, "deleted"),
-		Status:          "deleted",
-		Result:          result,
-	}, nil
+	return capabilityMutationResponse(request.ToolName, "deleted", result)
 }
 
 func flowTaskResultID(result json.RawMessage) string {
@@ -333,16 +309,6 @@ func flowTaskDuplicateID(result json.RawMessage) string {
 		return ""
 	}
 	return strings.TrimSpace(document.DuplicateTask.ID)
-}
-
-func flowTaskEffects(taskIDs []string, effect string) []capabilities.ResourceEffect {
-	effects := make([]capabilities.ResourceEffect, 0, len(taskIDs))
-	for _, taskID := range taskIDs {
-		if trimmedTaskID := strings.TrimSpace(taskID); trimmedTaskID != "" {
-			effects = append(effects, capabilities.ResourceEffect{ObjectType: "task", Effect: effect, ID: trimmedTaskID})
-		}
-	}
-	return effects
 }
 
 type flowTaskAddFailure struct {
