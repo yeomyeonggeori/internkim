@@ -21,10 +21,9 @@ import (
 )
 
 const (
-	testSuiteCheap              = "cheap"
-	testSuiteExpensive          = "expensive"
-	testSuiteFull               = "full"
-	defaultPromptTimeoutSeconds = 900
+	testSuiteCheap     = "cheap"
+	testSuiteExpensive = "expensive"
+	testSuiteFull      = "full"
 )
 
 type testCommandConfiguration struct {
@@ -84,7 +83,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
-	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds for the whole expensive scenario; 0 disables the deadline")
+	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds to observe scenario work; 0 disables the deadline")
 	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
 	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL and remote desktop/mobile screenshot verification")
@@ -158,7 +157,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		return testCommandConfiguration{}, errors.New("--real cannot be combined with --maximum-model-tier")
 	}
 	if !*useRealModels && normalizedMaximumModelTier == "" {
-		normalizedMaximumModelTier = "xlow"
+		normalizedMaximumModelTier = "low"
 	}
 	normalizedLanguageModelProvider, errorValue := normalizeTestLanguageModelProvider(*languageModelProvider)
 	if errorValue != nil {
@@ -510,7 +509,7 @@ func testStringSet(values []string) map[string]bool {
 }
 
 func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
-	scenarioContext, cancel := expensiveScenarioContext(contextValue, configuration.TimeoutSeconds)
+	scenarioContext, cancel := scenarioObservationContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
 	if errorValue != nil {
@@ -546,13 +545,10 @@ func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) 
 	if configuration.ShouldUseRealModels {
 		return ""
 	}
-	if strings.EqualFold(strings.TrimSpace(configuration.MaximumModelTier), "low") {
-		return "low"
-	}
-	return ""
+	return strings.ToLower(strings.TrimSpace(configuration.MaximumModelTier))
 }
 
-func expensiveScenarioContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {
+func scenarioObservationContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {
 	if timeoutSeconds <= 0 {
 		return parent, func() {}
 	}
@@ -578,9 +574,11 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	}
 	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
-	timeoutSeconds := promptTimeoutSeconds(configuration.TimeoutSeconds)
+	timeoutSeconds := configuration.TimeoutSeconds
 	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, timeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
-	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptScriptSSHTimeout(timeoutSeconds, configuration.ShouldExpectPublicURL))
+	observationContext, cancelObservation := scenarioObservationContext(contextValue, timeoutSeconds)
+	defer cancelObservation()
+	output, errorValue := target.sshClient.runResultWithContext(observationContext, script)
 	if errorValue != nil {
 		if strings.TrimSpace(output) != "" {
 			fmt.Print(redactDownloadedMattermostFiles(output))
@@ -611,13 +609,6 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	}
 	printTestResult(verificationOutput, downloadedFilePaths)
 	return openDownloadedTestFiles(downloadedFilePaths, configuration.ShouldOpenFiles)
-}
-
-func promptTimeoutSeconds(timeoutSeconds int) int {
-	if timeoutSeconds <= 0 {
-		return defaultPromptTimeoutSeconds
-	}
-	return timeoutSeconds
 }
 
 func fetchTestTaskDetailJSON(target verifyTarget, taskRunID string) (json.RawMessage, string) {

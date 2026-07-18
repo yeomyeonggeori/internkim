@@ -1439,9 +1439,6 @@ echo "verify mattermost: ok"
 }
 
 func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string, downloadFiles bool, waitForCompletion bool, autoConfirm bool) string {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
 	encodedPrompt := base64.StdEncoding.EncodeToString([]byte(prompt))
 	expectedToolsJSON, _ := json.Marshal(trimmedNonEmptyValues(expectedTools))
 	expectedEventsJSON, _ := json.Marshal(trimmedNonEmptyValues(expectedEvents))
@@ -1504,23 +1501,27 @@ api_request() {
   local response_file
   local status
   local curl_status
+  local retry_arguments=()
+  if [ "$method" = "GET" ]; then
+    retry_arguments=(--retry 2 --retry-delay 1)
+  fi
   response_file="$(mktemp)"
   if [ -n "$body" ]; then
     if [ -n "$token" ]; then
-      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
         -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
         -d "$body" "$url")" || curl_status="$?"
     else
-      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
         -X "$method" -H "Content-Type: application/json" \
         -d "$body" "$url")" || curl_status="$?"
     fi
   else
     if [ -n "$token" ]; then
-      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
         -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
     else
-      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
         -X "$method" "$url")" || curl_status="$?"
     fi
   fi
@@ -1549,12 +1550,16 @@ blueclaw_request() {
   local response_file
   local status
   local curl_status
+  local retry_arguments=()
+  if [ "$method" = "GET" ]; then
+    retry_arguments=(--retry 2 --retry-delay 1)
+  fi
   response_file="$(mktemp)"
   if [ -n "$body" ]; then
-    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+    status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
       -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
   else
-    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+    status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 "${retry_arguments[@]}" --output "$response_file" --write-out "%%{http_code}" \
       -X "$method" "$url")" || curl_status="$?"
   fi
   if [ "${curl_status:-0}" != "0" ]; then
@@ -1585,7 +1590,7 @@ download_bot_files() {
     content_type="$(printf '%%s' "$file_info" | jq -r '.mime_type // .content_type // ""')"
     attachment_file="$(mktemp)"
     content_base64_file="$(mktemp)"
-    curl --silent --show-error --fail \
+    curl --silent --show-error --fail --connect-timeout 10 --max-time 30 \
       -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/files/$file_id" \
       -o "$attachment_file"
@@ -1605,7 +1610,7 @@ download_bot_files() {
 
 wait_for_blueclaw_health() {
   for _ in $(seq 1 "$health_timeout_seconds"); do
-    if curl --silent --show-error --fail --max-time 15 http://127.0.0.1:8080/admin/api/health |
+    if curl --silent --show-error --fail --connect-timeout 10 --max-time 15 http://127.0.0.1:8080/admin/api/health |
       jq -e '.status == "ok"' >/dev/null; then
       return 0
     fi
@@ -1897,7 +1902,8 @@ write_site_screenshots_json() {
 login_headers="$(mktemp)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
-curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-login.json \
+curl --silent --show-error --fail --connect-timeout 10 --max-time 30 \
+  -D "$login_headers" -o /tmp/internkim-admin-login.json \
   -H "Content-Type: application/json" \
   -d "$login_body" \
   http://localhost:8065/api/v4/users/login >/dev/null
@@ -1909,34 +1915,34 @@ cleanup() {
     return 0
   fi
   if [ -n "${bot_post_id:-}" ]; then
-    curl --silent --show-error -X DELETE -H "Authorization: Bearer $mattermost_token" \
+    curl --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $mattermost_token" \
       "http://localhost:8065/api/v4/posts/$bot_post_id" >/dev/null || true
   fi
   if [ -n "${user_post_id:-}" ]; then
-    curl --silent --show-error -X DELETE -H "Authorization: Bearer $user_token" \
+    curl --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $user_token" \
       "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
   fi
   if [ -n "${user_id:-}" ]; then
-    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
-      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
   if [ -n "${channel_id:-}" ]; then
     site_list_file="$(mktemp)"
-    if curl --silent --show-error http://127.0.0.1:8080/admin/api/sites -o "$site_list_file"; then
+    if curl --silent --show-error --connect-timeout 10 --max-time 30 http://127.0.0.1:8080/admin/api/sites -o "$site_list_file"; then
       site_ids="$(jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID' "$site_list_file" 2>/dev/null || true)"
     else
       site_ids=""
     fi
     rm -f "$site_list_file"
     for site_id in $site_ids; do
-      curl --silent --show-error -X DELETE -H "Content-Type: application/json" \
+      curl --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Content-Type: application/json" \
         -d '{"confirm":"DELETE","userConfirmed":true}' \
         "http://127.0.0.1:8080/admin/api/sites/$site_id" >/dev/null || true
     done
   fi
-  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
+  curl --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
 trap cleanup EXIT
 
@@ -1944,13 +1950,13 @@ delete_probe_user() {
   local probe_user_id="$1"
   local probe_email="$2"
   if [ -n "$probe_user_id" ]; then
-    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$probe_user_id?permanent=true" >/dev/null 2>&1 || \
-      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$probe_user_id" >/dev/null || true
   fi
   if [ -n "$probe_email" ]; then
-    curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$probe_email" >/dev/null || true
+    curl --silent --show-error --connect-timeout 10 --max-time 30 -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$probe_email" >/dev/null || true
   fi
 }
 
@@ -1982,7 +1988,8 @@ test -n "$user_id"
 
 user_login_headers="$(mktemp)"
 user_login_body="$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')"
-curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-probe-user-login.json \
+curl --silent --show-error --fail --connect-timeout 10 --max-time 30 \
+  -D "$user_login_headers" -o /tmp/internkim-probe-user-login.json \
   -H "Content-Type: application/json" \
   -d "$user_login_body" \
   http://localhost:8065/api/v4/users/login >/dev/null
@@ -2003,7 +2010,9 @@ user_post_create_at="$(printf '%%s' "$user_post" | jq -r '.create_at')"
 test -n "$user_post_id"
 
 bot_post_id=""
-for _ in $(seq 1 "$reply_timeout_seconds"); do
+reply_waited_seconds=0
+while [ "$reply_timeout_seconds" -le 0 ] || [ "$reply_waited_seconds" -lt "$reply_timeout_seconds" ]; do
+  reply_waited_seconds=$((reply_waited_seconds + 1))
   bot_post_id="$(api_request "wait for probe reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
     jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
       '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | .id' | head -1)"
@@ -2015,10 +2024,10 @@ done
 if [ -z "$bot_post_id" ]; then
   echo "expected Mattermost bot reply for probe post $user_post_id" >&2
   echo "probe channel: $channel_id" >&2
-  echo "probe bot membership status: $(curl --silent --show-error --output /tmp/internkim-probe-bot-member.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/members/$bot_user_id" || true)" >&2
-  echo "probe bot channel posts status: $(curl --silent --show-error --output /tmp/internkim-probe-bot-posts.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=5" || true)" >&2
+  echo "probe bot membership status: $(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/internkim-probe-bot-member.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/members/$bot_user_id" || true)" >&2
+  echo "probe bot channel posts status: $(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/internkim-probe-bot-posts.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=5" || true)" >&2
   jq -r '.order // [] | @json' /tmp/internkim-probe-bot-posts.json >&2 || true
-  echo "probe bot channel list contains channel: $(curl --silent --show-error -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/users/$bot_user_id/channels" | jq -r --arg channel_id "$channel_id" 'map(.id == $channel_id) | any')" >&2
+  echo "probe bot channel list contains channel: $(curl --silent --show-error --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/users/$bot_user_id/channels" | jq -r --arg channel_id "$channel_id" 'map(.id == $channel_id) | any')" >&2
   blueclaw_request "probe task list after missing reply" GET http://127.0.0.1:8080/admin/api/task |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | @json' >&2 || true
   probe_task_run_id="$(blueclaw_request "probe task id after missing reply" GET http://127.0.0.1:8080/admin/api/task | jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')" || true
@@ -2075,7 +2084,9 @@ if [ "$wait_for_completion" = "true" ] && [ -z "$task_run_id" ]; then
   exit 1
 fi
 if [ -n "$task_run_id" ] && [ "$should_wait_for_task" = "true" ]; then
-  for _ in $(seq 1 "$completion_timeout_seconds"); do
+  completion_waited_seconds=0
+  while [ "$completion_timeout_seconds" -le 0 ] || [ "$completion_waited_seconds" -lt "$completion_timeout_seconds" ]; do
+    completion_waited_seconds=$((completion_waited_seconds + 1))
     blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
     if [ "$auto_confirm" = "true" ] && [ "$approval_sent" = "false" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
       approval_body="$(jq -cn --arg channel_id "$channel_id" --arg root_id "$user_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')"
@@ -2214,7 +2225,9 @@ emit_site_verification_failure() {
 if [ "$expect_public_url" = "true" ]; then
   public_url_verified=false
   public_html_file="$(mktemp)"
-  for _ in $(seq 1 "$public_url_timeout_seconds"); do
+  public_url_waited_seconds=0
+  while [ "$public_url_timeout_seconds" -le 0 ] || [ "$public_url_waited_seconds" -lt "$public_url_timeout_seconds" ]; do
+    public_url_waited_seconds=$((public_url_waited_seconds + 1))
     bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
       jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
         '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
@@ -2227,7 +2240,7 @@ if [ "$expect_public_url" = "true" ]; then
       fi
       public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
       if [ -n "$public_url" ]; then
-        if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
+        if curl --location --fail --silent --show-error --connect-timeout 10 --max-time 30 "$public_url" -o "$public_html_file"; then
           if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" &&
              ! grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" &&
              ! grep -Fq 'Replace this starter' "$public_html_file" &&
