@@ -60,12 +60,6 @@ type calendarEventDeleteInput struct {
 	Query   string `json:"query"`
 }
 
-type calendarEventTarget struct {
-	EventID string `json:"eventID"`
-	Query   string `json:"query"`
-	Title   string `json:"title"`
-}
-
 type calendarToolPeopleInput []string
 
 type calendarToolParticipant struct {
@@ -79,20 +73,19 @@ type calendarEventsForTool struct {
 }
 
 type calendarEventForTool struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	StartISO    string `json:"startISO"`
-	EndISO      string `json:"endISO"`
-	TimeZone    string `json:"timeZone"`
-	IsAllDay    bool   `json:"isAllDay"`
-	UpdatedAt   string `json:"updatedAt"`
-}
-
-type calendarResolvedEventTarget struct {
-	ID        string
-	UpdatedAt string
+	ID                string                    `json:"id"`
+	Title             string                    `json:"title"`
+	Description       string                    `json:"description"`
+	Location          string                    `json:"location"`
+	StartISO          string                    `json:"startISO"`
+	EndISO            string                    `json:"endISO"`
+	TimeZone          string                    `json:"timeZone"`
+	IsAllDay          bool                      `json:"isAllDay"`
+	Color             string                    `json:"color"`
+	People            calendarToolPeopleInput   `json:"people"`
+	Participants      []calendarToolParticipant `json:"participants"`
+	ReminderLeadHours int                       `json:"reminderLeadHours"`
+	UpdatedAt         string                    `json:"updatedAt"`
 }
 
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -192,63 +185,6 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": target.ID, "deleted": true})
 	return calendarToolResponse(request.ToolName, "deleted", result), nil
-}
-
-func (service Service) resolveCalendarEventTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (calendarResolvedEventTarget, *capabilities.ToolInvokeResponse, error) {
-	var target calendarEventTarget
-	_ = json.Unmarshal(request.Input, &target)
-	target.EventID = strings.TrimSpace(target.EventID)
-	target.Query = strings.TrimSpace(target.Query)
-	target.Title = strings.TrimSpace(target.Title)
-	if target.Query == "" {
-		target.Query = target.Title
-	}
-	if target.EventID == "" && target.Query == "" {
-		return calendarResolvedEventTarget{}, nil, fmt.Errorf("eventID, query, or unchanged title is required")
-	}
-	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, "/calendar/api/events", nil, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return calendarResolvedEventTarget{}, nil, errorValue
-	}
-	var response calendarEventsForTool
-	if errorValue := json.Unmarshal(result, &response); errorValue != nil {
-		return calendarResolvedEventTarget{}, nil, errorValue
-	}
-	matches := make([]calendarEventForTool, 0, len(response.Events))
-	for _, event := range response.Events {
-		if target.EventID != "" && event.ID == target.EventID {
-			matches = append(matches, event)
-			continue
-		}
-		if target.EventID == "" && calendarEventMatchesQuery(event, target.Query) {
-			matches = append(matches, event)
-		}
-	}
-	if len(matches) == 0 {
-		failure := calendarResolutionFailure(request.ToolName, "calendar_event_not_found", "no calendar event matched the query", nil)
-		return calendarResolvedEventTarget{}, &failure, nil
-	}
-	if len(matches) > 1 {
-		failure := calendarResolutionFailure(request.ToolName, "calendar_event_ambiguous", "multiple calendar events matched the query", matches)
-		return calendarResolvedEventTarget{}, &failure, nil
-	}
-	return calendarResolvedEventTarget{ID: matches[0].ID, UpdatedAt: matches[0].UpdatedAt}, nil, nil
-}
-
-func calendarResolutionFailure(toolName string, errorCode string, message string, candidates []calendarEventForTool) capabilities.ToolInvokeResponse {
-	result, _ := json.Marshal(map[string]any{"errorCode": errorCode, "message": message, "candidates": candidates})
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Status:          "error",
-		Content:         message,
-		IsError:         true,
-		Message:         message,
-		ErrorCode:       errorCode,
-		FailureStage:    "resolution",
-		Result:          result,
-	}
 }
 
 func injectCalendarEventID(document json.RawMessage, eventID string) (json.RawMessage, error) {
@@ -499,7 +435,10 @@ func (service Service) sendCalendarToolRequest(ctx context.Context, method strin
 				message:    "calendar tool failed: " + message,
 			}
 		}
-		return nil, fmt.Errorf("calendar tool failed: %s", message)
+		return nil, &calendarToolRequestError{
+			statusCode: httpResponse.StatusCode,
+			message:    "calendar tool failed: " + message,
+		}
 	}
 	return json.RawMessage(responseBody), nil
 }
