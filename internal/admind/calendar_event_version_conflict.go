@@ -52,6 +52,14 @@ func normalizeExpectedCalendarEventUpdatedAt(value string) (string, error) {
 	return expectedUpdatedAt, nil
 }
 
+func normalizeExpectedCalendarEventUpdatedAtOrCurrent(value string, currentUpdatedAt string) (string, error) {
+	expectedUpdatedAt := strings.TrimSpace(value)
+	if expectedUpdatedAt == "" {
+		expectedUpdatedAt = strings.TrimSpace(currentUpdatedAt)
+	}
+	return normalizeExpectedCalendarEventUpdatedAt(expectedUpdatedAt)
+}
+
 func writeCalendarEventVersionConflictError(responseWriter http.ResponseWriter, errorValue error) bool {
 	if !errors.Is(errorValue, errCalendarEventVersionConflict) {
 		return false
