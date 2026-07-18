@@ -143,6 +143,7 @@ func (service *Service) serveCalendarIndex(responseWriter http.ResponseWriter, r
 
 func (service *Service) handleCalendar(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/calendar/api")
+	escapedPath := strings.TrimPrefix(request.URL.EscapedPath(), "/calendar/api")
 	if !service.authorizeCalendarAPIRequest(request, path) {
 		http.Error(responseWriter, "calendar access required", http.StatusForbidden)
 		return
@@ -150,24 +151,28 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	switch {
 	case request.Method == http.MethodGet && path == "/events":
 		service.listCalendarEvents(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/events/search":
+		service.searchCalendarEventCandidates(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":
 		service.listCalendarParticipants(responseWriter, request)
-	case request.Method == http.MethodGet && isCalendarParticipantImageAPIPath(path):
+	case request.Method == http.MethodGet && isCalendarParticipantImageAPIPath(escapedPath):
 		service.serveCalendarParticipantImage(responseWriter, request, path)
-	case request.Method == http.MethodGet && isCalendarActorImageAPIPath(path):
+	case request.Method == http.MethodGet && isCalendarActorImageAPIPath(escapedPath):
 		service.serveCalendarActorImage(responseWriter, request, path)
+	case request.Method == http.MethodGet && strings.HasPrefix(escapedPath, "/events/"):
+		service.getCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodPost && path == "/events":
 		service.createCalendarEvent(responseWriter, request)
-	case request.Method == http.MethodPut && isCalendarDeleteIntentPath(path):
+	case request.Method == http.MethodPut && isCalendarDeleteIntentPath(escapedPath):
 		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
 		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
-	case request.Method == http.MethodDelete && isCalendarDeleteIntentPath(path):
+	case request.Method == http.MethodDelete && isCalendarDeleteIntentPath(escapedPath):
 		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
 		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/events/"):
-		service.updateCalendarEvent(responseWriter, request, strings.TrimPrefix(path, "/events/"))
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/events/"):
-		service.deleteCalendarEvent(responseWriter, request, strings.TrimPrefix(path, "/events/"))
+	case request.Method == http.MethodPut && strings.HasPrefix(escapedPath, "/events/"):
+		service.updateCalendarEventFromAPIPath(responseWriter, request, escapedPath)
+	case request.Method == http.MethodDelete && strings.HasPrefix(escapedPath, "/events/"):
+		service.deleteCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodGet && path == "/sync":
 		service.writeCalendarSync(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/remote-sync":
@@ -310,7 +315,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
-	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
+	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAtOrCurrent(payload.ExpectedUpdatedAt, existingEvent.UpdatedAt)
 	if errorValue != nil {
 		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
@@ -365,11 +370,24 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
 	var payload calendarEventDeleteRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil && !errors.Is(errorValue, io.EOF) {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAt(payload.ExpectedUpdatedAt)
+	currentUpdatedAt := ""
+	if strings.TrimSpace(payload.ExpectedUpdatedAt) == "" {
+		currentEvent, found, errorValue := service.readCalendarEventByID(request.Context(), eventID)
+		if errorValue != nil {
+			writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
+			return
+		}
+		if !found {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		currentUpdatedAt = currentEvent.UpdatedAt
+	}
+	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAtOrCurrent(payload.ExpectedUpdatedAt, currentUpdatedAt)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
