@@ -291,6 +291,29 @@ func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioMissingEventReportsOutputExpectation(t *testing.T) {
+	scenario := mattermostScenario{Name: "task", Steps: []mattermostScenarioStep{{
+		Prompt: "업무를 추가해줘",
+		ExpectedEventCounts: []mattermostScenarioEventCount{{
+			Name:           "tool.task.add.result",
+			OutputFragment: "2026-07-24",
+			Count:          1,
+		}},
+	}}}
+	result := mattermostScenarioResult{ScenarioName: "task", Steps: []mattermostScenarioStepResult{{
+		Prompt: "업무를 추가해줘",
+		TaskEvents: []mattermostScenarioTaskEvent{{
+			Name: "tool.task.add.result",
+			Body: `{"output":{"data":{"title":"고객지원 분기 결산"}}}`,
+		}},
+	}}}
+
+	errorValue := validateMattermostScenarioResult(scenario, &result)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), `event "tool.task.add.result" with output containing "2026-07-24"`) {
+		t.Fatalf("expected missing output detail, got %v", errorValue)
+	}
+}
+
 func TestMattermostScenarioRejectsDuplicateMutatingCount(t *testing.T) {
 	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
 		Prompt:                      "count",
