@@ -34,7 +34,8 @@ export function createPersistenceScenario(
 	initialEvents: DayFlowEvent[],
 	refreshedEvents: () => DayFlowEvent[] = () => initialEvents,
 	persistedOverrides: Partial<CalendarPersistedEventActions> = {},
-	useDefaultNotifier = false
+	useDefaultNotifier = false,
+	waitForDeleteIntentCancellationRetry: (delay: number) => Promise<void> = async () => {}
 ) {
 	let calendarEvents = [...initialEvents];
 	let calendarRefreshCount = 0;
@@ -129,6 +130,7 @@ export function createPersistenceScenario(
 		{
 			createPersistedEventActions: () => persistedEvents,
 			dismissDeleteUndoToast: () => {},
+			waitForDeleteIntentCancellationRetry,
 			showDeleteUndoToast: (options) => {
 				undoPendingDelete = options.undo;
 			},

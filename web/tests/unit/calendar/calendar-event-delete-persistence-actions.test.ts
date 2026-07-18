@@ -137,7 +137,7 @@ test('keeps an ambiguously deleted event hidden when compensation cancellation f
 	});
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
-	await waitForDeleteIntentCompensation();
+	await waitForQueuedPersistence();
 
 	expect(canceledOperationIDs).toEqual([
 		createdOperationID,
@@ -213,7 +213,7 @@ test('handles Undo cancellation failure without waiting for intent registration 
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
 	scenario.undoPendingDelete();
-	await waitForDeleteIntentCompensation();
+	await waitForQueuedPersistence();
 	const refreshCountBeforeRegistrationSettled = scenario.refreshCount();
 	resolveCreate({ operationID, executeAt: '2026-07-17T01:00:05Z' });
 	await waitForQueuedPersistence();
@@ -239,7 +239,7 @@ test('keeps the event hidden after Undo cancellation cannot be confirmed', async
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
 	scenario.undoPendingDelete();
-	await waitForDeleteIntentCompensation();
+	await waitForQueuedPersistence();
 
 	expect(cancelCount).toBe(3);
 	expect(scenario.events()).toEqual([]);
@@ -305,7 +305,7 @@ test('keeps the event hidden when undo cancellation fails behind a failed pendin
 	scenario.undoPendingDelete();
 	rejectWrite(targetUnavailableError());
 	await save;
-	await waitForDeleteIntentCompensation();
+	await waitForQueuedPersistence();
 
 	expect(scenario.events()).toEqual([]);
 	expect(scenario.refreshCount()).toBe(1);
@@ -337,7 +337,7 @@ test('keeps the event hidden when undo cancellation fails behind a successful pe
 	refreshedEvents = [optimisticEvent];
 	resolveWrite(calendarServerEvent(optimisticEvent.id, optimisticEvent.title));
 	await save;
-	await waitForDeleteIntentCompensation();
+	await waitForQueuedPersistence();
 
 	expect(scenario.events()).toEqual([]);
 	expect(scenario.refreshCount()).toBe(1);
@@ -471,8 +471,4 @@ test('restores an optimistically deleted event after delete reports target unava
 
 async function waitForQueuedPersistence(): Promise<void> {
 	await new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
-
-async function waitForDeleteIntentCompensation(): Promise<void> {
-	await new Promise<void>((resolve) => setTimeout(resolve, 500));
 }
