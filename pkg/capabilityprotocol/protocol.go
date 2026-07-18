@@ -25,12 +25,15 @@ const (
 	ToolOutcomeFailed    ToolOutcome = "failed"
 	ToolOutcomeDenied    ToolOutcome = "denied"
 
+	ToolConflictResolutionAllowDuplicate ToolConflictResolution = "allow_duplicate"
+
 	ResourceEffectIdentityID   ResourceEffectIdentity = "id"
 	ResourceEffectIdentityPath ResourceEffectIdentity = "path"
 	ResourceEffectIdentityURL  ResourceEffectIdentity = "url"
 )
 
 type ToolOutcome string
+type ToolConflictResolution string
 type ResourceEffectIdentity string
 
 type Descriptor struct {
@@ -130,19 +133,20 @@ type ToolInvokeRequest struct {
 }
 
 type ToolInvokeContext struct {
-	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
-	RequesterEmail          string `json:"requesterEmail,omitempty"`
-	RequesterName           string `json:"requesterName,omitempty"`
-	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
-	TaskSource              string `json:"taskSource,omitempty"`
-	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
-	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
-	ConversationID          string `json:"conversationID,omitempty"`
-	ConversationType        string `json:"conversationType,omitempty"`
-	ChannelID               string `json:"channelID,omitempty"`
-	ChannelName             string `json:"channelName,omitempty"`
-	ReplyTargetID           string `json:"replyTargetID,omitempty"`
-	Platform                string `json:"platform,omitempty"`
+	RequesterPersonID       string                 `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string                 `json:"requesterEmail,omitempty"`
+	RequesterName           string                 `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string                 `json:"requesterPlatformUserID,omitempty"`
+	TaskSource              string                 `json:"taskSource,omitempty"`
+	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
+	IsApprovalContinuation  bool                   `json:"isApprovalContinuation,omitempty"`
+	ConversationID          string                 `json:"conversationID,omitempty"`
+	ConversationType        string                 `json:"conversationType,omitempty"`
+	ChannelID               string                 `json:"channelID,omitempty"`
+	ChannelName             string                 `json:"channelName,omitempty"`
+	ReplyTargetID           string                 `json:"replyTargetID,omitempty"`
+	Platform                string                 `json:"platform,omitempty"`
+	ConflictResolution      ToolConflictResolution `json:"conflictResolution,omitempty"`
 }
 
 type ActorContext struct {

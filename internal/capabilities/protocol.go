@@ -28,6 +28,8 @@ const (
 	ToolOutcomeSucceeded = capabilityprotocol.ToolOutcomeSucceeded
 	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
 	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
+
+	ToolConflictResolutionAllowDuplicate = capabilityprotocol.ToolConflictResolutionAllowDuplicate
 )
 
 type Descriptor = capabilityprotocol.Descriptor
@@ -37,6 +39,7 @@ type ToolResultContract = capabilityprotocol.ToolResultContract
 type ResourceEffectContract = capabilityprotocol.ResourceEffectContract
 type ResourceEffect = capabilityprotocol.ResourceEffect
 type ToolOutcome = capabilityprotocol.ToolOutcome
+type ToolConflictResolution = capabilityprotocol.ToolConflictResolution
 type ResourceEffectIdentity = capabilityprotocol.ResourceEffectIdentity
 type AvailabilityMetadata = capabilityprotocol.AvailabilityMetadata
 type IdempotencyMetadata = capabilityprotocol.IdempotencyMetadata
@@ -185,12 +188,12 @@ func FlowDescriptors() []Descriptor {
 }
 
 func CalendarDescriptors() []Descriptor {
-	return canonicalizeDescriptors([]Descriptor{
-		{Name: "calendar.add", CanonicalName: "calendar.add", Namespace: "calendar", ModelName: "calendar.add", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Create a new calendar event. Provide title, startISO, and endISO at minimum. Use ISO 8601 with timezone for times, e.g. 2026-06-23T14:00:00+09:00. Do not call this to update an existing event — use calendar.update.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "calendar.list", CanonicalName: "calendar.list", Namespace: "calendar", ModelName: "calendar.list", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "List the requester's calendar events within a time window. Use this to answer any 'what is on my calendar' question (today, this week, a date range): compute the concrete startISO/endISO window yourself and call it directly — do not run a shell command and do not ask the user for their calendar. Returns the events in the window (possibly empty).", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.list", SideEffectClass: "read", OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "read", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "calendar.update", CanonicalName: "calendar.update", Namespace: "calendar", ModelName: "calendar.update", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Update an existing calendar event. Identify it by eventID from a prior calendar.list result, or set query to a distinctive keyword (a person or topic name) and the runtime finds it across all dates — never invent an eventID. When the title is unchanged, title is also used as the lookup query if both identifiers are omitted. Supply only the fields that should change; omitted fields keep their current values.", Version: "2", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "workspace_write", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-		{Name: "calendar.delete", CanonicalName: "calendar.delete", Namespace: "calendar", ModelName: "calendar.delete", ModelVisibility: capabilityprotocol.ModelVisibilityVisible, ModelVisible: true, Description: "Delete a calendar event. Identify it by eventID from a prior calendar.list result, or set query to a distinctive keyword (a person or topic name) and the runtime finds it across all dates — never invent an eventID. Requires approval; this action is irreversible.", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "write_calendar", "calendar"), OutputSchema: capabilityprotocol.ToolInvokeOutputSchema(), InputSchemaStrict: true, OutputSchemaStrict: true, SideEffect: "destructive", Availability: capabilityprotocol.AvailabilityMetadata{State: capabilityprotocol.AvailabilityOK}, Idempotency: capabilityprotocol.IdempotencyMetadata{Scope: "operation"}},
-	})
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"calendar.add",
+		"calendar.list",
+		"calendar.update",
+		"calendar.delete",
+	))
 }
 
 func MailDescriptors() []Descriptor {
@@ -380,58 +383,8 @@ func mattermostPostDeleteInputSchema() json.RawMessage {
 	return jsonschema.Object(jsonschema.Required("postIDs", jsonschema.Array(jsonschema.String()).WithDescription("Mattermost post IDs to delete. Must come from a prior search result — never invent IDs. Maximum 25 per call."))).RawMessage()
 }
 
-func calendarEventWriteInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("title", jsonschema.String().WithDescription("Event title shown in the calendar, e.g. 'Team standup'.")),
-		jsonschema.Field("description", jsonschema.String().WithDescription("Optional event notes or agenda visible to all attendees.")),
-		jsonschema.Field("location", jsonschema.String().WithDescription("Physical or virtual location, e.g. 'Conference Room B' or 'https://meet.example.com/xyz'.")),
-		jsonschema.Required("startISO", jsonschema.String().WithDescription("Event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Resolve relative times like 'tomorrow 2pm' yourself before calling.")),
-		jsonschema.Required("endISO", jsonschema.String().WithDescription("Event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Must be after startISO.")),
-		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier for the event, e.g. 'Asia/Seoul'. Defaults to the workspace timezone if omitted.")),
-		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event. When true, startISO and endISO should use date-only format (YYYY-MM-DD).")),
-		jsonschema.Field("color", jsonschema.String().WithDescription("Optional color label for the event, e.g. 'tomato', 'blueberry'. Supported values depend on the calendar provider.")),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Attendee/person hints such as names, @handles, or emails, e.g. [\"Alice\", \"@bob\"]. For ordinary personal meetings, include the other attendees; the runtime adds the requester by default on calendar.add.")),
-		jsonschema.Field("includeRequester", jsonschema.Boolean().WithDescription("Set false only for delegated, announcement, all-hands, or someone else's calendar events where the requester is not an attendee. Defaults to true for calendar.add and false for calendar.update.")),
-		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Send a reminder this many hours before the event, e.g. 1 for a 1-hour-before reminder. Omit to use the calendar default.")),
-	).RawMessage()
-}
-
 func emptyInputSchema() json.RawMessage {
 	return jsonschema.Object().RawMessage()
-}
-
-func calendarEventListInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("startISO", jsonschema.String().WithDescription("Inclusive start of the time window to list, as ISO 8601 with timezone, e.g. 2026-06-23T00:00:00+09:00. Resolve relative ranges like today / this week to concrete dates yourself before calling. Omit both startISO and endISO to default to today through the next 7 days in the workspace timezone; only widen the range when the user explicitly asks for past or far-future events.")),
-		jsonschema.Field("endISO", jsonschema.String().WithDescription("Exclusive end of the time window, as ISO 8601 with timezone. Pair with startISO to bound the listing; for a single day use the next day at 00:00.")),
-		jsonschema.Field("query", jsonschema.String().WithDescription("Optional free-text filter matched against event titles. Do NOT put a date or date range here — the time window goes in startISO/endISO. Leave empty to list everything in the window.")),
-		jsonschema.Field("limit", jsonschema.Integer().WithDescription("Optional maximum number of events to return.")),
-	).RawMessage()
-}
-
-func calendarEventUpdateInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("eventID", jsonschema.String().WithDescription("ID of the event to update from a prior calendar.list result. Omit and set query instead to let the runtime find the event by name.")),
-		jsonschema.Field("query", jsonschema.String().WithDescription("Distinctive keyword from the event title or attendee (e.g. a person or topic name) used to find the event when no eventID is given. The runtime resolves it across all dates and fails if it matches zero or several events.")),
-		jsonschema.Field("title", jsonschema.String().WithDescription("New event title. Omit to keep the existing title. When eventID and query are omitted, the unchanged title can identify the existing event, so renames require query or eventID.")),
-		jsonschema.Field("description", jsonschema.String().WithDescription("New event notes or agenda. Omit to keep the existing description; set an empty string to clear it.")),
-		jsonschema.Field("location", jsonschema.String().WithDescription("New physical or virtual location. Omit to keep the existing location; set an empty string to clear it.")),
-		jsonschema.Field("startISO", jsonschema.String().WithDescription("New event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Omit to keep the existing start.")),
-		jsonschema.Field("endISO", jsonschema.String().WithDescription("New event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Omit to keep the existing end.")),
-		jsonschema.Field("timeZone", jsonschema.String().WithDescription("IANA timezone identifier, e.g. 'Asia/Seoul'. Omit to keep the existing timezone.")),
-		jsonschema.Field("isAllDay", jsonschema.Boolean().WithDescription("Set to true for an all-day event; false for a timed event.")),
-		jsonschema.Field("color", jsonschema.String().WithDescription("Color label for the event. Omit to keep the existing color.")),
-		jsonschema.Field("people", jsonschema.Array(jsonschema.String()).WithDescription("Updated attendee/person hints such as names, @handles, or emails. This replaces the existing attendee list entirely after resolution.")),
-		jsonschema.Field("includeRequester", jsonschema.Boolean().WithDescription("Set true only when the requester should be added as an attendee during this update. Defaults to false for calendar.update.")),
-		jsonschema.Field("reminderLeadHours", jsonschema.Integer().WithDescription("Reminder lead time in hours. Omit to keep the existing reminder setting.")),
-	).RawMessage()
-}
-
-func calendarEventDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("eventID", jsonschema.String().WithDescription("ID of the calendar event to delete from a prior calendar.list result. Omit and set query instead to let the runtime find the event by name.")),
-		jsonschema.Field("query", jsonschema.String().WithDescription("Distinctive keyword from the event title or attendee used to find the event when no eventID is given. The runtime resolves it across all dates and fails if it matches zero or several events.")),
-	).RawMessage()
 }
 
 func mailMessageListInputSchema() json.RawMessage {

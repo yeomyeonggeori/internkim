@@ -7,7 +7,7 @@ import (
 	"testing/fstest"
 )
 
-func TestGeneratedCatalogLoadsCanonicalTaskDescriptors(t *testing.T) {
+func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	catalog, errorValue := loadGeneratedCatalog(generatedCatalogFiles)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -15,19 +15,39 @@ func TestGeneratedCatalogLoadsCanonicalTaskDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 4 {
-		t.Fatalf("expected four generated task descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) != 8 {
+		t.Fatalf("expected eight generated tool descriptors, got %d", len(catalog.tools))
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 }
 
+func TestGeneratedProtocolVersionCompatibility(t *testing.T) {
+	if errorValue := validateGeneratedProtocolVersion(supportedGeneratedProtocolVersion); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, protocolVersion := range []string{"", "0.3.0", "0.4.1", "1.0.0"} {
+		if errorValue := validateGeneratedProtocolVersion(protocolVersion); errorValue == nil {
+			t.Fatalf("expected protocol version %q to be rejected", protocolVersion)
+		}
+	}
+}
+
 func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
-	names := []string{"task.add", "task.list", "task.update", "task.delete"}
+	names := []string{
+		"task.add",
+		"task.list",
+		"task.update",
+		"task.delete",
+		"calendar.add",
+		"calendar.list",
+		"calendar.update",
+		"calendar.delete",
+	}
 	firstDescriptors := MustGeneratedToolDescriptors(names...)
-	if len(firstDescriptors) != 4 {
-		t.Fatalf("expected four task descriptors, got %d", len(firstDescriptors))
+	if len(firstDescriptors) != 8 {
+		t.Fatalf("expected eight tool descriptors, got %d", len(firstDescriptors))
 	}
 	firstDescriptors[0].InputSchema[0] = 'x'
 	firstDescriptors[0].ResultContract.Effects[0].Effect = "changed"
@@ -47,18 +67,35 @@ func TestGeneratedToolDescriptorsRejectMissingNames(t *testing.T) {
 	MustGeneratedToolDescriptors("task.missing")
 }
 
-func TestGeneratedCatalogRejectsCorruptOrExtraArtifacts(t *testing.T) {
+func TestGeneratedCatalogRejectsCorruptOrExtraReleaseArtifacts(t *testing.T) {
 	testCases := []struct {
 		name             string
 		changeFileSystem func(fstest.MapFS)
 		errorFragment    string
 	}{
 		{
+			name: "unsupported protocol version",
+			changeFileSystem: func(fileSystem fstest.MapFS) {
+				document := string(fileSystem["generated/manifest.json"].Data)
+				supportedVersion := `"protocolVersion": "` + supportedGeneratedProtocolVersion + `"`
+				document = strings.Replace(document, supportedVersion, `"protocolVersion": "1.0.0"`, 1)
+				fileSystem["generated/manifest.json"].Data = []byte(document)
+			},
+			errorFragment: "protocol version",
+		},
+		{
 			name: "catalog hash",
 			changeFileSystem: func(fileSystem fstest.MapFS) {
 				fileSystem["generated/capability-tools.json"].Data = []byte("{}")
 			},
 			errorFragment: "hash does not match",
+		},
+		{
+			name: "schema release artifact hash",
+			changeFileSystem: func(fileSystem fstest.MapFS) {
+				fileSystem["generated/json-schema/agent-action.schema.json"].Data = []byte("{}")
+			},
+			errorFragment: "generated schema agent-action: hash does not match",
 		},
 		{
 			name: "aggregate hash",
