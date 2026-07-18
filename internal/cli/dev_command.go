@@ -18,6 +18,7 @@ import (
 
 type devVirtualSessionArguments struct {
 	ScenarioName             string
+	ScenarioFilePath         string
 	ArtifactDirectoryPath    string
 	SkillDirectoryPath       string
 	LanguageModelEndpoint    string
@@ -28,8 +29,10 @@ type devVirtualSessionArguments struct {
 	ExecutionMode            string
 	Seed                     string
 	Temperature              string
+	MaximumModelTier         string
 	RequiredExecutables      []string
 	IsLiveLanguageModel      bool
+	HasStrictAssertions      bool
 	ShouldSkipPreflight      bool
 }
 
@@ -390,6 +393,7 @@ func runDevSimulateArguments(arguments []string) error {
 func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArguments, error) {
 	flagSet := flag.NewFlagSet("dev simulate", flag.ContinueOnError)
 	scenarioName := flagSet.String("scenario", "schedule_create_acceptance", "Blueclaw virtual-session scenario")
+	scenarioFilePath := flagSet.String("scenario-file", "", "File-backed sequential virtual-session scenario")
 	artifactDirectoryPath := flagSet.String("artifact-dir", ".artifacts/blueclaw-dev", "Artifact directory for virtual-session output")
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
@@ -404,12 +408,15 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	flagSet.Var(&requiredExecutables, "require-executable", "Require an executable before running; repeat for multiple executables")
 	seedValue := flagSet.Int64("seed", 41, "Generation seed for live LLM calls")
 	temperatureValue := flagSet.Float64("temperature", 0, "Generation temperature for live LLM calls")
+	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum live model tier")
+	strictAssertions := flagSet.Bool("strict-assertions", false, "Fail when a declared expectation is not satisfied")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devVirtualSessionArguments{}, errorValue
 	}
 
 	return devVirtualSessionArguments{
 		ScenarioName:             strings.TrimSpace(*scenarioName),
+		ScenarioFilePath:         strings.TrimSpace(*scenarioFilePath),
 		ArtifactDirectoryPath:    strings.TrimSpace(*artifactDirectoryPath),
 		SkillDirectoryPath:       strings.TrimSpace(*skillDirectoryPath),
 		LanguageModelEndpoint:    strings.TrimSpace(*languageModelEndpoint),
@@ -420,8 +427,10 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 		ExecutionMode:            strings.TrimSpace(*executionMode),
 		Seed:                     strconv.FormatInt(*seedValue, 10),
 		Temperature:              optionalFloatArgument(flagSet, "temperature", *temperatureValue),
+		MaximumModelTier:         strings.TrimSpace(*maximumModelTier),
 		RequiredExecutables:      devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
 		IsLiveLanguageModel:      *liveLanguageModel,
+		HasStrictAssertions:      *strictAssertions,
 		ShouldSkipPreflight:      *skipPreflight,
 	}, nil
 }
@@ -456,6 +465,7 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArguments) []string {
 	commandArguments := []string{"run", "./cmd/blueclaw-lab", "virtual-session"}
 	commandArguments = append(commandArguments, "--scenario", sessionArguments.ScenarioName)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--scenario-file", sessionArguments.ScenarioFilePath)
 	commandArguments = append(commandArguments, "--artifact-dir", sessionArguments.ArtifactDirectoryPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--skill-dir", sessionArguments.SkillDirectoryPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-endpoint", sessionArguments.LanguageModelEndpoint)
@@ -464,6 +474,10 @@ func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArgumen
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-auth-key-path", sessionArguments.LanguageModelAuthKeyPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-model", sessionArguments.LanguageModelName)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-execution-mode", sessionArguments.ExecutionMode)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--maximum-model-tier", sessionArguments.MaximumModelTier)
+	if sessionArguments.HasStrictAssertions {
+		commandArguments = append(commandArguments, "--strict-assertions")
+	}
 	if sessionArguments.IsLiveLanguageModel {
 		commandArguments = appendOptionalDevFlag(commandArguments, "--seed", sessionArguments.Seed)
 		commandArguments = appendOptionalDevFlag(commandArguments, "--temperature", sessionArguments.Temperature)
