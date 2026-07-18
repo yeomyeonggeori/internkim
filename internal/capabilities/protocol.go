@@ -55,6 +55,10 @@ type CompanionJobEnvelope = capabilityprotocol.CompanionJobEnvelope
 type DenialResult = capabilityprotocol.DenialResult
 type RecoveryAction = capabilityprotocol.RecoveryAction
 
+func ProjectResourceEffects(contract *ToolResultContract, result json.RawMessage) ([]ResourceEffect, error) {
+	return capabilityprotocol.ProjectResourceEffects(contract, result)
+}
+
 func canonicalizeDescriptors(descriptors []Descriptor) []Descriptor {
 	return capabilityprotocol.MustCanonicalizeModelVisibleDescriptors(descriptors)
 }
