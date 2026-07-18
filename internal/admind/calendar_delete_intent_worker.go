@@ -12,6 +12,10 @@ func (service *Service) startCalendarDeleteIntentWorker(ctx context.Context) {
 }
 
 func (service *Service) runCalendarDeleteIntentLoop(ctx context.Context) {
+	service.runCalendarDeleteIntentLoopWithWaiter(ctx, waitForCalendarDeleteIntentWorker)
+}
+
+func (service *Service) runCalendarDeleteIntentLoopWithWaiter(ctx context.Context, waiter func(context.Context, time.Duration, <-chan struct{}) bool) {
 	for {
 		now := time.Now().UTC()
 		if errorValue := service.processDueCalendarDeleteIntents(ctx, now); errorValue != nil && ctx.Err() == nil {
@@ -21,34 +25,42 @@ func (service *Service) runCalendarDeleteIntentLoop(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		waitDuration := calendarDeleteIntentRetryBaseDelay
-		if errorValue == nil && found {
-			waitDuration = time.Until(nextAttemptAt)
-			if waitDuration < 0 {
-				waitDuration = 0
-			}
-		}
-		if errorValue == nil && !found {
-			select {
-			case <-ctx.Done():
-				return
-			case <-service.calendarDeleteIntentWakeUp:
-				continue
-			}
-		}
 		if errorValue != nil {
 			slog.WarnContext(ctx, "calendar delete intent schedule read failed", "error", errorValue)
 		}
-		timer := time.NewTimer(waitDuration)
-		select {
-		case <-ctx.Done():
-			stopCalendarDeleteIntentTimer(timer)
+		waitDuration := calendarDeleteIntentWorkerWaitDuration(time.Now().UTC(), nextAttemptAt, found, errorValue)
+		if waiter(ctx, waitDuration, service.calendarDeleteIntentWakeUp) {
 			return
-		case <-service.calendarDeleteIntentWakeUp:
-			stopCalendarDeleteIntentTimer(timer)
-		case <-timer.C:
 		}
 	}
+}
+
+func waitForCalendarDeleteIntentWorker(ctx context.Context, waitDuration time.Duration, wakeUp <-chan struct{}) bool {
+	timer := time.NewTimer(waitDuration)
+	select {
+	case <-ctx.Done():
+		stopCalendarDeleteIntentTimer(timer)
+		return true
+	case <-wakeUp:
+		stopCalendarDeleteIntentTimer(timer)
+		return false
+	case <-timer.C:
+		return false
+	}
+}
+
+func calendarDeleteIntentWorkerWaitDuration(now time.Time, nextAttemptAt time.Time, found bool, scheduleError error) time.Duration {
+	if scheduleError != nil {
+		return calendarDeleteIntentRetryBaseDelay
+	}
+	if !found {
+		return calendarDeleteIntentCleanupInterval
+	}
+	waitDuration := nextAttemptAt.Sub(now)
+	if waitDuration < 0 {
+		return 0
+	}
+	return waitDuration
 }
 
 func (service *Service) nextCalendarDeleteIntentAttemptAt(ctx context.Context) (time.Time, bool, error) {

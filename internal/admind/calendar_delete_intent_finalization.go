@@ -37,6 +37,9 @@ func (service *Service) processDueCalendarDeleteIntents(ctx context.Context, now
 		}
 		resultError = errors.Join(resultError, errorValue)
 	}
+	if errorValue := service.pruneResolvedCalendarDeleteIntents(ctx, now); errorValue != nil {
+		resultError = errors.Join(resultError, errorValue)
+	}
 	return resultError
 }
 

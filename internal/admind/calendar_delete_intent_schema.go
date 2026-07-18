@@ -29,6 +29,11 @@ CREATE INDEX IF NOT EXISTS calendar_delete_intents_pending_at_idx
 ON calendar_delete_intents(status, execute_at, next_attempt_at)`); errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue := database.ExecContext(ctx, `
+CREATE INDEX IF NOT EXISTS calendar_delete_intents_status_resolved_at_idx
+ON calendar_delete_intents(status, resolved_at)`); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue := database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS calendar_event_mutation_origins (
 	event_id TEXT NOT NULL,
