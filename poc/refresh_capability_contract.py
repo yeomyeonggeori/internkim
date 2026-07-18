@@ -53,10 +53,20 @@ def validate_policy_contract(contract):
         raise ValueError('policy resource defaults must be unique')
 
 
+def validate_protocol_identity(contract):
+    protocol_version = contract.get('protocolVersion')
+    aggregate_protocol_hash = contract.get('aggregateProtocolHash')
+    if not isinstance(protocol_version, str) or not protocol_version or protocol_version != protocol_version.strip():
+        raise ValueError('protocolVersion must be a non-empty trimmed string')
+    if not isinstance(aggregate_protocol_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', aggregate_protocol_hash):
+        raise ValueError('aggregateProtocolHash must be a 64-character lowercase hexadecimal hash')
+
+
 def load_contract(path):
     contract = load_json(path)
-    if not isinstance(contract, dict) or contract.get('version') != 2:
-        raise ValueError('capability contract version must be 2')
+    if not isinstance(contract, dict) or contract.get('version') != 3:
+        raise ValueError('capability contract version must be 3')
+    validate_protocol_identity(contract)
     validate_tool_descriptors(contract)
     require_string_list(contract, 'routingCandidates')
     validate_policy_contract(contract)
@@ -77,6 +87,8 @@ def refreshed_runtime_document(runtime_document, contract):
     capability_configuration = require_object(refreshed_document, 'capabilities', 'runtime')
     routing_configuration = require_object(capability_configuration, 'routing', 'runtime.capabilities')
     capability_configuration.pop('toolNames', None)
+    capability_configuration['protocolVersion'] = contract['protocolVersion']
+    capability_configuration['aggregateProtocolHash'] = contract['aggregateProtocolHash']
     capability_configuration['toolDescriptors'] = copy.deepcopy(contract['toolDescriptors'])
     routing_configuration['candidates'] = copy.deepcopy(contract['routingCandidates'])
     return refreshed_document

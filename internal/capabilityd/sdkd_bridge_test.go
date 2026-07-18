@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 func TestSDKDBridgeInjectsHostCredentialAndPreservesResponse(t *testing.T) {
@@ -100,6 +102,64 @@ func TestSDKDBridgeInjectsHostCredentialAndPreservesChatResponse(t *testing.T) {
 	}
 }
 
+func TestSDKDHealthBridgeUsesExactReadOnlyRoute(t *testing.T) {
+	identity := capabilityprotocol.GeneratedProtocolIdentity()
+	service := Service{
+		Configuration: Configuration{SDKDSocketPath: "/tmp/sdkd-health-test.sock"},
+		SDKDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet || request.URL.Path != "/health" || request.Header.Get("Authorization") != "" {
+				t.Fatalf("unexpected SDKD health request: %s %s authorization=%q", request.Method, request.URL.Path, request.Header.Get("Authorization"))
+			}
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"status":                "ok",
+				"protocolVersion":       identity.ProtocolVersion,
+				"aggregateProtocolHash": identity.AggregateProtocolHash,
+			}), nil
+		})},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/_internkim/sdkd/health", nil)
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected SDKD health bridge success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	var response sdkdHealthResponse
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("expected typed SDKD health response: %v", errorValue)
+	}
+	if response.ProtocolIdentity != identity || response.Status != "ok" {
+		t.Fatalf("unexpected SDKD health response: %+v", response)
+	}
+}
+
+func TestSDKDHealthBridgeRejectsMalformedResponse(t *testing.T) {
+	identity := capabilityprotocol.GeneratedProtocolIdentity()
+	unknownFieldDocument := `{"status":"ok","protocolVersion":"` + identity.ProtocolVersion + `","aggregateProtocolHash":"` + identity.AggregateProtocolHash + `","unexpected":true}`
+	for _, document := range []string{`{"status":"ok"}`, `not-json`, unknownFieldDocument} {
+		service := Service{
+			Configuration: Configuration{SDKDSocketPath: "/tmp/sdkd-health-test.sock"},
+			SDKDHTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(document)),
+				}, nil
+			})},
+		}
+		request := httptest.NewRequest(http.MethodGet, "/_internkim/sdkd/health", nil)
+		responseRecorder := httptest.NewRecorder()
+
+		service.router().ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusBadGateway {
+			t.Fatalf("expected malformed SDKD health rejection, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+		}
+		assertSDKDErrorResponse(t, responseRecorder, "sdkd_bridge_response_invalid", false)
+	}
+}
+
 func TestSDKDBridgeRejectsOversizedRequestWithoutFallback(t *testing.T) {
 	service := Service{Configuration: DefaultConfiguration()}
 	request := httptest.NewRequest(
@@ -157,13 +217,19 @@ func assertSDKDErrorResponse(t *testing.T, responseRecorder *httptest.ResponseRe
 
 func TestSDKDBridgeExposesOnlyAllowedRoutes(t *testing.T) {
 	service := Service{Configuration: DefaultConfiguration()}
-	for _, path := range []string{"/_internkim/sdkd/health", "/_internkim/sdkd/v1/llm/text", "/_internkim/sdkd/v1/tools/test/invoke", "/_internkim/sdkd/v1/llm/unknown"} {
+	for _, path := range []string{"/_internkim/sdkd/v1/llm/text", "/_internkim/sdkd/v1/tools/test/invoke", "/_internkim/sdkd/v1/llm/unknown"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		responseRecorder := httptest.NewRecorder()
 		service.router().ServeHTTP(responseRecorder, request)
 		if responseRecorder.Code != http.StatusNotFound {
 			t.Fatalf("expected %s to be hidden, got %d", path, responseRecorder.Code)
 		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/health", nil)
+	responseRecorder := httptest.NewRecorder()
+	service.router().ServeHTTP(responseRecorder, request)
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected SDKD health to allow only GET, got %d", responseRecorder.Code)
 	}
 }
 

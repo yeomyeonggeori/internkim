@@ -45,6 +45,14 @@ class CapabilityContractRefreshTest(unittest.TestCase):
                 runtime_document['capabilities']['routing']['candidates'],
                 self.contract_document()['routingCandidates'],
             )
+            self.assertEqual(
+                runtime_document['capabilities']['protocolVersion'],
+                self.contract_document()['protocolVersion'],
+            )
+            self.assertEqual(
+                runtime_document['capabilities']['aggregateProtocolHash'],
+                self.contract_document()['aggregateProtocolHash'],
+            )
             self.assertTrue(runtime_document['capabilities']['routing']['localOnly'])
             self.assertEqual(
                 stat.S_IMODE(os.stat(tenant_path / 'runtime.json').st_mode),
@@ -90,6 +98,33 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'unique'):
                 REFRESH_CAPABILITY_CONTRACT.load_contract(contract_path)
 
+    def test_rejects_missing_or_malformed_protocol_identity(self):
+        for field, value in [
+            ('protocolVersion', None),
+            ('protocolVersion', ' 0.4.0'),
+            ('aggregateProtocolHash', 'not-a-hash'),
+            ('aggregateProtocolHash', 'A' * 64),
+        ]:
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    contract_path = Path(temporary_directory) / 'capability-contract.json'
+                    contract_document = self.contract_document()
+                    contract_document[field] = value
+                    self.write_json(contract_path, contract_document)
+
+                    with self.assertRaisesRegex(ValueError, field):
+                        REFRESH_CAPABILITY_CONTRACT.load_contract(contract_path)
+
+    def test_rejects_legacy_contract_version(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            contract_path = Path(temporary_directory) / 'capability-contract.json'
+            contract_document = self.contract_document()
+            contract_document['version'] = 2
+            self.write_json(contract_path, contract_document)
+
+            with self.assertRaisesRegex(ValueError, 'version must be 3'):
+                REFRESH_CAPABILITY_CONTRACT.load_contract(contract_path)
+
     def contract_document(self):
         tool_names = [
             'task.update',
@@ -99,7 +134,9 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             'site.publish',
         ]
         return {
-            'version': 2,
+            'version': 3,
+            'protocolVersion': '0.4.0',
+            'aggregateProtocolHash': 'a' * 64,
             'toolDescriptors': [
                 {'name': tool_name, 'version': '1'}
                 for tool_name in tool_names

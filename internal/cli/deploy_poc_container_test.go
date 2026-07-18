@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -116,6 +118,65 @@ func TestPocContainerOverlayDockerfileCopiesMattermostPlugins(t *testing.T) {
 	overlayDocument := pocContainerOverlayDockerfile("internkim-poc-tenant:base-before-deploy")
 	if !strings.Contains(overlayDocument, "COPY mattermost-plugins /opt/internkim/mattermost-plugins") {
 		t.Fatalf("overlay missing Mattermost plugin copy:\n%s", overlayDocument)
+	}
+	if !strings.Contains(overlayDocument, "COPY --chmod=0755 bin/blueclaw-sdkd /usr/local/bin/blueclaw-sdkd") {
+		t.Fatalf("overlay missing SDKD copy:\n%s", overlayDocument)
+	}
+}
+
+func TestPocContainerSDKDArtifactUsesCanonicalPath(t *testing.T) {
+	artifactPath := pocContainerSDKDArtifactPath("/tmp/internkim")
+	expectedPath := filepath.Join("/tmp/internkim", ".dependency", "blueclaw-sdkd", "blueclaw-sdkd")
+	if artifactPath != expectedPath {
+		t.Fatalf("SDKD artifact path = %q, want %q", artifactPath, expectedPath)
+	}
+}
+
+func TestPocContainerDockerfileCopiesSDKD(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "poc", "tenant", "Dockerfile"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	dockerfile := string(document)
+	for _, expectedFragment := range []string{
+		"COPY bin/blueclaw-sdkd /usr/local/bin/blueclaw-sdkd",
+		"chmod 0755 /usr/local/bin/internkim-capabilityd /usr/local/bin/blueclaw /usr/local/bin/blueclaw-sdkd",
+	} {
+		if !strings.Contains(dockerfile, expectedFragment) {
+			t.Fatalf("Dockerfile missing %q:\n%s", expectedFragment, dockerfile)
+		}
+	}
+}
+
+func TestPocContainerEntrypointStartsSDKDBeforeCapabilityd(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "poc", "tenant", "entrypoint.sh"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	entrypoint := string(document)
+	startSDKDIndex := strings.Index(entrypoint, "blueclaw-sdkd &")
+	waitSDKDIndex := strings.Index(entrypoint, "blueclaw SDKD health")
+	startCapabilitydIndex := strings.Index(entrypoint, "internkim-capabilityd \\")
+	if startSDKDIndex < 0 || waitSDKDIndex < 0 || startCapabilitydIndex < 0 || startSDKDIndex >= waitSDKDIndex || waitSDKDIndex >= startCapabilitydIndex {
+		t.Fatalf("entrypoint must start and health-check SDKD before capabilityd:\n%s", entrypoint)
+	}
+	for _, expectedFragment := range []string{
+		"BLUECLAW_SDKD_AUTH_KEY_PATH=\"${sdkdAuthKeyPath}\"",
+		"BLUECLAW_SDKD_SOCKET_PATH=\"${sdkdSocketPath}\"",
+		"OPENROUTER_API_KEY_PATH=/secrets/openrouter-key",
+		"--sdkd-socket \"${sdkdSocketPath}\"",
+		"--sdkd-auth-key \"${sdkdAuthKeyPath}\"",
+		"trap shutdown INT TERM EXIT",
+		"rm -f \"${sdkdAuthKeyPath}\" \"${sdkdAuthKeyTemporaryPath}\"",
+	} {
+		if !strings.Contains(entrypoint, expectedFragment) {
+			t.Fatalf("entrypoint missing %q:\n%s", expectedFragment, entrypoint)
+		}
+	}
+	for _, forbiddenFragment := range []string{"BLUECLAW_SDKD_AUTH_KEY=", "OPENROUTER_API_KEY=\""} {
+		if strings.Contains(entrypoint, forbiddenFragment) {
+			t.Fatalf("entrypoint must not pass secret values in environment: %q", forbiddenFragment)
+		}
 	}
 }
 func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {

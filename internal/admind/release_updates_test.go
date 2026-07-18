@@ -6,7 +6,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,7 +19,133 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
+
+func TestCheckReleaseProtocolIdentityRequiresCapabilitydAndBlueclawAgreement(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, expectedIdentity)
+	blueclawServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(responseWriter).Encode(releaseBlueclawHealth{
+			Status: "ok",
+			ProtocolIdentity: releaseProtocolIdentityResult{
+				Passed:   true,
+				Expected: expectedIdentity,
+			},
+		})
+	}))
+	defer blueclawServer.Close()
+	service := Service{Configuration: Configuration{
+		CapabilitySocketPath: capabilitySocketPath,
+		BlueclawBaseURL:      blueclawServer.URL,
+	}}
+
+	if errorValue := service.checkReleaseProtocolIdentity(context.Background(), expectedIdentity); errorValue != nil {
+		t.Fatalf("expected matching release identity: %v", errorValue)
+	}
+	mismatchedIdentity := expectedIdentity
+	mismatchedIdentity.ProtocolVersion += "-mismatch"
+	if errorValue := service.checkReleaseProtocolIdentity(context.Background(), mismatchedIdentity); errorValue == nil {
+		t.Fatal("expected capabilityd identity mismatch")
+	}
+}
+
+func TestReleaseProtocolIdentityGateAppliesOnlyToProtocolComponents(t *testing.T) {
+	unrelatedManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	if releaseProtocolIdentityComponentsPresent(&unrelatedManifest) {
+		t.Fatal("expected unrelated component to skip protocol readiness")
+	}
+	for _, componentName := range []string{"capabilityd", "blueclawSDKD", "blueclawPayload"} {
+		manifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+			componentName: {Name: componentName},
+		})
+		if !releaseProtocolIdentityComponentsPresent(&manifest) {
+			t.Fatalf("expected %s to require protocol readiness", componentName)
+		}
+	}
+}
+
+func TestReleaseProtocolIdentityTransitionRequiresCompleteRuntime(t *testing.T) {
+	service := Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
+	currentManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	currentManifest.ProtocolVersion += "-previous"
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	incompleteManifest := releaseset.NewManifest("release-2", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+
+	errorValue := service.validateReleaseProtocolTransition(context.Background(), &incompleteManifest)
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capabilityd, blueclawSDKD, blueclawPayload") {
+		t.Fatalf("expected complete protocol runtime requirement, got %v", errorValue)
+	}
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		incompleteManifest.Components[componentName] = releaseset.Component{Name: componentName}
+	}
+	if errorValue := service.validateReleaseProtocolTransition(context.Background(), &incompleteManifest); errorValue != nil {
+		t.Fatalf("expected complete protocol runtime transition: %v", errorValue)
+	}
+}
+
+func TestReleaseProtocolIdentityTransitionAllowsUnrelatedSameIdentityRelease(t *testing.T) {
+	service := Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
+	currentManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	nextManifest := releaseset.NewManifest("release-2", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+
+	if errorValue := service.validateReleaseProtocolTransition(context.Background(), &nextManifest); errorValue != nil {
+		t.Fatalf("expected same-identity unrelated release: %v", errorValue)
+	}
+}
+
+func startReleaseCapabilityRegistryServer(t *testing.T, identity capabilityprotocol.ProtocolIdentity) string {
+	t.Helper()
+	directoryPath, errorValue := os.MkdirTemp("/tmp", "ik-release-*")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(directoryPath)
+	})
+	socketPath := filepath.Join(directoryPath, "capability.sock")
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/capabilities" {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"protocolVersion":       identity.ProtocolVersion,
+			"aggregateProtocolHash": identity.AggregateProtocolHash,
+			"routingCandidates":     []string{},
+		})
+	})}
+	t.Cleanup(func() {
+		_ = server.Close()
+		_ = listener.Close()
+	})
+	go func() {
+		if errorValue := server.Serve(listener); errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
+			t.Errorf("capability registry server failed: %v", errorValue)
+		}
+	}()
+	return socketPath
+}
 
 func TestReleaseUpdateStateReportsCurrent(t *testing.T) {
 	current := testReleaseManifest("release-1")
@@ -530,6 +658,9 @@ func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
 			return testHTTPResponse(http.StatusNotFound, nil), nil
 		}
 	})}
+	if errorValue := service.writeCurrentReleaseManifest(&releaseTwo); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	document, errorValue := json.Marshal(map[string]string{"releaseID": "release-1"})
 	if errorValue != nil {
@@ -642,6 +773,12 @@ func newReleaseUpdateUploadTestService(t *testing.T) *Service {
 	})
 	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
 		return []byte("ok\n"), nil
+	}
+	currentManifest := releaseset.NewManifest("release-current", "stable", map[string]releaseset.Component{
+		"skills": {Name: "skills"},
+	})
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 	return service
 }

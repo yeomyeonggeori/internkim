@@ -15,7 +15,11 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
+
+const releaseProtocolIdentityReadinessTimeout = time.Minute
+const releaseProtocolIdentityPollInterval = time.Second
 
 type releaseUpdateStatusResponse struct {
 	Current       *releaseUpdateSummary `json:"current,omitempty"`
@@ -159,6 +163,10 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
 		return
 	}
+	if errorValue := service.validateReleaseProtocolTransition(ctx, manifest); errorValue != nil {
+		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
+		return
+	}
 	stagingPath := filepath.Join(service.Configuration.StateDirectory, "release-updates", "staging", jobID)
 	_ = os.RemoveAll(stagingPath)
 	if errorValue := os.MkdirAll(stagingPath, 0o700); errorValue != nil {
@@ -173,6 +181,11 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 	service.updateJob(jobID, "running", "installing", "")
 	if errorValue := service.installReleaseComponents(ctx, jobID, manifest, stagingPath); errorValue != nil {
 		service.updateJob(jobID, "failed", "installing", errorValue.Error())
+		return
+	}
+	service.updateJob(jobID, "running", "health_check", "")
+	if errorValue := service.waitForReleaseProtocolIdentity(ctx, manifest); errorValue != nil {
+		service.updateJob(jobID, "failed", "health_check", errorValue.Error())
 		return
 	}
 	if errorValue := service.writeCurrentReleaseManifest(manifest); errorValue != nil {
@@ -282,10 +295,119 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			return errorValue
 		}
 	}
+	if releaseProtocolDependencyComponentsPresent(manifest) {
+		if errorValue := service.restartReleaseBlueclawServices(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
 	if _, hasSDKD := manifest.Components["blueclawSDKD"]; hasSDKD {
 		if errorValue := service.recordInstalledReleaseSDKD(manifest.ReleaseID); errorValue != nil {
 			return errorValue
 		}
+	}
+	return nil
+}
+
+type releaseBlueclawHealth struct {
+	Status           string                        `json:"status"`
+	ProtocolIdentity releaseProtocolIdentityResult `json:"protocolIdentity"`
+}
+
+type releaseProtocolIdentityResult struct {
+	Passed   bool                                `json:"passed"`
+	Expected capabilityprotocol.ProtocolIdentity `json:"expected"`
+}
+
+func releaseProtocolIdentityComponentsPresent(manifest *releaseset.Manifest) bool {
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		if _, isPresent := manifest.Components[componentName]; isPresent {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseProtocolIdentityComponentNames() []string {
+	return []string{"capabilityd", "blueclawSDKD", "blueclawPayload"}
+}
+
+func missingReleaseProtocolIdentityComponents(manifest *releaseset.Manifest) []string {
+	missingComponentNames := []string{}
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		if _, isPresent := manifest.Components[componentName]; !isPresent {
+			missingComponentNames = append(missingComponentNames, componentName)
+		}
+	}
+	return missingComponentNames
+}
+
+func (service *Service) validateReleaseProtocolTransition(ctx context.Context, manifest *releaseset.Manifest) error {
+	currentManifest := service.readCurrentReleaseManifest()
+	if currentManifest != nil && currentManifest.ProtocolIdentity == manifest.ProtocolIdentity {
+		return nil
+	}
+	if service.checkReleaseProtocolIdentityWithTimeout(ctx, manifest.ProtocolIdentity) == nil {
+		return nil
+	}
+	missingComponentNames := missingReleaseProtocolIdentityComponents(manifest)
+	if len(missingComponentNames) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"protocol identity transition requires components: %s",
+		strings.Join(missingComponentNames, ", "),
+	)
+}
+
+func (service *Service) checkReleaseProtocolIdentityWithTimeout(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	checkContext, cancel := context.WithTimeout(ctx, releaseProtocolIdentityReadinessTimeout)
+	defer cancel()
+	return service.checkReleaseProtocolIdentity(checkContext, expected)
+}
+
+func releaseProtocolDependencyComponentsPresent(manifest *releaseset.Manifest) bool {
+	for _, componentName := range []string{"capabilityd", "blueclawSDKD"} {
+		if _, isPresent := manifest.Components[componentName]; isPresent {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) waitForReleaseProtocolIdentity(ctx context.Context, manifest *releaseset.Manifest) error {
+	if !releaseProtocolIdentityComponentsPresent(manifest) {
+		return nil
+	}
+	readinessContext, cancel := context.WithTimeout(ctx, releaseProtocolIdentityReadinessTimeout)
+	defer cancel()
+	var lastError error
+	for {
+		lastError = service.checkReleaseProtocolIdentity(readinessContext, manifest.ProtocolIdentity)
+		if lastError == nil {
+			return nil
+		}
+		select {
+		case <-readinessContext.Done():
+			return fmt.Errorf("release protocol identity readiness failed: %w", lastError)
+		case <-time.After(releaseProtocolIdentityPollInterval):
+		}
+	}
+}
+
+func (service *Service) checkReleaseProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	registry, errorValue := service.fetchCapabilityRegistry(ctx)
+	if errorValue != nil {
+		return fmt.Errorf("capabilityd registry: %w", errorValue)
+	}
+	if registry.ProtocolIdentity != expected {
+		return fmt.Errorf("capabilityd protocol identity mismatch")
+	}
+	health := releaseBlueclawHealth{}
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, &health); errorValue != nil {
+		return errorValue
+	}
+	if health.Status != "ok" || !health.ProtocolIdentity.Passed || health.ProtocolIdentity.Expected != expected {
+		return fmt.Errorf("Blueclaw protocol identity mismatch")
 	}
 	return nil
 }
@@ -925,7 +1047,7 @@ func (service *Service) writeCurrentReleaseManifest(manifest *releaseset.Manifes
 	if errorValue := os.MkdirAll(filepath.Dir(service.currentReleaseManifestPath()), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(service.currentReleaseManifestPath(), append(document, '\n'), 0o600)
+	return writeFileAtomically(service.currentReleaseManifestPath(), append(document, '\n'), 0o600)
 }
 
 func (service *Service) currentReleaseManifestPath() string {
