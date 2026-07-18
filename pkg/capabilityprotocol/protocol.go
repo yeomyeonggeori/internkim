@@ -1,7 +1,10 @@
 package capabilityprotocol
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"strings"
 )
 
 const (
@@ -35,6 +38,35 @@ const (
 type ToolOutcome string
 type ToolConflictResolution string
 type ResourceEffectIdentity string
+
+type ProtocolIdentity struct {
+	ProtocolVersion       string `json:"protocolVersion"`
+	AggregateProtocolHash string `json:"aggregateProtocolHash"`
+}
+
+func GeneratedProtocolIdentity() ProtocolIdentity {
+	return ProtocolIdentity{
+		ProtocolVersion:       GeneratedProtocolVersion(),
+		AggregateProtocolHash: GeneratedAggregateProtocolHash(),
+	}
+}
+
+func (identity ProtocolIdentity) Validate() error {
+	if identity.ProtocolVersion == "" || identity.ProtocolVersion != strings.TrimSpace(identity.ProtocolVersion) {
+		return errors.New("protocol version must be a non-empty trimmed string")
+	}
+	aggregateProtocolHash := identity.AggregateProtocolHash
+	if aggregateProtocolHash != strings.TrimSpace(aggregateProtocolHash) {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	if len(aggregateProtocolHash) != 64 || aggregateProtocolHash != strings.ToLower(aggregateProtocolHash) {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	if _, errorValue := hex.DecodeString(aggregateProtocolHash); errorValue != nil {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	return nil
+}
 
 type Descriptor struct {
 	Name                 string                        `json:"name"`
@@ -108,6 +140,7 @@ type ResourceEffect struct {
 }
 
 type RegistryResponse struct {
+	ProtocolIdentity
 	LocalOnly             bool         `json:"localOnly"`
 	RoutingCandidates     []string     `json:"routingCandidates"`
 	DeviceCapabilities    []Descriptor `json:"deviceCapabilities,omitempty"`

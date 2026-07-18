@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestPublicBlueclawUpdateMetadataHidesArchivePath(t *testing.T) {
@@ -328,6 +330,8 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	staleDocument := `{
   "capabilities": {
     "transport": "vsock",
+    "protocolVersion": "stale",
+    "aggregateProtocolHash": "stale",
     "toolDescriptors": [{"name": "flow.task.add", "version": "1"}],
     "toolNames": ["flow.task.add"],
     "routing": {"candidates": ["flow.task.add"], "localOnly": false}
@@ -345,6 +349,11 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	}
 	if !strings.Contains(refreshed, `"task.add"`) {
 		t.Fatalf("expected neutral task.add descriptor, got:\n%s", refreshed)
+	}
+	currentContract := blueclawruntime.CurrentCapabilityContract()
+	if !strings.Contains(refreshed, `"protocolVersion": "`+currentContract.ProtocolVersion+`"`) ||
+		!strings.Contains(refreshed, `"aggregateProtocolHash": "`+currentContract.AggregateProtocolHash+`"`) {
+		t.Fatalf("expected current protocol identity, got:\n%s", refreshed)
 	}
 	if !strings.Contains(refreshed, "preserve-me") || !strings.Contains(refreshed, "/srv/keep/this") {
 		t.Fatalf("expected host-specific fields preserved, got:\n%s", refreshed)

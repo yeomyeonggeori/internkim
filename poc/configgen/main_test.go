@@ -58,6 +58,12 @@ func TestGeneratedCapabilityContractIsAcceptedByPocRefresh(t *testing.T) {
 	if _, hasLegacyToolNames := capabilityConfiguration["toolNames"]; hasLegacyToolNames {
 		t.Fatal("legacy toolNames remained in refreshed runtime")
 	}
+	if capabilityConfiguration["protocolVersion"] != "0.4.0" {
+		t.Fatalf("protocol version = %v, want 0.4.0", capabilityConfiguration["protocolVersion"])
+	}
+	if capabilityConfiguration["aggregateProtocolHash"] != "58ff1977989bacbf2db3fdce08fd57c9b52f344ca747a3322f4e60bdf6052a78" {
+		t.Fatalf("aggregate protocol hash = %v, want generated hash", capabilityConfiguration["aggregateProtocolHash"])
+	}
 	for _, value := range toolDescriptors {
 		toolDescriptor := value.(map[string]any)
 		if toolDescriptor["name"] == "flow.task.list" {

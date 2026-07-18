@@ -13,6 +13,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type CapabilityRouter struct {
@@ -142,6 +143,7 @@ func (route capabilityToolRoute) isDeviceBrowser() bool {
 
 func (service Service) capabilityRegistry(ctx context.Context) (capabilities.RegistryResponse, error) {
 	response := capabilities.RegistryResponse{
+		ProtocolIdentity:      capabilityprotocol.GeneratedProtocolIdentity(),
 		LocalOnly:             service.Configuration.LocalOnly,
 		RoutingCandidates:     capabilities.RoutingCandidates(),
 		DeviceCapabilities:    capabilities.DeviceDescriptors(),

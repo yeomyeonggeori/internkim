@@ -8,8 +8,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 const (
@@ -256,33 +254,40 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"fallbackProvider": "",
 		"capability":       capabilityLanguageModel,
 	}
-	if !options.DirectExecution {
-		languageModelConfiguration["sdkd"] = map[string]any{
-			"endpoint":              "http://127.0.0.1:18081/_internkim/sdkd",
-			"unixSocketPath":        "",
-			"authKeyPath":           "",
-			"executionMode":         languageModelExecutionMode,
-			"localOnly":             options.LocalOnly,
-			"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
-			"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract", "blueclaw_operation_contract_review"},
-		}
-		if strings.EqualFold(options.SDKDMode, "authoritative") {
-			languageModelConfiguration["defaultProvider"] = "sdkd"
-		}
+	sdkdEndpoint := "http://127.0.0.1:18081/_internkim/sdkd"
+	sdkdUnixSocketPath := ""
+	if options.DirectExecution {
+		sdkdEndpoint = "http://internkim/_internkim/sdkd"
+		sdkdUnixSocketPath = capabilitySocketPath
 	}
+	languageModelConfiguration["sdkd"] = map[string]any{
+		"endpoint":              sdkdEndpoint,
+		"unixSocketPath":        sdkdUnixSocketPath,
+		"authKeyPath":           "",
+		"executionMode":         languageModelExecutionMode,
+		"localOnly":             options.LocalOnly,
+		"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
+		"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract", "blueclaw_operation_contract_review"},
+	}
+	if options.DirectExecution || strings.EqualFold(options.SDKDMode, "authoritative") {
+		languageModelConfiguration["defaultProvider"] = "sdkd"
+	}
+	capabilityContract := CurrentCapabilityContract()
 
 	document := map[string]any{
 		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
 		"capabilities": map[string]any{
-			"transport":       capabilityTransport,
-			"unixSocketPath":  capabilityUnixSocketPath,
-			"endpoint":        "http://internkim-capability",
-			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
-			"vsockCID":        CapabilityVSockHostCID,
-			"vsockPort":       capabilityVSockPort,
-			"toolDescriptors": capabilities.DefaultToolDescriptors(),
+			"transport":             capabilityTransport,
+			"unixSocketPath":        capabilityUnixSocketPath,
+			"endpoint":              "http://internkim-capability",
+			"timeoutSecond":         BlueclawCapabilityTimeoutSecond,
+			"vsockCID":              CapabilityVSockHostCID,
+			"vsockPort":             capabilityVSockPort,
+			"protocolVersion":       capabilityContract.ProtocolVersion,
+			"aggregateProtocolHash": capabilityContract.AggregateProtocolHash,
+			"toolDescriptors":       capabilityContract.ToolDescriptors,
 			"routing": map[string]any{
-				"candidates": capabilities.RoutingCandidates(),
+				"candidates": capabilityContract.RoutingCandidates,
 				"localOnly":  options.LocalOnly,
 			},
 		},
