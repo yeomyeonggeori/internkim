@@ -135,6 +135,21 @@ func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
 	}
 }
 
+func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T) {
+	descriptor := descriptorForTool(t, CalendarDescriptors(), "calendar.update")
+	schema := descriptorSchema(t, CalendarDescriptors(), "calendar.update")
+
+	if descriptor.Version != "2" {
+		t.Fatalf("calendar.update version = %q", descriptor.Version)
+	}
+	assertSchemaHasProperties(t, schema, "eventID", "query", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	for _, fieldName := range []string{"title", "description", "location", "startISO", "endISO"} {
+		if stringSliceContains(schema.Required, fieldName) {
+			t.Fatalf("expected omitted %s to preserve the stored value", fieldName)
+		}
+	}
+}
+
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete", "channel.update"} {
 		if !containsString(defaultToolNames(), toolName) {

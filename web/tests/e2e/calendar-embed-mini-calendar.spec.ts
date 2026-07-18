@@ -3,8 +3,8 @@ import {
 	browserDateKey,
 	computedPseudoStyle,
 	computedStyle,
-	routeCalendarEventDeletes,
-	routeCalendarEventDeletesWithFailures,
+	routeCalendarDeleteIntents,
+	routeCalendarDeleteIntentsWithFailures,
 	routeCalendarEvents,
 	routeDefaultCalendarAPI
 } from './calendar-embed-test-utils';
@@ -105,7 +105,7 @@ test.describe('embedded calendar mini calendar', () => {
 		expect(draftEventStyle.color).toBe('rgb(255, 255, 255)');
 	});
 
-	test('navigates from mini calendar and delays selected event deletes for undo', async ({ page }) => {
+	test('navigates from mini calendar and reserves selected event deletes for undo', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'deletable-event',
@@ -122,7 +122,7 @@ test.describe('embedded calendar mini calendar', () => {
 				isAllDay: false
 			}
 		]);
-		const deletedEventIDs = await routeCalendarEventDeletes(page);
+		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
 
 		await openCalendarEmbed(page, '일');
 		await expectMiniCalendarSelectedDayTextVisible(page, '2026-06-08');
@@ -138,12 +138,12 @@ test.describe('embedded calendar mini calendar', () => {
 		const deleteUndo = page.locator('.calendar-delete-undo-toast');
 		await expect(deleteUndo).toBeVisible();
 		await expect(deleteUndo).toContainText('일정을 삭제했습니다.');
-		expect(deletedEventIDs).toEqual([]);
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual(['deletable-event']);
 
 		await deleteUndo.getByRole('button', { name: '실행 취소' }).click();
 		await expect(deleteUndo).toHaveCount(0);
 		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
-		expect(deletedEventIDs).toEqual([]);
+		await expect.poll(() => deleteIntentRequests.canceledEventIDs.slice()).toEqual(['deletable-event']);
 
 		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
@@ -154,7 +154,14 @@ test.describe('embedded calendar mini calendar', () => {
 		await deleteUndo.getByRole('button', { name: '실행 취소' }).click();
 		await expect(deleteUndo).toHaveCount(0);
 		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
-		expect(deletedEventIDs).toEqual([]);
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual([
+			'deletable-event',
+			'deletable-event'
+		]);
+		await expect.poll(() => deleteIntentRequests.canceledEventIDs.slice()).toEqual([
+			'deletable-event',
+			'deletable-event'
+		]);
 
 		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
@@ -173,11 +180,17 @@ test.describe('embedded calendar mini calendar', () => {
 		await expect(page.locator('[data-event-id="keyboard-delete-event"]')).toHaveCount(0);
 		await expect(deleteUndo).toBeVisible();
 		await expect.poll(() => deleteUndo.evaluate((element) => element.getAttribute('data-stability'))).toBe('kept');
-		await expect.poll(() => deletedEventIDs.slice(), { timeout: 7000 }).toEqual(['deletable-event', 'keyboard-delete-event']);
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual([
+			'deletable-event',
+			'deletable-event',
+			'deletable-event',
+			'keyboard-delete-event'
+		]);
+		expect(deleteIntentRequests.canceledEventIDs).toEqual(['deletable-event', 'deletable-event']);
 		await expect(deleteUndo).toHaveCount(0);
 	});
 
-	test('keeps the current undo delete hidden when the previous delete request fails', async ({ page }) => {
+	test('keeps the current undo delete hidden when the previous intent registration fails', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'failed-delete-event',
@@ -194,7 +207,7 @@ test.describe('embedded calendar mini calendar', () => {
 				isAllDay: false
 			}
 		]);
-		const deletedEventIDs = await routeCalendarEventDeletesWithFailures(page, ['failed-delete-event']);
+		const deleteIntentRequests = await routeCalendarDeleteIntentsWithFailures(page, ['failed-delete-event']);
 
 		await openCalendarEmbed(page, '일');
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
@@ -209,20 +222,20 @@ test.describe('embedded calendar mini calendar', () => {
 		await pendingDeleteEvent.click();
 		await page.keyboard.press('Backspace');
 		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
-		await expect.poll(() => deletedEventIDs.slice(), { timeout: 3000 }).toEqual(['failed-delete-event']);
-		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
-		await expect(deleteUndo).toBeVisible();
-		await expect.poll(() => deletedEventIDs.slice(), { timeout: 7000 }).toEqual([
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual([
 			'failed-delete-event',
 			'pending-delete-event'
 		]);
+		deleteIntentRequests.releaseRegistrationFailures();
+		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
+		await expect(deleteUndo).toBeVisible();
 		await expect(deleteUndo).toHaveCount(0);
 
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
 		await expect(page.locator('.calendar-stage [data-event-id="failed-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
 	});
 
-	test('flushes the pending undo delete when the page is hidden', async ({ page }) => {
+	test('does not issue another delete request when the page is hidden', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'pagehide-delete-event',
@@ -232,7 +245,7 @@ test.describe('embedded calendar mini calendar', () => {
 				isAllDay: false
 			}
 		]);
-		const deletedEventIDs = await routeCalendarEventDeletes(page);
+		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
 
 		await openCalendarEmbed(page, '일');
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
@@ -241,13 +254,16 @@ test.describe('embedded calendar mini calendar', () => {
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		const deleteUndo = page.locator('.calendar-delete-undo-toast');
 		await expect(deleteUndo).toBeVisible();
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual(['pagehide-delete-event']);
 
 		await page.evaluate(() => {
 			window.dispatchEvent(new Event('pagehide'));
 		});
 
-		await expect.poll(() => deletedEventIDs.slice()).toEqual(['pagehide-delete-event']);
-		await expect(deleteUndo).toHaveCount(0);
+		await page.waitForTimeout(100);
+		expect(deleteIntentRequests.registeredEventIDs).toEqual(['pagehide-delete-event']);
+		expect(deleteIntentRequests.canceledEventIDs).toEqual([]);
+		await expect(deleteUndo).toBeVisible();
 	});
 
 	test('opens the right mini calendar month picker and syncs selected dates in week and month views', async ({ page }) => {

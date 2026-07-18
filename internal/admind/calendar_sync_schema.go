@@ -9,6 +9,8 @@ const (
 	remoteCalendarProviderGoogle  = "google"
 	calendarOutboxOperationPut    = "put"
 	calendarOutboxOperationDelete = "delete"
+	calendarOutboxStatusPending   = "pending"
+	calendarOutboxStatusBlocked   = "blocked"
 )
 
 func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
@@ -21,7 +23,74 @@ func ensureCalendarSyncSchema(ctx context.Context, database *sql.DB) error {
 	if errorValue := ensureCalendarOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	return ensureCalendarConflictsTable(ctx, database)
+	if errorValue := ensureCalendarRemoteEventStateTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarEventLogicalClocksTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarEventFieldClocksTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarTargetFieldAcknowledgementsTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarPushObservationFencesTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := migrateCalendarTargetIdentityKeys(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarConflictsTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "DROP INDEX IF EXISTS calendar_events_active_remote_source_uid_idx"); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_events_remote_source_uid_deleted_idx ON calendar_events(remote_source, uid, deleted_at)")
+	return errorValue
+}
+
+func ensureCalendarEventLogicalClocksTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_event_logical_clocks (
+	event_uid TEXT PRIMARY KEY,
+	logical_time_unix_nano INTEGER NOT NULL
+)`)
+	return errorValue
+}
+
+func ensureCalendarPushObservationFencesTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_push_observation_fences (
+	account_id TEXT NOT NULL,
+	calendar_url TEXT NOT NULL,
+	event_uid TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	PRIMARY KEY(account_id, calendar_url, event_uid)
+)`)
+	return errorValue
+}
+
+func ensureCalendarRemoteEventStateTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_remote_event_sync_state (
+	account_id TEXT NOT NULL,
+	calendar_url TEXT NOT NULL,
+	event_uid TEXT NOT NULL,
+	remote_modified_at TEXT NOT NULL DEFAULT '',
+	last_seen_at TEXT NOT NULL DEFAULT '',
+	missing_detected_at TEXT NOT NULL DEFAULT '',
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(account_id, calendar_url, event_uid)
+)`)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_remote_event_sync_state_event_uid_idx ON calendar_remote_event_sync_state(event_uid)")
+	return errorValue
 }
 
 func ensureCalendarConflictsTable(ctx context.Context, database *sql.DB) error {
@@ -39,8 +108,12 @@ CREATE TABLE IF NOT EXISTS calendar_conflicts (
 	if errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_conflicts_event_active_idx ON calendar_conflicts(event_id, dismissed_at)"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_conflicts_event_active_idx ON calendar_conflicts(event_id, dismissed_at)")
+		"CREATE INDEX IF NOT EXISTS calendar_conflicts_active_identity_idx ON calendar_conflicts(event_uid, field, local_value, remote_value) WHERE dismissed_at = ''")
 	return errorValue
 }
 
@@ -137,10 +210,13 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	payload_ics TEXT NOT NULL DEFAULT '',
 	if_match_etag TEXT NOT NULL DEFAULT '',
 	remote_href TEXT NOT NULL DEFAULT '',
+	target_calendar_url TEXT NOT NULL DEFAULT '',
 	attempt_count INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL,
-	last_attempted_at TEXT NOT NULL DEFAULT ''
+	last_attempted_at TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL DEFAULT 'pending',
+	failed_at TEXT NOT NULL DEFAULT ''
 )`)
 	if errorValue != nil {
 		return errorValue
@@ -148,10 +224,34 @@ CREATE TABLE IF NOT EXISTS calendar_outbox (
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "remote_href", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "target_calendar_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "changed_fields", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "status", "TEXT NOT NULL DEFAULT 'pending'"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_outbox", "failed_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := backfillLegacyCalendarOutboxTargets(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_created_idx ON calendar_outbox(account_id, created_at)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_event_idx ON calendar_outbox(account_id, target_calendar_url, event_uid, id)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_target_status_event_idx ON calendar_outbox(account_id, target_calendar_url, status, event_uid, operation)"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS calendar_outbox_account_created_idx ON calendar_outbox(account_id, created_at)")
+		"CREATE INDEX IF NOT EXISTS calendar_outbox_event_uid_idx ON calendar_outbox(event_uid)")
 	return errorValue
 }

@@ -128,10 +128,20 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 				calendar.app.onMobileEventDetailToggle(event);
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
+			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
 			refreshCalendar: async () => {
 				await renderSync.refreshCalendar();
 			},
 			text: {
+				get calendarDeleteVersionConflictError() {
+					return context.text.calendarDeleteVersionConflictError;
+				},
+				get calendarEventVersionConflictError() {
+					return context.text.calendarEventVersionConflictError;
+				},
+				get calendarTargetUnavailableError() {
+					return context.text.calendarTargetUnavailableError;
+				},
 				get deleteError() {
 					return context.text.deleteError;
 				},
@@ -185,7 +195,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		setVisibleEvents: (events) => {
 			context.state.visibleEvents = events;
 		},
-		saveUpdatedEvent: (event) => eventActions.saveUpdatedEvent(event)
+		saveUpdatedEvent: (event, previousEvent) => eventActions.saveUpdatedEvent(event, previousEvent)
 	});
 
 	const draftPopoverActions: CalendarDraftPopoverActions = createCalendarDraftPopoverActions({

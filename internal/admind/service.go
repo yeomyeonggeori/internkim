@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -89,39 +90,50 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                   sync.Mutex
-	jobs                    map[string]*Job
-	uploads                 map[string]*RestoreUpload
-	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
-	releaseUpdateUploads    map[string]*ReleaseUpdateUpload
-	pairingCodes            map[string]*CompanionPairingCode
-	companions              map[string]*CompanionRecord
-	companionJobs           map[string]*CompanionJob
-	companionFileUploads    map[string]*CompanionFileUpload
-	companionMounts         map[string]*CompanionMountRecord
-	sites                   map[string]*SiteRecord
-	siteRuntimeMutex        sync.Mutex
-	siteRuntimeActivities   map[string]*siteRuntimeActivity
-	mailBackend             mailBackend
-	googleOAuthStates       sync.Map
-	webOAuthStates          sync.Map
-	calendarSyncWakeUp      chan struct{}
-	calendarSyncCycleMutex  sync.Mutex
-	calendarStoreWriteMutex sync.Mutex
-	calendarPullCacheMutex  sync.Mutex
-	lastCalendarPullAt      time.Time
-	calendarRecentPushMutex sync.Mutex
-	recentCalendarPushUIDs  map[string]time.Time
-	calendarActorCacheMutex sync.Mutex
-	calendarActorCache      map[string]calendarActorProfileCacheEntry
-	companyShareMutex       sync.Mutex
-	companyShareAttempts    map[string]companyShareAttempt
-	requestMetrics          *adminRequestMetrics
-	databaseSchemas         *adminDatabaseSchemas
-	calendarWindowCache     calendarEventWindowCacheAvailability
-	calendarWindowBuilds    calendarEventWindowCacheBuildCoordinator
-	mattermostSessions      *mattermostSessionCache
-	startedAt               time.Time
+	mutex                      sync.Mutex
+	jobs                       map[string]*Job
+	uploads                    map[string]*RestoreUpload
+	blueclawUpdateUploads      map[string]*BlueclawUpdateUpload
+	releaseUpdateUploads       map[string]*ReleaseUpdateUpload
+	pairingCodes               map[string]*CompanionPairingCode
+	companions                 map[string]*CompanionRecord
+	companionJobs              map[string]*CompanionJob
+	companionFileUploads       map[string]*CompanionFileUpload
+	companionMounts            map[string]*CompanionMountRecord
+	sites                      map[string]*SiteRecord
+	siteRuntimeMutex           sync.Mutex
+	siteRuntimeActivities      map[string]*siteRuntimeActivity
+	mailBackend                mailBackend
+	googleOAuthStates          sync.Map
+	webOAuthStates             sync.Map
+	calendarSyncWakeUp         chan struct{}
+	calendarDeleteIntentWakeUp chan struct{}
+	calendarSyncCycleMutex     sync.Mutex
+	calendarRemoteMutex        sync.Mutex
+	calendarOAuthTokenMutex    sync.Mutex
+	calendarNotificationMutex  sync.Mutex
+	calendarNotificationStates map[string]*calendarNotificationReconciliationState
+	calendarNotificationLive   chan calendarNotificationReconciliationJob
+	calendarNotificationRepair chan calendarNotificationReconciliationJob
+	calendarNotificationCtx    context.Context
+	calendarNotificationGroup  sync.WaitGroup
+	calendarSwitchWaiters      atomic.Int64
+	calendarStoreWriteMutex    sync.Mutex
+	calendarCandidateClock     calendarConflictCandidateClock
+	calendarPullCacheMutex     sync.Mutex
+	lastCalendarPullAt         time.Time
+	calendarActorCacheMutex    sync.Mutex
+	calendarActorCache         map[string]calendarActorProfileCacheEntry
+	companyShareMutex          sync.Mutex
+	companyShareAttempts       map[string]companyShareAttempt
+	requestMetrics             *adminRequestMetrics
+	databaseSchemas            *adminDatabaseSchemas
+	calendarWindowCache        calendarEventWindowCacheAvailability
+	calendarWindowBuilds       calendarEventWindowCacheBuildCoordinator
+	mattermostSessions         *mattermostSessionCache
+	removeTokenQuarantineFile  func(string) error
+	promoteCalendarTokenFile   func(string, string) error
+	startedAt                  time.Time
 }
 
 type Job struct {
@@ -286,25 +298,27 @@ func DefaultConfiguration() Configuration {
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration:         configuration,
-		jobs:                  map[string]*Job{},
-		uploads:               map[string]*RestoreUpload{},
-		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
-		releaseUpdateUploads:  map[string]*ReleaseUpdateUpload{},
-		pairingCodes:          map[string]*CompanionPairingCode{},
-		companions:            map[string]*CompanionRecord{},
-		companionJobs:         map[string]*CompanionJob{},
-		companionFileUploads:  map[string]*CompanionFileUpload{},
-		companionMounts:       map[string]*CompanionMountRecord{},
-		sites:                 map[string]*SiteRecord{},
-		mailBackend:           standardMailBackend{},
-		calendarSyncWakeUp:    make(chan struct{}, 1),
-		calendarActorCache:    map[string]calendarActorProfileCacheEntry{},
-		companyShareAttempts:  map[string]companyShareAttempt{},
-		requestMetrics:        newAdminRequestMetrics(),
-		databaseSchemas:       newAdminDatabaseSchemas(),
-		mattermostSessions:    newMattermostSessionCache(),
-		startedAt:             time.Now().UTC(),
+		Configuration:              configuration,
+		jobs:                       map[string]*Job{},
+		uploads:                    map[string]*RestoreUpload{},
+		blueclawUpdateUploads:      map[string]*BlueclawUpdateUpload{},
+		releaseUpdateUploads:       map[string]*ReleaseUpdateUpload{},
+		pairingCodes:               map[string]*CompanionPairingCode{},
+		companions:                 map[string]*CompanionRecord{},
+		companionJobs:              map[string]*CompanionJob{},
+		companionFileUploads:       map[string]*CompanionFileUpload{},
+		companionMounts:            map[string]*CompanionMountRecord{},
+		sites:                      map[string]*SiteRecord{},
+		mailBackend:                standardMailBackend{},
+		calendarSyncWakeUp:         make(chan struct{}, 1),
+		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
+		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
+		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
+		companyShareAttempts:       map[string]companyShareAttempt{},
+		requestMetrics:             newAdminRequestMetrics(),
+		databaseSchemas:            newAdminDatabaseSchemas(),
+		mattermostSessions:         newMattermostSessionCache(),
+		startedAt:                  time.Now().UTC(),
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -327,13 +341,18 @@ func (service *Service) Run(ctx context.Context) error {
 	} else if repairedCount > 0 {
 		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
 	}
+	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
+		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
+	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startMattermostAttendanceStatusSync(ctx)
+	service.startCalendarNotificationReconciliation(ctx)
 	service.startCalendarNotificationWorker(ctx)
+	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)

@@ -83,12 +83,13 @@ func newLocalTestCalendarEvent(idSuffix string, title string) calendarEvent {
 }
 
 type fakeCalDAVPushClient struct {
-	putETags       map[string]string
-	putErrors      map[string]error
-	putErrorsQueue map[string][]error
-	deleteErrors   map[string]error
-	getObjects     map[string]calDAVCalendarObject
-	getErrors      map[string]error
+	putETags          map[string]string
+	putErrors         map[string]error
+	putErrorsQueue    map[string][]error
+	deleteErrors      map[string]error
+	deleteErrorsQueue map[string][]error
+	getObjects        map[string]calDAVCalendarObject
+	getErrors         map[string]error
 
 	putCalls    []fakePutCall
 	deleteCalls []fakeDeleteCall
@@ -138,6 +139,15 @@ func (client *fakeCalDAVPushClient) putCalendarObject(ctx context.Context, objec
 
 func (client *fakeCalDAVPushClient) deleteCalendarObject(ctx context.Context, objectPath string, ifMatch string) error {
 	client.deleteCalls = append(client.deleteCalls, fakeDeleteCall{Path: objectPath, IfMatch: ifMatch})
+	if client.deleteErrorsQueue != nil {
+		if queue, present := client.deleteErrorsQueue[objectPath]; present && len(queue) > 0 {
+			next := queue[0]
+			client.deleteErrorsQueue[objectPath] = queue[1:]
+			if next != nil {
+				return next
+			}
+		}
+	}
 	if client.deleteErrors != nil {
 		if errorValue, present := client.deleteErrors[objectPath]; present {
 			return errorValue

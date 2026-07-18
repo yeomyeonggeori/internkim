@@ -36,6 +36,9 @@ func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context,
 	if _, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, updatedAt, event.ID); errorValue != nil {
 		return fmt.Errorf("update calendar Mattermost projection: %w", errorValue)
 	}
+	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, event.ID, updatedAt, nil); errorValue != nil {
+		return errorValue
+	}
 	if !isDeleted {
 		if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 			return errorValue

@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -102,7 +103,11 @@ func TestCalendarNoopUpdateKeepsParticipantImage(t *testing.T) {
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	updatePayload := `{"title":"Noop participant image","description":"Bring agenda","startISO":"` + event.StartISO + `","endISO":"` + event.EndISO + `","timeZone":"UTC","color":"#2563eb","participants":[{"personID":"` + personID + `","name":"이동하","email":"dongha@example.com"}],"reminderLeadHours":24}`
+	persistedEvent, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("persisted event found=%v error=%v", found, errorValue)
+	}
+	updatePayload := fmt.Sprintf(`{"title":"Noop participant image","description":"Bring agenda","startISO":"%s","endISO":"%s","timeZone":"UTC","color":"#2563eb","participants":[{"personID":"%s","name":"이동하","email":"dongha@example.com"}],"reminderLeadHours":24,"expectedUpdatedAt":%q}`, event.StartISO, event.EndISO, personID, persistedEvent.UpdatedAt)
 	request := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+event.ID, strings.NewReader(updatePayload))
 	request.RemoteAddr = "127.0.0.1:49152"
 	request.Header.Set("Content-Type", "application/json")

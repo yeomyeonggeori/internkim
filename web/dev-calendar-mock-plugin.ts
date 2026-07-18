@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { parseJSONRecord, readRequestBody } from './dev-admin-mock';
 import { devAttendancePeople } from './dev-attendance-fixture-data';
 import {
 	devPopupOverflowCalendarEvents,
@@ -19,16 +20,28 @@ type DevCalendarMockRequest = {
 	method: string;
 	pathname: string;
 	searchParams: URLSearchParams;
+	body?: string;
 };
 
 type DevCalendarMockResponse = {
 	status: number;
 	body: {
-		events: CalendarEvent[];
+		events?: CalendarEvent[];
+		authenticated?: boolean;
+		email?: string;
+		isAdmin?: boolean;
+		locale?: 'ko' | 'en';
+		[key: string]: unknown;
 	};
 };
 
+export type DevCalendarMockState = {
+	userEmail: string;
+	locale: 'ko' | 'en';
+};
+
 export function devCalendarMockPlugin(options: DevCalendarMockPluginOptions): Plugin {
+	const state = createDevCalendarMockState(options.userEmail);
 	return {
 		name: 'internkim-dev-calendar-mock',
 		configureServer(server) {
@@ -36,33 +49,85 @@ export function devCalendarMockPlugin(options: DevCalendarMockPluginOptions): Pl
 
 			server.middlewares.use((request, response, next) => {
 				const requestURL = new URL(request.url ?? '/', 'http://localhost');
-				const mockResponse = createDevCalendarMockResponse({
-					method: request.method ?? 'GET',
-					pathname: requestURL.pathname,
-					searchParams: requestURL.searchParams
-				}, options.userEmail);
-				if (!mockResponse) {
+				const method = request.method ?? 'GET';
+				if (!shouldHandleDevCalendarMockRequest(method, requestURL.pathname)) {
 					next();
 					return;
 				}
-				writeJSON(response, mockResponse.status, mockResponse.body);
+				readRequestBody(request, (body) => {
+					const mockResponse = createDevCalendarMockResponse(state, {
+						method,
+						pathname: requestURL.pathname,
+						searchParams: requestURL.searchParams,
+						body
+					});
+					if (!mockResponse) {
+						next();
+						return;
+					}
+					writeJSON(response, mockResponse.status, mockResponse.body);
+				});
 			});
 		}
 	};
 }
 
+export function createDevCalendarMockState(userEmail: string): DevCalendarMockState {
+	return { userEmail, locale: 'ko' };
+}
+
 export function createDevCalendarMockResponse(
-	request: DevCalendarMockRequest,
-	userEmail = 'kim@example.com'
+	state: DevCalendarMockState,
+	request: DevCalendarMockRequest
 ): DevCalendarMockResponse | undefined {
+	if (request.method === 'GET' && request.pathname === '/auth/session') {
+		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: true } };
+	}
+	if (request.method === 'GET' && request.pathname === '/admin/api/session') {
+		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: true } };
+	}
+	if (request.method === 'GET' && request.pathname === '/admin/api/locale') {
+		return { status: 200, body: { locale: state.locale } };
+	}
+	if (request.method === 'PUT' && request.pathname === '/admin/api/locale') {
+		state.locale = parseJSONRecord(request.body).locale === 'en' ? 'en' : 'ko';
+		return { status: 200, body: { locale: state.locale } };
+	}
+	if (request.method === 'GET' && request.pathname === '/calendar/api/sync') {
+		return { status: 200, body: { caldavURL: '', caldavUsername: '', caldavPassword: '', icsURL: '' } };
+	}
+	if (request.method === 'GET' && request.pathname === '/calendar/api/account-status') {
+		return { status: 200, body: { connected: false, needsReauth: false, googleOAuthConfigured: true, canManageGoogleOAuth: false } };
+	}
+	if (request.method === 'GET' && request.pathname === '/calendar/api/participants') {
+		return { status: 200, body: { participants: [] } };
+	}
+	if (request.method === 'POST' && request.pathname === '/calendar/api/remote-sync') {
+		return { status: 200, body: { synced: false } };
+	}
+	if (request.method === 'GET' && request.pathname === '/calendar/api/conflicts') {
+		return { status: 200, body: { conflicts: [] } };
+	}
 	if (request.method !== 'GET' || request.pathname !== '/calendar/api/events') return undefined;
 	const startTime = timestampFromISO(request.searchParams.get('startISO'), Number.NEGATIVE_INFINITY);
 	const endTime = timestampFromISO(request.searchParams.get('endISO'), Number.POSITIVE_INFINITY);
-	const events = createDevCalendarEvents(userEmail).filter((event) => {
+	const events = createDevCalendarEvents(state.userEmail).filter((event) => {
 		const eventStartTime = new Date(event.startISO).getTime();
 		return eventStartTime >= startTime && eventStartTime <= endTime;
 	});
 	return { status: 200, body: { events } };
+}
+
+function shouldHandleDevCalendarMockRequest(method: string, pathname: string): boolean {
+	if (method === 'GET' && pathname === '/auth/session') return true;
+	if (method === 'GET' && pathname === '/admin/api/session') return true;
+	if ((method === 'GET' || method === 'PUT') && pathname === '/admin/api/locale') return true;
+	if (method === 'GET' && pathname === '/calendar/api/sync') return true;
+	if (method === 'GET' && pathname === '/calendar/api/account-status') return true;
+	if (method === 'GET' && pathname === '/calendar/api/participants') return true;
+	if (method === 'POST' && pathname === '/calendar/api/remote-sync') return true;
+	if (method === 'GET' && pathname === '/calendar/api/conflicts') return true;
+	return method === 'GET' && pathname === '/calendar/api/events';
 }
 
 function createDevCalendarEvents(userEmail: string): CalendarEvent[] {

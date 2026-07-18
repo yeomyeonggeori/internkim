@@ -17,6 +17,22 @@ func TestRunGoogleCalendarPullSkipsQueryWhenCTagUnchanged(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("seed: %v", errorValue)
 	}
+	event := newLocalTestCalendarEvent("unchanged-ctag-observation", "Observed")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteHref = updated.DefaultCalendarURL + event.UID + ".ics"
+	event.RemoteETag = `"etag-observed"`
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	previousLastSeenAt := time.Now().UTC().Add(-time.Hour)
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   updated.ID,
+		CalendarURL: updated.DefaultCalendarURL,
+		EventUID:    event.UID,
+		LastSeenAt:  previousLastSeenAt.Format(time.RFC3339Nano),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	client := &fakeCalDAVPullClient{ctag: "ctag-known"}
 	changed, errorValue := service.runGoogleCalendarPull(ctx, updated, client)
 	if errorValue != nil {
@@ -30,6 +46,13 @@ func TestRunGoogleCalendarPullSkipsQueryWhenCTagUnchanged(t *testing.T) {
 	}
 	if client.queryCalls != 0 {
 		t.Errorf("query should be skipped on identical ctag, got %d", client.queryCalls)
+	}
+	state, found, errorValue := service.readCalendarRemoteEventState(ctx, updated.ID, updated.DefaultCalendarURL, event.UID)
+	if errorValue != nil || !found {
+		t.Fatalf("remote state: found=%v error=%v", found, errorValue)
+	}
+	if !parseCalendarConflictTime(state.LastSeenAt).After(previousLastSeenAt) {
+		t.Fatalf("last seen was not advanced: %q", state.LastSeenAt)
 	}
 }
 
@@ -68,7 +91,7 @@ func TestRunCalendarBackgroundSyncCycleSkipsPull(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	var pullCalls atomic.Int32
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		pullCalls.Add(1)
 		return false, nil
 	}
@@ -96,7 +119,7 @@ func TestRunCalendarUserSyncCycleSkipsPullWithinCacheTTL(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	var pullCalls atomic.Int32
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		pullCalls.Add(1)
 		return false, nil
 	}
@@ -134,7 +157,7 @@ func TestRunCalendarUserSyncCycleCachesPullFromCompletionTime(t *testing.T) {
 	now := start
 	var pullCalls atomic.Int32
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		pullCalls.Add(1)
 		now = start.Add(70 * time.Second)
 		return false, nil
@@ -166,11 +189,8 @@ func TestRunCalendarUserSyncCyclePushesBeforePull(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1000, 0).UTC()
 	calls := []string{}
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		calls = append(calls, "pull")
-		if _, ok := protectedUIDs["just-pushed@google"]; !ok {
-			t.Fatalf("pull did not receive pushed UID protection: %#v", protectedUIDs)
-		}
 		return false, nil
 	}
 	push := func(ctx context.Context) (map[string]struct{}, error) {
@@ -193,7 +213,7 @@ func TestRunCalendarUserSyncCyclePushesAgainAfterChangedPull(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	calls := []string{}
 	pushCallCount := 0
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		calls = append(calls, "pull")
 		return true, nil
 	}
@@ -213,38 +233,6 @@ func TestRunCalendarUserSyncCyclePushesAgainAfterChangedPull(t *testing.T) {
 	if len(calls) != 3 || calls[0] != "push" || calls[1] != "pull" || calls[2] != "push" {
 		t.Fatalf("sync order: got %v, want push pull push", calls)
 	}
-	protectedUIDs := service.recentlyPushedCalendarUIDs(now)
-	if _, found := protectedUIDs["exported-after-pull@google"]; !found {
-		t.Fatalf("second push UID was not recorded for protection: %#v", protectedUIDs)
-	}
-}
-
-func TestRunCalendarUserSyncCycleRecordsSecondPushProtectionAfterPull(t *testing.T) {
-	service := newCalendarTestService(t)
-	ctx := context.Background()
-	start := time.Unix(1000, 0).UTC()
-	now := start
-	pushCallCount := 0
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
-		now = start.Add(4*time.Minute + 30*time.Second)
-		return true, nil
-	}
-	push := func(ctx context.Context) (map[string]struct{}, error) {
-		pushCallCount++
-		if pushCallCount == 2 {
-			return map[string]struct{}{"exported-after-slow-pull@google": {}}, nil
-		}
-		return nil, nil
-	}
-	clock := func() time.Time { return now }
-	result := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
-	if !result.Succeeded() || !result.PullAttempted || !result.Changed {
-		t.Fatalf("changed pull result: %#v", result)
-	}
-	protectedUIDs := service.recentlyPushedCalendarUIDs(start.Add(calendarPushVisibilityGracePeriod + time.Second))
-	if _, found := protectedUIDs["exported-after-slow-pull@google"]; !found {
-		t.Fatalf("second push UID expired from the cycle start instead of the second push time: %#v", protectedUIDs)
-	}
 }
 
 func TestRunCalendarUserSyncCycleSkipsSecondPushAfterPushFailure(t *testing.T) {
@@ -252,7 +240,7 @@ func TestRunCalendarUserSyncCycleSkipsSecondPushAfterPushFailure(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1000, 0).UTC()
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	push := func(ctx context.Context) (map[string]struct{}, error) {
@@ -275,7 +263,7 @@ func TestRunCalendarUserSyncCycleRespectsPullCache(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	var pullCalls atomic.Int32
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		pullCalls.Add(1)
 		return true, nil
 	}
@@ -307,7 +295,7 @@ func TestRunCalendarUserSyncCycleRetriesPullAfterFailure(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	var pullCalls atomic.Int32
 	var pushCalls atomic.Int32
-	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+	pull := func(ctx context.Context) (bool, error) {
 		pullCalls.Add(1)
 		return false, errors.New("pull unavailable")
 	}
@@ -394,8 +382,8 @@ func TestCalendarOutboxWriteKeepsPullCache(t *testing.T) {
 	}
 	seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("cache-invalidate", "Cache Invalidate")
-	if errorValue := service.enqueueCalendarOutboxForWrite(ctx, event, []string{calendarFieldTitle}); errorValue != nil {
-		t.Fatalf("enqueue: %v", errorValue)
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write: %v", errorValue)
 	}
 	if service.shouldRunCalendarPull(now.Add(30 * time.Second)) {
 		t.Fatal("local write should keep fresh pull cache")
