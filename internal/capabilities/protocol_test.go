@@ -112,7 +112,7 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 
 func TestRegisteredToolDescriptorsIncludeOptionalCapabilities(t *testing.T) {
 	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google.gmail.send")
-	if descriptor.CanonicalName != "google.gmail.send" {
+	if descriptor.CanonicalName != "google.gmail.send" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
 		t.Fatalf("unexpected registered descriptor: %+v", descriptor)
 	}
 }
@@ -160,6 +160,42 @@ func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 		if containsString(defaultToolNames(), toolName) {
 			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, defaultToolNames())
 		}
+	}
+}
+
+func TestRegisteredDescriptorsRequireTypedContractsWhenModelVisible(t *testing.T) {
+	for _, descriptors := range [][]Descriptor{DeviceDescriptors(), RegisteredToolDescriptors()} {
+		if errorValue := capabilityprotocol.ValidateModelVisibleCapabilityDescriptorSet(descriptors); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		for _, descriptor := range descriptors {
+			if descriptor.ModelVisibility == capabilityprotocol.ModelVisibilityVisible || descriptor.ModelVisible {
+				if descriptor.ResultContract == nil || len(descriptor.ResultContract.Schema) == 0 {
+					t.Fatalf("model-visible descriptor lacks a result contract: %+v", descriptor)
+				}
+			}
+		}
+	}
+}
+
+func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
+	searchDescriptor := descriptorForTool(t, WebDescriptors(), "web.search")
+	if searchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !searchDescriptor.ModelVisible {
+		t.Fatalf("web.search must remain model-visible: %+v", searchDescriptor)
+	}
+	if searchDescriptor.RequiresApproval || searchDescriptor.SideEffectClass != "read" || searchDescriptor.ResultContract == nil {
+		t.Fatalf("unexpected web.search descriptor: %+v", searchDescriptor)
+	}
+	if len(searchDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("web.search must not expose effects: %+v", searchDescriptor.ResultContract.Effects)
+	}
+	searchResultSchema := decodeSchema(t, "web.search result", searchDescriptor.ResultContract.Schema)
+	assertSchemaHasProperties(t, searchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "query", "answer", "results")
+	assertSchemaRequires(t, searchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "query", "answer", "results")
+
+	fetchDescriptor := descriptorForTool(t, WebDescriptors(), "web.fetch")
+	if fetchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || fetchDescriptor.ModelVisible {
+		t.Fatalf("web.fetch must remain registered but hidden: %+v", fetchDescriptor)
 	}
 }
 
@@ -435,6 +471,31 @@ func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
 		"browser.press",
 		"browser.wait",
 		"image.generate",
+		"company.info.get",
+		"company.info.set",
+		"company.metric.record",
+		"company.metric.list",
+		"company.record.add",
+		"company.record.list",
+		"company.record.update",
+		"company.record.delete",
+		"company.document.register",
+		"company.document.list",
+		"company.document.search",
+		"company.document.update",
+		"web.fetch",
+		"message.context",
+		"message.search",
+		"message.send",
+		"message.update",
+		"message.delete",
+		"channel.update",
+		"mail.connection.status",
+		"mail.connection.start",
+		"mail.message.list",
+		"mail.message.search",
+		"mail.message.read",
+		"mail.message.send",
 		"mail.message.move",
 		"mail.message.mark",
 	}
