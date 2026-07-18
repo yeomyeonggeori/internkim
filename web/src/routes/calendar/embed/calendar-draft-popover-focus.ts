@@ -29,6 +29,7 @@ export function installCalendarDraftPopoverFocus(
 		if (!options.isReady) return;
 		focusFrame = requestAnimationFrame(() => {
 			focusFrame = null;
+			if (popoverElement.contains(document.activeElement)) return;
 			const focusElement = popoverElement.querySelector<HTMLElement>(initialFocusSelector);
 			if (!focusElement) return;
 			focusElement.focus({ preventScroll: true });

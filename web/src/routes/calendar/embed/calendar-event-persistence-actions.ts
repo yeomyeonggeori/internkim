@@ -45,6 +45,7 @@ type CalendarEventPersistenceDependencies = {
 	dismissDeleteUndoToast: typeof dismissCalendarDeleteUndoToast;
 	notifyError: (message: string) => void;
 	showDeleteUndoToast: typeof showCalendarDeleteUndoToast;
+	waitForDeleteIntentCancellationRetry: (delay: number) => Promise<void>;
 };
 
 export function createCalendarEventPersistenceActions(
@@ -81,7 +82,8 @@ export function createCalendarEventPersistenceActions(
 		finishPersistence: finishEventPersistence,
 		showPersistenceError: showEventPersistenceError,
 		dismissUndoToast: dismissDeleteUndoToast,
-		showUndoToast: showDeleteUndoToast
+		showUndoToast: showDeleteUndoToast,
+		waitForCancellationRetry: dependencies.waitForDeleteIntentCancellationRetry
 	});
 
 	async function saveUpdatedEvent(event: DayFlowEvent, previousEvent?: DayFlowEvent): Promise<void> {
