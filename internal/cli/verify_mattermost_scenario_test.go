@@ -16,6 +16,7 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 		"01-task-lifecycle.json",
 		"02-calendar-lifecycle.json",
 		"04-website-lifecycle.json",
+		"05-message-lifecycle.json",
 		"09-document-lifecycle.json",
 	} {
 		scenario, errorValue := loadMattermostScenario("../../tests/expensive/" + filename)
@@ -25,6 +26,69 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 		if scenario.Name == "" || len(scenario.Steps) == 0 {
 			t.Fatalf("expected named ordered lifecycle steps for %s, got %#v", filename, scenario)
 		}
+	}
+}
+
+func TestMessageLifecycleUsesCanonicalSearchMutationLineageAndButtonApproval(t *testing.T) {
+	scenario, errorValue := loadMattermostScenario("../../tests/expensive/05-message-lifecycle.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(scenario.Steps) != 5 {
+		t.Fatalf("expected message CRUD and final absence verification, got %d steps", len(scenario.Steps))
+	}
+	if len(scenario.InitialToolNames) != 1 || scenario.InitialToolNames[0] != "message.send" {
+		t.Fatalf("unexpected initial message tools: %#v", scenario.InitialToolNames)
+	}
+	for _, stepIndex := range []int{1, 3} {
+		step := scenario.Steps[stepIndex]
+		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message.search") {
+			t.Fatalf("step %d does not search before mutation: %#v", stepIndex+1, step)
+		}
+		if step.ApprovalAction != mattermostScenarioApprovalApprove {
+			t.Fatalf("step %d does not use button approval: %#v", stepIndex+1, step)
+		}
+	}
+}
+
+func TestMattermostScenarioMessageMutationRequiresSearchAndScenarioLineage(t *testing.T) {
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{
+		TaskEvents: []mattermostScenarioTaskEvent{{
+			Name: "tool.message.send.result",
+			Body: `{"output":{"data":{"messageIDs":["message-1"],"deliveryStatus":"sent"}}}`,
+		}},
+	}}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message.search", "message.update"}}
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.message.search.result", Body: `{"output":{"data":{"messageIDs":["message-1"],"candidates":[]}}}`},
+		{Name: "tool.message.update.requested", Body: `{"input":{"messageID":"message-1","message":"수정"}}`},
+	}
+	if errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result); errorValue != nil {
+		t.Fatalf("validate exact message lineage: %v", errorValue)
+	}
+
+	events[1].Body = `{"input":{"messageID":"message-2","message":"수정"}}`
+	errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "message.search returned it") {
+		t.Fatalf("expected unobserved message ID failure, got %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioMessageMutationRejectsSearchResultOutsidePriorLineage(t *testing.T) {
+	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{
+		TaskEvents: []mattermostScenarioTaskEvent{{
+			Name: "tool.message.update.result",
+			Body: `{"output":{"data":{"messageID":"message-1","deliveryStatus":"updated","messageUpdated":true}}}`,
+		}},
+	}}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message.search", "message.delete"}}
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.message.search.result", Body: `{"output":{"data":{"messageIDs":["message-2"],"candidates":[]}}}`},
+		{Name: "tool.message.delete.requested", Body: `{"input":{"messageIDs":["message-2"]}}`},
+	}
+	errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "outside the scenario mutation lineage") {
+		t.Fatalf("expected scenario lineage failure, got %v", errorValue)
 	}
 }
 
