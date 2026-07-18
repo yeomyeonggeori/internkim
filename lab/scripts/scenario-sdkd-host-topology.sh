@@ -212,8 +212,8 @@ if grep -qE '/run/blueclaw-sdkd|sdkd-auth-key' "$runtime_config"; then
   exit 1
 fi
 
-jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]' "$runtime_config" >/dev/null
-jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_turn_router"]' "$workspace_runtime_config" >/dev/null
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision"]' "$runtime_config" >/dev/null
+jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision"]' "$workspace_runtime_config" >/dev/null
 requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
 router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '' false)
 assert_guest_sdkd_router_transport "$router_task_run_id"
