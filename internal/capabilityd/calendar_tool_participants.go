@@ -140,5 +140,7 @@ func calendarPersonAmbiguousFailure(personHint string, candidates []platformDMRe
 }
 
 func calendarToolPersonResolveErrorResponse(toolName string, failure platformDMFailure) capabilities.ToolInvokeResponse {
-	return platformDMErrorResponse(toolName, failure)
+	response := platformDMErrorResponse(toolName, failure)
+	response.Outcome = capabilities.ToolOutcomeFailed
+	return response
 }

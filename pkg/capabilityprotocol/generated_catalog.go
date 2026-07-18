@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const supportedGeneratedProtocolVersion = "0.4.0"
+
 type generatedArtifactReference struct {
 	FileName string `json:"fileName"`
 	Hash     string `json:"hash"`
@@ -93,6 +95,9 @@ func loadGeneratedCatalog(fileSystem fs.FS) (loadedGeneratedCatalog, error) {
 	if errorValue := decodeGeneratedJSON(manifestDocument, &manifest); errorValue != nil {
 		return loadedGeneratedCatalog{}, fmt.Errorf("decode generated protocol manifest: %w", errorValue)
 	}
+	if errorValue := validateGeneratedProtocolVersion(manifest.ProtocolVersion); errorValue != nil {
+		return loadedGeneratedCatalog{}, errorValue
+	}
 	catalogDocument, errorValue := fs.ReadFile(fileSystem, "generated/"+manifest.CapabilityToolCatalog.FileName)
 	if errorValue != nil {
 		return loadedGeneratedCatalog{}, errorValue
@@ -118,16 +123,13 @@ func loadGeneratedCatalog(fileSystem fs.FS) (loadedGeneratedCatalog, error) {
 }
 
 func validateGeneratedArtifacts(fileSystem fs.FS, manifest generatedProtocolManifest, catalogDocument []byte) error {
-	if strings.TrimSpace(manifest.ProtocolVersion) == "" {
-		return fmt.Errorf("generated protocol version is required")
-	}
 	if manifest.CapabilityToolCatalog.FileName != "capability-tools.json" {
 		return fmt.Errorf("generated capability catalog filename is invalid")
 	}
 	if errorValue := validateGeneratedHash(catalogDocument, manifest.CapabilityToolCatalog.Hash); errorValue != nil {
 		return fmt.Errorf("generated capability catalog: %w", errorValue)
 	}
-	artifactHashes, expectedPaths, errorValue := validateGeneratedSchemas(fileSystem, manifest.Schemas)
+	artifactHashes, expectedPaths, errorValue := validateGeneratedSchemaArtifacts(fileSystem, manifest.Schemas)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -139,7 +141,14 @@ func validateGeneratedArtifacts(fileSystem fs.FS, manifest generatedProtocolMani
 	return validateGeneratedPaths(fileSystem, expectedPaths)
 }
 
-func validateGeneratedSchemas(fileSystem fs.FS, references []generatedSchemaReference) ([]string, []string, error) {
+func validateGeneratedProtocolVersion(protocolVersion string) error {
+	if protocolVersion != supportedGeneratedProtocolVersion {
+		return fmt.Errorf("generated protocol version %q is unsupported; expected %q", protocolVersion, supportedGeneratedProtocolVersion)
+	}
+	return nil
+}
+
+func validateGeneratedSchemaArtifacts(fileSystem fs.FS, references []generatedSchemaReference) ([]string, []string, error) {
 	sortedReferences := append([]generatedSchemaReference{}, references...)
 	sort.Slice(sortedReferences, func(leftIndex int, rightIndex int) bool {
 		return sortedReferences[leftIndex].Name < sortedReferences[rightIndex].Name
@@ -149,7 +158,7 @@ func validateGeneratedSchemas(fileSystem fs.FS, references []generatedSchemaRefe
 	seenNames := map[string]bool{}
 	seenFiles := map[string]bool{}
 	for _, reference := range sortedReferences {
-		if errorValue := validateGeneratedSchemaReference(reference, seenNames, seenFiles); errorValue != nil {
+		if errorValue := validateGeneratedSchemaArtifactReference(reference, seenNames, seenFiles); errorValue != nil {
 			return nil, nil, errorValue
 		}
 		schemaPath := "generated/json-schema/" + reference.FileName
@@ -166,7 +175,7 @@ func validateGeneratedSchemas(fileSystem fs.FS, references []generatedSchemaRefe
 	return artifactHashes, expectedPaths, nil
 }
 
-func validateGeneratedSchemaReference(reference generatedSchemaReference, seenNames map[string]bool, seenFiles map[string]bool) error {
+func validateGeneratedSchemaArtifactReference(reference generatedSchemaReference, seenNames map[string]bool, seenFiles map[string]bool) error {
 	if strings.TrimSpace(reference.Name) == "" || reference.FileName != reference.Name+".schema.json" || path.Base(reference.FileName) != reference.FileName {
 		return fmt.Errorf("generated schema reference is invalid")
 	}

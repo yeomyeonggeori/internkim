@@ -27,13 +27,13 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return calendarToolJSONResponse(`{"id":"event-1","title":"Demo","startISO":"2026-05-08T01:00:00Z","endISO":"2026-05-08T02:00:00Z"}`), nil
+			return calendarToolEventResponse(payload["eventID"].(string), "Demo", "2026-05-08T01:00:00Z", "2026-05-08T02:00:00Z"), nil
 		})},
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar.add",
-		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":"샘플, 수민","reminderLeadHours":48}`),
+		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":["샘플","수민"],"reminderLeadHours":48}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
 			RequesterName:  "Staff",
@@ -44,6 +44,14 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 	if response.Status != "created" {
 		t.Fatalf("status = %q", response.Status)
+	}
+	assertCalendarMutationEffect(t, response, payload["eventID"].(string), "created")
+	var result map[string]any
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result["eventID"] != payload["eventID"] || result["id"] != nil {
+		t.Fatalf("canonical result = %#v", result)
 	}
 	if requesterEmail != "staff@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
@@ -83,7 +91,7 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"경산 일정"}`), nil
+				return calendarToolEventResponse(payload["eventID"].(string), "경산 일정", "2026-05-08T05:00:00+09:00", "2026-05-08T06:00:00+09:00"), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -172,13 +180,96 @@ func TestCalendarToolShouldIncludeRequesterPolicy(t *testing.T) {
 }
 
 func TestCalendarEventAddGeneratesStableEventID(t *testing.T) {
-	first, firstError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`), false)
-	second, secondError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`), false)
+	first, firstError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`))
+	second, secondError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`))
 	if firstError != nil || secondError != nil {
 		t.Fatalf("decode errors: %v %v", firstError, secondError)
 	}
 	if first.EventID == "" || first.EventID != second.EventID {
 		t.Fatalf("event IDs = %q %q", first.EventID, second.EventID)
+	}
+}
+
+func TestCalendarInputsRejectUnknownTrailingAndLegacyAliases(t *testing.T) {
+	tests := []struct {
+		name   string
+		decode func() error
+	}{
+		{
+			name: "add unknown internal field",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","participants":[]}`))
+				return errorValue
+			},
+		},
+		{
+			name: "add comma-delimited people",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","people":"Alice,Bob"}`))
+				return errorValue
+			},
+		},
+		{
+			name: "add hidden duplicate override",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","allowDuplicate":true}`))
+				return errorValue
+			},
+		},
+		{
+			name: "list trailing data",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventListInput([]byte(`{} {}`))
+				return errorValue
+			},
+		},
+		{
+			name: "update internal participants",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventUpdateInput([]byte(`{"eventID":"event-1","participants":[]}`))
+				return errorValue
+			},
+		},
+		{
+			name: "delete unknown query",
+			decode: func() error {
+				_, errorValue := decodeCalendarEventDeleteInput([]byte(`{"eventID":"event-1","query":"Demo"}`))
+				return errorValue
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if errorValue := testCase.decode(); errorValue == nil {
+				t.Fatal("expected strict calendar input error")
+			}
+		})
+	}
+}
+
+func TestCalendarListRequiresPositiveWholeNumberLimit(t *testing.T) {
+	for _, document := range []string{`{"limit":0}`, `{"limit":-1}`, `{"limit":1.5}`} {
+		if _, errorValue := decodeCalendarEventListInput([]byte(document)); errorValue == nil {
+			t.Fatalf("expected list limit validation error for %s", document)
+		}
+	}
+	if _, errorValue := decodeCalendarEventListInput([]byte(`{"limit":2}`)); errorValue != nil {
+		t.Fatalf("expected whole-number limit to pass: %v", errorValue)
+	}
+}
+
+func TestCalendarUpdateRequiresPatchAndAllowedReminder(t *testing.T) {
+	for _, document := range []string{
+		`{"eventID":"event-1"}`,
+		`{"eventID":"event-1","reminderLeadHours":0}`,
+		`{"eventID":"event-1","reminderLeadHours":5}`,
+	} {
+		if _, errorValue := decodeCalendarEventUpdateInput([]byte(document)); errorValue == nil {
+			t.Fatalf("expected update validation error for %s", document)
+		}
+	}
+	if _, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","reminderLeadHours":5}`)); errorValue == nil {
+		t.Fatal("expected add reminder validation error")
 	}
 }
 
@@ -190,7 +281,11 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.String() != expectedURL {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"Design review","description":"","location":"Office"},{"id":"event-2","title":"Lunch","description":"","location":"Cafe"}]}`), nil
+			firstEvent := calendarToolEventDocument("event-1", "Design review", "2026-05-08T01:00:00Z", "2026-05-08T02:00:00Z")
+			firstEvent["location"] = "Office"
+			secondEvent := calendarToolEventDocument("event-2", "Lunch", "2026-05-08T03:00:00Z", "2026-05-08T04:00:00Z")
+			secondEvent["location"] = "Cafe"
+			return calendarToolEventsResponse(firstEvent, secondEvent), nil
 		})},
 	}
 
@@ -205,9 +300,106 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &document); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(document.Events) != 1 || document.Events[0].ID != "event-1" {
+	if len(document.Events) != 1 || document.Events[0].EventID != "event-1" {
 		t.Fatalf("events = %#v", document.Events)
 	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 0 {
+		t.Fatalf("list response = %+v", response)
+	}
+}
+
+func TestCalendarEventResultsRequireAndNormalizeIdentity(t *testing.T) {
+	event := calendarToolEventDocument("event-1", "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00")
+	event["createdByEmail"] = "creator@example.com"
+	document, _ := json.Marshal(event)
+	normalized, normalizedEvent, errorValue := normalizeCalendarEventResult(document, "event-1")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var normalizedDocument map[string]any
+	if errorValue := json.Unmarshal(normalized, &normalizedDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if normalizedEvent.EventID != "event-1" || normalizedDocument["eventID"] != "event-1" {
+		t.Fatalf("normalized result = %#v", normalizedDocument)
+	}
+	if normalizedDocument["id"] != nil || normalizedDocument["createdByEmail"] != nil {
+		t.Fatalf("non-canonical result fields survived: %#v", normalizedDocument)
+	}
+
+	delete(event, "id")
+	document, _ = json.Marshal(event)
+	if _, _, errorValue := normalizeCalendarEventResult(document, ""); errorValue == nil {
+		t.Fatal("expected missing result identity error")
+	}
+	event["id"] = "event-2"
+	document, _ = json.Marshal(event)
+	if _, _, errorValue := normalizeCalendarEventResult(document, "event-1"); errorValue == nil {
+		t.Fatal("expected mismatched result identity error")
+	}
+}
+
+func TestCalendarEventListRejectsEventWithoutIdentity(t *testing.T) {
+	event := calendarToolEventDocument("", "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00")
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return calendarToolEventsResponse(event), nil
+		})},
+	}
+	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.list",
+		Input:    []byte(`{}`),
+	}); errorValue == nil {
+		t.Fatal("expected list result identity error")
+	}
+}
+
+func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testing.T) {
+	var allowDuplicate bool
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			allowDuplicate, _ = payload["allowDuplicate"].(bool)
+			if !allowDuplicate {
+				return calendarToolJSONResponse(`{"status":"duplicate_candidate","candidates":[{"id":"event-existing","title":"Demo"}]}`), nil
+			}
+			return calendarToolEventResponse(payload["eventID"].(string), "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00"), nil
+		})},
+	}
+	baseInput := `{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"`
+	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.add",
+		Input:    []byte(baseInput + `}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.Status != "duplicate_candidate" || len(response.Effects) != 0 {
+		t.Fatalf("duplicate candidate response = %+v", response)
+	}
+	if !strings.Contains(string(response.Result), `"candidates"`) {
+		t.Fatalf("duplicate candidate result = %s", response.Result)
+	}
+
+	response, errorValue = service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.add",
+		Input:    []byte(baseInput + `}`),
+		Context: capabilities.ToolInvokeContext{
+			ConflictResolution: capabilities.ToolConflictResolutionAllowDuplicate,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !allowDuplicate {
+		t.Fatal("allowDuplicate control did not reach admind")
+	}
+	assertCalendarMutationEffect(t, response, response.Effects[0].ID, "created")
 }
 
 func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
@@ -229,123 +421,52 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 }
 
-func TestCalendarEventUpdateUsesUnchangedTitleAsTarget(t *testing.T) {
-	requestCount := 0
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requestCount++
-			switch requestCount {
-			case 1:
-				if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/calendar/api/events/search?query=%EB%B9%84%EC%9A%A9+%ED%85%8C%EC%8A%A4%ED%8A%B8+%EC%9D%BC%EC%A0%95" {
-					t.Fatalf("unexpected lookup request %s %s", request.Method, request.URL.String())
-				}
-				return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"비용 테스트 일정","updatedAt":"2026-07-16T00:00:00Z"}]}`), nil
-			case 2:
-				if request.Method != http.MethodPut || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
-					t.Fatalf("unexpected update request %s %s", request.Method, request.URL.String())
-				}
-				var payload map[string]any
-				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-					t.Fatal(errorValue)
-				}
-				if payload["startISO"] != "2026-07-16T14:00:00+09:00" {
-					t.Fatalf("unexpected update payload %#v", payload)
-				}
-				if payload["expectedUpdatedAt"] != "2026-07-16T00:00:00Z" {
-					t.Fatalf("missing expected update version %#v", payload)
-				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`), nil
-			default:
-				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
-		Input:    []byte(`{"title":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "updated" || requestCount != 2 {
-		t.Fatalf("response = %+v requests = %d", response, requestCount)
-	}
-}
-
-func TestCalendarEventQueryResolutionHandlesSearchResults(t *testing.T) {
+func TestCalendarMutationInputsRequireExactEventID(t *testing.T) {
 	tests := []struct {
-		name              string
-		response          string
-		expectedErrorCode string
+		name   string
+		invoke func(Service) error
 	}{
-		{name: "not found", response: `{"events":[]}`, expectedErrorCode: "calendar_event_not_found"},
-		{name: "ambiguous", response: `{"events":[{"id":"event-1","title":"Alpha","updatedAt":"2026-07-16T00:00:00Z"},{"id":"event-2","title":"Alpha two","updatedAt":"2026-07-16T00:00:00Z"}]}`, expectedErrorCode: "calendar_event_ambiguous"},
+		{
+			name: "update query",
+			invoke: func(service Service) error {
+				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+					ToolName: "calendar.update",
+					Input:    []byte(`{"query":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00"}`),
+				})
+				return errorValue
+			},
+		},
+		{
+			name: "update title without ID",
+			invoke: func(service Service) error {
+				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+					ToolName: "calendar.update",
+					Input:    []byte(`{"title":"비용 테스트 일정"}`),
+				})
+				return errorValue
+			},
+		},
+		{
+			name: "delete query",
+			invoke: func(service Service) error {
+				_, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
+					ToolName: "calendar.delete",
+					Input:    []byte(`{"query":"비용 테스트 일정"}`),
+				})
+				return errorValue
+			},
+		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			service := Service{
-				Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-					if request.URL.String() != "http://admind.local/calendar/api/events/search?query=Alpha" {
-						t.Fatalf("unexpected request %s", request.URL.String())
-					}
-					return calendarToolJSONResponse(testCase.response), nil
-				})},
-			}
-
-			response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-				ToolName: "calendar.delete",
-				Input:    []byte(`{"query":"Alpha"}`),
-			})
-
-			if errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if response.ErrorCode != testCase.expectedErrorCode {
-				t.Fatalf("error code = %q, expected %q", response.ErrorCode, testCase.expectedErrorCode)
+			service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				t.Fatalf("mutation input reached HTTP boundary: %s", request.URL.String())
+				return nil, nil
+			})}}
+			if errorValue := testCase.invoke(service); errorValue == nil {
+				t.Fatal("expected exact eventID validation error")
 			}
 		})
-	}
-}
-
-func TestCalendarEventQueryResolutionFallsBackWhenSearchRouteIsUnavailable(t *testing.T) {
-	requestCount := 0
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requestCount++
-			if requestCount == 1 {
-				if request.URL.String() != "http://admind.local/calendar/api/events/search?query=Legacy" {
-					t.Fatalf("unexpected search request %s", request.URL.String())
-				}
-				return calendarToolJSONStatusResponse(http.StatusNotFound, `404 page not found`), nil
-			}
-			if requestCount == 2 {
-				if request.URL.String() != "http://admind.local/calendar/api/events" {
-					t.Fatalf("unexpected fallback request %s", request.URL.String())
-				}
-				return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"Legacy meeting","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00","updatedAt":"2026-07-16T00:00:00Z"}]}`), nil
-			}
-			if request.Method != http.MethodDelete || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
-				t.Fatalf("unexpected delete request %s %s", request.Method, request.URL.String())
-			}
-			return calendarToolJSONResponse(`{"deleted":true}`), nil
-		})},
-	}
-
-	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.delete",
-		Input:    []byte(`{"query":"Legacy"}`),
-	})
-
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "deleted" || requestCount != 3 {
-		t.Fatalf("response = %+v request count = %d", response, requestCount)
 	}
 }
 
@@ -393,7 +514,7 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 				if payload["expectedUpdatedAt"] != "2026-07-16T00:00:00Z" {
 					t.Fatalf("expectedUpdatedAt = %#v", payload["expectedUpdatedAt"])
 				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"Changed title"}`), nil
+				return calendarToolEventResponse("event-1", "Changed title", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -412,11 +533,12 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 	if response.Status != "updated" || requestCount != 2 {
 		t.Fatalf("response = %+v requests = %d", response, requestCount)
 	}
+	assertCalendarMutationEffect(t, response, "event-1", "updated")
 }
 
 func TestCalendarEventUpdateAppliesExplicitEmptyAndFalseFields(t *testing.T) {
 	current := calendarEventForTool{
-		ID:                "event-1",
+		EventID:           "event-1",
 		Title:             "Original title",
 		Description:       "Original description",
 		Location:          "Original location",
@@ -427,29 +549,27 @@ func TestCalendarEventUpdateAppliesExplicitEmptyAndFalseFields(t *testing.T) {
 		Participants:      []calendarToolParticipant{{PersonID: "person-alice", Name: "Alice"}},
 		ReminderLeadHours: 6,
 	}
-	merged, errorValue := mergeCalendarEventUpdateInput([]byte(`{
+	update, errorValue := decodeCalendarEventUpdateInput([]byte(`{
+		"eventID":"event-1",
 		"description":"",
 		"location":"",
 		"isAllDay":false,
-		"participants":[],
-		"reminderLeadHours":0,
+		"people":[],
+		"reminderLeadHours":1,
 		"includeRequester":false
-	}`), current)
+	}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	input, errorValue := decodeCalendarEventWriteInput(merged, true)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	input := mergeCalendarEventUpdateInput(update, current)
 	if input.Description != "" || input.Location != "" || input.IsAllDay {
 		t.Fatalf("explicit empty and false fields were not applied: %+v", input)
 	}
 	if len(input.People) != 0 || len(input.Participants) != 0 {
 		t.Fatalf("explicit empty participants were not applied: %+v", input.Participants)
 	}
-	if input.ReminderLeadHours != 24 {
-		t.Fatalf("explicit default reminder = %d, expected 24", input.ReminderLeadHours)
+	if input.ReminderLeadHours != 1 {
+		t.Fatalf("explicit reminder = %d, expected 1", input.ReminderLeadHours)
 	}
 	if input.IncludeRequester == nil || *input.IncludeRequester {
 		t.Fatalf("explicit includeRequester = %#v, expected false", input.IncludeRequester)
@@ -466,7 +586,7 @@ func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
 				if request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s", request.URL.String())
 				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"Conflicted event","updatedAt":"2026-07-16T00:00:00Z"}`), nil
+				return calendarToolEventResponse("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
 			}
 			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 		})},
@@ -554,7 +674,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 				if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s %s", request.Method, request.URL.String())
 				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"Scheduled event","updatedAt":"2026-07-16T00:00:00Z"}`), nil
+				return calendarToolEventResponse("event-1", "Scheduled event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
 			case 2:
 				if request.Method != http.MethodDelete || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected delete request %s %s", request.Method, request.URL.String())
@@ -582,6 +702,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 	if response.Status != "deleted" || response.IsError || requestCount != 2 {
 		t.Fatalf("expected scheduled delete to execute, got %+v", response)
 	}
+	assertCalendarMutationEffect(t, response, "event-1", "deleted")
 	if requesterEmail != "staff@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
@@ -597,7 +718,7 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 				if request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s", request.URL.String())
 				}
-				return calendarToolJSONResponse(`{"id":"event-1","title":"Conflicted event","updatedAt":"2026-07-16T00:00:00Z"}`), nil
+				return calendarToolEventResponse("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
 			}
 			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 		})},
@@ -616,6 +737,45 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 
 func calendarToolJSONResponse(document string) *http.Response {
 	return calendarToolJSONStatusResponse(http.StatusOK, document)
+}
+
+func calendarToolEventResponse(eventID string, title string, startISO string, endISO string) *http.Response {
+	document, _ := json.Marshal(calendarToolEventDocument(eventID, title, startISO, endISO))
+	return calendarToolJSONResponse(string(document))
+}
+
+func calendarToolEventsResponse(events ...map[string]any) *http.Response {
+	document, _ := json.Marshal(map[string]any{"events": events})
+	return calendarToolJSONResponse(string(document))
+}
+
+func calendarToolEventDocument(eventID string, title string, startISO string, endISO string) map[string]any {
+	return map[string]any{
+		"id":                eventID,
+		"title":             title,
+		"description":       "",
+		"location":          "",
+		"startISO":          startISO,
+		"endISO":            endISO,
+		"timeZone":          "Asia/Seoul",
+		"isAllDay":          false,
+		"color":             "",
+		"people":            []string{},
+		"participants":      []calendarToolParticipant{},
+		"reminderLeadHours": 24,
+		"updatedAt":         "2026-07-16T00:00:00Z",
+	}
+}
+
+func assertCalendarMutationEffect(t *testing.T, response capabilities.ToolInvokeResponse, eventID string, effect string) {
+	t.Helper()
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 {
+		t.Fatalf("mutation response = %+v", response)
+	}
+	resourceEffect := response.Effects[0]
+	if resourceEffect.ObjectType != "calendar" || resourceEffect.Effect != effect || resourceEffect.ID != eventID {
+		t.Fatalf("mutation effect = %+v", resourceEffect)
+	}
 }
 
 func assertCalendarToolVersionConflict(t *testing.T, response capabilities.ToolInvokeResponse, errorValue error) {
