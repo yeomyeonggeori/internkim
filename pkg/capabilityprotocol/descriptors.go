@@ -148,6 +148,16 @@ func MustCanonicalizeBuiltInDescriptors(descriptors []Descriptor) []Descriptor {
 	return MustCanonicalizeDescriptors(descriptors)
 }
 
+func MustCanonicalizeModelVisibleDescriptors(descriptors []Descriptor) []Descriptor {
+	canonicalDescriptors := make([]Descriptor, len(descriptors))
+	copy(canonicalDescriptors, descriptors)
+	canonicalizeSchemas(canonicalDescriptors)
+	if errorValue := ValidateModelVisibleCapabilityDescriptorSet(canonicalDescriptors); errorValue != nil {
+		panic(errorValue)
+	}
+	return canonicalDescriptors
+}
+
 func canonicalizeSchemas(descriptors []Descriptor) {
 	for index := range descriptors {
 		descriptors[index].InputSchema = strictSchema(descriptors[index].InputSchema)

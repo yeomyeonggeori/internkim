@@ -297,6 +297,16 @@ func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *t
 	}
 }
 
+func TestMustCanonicalizeModelVisibleDescriptorsFailsClosed(t *testing.T) {
+	modelVisibleDescriptor := validTestDescriptor("task.add")
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected model-visible descriptor without a result contract to panic")
+		}
+	}()
+	MustCanonicalizeModelVisibleDescriptors([]Descriptor{modelVisibleDescriptor})
+}
+
 func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
 	for _, descriptors := range [][]Descriptor{CompanionToolDescriptors(), CompanionLLMDescriptors(), DeviceBrowserDescriptors()} {
 		if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {

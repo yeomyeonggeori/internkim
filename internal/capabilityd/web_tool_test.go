@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
@@ -41,7 +43,7 @@ func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
 	if tool["type"] != "openrouter:web_search" || parameters["engine"] != "auto" || parameters["max_results"] != float64(3) {
 		t.Fatalf("unexpected web search tool: %+v", tool)
 	}
-	if response.Provider != "openrouter" || response.SelectedBackend != "remote" || response.IsError {
+	if response.Provider != "openrouter" || response.SelectedBackend != "remote" || response.ToolName != "web.search" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.IsError {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 }
@@ -304,7 +306,7 @@ func TestWebToolLocalOnlyBlocksOpenRouter(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected structured tool error response: %v", errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "local_only" {
+	if !response.IsError || response.ErrorCode != "local_only" || response.ToolName != "web.search" || response.Outcome != capabilities.ToolOutcomeFailed {
 		t.Fatalf("expected local-only denial, got %+v", response)
 	}
 }
