@@ -40,6 +40,44 @@ type calendarNotificationReconciliationJob struct {
 
 type calendarNotificationReconciler func(context.Context, string) error
 
+func (service *Service) startCalendarNotificationReconciliation(ctx context.Context) {
+	service.startCalendarNotificationWorkers(ctx)
+	go func() {
+		if errorValue := service.enqueuePersistedCalendarNotificationReconciliations(ctx); errorValue != nil && ctx.Err() == nil {
+			slog.WarnContext(ctx, "calendar notification startup reconciliation failed", "error", errorValue)
+		}
+	}()
+}
+
+func (service *Service) startCalendarNotificationWorkers(ctx context.Context) {
+	service.calendarNotificationMutex.Lock()
+	defer service.calendarNotificationMutex.Unlock()
+	if service.calendarNotificationLive != nil {
+		return
+	}
+	liveInput := make(chan calendarNotificationReconciliationJob, calendarNotificationInputBufferSize)
+	repairInput := make(chan calendarNotificationReconciliationJob, calendarNotificationInputBufferSize)
+	jobs := make(chan calendarNotificationReconciliationJob)
+	service.calendarNotificationLive = liveInput
+	service.calendarNotificationRepair = repairInput
+	service.calendarNotificationCtx = ctx
+	service.calendarNotificationGroup.Add(calendarNotificationWorkerCount + 2)
+	go func() {
+		defer service.calendarNotificationGroup.Done()
+		dispatchCalendarNotificationReconciliations(ctx, liveInput, repairInput, jobs)
+	}()
+	go func() {
+		defer service.calendarNotificationGroup.Done()
+		service.scheduleCalendarNotificationReconciliations(ctx)
+	}()
+	for range calendarNotificationWorkerCount {
+		go func() {
+			defer service.calendarNotificationGroup.Done()
+			service.runCalendarNotificationReconciliationWorker(ctx, jobs)
+		}()
+	}
+}
+
 func (service *Service) reconcileCalendarEventNotifications(ctx context.Context, eventID string) {
 	service.enqueueCalendarNotificationReconciliationWithContext(ctx, eventID, service.reconcileCalendarEventNotificationsOnce, true)
 }

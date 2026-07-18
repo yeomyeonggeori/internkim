@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 )
@@ -99,9 +98,7 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 		return errorValue
 	}
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		if errorValue := service.cancelCalendarNotifications(ctx, event.ID); errorValue != nil {
-			slog.WarnContext(ctx, "calendar notification cancel failed", "event_id", event.ID, "error", errorValue)
-		}
+		service.reconcileCalendarEventNotifications(ctx, event.ID)
 		service.applyCalendarMattermostProjectionByID(ctx, event.ID)
 	})
 	if shouldSignalSync {

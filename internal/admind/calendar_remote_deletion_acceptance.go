@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"log/slog"
 	"strings"
 	"time"
 )
@@ -30,9 +29,7 @@ func (service *Service) acceptCalendarRemoteDeletion(ctx context.Context, row ca
 		return false, errorValue
 	}
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		if errorValue := service.cancelCalendarNotifications(ctx, snapshotEvent.ID); errorValue != nil {
-			slog.WarnContext(ctx, "calendar notification cancel failed", "event_id", snapshotEvent.ID, "error", errorValue)
-		}
+		service.reconcileCalendarEventNotifications(ctx, snapshotEvent.ID)
 		service.applyCalendarMattermostProjectionByID(ctx, snapshotEvent.ID)
 	})
 	return true, nil
