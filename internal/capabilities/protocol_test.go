@@ -173,7 +173,7 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	}
 	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
 	for _, descriptor := range FlowDescriptors() {
-		if descriptor.Name == "task.add" && descriptor.Version != "2" {
+		if descriptor.Name == "task.add" && descriptor.Version != "3" {
 			t.Fatalf("task.add version = %q", descriptor.Version)
 		}
 	}
@@ -192,8 +192,8 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	assertSchemaHasProperties(t, schema, "taskID", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content")
 	assertSchemaRequires(t, schema, "taskID")
-	if descriptorForTool(t, FlowDescriptors(), "task.update").Version != "2" {
-		t.Fatal("task.update descriptor must use the exact-ID v2 contract")
+	if descriptorForTool(t, FlowDescriptors(), "task.update").Version != "3" {
+		t.Fatal("task.update descriptor must use the canonical-result v3 contract")
 	}
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.update", "success", "write_task", "task")
 }
@@ -204,11 +204,46 @@ func TestFlowDescriptorIncludesTaskDeleteInput(t *testing.T) {
 	assertSchemaHasProperties(t, schema, "taskID")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content")
 	assertSchemaRequires(t, schema, "taskID")
-	if descriptorForTool(t, FlowDescriptors(), "task.delete").Version != "2" {
-		t.Fatal("task.delete descriptor must use the exact-ID v2 contract")
+	if descriptorForTool(t, FlowDescriptors(), "task.delete").Version != "3" {
+		t.Fatal("task.delete descriptor must use the canonical-result v3 contract")
 	}
 	assertDescriptorApproval(t, FlowDescriptors(), "task.delete", true)
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.delete", "success", "delete_task", "task")
+}
+
+func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
+	expectedEffects := map[string]string{
+		"task.add":    "created",
+		"task.update": "updated",
+		"task.delete": "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, FlowDescriptors(), toolName)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", toolName)
+		}
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+		}
+		if errorValue := json.Unmarshal(descriptor.ResultContract.Schema, &schema); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, hasTaskID := schema.Properties["taskID"]; !hasTaskID || !stringSliceContains(schema.Required, "taskID") {
+			t.Fatalf("%s result schema must require taskID", toolName)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 ||
+			descriptor.ResultContract.Effects[0].ObjectType != "task" ||
+			descriptor.ResultContract.Effects[0].Effect != expectedEffect ||
+			descriptor.ResultContract.Effects[0].ResultField != "taskID" ||
+			descriptor.ResultContract.Effects[0].EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+	}
+	listDescriptor := descriptorForTool(t, FlowDescriptors(), "task.list")
+	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("task.list result contract = %+v", listDescriptor.ResultContract)
+	}
 }
 
 func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {

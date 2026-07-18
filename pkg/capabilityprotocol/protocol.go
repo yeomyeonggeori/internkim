@@ -20,7 +20,18 @@ const (
 	CapabilityNotConnected = "not_connected"
 	CapabilityNotReady     = "not_ready"
 	CapabilityNotAllowed   = "not_allowed"
+
+	ToolOutcomeSucceeded ToolOutcome = "succeeded"
+	ToolOutcomeFailed    ToolOutcome = "failed"
+	ToolOutcomeDenied    ToolOutcome = "denied"
+
+	ResourceEffectIdentityID   ResourceEffectIdentity = "id"
+	ResourceEffectIdentityPath ResourceEffectIdentity = "path"
+	ResourceEffectIdentityURL  ResourceEffectIdentity = "url"
 )
+
+type ToolOutcome string
+type ResourceEffectIdentity string
 
 type Descriptor struct {
 	Name                 string                        `json:"name"`
@@ -39,6 +50,7 @@ type Descriptor struct {
 	OutputSchema         json.RawMessage               `json:"outputSchema,omitempty"`
 	InputSchemaStrict    bool                          `json:"inputSchemaStrict"`
 	OutputSchemaStrict   bool                          `json:"outputSchemaStrict"`
+	ResultContract       *ToolResultContract           `json:"resultContract,omitempty"`
 	PolicyResource       string                        `json:"policyResource,omitempty"`
 	SideEffectClass      string                        `json:"sideEffectClass,omitempty"`
 	SideEffect           string                        `json:"sideEffect"`
@@ -65,6 +77,31 @@ type CompletionEvidenceDescriptor struct {
 	Mode       string `json:"mode,omitempty"`
 	Action     string `json:"action,omitempty"`
 	TargetKind string `json:"targetKind,omitempty"`
+}
+
+type ToolResultContract struct {
+	Schema  json.RawMessage          `json:"schema"`
+	Effects []ResourceEffectContract `json:"effects,omitempty"`
+}
+
+type ResourceEffectContract struct {
+	ObjectType     string                 `json:"objectType"`
+	Effect         string                 `json:"effect"`
+	ResultField    string                 `json:"resultField"`
+	EffectIdentity ResourceEffectIdentity `json:"effectIdentity"`
+}
+
+type ResourceEffect struct {
+	ObjectType  string `json:"objectType"`
+	Effect      string `json:"effect"`
+	ID          string `json:"id,omitempty"`
+	Path        string `json:"path,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Visibility  string `json:"visibility,omitempty"`
+	Durability  string `json:"durability,omitempty"`
+	Filename    string `json:"filename,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+	Summary     string `json:"summary,omitempty"`
 }
 
 type RegistryResponse struct {
@@ -118,18 +155,20 @@ type ActorContext struct {
 }
 
 type ToolInvokeResponse struct {
-	Provider        string          `json:"provider"`
-	SelectedBackend string          `json:"selectedBackend"`
-	ToolName        string          `json:"toolName"`
-	Status          string          `json:"status,omitempty"`
-	Content         string          `json:"content,omitempty"`
-	IsError         bool            `json:"isError,omitempty"`
-	Message         string          `json:"message,omitempty"`
-	ErrorCode       string          `json:"errorCode,omitempty"`
-	FailureStage    string          `json:"failureStage,omitempty"`
-	Retryable       bool            `json:"retryable,omitempty"`
-	SafeRetry       bool            `json:"safeRetry,omitempty"`
-	Result          json.RawMessage `json:"result"`
+	Provider        string           `json:"provider"`
+	SelectedBackend string           `json:"selectedBackend"`
+	ToolName        string           `json:"toolName"`
+	Outcome         ToolOutcome      `json:"outcome,omitempty"`
+	Effects         []ResourceEffect `json:"effects,omitempty"`
+	Status          string           `json:"status,omitempty"`
+	Content         string           `json:"content,omitempty"`
+	IsError         bool             `json:"isError,omitempty"`
+	Message         string           `json:"message,omitempty"`
+	ErrorCode       string           `json:"errorCode,omitempty"`
+	FailureStage    string           `json:"failureStage,omitempty"`
+	Retryable       bool             `json:"retryable,omitempty"`
+	SafeRetry       bool             `json:"safeRetry,omitempty"`
+	Result          json.RawMessage  `json:"result"`
 }
 
 type ResourceScope struct {

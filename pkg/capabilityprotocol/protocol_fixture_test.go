@@ -21,6 +21,12 @@ func TestBlueclawProtocolCapabilityFixturesMatchGoContracts(t *testing.T) {
 	if request.Actor.PersonID != request.Context.RequesterPersonID {
 		t.Fatalf("tool invoke fixture actor does not match requester: %#v", request)
 	}
+
+	var response ToolInvokeResponse
+	readProtocolFixture(t, "tool-invoke-response", &response)
+	if response.ToolName != descriptor.Name || response.Outcome != ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "event-1" {
+		t.Fatalf("unexpected tool invoke response fixture: %#v", response)
+	}
 }
 
 func readProtocolFixture(t *testing.T, fixtureName string, destination any) {

@@ -163,12 +163,22 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	if flowTaskDuplicateID(result) != "" {
+		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskDuplicateFailure()), nil
+	}
+	result = enrichFlowTaskResultDocument(result, members)
+	taskID := flowTaskResultID(result)
+	if taskID == "" {
+		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
+	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         flowTaskEffects([]string{taskID}, "created"),
 		Status:          flowTaskResponseStatus(result),
-		Result:          enrichFlowTaskResultDocument(result, members),
+		Result:          result,
 	}, nil
 }
 
@@ -195,12 +205,19 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	result = enrichFlowTaskResultDocument(result, summary.Members)
+	taskID := flowTaskResultID(result)
+	if taskID != input.TaskID || !flowTaskUpdateResultMatchesInput(result, input) {
+		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
+	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         flowTaskEffects([]string{taskID}, "updated"),
 		Status:          flowTaskResponseStatus(result),
-		Result:          enrichFlowTaskResultDocument(result, summary.Members),
+		Result:          result,
 	}, nil
 }
 
@@ -225,7 +242,8 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	statusFilter := normalizeFlowStatusFilter(input.Status)
 	now := time.Now()
 	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, now)
-	tasks := enrichFlowTasksForTool(filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit}), summary.Members)
+	filteredTasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit})
+	tasks := enrichFlowTasksForTool(filteredTasks, summary.Members)
 	result, _ := json.Marshal(map[string]any{
 		"scope":        flowTaskListPeopleScope(ownerID),
 		"weekFrom":     input.WeekFrom,
@@ -239,6 +257,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
 		Status:          "ok",
 		Result:          result,
 	}, nil
@@ -259,13 +278,71 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	if !flowTaskDeleteEvidenceMatchesTaskID(result, input.TaskID) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
+	result, _ = json.Marshal(map[string]any{"taskID": input.TaskID, "deleted": true})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
-		Status:          flowTaskResponseStatus(result),
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         flowTaskEffects([]string{input.TaskID}, "deleted"),
+		Status:          "deleted",
 		Result:          result,
 	}, nil
+}
+
+func flowTaskResultID(result json.RawMessage) string {
+	var document struct {
+		TaskID string `json:"taskID"`
+	}
+	json.Unmarshal(result, &document)
+	return strings.TrimSpace(document.TaskID)
+}
+
+func flowTaskUpdateResultMatchesInput(result json.RawMessage, input flowTaskUpdateInput) bool {
+	var task flowTaskForTool
+	if json.Unmarshal(result, &task) != nil {
+		return false
+	}
+	return stringPatchMatches(input.Title, task.Content) &&
+		stringPatchMatches(input.Goal, task.Goal) &&
+		stringPatchMatches(input.Status, task.Status) &&
+		stringPatchMatches(input.Size, task.Size) &&
+		stringPatchMatches(input.Category, task.Business) &&
+		stringPatchMatches(input.Type, task.Type) &&
+		stringPatchMatches(input.StartDate, task.StartDate) &&
+		stringPatchMatches(input.EndDate, task.EndDate) &&
+		integerPatchMatches(input.Flag, task.Flag) &&
+		stringPatchMatches(input.RequestReason, task.RequestReason) &&
+		stringPatchMatches(input.DecisionReason, task.DecisionReason)
+}
+
+func stringPatchMatches(expected *string, actual string) bool {
+	return expected == nil || *expected == actual
+}
+
+func integerPatchMatches(expected *int, actual int) bool {
+	return expected == nil || *expected == actual
+}
+
+func flowTaskDuplicateID(result json.RawMessage) string {
+	var document struct {
+		Status        string          `json:"status"`
+		DuplicateTask flowTaskForTool `json:"duplicateTask"`
+	}
+	if json.Unmarshal(result, &document) != nil || document.Status != "skipped_duplicate" {
+		return ""
+	}
+	return strings.TrimSpace(document.DuplicateTask.ID)
+}
+
+func flowTaskEffects(taskIDs []string, effect string) []capabilities.ResourceEffect {
+	effects := make([]capabilities.ResourceEffect, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		if trimmedTaskID := strings.TrimSpace(taskID); trimmedTaskID != "" {
+			effects = append(effects, capabilities.ResourceEffect{ObjectType: "task", Effect: effect, ID: trimmedTaskID})
+		}
+	}
+	return effects
 }
 
 type flowTaskAddFailure struct {
@@ -511,6 +588,7 @@ func flowTaskAddErrorResponse(toolName string, failure flowTaskAddFailure) capab
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         failure.Message,
 		IsError:         true,
@@ -529,6 +607,7 @@ func flowTaskUpdateErrorResponse(toolName string, failure flowTaskUpdateFailure)
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         failure.Message,
 		IsError:         true,
@@ -849,6 +928,7 @@ func flowTaskErrorResponse(toolName string, failure flowTaskAddFailure) capabili
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Result:          result,
 		Content:         failure.Message,
@@ -885,6 +965,22 @@ func flowTaskNotFoundFailure(toolName string) flowTaskUpdateFailure {
 		Message:      toolName + " target was not found; use task.list to discover the exact taskID",
 		Retryable:    true,
 		SafeRetry:    true,
+	}
+}
+
+func flowTaskDuplicateFailure() flowTaskUpdateFailure {
+	return flowTaskUpdateFailure{
+		ErrorCode:    "flow_task_duplicate",
+		FailureStage: "duplicate_guard",
+		Message:      "task.add skipped an existing duplicate; use task.list to inspect it before deciding whether to add another task",
+	}
+}
+
+func flowTaskInvalidResultFailure(toolName string) flowTaskUpdateFailure {
+	return flowTaskUpdateFailure{
+		ErrorCode:    "flow_task_result_invalid",
+		FailureStage: "result_contract",
+		Message:      toolName + " returned a result that does not identify the requested task",
 	}
 }
 
