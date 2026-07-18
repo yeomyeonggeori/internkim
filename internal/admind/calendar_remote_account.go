@@ -176,6 +176,10 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, accountID string) error {
 	service.calendarRemoteMutex.Lock()
 	defer service.calendarRemoteMutex.Unlock()
+	return service.deleteRemoteCalendarAccountLocked(ctx, accountID)
+}
+
+func (service *Service) deleteRemoteCalendarAccountLocked(ctx context.Context, accountID string) error {
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
 	database, errorValue := service.openCalendarDatabase(ctx)
@@ -187,32 +191,34 @@ func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, account
 	if errorValue != nil {
 		return errorValue
 	}
-	trimmedAccountID := strings.TrimSpace(accountID)
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_outbox WHERE account_id = ?", trimmedAccountID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_remote_event_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_target_field_acknowledgements WHERE account_id = ?", trimmedAccountID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM calendar_remote_accounts WHERE id = ?", trimmedAccountID); errorValue != nil {
+	if errorValue := deleteRemoteCalendarAccountWithRunner(ctx, transaction, accountID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
 	return transaction.Commit()
+}
+
+func deleteRemoteCalendarAccountWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string) error {
+	trimmedAccountID := strings.TrimSpace(accountID)
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_outbox WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_remote_event_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_target_field_acknowledgements WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_remote_accounts WHERE id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	return nil
 }
 
 func scanRemoteCalendarAccount(scanner calendarEventScanner) (remoteCalendarAccount, error) {

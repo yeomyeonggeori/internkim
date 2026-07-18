@@ -110,6 +110,7 @@ type Service struct {
 	calendarDeleteIntentWakeUp chan struct{}
 	calendarSyncCycleMutex     sync.Mutex
 	calendarRemoteMutex        sync.Mutex
+	calendarOAuthTokenMutex    sync.Mutex
 	calendarSwitchWaiters      atomic.Int64
 	calendarStoreWriteMutex    sync.Mutex
 	calendarCandidateClock     calendarConflictCandidateClock
@@ -124,6 +125,8 @@ type Service struct {
 	calendarWindowCache        calendarEventWindowCacheAvailability
 	calendarWindowBuilds       calendarEventWindowCacheBuildCoordinator
 	mattermostSessions         *mattermostSessionCache
+	removeTokenQuarantineFile  func(string) error
+	promoteCalendarTokenFile   func(string, string) error
 	startedAt                  time.Time
 }
 
@@ -327,6 +330,9 @@ func (service *Service) Run(ctx context.Context) error {
 		log.Printf("attendance clock-out date repair failed: %v", errorValue)
 	} else if repairedCount > 0 {
 		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
+	}
+	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
+		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
 	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
