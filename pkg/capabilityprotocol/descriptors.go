@@ -345,7 +345,7 @@ func validateResultContract(contract *ToolResultContract) error {
 		if !schemaRequiresEffectIdentityField(contract.Schema, resultField) {
 			return fmt.Errorf("resultContract resultField must name a required string or nonempty unique string array property")
 		}
-		effectKey := objectType + "\x00" + effect
+		effectKey := objectType + "\x00" + effect + "\x00" + string(effectContract.EffectIdentity)
 		if seenEffects[effectKey] {
 			return fmt.Errorf("resultContract effect is duplicated")
 		}

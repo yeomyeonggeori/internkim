@@ -652,7 +652,11 @@ func TestSiteAppDescriptorsDeclareExactResultContracts(t *testing.T) {
 	}
 	for toolName, expectedEffect := range expectedEffects {
 		descriptor := descriptorForTool(t, descriptors, toolName)
-		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 1 {
+		expectedEffectCount := 1
+		if toolName == "site.publish" {
+			expectedEffectCount = 2
+		}
+		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != expectedEffectCount {
 			t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
 		}
 		effect := descriptor.ResultContract.Effects[0]
@@ -662,6 +666,13 @@ func TestSiteAppDescriptorsDeclareExactResultContracts(t *testing.T) {
 			effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
 			t.Fatalf("%s effect = %+v", toolName, effect)
 		}
+	}
+	publishURL := descriptorForTool(t, descriptors, "site.publish").ResultContract.Effects[1]
+	if publishURL.ObjectType != "website" ||
+		publishURL.Effect != "published" ||
+		publishURL.ResultField != "publishedURL" ||
+		publishURL.EffectIdentity != capabilityprotocol.ResourceEffectIdentityURL {
+		t.Fatalf("site.publish URL effect = %+v", publishURL)
 	}
 
 	statusDescriptor := descriptorForTool(t, descriptors, "site.status")

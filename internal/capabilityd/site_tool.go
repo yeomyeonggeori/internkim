@@ -104,21 +104,26 @@ func (service Service) invokeSiteAppTool(ctx context.Context, request capabiliti
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	response.Result = projectedResult
-	effect, isMutation := siteAppMutationEffect(request.ToolName)
-	if !isMutation {
-		return response, nil
+	descriptor, isRegistered := siteAppDescriptor(request.ToolName)
+	if !isRegistered {
+		return capabilities.ToolInvokeResponse{}, errors.New("site tool descriptor is missing")
 	}
-	siteID, errorValue := siteAppResultID(response.Result)
+	response.Effects, errorValue = capabilities.ProjectResourceEffects(descriptor.ResultContract, response.Result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if request.ToolName != "site.create" {
-		if errorValue := validateSiteAppResultID(request.Input, siteID); errorValue != nil {
+	if len(response.Effects) > 0 {
+		siteID, errorValue := siteAppResultID(response.Result)
+		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
+		if request.ToolName != "site.create" {
+			if errorValue := validateSiteAppResultID(request.Input, siteID); errorValue != nil {
+				return capabilities.ToolInvokeResponse{}, errorValue
+			}
+		}
+		response.Status = response.Effects[0].Effect
 	}
-	response.Status = effect
-	response.Effects = []capabilities.ResourceEffect{{ObjectType: "website", Effect: effect, ID: siteID}}
 	return response, nil
 }
 
@@ -146,19 +151,13 @@ func siteAppResolutionFailureResponse(toolName string, result json.RawMessage) (
 	}, true
 }
 
-func siteAppMutationEffect(toolName string) (string, bool) {
-	switch toolName {
-	case "site.create":
-		return "created", true
-	case "site.preview":
-		return "previewed", true
-	case "site.publish":
-		return "published", true
-	case "site.delete":
-		return "deleted", true
-	default:
-		return "", false
+func siteAppDescriptor(toolName string) (capabilities.Descriptor, bool) {
+	for _, descriptor := range capabilities.SiteAppDescriptors() {
+		if descriptor.Name == toolName {
+			return descriptor, true
+		}
 	}
+	return capabilities.Descriptor{}, false
 }
 
 func projectCanonicalSiteAppResult(request capabilities.ToolInvokeRequest, result json.RawMessage) (json.RawMessage, error) {
