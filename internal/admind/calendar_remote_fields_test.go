@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,14 +108,19 @@ func TestUpdateCalendarEventPreservesRemoteIdentity(t *testing.T) {
 	if errorValue := service.writeCalendarEventWithSource(ctx, seeded, calendarSourcePull); errorValue != nil {
 		t.Fatalf("seed: %v", errorValue)
 	}
+	persistedSeeded, found, errorValue := service.readCalendarEventByID(ctx, seeded.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event lookup before update: found=%v error=%v", found, errorValue)
+	}
 
-	updatePayload := `{
+	updatePayload := fmt.Sprintf(`{
 		"title":"edited",
 		"startISO":"2026-05-27T03:00:00Z",
 		"endISO":"2026-05-27T04:00:00Z",
 		"timeZone":"Asia/Seoul",
-		"color":"#3b82f6"
-	}`
+		"color":"#3b82f6",
+		"expectedUpdatedAt":%q
+	}`, persistedSeeded.UpdatedAt)
 	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+seeded.ID, strings.NewReader(updatePayload))
 	updateRequest.Header.Set("Content-Type", "application/json")
 	updateRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
@@ -178,13 +184,14 @@ func TestUpdateCalendarEventSkipsUnchangedPayload(t *testing.T) {
 		t.Fatalf("event lookup before update: found=%v error=%v", found, errorValue)
 	}
 
-	updatePayload := `{
+	updatePayload := fmt.Sprintf(`{
 		"title":"unchanged",
 		"startISO":"2026-05-27T00:00:00Z",
 		"endISO":"2026-05-27T01:00:00Z",
 		"timeZone":"Asia/Seoul",
-		"color":"#3b82f6"
-	}`
+		"color":"#3b82f6",
+		"expectedUpdatedAt":%q
+	}`, before.UpdatedAt)
 	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+seeded.ID, strings.NewReader(updatePayload))
 	updateRequest.Header.Set("Content-Type", "application/json")
 	updateRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")

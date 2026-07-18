@@ -32,7 +32,11 @@ export type CalendarEventActionsContext = {
 	openMobileEventEditor: (event: DayFlowEvent) => void;
 	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
+	invalidatePendingEventLoad: () => void;
 	text: {
+		calendarDeleteVersionConflictError: string;
+		calendarEventVersionConflictError: string;
+		calendarTargetUnavailableError: string;
 		deleteError: string;
 		deleteUndoAction: string;
 		deleteUndoMessage: string;
@@ -54,10 +58,9 @@ export type CalendarEventActions = {
 	createTimelineSingleEvent: (startDate: Date) => DayFlowEvent | null;
 	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => DayFlowEvent | null;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
-	flushPendingDeleteOnPageHide: () => void;
 	scheduleDraftTitleInputPlaceholderUpdates: () => void;
 	scheduleDraftEventVisibilitySync: () => void;
 };
@@ -97,6 +100,7 @@ export function createCalendarEventActions(
 	});
 
 	function addDraftEvent(params: DraftEventParams): DayFlowEvent {
+		context.invalidatePendingEventLoad();
 		const event = draftEvents.createDraftEvent(params);
 		draftEvents.addCreatedEvent(event);
 		context.addCalendarEvent(event);
@@ -174,7 +178,6 @@ export function createCalendarEventActions(
 		saveUpdatedEvent: persistenceActions.saveUpdatedEvent,
 		deleteEvent: persistenceActions.deleteEvent,
 		flushPendingDelete: persistenceActions.flushPendingDelete,
-		flushPendingDeleteOnPageHide: persistenceActions.flushPendingDeleteOnPageHide,
 		scheduleDraftTitleInputPlaceholderUpdates: draftEventDOM.scheduleDraftTitleInputPlaceholderUpdates,
 		scheduleDraftEventVisibilitySync: draftEventDOM.scheduleDraftEventVisibilitySync
 	};

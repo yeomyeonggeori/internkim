@@ -63,7 +63,6 @@ export function createCalendarDraftEventDOMActions(
 		await programmaticUpdates.run(eventID, () => context.updateCalendarEvent(eventID, { title }, false));
 		const event = context.getCalendarEvents().find((candidate) => candidate.id === eventID);
 		if (!event || !draftEvents.hasMeaningfulTitle(event)) return;
-		draftEvents.removeDraftEvent(eventID);
 		syncDraftEventVisibility();
 		await context.persistCreatedEvent(event);
 	}

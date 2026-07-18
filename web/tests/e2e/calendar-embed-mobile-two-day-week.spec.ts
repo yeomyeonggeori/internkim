@@ -15,7 +15,7 @@ import {
 } from './calendar-embed-mobile-two-day-week-helpers';
 import {
 	routeCalendarEventCreates,
-	routeCalendarEventDeletes,
+	routeCalendarDeleteIntents,
 	routeCalendarEventUpdates,
 	routeCalendarEvents,
 	routeCalendarParticipants,
@@ -362,7 +362,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 	});
 
 	test('deletes mobile-edited events through the calendar persistence path', async ({ page }) => {
-		const deletedEventIDs = await routeCalendarEventDeletes(page);
+		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openCalendarEmbed(page, '주');
 		await navigateEmbeddedCalendar(page, '2026-06-01');
@@ -372,7 +372,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await dayFlowMobileEditor(page).getByRole('button', { name: '삭제' }).click();
 
 		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
-		await expect.poll(() => deletedEventIDs).toEqual(['mobile-two-day-edit']);
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs).toEqual(['mobile-two-day-edit']);
 		await expect(page.locator('[data-event-id="mobile-two-day-edit"]')).toHaveCount(0);
 	});
 });

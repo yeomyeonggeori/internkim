@@ -2,9 +2,8 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -106,20 +105,28 @@ func (service *Service) readRemoteCalendarAccountByProvider(ctx context.Context,
 		return remoteCalendarAccount{}, false, errorValue
 	}
 	defer database.Close()
-	row := database.QueryRowContext(ctx, `
+	return readRemoteCalendarAccountByProviderWithRunner(ctx, database, provider)
+}
+
+func readRemoteCalendarAccountByProviderWithRunner(ctx context.Context, queryRunner calendarSQLRunner, provider string) (remoteCalendarAccount, bool, error) {
+	rows, errorValue := queryRunner.QueryContext(ctx, `
 SELECT id, provider, account_email, principal_url, home_set_url, default_calendar_url, default_calendar_ctag, selected_calendar_id, selected_calendar_summary, selected_calendar_access_role, selected_calendar_url, selected_calendar_selected_at, selected_calendar_readiness_status, initial_sync_completed_at, token_file_path, last_auth_error, last_auth_error_at, created_at, updated_at
 FROM calendar_remote_accounts
 WHERE provider = ?
 ORDER BY updated_at DESC
 LIMIT 1`, strings.TrimSpace(provider))
-	account, errorValue := scanRemoteCalendarAccount(row)
-	if errorValue == nil {
-		return account, true, nil
+	if errorValue != nil {
+		return remoteCalendarAccount{}, false, errorValue
 	}
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return remoteCalendarAccount{}, false, nil
+	defer rows.Close()
+	if !rows.Next() {
+		return remoteCalendarAccount{}, false, rows.Err()
 	}
-	return remoteCalendarAccount{}, false, errorValue
+	account, errorValue := scanRemoteCalendarAccount(rows)
+	if errorValue != nil {
+		return remoteCalendarAccount{}, false, errorValue
+	}
+	return account, true, nil
 }
 
 func (service *Service) listRemoteCalendarAccountsByProvider(ctx context.Context, provider string) ([]remoteCalendarAccount, error) {
@@ -152,10 +159,8 @@ func (service *Service) markRemoteCalendarAccountAuthError(ctx context.Context, 
 	if authError == nil {
 		return
 	}
-	account.LastAuthError = authError.Error()
-	account.LastAuthErrorAt = time.Now().UTC().Format(time.RFC3339Nano)
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
-		log.Printf("mark calendar auth error: %v", errorValue)
+	if errorValue := service.updateRemoteCalendarAccountAuthState(ctx, account.ID, authError.Error(), time.Now().UTC().Format(time.RFC3339Nano)); errorValue != nil {
+		slog.WarnContext(ctx, "calendar auth error update failed", "account_id", account.ID, "error", errorValue)
 	}
 }
 
@@ -163,22 +168,57 @@ func (service *Service) clearRemoteCalendarAccountAuthError(ctx context.Context,
 	if account.LastAuthError == "" {
 		return
 	}
-	account.LastAuthError = ""
-	account.LastAuthErrorAt = ""
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
-		log.Printf("clear calendar auth error: %v", errorValue)
+	if errorValue := service.clearRemoteCalendarAccountAuthStateIfUnchanged(ctx, account); errorValue != nil {
+		slog.WarnContext(ctx, "calendar auth error clear failed", "account_id", account.ID, "error", errorValue)
 	}
 }
 
 func (service *Service) deleteRemoteCalendarAccount(ctx context.Context, accountID string) error {
+	service.calendarRemoteMutex.Lock()
+	defer service.calendarRemoteMutex.Unlock()
+	return service.deleteRemoteCalendarAccountLocked(ctx, accountID)
+}
+
+func (service *Service) deleteRemoteCalendarAccountLocked(ctx context.Context, accountID string) error {
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
 	defer database.Close()
-	_, errorValue = database.ExecContext(ctx,
-		"DELETE FROM calendar_remote_accounts WHERE id = ?", strings.TrimSpace(accountID))
-	return errorValue
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := deleteRemoteCalendarAccountWithRunner(ctx, transaction, accountID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
+func deleteRemoteCalendarAccountWithRunner(ctx context.Context, queryRunner calendarSQLRunner, accountID string) error {
+	trimmedAccountID := strings.TrimSpace(accountID)
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_outbox WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_remote_event_sync_state WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_target_field_acknowledgements WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_push_observation_fences WHERE account_id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := queryRunner.ExecContext(ctx, "DELETE FROM calendar_remote_accounts WHERE id = ?", trimmedAccountID); errorValue != nil {
+		return errorValue
+	}
+	return nil
 }
 
 func scanRemoteCalendarAccount(scanner calendarEventScanner) (remoteCalendarAccount, error) {

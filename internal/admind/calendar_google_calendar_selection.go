@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -83,7 +82,7 @@ func (service *Service) saveGoogleCalendarSelection(responseWriter http.Response
 		http.Error(responseWriter, "failed to save selected google calendar", http.StatusInternalServerError)
 		return
 	}
-	service.clearRemoteCalendarAccountAuthError(request.Context(), updated)
+	service.clearRemoteCalendarAccountAuthError(request.Context(), account)
 	service.writeJSON(responseWriter, selectGoogleCalendarResponse{
 		AccountEmail:     strings.TrimSpace(updated.AccountEmail),
 		SelectedCalendar: calendar,
@@ -102,8 +101,5 @@ func (service *Service) markSelectedCalendarReadinessStatusIfCurrent(ctx context
 	if strings.TrimSpace(readinessStatus) == "" {
 		return
 	}
-	account.SelectedCalendarReadinessStatus = strings.TrimSpace(readinessStatus)
-	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
-		log.Printf("mark selected calendar readiness status: %v", errorValue)
-	}
+	service.updateSelectedCalendarReadinessStatus(ctx, account, readinessStatus)
 }

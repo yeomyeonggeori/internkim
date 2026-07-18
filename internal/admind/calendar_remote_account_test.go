@@ -367,6 +367,41 @@ func TestSaveSelectedCalendarRetriesMissingBackfillForWritableSelection(t *testi
 	}
 }
 
+func TestSaveSelectedCalendarWakesExistingSameTargetOutbox(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                         "account-google-1",
+		Provider:                   remoteCalendarProviderGoogle,
+		AccountEmail:               "user@example.com",
+		DefaultCalendarURL:         "/calendars/default/",
+		SelectedCalendarID:         "company@example.com",
+		SelectedCalendarSummary:    "Company",
+		SelectedCalendarAccessRole: "writer",
+		SelectedCalendarURL:        "/calendars/company/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event := newLocalTestCalendarEvent("same-target-wake", "Same Target Wake")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	select {
+	case <-service.calendarSyncWakeUp:
+	default:
+		t.Fatal("initial event write did not signal sync")
+	}
+	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	select {
+	case <-service.calendarSyncWakeUp:
+	case <-time.After(time.Second):
+		t.Fatal("same-target selection did not wake the existing outbox")
+	}
+}
+
 func TestSaveSelectedCalendarPreservesInitialExportPendingForSameSelection(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -409,6 +444,39 @@ func TestSaveSelectedCalendarPreservesInitialExportPendingForSameSelection(t *te
 	}
 	if len(client.putCalls) != 1 {
 		t.Fatalf("pending export should push after same selection save, got %d calls", len(client.putCalls))
+	}
+}
+
+func TestSaveSelectedCalendarPreservesCompletedInitialSyncForStaleSameSelection(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	staleAccount, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                              "account-google-1",
+		Provider:                        remoteCalendarProviderGoogle,
+		AccountEmail:                    "user@example.com",
+		DefaultCalendarURL:              "/calendars/default/",
+		SelectedCalendarID:              "company@example.com",
+		SelectedCalendarSummary:         "Company",
+		SelectedCalendarAccessRole:      "writer",
+		SelectedCalendarURL:             "/calendars/company/",
+		SelectedCalendarReadinessStatus: calendarReadinessStatusInitialExportPending,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	completedAt := time.Now().UTC().Add(-time.Second)
+	if errorValue := service.markSelectedCalendarInitialSyncCompleted(ctx, staleAccount, completedAt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	updated, errorValue := service.saveSelectedCalendar(ctx, staleAccount, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if updated.SelectedCalendarReadinessStatus != calendarReadinessStatusSyncReady {
+		t.Fatalf("readiness status=%q want %q", updated.SelectedCalendarReadinessStatus, calendarReadinessStatusSyncReady)
+	}
+	if updated.InitialSyncCompletedAt != completedAt.Format(time.RFC3339Nano) {
+		t.Fatalf("initial sync completed at=%q want %q", updated.InitialSyncCompletedAt, completedAt.Format(time.RFC3339Nano))
 	}
 }
 

@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestPushConflictDifferentFieldsPreservesBothSides(t *testing.T) {
@@ -88,6 +89,22 @@ func TestPushConflictDifferentFieldsPreservesBothSides(t *testing.T) {
 	if len(conflicts) != 0 {
 		t.Errorf("no conflict should be recorded for different-field merge, got %d", len(conflicts))
 	}
+	fieldClocks := readCalendarFieldClocksForEventTest(t, service, baselineEvent.UID)
+	if fieldClocks[calendarFieldLocation].IsZero() {
+		t.Fatal("remote-winning location field clock is missing")
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acknowledgements, errorValue := readCalendarTargetFieldAcknowledgements(ctx, database, account.ID, account.DefaultCalendarURL, baselineEvent.UID)
+	database.Close()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !acknowledgements[calendarFieldLocation].Equal(fieldClocks[calendarFieldLocation]) {
+		t.Fatalf("location acknowledgement=%s field clock=%s", acknowledgements[calendarFieldLocation], fieldClocks[calendarFieldLocation])
+	}
 
 	rows, _ := service.listPendingCalendarOutbox(ctx, "")
 	if len(rows) != 0 {
@@ -158,6 +175,302 @@ func TestPushConflictSameFieldRecordsConflictAndAdmindWins(t *testing.T) {
 	if conflicts[0].RemoteValue != "Remote Title" {
 		t.Errorf("conflict remoteValue: got %q", conflicts[0].RemoteValue)
 	}
+}
+
+func TestPushConflictSameFieldRemoteNewerWins(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	baselineEvent := newLocalTestCalendarEvent("same-field-remote-newer", "Meeting")
+	baselineEvent.RemoteSource = remoteCalendarProviderGoogle
+	baselineEvent.RemoteETag = `"etag-base"`
+	baselineEvent.RemoteHref = "/calendars/me/same-field-remote-newer.ics"
+	baselineICS, errorValue := encodeEventToICS(baselineEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baselineEvent.RawICS = string(baselineICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, baselineEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localEvent := baselineEvent
+	localEvent.Title = "Local Title"
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localChangedAt := time.Date(2026, 7, 15, 1, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_outbox SET created_at = ? WHERE event_uid = ?`, localChangedAt.Format(time.RFC3339Nano), baselineEvent.UID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := baselineEvent
+	remoteEvent.Title = "Remote Title"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, localChangedAt.Add(time.Minute))
+	pushClient := &fakeCalDAVPushClient{
+		putErrorsQueue: map[string][]error{baselineEvent.RemoteHref: {errCalDAVPreconditionFailed}},
+		getObjects: map[string]calDAVCalendarObject{
+			baselineEvent.RemoteHref: {Path: baselineEvent.RemoteHref, ETag: `"etag-remote-newer"`, Data: remoteICS},
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, pushClient); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	finalEvent, found, errorValue := service.readCalendarEventByID(ctx, baselineEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("final event: found=%v error=%v", found, errorValue)
+	}
+	if finalEvent.Title != "Remote Title" {
+		t.Fatalf("title=%q want Remote Title", finalEvent.Title)
+	}
+	if len(pushClient.putCalls) != 1 {
+		t.Fatalf("remote winner should not be overwritten, put calls=%d", len(pushClient.putCalls))
+	}
+}
+
+func TestPushConflictSameFieldSameSecondKeepsLocalEdit(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	baselineEvent := newLocalTestCalendarEvent("same-field-same-second", "Meeting")
+	baselineEvent.RemoteSource = remoteCalendarProviderGoogle
+	baselineEvent.RemoteETag = `"etag-base"`
+	baselineEvent.RemoteHref = "/calendars/me/same-field-same-second.ics"
+	baselineICS, errorValue := encodeEventToICS(baselineEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baselineEvent.RawICS = string(baselineICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, baselineEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localEvent := baselineEvent
+	localEvent.Title = "Local Title"
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sameSecondAt := time.Date(2026, 7, 15, 1, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_outbox SET created_at = ? WHERE event_uid = ?`, sameSecondAt.Format(time.RFC3339Nano), baselineEvent.UID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_event_field_clocks SET changed_at = ? WHERE event_uid = ? AND field = ?`, sameSecondAt.Format(time.RFC3339Nano), baselineEvent.UID, calendarFieldTitle); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := baselineEvent
+	remoteEvent.Title = "Remote Title"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, sameSecondAt)
+	pushClient := &fakeCalDAVPushClient{
+		putErrorsQueue: map[string][]error{baselineEvent.RemoteHref: {errCalDAVPreconditionFailed}},
+		putETags:       map[string]string{baselineEvent.RemoteHref: `"etag-local-tie-winner"`},
+		getObjects: map[string]calDAVCalendarObject{
+			baselineEvent.RemoteHref: {Path: baselineEvent.RemoteHref, ETag: `"etag-remote-tie"`, Data: remoteICS},
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, pushClient); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	finalEvent, found, errorValue := service.readCalendarEventByID(ctx, baselineEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("final event: found=%v error=%v", found, errorValue)
+	}
+	if finalEvent.Title != "Local Title" {
+		t.Fatalf("title=%q want Local Title", finalEvent.Title)
+	}
+	if len(pushClient.putCalls) != 2 {
+		t.Fatalf("local tie winner should retry remote write, put calls=%d", len(pushClient.putCalls))
+	}
+}
+
+func TestPushConflictRemoteDeletionDoesNotLeaveLocalEditDiverged(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("remote-delete", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-delete"`
+	event.RemoteHref = "/calendars/me/remote-delete.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   account.ID,
+		CalendarURL: activeRemoteCalendarTarget(account).CalendarURL,
+		EventUID:    event.UID,
+		LastSeenAt:  time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.Title = "Local Edit"
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	client := &fakeCalDAVPushClient{
+		putErrors: map[string]error{event.RemoteHref: errCalDAVPreconditionFailed},
+		getErrors: map[string]error{event.RemoteHref: errCalDAVObjectNotFound},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil || found {
+		t.Fatalf("event should follow remote deletion: found=%v error=%v", found, errorValue)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("resolved deletion should clear outbox, rows=%d", len(rows))
+	}
+}
+
+func TestPushConflictRemoteEditAfterLocalDeleteRestoresRemoteEvent(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("remote-edit-after-delete", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-edit"`
+	event.RemoteHref = "/calendars/me/remote-edit-after-delete.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deletedAt := time.Date(2026, 7, 15, 1, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_events SET deleted_at = ? WHERE id = ?`, deletedAt.Format(time.RFC3339Nano), event.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := event
+	remoteEvent.Title = "Remote Edit"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, deletedAt.Add(time.Minute))
+	client := &fakeCalDAVPushClient{
+		deleteErrors: map[string]error{event.RemoteHref: errCalDAVPreconditionFailed},
+		getObjects: map[string]calDAVCalendarObject{
+			event.RemoteHref: {Path: event.RemoteHref, ETag: `"etag-after-edit"`, Data: remoteICS},
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	finalEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("remote newer event should be restored: found=%v error=%v", found, errorValue)
+	}
+	if finalEvent.Title != "Remote Edit" {
+		t.Fatalf("title=%q want Remote Edit", finalEvent.Title)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("resolved delete conflict should clear outbox, rows=%d", len(rows))
+	}
+}
+
+func TestPushConflictLocalDeleteAfterRemoteEditDeletesLatestRemoteVersion(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("local-delete-after-edit", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-edit"`
+	event.RemoteHref = "/calendars/me/local-delete-after-edit.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deletedAt := time.Date(2026, 7, 15, 2, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_events SET deleted_at = ? WHERE id = ?`, deletedAt.Format(time.RFC3339Nano), event.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := event
+	remoteEvent.Title = "Earlier Remote Edit"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, deletedAt.Add(-time.Minute))
+	client := &fakeCalDAVPushClient{
+		getObjects: map[string]calDAVCalendarObject{
+			event.RemoteHref: {Path: event.RemoteHref, ETag: `"etag-after-edit"`, Data: remoteICS},
+		},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil || found {
+		t.Fatalf("local newer deletion should remain: found=%v error=%v", found, errorValue)
+	}
+	if len(client.deleteCalls) != 1 {
+		t.Fatalf("delete calls=%d want 1", len(client.deleteCalls))
+	}
+	if client.deleteCalls[0].IfMatch != `"etag-after-edit"` {
+		t.Fatalf("current If-Match=%q", client.deleteCalls[0].IfMatch)
+	}
+}
+
+func encodeCalendarTestEventWithLastModified(t *testing.T, event calendarEvent, modifiedAt time.Time) []byte {
+	t.Helper()
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	calendar, errorValue := decodeCalendarObject(string(encoded))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	calendar.Events()[0].Props.SetDateTime("LAST-MODIFIED", modifiedAt.UTC())
+	result, errorValue := encodeExistingCalendar(calendar)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return []byte(result)
 }
 
 func TestPushConflictKeepsOutboxRowWhenConflictRecordFails(t *testing.T) {

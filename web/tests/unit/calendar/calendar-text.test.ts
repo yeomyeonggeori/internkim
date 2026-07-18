@@ -131,4 +131,31 @@ describe('calendar text', () => {
 		expect(calendarText.ko.eventAuditCreated).toBe('등록');
 		expect(calendarText.ko.eventAuditUpdated).toBe('수정');
 	});
+
+	test('localizes an unavailable calendar target separately from generic persistence errors', () => {
+		expect(calendarText.ko.calendarTargetUnavailableError).toBe(
+			'Google 캘린더의 저장 위치를 사용할 수 없습니다. 계정을 다시 연결하거나 쓸 수 있는 캘린더를 선택하세요.'
+		);
+		expect(calendarText.en.calendarTargetUnavailableError).toBe(
+			'The Google Calendar destination is unavailable. Reconnect the account or select a writable calendar.'
+		);
+	});
+
+	test('localizes an event version conflict', () => {
+		expect(calendarText.ko.calendarEventVersionConflictError).toBe(
+			'다른 곳에서 이 일정이 변경되었습니다. 서버의 최신 내용을 다시 불러왔습니다.'
+		);
+		expect(calendarText.en.calendarEventVersionConflictError).toBe(
+			'This event changed elsewhere. The latest server version has been reloaded.'
+		);
+	});
+
+	test('localizes a delete version conflict', () => {
+		expect(calendarText.ko.calendarDeleteVersionConflictError).toBe(
+			'다른 곳에서 이 일정이 변경되어 삭제하지 못했습니다. 서버의 최신 내용을 다시 불러왔습니다.'
+		);
+		expect(calendarText.en.calendarDeleteVersionConflictError).toBe(
+			'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.'
+		);
+	});
 });
