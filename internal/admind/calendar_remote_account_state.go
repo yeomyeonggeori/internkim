@@ -14,6 +14,15 @@ func (service *Service) saveCalendarDiscovery(ctx context.Context, account remot
 }
 
 func (service *Service) saveSelectedCalendar(ctx context.Context, account remoteCalendarAccount, calendarID string, summary string, accessRole string, calendarURL string, selectedAt time.Time) (remoteCalendarAccount, error) {
+	service.calendarSwitchWaiters.Add(1)
+	service.calendarRemoteMutex.Lock()
+	service.calendarSwitchWaiters.Add(-1)
+	defer func() {
+		service.calendarRemoteMutex.Unlock()
+		service.signalCalendarSyncWakeUp()
+	}()
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	selectedCalendarID := strings.TrimSpace(calendarID)
 	selectedCalendarURL := strings.TrimSpace(calendarURL)
 	isSameSelectedCalendar := strings.TrimSpace(account.SelectedCalendarID) == selectedCalendarID && strings.TrimSpace(account.SelectedCalendarURL) == selectedCalendarURL
@@ -43,7 +52,7 @@ func (service *Service) saveSelectedCalendar(ctx context.Context, account remote
 	if errorValue != nil {
 		return remoteCalendarAccount{}, errorValue
 	}
-	updated, errorValue := upsertRemoteCalendarAccountWithRunner(ctx, transaction, account)
+	updated, errorValue := updateSelectedRemoteCalendarAccountWithRunner(ctx, transaction, account)
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return remoteCalendarAccount{}, errorValue

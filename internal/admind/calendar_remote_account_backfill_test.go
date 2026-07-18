@@ -2,9 +2,260 @@ package admind
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestInitialBackfillUsesActualLocalEditTime(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	localEvent := newLocalTestCalendarEvent("backfill-actual-edit-time", "Older Local")
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedLocalEvent, found, errorValue := service.readCalendarEventByID(ctx, localEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("local event found=%v error=%v", found, errorValue)
+	}
+	localChangedAt := parseCalendarConflictTime(storedLocalEvent.UpdatedAt)
+	remoteChangedAt := localChangedAt.Truncate(time.Second).Add(time.Second)
+	if _, errorValue := service.reserveCalendarConflictCandidateTime(ctx, remoteChangedAt.Add(time.Second)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := storedLocalEvent
+	remoteEvent.Title = "Newer Remote"
+	remoteObject := calDAVCalendarObject{
+		Path: "/calendars/company/" + localEvent.UID + ".ics",
+		ETag: `"remote-etag"`,
+		Data: encodeCalendarTestEventWithLastModified(t, remoteEvent, remoteChangedAt),
+	}
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                 "backfill-actual-edit-account",
+		Provider:           remoteCalendarProviderGoogle,
+		AccountEmail:       "backfill@example.com",
+		DefaultCalendarURL: "/calendars/default/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{
+		ctag:    `"company-ctag"`,
+		objects: []calDAVCalendarObject{remoteObject},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	storedEvent, found, errorValue := service.readCalendarEventByID(ctx, localEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event found=%v error=%v", found, errorValue)
+	}
+	if storedEvent.Title != remoteEvent.Title {
+		t.Fatalf("selection time overrode actual edit ordering: title=%q", storedEvent.Title)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, row := range rows {
+		if row.EventUID == localEvent.UID && strings.Contains(strings.Join(row.ChangedFields, ","), calendarFieldTitle) {
+			t.Fatalf("remote-winning title remained pending: %+v", row)
+		}
+	}
+}
+
+func TestSelectedCalendarSwitchPreservesLatestSameUIDEditForNewTarget(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	event := newLocalTestCalendarEvent("switch-latest-edit", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-default"`
+	event.RemoteHref = "/calendars/default/switch-latest-edit.ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                 "account-google-1",
+		Provider:           remoteCalendarProviderGoogle,
+		AccountEmail:       "user@example.com",
+		DefaultCalendarURL: "/calendars/default/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firstEdit := event
+	firstEdit.Title = "Edited For Default"
+	if errorValue := service.writeCalendarEvent(ctx, firstEdit); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	selectedAccount, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	latestEdit := firstEdit
+	latestEdit.Title = "Latest For Company"
+	if errorValue := service.writeCalendarEvent(ctx, latestEdit); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.runGoogleCalendarPull(ctx, selectedAccount, &fakeCalDAVPullClient{ctag: `"company-ctag"`}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	selectedAccount, _, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedPath := "/calendars/company/" + event.UID + ".ics"
+	client := &fakeCalDAVPushClient{putETags: map[string]string{expectedPath: `"etag-company"`}}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, selectedAccount, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(client.putCalls) != 1 {
+		t.Fatalf("put calls=%d want 1", len(client.putCalls))
+	}
+	call := client.putCalls[0]
+	if call.Path != expectedPath || call.IfMatch != "" || call.IfNoneMatch != caldavWildcardETag {
+		t.Fatalf("put call=%+v want fresh create at %q", call, expectedPath)
+	}
+	if !strings.Contains(string(call.Data), "SUMMARY:Latest For Company") {
+		t.Fatalf("pushed ICS does not contain latest edit: %s", call.Data)
+	}
+	remaining, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("remaining outbox rows=%+v", remaining)
+	}
+}
+
+func TestStaleCalendarTargetCleanupPreservesNewTargetSourceRows(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	event := newLocalTestCalendarEvent("switch-source-rows", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-default"`
+	event.RemoteHref = "/calendars/default/switch-source-rows.ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                 "account-google-1",
+		Provider:           remoteCalendarProviderGoogle,
+		AccountEmail:       "user@example.com",
+		DefaultCalendarURL: "/calendars/default/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firstEdit := event
+	firstEdit.Title = "Default Edit"
+	if errorValue := service.writeCalendarEvent(ctx, firstEdit); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	latestEdit := firstEdit
+	latestEdit.Description = "Company Edit"
+	if errorValue := service.writeCalendarEvent(ctx, latestEdit); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	batches := aggregateCalendarOutboxRows(rows)
+	var staleBatch calendarOutboxRow
+	for _, batch := range batches {
+		if batch.RemoteHref == event.RemoteHref {
+			staleBatch = batch
+		}
+	}
+	if staleBatch.ID == 0 {
+		t.Fatalf("stale target batch not found: %+v", batches)
+	}
+	if errorValue := service.deleteCalendarOutboxBatch(ctx, staleBatch); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remaining, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(remaining) != 2 {
+		t.Fatalf("new target source rows=%d want 2 rows=%+v", len(remaining), remaining)
+	}
+	for _, row := range remaining {
+		if row.RemoteHref != "" || row.IfMatchETag != "" {
+			t.Fatalf("new target row retained stale remote state: %+v", row)
+		}
+	}
+}
+
+func TestStaleCalendarTargetSuccessDoesNotOverwriteNewTargetRemoteMapping(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	event := newLocalTestCalendarEvent("switch-stale-success", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-default"`
+	event.RemoteHref = "/calendars/default/switch-stale-success.ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	account, errorValue := service.upsertRemoteCalendarAccount(ctx, remoteCalendarAccount{
+		ID:                 "account-google-1",
+		Provider:           remoteCalendarProviderGoogle,
+		AccountEmail:       "user@example.com",
+		DefaultCalendarURL: "/calendars/default/",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defaultEdit := event
+	defaultEdit.Title = "Default Edit"
+	if errorValue := service.writeCalendarEvent(ctx, defaultEdit); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(rows) != 1 {
+		t.Fatalf("default target rows=%+v error=%v", rows, errorValue)
+	}
+	staleRow := rows[0]
+	if _, errorValue := service.saveSelectedCalendar(ctx, account, "company@example.com", "Company", "writer", "/calendars/company/", time.Now()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	companyEvent := defaultEdit
+	companyEvent.RemoteHref = "/calendars/company/switch-stale-success.ics"
+	companyEvent.RemoteETag = `"etag-company"`
+	companyICS, errorValue := encodeEventToICS(companyEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	companyEvent.RawICS = string(companyICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, companyEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	stalePushedEvent := defaultEdit
+	stalePushedEvent.RemoteHref = "/calendars/default/switch-stale-success.ics"
+	stalePushedEvent.RemoteETag = `"etag-default-new"`
+	staleICS, errorValue := encodeEventToICS(stalePushedEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.applyCalendarPushSuccess(ctx, staleRow, defaultEdit, stalePushedEvent, stalePushedEvent.RemoteHref, stalePushedEvent.RemoteETag, staleICS); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	storedEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("stored event found=%v error=%v", found, errorValue)
+	}
+	if storedEvent.RemoteHref != companyEvent.RemoteHref || storedEvent.RemoteETag != companyEvent.RemoteETag {
+		t.Fatalf("remote mapping href=%q etag=%q want href=%q etag=%q", storedEvent.RemoteHref, storedEvent.RemoteETag, companyEvent.RemoteHref, companyEvent.RemoteETag)
+	}
+}
 
 func TestSelectedCalendarBackfillRetargetsPendingPutFromPreviousCalendar(t *testing.T) {
 	service := newCalendarTestService(t)

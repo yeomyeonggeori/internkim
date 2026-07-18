@@ -13,7 +13,7 @@ type CalendarPageEventSelectionContext = {
 	calendar: CalendarPageEventSelectionCalendar;
 	getPendingEventID: () => string;
 	getStageElement: () => HTMLElement | null;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	setPendingEventID: (eventID: string) => void;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setVisibleEvents: (events: DayFlowEvent[]) => void;
@@ -43,8 +43,9 @@ export function createCalendarPageEventSelection(
 	}
 
 	async function saveMovedMonthEvent(event: DayFlowEvent): Promise<void> {
+		const previousEvent = context.calendar.app.getAllEvents().find((candidate) => candidate.id === event.id);
 		replaceLocalCalendarEvent(event);
-		await context.saveUpdatedEvent(event);
+		await context.saveUpdatedEvent(event, previousEvent);
 	}
 
 	function clearSelectedEvent(): void {

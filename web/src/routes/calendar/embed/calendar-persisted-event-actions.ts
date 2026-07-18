@@ -2,9 +2,11 @@ import type { Event as DayFlowEvent } from '@dayflow/core';
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayFlowEvent } from './calendar-event-mapping';
 import {
-	deletePersistedCalendarEventOnPageHide,
+	cancelCalendarEventDeleteIntent,
+	createCalendarEventDeleteIntent,
 	deletePersistedCalendarEvent,
 	writeCalendarEvent,
+	type CalendarDeleteIntent,
 	type CalendarEvent
 } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -20,9 +22,23 @@ type CalendarPersistedEventActionsContext = {
 };
 
 export type CalendarPersistedEventActions = {
-	writeEvent: (path: string, method: 'POST' | 'PUT', event: DayFlowEvent) => Promise<CalendarEvent>;
-	deleteEvent: (eventID: string) => Promise<void>;
-	deleteEventOnPageHide: (eventID: string) => void;
+	writeEvent: (
+		path: string,
+		method: 'POST' | 'PUT',
+		event: DayFlowEvent,
+		expectedUpdatedAt?: string,
+		mutationClientID?: string,
+		mutationSequence?: number
+	) => Promise<CalendarEvent>;
+	deleteEvent: (eventID: string, expectedUpdatedAt?: string) => Promise<void>;
+	createDeleteIntent: (
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number,
+		expectedUpdatedAt: string
+	) => Promise<CalendarDeleteIntent>;
+	cancelDeleteIntent: (eventID: string, operationID: string, clientID: string, sequence: number) => Promise<void>;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -30,18 +46,57 @@ export function createCalendarPersistedEventActions(
 	context: CalendarPersistedEventActionsContext,
 	programmaticUpdates: CalendarProgrammaticUpdateState
 ): CalendarPersistedEventActions {
-	async function writeEvent(path: string, method: 'POST' | 'PUT', event: DayFlowEvent): Promise<CalendarEvent> {
+	async function writeEvent(
+		path: string,
+		method: 'POST' | 'PUT',
+		event: DayFlowEvent,
+		expectedUpdatedAt?: string,
+		mutationClientID?: string,
+		mutationSequence?: number
+	): Promise<CalendarEvent> {
 		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-		const payload = calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone);
+		const currentExpectedUpdatedAt = expectedUpdatedAt
+			?? (typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined);
+		const payload = {
+			...calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone),
+			...(method === 'PUT' && currentExpectedUpdatedAt !== undefined
+				? { expectedUpdatedAt: currentExpectedUpdatedAt }
+				: {}),
+			...(method === 'PUT' && mutationClientID !== undefined && mutationSequence !== undefined
+				? { mutationClientID, mutationSequence }
+				: {})
+		};
 		return writeCalendarEvent(path, method, payload, context.text.saveError);
 	}
 
-	async function deleteEvent(eventID: string): Promise<void> {
-		await deletePersistedCalendarEvent(eventID, context.text.deleteError);
+	async function deleteEvent(eventID: string, expectedUpdatedAt?: string): Promise<void> {
+		await deletePersistedCalendarEvent(eventID, expectedUpdatedAt, context.text.deleteError);
 	}
 
-	function deleteEventOnPageHide(eventID: string): void {
-		deletePersistedCalendarEventOnPageHide(eventID);
+	async function createDeleteIntent(
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number,
+		expectedUpdatedAt: string
+	): Promise<CalendarDeleteIntent> {
+		return createCalendarEventDeleteIntent(
+			eventID,
+			operationID,
+			clientID,
+			sequence,
+			expectedUpdatedAt,
+			context.text.deleteError
+		);
+	}
+
+	async function cancelDeleteIntent(
+		eventID: string,
+		operationID: string,
+		clientID: string,
+		sequence: number
+	): Promise<void> {
+		await cancelCalendarEventDeleteIntent(eventID, operationID, clientID, sequence, context.text.deleteError);
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {
@@ -76,7 +131,8 @@ export function createCalendarPersistedEventActions(
 	return {
 		writeEvent,
 		deleteEvent,
-		deleteEventOnPageHide,
+		createDeleteIntent,
+		cancelDeleteIntent,
 		applyServerMetadata
 	};
 }

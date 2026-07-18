@@ -2,15 +2,14 @@ package admind
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 )
 
 const (
-	calendarSyncSafetyInterval        = 60 * time.Minute
-	calendarSyncCycleTimeout          = 2 * time.Minute
-	calendarPullCacheTTL              = 1 * time.Minute
-	calendarPushVisibilityGracePeriod = 5 * time.Minute
+	calendarSyncSafetyInterval = 60 * time.Minute
+	calendarSyncCycleTimeout   = 2 * time.Minute
+	calendarPullCacheTTL       = 1 * time.Minute
 )
 
 type calendarSyncCycleResult struct {
@@ -49,23 +48,23 @@ func (service *Service) runCalendarSyncLoop(ctx context.Context, runCycle func(c
 }
 
 func (service *Service) runCalendarSyncCycle(ctx context.Context) bool {
-	result := service.runCalendarSyncCycleWithHooks(ctx, time.Now, service.pullGoogleCalendarChangesWithProtection, service.pushPendingCalendarOutbox, false)
+	result := service.runCalendarSyncCycleWithHooks(ctx, time.Now, service.pullGoogleCalendarChanges, service.pushPendingCalendarOutbox, false)
 	return result.Changed
 }
 
 func (service *Service) runCalendarUserSyncCycle(ctx context.Context) calendarSyncCycleResult {
-	return service.runCalendarSyncCycleWithHooks(ctx, time.Now, service.pullGoogleCalendarChangesWithProtection, service.pushPendingCalendarOutbox, true)
+	return service.runCalendarSyncCycleWithHooks(ctx, time.Now, service.pullGoogleCalendarChanges, service.pushPendingCalendarOutbox, true)
 }
 
 func (service *Service) runCalendarSyncCycleWithHooks(
 	ctx context.Context,
 	now func() time.Time,
-	pull func(context.Context, map[string]struct{}) (bool, error),
+	pull func(context.Context) (bool, error),
 	push func(context.Context) (map[string]struct{}, error),
 	allowPull bool,
 ) calendarSyncCycleResult {
 	if !service.calendarSyncCycleMutex.TryLock() {
-		log.Printf("calendar sync skipped: previous cycle still running")
+		slog.WarnContext(ctx, "calendar sync skipped", "reason", "previous cycle still running")
 		return calendarSyncCycleResult{SkippedByRunning: true}
 	}
 	defer service.calendarSyncCycleMutex.Unlock()
@@ -73,28 +72,26 @@ func (service *Service) runCalendarSyncCycleWithHooks(
 	defer cancel()
 	nowValue := now()
 	result := calendarSyncCycleResult{}
-	pushedUIDs, errorValue := push(cycleCtx)
+	_, errorValue := push(cycleCtx)
 	if errorValue != nil {
 		result.PushFailed = true
-		log.Printf("calendar push failed: %v", errorValue)
+		slog.WarnContext(ctx, "calendar push failed", "error", errorValue)
 	}
-	service.recordRecentlyPushedCalendarUIDs(nowValue, pushedUIDs)
 	if allowPull && service.shouldRunCalendarPull(nowValue) {
 		result.PullAttempted = true
-		pulled, errorValue := pull(cycleCtx, service.recentlyPushedCalendarUIDs(nowValue))
+		pulled, errorValue := pull(cycleCtx)
 		if errorValue != nil {
 			result.PullFailed = true
-			log.Printf("calendar pull failed: %v", errorValue)
+			slog.WarnContext(ctx, "calendar pull failed", "error", errorValue)
 		} else {
 			result.Changed = pulled
 			service.markCalendarPullCompleted(now())
 			if pulled && !result.PushFailed {
-				pushedUIDs, errorValue = push(cycleCtx)
+				_, errorValue = push(cycleCtx)
 				if errorValue != nil {
 					result.PushFailed = true
-					log.Printf("calendar push after pull failed: %v", errorValue)
+					slog.WarnContext(ctx, "calendar push after pull failed", "error", errorValue)
 				}
-				service.recordRecentlyPushedCalendarUIDs(now(), pushedUIDs)
 			}
 		}
 	} else if allowPull {
@@ -105,46 +102,6 @@ func (service *Service) runCalendarSyncCycleWithHooks(
 
 func (result calendarSyncCycleResult) Succeeded() bool {
 	return !result.PushFailed && !result.PullFailed && !result.SkippedByRunning
-}
-
-func (service *Service) recordRecentlyPushedCalendarUIDs(now time.Time, pushedUIDs map[string]struct{}) {
-	if len(pushedUIDs) == 0 {
-		return
-	}
-	service.calendarRecentPushMutex.Lock()
-	defer service.calendarRecentPushMutex.Unlock()
-	if service.recentCalendarPushUIDs == nil {
-		service.recentCalendarPushUIDs = map[string]time.Time{}
-	}
-	expiresAt := now.Add(calendarPushVisibilityGracePeriod)
-	for uid := range pushedUIDs {
-		service.recentCalendarPushUIDs[uid] = expiresAt
-	}
-}
-
-func (service *Service) recentlyPushedCalendarUIDs(now time.Time) map[string]struct{} {
-	service.calendarRecentPushMutex.Lock()
-	defer service.calendarRecentPushMutex.Unlock()
-	result := map[string]struct{}{}
-	for uid, expiresAt := range service.recentCalendarPushUIDs {
-		if now.After(expiresAt) {
-			delete(service.recentCalendarPushUIDs, uid)
-			continue
-		}
-		result[uid] = struct{}{}
-	}
-	return result
-}
-
-func (service *Service) markCalendarPushUIDsObserved(remoteUIDs map[string]struct{}) {
-	if len(remoteUIDs) == 0 {
-		return
-	}
-	service.calendarRecentPushMutex.Lock()
-	defer service.calendarRecentPushMutex.Unlock()
-	for uid := range remoteUIDs {
-		delete(service.recentCalendarPushUIDs, uid)
-	}
 }
 
 func (service *Service) shouldRunCalendarPull(now time.Time) bool {

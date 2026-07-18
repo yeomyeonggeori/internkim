@@ -8,7 +8,7 @@ import {
 	prepareAccessibleParticipantSuggestions
 } from './calendar-embed-timeline-editor-accessibility-helpers';
 import {
-	routeCalendarEventDeletes,
+	routeCalendarDeleteIntents,
 	routeCalendarEvents,
 	routeCalendarEventUpdates,
 	routeDefaultCalendarAPI
@@ -201,13 +201,13 @@ test.describe('embedded calendar event editor accessibility', () => {
 	});
 
 	test('moves focus to the calendar after deleting the focused event', async ({ page }) => {
-		const deletedEventIDs = await routeCalendarEventDeletes(page);
+		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
 		const eventActivator = accessibleEventActivator(page);
 		await eventActivator.focus();
 		await eventActivator.dblclick();
 		await page.getByRole('dialog', { name: '일정 편집' }).getByRole('button', { name: '삭제' }).click();
 
-		await expect.poll(() => deletedEventIDs).toEqual(['accessible-editor-event']);
+		await expect.poll(() => deleteIntentRequests.registeredEventIDs).toEqual(['accessible-editor-event']);
 		await expect(page.locator('.calendar-stage')).toBeFocused();
 	});
 });
