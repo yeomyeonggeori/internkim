@@ -257,6 +257,7 @@ func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
 	if errorValue := service.softDeleteCalendarEvent(context.Background(), event.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	waitForCalendarNotificationReconciliation(t, service, event.ID)
 	database, errorValue := service.openCalendarDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
