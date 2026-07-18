@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,14 +30,23 @@ func (service *Service) recordCalendarConflict(ctx context.Context, eventID stri
 	defer database.Close()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO calendar_conflicts (event_id, event_uid, field, local_value, remote_value, detected_at, dismissed_at)
-VALUES (?, ?, ?, ?, ?, ?, '')`,
+	INSERT INTO calendar_conflicts (event_id, event_uid, field, local_value, remote_value, detected_at, dismissed_at)
+	SELECT ?, ?, ?, ?, ?, ?, ''
+	WHERE NOT EXISTS (
+		SELECT 1
+		FROM calendar_conflicts
+		WHERE event_uid = ? AND field = ? AND local_value = ? AND remote_value = ? AND dismissed_at = ''
+	)`,
 		strings.TrimSpace(eventID),
 		strings.TrimSpace(eventUID),
 		strings.TrimSpace(field),
 		localValue,
 		remoteValue,
 		now,
+		strings.TrimSpace(eventUID),
+		strings.TrimSpace(field),
+		localValue,
+		remoteValue,
 	)
 	return errorValue
 }
@@ -154,12 +163,12 @@ func (service *Service) serveCalendarConflicts(writer http.ResponseWriter, reque
 	conflicts, errorValue := service.listActiveCalendarConflicts(request.Context())
 	if errorValue != nil {
 		http.Error(writer, "failed to list calendar conflicts", http.StatusInternalServerError)
-		log.Printf("calendar conflicts list: %v", errorValue)
+		slog.WarnContext(request.Context(), "calendar conflicts list failed", "error", errorValue)
 		return
 	}
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if errorValue := json.NewEncoder(writer).Encode(calendarConflictsResponse{Conflicts: conflicts}); errorValue != nil {
-		log.Printf("calendar conflicts encode: %v", errorValue)
+		slog.WarnContext(request.Context(), "calendar conflicts response encode failed", "error", errorValue)
 	}
 }
 
@@ -171,7 +180,7 @@ func (service *Service) dismissCalendarConflictRequest(writer http.ResponseWrite
 	}
 	if errorValue := service.dismissCalendarConflict(request.Context(), conflictID); errorValue != nil {
 		http.Error(writer, "failed to dismiss conflict", http.StatusInternalServerError)
-		log.Printf("calendar conflict dismiss %d: %v", conflictID, errorValue)
+		slog.WarnContext(request.Context(), "calendar conflict dismiss failed", "conflict_id", conflictID, "error", errorValue)
 		return
 	}
 	writer.WriteHeader(http.StatusNoContent)

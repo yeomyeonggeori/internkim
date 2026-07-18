@@ -46,7 +46,7 @@ export function createCalendarDraftPopoverPersistence(
 		});
 		context.replaceLocalEvent(updatedEvent);
 		context.setDraftPopover(null);
-		await context.eventActions.saveUpdatedEvent(updatedEvent);
+		await context.eventActions.saveUpdatedEvent(updatedEvent, event);
 	}
 
 	async function cancelDraftPopover(): Promise<void> {

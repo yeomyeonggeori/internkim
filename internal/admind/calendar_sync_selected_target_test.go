@@ -47,7 +47,7 @@ func TestPullCalendarChangesForProviderSkipsBeforeCalendarSelection(t *testing.T
 	}
 	provider := &countingCalendarProvider{name: "counting"}
 
-	changed, errorValue := service.pullCalendarChangesForProvider(ctx, provider, false, nil)
+	changed, errorValue := service.pullCalendarChangesForProvider(ctx, provider, false)
 	if errorValue != nil {
 		t.Fatalf("pull: %v", errorValue)
 	}
@@ -309,7 +309,7 @@ func TestRunGoogleCalendarPullPreservesEventsFromOtherCalendarTargets(t *testing
 		t.Fatalf("list pending backfill: %v", errorValue)
 	}
 	for _, row := range rows {
-		if errorValue := service.deleteCalendarOutbox(ctx, row.ID); errorValue != nil {
+		if errorValue := service.deleteCalendarOutboxBatch(ctx, row); errorValue != nil {
 			t.Fatalf("clear pending backfill %d: %v", row.ID, errorValue)
 		}
 	}

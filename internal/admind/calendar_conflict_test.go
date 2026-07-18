@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 func TestDiffCalendarEventFieldsReturnsAllForNewEvent(t *testing.T) {
@@ -119,7 +120,7 @@ func TestPendingCalendarLocalChangesTreatLegacyPutAsAllEditableFields(t *testing
 		t.Fatalf("enqueue legacy put: %v", errorValue)
 	}
 
-	changes, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID)
+	changes, errorValue := service.listPendingCalendarLocalChanges(ctx, account.ID, activeRemoteCalendarTarget(account).CalendarURL)
 	if errorValue != nil {
 		t.Fatalf("list pending local changes: %v", errorValue)
 	}
@@ -282,6 +283,65 @@ func TestPullConflictSameFieldRecordsConflictAndKeepsLocalEvent(t *testing.T) {
 	}
 }
 
+func TestPullConflictSameFieldRemoteNewerWins(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	baselineEvent := newLocalTestCalendarEvent("pull-same-remote-newer", "Original Title")
+	baselineEvent.RemoteSource = remoteCalendarProviderGoogle
+	baselineEvent.RemoteETag = `"etag-base"`
+	baselineEvent.RemoteHref = "/calendars/me/pull-same-remote-newer.ics"
+	baselineICS, errorValue := encodeEventToICS(baselineEvent)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	baselineEvent.RawICS = string(baselineICS)
+	if errorValue := service.writeCalendarEventWithSource(ctx, baselineEvent, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localEvent := baselineEvent
+	localEvent.Title = "Local Title"
+	if errorValue := service.writeCalendarEvent(ctx, localEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	localChangedAt := time.Date(2026, 7, 15, 1, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_outbox SET created_at = ? WHERE event_uid = ?`, localChangedAt.Format(time.RFC3339Nano), baselineEvent.UID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := baselineEvent
+	remoteEvent.Title = "Remote Title"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, localChangedAt.Add(time.Minute))
+	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, []calDAVCalendarObject{{
+		Path: baselineEvent.RemoteHref,
+		ETag: `"etag-remote"`,
+		Data: remoteICS,
+	}}, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	finalEvent, found, errorValue := service.readCalendarEventByID(ctx, baselineEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("final event: found=%v error=%v", found, errorValue)
+	}
+	if finalEvent.Title != "Remote Title" {
+		t.Fatalf("title=%q want Remote Title", finalEvent.Title)
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("remote winner should clear pending field, rows=%+v", rows)
+	}
+}
+
 func TestPullConflictReturnsErrorWhenConflictRecordFails(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -334,7 +394,7 @@ func TestPullConflictReturnsErrorWhenConflictRecordFails(t *testing.T) {
 	}
 }
 
-func TestPullConflictMissingRemoteKeepsPendingLocalEvent(t *testing.T) {
+func TestPullConflictMissingRemoteAmbiguousOrderPrefersDeletion(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
@@ -351,6 +411,15 @@ func TestPullConflictMissingRemoteKeepsPendingLocalEvent(t *testing.T) {
 	if errorValue := service.writeCalendarEventWithSource(ctx, baselineEvent, calendarSourcePull); errorValue != nil {
 		t.Fatalf("seed baseline: %v", errorValue)
 	}
+	lastSeenAt := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano)
+	if errorValue := service.upsertCalendarRemoteEventState(ctx, calendarRemoteEventState{
+		AccountID:   account.ID,
+		CalendarURL: activeRemoteCalendarTarget(account).CalendarURL,
+		EventUID:    baselineEvent.UID,
+		LastSeenAt:  lastSeenAt,
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	localUpdated := baselineEvent
 	localUpdated.Title = "Local Pending"
@@ -362,15 +431,156 @@ func TestPullConflictMissingRemoteKeepsPendingLocalEvent(t *testing.T) {
 		t.Fatalf("pull reconcile: %v", errorValue)
 	}
 
-	final, found, errorValue := service.readCalendarEventByID(ctx, baselineEvent.ID)
+	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, baselineEvent.ID)
 	if errorValue != nil {
-		t.Fatalf("read final: %v", errorValue)
+		t.Fatalf("read projection: %v", errorValue)
 	}
 	if !found {
-		t.Fatal("pending local event should not be soft-deleted when remote response misses it")
+		t.Fatal("calendar event projection not found")
 	}
-	if final.Title != "Local Pending" {
-		t.Errorf("title: got %q, want Local Pending", final.Title)
+	if !projection.IsDeleted {
+		t.Fatal("ambiguous remote deletion should win over pending local edit")
+	}
+	rows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("resolved pending rows remain: %+v", rows)
+	}
+	state, stateFound, errorValue := service.readCalendarRemoteEventState(ctx, account.ID, activeRemoteCalendarTarget(account).CalendarURL, baselineEvent.UID)
+	if errorValue != nil || !stateFound {
+		t.Fatalf("remote event state: found=%v error=%v", stateFound, errorValue)
+	}
+	if state.MissingDetectedAt == "" {
+		t.Fatal("missing detection time was not stored")
+	}
+}
+
+func TestPullConflictRemoteEditAfterLocalDeleteRestoresRemoteEvent(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("pull-edit-after-delete", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-edit"`
+	event.RemoteHref = "/calendars/me/pull-edit-after-delete.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteRows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(deleteRows) != 1 {
+		t.Fatalf("pending delete rows=%d error=%v", len(deleteRows), errorValue)
+	}
+	if errorValue := service.markCalendarOutboxBatchBlocked(ctx, deleteRows[0], time.Now().UTC().Format(time.RFC3339Nano), "manual review required"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deletedAt := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_events SET deleted_at = ? WHERE id = ?`, deletedAt.Format(time.RFC3339Nano), event.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	remoteEvent := event
+	remoteEvent.Title = "Remote Edit"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, deletedAt.Add(time.Minute))
+	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, []calDAVCalendarObject{{
+		Path: event.RemoteHref,
+		ETag: `"etag-after-edit"`,
+		Data: remoteICS,
+	}}, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	finalEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("remote newer event should be restored: found=%v error=%v", found, errorValue)
+	}
+	if finalEvent.Title != "Remote Edit" {
+		t.Fatalf("title=%q want Remote Edit", finalEvent.Title)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("resolved local delete should clear outbox, rows=%d", len(rows))
+	}
+}
+
+func TestPullConflictBlockedLocalDeleteKeepsUpdatedRemoteState(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	event := newLocalTestCalendarEvent("pull-blocked-delete-local-wins", "Original")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-before-edit"`
+	event.RemoteHref = "/calendars/me/pull-blocked-delete-local-wins.ics"
+	encoded, errorValue := encodeEventToICS(event)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event.RawICS = string(encoded)
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteRows, errorValue := service.listPendingCalendarOutbox(ctx, account.ID)
+	if errorValue != nil || len(deleteRows) != 1 {
+		t.Fatalf("pending delete rows=%d error=%v", len(deleteRows), errorValue)
+	}
+	deletedAt := time.Date(2026, 7, 15, 5, 0, 0, 0, time.UTC)
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.ExecContext(ctx, `UPDATE calendar_events SET deleted_at = ? WHERE id = ?`, deletedAt.Format(time.RFC3339Nano), event.ID); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.markCalendarOutboxBatchBlocked(ctx, deleteRows[0], deletedAt.Format(time.RFC3339Nano), "manual review required"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	remoteEvent := event
+	remoteEvent.Title = "Remote Older Edit"
+	remoteHref := "/calendars/me/pull-blocked-delete-local-wins-renamed.ics"
+	remoteICS := encodeCalendarTestEventWithLastModified(t, remoteEvent, deletedAt.Add(-time.Minute))
+	if errorValue := service.reconcileGoogleCalendarPull(ctx, account, []calDAVCalendarObject{{
+		Path: remoteHref,
+		ETag: `"etag-after-edit"`,
+		Data: remoteICS,
+	}}, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, found, errorValue := service.readCalendarEventByID(ctx, event.ID); errorValue != nil || found {
+		t.Fatalf("local delete should remain applied: found=%v error=%v", found, errorValue)
+	}
+	rows, errorValue := service.listCalendarOutbox(ctx, account.ID, true)
+	if errorValue != nil || len(rows) != 1 {
+		t.Fatalf("active rows=%d error=%v", len(rows), errorValue)
+	}
+	if rows[0].Status != calendarOutboxStatusBlocked || rows[0].RemoteHref != remoteHref || rows[0].IfMatchETag != `"etag-after-edit"` {
+		t.Fatalf("blocked delete state=%+v", rows[0])
 	}
 }
 

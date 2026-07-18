@@ -95,6 +95,16 @@ CREATE TABLE IF NOT EXISTS calendar_event_notifications (
 	if errorValue != nil {
 		return errorValue
 	}
+	if _, errorValue = database.ExecContext(ctx, `
+CREATE INDEX IF NOT EXISTS calendar_event_notifications_status_notify_at_idx
+ON calendar_event_notifications(status, notify_at)`); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = database.ExecContext(ctx, `
+CREATE INDEX IF NOT EXISTS calendar_events_active_end_start_idx
+ON calendar_events(end_at, start_at) WHERE deleted_at = ''`); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS calendar_properties (
 	calendar_path TEXT NOT NULL,
@@ -119,6 +129,9 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarChannelOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarDeleteIntentSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return ensureCalendarSyncSchema(ctx, database)
 }
 
@@ -126,12 +139,31 @@ func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) err
 	_, errorValue := database.ExecContext(ctx, `
 	CREATE TABLE IF NOT EXISTS calendar_channel_outbox (
 		event_id TEXT PRIMARY KEY,
+		generation INTEGER NOT NULL DEFAULT 1,
+		lease_owner TEXT NOT NULL DEFAULT '',
+		lease_generation INTEGER NOT NULL DEFAULT 0,
 		attempt_count INTEGER NOT NULL DEFAULT 0,
 		last_error TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
 		last_attempted_at TEXT NOT NULL DEFAULT ''
 	)`)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "generation", "INTEGER NOT NULL DEFAULT 1"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "lease_owner", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "lease_generation", "INTEGER NOT NULL DEFAULT 0"); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, `
+UPDATE calendar_channel_outbox
+SET lease_owner = '', lease_generation = 0
+WHERE lease_owner != ''`)
 	return errorValue
 }
 
@@ -278,6 +310,7 @@ func (service *Service) readCalendarEventByUID(ctx context.Context, uid string) 
 type calendarEventProjection struct {
 	Event     calendarEvent
 	IsDeleted bool
+	DeletedAt string
 }
 
 func (service *Service) readCalendarEventProjectionByID(ctx context.Context, eventID string) (calendarEventProjection, bool, error) {
@@ -386,7 +419,6 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventProjection, error) {
 	var projection calendarEventProjection
 	var isAllDay int
-	var deletedAt string
 	errorValue := scanner.Scan(
 		&projection.Event.ID,
 		&projection.Event.UID,
@@ -410,11 +442,11 @@ func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventPro
 		&projection.Event.RemoteSource,
 		&projection.Event.RemoteETag,
 		&projection.Event.RemoteHref,
-		&deletedAt,
+		&projection.DeletedAt,
 	)
 	projection.Event.IsAllDay = isAllDay == 1
 	projection.Event.ReminderLeadHours = normalizeCalendarReminderLeadHours(projection.Event.ReminderLeadHours)
-	projection.IsDeleted = strings.TrimSpace(deletedAt) != ""
+	projection.IsDeleted = strings.TrimSpace(projection.DeletedAt) != ""
 	return projection, errorValue
 }
 

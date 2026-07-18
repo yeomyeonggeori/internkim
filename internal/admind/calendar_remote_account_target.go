@@ -56,13 +56,3 @@ func remoteCalendarHrefBelongsToTarget(remoteHref string, target remoteCalendarT
 	}
 	return strings.HasPrefix(normalizedRemoteHref, calendarURL+"/")
 }
-
-func calendarOutboxPutTargetsRemoteTarget(row calendarOutboxRow, target remoteCalendarTarget) bool {
-	if row.Operation != calendarOutboxOperationPut || !target.IsSelectedCalendar {
-		return true
-	}
-	if strings.TrimSpace(row.RemoteHref) == "" {
-		return true
-	}
-	return remoteCalendarHrefBelongsToTarget(row.RemoteHref, target)
-}

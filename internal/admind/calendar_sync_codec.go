@@ -21,6 +21,9 @@ func encodeEventToICS(event calendarEvent) ([]byte, error) {
 }
 
 func decodeRemoteCalendarObject(object calDAVCalendarObject, accountEmail string) (calendarEvent, error) {
+	if object.ConversionError != nil {
+		return calendarEvent{}, object.ConversionError
+	}
 	if len(object.Data) == 0 {
 		return calendarEvent{}, errors.New("empty calendar object data")
 	}

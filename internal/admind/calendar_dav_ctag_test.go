@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -99,13 +100,14 @@ func TestCalendarWebUpdatePreservesCalDAVUID(t *testing.T) {
 		t.Fatalf("RawICS UID after CalDAV PUT should not have suffix; raw=%s", storedAfterPut.RawICS)
 	}
 
-	updatePayload := `{
+	updatePayload := fmt.Sprintf(`{
 		"title":"저녁1",
 		"startISO":"2026-05-22T00:00:00Z",
 		"endISO":"2026-05-22T01:00:00Z",
 		"timeZone":"Asia/Seoul",
-		"color":"#3b82f6"
-	}`
+		"color":"#3b82f6",
+		"expectedUpdatedAt":%q
+	}`, storedAfterPut.UpdatedAt)
 	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+appleStyleID, strings.NewReader(updatePayload))
 	updateRequest.Header.Set("Content-Type", "application/json")
 	updateRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
