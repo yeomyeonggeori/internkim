@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
@@ -19,6 +20,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	writeFileReadTestFile(t, sourcePath, "pdf")
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
 	var helperRequest fileReadHelperRequest
+	helperOutput := []byte(`{"content":"# Report\n\nBody","warnings":["ok"]}`)
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:     secretPath,
@@ -34,7 +36,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return []byte(`{"content":"# Report\n\nBody","warnings":["ok"]}`), nil
+			return helperOutput, nil
 		},
 	}
 
@@ -60,6 +62,26 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	}
 	if result.Status != "ok" || result.Truncated {
 		t.Fatalf("unexpected result status: %+v", result)
+	}
+
+	helperOutput = []byte(`{"content":"# Report\n\nBody"}`)
+	response, errorValue = service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected document.read without warnings: %v", errorValue)
+	}
+	result = documentReadResult{}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.Warnings == nil || len(result.Warnings) != 0 {
+		t.Fatalf("expected an empty warnings array, got %+v", result.Warnings)
+	}
+	descriptor, isFound := capabilityToolDescriptorFor("document.read")
+	if !isFound {
+		t.Fatal("document.read descriptor is missing")
+	}
+	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
+		t.Fatalf("document.read result violates its contract: %v", errorValue)
 	}
 }
 
