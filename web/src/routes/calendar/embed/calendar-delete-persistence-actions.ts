@@ -22,6 +22,7 @@ type CalendarDeletePersistenceOptions = {
 	showPersistenceError: (error: unknown, fallback: string, versionConflictMessage?: string) => void;
 	dismissUndoToast: () => void;
 	showUndoToast: typeof showCalendarDeleteUndoToast;
+	waitForCancellationRetry?: (delay: number) => Promise<void>;
 };
 
 export type CalendarDeletePersistenceActions = {
@@ -112,7 +113,7 @@ export function createCalendarDeletePersistenceActions(
 			if (cancellationResult.isSuccessful || !isRetryableCancellationFailure(cancellationResult.error)) {
 				return cancellationResult;
 			}
-			await waitForDeleteIntentCancellationRetry(retryDelay);
+			await (options.waitForCancellationRetry ?? waitForDeleteIntentCancellationRetry)(retryDelay);
 			cancellationResult = await cancelDeleteIntent(eventID, operationID, sequence);
 		}
 		return cancellationResult;
