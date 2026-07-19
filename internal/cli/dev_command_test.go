@@ -263,6 +263,20 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	}
 }
 
+func TestResolveDevPathUsesRepositoryRoot(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	if resolvedPath := resolveDevPath(repositoryRootPath, ".artifacts/blueclaw-dev"); resolvedPath != filepath.Join(repositoryRootPath, ".artifacts", "blueclaw-dev") {
+		t.Fatalf("unexpected resolved artifact path %q", resolvedPath)
+	}
+	absolutePath := filepath.Join(t.TempDir(), "scenario.json")
+	if resolvedPath := resolveDevPath(repositoryRootPath, absolutePath); resolvedPath != absolutePath {
+		t.Fatalf("expected absolute path to remain unchanged, got %q", resolvedPath)
+	}
+	if resolvedPath := resolveDevPath(repositoryRootPath, " "); resolvedPath != "" {
+		t.Fatalf("expected empty path to remain empty, got %q", resolvedPath)
+	}
+}
+
 func TestParseDevVirtualSessionArgumentsForwardsStrictScenarioFile(t *testing.T) {
 	arguments, errorValue := parseDevVirtualSessionArguments([]string{
 		"--scenario-file", "scenarios/task-lifecycle.json",

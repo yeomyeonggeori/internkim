@@ -456,10 +456,21 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	if errorValue != nil {
 		return devCommandInvocation{}, errorValue
 	}
+	sessionArguments.ArtifactDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.ArtifactDirectoryPath)
+	sessionArguments.ScenarioFilePath = resolveDevPath(repositoryRootPath, sessionArguments.ScenarioFilePath)
+	sessionArguments.SkillDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.SkillDirectoryPath)
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
 	}, nil
+}
+
+func resolveDevPath(repositoryRootPath string, value string) string {
+	normalizedValue := strings.TrimSpace(value)
+	if normalizedValue == "" || filepath.IsAbs(normalizedValue) {
+		return normalizedValue
+	}
+	return filepath.Join(repositoryRootPath, normalizedValue)
 }
 
 func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArguments) []string {
