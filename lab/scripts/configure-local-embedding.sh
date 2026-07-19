@@ -50,7 +50,11 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
-curl -fsS http://127.0.0.1:18082/health >/dev/null
+if ! curl -fsS http://127.0.0.1:18082/health >/dev/null; then
+  systemctl status internkim-llamacpp-embedding.service --no-pager || true
+  journalctl -u internkim-llamacpp-embedding.service -n 80 --no-pager
+  exit 1
+fi
 response="$(curl -fsS http://127.0.0.1:18082/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"baai/bge-m3","input":"로컬 임베딩 확인"}')"
 dimension="$(printf '%s' "$response" | jq -r '.data[0].embedding | length')"
 test "$dimension" = "1024"
