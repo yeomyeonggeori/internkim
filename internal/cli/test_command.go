@@ -357,6 +357,7 @@ var realMattermostScenarioNames = map[string]bool{
 	"website-lifecycle":  true,
 	"document-lifecycle": true,
 	"message-lifecycle":  true,
+	"file-lifecycle":     true,
 }
 
 func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
@@ -532,6 +533,10 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 		}
 		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex, configuration.ShouldAutoConfirm)
 	})
+	var completionEvidenceError error
+	if runError == nil {
+		completionEvidenceError = verifyExpensiveMattermostApprovalCompletions(scenarioContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, session.execution())
+	}
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
 	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
 	cleanupError := session.cleanup(cleanupContext)
@@ -539,7 +544,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
 		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
-	return errors.Join(runError, writeError, cleanupError)
+	return errors.Join(runError, completionEvidenceError, writeError, cleanupError)
 }
 
 func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) string {
