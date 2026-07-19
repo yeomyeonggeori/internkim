@@ -199,7 +199,7 @@ def collect_warnings(paragraphs, tables, required_missing, forbidden_present, ty
 
 
 def has_korean_capable_font(font_names):
-    candidates = ["noto", "nanum", "malgun", "apple sd", "gothic", "myeongjo", "cjk", "kr"]
+    candidates = ["noto", "nanum", "malgun", "apple sd", "gothic", "myeongjo", "cjk", "kr", "맑은", "고딕"]
     normalized_names = " ".join(font_name.lower() for font_name in font_names)
     return any(candidate in normalized_names for candidate in candidates)
 
