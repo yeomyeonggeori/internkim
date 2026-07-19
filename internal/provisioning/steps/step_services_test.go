@@ -1,7 +1,11 @@
 package setup
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,6 +33,120 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 			t.Fatalf("expected runtime contract check to omit stale profile validation %q", staleFragment)
 		}
 	}
+}
+
+func TestBlueclawRuntimeContractCheckRejectsLegacyRuntimeFields(t *testing.T) {
+	legacyPaths := [][]string{
+		{"agent", "defaultBudgetClass"},
+		{"languageModel", "backend"},
+		{"languageModel", "capability", "backend"},
+		{"capabilities", "backend"},
+		{"languageModel", "openRouter", "apiKeyPath"},
+		{"languageModel", "liteRTLM", "wrapperPath"},
+		{"languageModel", "liteRTLM", "modelPath"},
+		{"languageModel", "liteRTLM", "backend"},
+		{"connectors", "mattermost", "botTokenPath"},
+		{"connectors", "slack", "botTokenPath"},
+		{"connectors", "slack", "signingSecretPath"},
+	}
+
+	for _, legacyPath := range legacyPaths {
+		t.Run(strings.Join(legacyPath, "."), func(t *testing.T) {
+			runtimeConfiguration := validRuntimeConfiguration(t)
+			setRuntimeString(runtimeConfiguration, legacyPath, "legacy")
+			if result := runRuntimeContractCheck(t, runtimeConfiguration); result != "legacy-runtime-config" {
+				t.Fatalf("expected legacy runtime field %s to fail, got %q", strings.Join(legacyPath, "."), result)
+			}
+		})
+	}
+}
+
+func TestBlueclawRuntimeContractCheckAllowsBackendSchemaProperties(t *testing.T) {
+	runtimeConfiguration := validRuntimeConfiguration(t)
+	capabilities := runtimeConfiguration["capabilities"].(map[string]any)
+	toolDescriptors := capabilities["toolDescriptors"].([]any)
+	toolDescriptors = append(toolDescriptors, map[string]any{
+		"namespace": "llm",
+		"outputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"backend": map[string]any{"type": "string"},
+			},
+		},
+		"resultContract": map[string]any{
+			"schema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"backend": map[string]any{"type": "string"},
+				},
+			},
+		},
+	})
+	capabilities["toolDescriptors"] = toolDescriptors
+
+	if result := runRuntimeContractCheck(t, runtimeConfiguration); result != "ok" {
+		t.Fatalf("expected schema properties named backend to pass, got %q", result)
+	}
+}
+
+func TestBlueclawRuntimeContractCheckRejectsNonStringLegacyRuntimeField(t *testing.T) {
+	runtimeConfiguration := validRuntimeConfiguration(t)
+	capabilities := runtimeConfiguration["capabilities"].(map[string]any)
+	capabilities["backend"] = map[string]any{"type": "string"}
+
+	if result := runRuntimeContractCheck(t, runtimeConfiguration); result != "legacy-runtime-config" {
+		t.Fatalf("expected non-string legacy runtime field to fail, got %q", result)
+	}
+}
+
+func validRuntimeConfiguration(t *testing.T) map[string]any {
+	t.Helper()
+
+	document, errorValue := blueclaw.BlueclawRuntimeConfigDocumentWithOptions(blueclaw.RuntimeConfigOptions{})
+	if errorValue != nil {
+		t.Fatalf("generate runtime configuration: %v", errorValue)
+	}
+	runtimeConfiguration := map[string]any{}
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatalf("decode runtime configuration: %v", errorValue)
+	}
+	return runtimeConfiguration
+}
+
+func setRuntimeString(runtimeConfiguration map[string]any, path []string, value string) {
+	parent := runtimeConfiguration
+	for _, key := range path[:len(path)-1] {
+		nested, isFound := parent[key].(map[string]any)
+		if !isFound {
+			nested = map[string]any{}
+			parent[key] = nested
+		}
+		parent = nested
+	}
+	parent[path[len(path)-1]] = value
+}
+
+func runRuntimeContractCheck(t *testing.T, runtimeConfiguration map[string]any) string {
+	t.Helper()
+
+	document, errorValue := json.Marshal(runtimeConfiguration)
+	if errorValue != nil {
+		t.Fatalf("encode runtime configuration: %v", errorValue)
+	}
+	runtimePath := filepath.Join(t.TempDir(), "runtime.json")
+	workspaceRuntimePath := filepath.Join(t.TempDir(), "workspace-runtime.json")
+	for _, path := range []string{runtimePath, workspaceRuntimePath} {
+		if errorValue := os.WriteFile(path, document, 0o600); errorValue != nil {
+			t.Fatalf("write runtime configuration: %v", errorValue)
+		}
+	}
+	command := strings.ReplaceAll(blueclawRuntimeContractCheckCommand(), "/root/.blueclaw/config/runtime.json", runtimePath)
+	command = strings.ReplaceAll(command, "/root/.blueclaw/workspace/.blueclaw/config/runtime.json", workspaceRuntimePath)
+	output, errorValue := exec.Command("sh", "-c", command).CombinedOutput()
+	if errorValue != nil {
+		t.Fatalf("run runtime contract check: %v: %s", errorValue, output)
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {

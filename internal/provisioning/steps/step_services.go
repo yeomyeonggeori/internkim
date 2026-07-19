@@ -390,22 +390,29 @@ if runtime_configuration != workspace_runtime_configuration:
     print("runtime-config-mirror-drift")
     raise SystemExit
 
-forbidden_keys = {"apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend", "defaultBudgetClass"}
+legacy_runtime_paths = (
+    ("agent", "defaultBudgetClass"),
+    ("languageModel", "backend"),
+    ("languageModel", "capability", "backend"),
+    ("capabilities", "backend"),
+    ("languageModel", "openRouter", "apiKeyPath"),
+    ("languageModel", "liteRTLM", "wrapperPath"),
+    ("languageModel", "liteRTLM", "modelPath"),
+    ("languageModel", "liteRTLM", "backend"),
+    ("connectors", "mattermost", "botTokenPath"),
+    ("connectors", "slack", "botTokenPath"),
+    ("connectors", "slack", "signingSecretPath"),
+)
 
-def contains_forbidden_key(value):
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            if key in forbidden_keys or contains_forbidden_key(nested):
-                return True
-        return False
-    if isinstance(value, list):
-        for item in value:
-            if contains_forbidden_key(item):
-                return True
-        return False
-    return False
+def has_path(document, path):
+    value = document
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            return False
+        value = value[key]
+    return True
 
-if contains_forbidden_key(runtime_configuration):
+if any(has_path(runtime_configuration, path) for path in legacy_runtime_paths):
     print("legacy-runtime-config")
     raise SystemExit
 
