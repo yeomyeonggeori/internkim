@@ -192,7 +192,17 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		response, errorValue := service.companionProvider().InvokeTool(ctx, request)
 		if errorValue == nil {
 			if shouldFallbackToDeviceBrowser(request, response) {
-				return service.invokeDeviceBrowserTool(ctx, request)
+				deviceResponse, errorValue := service.invokeDeviceBrowserTool(ctx, request)
+				if errorValue != nil {
+					return capabilities.ToolInvokeResponse{}, errorValue
+				}
+				if errorValue := validateContractedCapabilityResponse(descriptor, deviceResponse, "", ""); errorValue != nil {
+					return capabilities.ToolInvokeResponse{}, errorValue
+				}
+				return deviceResponse, nil
+			}
+			if errorValue := validateContractedCapabilityResponse(descriptor, response, "companion", capabilities.LLMBackendCompanionLocal); errorValue != nil {
+				return capabilities.ToolInvokeResponse{}, errorValue
 			}
 			return response, nil
 		}
@@ -207,9 +217,81 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 	}
 	if hasToolRoute {
-		return toolRoute.Handler(service, ctx, request)
+		response, errorValue := toolRoute.Handler(service, ctx, request)
+		if errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
+		if errorValue := validateContractedCapabilityResponse(descriptor, response, "", ""); errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
+		return response, nil
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
+}
+
+func validateContractedCapabilityResponse(descriptor capabilities.Descriptor, response capabilities.ToolInvokeResponse, expectedProvider string, expectedBackend string) error {
+	if descriptor.ResultContract == nil || capabilityResponseIsFailure(response) {
+		return nil
+	}
+	if errorValue := validateCapabilityResponseIdentity(descriptor, response, expectedProvider, expectedBackend); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
+		return fmt.Errorf("capability tool result violates %s contract: %w", descriptor.CanonicalName, errorValue)
+	}
+	expectedEffects, errorValue := capabilities.ProjectResourceEffects(descriptor.ResultContract, response.Result)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !resourceEffectsMatch(expectedEffects, response.Effects) {
+		return errors.New("capability result effects do not match the result contract")
+	}
+	return nil
+}
+
+func validateCapabilityResponseIdentity(descriptor capabilities.Descriptor, response capabilities.ToolInvokeResponse, expectedProvider string, expectedBackend string) error {
+	if strings.TrimSpace(response.Provider) == "" || strings.TrimSpace(response.SelectedBackend) == "" {
+		return errors.New("capability result provider and selectedBackend are required")
+	}
+	if expectedProvider != "" && strings.TrimSpace(response.Provider) != expectedProvider {
+		return fmt.Errorf("capability result provider does not match %s", expectedProvider)
+	}
+	if expectedBackend != "" && strings.TrimSpace(response.SelectedBackend) != expectedBackend {
+		return fmt.Errorf("capability result selectedBackend does not match %s", expectedBackend)
+	}
+	if strings.TrimSpace(response.ToolName) != descriptor.CanonicalName {
+		return errors.New("capability result toolName does not match the invoked operation")
+	}
+	return nil
+}
+
+func capabilityResponseIsFailure(response capabilities.ToolInvokeResponse) bool {
+	if response.IsError {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(response.Status)) {
+	case "denied", "failed", "error":
+		return true
+	default:
+		return response.Outcome == capabilities.ToolOutcomeFailed || response.Outcome == capabilities.ToolOutcomeDenied
+	}
+}
+
+func resourceEffectsMatch(expectedEffects []capabilities.ResourceEffect, actualEffects []capabilities.ResourceEffect) bool {
+	if len(expectedEffects) != len(actualEffects) {
+		return false
+	}
+	remainingEffects := make(map[capabilities.ResourceEffect]int, len(actualEffects))
+	for _, actualEffect := range actualEffects {
+		remainingEffects[actualEffect]++
+	}
+	for _, expectedEffect := range expectedEffects {
+		if remainingEffects[expectedEffect] == 0 {
+			return false
+		}
+		remainingEffects[expectedEffect]--
+	}
+	return true
 }
 
 func capabilityInvalidInputResponse(toolName string, errorValue error) capabilities.ToolInvokeResponse {
@@ -686,15 +768,6 @@ func (provider companionProvider) InvokeTool(ctx context.Context, request capabi
 	var response capabilities.ToolInvokeResponse
 	if errorValue := provider.postJSON(ctx, "/jobs", request, &response); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if response.Provider == "" {
-		response.Provider = "companion"
-	}
-	if response.SelectedBackend == "" {
-		response.SelectedBackend = capabilities.LLMBackendCompanionLocal
-	}
-	if response.ToolName == "" {
-		response.ToolName = request.ToolName
 	}
 	return response, nil
 }

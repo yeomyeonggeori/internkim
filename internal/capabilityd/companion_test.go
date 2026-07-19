@@ -226,6 +226,122 @@ func TestInvokeCapabilityToolRejectsUnknownPrefixOperation(t *testing.T) {
 	}
 }
 
+func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("task.add")
+	if !found {
+		t.Fatal("expected task.add descriptor")
+	}
+
+	validResult := json.RawMessage(`{"taskID":"task-1"}`)
+	validEffects := []capabilities.ResourceEffect{{ObjectType: "task", Effect: "created", ID: "task-1"}}
+	testCases := []struct {
+		name     string
+		response capabilities.ToolInvokeResponse
+		message  string
+	}{
+		{
+			name: "missing identity",
+			response: capabilities.ToolInvokeResponse{
+				ToolName: "task.add",
+				Outcome:  capabilities.ToolOutcomeSucceeded,
+				Result:   validResult,
+			},
+			message: "provider and selectedBackend are required",
+		},
+		{
+			name: "wrong tool name",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.update",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          validResult,
+				Effects:         validEffects,
+			},
+			message: "toolName does not match",
+		},
+		{
+			name: "invalid result schema",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.add",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          json.RawMessage(`{"status":"created"}`),
+				Effects:         validEffects,
+			},
+			message: "violates task.add contract",
+		},
+		{
+			name: "mismatched effects",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.add",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          validResult,
+				Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "updated", ID: "task-1"}},
+			},
+			message: "effects do not match",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			errorValue := validateContractedCapabilityResponse(descriptor, testCase.response, "", "")
+			if errorValue == nil || !strings.Contains(errorValue.Error(), testCase.message) {
+				t.Fatalf("expected %q, got %v", testCase.message, errorValue)
+			}
+		})
+	}
+}
+
+func TestValidateContractedCapabilityResponseRequiresExpectedCompanionIdentity(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("task.add")
+	if !found {
+		t.Fatal("expected task.add descriptor")
+	}
+	response := capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        "task.add",
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "created", ID: "task-1"}},
+		Result:          json.RawMessage(`{"taskID":"task-1"}`),
+	}
+
+	errorValue := validateContractedCapabilityResponse(descriptor, response, "companion", testCompanionBackend)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "provider does not match companion") {
+		t.Fatalf("expected companion provider mismatch, got %v", errorValue)
+	}
+
+	response.Provider = "companion"
+	errorValue = validateContractedCapabilityResponse(descriptor, response, "companion", testCompanionBackend)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "selectedBackend does not match") {
+		t.Fatalf("expected companion backend mismatch, got %v", errorValue)
+	}
+}
+
+func TestCompanionProviderDoesNotInferIdentity(t *testing.T) {
+	provider := companionProvider{
+		BaseURL: "https://companion.test",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/jobs" {
+				t.Fatalf("unexpected companion path: %s", request.URL.Path)
+			}
+			return jsonResponse(capabilities.ToolInvokeResponse{Result: json.RawMessage(`{"ok":true}`)}), nil
+		})},
+	}
+
+	response, errorValue := provider.InvokeTool(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.open"})
+	if errorValue != nil {
+		t.Fatalf("expected companion response: %v", errorValue)
+	}
+	if response.Provider != "" || response.SelectedBackend != "" || response.ToolName != "" {
+		t.Fatalf("expected companion identity to remain absent, got %+v", response)
+	}
+}
+
 func TestCompanionStructuredProviderRejectsDeniedToolResponse(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		result, _ := json.Marshal(capabilities.DenialResult{
