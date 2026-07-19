@@ -105,6 +105,21 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 	}
 }
 
+func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
+	scriptPath := filepath.Join("..", "..", "lab", "scripts", "configure-local-embedding.sh")
+	document, errorValue := os.ReadFile(scriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := string(document)
+	if strings.Contains(script, "grep -q") {
+		t.Fatal("grep -q can terminate ldconfig with SIGPIPE under pipefail")
+	}
+	if !strings.Contains(script, "ldconfig -p | grep -F 'libgomp.so.1' >/dev/null") {
+		t.Fatal("local embedding script does not probe libgomp safely")
+	}
+}
+
 func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
