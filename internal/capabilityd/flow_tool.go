@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -224,9 +225,11 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
 	statusFilter := normalizeFlowStatusFilter(input.Status)
-	now := time.Now()
-	weekCodes := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, now)
-	filteredTasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: weekCodeForFlowDate(now), Limit: input.Limit})
+	weekCodes, errorValue := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, summary.Week.Code)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	filteredTasks := filterFlowTasks(summary.Tasks, flowTaskFilter{Query: input.Query, MemberID: ownerID, Status: statusFilter, WeekCodes: weekCodes, CurrentWeekCode: summary.Week.Code, Limit: input.Limit})
 	tasks := enrichFlowTasksForTool(filteredTasks, summary.Members)
 	result, _ := json.Marshal(map[string]any{
 		"scope":        flowTaskListPeopleScope(ownerID),
@@ -718,18 +721,40 @@ func flowTaskListPeopleScope(ownerID string) string {
 	return "everyone"
 }
 
-func flowTaskListWeekCodes(weekFrom int, weekTo int, now time.Time) map[string]bool {
+func flowTaskListWeekCodes(weekFrom int, weekTo int, currentWeekCode string) (map[string]bool, error) {
 	if weekFrom > weekTo {
 		weekFrom, weekTo = weekTo, weekFrom
 	}
 	if weekTo-weekFrom > 520 {
-		return nil
+		return nil, nil
+	}
+	currentWeekDate, errorValue := flowWeekDate(currentWeekCode)
+	if errorValue != nil {
+		return nil, errorValue
 	}
 	weekCodes := map[string]bool{}
 	for offset := weekFrom; offset <= weekTo; offset++ {
-		weekCodes[weekCodeForFlowDate(now.AddDate(0, 0, offset*7))] = true
+		weekCodes[weekCodeForFlowDate(currentWeekDate.AddDate(0, 0, offset*7))] = true
 	}
-	return weekCodes
+	return weekCodes, nil
+}
+
+func flowWeekDate(weekCode string) (time.Time, error) {
+	if len(weekCode) != 5 || weekCode[2] != 'W' {
+		return time.Time{}, fmt.Errorf("flow current week is invalid")
+	}
+	year, yearError := strconv.Atoi(weekCode[:2])
+	week, weekError := strconv.Atoi(weekCode[3:])
+	if yearError != nil || weekError != nil || week < 1 || week > 53 {
+		return time.Time{}, fmt.Errorf("flow current week is invalid")
+	}
+	januaryFourth := time.Date(2000+year, time.January, 4, 0, 0, 0, 0, time.UTC)
+	weekdayOffset := (int(januaryFourth.Weekday()) + 6) % 7
+	weekDate := januaryFourth.AddDate(0, 0, -weekdayOffset+(week-1)*7)
+	if weekCodeForFlowDate(weekDate) != weekCode {
+		return time.Time{}, fmt.Errorf("flow current week is invalid")
+	}
+	return weekDate, nil
 }
 
 func weekCodeForFlowDate(date time.Time) string {
