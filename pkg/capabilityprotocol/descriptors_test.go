@@ -19,6 +19,7 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 		PrivacyClass:       "workspace_task",
 		EstimatedLatency:   "medium",
 		InputSchema:        json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"title":{"type":"string"}}},"labels":{"type":"object","additionalProperties":{"type":"string"}}}}`),
+		InputIntentSchema:  json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object","properties":{"title":{"type":"string"}}}},"additionalProperties":false}`),
 		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
 		ResultContract:     emptyTestResultContract(),
 		InputSchemaStrict:  true,
@@ -64,6 +65,39 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 	}
 	if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+func TestDescriptorValidationRequiresExplicitInputIntentSchema(t *testing.T) {
+	testCases := []struct {
+		name         string
+		intentSchema json.RawMessage
+		errorPart    string
+	}{
+		{name: "missing", errorPart: "inputIntentSchema is required"},
+		{name: "requires value", intentSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}`), errorPart: "accept an empty object"},
+		{name: "unknown property", intentSchema: json.RawMessage(`{"type":"object","properties":{"unknown":{"type":"string"}},"additionalProperties":false}`), errorPart: "properties must exist"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			descriptor := validTestDescriptor("task.add")
+			descriptor.InputSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
+			descriptor.InputIntentSchema = testCase.intentSchema
+			errorValue := ValidateDescriptor(descriptor)
+			if errorValue == nil || !strings.Contains(errorValue.Error(), testCase.errorPart) {
+				t.Fatalf("expected %q, got %v", testCase.errorPart, errorValue)
+			}
+		})
+	}
+}
+
+func TestDescriptorValidationAcceptsExplicitPartialInputIntentSchema(t *testing.T) {
+	descriptor := validTestDescriptor("task.add")
+	descriptor.InputSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"endDate":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
+	descriptor.InputIntentSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"endDate":{"type":"string"}},"additionalProperties":false}`)
+
+	if errorValue := ValidateDescriptor(descriptor); errorValue != nil {
+		t.Fatalf("expected explicit input intent schema to pass: %v", errorValue)
 	}
 }
 
@@ -389,6 +423,7 @@ func validTestDescriptor(name string) Descriptor {
 		PrivacyClass:       "task",
 		EstimatedLatency:   "low",
 		InputSchema:        json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		InputIntentSchema:  json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 		OutputSchema:       strictSchema(ToolInvokeOutputSchema()),
 		ResultContract:     emptyTestResultContract(),
 		InputSchemaStrict:  true,

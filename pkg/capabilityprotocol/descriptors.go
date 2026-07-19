@@ -76,6 +76,7 @@ type DescriptorMetadata struct {
 	RequiresUserPresence bool
 	WorksOffline         bool
 	InputSchema          json.RawMessage
+	InputIntentSchema    json.RawMessage
 	OutputSchema         json.RawMessage
 	ResultContract       *ToolResultContract
 	PolicyResource       string
@@ -106,6 +107,7 @@ func NewDescriptor(definition DescriptorDefinition) Descriptor {
 		RequiresUserPresence: definition.Metadata.RequiresUserPresence,
 		WorksOffline:         definition.Metadata.WorksOffline,
 		InputSchema:          strictSchema(definition.Metadata.InputSchema),
+		InputIntentSchema:    strictSchema(definition.Metadata.InputIntentSchema),
 		OutputSchema:         strictSchema(definition.Metadata.OutputSchema),
 		InputSchemaStrict:    true,
 		OutputSchemaStrict:   true,
@@ -161,6 +163,7 @@ func MustCanonicalizeModelVisibleDescriptors(descriptors []Descriptor) []Descrip
 func canonicalizeSchemas(descriptors []Descriptor) {
 	for index := range descriptors {
 		descriptors[index].InputSchema = strictSchema(descriptors[index].InputSchema)
+		descriptors[index].InputIntentSchema = strictSchema(descriptors[index].InputIntentSchema)
 		descriptors[index].OutputSchema = strictSchema(descriptors[index].OutputSchema)
 		descriptors[index].ResultContract = canonicalResultContract(descriptors[index].ResultContract)
 	}
@@ -267,6 +270,17 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	if errorValue := resolveDescriptorSchema(descriptor.InputSchema); errorValue != nil {
 		return fmt.Errorf("inputSchema cannot be resolved: %w", errorValue)
 	}
+	if descriptorRequiresInputIntentSchema(descriptor) && len(descriptor.InputIntentSchema) == 0 {
+		return fmt.Errorf("inputIntentSchema is required for model-visible state-changing capabilities")
+	}
+	if len(descriptor.InputIntentSchema) > 0 {
+		if !isStrictSchema(descriptor.InputIntentSchema) {
+			return fmt.Errorf("inputIntentSchema must be a strict object schema")
+		}
+		if errorValue := validateInputIntentSchema(descriptor.InputSchema, descriptor.InputIntentSchema); errorValue != nil {
+			return errorValue
+		}
+	}
 	if !descriptor.OutputSchemaStrict || !isStrictSchema(descriptor.OutputSchema) {
 		return fmt.Errorf("outputSchema must be a strict object schema")
 	}
@@ -298,6 +312,49 @@ func ValidateDescriptor(descriptor Descriptor) error {
 		return fmt.Errorf("idempotency.scope is required")
 	}
 	return nil
+}
+
+func descriptorRequiresInputIntentSchema(descriptor Descriptor) bool {
+	if descriptor.ModelVisibility != ModelVisibilityVisible {
+		return false
+	}
+	return descriptor.SideEffect != SideEffectRead && descriptor.SideEffect != SideEffectComputation
+}
+
+func validateInputIntentSchema(inputSchema json.RawMessage, inputIntentSchema json.RawMessage) error {
+	var schema jsonschema.Schema
+	if errorValue := json.Unmarshal(inputIntentSchema, &schema); errorValue != nil {
+		return fmt.Errorf("inputIntentSchema cannot be resolved: %w", errorValue)
+	}
+	resolvedSchema, errorValue := schema.Resolve(nil)
+	if errorValue != nil {
+		return fmt.Errorf("inputIntentSchema cannot be resolved: %w", errorValue)
+	}
+	if errorValue := resolvedSchema.Validate(map[string]any{}); errorValue != nil {
+		return fmt.Errorf("inputIntentSchema must accept an empty object: %w", errorValue)
+	}
+	if !schemaPropertiesAreSubset(inputSchema, inputIntentSchema) {
+		return fmt.Errorf("inputIntentSchema properties must exist in inputSchema")
+	}
+	return nil
+}
+
+func schemaPropertiesAreSubset(inputSchema json.RawMessage, inputIntentSchema json.RawMessage) bool {
+	var inputDocument struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	var intentDocument struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if json.Unmarshal(inputSchema, &inputDocument) != nil || json.Unmarshal(inputIntentSchema, &intentDocument) != nil {
+		return false
+	}
+	for propertyName := range intentDocument.Properties {
+		if _, isFound := inputDocument.Properties[propertyName]; !isFound {
+			return false
+		}
+	}
+	return true
 }
 
 func validateCompletionEvidence(evidence *CompletionEvidenceDescriptor) error {

@@ -249,6 +249,7 @@ func cloneDescriptors(descriptors []Descriptor) []Descriptor {
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	descriptor.InputSchema = append(json.RawMessage{}, descriptor.InputSchema...)
+	descriptor.InputIntentSchema = append(json.RawMessage{}, descriptor.InputIntentSchema...)
 	descriptor.OutputSchema = append(json.RawMessage{}, descriptor.OutputSchema...)
 	if descriptor.ResultContract != nil {
 		descriptor.ResultContract = &ToolResultContract{
