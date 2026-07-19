@@ -213,6 +213,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
+	stepResult.BotPostID = botPost.ID
 	stepResult.BotMessage = botPost.Message
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(botPost))
 	attachments, errorValue := session.downloadAttachments(contextValue, botPost.FileIDs)
@@ -245,6 +246,7 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	if errorValue != nil {
 		return errorValue
 	}
+	stepResult.BotPostID = botPost.ID
 	stepResult.BotMessage = botPost.Message
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(botPost))
 	stepResult.Attachments, errorValue = session.downloadAttachments(contextValue, botPost.FileIDs)

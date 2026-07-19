@@ -12,26 +12,24 @@ import (
 	"strconv"
 )
 
-type expensiveMattermostEvidenceManifest struct {
-	SchemaVersion int                                     `json:"schemaVersion"`
-	ScenarioName  string                                  `json:"scenarioName"`
-	TurnCount     int                                     `json:"turnCount"`
-	ResultPath    string                                  `json:"resultPath"`
-	Steps         []expensiveMattermostEvidenceStepRecord `json:"steps"`
+type expensiveMattermostArtifactManifest struct {
+	SchemaVersion        int                                     `json:"schemaVersion"`
+	ScenarioName         string                                  `json:"scenarioName"`
+	TurnCount            int                                     `json:"turnCount"`
+	DiagnosticResultPath string                                  `json:"diagnosticResultPath"`
+	Steps                []expensiveMattermostArtifactStepRecord `json:"steps"`
 }
 
-type expensiveMattermostEvidenceStepRecord struct {
-	StepIndex          int      `json:"stepIndex"`
-	TaskRunID          string   `json:"taskRunID"`
-	TaskStatus         string   `json:"taskStatus"`
-	EventPath          string   `json:"eventPath"`
-	AttachmentPaths    []string `json:"attachmentPaths,omitempty"`
-	WorkspaceFilePaths []string `json:"workspaceFilePaths,omitempty"`
-	UIArtifactPaths    []string `json:"uiArtifactPaths,omitempty"`
-	LLMCallCount       int      `json:"llmCallCount"`
-	AgentStepCount     int      `json:"agentStepCount"`
-	ToolCallCount      int      `json:"toolCallCount"`
-	ProcessingMS       int64    `json:"processingMs"`
+type expensiveMattermostArtifactStepRecord struct {
+	StepIndex           int      `json:"stepIndex"`
+	TaskRunID           string   `json:"taskRunID"`
+	TaskStatus          string   `json:"taskStatus"`
+	DiagnosticEventPath string   `json:"diagnosticEventPath"`
+	EvidencePaths       []string `json:"evidencePaths,omitempty"`
+	LLMCallCount        int      `json:"llmCallCount"`
+	AgentStepCount      int      `json:"agentStepCount"`
+	ToolCallCount       int      `json:"toolCallCount"`
+	ProcessingMS        int64    `json:"processingMs"`
 }
 
 func writeExpensiveMattermostEvidence(directoryPath string, result mattermostScenarioResult) error {
@@ -39,55 +37,43 @@ func writeExpensiveMattermostEvidence(directoryPath string, result mattermostSce
 		return errorValue
 	}
 	for stepIndex, step := range result.Steps {
-		stepDirectoryPath := filepath.Join(directoryPath, "files", fmt.Sprintf("step-%02d", stepIndex+1))
-		for _, file := range step.Attachments {
-			filePath := filepath.Join(stepDirectoryPath, filepath.Base(file.Filename))
-			if _, errorValue := writeDownloadedMattermostFileToPath(file, filePath); errorValue != nil {
-				return errorValue
-			}
-		}
-		eventsPath := filepath.Join(directoryPath, "events", fmt.Sprintf("step-%02d.json", stepIndex+1))
+		eventsPath := filepath.Join(directoryPath, "diagnostics", "events", fmt.Sprintf("step-%02d.json", stepIndex+1))
 		if errorValue := writeExpensiveJSONArtifact(eventsPath, step.TaskEvents); errorValue != nil {
 			return errorValue
 		}
 	}
-	if errorValue := writeExpensiveJSONArtifact(filepath.Join(directoryPath, "result.json"), sanitizeMattermostScenarioResult(result)); errorValue != nil {
+	resultPath := filepath.Join(directoryPath, "diagnostics", "result.json")
+	if errorValue := writeExpensiveJSONArtifact(resultPath, sanitizeMattermostScenarioResult(result)); errorValue != nil {
 		return errorValue
 	}
 	return writeExpensiveMattermostEvidenceManifest(directoryPath, result)
 }
 
 func writeExpensiveMattermostEvidenceManifest(directoryPath string, result mattermostScenarioResult) error {
-	manifest := expensiveMattermostEvidenceManifest{
-		SchemaVersion: 1,
-		ScenarioName:  result.ScenarioName,
-		TurnCount:     result.TurnCount,
-		ResultPath:    "result.json",
-		Steps:         make([]expensiveMattermostEvidenceStepRecord, 0, len(result.Steps)),
+	manifest := expensiveMattermostArtifactManifest{
+		SchemaVersion:        2,
+		ScenarioName:         result.ScenarioName,
+		TurnCount:            result.TurnCount,
+		DiagnosticResultPath: "diagnostics/result.json",
+		Steps:                make([]expensiveMattermostArtifactStepRecord, 0, len(result.Steps)),
 	}
 	for stepIndex, step := range result.Steps {
-		record := expensiveMattermostEvidenceStepRecord{
-			StepIndex:      stepIndex,
-			TaskRunID:      step.TaskRunID,
-			TaskStatus:     step.TaskStatus,
-			EventPath:      filepath.ToSlash(filepath.Join("events", fmt.Sprintf("step-%02d.json", stepIndex+1))),
-			LLMCallCount:   step.LLMCallCount,
-			AgentStepCount: step.AgentStepCount,
-			ToolCallCount:  step.ToolCallCount,
-			ProcessingMS:   step.ProcessingMS,
+		record := expensiveMattermostArtifactStepRecord{
+			StepIndex:           stepIndex,
+			TaskRunID:           step.TaskRunID,
+			TaskStatus:          step.TaskStatus,
+			DiagnosticEventPath: filepath.ToSlash(filepath.Join("diagnostics", "events", fmt.Sprintf("step-%02d.json", stepIndex+1))),
+			LLMCallCount:        step.LLMCallCount,
+			AgentStepCount:      step.AgentStepCount,
+			ToolCallCount:       step.ToolCallCount,
+			ProcessingMS:        step.ProcessingMS,
 		}
-		for _, file := range step.Attachments {
-			record.AttachmentPaths = append(record.AttachmentPaths, filepath.ToSlash(filepath.Join("files", fmt.Sprintf("step-%02d", stepIndex+1), filepath.Base(file.Filename))))
-		}
-		for _, file := range step.WorkspaceFiles {
-			record.WorkspaceFilePaths = append(record.WorkspaceFilePaths, file.Path)
-		}
-		uiDirectoryPath := filepath.Join(directoryPath, "ui", fmt.Sprintf("step-%02d", stepIndex+1))
-		uiPaths, errorValue := expensiveMattermostEvidenceFiles(uiDirectoryPath)
+		evidenceDirectoryPath := filepath.Join(directoryPath, "evidence", fmt.Sprintf("step-%02d", stepIndex+1))
+		evidencePaths, errorValue := expensiveMattermostEvidenceFiles(evidenceDirectoryPath)
 		if errorValue != nil {
 			return errorValue
 		}
-		record.UIArtifactPaths = uiPaths
+		record.EvidencePaths = evidencePaths
 		manifest.Steps = append(manifest.Steps, record)
 	}
 	return writeExpensiveJSONArtifact(filepath.Join(directoryPath, "manifest.json"), manifest)
@@ -149,6 +135,23 @@ func writeExpensiveJSONArtifact(filePath string, value any) error {
 	return os.WriteFile(filePath, append(document, '\n'), 0o600)
 }
 
+type expensiveMattermostBrowserRequest struct {
+	RepositoryRootPath     string
+	ArtifactDirectoryPath  string
+	MattermostURL          string
+	SiteProxyURL           string
+	Execution              mattermostScenarioExecution
+	StepIndex              int
+	BotReplyPostID         string
+	ScreenshotName         string
+	PlaywrightRunName      string
+	ApprovalAction         mattermostScenarioApprovalAction
+	ExpectedAttachments    []string
+	ExpectedPublicURL      string
+	ExpectedPublicText     []string
+	ExpectedPublicControls []string
+}
+
 func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, siteProxyURL string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int, shouldAutoConfirm bool) error {
 	step := scenario.Steps[stepIndex]
 	result := execution.Result.Steps[stepIndex]
@@ -156,43 +159,91 @@ func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootP
 	if !isFinalStep && len(step.ExpectedAttachments) == 0 && result.PublicURL == "" && step.ApprovalAction == "" {
 		return nil
 	}
-	stepArtifactDirectoryPath := filepath.Join(artifactDirectoryPath, "ui", fmt.Sprintf("step-%02d", stepIndex+1))
-	if errorValue := os.MkdirAll(stepArtifactDirectoryPath, 0o755); errorValue != nil {
-		return errorValue
-	}
 	botReply, hasBotReply := latestMattermostScenarioPost(execution.Result.Posts)
 	if !hasBotReply {
 		return fmt.Errorf("verify Mattermost UI for step %s: bot reply is missing", strconv.Itoa(stepIndex+1))
 	}
-	environment := append(os.Environ(),
-		"INTERNKIM_MATTERMOST_URL="+mattermostURL,
-		"INTERNKIM_MATTERMOST_PROBE_USERNAME="+execution.Username,
-		"INTERNKIM_MATTERMOST_PROBE_PASSWORD="+execution.Password,
-		"INTERNKIM_MATTERMOST_DM_CHANNEL_ID="+execution.Result.ChannelID,
-		"INTERNKIM_MATTERMOST_ROOT_POST_ID="+execution.RootPostID,
-		"INTERNKIM_MATTERMOST_BOT_USERNAME="+execution.BotUsername,
-		"INTERNKIM_MATTERMOST_BOT_REPLY_POST_ID="+botReply.ID,
-		"INTERNKIM_MATTERMOST_ARTIFACT_DIR="+stepArtifactDirectoryPath,
-		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL="+result.PublicURL,
-		"INTERNKIM_SITE_PROXY_URL="+siteProxyURL,
-	)
+	approvalAction := mattermostScenarioApprovalAction("")
 	if shouldAutoConfirm {
-		environment = append(environment, "INTERNKIM_MATTERMOST_APPROVAL_ACTION="+string(step.ApprovalAction))
+		approvalAction = step.ApprovalAction
 	}
-	if len(step.ExpectedAttachments) > 0 {
-		environment = append(environment, "INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentStringArray(step.ExpectedAttachments))
+	return runExpensiveMattermostBrowserVerification(contextValue, expensiveMattermostBrowserRequest{
+		RepositoryRootPath:     repositoryRootPath,
+		ArtifactDirectoryPath:  artifactDirectoryPath,
+		MattermostURL:          mattermostURL,
+		SiteProxyURL:           siteProxyURL,
+		Execution:              execution,
+		StepIndex:              stepIndex,
+		BotReplyPostID:         botReply.ID,
+		ScreenshotName:         "mattermost-dm.png",
+		PlaywrightRunName:      fmt.Sprintf("step-%02d", stepIndex+1),
+		ApprovalAction:         approvalAction,
+		ExpectedAttachments:    step.ExpectedAttachments,
+		ExpectedPublicURL:      result.PublicURL,
+		ExpectedPublicText:     step.ExpectedPublicText,
+		ExpectedPublicControls: step.ExpectedPublicControls,
+	})
+}
+
+func verifyExpensiveMattermostApprovalCompletions(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution) error {
+	for stepIndex, step := range scenario.Steps {
+		if step.ApprovalAction == "" {
+			continue
+		}
+		if errorValue := verifyExpensiveMattermostApprovalCompletion(contextValue, repositoryRootPath, artifactDirectoryPath, mattermostURL, execution, stepIndex); errorValue != nil {
+			return errorValue
+		}
 	}
-	environment = append(environment,
-		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT="+marshalEnvironmentStringArray(step.ExpectedPublicText),
-		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS="+marshalEnvironmentStringArray(step.ExpectedPublicControls),
+	return nil
+}
+
+func verifyExpensiveMattermostApprovalCompletion(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, mattermostURL string, execution mattermostScenarioExecution, stepIndex int) error {
+	stepResult := execution.Result.Steps[stepIndex]
+	if stepResult.BotPostID == "" {
+		return fmt.Errorf("verify Mattermost completed UI for step %s: bot reply is missing", strconv.Itoa(stepIndex+1))
+	}
+	return runExpensiveMattermostBrowserVerification(contextValue, expensiveMattermostBrowserRequest{
+		RepositoryRootPath:    repositoryRootPath,
+		ArtifactDirectoryPath: artifactDirectoryPath,
+		MattermostURL:         mattermostURL,
+		Execution:             execution,
+		StepIndex:             stepIndex,
+		BotReplyPostID:        stepResult.BotPostID,
+		ScreenshotName:        "mattermost-completed.png",
+		PlaywrightRunName:     fmt.Sprintf("step-%02d-completed", stepIndex+1),
+	})
+}
+
+func runExpensiveMattermostBrowserVerification(contextValue context.Context, request expensiveMattermostBrowserRequest) error {
+	stepArtifactDirectoryPath := filepath.Join(request.ArtifactDirectoryPath, "evidence", fmt.Sprintf("step-%02d", request.StepIndex+1))
+	if errorValue := os.MkdirAll(stepArtifactDirectoryPath, 0o755); errorValue != nil {
+		return errorValue
+	}
+	environment := append(os.Environ(),
+		"INTERNKIM_MATTERMOST_URL="+request.MattermostURL,
+		"INTERNKIM_MATTERMOST_PROBE_USERNAME="+request.Execution.Username,
+		"INTERNKIM_MATTERMOST_PROBE_PASSWORD="+request.Execution.Password,
+		"INTERNKIM_MATTERMOST_DM_CHANNEL_ID="+request.Execution.Result.ChannelID,
+		"INTERNKIM_MATTERMOST_ROOT_POST_ID="+request.Execution.RootPostID,
+		"INTERNKIM_MATTERMOST_BOT_USERNAME="+request.Execution.BotUsername,
+		"INTERNKIM_MATTERMOST_BOT_REPLY_POST_ID="+request.BotReplyPostID,
+		"INTERNKIM_MATTERMOST_SCREENSHOT_NAME="+request.ScreenshotName,
+		"INTERNKIM_MATTERMOST_ARTIFACT_DIR="+stepArtifactDirectoryPath,
+		"INTERNKIM_MATTERMOST_APPROVAL_ACTION="+string(request.ApprovalAction),
+		"INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS="+marshalEnvironmentStringArray(request.ExpectedAttachments),
+		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL="+request.ExpectedPublicURL,
+		"INTERNKIM_SITE_PROXY_URL="+request.SiteProxyURL,
+		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_TEXT="+marshalEnvironmentStringArray(request.ExpectedPublicText),
+		"INTERNKIM_MATTERMOST_EXPECT_PUBLIC_CONTROLS="+marshalEnvironmentStringArray(request.ExpectedPublicControls),
 	)
-	command := exec.CommandContext(contextValue, "bun", "run", "test:e2e:mattermost-expensive", "--output="+filepath.Join(stepArtifactDirectoryPath, "playwright"))
-	command.Dir = filepath.Join(repositoryRootPath, "web")
+	playwrightOutputPath := filepath.Join(request.ArtifactDirectoryPath, "diagnostics", "playwright", request.PlaywrightRunName)
+	command := exec.CommandContext(contextValue, "bun", "run", "test:e2e:mattermost-expensive", "--output="+playwrightOutputPath)
+	command.Dir = filepath.Join(request.RepositoryRootPath, "web")
 	command.Env = environment
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if errorValue := command.Run(); errorValue != nil {
-		return fmt.Errorf("verify Mattermost UI for step %s: %w", strconv.Itoa(stepIndex+1), errorValue)
+		return fmt.Errorf("verify Mattermost UI for step %s: %w", strconv.Itoa(request.StepIndex+1), errorValue)
 	}
 	return nil
 }

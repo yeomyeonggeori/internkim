@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 		"04-website-lifecycle.json",
 		"05-message-lifecycle.json",
 		"09-document-lifecycle.json",
+		"10-file-lifecycle.json",
 	} {
 		scenario, errorValue := loadMattermostScenario("../../tests/expensive/" + filename)
 		if errorValue != nil {
@@ -26,6 +28,48 @@ func TestLoadMattermostScenarioAcceptsExpensiveLifecycleShape(t *testing.T) {
 		if scenario.Name == "" || len(scenario.Steps) == 0 {
 			t.Fatalf("expected named ordered lifecycle steps for %s, got %#v", filename, scenario)
 		}
+	}
+}
+
+func TestFileLifecycleUsesCanonicalKernelToolsAndButtonApproval(t *testing.T) {
+	scenario, errorValue := loadMattermostScenario("../../tests/expensive/10-file-lifecycle.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedTools := []string{"file.write", "file.read", "file.edit", "file.deliver", "file.delete"}
+	if len(scenario.Steps) != 5 || !slices.Equal(scenario.AllowedTools, expectedTools) {
+		t.Fatalf("unexpected file lifecycle: %#v", scenario)
+	}
+	if scenario.Steps[4].ApprovalAction != mattermostScenarioApprovalApprove {
+		t.Fatalf("expected button-approved deletion, got %#v", scenario.Steps[4])
+	}
+	for _, stepIndex := range []int{0, 2} {
+		if len(scenario.Steps[stepIndex].ExpectedAttachments) != 1 ||
+			len(scenario.Steps[stepIndex].ExpectedAttachmentText) == 0 {
+			t.Fatalf("step %d does not verify its JSON attachment", stepIndex+1)
+		}
+	}
+}
+
+func TestMattermostScenarioValidatesJSONAttachmentText(t *testing.T) {
+	expected := mattermostScenarioStep{
+		ExpectedAttachments:    []string{".json"},
+		ExpectedAttachmentText: []string{"고객지원 주간 운영 점검", "검토 중"},
+	}
+	file := downloadedMattermostFile{
+		Filename:      "customer-support-weekly-check.json",
+		ContentBase64: base64.StdEncoding.EncodeToString([]byte(`{"title":"고객지원 주간 운영 점검","status":"검토 중"}`)),
+	}
+	if errorValue := validateMattermostScenarioAttachmentText(0, expected, []downloadedMattermostFile{file}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	file.ContentBase64 = base64.StdEncoding.EncodeToString([]byte(`{"title":"고객지원 주간 운영 점검"}`))
+	if errorValue := validateMattermostScenarioAttachmentText(0, expected, []downloadedMattermostFile{file}); errorValue == nil {
+		t.Fatal("expected missing attachment text to fail")
+	}
+	file.ContentBase64 = base64.StdEncoding.EncodeToString([]byte(`not-json`))
+	if errorValue := validateMattermostScenarioAttachmentText(0, expected, []downloadedMattermostFile{file}); errorValue == nil {
+		t.Fatal("expected invalid JSON attachment to fail")
 	}
 }
 
