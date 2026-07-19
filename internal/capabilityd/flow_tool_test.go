@@ -1008,27 +1008,44 @@ func TestFlowTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 func TestFlowTaskListWeekCodes(t *testing.T) {
 	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
 	thisWeek := weekCodeForFlowDate(now)
-	single := flowTaskListWeekCodes(0, 0, now)
+	single, errorValue := flowTaskListWeekCodes(0, 0, thisWeek)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if len(single) != 1 || !single[thisWeek] {
 		t.Fatalf("expected only this week %q, got %v", thisWeek, single)
 	}
-	threeWeeks := flowTaskListWeekCodes(-2, 0, now)
+	threeWeeks, errorValue := flowTaskListWeekCodes(-2, 0, thisWeek)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if len(threeWeeks) != 3 || !threeWeeks[thisWeek] ||
 		!threeWeeks[weekCodeForFlowDate(now.AddDate(0, 0, -7))] ||
 		!threeWeeks[weekCodeForFlowDate(now.AddDate(0, 0, -14))] {
 		t.Fatalf("expected this and the prior two weeks, got %v", threeWeeks)
 	}
-	if len(flowTaskListWeekCodes(0, -1, now)) != 2 {
+	swappedWeeks, errorValue := flowTaskListWeekCodes(0, -1, thisWeek)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(swappedWeeks) != 2 {
 		t.Fatalf("expected swapped bounds to span 2 weeks")
 	}
-	if flowTaskListWeekCodes(-1000, 0, now) != nil {
+	wideWeeks, errorValue := flowTaskListWeekCodes(-1000, 0, thisWeek)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if wideWeeks != nil {
 		t.Fatalf("expected no week filter for a very wide range")
+	}
+	if _, errorValue := flowTaskListWeekCodes(0, 0, "invalid"); errorValue == nil {
+		t.Fatal("expected an invalid canonical week to fail closed")
 	}
 }
 
 func TestFlowTaskListDefaultsToThisWeekOnly(t *testing.T) {
-	thisWeek := weekCodeForFlowDate(time.Now())
-	priorWeek := weekCodeForFlowDate(time.Now().AddDate(0, 0, -21))
+	thisWeek := "26W30"
+	priorWeek := "26W29"
 	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이샘플","content":"이번주 업무","status":"진행","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이샘플","content":"지난 업무","status":"진행","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
