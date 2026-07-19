@@ -82,6 +82,7 @@ type Descriptor struct {
 	RequiresUserPresence bool                          `json:"requiresUserPresence"`
 	WorksOffline         bool                          `json:"worksOffline"`
 	InputSchema          json.RawMessage               `json:"inputSchema,omitempty"`
+	InputIntentSchema    json.RawMessage               `json:"inputIntentSchema,omitempty"`
 	OutputSchema         json.RawMessage               `json:"outputSchema,omitempty"`
 	InputSchemaStrict    bool                          `json:"inputSchemaStrict"`
 	OutputSchemaStrict   bool                          `json:"outputSchemaStrict"`

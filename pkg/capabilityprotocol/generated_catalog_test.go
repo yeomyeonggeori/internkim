@@ -68,10 +68,13 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 		t.Fatalf("expected twenty-six tool descriptors, got %d", len(firstDescriptors))
 	}
 	firstDescriptors[0].InputSchema[0] = 'x'
+	firstDescriptors[0].InputIntentSchema[0] = 'x'
 	firstDescriptors[0].ResultContract.Effects[0].Effect = "changed"
 
 	secondDescriptors := MustGeneratedToolDescriptors(names...)
-	if secondDescriptors[0].InputSchema[0] == 'x' || secondDescriptors[0].ResultContract.Effects[0].Effect == "changed" {
+	if secondDescriptors[0].InputSchema[0] == 'x' ||
+		secondDescriptors[0].InputIntentSchema[0] == 'x' ||
+		secondDescriptors[0].ResultContract.Effects[0].Effect == "changed" {
 		t.Fatal("generated descriptors share mutable catalog state")
 	}
 }
