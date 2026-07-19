@@ -7,7 +7,7 @@ modelPath="$cacheDirectory/bge-m3-Q8_0.gguf"
 
 test -x "$runtimeDirectory/llama-server"
 test -s "$modelPath"
-if ! ldconfig -p | grep -q 'libgomp.so.1'; then
+if ! ldconfig -p | grep -F 'libgomp.so.1' >/dev/null; then
   apt-get update >/dev/null
   DEBIAN_FRONTEND=noninteractive apt-get install -y libgomp1 >/dev/null
 fi
