@@ -44,9 +44,10 @@ def ensure_requirements(skill_name):
 
 
 def builtin_skills_python_path(requirements_path):
-    if not is_builtin_skill_runtime():
+    configured_python_path = os.environ.get(BUILTIN_SKILLS_PYTHON_ENVIRONMENT)
+    if configured_python_path is None and not is_builtin_skill_runtime():
         return None
-    python_path = Path(os.environ.get(BUILTIN_SKILLS_PYTHON_ENVIRONMENT, DEFAULT_BUILTIN_SKILLS_PYTHON))
+    python_path = Path(configured_python_path or DEFAULT_BUILTIN_SKILLS_PYTHON)
     if not python_path.exists():
         return None
     if not python_satisfies_requirements(python_path, requirements_path):
