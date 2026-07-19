@@ -267,7 +267,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"executionMode":         languageModelExecutionMode,
 		"localOnly":             options.LocalOnly,
 		"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
-		"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract", "blueclaw_operation_contract_review"},
+		"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"},
 	}
 	if options.DirectExecution || strings.EqualFold(options.SDKDMode, "authoritative") {
 		languageModelConfiguration["defaultProvider"] = "sdkd"

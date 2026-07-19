@@ -846,7 +846,6 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		"blueclaw_turn_router",
 		"blueclaw_recovery_decision",
 		"blueclaw_operation_contract",
-		"blueclaw_operation_contract_review",
 	})
 	successfulSchemaNames := map[string]bool{}
 	for _, event := range events {
