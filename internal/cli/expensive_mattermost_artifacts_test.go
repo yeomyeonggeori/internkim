@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
 
-func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t *testing.T) {
+func TestWriteExpensiveMattermostEvidenceSeparatesUserEvidenceFromDiagnostics(t *testing.T) {
 	directoryPath := t.TempDir()
 	file := downloadedMattermostFile{
 		FileID:        "file-1",
@@ -31,30 +32,33 @@ func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t 
 			TaskEvents:     []mattermostScenarioTaskEvent{{TaskEventID: "event-1", Name: "task.completed"}},
 		}},
 	}
-	uiDirectoryPath := filepath.Join(directoryPath, "ui", "step-01")
-	if errorValue := os.MkdirAll(uiDirectoryPath, 0o755); errorValue != nil {
+	evidenceDirectoryPath := filepath.Join(directoryPath, "evidence", "step-01")
+	if errorValue := os.MkdirAll(evidenceDirectoryPath, 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(filepath.Join(uiDirectoryPath, "mattermost-dm.png"), []byte("screenshot"), 0o600); errorValue != nil {
+	if errorValue := os.WriteFile(filepath.Join(evidenceDirectoryPath, "mattermost-dm.png"), []byte("screenshot"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(evidenceDirectoryPath, "분기 결산.docx"), []byte("document-content"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
 	if errorValue := writeExpensiveMattermostEvidence(directoryPath, result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	documentPath := filepath.Join(directoryPath, "files", "step-01", "분기 결산.docx")
+	documentPath := filepath.Join(evidenceDirectoryPath, "분기 결산.docx")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil || string(document) != "document-content" {
 		t.Fatalf("document=%q error=%v", document, errorValue)
 	}
-	resultDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "result.json"))
+	resultDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "diagnostics", "result.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if strings.Contains(string(resultDocument), file.ContentBase64) || strings.Contains(string(resultDocument), "document-content") {
 		t.Fatal("result JSON contains embedded attachment content")
 	}
-	eventsDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "events", "step-01.json"))
+	eventsDocument, errorValue := os.ReadFile(filepath.Join(directoryPath, "diagnostics", "events", "step-01.json"))
 	if errorValue != nil || !strings.Contains(string(eventsDocument), "event-1") {
 		t.Fatalf("events=%s error=%v", eventsDocument, errorValue)
 	}
@@ -62,22 +66,23 @@ func TestWriteExpensiveMattermostEvidencePersistsFilesWithoutEmbeddingContent(t 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var manifest expensiveMattermostEvidenceManifest
+	var manifest expensiveMattermostArtifactManifest
 	if errorValue := json.Unmarshal(manifestDocument, &manifest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if manifest.SchemaVersion != 1 || manifest.ResultPath != "result.json" || len(manifest.Steps) != 1 {
+	if manifest.SchemaVersion != 2 || manifest.DiagnosticResultPath != "diagnostics/result.json" || len(manifest.Steps) != 1 {
 		t.Fatalf("unexpected manifest=%+v", manifest)
 	}
 	step := manifest.Steps[0]
-	if step.TaskRunID != "task-1" || step.EventPath != "events/step-01.json" || step.LLMCallCount != 2 || step.ProcessingMS != 1234 {
+	if step.TaskRunID != "task-1" || step.DiagnosticEventPath != "diagnostics/events/step-01.json" || step.LLMCallCount != 2 || step.ProcessingMS != 1234 {
 		t.Fatalf("unexpected manifest step=%+v", step)
 	}
-	if len(step.AttachmentPaths) != 1 || step.AttachmentPaths[0] != "files/step-01/분기 결산.docx" {
-		t.Fatalf("unexpected attachment paths=%v", step.AttachmentPaths)
+	expectedEvidencePaths := []string{
+		"evidence/step-01/mattermost-dm.png",
+		"evidence/step-01/분기 결산.docx",
 	}
-	if len(step.UIArtifactPaths) != 1 || step.UIArtifactPaths[0] != "ui/step-01/mattermost-dm.png" {
-		t.Fatalf("unexpected UI paths=%v", step.UIArtifactPaths)
+	if !slices.Equal(step.EvidencePaths, expectedEvidencePaths) {
+		t.Fatalf("unexpected evidence paths=%v", step.EvidencePaths)
 	}
 }
 

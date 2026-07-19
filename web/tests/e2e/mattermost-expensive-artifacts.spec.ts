@@ -10,6 +10,7 @@ const rootPostID = process.env.INTERNKIM_MATTERMOST_ROOT_POST_ID?.trim() ?? '';
 const botUsername = process.env.INTERNKIM_MATTERMOST_BOT_USERNAME?.trim() ?? '';
 const botReplyPostID = process.env.INTERNKIM_MATTERMOST_BOT_REPLY_POST_ID?.trim() ?? '';
 const artifactDirectory = process.env.INTERNKIM_MATTERMOST_ARTIFACT_DIR?.trim() ?? '';
+const screenshotName = process.env.INTERNKIM_MATTERMOST_SCREENSHOT_NAME?.trim() || 'mattermost-dm.png';
 const expectedAttachments = parseStringArray(process.env.INTERNKIM_MATTERMOST_EXPECT_ATTACHMENTS);
 const expectedPublicURL = process.env.INTERNKIM_MATTERMOST_EXPECT_PUBLIC_URL?.trim() ?? '';
 const siteProxyURL = process.env.INTERNKIM_SITE_PROXY_URL?.trim() ?? '';
@@ -33,7 +34,7 @@ test('captures real Mattermost expensive scenario artifacts', async ({ page }) =
 	const botReply = await waitForLatestBotReply(page);
 	await verify(botReply).toBeVisible();
 	await verify(botReply).not.toBeEmpty();
-	await page.screenshot({ path: join(artifactDirectory, 'mattermost-dm.png'), fullPage: true });
+	await page.screenshot({ path: join(artifactDirectory, screenshotName), fullPage: true });
 	if (approvalAction !== '') {
 		await performApprovalAction(botReply, page);
 	}
@@ -60,7 +61,7 @@ async function performApprovalAction(botReply: Locator, page: Page): Promise<voi
 	);
 	await approvalButton.click();
 	await actionResponse;
-	await page.screenshot({ path: join(artifactDirectory, 'approval-after.png'), fullPage: true });
+	await page.screenshot({ path: join(artifactDirectory, 'approval-clicked.png'), fullPage: true });
 }
 
 function hasRequiredEnvironment(): boolean {

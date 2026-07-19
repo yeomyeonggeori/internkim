@@ -368,7 +368,7 @@ func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	result := session.result.Steps[0]
-	if result.TaskRunID != "task" || result.TaskStatus != "completed" || result.BotMessage != "삭제했습니다." {
+	if result.TaskRunID != "task" || result.TaskStatus != "completed" || result.BotPostID != "completed-post" || result.BotMessage != "삭제했습니다." {
 		t.Fatalf("unexpected approval result: %#v", result)
 	}
 	if len(result.TaskEvents) != 5 || len(session.result.Posts) != 3 {

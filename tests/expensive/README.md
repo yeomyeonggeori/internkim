@@ -25,10 +25,12 @@ file-tool flows designed for the default `xlow` ceiling.
 `cheap` runs only non-paid checks. `expensive` does not include `cheap`.
 `full` runs `cheap` first and then every expensive scenario.
 
-Task, calendar, website, document, and message lifecycle scenarios use
+Task, calendar, website, document, file, and message lifecycle scenarios use
 `--auto-confirm` to click real Mattermost approval buttons and wait for the
 approved task to finish.
 
-Each retained scenario artifact directory contains `result.json`, per-step
-event files, downloaded attachments, UI evidence, and a machine-readable
-`manifest.json` indexing those artifacts and informational timing metrics.
+Each retained scenario directory keeps real Mattermost screenshots, browser-
+downloaded files, and website screenshots under `evidence/`. Internal result,
+event, timing, and Playwright trace data stays under `diagnostics/`. The
+machine-readable `manifest.json` indexes user-visible evidence separately from
+diagnostic paths.

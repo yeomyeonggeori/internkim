@@ -64,6 +64,7 @@ type mattermostScenarioStep struct {
 	ExpectedExactToolCallCounts map[string]int                    `json:"expectedExactToolCallCounts"`
 	ExpectedEventCounts         []mattermostScenarioEventCount    `json:"expectedEventCounts"`
 	ExpectedAttachments         []string                          `json:"expectedAttachments"`
+	ExpectedAttachmentText      []string                          `json:"expectedAttachmentText"`
 	ExpectedDocumentText        []string                          `json:"expectedDocumentText"`
 	ExpectedWorkspaceFiles      []mattermostScenarioWorkspaceFile `json:"expectedWorkspaceFiles"`
 	ForbiddenWorkspaceFiles     []string                          `json:"forbiddenWorkspaceFiles"`
@@ -121,6 +122,7 @@ type mattermostScenarioStepResult struct {
 	Prompt         string                              `json:"prompt"`
 	TaskRunID      string                              `json:"taskRunID"`
 	TaskStatus     string                              `json:"taskStatus"`
+	BotPostID      string                              `json:"botPostID"`
 	BotMessage     string                              `json:"botMessage"`
 	TaskEvents     []mattermostScenarioTaskEvent       `json:"taskEvents"`
 	Attachments    []downloadedMattermostFile          `json:"attachments"`
@@ -353,6 +355,9 @@ func validateMattermostScenarioStep(stepIndex int, scenario mattermostScenario, 
 			return fmt.Errorf("Mattermost scenario step %d is missing attachment %q", stepIndex, attachmentName)
 		}
 	}
+	if errorValue := validateMattermostScenarioAttachmentText(stepIndex, expected, actual.Attachments); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := validateMattermostScenarioDocuments(stepIndex, expected, actual.Attachments); errorValue != nil {
 		return errorValue
 	}
@@ -366,6 +371,31 @@ func validateMattermostScenarioStep(stepIndex int, scenario mattermostScenario, 
 		return errorValue
 	}
 	return validateMattermostScenarioEvents(stepIndex, expected, actual.TaskEvents, result)
+}
+
+func validateMattermostScenarioAttachmentText(stepIndex int, expected mattermostScenarioStep, files []downloadedMattermostFile) error {
+	if len(expected.ExpectedAttachmentText) == 0 {
+		return nil
+	}
+	for _, file := range files {
+		if !hasMattermostScenarioAttachment([]downloadedMattermostFile{file}, strings.Join(expected.ExpectedAttachments, "")) {
+			continue
+		}
+		content, errorValue := base64.StdEncoding.DecodeString(file.ContentBase64)
+		if errorValue != nil {
+			return fmt.Errorf("Mattermost scenario step %d decode attachment: %w", stepIndex, errorValue)
+		}
+		if strings.HasSuffix(strings.ToLower(file.Filename), ".json") && !json.Valid(content) {
+			return fmt.Errorf("Mattermost scenario step %d attachment %q is not valid JSON", stepIndex, file.Filename)
+		}
+		for _, expectedText := range expected.ExpectedAttachmentText {
+			if !bytes.Contains(content, []byte(expectedText)) {
+				return fmt.Errorf("Mattermost scenario step %d attachment %q is missing %q", stepIndex, file.Filename, expectedText)
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("Mattermost scenario step %d has no attachment to inspect", stepIndex)
 }
 
 func scenarioHasExposureExpectations(scenario mattermostScenario) bool {
