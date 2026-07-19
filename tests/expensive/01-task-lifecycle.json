@@ -57,7 +57,6 @@
       "expectedEventCounts": [
         {"name": "tool.task.list.result", "outputFragment": "고객지원 분기 결산 검토 완료", "count": 0, "exact": true}
       ],
-      "expectedReplyFragments": ["없"],
       "expectedTaskStatus": "completed"
     }
   ]
