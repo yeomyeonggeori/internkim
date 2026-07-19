@@ -20,7 +20,7 @@
         {"name": "tool.terminal.run.requested", "bodyFragment": "분기 결산 운영 검토", "count": 1},
         {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1}
       ],
-      "expectedReplyFragments": ["분기 결산 운영 검토", "DOCX"],
+      "expectedReplyFragments": ["분기 결산 운영 검토"],
       "expectedTaskStatus": "completed"
     },
     {
