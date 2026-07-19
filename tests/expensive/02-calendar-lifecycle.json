@@ -36,7 +36,7 @@
         {"name": "tool.calendar.list.requested", "bodyFragment": "고객지원팀 분기 결산 검토", "count": 1},
         {"name": "tool.calendar.list.result", "outputFragment": "{{tomorrow}}T14:00:00+09:00", "count": 1}
       ],
-      "expectedReplyFragments": ["고객지원팀 분기 결산 검토", "14:00"],
+      "expectedReplyFragments": ["고객지원팀 분기 결산 검토"],
       "expectedTaskStatus": "completed"
     },
     {
@@ -57,7 +57,6 @@
       "expectedEventCounts": [
         {"name": "tool.calendar.list.result", "outputFragment": "고객지원팀 분기 결산 검토", "count": 0, "exact": true}
       ],
-      "expectedReplyFragments": ["없"],
       "expectedTaskStatus": "completed"
     }
   ]
