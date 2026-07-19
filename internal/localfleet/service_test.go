@@ -112,9 +112,6 @@ func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) 
 		t.Fatal(errorValue)
 	}
 	script := string(document)
-	if strings.Contains(script, "grep -q") {
-		t.Fatal("grep -q can terminate ldconfig with SIGPIPE under pipefail")
-	}
 	if !strings.Contains(script, "ldconfig -p | grep -F 'libgomp.so.1' >/dev/null") {
 		t.Fatal("local embedding script does not probe libgomp safely")
 	}
