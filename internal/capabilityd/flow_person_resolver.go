@@ -88,53 +88,32 @@ func matchingFlowMembers(value string, members []flowMemberForTool) []flowMember
 	if normalizedValue == "" {
 		return nil
 	}
-	exactMatches := exactFlowMemberMatches(normalizedValue, members)
-	if len(exactMatches) > 0 {
-		return uniqueFlowMembers(exactMatches)
-	}
-	return uniqueFlowMembers(containedFlowMemberMatches(normalizedValue, members))
+	return uniqueFlowMembers(exactFlowMemberMatches(normalizedValue, members))
 }
 
 func exactFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {
-	normalizedHandleValue := strings.TrimPrefix(normalizedValue, "@")
 	matches := make([]flowMemberForTool, 0, len(members))
 	for _, member := range members {
-		if isExactFlowMemberMatch(normalizedValue, normalizedHandleValue, member) {
+		if isExactFlowMemberMatch(normalizedValue, member) {
 			matches = append(matches, member)
 		}
 	}
 	return matches
 }
 
-func isExactFlowMemberMatch(normalizedValue string, normalizedHandleValue string, member flowMemberForTool) bool {
+func isExactFlowMemberMatch(normalizedValue string, member flowMemberForTool) bool {
 	return normalizedFlowMemberValue(member.ID) == normalizedValue ||
 		normalizedFlowMemberValue(member.Email) == normalizedValue ||
 		normalizedFlowMemberValue(member.Name) == normalizedValue ||
-		normalizedFlowMemberValue(member.MattermostUsername) == normalizedHandleValue
+		isExactFlowMemberHandleMatch(normalizedValue, member.MattermostUsername)
 }
 
-func containedFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {
-	normalizedHandleValue := strings.TrimPrefix(normalizedValue, "@")
-	matches := make([]flowMemberForTool, 0, len(members))
-	for _, member := range members {
-		if flowMemberMatchesContainedValue(normalizedValue, normalizedHandleValue, member) {
-			matches = append(matches, member)
-		}
+func isExactFlowMemberHandleMatch(normalizedValue string, mattermostUsername string) bool {
+	if !strings.HasPrefix(normalizedValue, "@") {
+		return false
 	}
-	return matches
-}
-
-func flowMemberMatchesContainedValue(normalizedValue string, normalizedHandleValue string, member flowMemberForTool) bool {
-	for _, value := range []string{member.Email, member.Name, member.MattermostUsername} {
-		normalizedMemberValue := normalizedFlowMemberValue(value)
-		if normalizedMemberValue == "" {
-			continue
-		}
-		if strings.Contains(normalizedMemberValue, normalizedHandleValue) || strings.Contains(normalizedValue, normalizedMemberValue) {
-			return true
-		}
-	}
-	return false
+	normalizedHandle := strings.TrimPrefix(normalizedFlowMemberValue(mattermostUsername), "@")
+	return normalizedHandle != "" && normalizedHandle == strings.TrimPrefix(normalizedValue, "@")
 }
 
 func normalizedFlowMemberValue(value string) string {

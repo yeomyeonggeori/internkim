@@ -91,6 +91,15 @@ func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestResolveFlowOwnerRejectsContainedNameMatch(t *testing.T) {
+	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "인턴"}, "", members)
+
+	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
 func TestResolveFlowParticipantIDsUsesSharedPersonHints(t *testing.T) {
 	members := []flowMemberForTool{
 		{ID: "owner", Name: "Owner", Email: "owner@example.com", MattermostUsername: "owner"},
@@ -105,10 +114,10 @@ func TestResolveFlowParticipantIDsUsesSharedPersonHints(t *testing.T) {
 	}
 }
 
-func TestResolveFlowParticipantIDsUsesContainedNameMatch(t *testing.T) {
+func TestResolveFlowParticipantIDsRejectsContainedNameMatch(t *testing.T) {
 	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
 	participantIDs, failure := resolveFlowParticipantIDs([]string{"인턴"}, "owner", members)
-	if failure != nil || len(participantIDs) != 2 || participantIDs[0] != "owner" || participantIDs[1] != "kim" {
+	if participantIDs != nil || failure == nil || failure.ErrorCode != "flow_participant_not_found" {
 		t.Fatalf("participantIDs=%+v failure=%+v", participantIDs, failure)
 	}
 }
