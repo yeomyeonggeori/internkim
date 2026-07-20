@@ -20,6 +20,7 @@
 		"test:e2e:orgchart": "PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5190} bunx playwright test tests/e2e/orgchart-directory.spec.ts tests/e2e/orgchart-visual.spec.ts --workers=1",
 		"test:e2e:flow": "VITE_MOCK_FLOW=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5187} bunx playwright test tests/e2e/flow-*.spec.ts --workers=1",
 		"test:e2e:flow:list": "VITE_MOCK_FLOW=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5187} bunx playwright test tests/e2e/flow-task-list-view.spec.ts --workers=1",
+		"verify:flow": "bun run check && bun run test:unit && bun run build:board && bun run test:e2e:flow",
 		"test:e2e:mattermost": "bunx playwright test tests/e2e/mattermost.spec.ts",
 		"test:e2e:public": "bunx playwright test tests/e2e/public-url.spec.ts",
 		"gen": "wrangler types"
