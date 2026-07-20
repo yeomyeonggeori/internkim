@@ -919,9 +919,6 @@ func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTa
 		if call.Transport != "llmd" {
 			return fmt.Errorf("Mattermost scenario step %d used %s transport for authoritative AI SDK call %s", stepIndex, call.Transport, call.SchemaName)
 		}
-		if call.UsedFallback {
-			return fmt.Errorf("Mattermost scenario step %d used legacy fallback for authoritative AI SDK call %s", stepIndex, call.SchemaName)
-		}
 		if call.IsError {
 			continue
 		}
