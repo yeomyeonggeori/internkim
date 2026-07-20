@@ -19,6 +19,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
@@ -331,6 +332,60 @@ func TestInstallReleaseLLMDService(t *testing.T) {
 	for _, expectedValue := range []string{blueclawruntime.LLMDServicePath, blueclawruntime.LLMDAuthKeyPath, blueclawruntime.LLMDServiceCredentialDirectoryPath, blueclawruntime.LLMDServiceAuthKeyPath, "head -c 32 /dev/urandom", "chmod 600", "DynamicUser=yes", "systemctl daemon-reload", "systemctl enable " + blueclawruntime.LLMDServiceName} {
 		if !strings.Contains(joinedCommands, expectedValue) {
 			t.Fatalf("expected LLMD service installation to contain %q, got %s", expectedValue, joinedCommands)
+		}
+	}
+}
+
+func TestInstallReleaseLLMDServiceWithholdsLlamaEnvironmentWhenLocalLlamaIsNotInstalled(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "cat" && arguments[1] == locallm.LlamaCppServiceName {
+			return nil, errors.New("unit not found")
+		}
+		return nil, nil
+	}}
+	manifest := testReleaseManifest("release-no-local-llama")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, unexpectedValue := range []string{
+		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
+	} {
+		if strings.Contains(joinedCommands, unexpectedValue) {
+			t.Fatalf("expected LLMD install without a provisioned local llama service to omit %q, got %s", unexpectedValue, joinedCommands)
+		}
+	}
+}
+
+func TestInstallReleaseLLMDServiceEmitsLlamaEnvironmentWhenLocalLlamaIsInstalled(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "cat" && arguments[1] == locallm.LlamaCppServiceName {
+			return []byte("ExecStart=" + locallm.LlamaCppBinaryPath + " -m /root/.internkim/models/model.gguf"), nil
+		}
+		return nil, nil
+	}}
+	manifest := testReleaseManifest("release-with-local-llama")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, expectedValue := range []string{
+		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
+	} {
+		if !strings.Contains(joinedCommands, expectedValue) {
+			t.Fatalf("expected LLMD install with a provisioned local llama service to contain %q, got %s", expectedValue, joinedCommands)
 		}
 	}
 }

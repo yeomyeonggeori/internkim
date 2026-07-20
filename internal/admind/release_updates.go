@@ -15,6 +15,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
@@ -461,7 +462,7 @@ func (service *Service) installReleaseLLMDService(ctx context.Context, manifest 
 	if errorValue != nil {
 		return errorValue
 	}
-	serviceDocument := blueclawruntime.LLMDServiceUnitForLocalOnly(isLocalOnly)
+	serviceDocument := blueclawruntime.LLMDServiceUnitForLocalOnly(isLocalOnly, service.releaseLocalLlamaProvisioned(ctx))
 	command := fmt.Sprintf(`set -eu
 %[1]s
 cat > %[2]s <<'SERVICEEOF'
@@ -472,6 +473,14 @@ systemctl enable %[4]s`, blueclawruntime.LLMDServiceCredentialInstallCommand(isL
 		return fmt.Errorf("install LLMD service: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
+}
+
+func (service *Service) releaseLocalLlamaProvisioned(ctx context.Context) bool {
+	output, errorValue := service.runCommand(ctx, "systemctl", "cat", locallm.LlamaCppServiceName)
+	if errorValue != nil {
+		return false
+	}
+	return strings.Contains(string(output), locallm.LlamaCppBinaryPath)
 }
 
 func releaseLLMDLocalOnly(runtimeConfigurationPath string) (bool, error) {

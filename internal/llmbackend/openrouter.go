@@ -82,6 +82,7 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 			return backend.completeJSONSchema(ctx, apiKey, request, modelName)
 		}
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=native model=%s", modelName)
 			return response, nil
 		}
 		log.Printf("native action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
@@ -91,16 +92,20 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 	for _, modelName := range modelNames {
 		response, errorValue := backend.completeJSONSchema(ctx, apiKey, request, modelName)
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=json-schema model=%s", modelName)
 			return response, nil
 		}
+		log.Printf("json schema action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
 		fallbackErrors = append(fallbackErrors, modelAttemptError(modelName, errorValue))
 	}
 	promptedErrors := []error{}
 	for _, modelName := range modelNames {
 		response, errorValue := backend.completePromptedJSON(ctx, apiKey, request, modelName)
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=prompted-json model=%s", modelName)
 			return response, nil
 		}
+		log.Printf("prompted json action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
 		promptedErrors = append(promptedErrors, modelAttemptError(modelName, errorValue))
 	}
 	return Response{}, nativeActionModelFallbackError(nativeErrors, fallbackErrors, promptedErrors)

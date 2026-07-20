@@ -76,6 +76,8 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--blueclaw-url http://127.0.0.1:18100")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--mattermost-admin-password "+filepath.Join(paths.InternKimSecretsPath, "mm-admin-pass"))
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--fleet-id-path "+filepath.Join(paths.InternKimPath, "env", "fleet-id"))
+	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "After=network-online.target internkim-mattermost-pilot-01.service internkim-tenant-admind-pilot-01.service")
+	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "Wants=network-online.target internkim-tenant-admind-pilot-01.service")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--mattermost-url http://127.0.0.1:18065")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--socket "+filepath.Join(paths.InternKimPath, "run", "capability.sock"))
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--openrouter-key "+filepath.Join(paths.InternKimSecretsPath, "llm-device-token"))

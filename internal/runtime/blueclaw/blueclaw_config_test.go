@@ -115,7 +115,7 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 }
 
 func TestBlueclawRuntimeConfigIncludesCredentiallessLLMDBridge(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{LLMDMode: "shadow"})
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -125,7 +125,7 @@ func TestBlueclawRuntimeConfigIncludesCredentiallessLLMDBridge(t *testing.T) {
 	}
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
 	llmd := languageModel["llmd"].(map[string]any)
-	if llmd["endpoint"] != "http://127.0.0.1:18081/_internkim/llmd" || llmd["shadowEnabled"] != true {
+	if llmd["endpoint"] != "http://127.0.0.1:18081/_internkim/llmd" {
 		t.Fatalf("unexpected LLMD bridge configuration: %+v", llmd)
 	}
 	if llmd["authKeyPath"] != "" || llmd["unixSocketPath"] != "" {
@@ -489,8 +489,8 @@ func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
 	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
 		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
 	}
-	if !strings.Contains(LLMDServiceUnit(), "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") {
-		t.Fatalf("expected LLMD local-only environment, got %s", LLMDServiceUnit())
+	if !strings.Contains(LLMDServiceUnit(true), "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") {
+		t.Fatalf("expected LLMD local-only environment, got %s", LLMDServiceUnit(true))
 	}
 }
 
@@ -854,7 +854,7 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 
 func TestLLMDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
 	t.Setenv(LocalOnlyEnvironment, "")
-	serviceDocument := LLMDServiceUnit()
+	serviceDocument := LLMDServiceUnit(true)
 	for _, expectedValue := range []string{
 		"DynamicUser=yes",
 		"RuntimeDirectory=blueclaw-llmd",
@@ -896,8 +896,22 @@ func TestLLMDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
 	}
 }
 
+func TestLLMDServiceWithholdsLlamaEnvironmentWhenLocalLlamaIsNotProvisioned(t *testing.T) {
+	t.Setenv(LocalOnlyEnvironment, "")
+	serviceDocument := LLMDServiceUnit(false)
+	for _, unexpectedValue := range []string{
+		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
+	} {
+		if strings.Contains(serviceDocument, unexpectedValue) {
+			t.Fatalf("expected LLMD service without local llama provisioning to omit %q, got %s", unexpectedValue, serviceDocument)
+		}
+	}
+}
+
 func TestLLMDLocalOnlyServiceWithholdsRemoteCredentialAndNetwork(t *testing.T) {
-	serviceDocument := LLMDServiceUnitForLocalOnly(true)
+	serviceDocument := LLMDServiceUnitForLocalOnly(true, true)
 	for _, expectedValue := range []string{
 		"Environment=BLUECLAW_LLMD_LOCAL_ONLY=1",
 		"Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=" + LLMDRuntimeAuthKeyPath,
@@ -957,6 +971,26 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 		if strings.Contains(serviceDocument, forbiddenValue) {
 			t.Fatalf("expected physical Jetson capabilityd service to avoid Worker gateway value %q, got %s", forbiddenValue, serviceDocument)
 		}
+	}
+}
+
+func TestCapabilitydServiceOrdersAfterAdmind(t *testing.T) {
+	serviceDocument := CapabilitydServiceUnit()
+	afterLine := ""
+	wantsLine := ""
+	for _, line := range strings.Split(serviceDocument, "\n") {
+		if strings.HasPrefix(line, "After=") {
+			afterLine = line
+		}
+		if strings.HasPrefix(line, "Wants=") {
+			wantsLine = line
+		}
+	}
+	if !strings.Contains(afterLine, "internkim-admind.service") {
+		t.Fatalf("expected capabilityd to boot after admind, got %s", afterLine)
+	}
+	if !strings.Contains(wantsLine, "internkim-admind.service") {
+		t.Fatalf("expected capabilityd to want admind, got %s", wantsLine)
 	}
 }
 

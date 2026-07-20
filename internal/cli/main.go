@@ -4682,8 +4682,8 @@ func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 
 // --- Config builders ---
 
-func generateFirstbootScript(deviceURL, adminEmail string) string {
-	return buildFirstbootScript(deviceURL, adminEmail)
+func generateFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvisioned bool) string {
+	return buildFirstbootScript(deviceURL, adminEmail, isLocalLlamaProvisioned)
 }
 
 func gasWebhookURLPath() string {
