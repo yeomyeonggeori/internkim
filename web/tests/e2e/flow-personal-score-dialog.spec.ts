@@ -6,6 +6,12 @@ test.describe('flow personal score dialog', () => {
 		expect(response.ok()).toBe(true);
 	});
 
+	test('serves participant image fallback through the Flow mock server', async ({ request }) => {
+		const response = await request.get('/calendar/api/participants/test-person/image');
+
+		expect(response.status()).toBe(404);
+	});
+
 	test('opens only the current user score detail from the member score card header', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.goto('/flow/');
