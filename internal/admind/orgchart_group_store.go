@@ -9,6 +9,9 @@ const orgchartGroupsInitializedKey = "groups_initialized"
 
 func (service *Service) writeOrgchartGroups(ctx context.Context, groups []orgGroupRecord) error {
 	normalizedGroups, groupAliases := normalizeOrgchartGroupsWithAliases(groups)
+	if errorValue := validateOrgchartGroupHierarchy(normalizedGroups); errorValue != nil {
+		return errorValue
+	}
 	database, errorValue := service.openOrgchartDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -33,7 +36,7 @@ func (service *Service) writeOrgchartGroups(ctx context.Context, groups []orgGro
 		return errorValue
 	}
 	for index, group := range normalizedGroups {
-		if _, errorValue := transaction.ExecContext(ctx, "INSERT INTO orgchart_groups(id, name, position) VALUES(?, ?, ?)", group.ID, group.Name, index); errorValue != nil {
+		if _, errorValue := transaction.ExecContext(ctx, "INSERT INTO orgchart_groups(id, name, parent_id, position) VALUES(?, ?, ?, ?)", group.ID, group.Name, group.ParentID, index); errorValue != nil {
 			_ = transaction.Rollback()
 			return errorValue
 		}
@@ -54,7 +57,7 @@ func (service *Service) readOrgchartGroups(ctx context.Context) ([]orgGroupRecor
 	return groups, errorValue
 }
 
-func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, bool, error) {
+func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Context) ([]orgGroupRecord, bool, error) {
 	groups, isInitialized, errorValue := service.readOrgchartGroupsWithInitialization(ctx)
 	if errorValue != nil {
 		return nil, false, errorValue
@@ -68,14 +71,10 @@ func (service *Service) readOrgchartGroupsOrInitializeWithState(ctx context.Cont
 		}
 		return groups, true, nil
 	}
-	if len(normalizeOrgchartGroups(fallbackGroups)) == 0 {
-		return groups, false, nil
-	}
-	importedGroups, _, errorValue := service.importOrgchartGroupsIfUninitialized(ctx, fallbackGroups)
-	if errorValue != nil {
+	if errorValue := service.markOrgchartGroupsInitialized(ctx); errorValue != nil {
 		return nil, false, errorValue
 	}
-	return importedGroups, true, nil
+	return groups, true, nil
 }
 
 func (service *Service) readOrgchartGroupsWithInitialization(ctx context.Context) ([]orgGroupRecord, bool, error) {
@@ -88,64 +87,13 @@ func (service *Service) readOrgchartGroupsWithInitialization(ctx context.Context
 	if errorValue != nil {
 		return nil, false, errorValue
 	}
-	rows, errorValue := database.QueryContext(ctx, "SELECT id, name FROM orgchart_groups ORDER BY position, name")
+	rows, errorValue := database.QueryContext(ctx, "SELECT id, name, parent_id FROM orgchart_groups ORDER BY position, name")
 	if errorValue != nil {
 		return nil, false, errorValue
 	}
 	defer rows.Close()
 	groups, errorValue := readOrgchartGroupsFromRows(rows)
 	return groups, isInitialized, errorValue
-}
-
-func (service *Service) importOrgchartGroupsIfUninitialized(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, bool, error) {
-	normalizedFallbackGroups := normalizeOrgchartGroups(fallbackGroups)
-	database, errorValue := service.openOrgchartDatabase(ctx)
-	if errorValue != nil {
-		return nil, false, errorValue
-	}
-	defer database.Close()
-	transaction, errorValue := database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return nil, false, errorValue
-	}
-	result, errorValue := transaction.ExecContext(ctx, "INSERT OR IGNORE INTO orgchart_metadata(key, value) VALUES(?, ?)", orgchartGroupsInitializedKey, "true")
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return nil, false, errorValue
-	}
-	affectedRows, errorValue := result.RowsAffected()
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return nil, false, errorValue
-	}
-	if affectedRows == 0 {
-		groups, errorValue := readOrgchartGroupsFromQueryRunner(ctx, transaction)
-		if errorValue != nil {
-			_ = transaction.Rollback()
-			return nil, false, errorValue
-		}
-		return groups, false, transaction.Commit()
-	}
-	for index, group := range normalizedFallbackGroups {
-		if _, errorValue := transaction.ExecContext(ctx, `
-INSERT INTO orgchart_groups(id, name, position) VALUES(?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	position = excluded.position`,
-			group.ID,
-			group.Name,
-			index,
-		); errorValue != nil {
-			_ = transaction.Rollback()
-			return nil, false, errorValue
-		}
-	}
-	groups, errorValue := readOrgchartGroupsFromQueryRunner(ctx, transaction)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return nil, false, errorValue
-	}
-	return groups, true, transaction.Commit()
 }
 
 type orgchartGroupsQueryRunner interface {
@@ -158,7 +106,7 @@ type orgchartProfileGroupReferenceRewriter interface {
 }
 
 func readOrgchartGroupsFromQueryRunner(ctx context.Context, queryRunner orgchartGroupsQueryRunner) ([]orgGroupRecord, error) {
-	rows, errorValue := queryRunner.QueryContext(ctx, "SELECT id, name FROM orgchart_groups ORDER BY position, name")
+	rows, errorValue := queryRunner.QueryContext(ctx, "SELECT id, name, parent_id FROM orgchart_groups ORDER BY position, name")
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -170,7 +118,7 @@ func readOrgchartGroupsFromRows(rows *sql.Rows) ([]orgGroupRecord, error) {
 	groups := []orgGroupRecord{}
 	for rows.Next() {
 		var group orgGroupRecord
-		if errorValue := rows.Scan(&group.ID, &group.Name); errorValue != nil {
+		if errorValue := rows.Scan(&group.ID, &group.Name, &group.ParentID); errorValue != nil {
 			return nil, errorValue
 		}
 		groups = append(groups, group)

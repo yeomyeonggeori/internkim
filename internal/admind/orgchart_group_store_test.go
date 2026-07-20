@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 )
@@ -68,28 +69,73 @@ func TestOrgchartStoreRewritesDuplicateGroupReferences(t *testing.T) {
 	}
 }
 
-func TestImportOrgchartGroupsIfUninitializedDoesNotOverwriteInitializedGroups(t *testing.T) {
+func TestOrgchartStorePersistsGroupHierarchyAndPreorder(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
-	if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "current", Name: "현재"}}); errorValue != nil {
+	groups := []orgGroupRecord{
+		{ID: "product", Name: "Product"},
+		{ID: "engineering", Name: "Engineering", ParentID: "product"},
+		{ID: "design", Name: "Design", ParentID: "product"},
+		{ID: "sales", Name: "Sales"},
+	}
+
+	if errorValue := service.writeOrgchartGroups(ctx, groups); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	reloaded, errorValue := service.readOrgchartGroups(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(reloaded) != len(groups) {
+		t.Fatalf("groups = %#v; want %#v", reloaded, groups)
+	}
+	for index := range groups {
+		if reloaded[index] != groups[index] {
+			t.Fatalf("group %d = %#v; want %#v", index, reloaded[index], groups[index])
+		}
+	}
+}
+
+func TestOrgchartStoreRejectsUnknownGroupParent(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	errorValue := service.writeOrgchartGroups(context.Background(), []orgGroupRecord{{ID: "engineering", Name: "Engineering", ParentID: "missing"}})
+	if errorValue == nil {
+		t.Fatal("error = nil; want unknown parent rejection")
+	}
+}
+
+func TestOrgchartStoreRejectsGroupHierarchyCycle(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	errorValue := service.writeOrgchartGroups(context.Background(), []orgGroupRecord{
+		{ID: "product", Name: "Product", ParentID: "engineering"},
+		{ID: "engineering", Name: "Engineering", ParentID: "product"},
+	})
+	if errorValue == nil {
+		t.Fatal("error = nil; want hierarchy cycle rejection")
+	}
+}
+
+func TestOrgchartStoreMigratesLegacyGroupsToRoot(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(service.orgchartDatabasePath()))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.Exec(`CREATE TABLE orgchart_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, position INTEGER NOT NULL)`); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.Exec(`INSERT INTO orgchart_groups(id, name, position) VALUES('legacy', 'Legacy', 0)`); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	groups, isImported, errorValue := service.importOrgchartGroupsIfUninitialized(ctx, []orgGroupRecord{{ID: "legacy", Name: "Legacy"}})
+	groups, errorValue := service.readOrgchartGroups(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if isImported {
-		t.Fatal("isImported = true; want false")
-	}
-	if len(groups) != 1 || groups[0].ID != "current" {
-		t.Fatalf("groups = %#v; want current group", groups)
-	}
-	storedGroups, errorValue := service.readOrgchartGroups(ctx)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(storedGroups) != 1 || storedGroups[0].ID != "current" {
-		t.Fatalf("stored groups = %#v; want current group", storedGroups)
+	if len(groups) != 1 || groups[0] != (orgGroupRecord{ID: "legacy", Name: "Legacy"}) {
+		t.Fatalf("groups = %#v; want migrated legacy root group", groups)
 	}
 }
