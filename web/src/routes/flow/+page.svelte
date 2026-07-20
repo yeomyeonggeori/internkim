@@ -6,7 +6,6 @@
 	import FlowDefinitionsEditor from './flow-definitions-editor.svelte';
 	import FlowMembersView from './flow-members-view.svelte';
 	import FlowPageHeader from './flow-page-header.svelte';
-	import FlowPersonalScoreDetail from './flow-personal-score-detail.svelte';
 	import FlowReportView from './flow-report-view.svelte';
 	import FlowTabRow from './flow-tab-row.svelte';
 	import FlowTasksView from './flow-tasks-view.svelte';
@@ -143,7 +142,6 @@
 		<FlowTabRow activeTab={activeTab} labels={text.tabs} onSelectTab={(value) => (activeTab = value)} />
 
 		<div class={activeTab === 'tasks' ? 'flex flex-col gap-6' : 'hidden'}>
-			<FlowPersonalScoreDetail {summary} text={text.report} />
 			<FlowTasksView
 				{summary}
 				{focusedTaskID}
@@ -155,7 +153,7 @@
 			/>
 		</div>
 		<div class={activeTab === 'report' ? '' : 'hidden'}>
-			<FlowReportView sections={reportSections()} />
+			<FlowReportView sections={reportSections()} {summary} text={text.report} />
 		</div>
 		<div class={activeTab === 'definitions' ? '' : 'hidden'}>
 			<FlowDefinitionsEditor
