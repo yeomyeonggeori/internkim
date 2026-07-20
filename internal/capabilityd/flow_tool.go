@@ -56,7 +56,7 @@ const (
 )
 
 type flowTaskUpdateInput struct {
-	TaskID         string  `json:"taskID"`
+	TaskHint       string  `json:"taskHint"`
 	Title          *string `json:"title"`
 	Goal           *string `json:"goal"`
 	Status         *string `json:"status"`
@@ -71,7 +71,7 @@ type flowTaskUpdateInput struct {
 }
 
 type flowTaskDeleteInput struct {
-	TaskID string `json:"taskID"`
+	TaskHint string `json:"taskHint"`
 }
 
 type flowSummaryForTool struct {
@@ -189,7 +189,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 			summary.Members = members
 		}
 	}
-	task, failure := resolveFlowTaskUpdateTarget(input.TaskID, summary.Tasks)
+	task, failure := resolveFlowTaskHint(input.TaskHint, summary.Tasks)
 	if failure != nil {
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
 	}
@@ -200,7 +200,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	}
 	result = enrichFlowTaskResultDocument(result, summary.Members)
 	taskID := flowTaskResultID(result)
-	if taskID != input.TaskID || !flowTaskUpdateResultMatchesInput(result, input) {
+	if taskID != task.ID || !flowTaskUpdateResultMatchesInput(result, input) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskInvalidResultFailure(request.ToolName)), nil
 	}
 	return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
@@ -255,17 +255,25 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	result, errorValue := service.deleteFlowTask(ctx, input.TaskID, request.Context.RequesterEmail)
+	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	task, failure := resolveFlowTaskHint(input.TaskHint, summary.Tasks)
+	if failure != nil {
+		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
+	}
+	result, errorValue := service.deleteFlowTask(ctx, task.ID, request.Context.RequesterEmail)
 	if errors.Is(errorValue, flowTaskDeleteNotFoundError) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if !flowTaskDeleteEvidenceMatchesTaskID(result, input.TaskID) {
+	if !flowTaskDeleteEvidenceMatchesTaskID(result, task.ID) {
 		return flowTaskUpdateErrorResponse(request.ToolName, flowTaskNotFoundFailure(request.ToolName)), nil
 	}
-	result, _ = json.Marshal(map[string]any{"taskID": input.TaskID, "deleted": true})
+	result, _ = json.Marshal(map[string]any{"taskID": task.ID, "deleted": true})
 	return capabilitySuccessResponse(request.ToolName, "deleted", result)
 }
 
@@ -332,11 +340,17 @@ type flowTaskAddCandidate struct {
 }
 
 type flowTaskUpdateFailure struct {
-	ErrorCode    string `json:"errorCode"`
-	FailureStage string `json:"failureStage"`
-	Message      string `json:"message"`
-	Retryable    bool   `json:"retryable"`
-	SafeRetry    bool   `json:"safeRetry"`
+	ErrorCode    string                  `json:"errorCode"`
+	FailureStage string                  `json:"failureStage"`
+	Message      string                  `json:"message"`
+	Candidates   []flowTaskHintCandidate `json:"candidates,omitempty"`
+	Retryable    bool                    `json:"retryable"`
+	SafeRetry    bool                    `json:"safeRetry"`
+}
+
+type flowTaskHintCandidate struct {
+	TaskID string `json:"taskID"`
+	Title  string `json:"title"`
 }
 
 func flowTaskResponseStatus(result json.RawMessage) string {
@@ -422,7 +436,7 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskUpdateInput{}, errorValue
 	}
-	input.TaskID = strings.TrimSpace(input.TaskID)
+	input.TaskHint = strings.TrimSpace(input.TaskHint)
 	trimStringPointer(&input.Title)
 	trimStringPointer(&input.Goal)
 	trimStringPointer(&input.Status)
@@ -437,8 +451,8 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 		normalizedSize := strings.ToUpper(*input.Size)
 		input.Size = &normalizedSize
 	}
-	if input.TaskID == "" {
-		return flowTaskUpdateInput{}, fmt.Errorf("taskID is required")
+	if input.TaskHint == "" {
+		return flowTaskUpdateInput{}, fmt.Errorf("taskHint is required")
 	}
 	if !hasFlowTaskUpdatePatch(input) {
 		return flowTaskUpdateInput{}, fmt.Errorf("task.update requires at least one mutable field")
@@ -460,9 +474,9 @@ func decodeFlowTaskDeleteInput(document json.RawMessage) (flowTaskDeleteInput, e
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
 		return flowTaskDeleteInput{}, errorValue
 	}
-	input.TaskID = strings.TrimSpace(input.TaskID)
-	if input.TaskID == "" {
-		return flowTaskDeleteInput{}, fmt.Errorf("taskID is required")
+	input.TaskHint = strings.TrimSpace(input.TaskHint)
+	if input.TaskHint == "" {
+		return flowTaskDeleteInput{}, fmt.Errorf("taskHint is required")
 	}
 	return input, nil
 }
@@ -939,21 +953,68 @@ func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
 	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }
 
-func resolveFlowTaskUpdateTarget(taskID string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
+const flowTaskHintCandidateLimit = 20
+
+func resolveFlowTaskHint(taskHint string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
+	trimmedHint := strings.TrimSpace(taskHint)
+	if task, found := findFlowTaskByID(trimmedHint, tasks); found {
+		return task, nil
+	}
+	titleMatches := findFlowTasksByTitle(trimmedHint, tasks)
+	if len(titleMatches) == 1 {
+		return titleMatches[0], nil
+	}
+	failure := flowTaskHintUnresolvedFailure(tasks)
+	return flowTaskForTool{}, &failure
+}
+
+func findFlowTaskByID(taskID string, tasks []flowTaskForTool) (flowTaskForTool, bool) {
 	for _, task := range tasks {
 		if task.ID == taskID {
-			return task, nil
+			return task, true
 		}
 	}
-	failure := flowTaskNotFoundFailure("task.update")
-	return flowTaskForTool{}, &failure
+	return flowTaskForTool{}, false
+}
+
+func findFlowTasksByTitle(title string, tasks []flowTaskForTool) []flowTaskForTool {
+	matches := make([]flowTaskForTool, 0, 1)
+	for _, task := range tasks {
+		if task.Content == title {
+			matches = append(matches, task)
+		}
+	}
+	return matches
+}
+
+func flowTaskHintUnresolvedFailure(tasks []flowTaskForTool) flowTaskUpdateFailure {
+	return flowTaskUpdateFailure{
+		ErrorCode:    "flow_task_hint_unresolved",
+		FailureStage: "target_resolution",
+		Message:      "taskHint did not uniquely resolve to a task; retry with the exact taskID or exact title from one of the candidates",
+		Candidates:   flowTaskHintCandidates(tasks),
+		Retryable:    true,
+		SafeRetry:    true,
+	}
+}
+
+func flowTaskHintCandidates(tasks []flowTaskForTool) []flowTaskHintCandidate {
+	limit := flowTaskHintCandidateLimit
+	if len(tasks) < limit {
+		limit = len(tasks)
+	}
+	candidates := make([]flowTaskHintCandidate, 0, limit)
+	for _, task := range tasks[:limit] {
+		candidates = append(candidates, flowTaskHintCandidate{TaskID: task.ID, Title: task.Content})
+	}
+	return candidates
 }
 
 func flowTaskNotFoundFailure(toolName string) flowTaskUpdateFailure {
 	return flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_not_found",
 		FailureStage: "target_resolution",
-		Message:      toolName + " target was not found; use task.list to discover the exact taskID",
+		Message:      toolName + " target was not found; it may have been deleted since task.list was called",
 		Retryable:    true,
 		SafeRetry:    true,
 	}
