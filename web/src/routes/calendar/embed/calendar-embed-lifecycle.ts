@@ -4,8 +4,6 @@ import type { CalendarAllDayCellActionOptions } from './calendar-all-day-cell-ac
 import { clearCalendarAllDayLayout } from './calendar-all-day-layout';
 import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dismiss';
 import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
-import { installCalendarEventDoubleClick } from './calendar-event-double-click';
-import type { CalendarEventDoubleClickOptions } from './calendar-event-double-click';
 import { installCalendarEventKeyboardActivation } from './calendar-event-keyboard-activation';
 import type { CalendarEventKeyboardActivationOptions } from './calendar-event-keyboard-activation';
 import { installCalendarEventAnchorCapture } from './calendar-event-anchor-capture';
@@ -50,7 +48,6 @@ export type CalendarEmbedLifecycleOptions = {
 	timelineRangeAction: Omit<TimelineRangeActionOptions, 'stageElement'>;
 	wheelNavigation: Omit<CalendarWheelNavigationOptions, 'stageElement'>;
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
-	eventDoubleClick: Omit<CalendarEventDoubleClickOptions, 'stageElement'>;
 	eventKeyboardActivation: Omit<CalendarEventKeyboardActivationOptions, 'stageElement'>;
 	eventSelection: Omit<CalendarEventSelectionOptions, 'stageElement'>;
 	monthKeyboardNavigation: CalendarMonthKeyboardNavigationOptions;
@@ -136,7 +133,6 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 	const stopWheelNavigation = installCalendarWheelNavigation({ stageElement, ...options.wheelNavigation });
 	const stopTimelineScrollState = installCalendarTimelineScrollState(stageElement);
 	const stopDraftPopoverDismiss = installCalendarDraftPopoverDismiss({ stageElement, ...options.draftPopoverDismiss });
-	const stopEventDoubleClick = installCalendarEventDoubleClick({ stageElement, ...options.eventDoubleClick });
 	const stopEventKeyboardActivation = installCalendarEventKeyboardActivation({
 		stageElement,
 		...options.eventKeyboardActivation
@@ -150,7 +146,6 @@ function installStageActions(options: CalendarEmbedLifecycleOptions): () => void
 		stopWheelNavigation();
 		stopTimelineScrollState();
 		stopDraftPopoverDismiss();
-		stopEventDoubleClick();
 		stopEventKeyboardActivation();
 		stopEventSelection();
 		stopEventAnchorCapture();

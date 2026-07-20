@@ -21,7 +21,6 @@
 		selectedEventID: string | null;
 		handleMoreButtonClick: (event: MouseEvent, placement: MonthMorePlacement) => void;
 		handleMoreEventClick: (event: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
-		handleMoreEventDoubleClick: (event: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
 	};
 
 	let {
@@ -31,8 +30,7 @@
 		morePlacements,
 		selectedEventID,
 		handleMoreButtonClick,
-		handleMoreEventClick,
-		handleMoreEventDoubleClick
+		handleMoreEventClick
 	}: CalendarMonthMoreLayerProps = $props();
 </script>
 
@@ -74,7 +72,6 @@
 					data-event-id={segment.eventID}
 					aria-pressed={segment.eventID === selectedEventID}
 					onclick={(event) => handleMoreEventClick(event, segment, activeMorePlacement.dateKey)}
-					ondblclick={(event) => handleMoreEventDoubleClick(event, segment, activeMorePlacement.dateKey)}
 				>
 					<span class="calendar-month-more-popover-event-title">{segment.titleOnlyText}</span>
 					<span class="calendar-month-more-popover-event-date">{monthMoreEventDateText(segment, localeCode)}</span>

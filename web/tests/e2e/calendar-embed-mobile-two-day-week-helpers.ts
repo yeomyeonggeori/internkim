@@ -206,15 +206,15 @@ export async function weekGridMeasurements(page: Page): Promise<WeekGridMeasurem
 	});
 }
 
-export async function doubleClickFirstVisibleTimeCell(page: Page): Promise<void> {
-	await doubleClickFirstVisibleCell(page, '.df-time-grid-row .df-week-time-grid-cell', 'time');
+export async function clickFirstVisibleTimeCell(page: Page): Promise<void> {
+	await clickFirstVisibleCell(page, '.df-time-grid-row .df-week-time-grid-cell', 'time');
 }
 
-export async function doubleClickFirstVisibleAllDayCell(page: Page): Promise<void> {
-	await doubleClickFirstVisibleCell(page, '.df-week-all-day-cell', 'all-day');
+export async function clickFirstVisibleAllDayCell(page: Page): Promise<void> {
+	await clickFirstVisibleCell(page, '.df-week-all-day-cell', 'all-day');
 }
 
-async function doubleClickFirstVisibleCell(page: Page, selector: string, cellKind: 'all-day' | 'time'): Promise<void> {
+async function clickFirstVisibleCell(page: Page, selector: string, cellKind: 'all-day' | 'time'): Promise<void> {
 	await page.evaluate(
 		({ selector, cellKind }) => {
 			const visibleCells = Array.from(document.querySelectorAll(selector)).filter((element): element is HTMLElement => {
@@ -230,7 +230,7 @@ async function doubleClickFirstVisibleCell(page: Page, selector: string, cellKin
 			const clientY = rectangle.top + (cellKind === 'time' ? Math.min(120, rectangle.height / 2) : rectangle.height / 2);
 			target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 			target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
-			target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+			target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 		},
 		{ selector, cellKind }
 	);

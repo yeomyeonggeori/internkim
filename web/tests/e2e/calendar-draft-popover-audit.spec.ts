@@ -37,7 +37,7 @@ test.describe('calendar draft popover audit details', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="audited-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="audited-event"]').click();
 
 		const popover = page.locator('.calendar-draft-popover');
 		const popoverAuditCard = popover.locator('.event-audit-card');
@@ -85,7 +85,7 @@ test.describe('calendar draft popover audit details', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="english-audited-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="english-audited-event"]').click();
 
 		const popoverAuditCard = page.locator('.calendar-draft-popover .event-audit-card');
 		await expect(popoverAuditCard).toBeVisible();
@@ -121,7 +121,7 @@ test.describe('calendar draft popover audit details', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="audit-empty-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="audit-empty-event"]').click();
 
 		const popover = page.locator('.calendar-draft-popover');
 		const popoverAuditCard = popover.locator('.event-audit-card');
