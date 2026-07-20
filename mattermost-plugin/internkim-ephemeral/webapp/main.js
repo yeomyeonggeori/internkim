@@ -128,7 +128,8 @@
 			);
 			const frames = boardViews
 				.filter(function isVisited(view) {
-					return visitedViewKeys.indexOf(view.key) >= 0;
+					if (visitedViewKeys.indexOf(view.key) < 0) return false;
+					return view.key !== 'calendar' || view.key === activeViewKey;
 				})
 				.map(function renderFrame(view) {
 					return React.createElement('iframe', {
