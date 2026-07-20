@@ -57,7 +57,7 @@ func TestReleaseProtocolIdentityGateAppliesOnlyToProtocolComponents(t *testing.T
 	if releaseProtocolIdentityComponentsPresent(&unrelatedManifest) {
 		t.Fatal("expected unrelated component to skip protocol readiness")
 	}
-	for _, componentName := range []string{"capabilityd", "blueclawSDKD", "blueclawPayload"} {
+	for _, componentName := range []string{"capabilityd", "blueclawLLMD", "blueclawPayload"} {
 		manifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
 			componentName: {Name: componentName},
 		})
@@ -82,7 +82,7 @@ func TestReleaseProtocolIdentityTransitionRequiresCompleteRuntime(t *testing.T) 
 
 	errorValue := service.validateReleaseProtocolTransition(context.Background(), &incompleteManifest)
 
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "capabilityd, blueclawSDKD, blueclawPayload") {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capabilityd, blueclawLLMD, blueclawPayload") {
 		t.Fatalf("expected complete protocol runtime requirement, got %v", errorValue)
 	}
 	for _, componentName := range releaseProtocolIdentityComponentNames() {
@@ -297,47 +297,47 @@ func TestInstallReleaseMattermostPluginsCopiesBundleDirectory(t *testing.T) {
 	}
 }
 
-func TestInstallReleaseSDKDBinary(t *testing.T) {
+func TestInstallReleaseLLMDBinary(t *testing.T) {
 	stagingPath := t.TempDir()
-	sourceDirectoryPath := filepath.Join(stagingPath, "blueclawSDKD", "blueclaw-sdkd")
+	sourceDirectoryPath := filepath.Join(stagingPath, "blueclawLLMD", "blueclaw-llmd")
 	if errorValue := os.MkdirAll(sourceDirectoryPath, 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeFile(t, filepath.Join(sourceDirectoryPath, "blueclaw-sdkd"), "sdkd binary")
-	targetPath := filepath.Join(t.TempDir(), "blueclaw-sdkd")
+	writeFile(t, filepath.Join(sourceDirectoryPath, "blueclaw-llmd"), "llmd binary")
+	targetPath := filepath.Join(t.TempDir(), "blueclaw-llmd")
 	service := &Service{}
 
-	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSDKD", targetPath); errorValue != nil {
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", targetPath); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if strings.TrimSpace(readTrimmedFile(targetPath)) != "sdkd binary" {
-		t.Fatalf("SDKD binary was not installed at %s", targetPath)
+	if strings.TrimSpace(readTrimmedFile(targetPath)) != "llmd binary" {
+		t.Fatalf("LLMD binary was not installed at %s", targetPath)
 	}
 }
 
-func TestInstallReleaseSDKDService(t *testing.T) {
+func TestInstallReleaseLLMDService(t *testing.T) {
 	commands := []string{}
 	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
 		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
 		return nil, nil
 	}}
 	manifest := testReleaseManifest("release-1")
-	manifest.Components["blueclawSDKD"] = releaseset.Component{Name: "blueclawSDKD"}
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
 
-	if errorValue := service.installReleaseSDKDService(context.Background(), manifest); errorValue != nil {
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedCommands := strings.Join(commands, "\n")
-	for _, expectedValue := range []string{blueclawruntime.SDKDServicePath, blueclawruntime.SDKDAuthKeyPath, blueclawruntime.SDKDServiceCredentialDirectoryPath, blueclawruntime.SDKDServiceAuthKeyPath, "head -c 32 /dev/urandom", "chmod 600", "DynamicUser=yes", "systemctl daemon-reload", "systemctl enable " + blueclawruntime.SDKDServiceName} {
+	for _, expectedValue := range []string{blueclawruntime.LLMDServicePath, blueclawruntime.LLMDAuthKeyPath, blueclawruntime.LLMDServiceCredentialDirectoryPath, blueclawruntime.LLMDServiceAuthKeyPath, "head -c 32 /dev/urandom", "chmod 600", "DynamicUser=yes", "systemctl daemon-reload", "systemctl enable " + blueclawruntime.LLMDServiceName} {
 		if !strings.Contains(joinedCommands, expectedValue) {
-			t.Fatalf("expected SDKD service installation to contain %q, got %s", expectedValue, joinedCommands)
+			t.Fatalf("expected LLMD service installation to contain %q, got %s", expectedValue, joinedCommands)
 		}
 	}
 }
 
-func TestInstallReleaseSDKDServicePreservesLocalOnlyPolicy(t *testing.T) {
+func TestInstallReleaseLLMDServicePreservesLocalOnlyPolicy(t *testing.T) {
 	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
-	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"sdkd":{"localOnly":true}}}`)
+	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"llmd":{"localOnly":true}}}`)
 	commands := []string{}
 	service := &Service{
 		Configuration: Configuration{BlueclawRuntimeConfigPath: runtimeConfigurationPath},
@@ -347,23 +347,23 @@ func TestInstallReleaseSDKDServicePreservesLocalOnlyPolicy(t *testing.T) {
 		},
 	}
 	manifest := testReleaseManifest("release-local-only")
-	manifest.Components["blueclawSDKD"] = releaseset.Component{Name: "blueclawSDKD"}
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
 
-	if errorValue := service.installReleaseSDKDService(context.Background(), manifest); errorValue != nil {
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedCommands := strings.Join(commands, "\n")
-	for _, expectedValue := range []string{"Environment=BLUECLAW_SDKD_LOCAL_ONLY=1", "IPAddressDeny=any", "IPAddressAllow=localhost", "rm -f " + blueclawruntime.SDKDServiceOpenRouterKeyPath} {
+	for _, expectedValue := range []string{"Environment=BLUECLAW_LLMD_LOCAL_ONLY=1", "IPAddressDeny=any", "IPAddressAllow=localhost", "rm -f " + blueclawruntime.LLMDServiceOpenRouterKeyPath} {
 		if !strings.Contains(joinedCommands, expectedValue) {
-			t.Fatalf("expected local-only SDKD install to contain %q, got %s", expectedValue, joinedCommands)
+			t.Fatalf("expected local-only LLMD install to contain %q, got %s", expectedValue, joinedCommands)
 		}
 	}
 	if strings.Contains(joinedCommands, "LoadCredential=-openrouter-api-key:") || strings.Contains(joinedCommands, "install -o root -g root -m 600 "+blueclawruntime.OpenRouterKeyPath) {
-		t.Fatalf("expected local-only SDKD install to withhold remote credentials, got %s", joinedCommands)
+		t.Fatalf("expected local-only LLMD install to withhold remote credentials, got %s", joinedCommands)
 	}
 }
 
-func TestInstallReleaseSDKDServiceUsesPersistedRoutingLocalOnlyPolicy(t *testing.T) {
+func TestInstallReleaseLLMDServiceUsesPersistedRoutingLocalOnlyPolicy(t *testing.T) {
 	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
 	writeFile(t, runtimeConfigurationPath, `{"capabilities":{"routing":{"localOnly":true}}}`)
 	commands := []string{}
@@ -375,31 +375,31 @@ func TestInstallReleaseSDKDServiceUsesPersistedRoutingLocalOnlyPolicy(t *testing
 		},
 	}
 	manifest := testReleaseManifest("release-routing-local-only")
-	manifest.Components["blueclawSDKD"] = releaseset.Component{Name: "blueclawSDKD"}
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
 
-	if errorValue := service.installReleaseSDKDService(context.Background(), manifest); errorValue != nil {
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedCommands := strings.Join(commands, "\n")
-	if !strings.Contains(joinedCommands, "Environment=BLUECLAW_SDKD_LOCAL_ONLY=1") || strings.Contains(joinedCommands, "LoadCredential=-openrouter-api-key:") {
-		t.Fatalf("expected persisted routing policy to keep OTA SDKD local-only, got %s", joinedCommands)
+	if !strings.Contains(joinedCommands, "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") || strings.Contains(joinedCommands, "LoadCredential=-openrouter-api-key:") {
+		t.Fatalf("expected persisted routing policy to keep OTA LLMD local-only, got %s", joinedCommands)
 	}
 }
 
-func TestReconcileReleaseSDKDBootstrapInstallsComponentIgnoredByOldAdmind(t *testing.T) {
+func TestReconcileReleaseLLMDBootstrapInstallsComponentIgnoredByOldAdmind(t *testing.T) {
 	stateDirectoryPath := t.TempDir()
 	stagingPath := filepath.Join(stateDirectoryPath, "release-updates", "staging", "old-admind-job")
-	componentPath := filepath.Join(stagingPath, "blueclawSDKD")
-	if errorValue := os.MkdirAll(filepath.Join(componentPath, "blueclaw-sdkd"), 0o700); errorValue != nil {
+	componentPath := filepath.Join(stagingPath, "blueclawLLMD")
+	if errorValue := os.MkdirAll(filepath.Join(componentPath, "blueclaw-llmd"), 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeFile(t, filepath.Join(componentPath, "blueclaw-sdkd", "blueclaw-sdkd"), "sdkd binary")
+	writeFile(t, filepath.Join(componentPath, "blueclaw-llmd", "blueclaw-llmd"), "llmd binary")
 	archivePath := filepath.Join(componentPath, "component.tar.gz")
-	writeFile(t, archivePath, "downloaded SDKD archive")
+	writeFile(t, archivePath, "downloaded LLMD archive")
 	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
-	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"sdkd":{"localOnly":true}}}`)
+	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"llmd":{"localOnly":true}}}`)
 	manifest := testReleaseManifest("release-from-old-admind")
-	manifest.Components["blueclawSDKD"] = releaseset.Component{Name: "blueclawSDKD", SHA256: fileSHA256(archivePath)}
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD", SHA256: fileSHA256(archivePath)}
 	manifest.Components["capabilityd"] = releaseset.Component{Name: "capabilityd"}
 	commands := []string{}
 	service := &Service{
@@ -410,7 +410,7 @@ func TestReconcileReleaseSDKDBootstrapInstallsComponentIgnoredByOldAdmind(t *tes
 			if name == "systemctl" && len(arguments) > 0 && arguments[0] == "is-active" {
 				return []byte("inactive\n"), nil
 			}
-			if name == "sh" && strings.Contains(command, blueclawruntime.SDKDHealthCheckCommand()) {
+			if name == "sh" && strings.Contains(command, blueclawruntime.LLMDHealthCheckCommand()) {
 				return []byte("ok\n"), nil
 			}
 			return nil, nil
@@ -419,31 +419,31 @@ func TestReconcileReleaseSDKDBootstrapInstallsComponentIgnoredByOldAdmind(t *tes
 	if errorValue := service.writeCurrentReleaseManifest(manifest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	targetPath := filepath.Join(t.TempDir(), "blueclaw-sdkd")
+	targetPath := filepath.Join(t.TempDir(), "blueclaw-llmd")
 
-	if errorValue := service.reconcileReleaseSDKDBootstrapAtPath(context.Background(), targetPath); errorValue != nil {
+	if errorValue := service.reconcileReleaseLLMDBootstrapAtPath(context.Background(), targetPath); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readTrimmedFile(targetPath) != "sdkd binary" {
-		t.Fatalf("expected ignored SDKD component to be installed at %s", targetPath)
+	if readTrimmedFile(targetPath) != "llmd binary" {
+		t.Fatalf("expected ignored LLMD component to be installed at %s", targetPath)
 	}
-	if readTrimmedFile(service.installedReleaseSDKDPath()) != manifest.ReleaseID {
-		t.Fatalf("expected SDKD release receipt for %s", manifest.ReleaseID)
+	if readTrimmedFile(service.installedReleaseLLMDPath()) != manifest.ReleaseID {
+		t.Fatalf("expected LLMD release receipt for %s", manifest.ReleaseID)
 	}
 	joinedCommands := strings.Join(commands, "\n")
-	for _, expectedValue := range []string{"systemctl restart " + blueclawruntime.SDKDServiceName, "systemctl restart " + blueclawruntime.CapabilitydServiceName, "Environment=BLUECLAW_SDKD_LOCAL_ONLY=1", blueclawruntime.SDKDServiceAuthKeyPath} {
+	for _, expectedValue := range []string{"systemctl restart " + blueclawruntime.LLMDServiceName, "systemctl restart " + blueclawruntime.CapabilitydServiceName, "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1", blueclawruntime.LLMDServiceAuthKeyPath} {
 		if !strings.Contains(joinedCommands, expectedValue) {
-			t.Fatalf("expected old-admind SDKD reconciliation to contain %q, got %s", expectedValue, joinedCommands)
+			t.Fatalf("expected old-admind LLMD reconciliation to contain %q, got %s", expectedValue, joinedCommands)
 		}
 	}
-	credentialInstallIndex := strings.Index(joinedCommands, "install -o root -g root -m 600 "+blueclawruntime.SDKDAuthKeyPath+" "+blueclawruntime.SDKDServiceAuthKeyPath)
-	serviceRestartIndex := strings.Index(joinedCommands, "systemctl restart "+blueclawruntime.SDKDServiceName)
+	credentialInstallIndex := strings.Index(joinedCommands, "install -o root -g root -m 600 "+blueclawruntime.LLMDAuthKeyPath+" "+blueclawruntime.LLMDServiceAuthKeyPath)
+	serviceRestartIndex := strings.Index(joinedCommands, "systemctl restart "+blueclawruntime.LLMDServiceName)
 	if credentialInstallIndex < 0 || serviceRestartIndex < 0 || credentialInstallIndex > serviceRestartIndex {
-		t.Fatalf("expected OTA SDKD credentials to be staged before service activation, got %s", joinedCommands)
+		t.Fatalf("expected OTA LLMD credentials to be staged before service activation, got %s", joinedCommands)
 	}
 }
 
-func TestRestartReleaseSDKDChecksHealth(t *testing.T) {
+func TestRestartReleaseLLMDChecksHealth(t *testing.T) {
 	commands := []string{}
 	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
 		command := strings.Join(append([]string{name}, arguments...), " ")
@@ -454,15 +454,15 @@ func TestRestartReleaseSDKDChecksHealth(t *testing.T) {
 		return nil, nil
 	}}
 
-	if errorValue := service.restartReleaseSDKD(context.Background()); errorValue != nil {
+	if errorValue := service.restartReleaseLLMD(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedCommands := strings.Join(commands, "\n")
-	if !strings.Contains(joinedCommands, "systemctl restart "+blueclawruntime.SDKDServiceName) {
-		t.Fatalf("expected SDKD restart, got %s", joinedCommands)
+	if !strings.Contains(joinedCommands, "systemctl restart "+blueclawruntime.LLMDServiceName) {
+		t.Fatalf("expected LLMD restart, got %s", joinedCommands)
 	}
-	if !strings.Contains(joinedCommands, blueclawruntime.SDKDHealthCheckCommand()) {
-		t.Fatalf("expected SDKD health check, got %s", joinedCommands)
+	if !strings.Contains(joinedCommands, blueclawruntime.LLMDHealthCheckCommand()) {
+		t.Fatalf("expected LLMD health check, got %s", joinedCommands)
 	}
 }
 

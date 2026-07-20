@@ -22,10 +22,10 @@ const (
 	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
-	BlueclawSDKDModeEnvironment                         = "INTERNKIM_BLUECLAW_SDKD_MODE"
+	BlueclawLLMDModeEnvironment                         = "INTERNKIM_BLUECLAW_LLMD_MODE"
 	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
-	BlueclawSDKDTopologyDiagnosticProfileName           = "sdkd-diagnostic"
-	BlueclawSDKDTopologyDiagnosticToolSentinel          = "sdkd.diagnostic.no_tools"
+	BlueclawLLMDTopologyDiagnosticProfileName           = "llmd-diagnostic"
+	BlueclawLLMDTopologyDiagnosticToolSentinel          = "llmd.diagnostic.no_tools"
 	LocalOnlyEnvironment                                = "INTERNKIM_LOCAL_ONLY"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
@@ -70,7 +70,7 @@ type RuntimeConfigOptions struct {
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualCPUCount           int
-	SDKDMode                  string
+	LLMDMode                  string
 	AllowAdminTaskDiagnostic  bool
 	LocalOnly                 bool
 }
@@ -88,8 +88,8 @@ func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
 		return nil
 	}
 	return []map[string]any{{
-		"name":             BlueclawSDKDTopologyDiagnosticProfileName,
-		"allowedToolNames": []string{BlueclawSDKDTopologyDiagnosticToolSentinel},
+		"name":             BlueclawLLMDTopologyDiagnosticProfileName,
+		"allowedToolNames": []string{BlueclawLLMDTopologyDiagnosticToolSentinel},
 	}}
 }
 
@@ -139,7 +139,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		DefaultTaskLevel:          modelTier,
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
-		SDKDMode:                  optionalStringEnvironment(BlueclawSDKDModeEnvironment),
+		LLMDMode:                  optionalStringEnvironment(BlueclawLLMDModeEnvironment),
 		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
 		LocalOnly:                 LocalOnlyEnabled(),
 		MaximumModelTier:          maximumModelTier,
@@ -254,23 +254,23 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"fallbackProvider": "",
 		"capability":       capabilityLanguageModel,
 	}
-	sdkdEndpoint := "http://127.0.0.1:18081/_internkim/sdkd"
-	sdkdUnixSocketPath := ""
+	llmdEndpoint := "http://127.0.0.1:18081/_internkim/llmd"
+	llmdUnixSocketPath := ""
 	if options.DirectExecution {
-		sdkdEndpoint = "http://internkim/_internkim/sdkd"
-		sdkdUnixSocketPath = capabilitySocketPath
+		llmdEndpoint = "http://internkim/_internkim/llmd"
+		llmdUnixSocketPath = capabilitySocketPath
 	}
-	languageModelConfiguration["sdkd"] = map[string]any{
-		"endpoint":              sdkdEndpoint,
-		"unixSocketPath":        sdkdUnixSocketPath,
+	languageModelConfiguration["llmd"] = map[string]any{
+		"endpoint":              llmdEndpoint,
+		"unixSocketPath":        llmdUnixSocketPath,
 		"authKeyPath":           "",
 		"executionMode":         languageModelExecutionMode,
 		"localOnly":             options.LocalOnly,
-		"shadowEnabled":         strings.EqualFold(options.SDKDMode, "shadow"),
+		"shadowEnabled":         strings.EqualFold(options.LLMDMode, "shadow"),
 		"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"},
 	}
-	if options.DirectExecution || strings.EqualFold(options.SDKDMode, "authoritative") {
-		languageModelConfiguration["defaultProvider"] = "sdkd"
+	if options.DirectExecution || strings.EqualFold(options.LLMDMode, "authoritative") {
+		languageModelConfiguration["defaultProvider"] = "llmd"
 	}
 	capabilityContract := CurrentCapabilityContract()
 

@@ -17,8 +17,8 @@ const (
 	CapabilitydServiceName                = "internkim-capabilityd"
 	AdmindServiceName                     = "internkim-admind"
 	GraphitiMemorydServiceName            = "graphiti-memoryd"
-	SDKDName                              = "blueclaw-sdkd"
-	SDKDServiceName                       = "blueclaw-sdkd"
+	LLMDName                              = "blueclaw-llmd"
+	LLMDServiceName                       = "blueclaw-llmd"
 	BlueclawUser                          = "blueclaw"
 	BlueclawHomePath                      = "/home/blueclaw"
 	BlueclawRootPath                      = "/root/.blueclaw"
@@ -31,7 +31,7 @@ const (
 	CapabilitydServicePath                = "/etc/systemd/system/internkim-capabilityd.service"
 	AdmindServicePath                     = "/etc/systemd/system/internkim-admind.service"
 	GraphitiMemorydServicePath            = "/etc/systemd/system/graphiti-memoryd.service"
-	SDKDServicePath                       = "/etc/systemd/system/blueclaw-sdkd.service"
+	LLMDServicePath                       = "/etc/systemd/system/blueclaw-llmd.service"
 	BlueclawBinaryPath                    = "/usr/local/bin/blueclaw"
 	BlueclawSupervisorBinaryPath          = "/usr/local/bin/blueclaw-supervisor"
 	BlueclawPOSIXHelperPath               = "/usr/local/bin/blueclaw-posix-helper"
@@ -40,15 +40,15 @@ const (
 	LocalLLMRunnerBinaryPath              = "/usr/local/bin/internkim-local-llm-runner"
 	GraphitiMemorydPath                   = "/usr/local/bin/graphiti-memoryd"
 	GraphitiMemorydPackagePath            = "/opt/internkim/graphiti_memoryd"
-	SDKDBinaryPath                        = "/usr/local/bin/blueclaw-sdkd"
-	SDKDRuntimeDirectoryPath              = "/run/blueclaw-sdkd"
-	SDKDSocketPath                        = SDKDRuntimeDirectoryPath + "/sdkd.sock"
-	SDKDRuntimeAuthKeyPath                = SDKDRuntimeDirectoryPath + "/sdkd-auth-key"
-	SDKDRuntimeOpenRouterKeyPath          = SDKDRuntimeDirectoryPath + "/openrouter-api-key"
-	SDKDAuthKeyPath                       = "/root/.internkim/secrets/sdkd-auth-key"
-	SDKDServiceCredentialDirectoryPath    = "/var/lib/internkim/sdkd-credentials"
-	SDKDServiceAuthKeyPath                = "/var/lib/internkim/sdkd-credentials/sdkd-auth-key"
-	SDKDServiceOpenRouterKeyPath          = "/var/lib/internkim/sdkd-credentials/openrouter-api-key"
+	LLMDBinaryPath                        = "/usr/local/bin/blueclaw-llmd"
+	LLMDRuntimeDirectoryPath              = "/run/blueclaw-llmd"
+	LLMDSocketPath                        = LLMDRuntimeDirectoryPath + "/llmd.sock"
+	LLMDRuntimeAuthKeyPath                = LLMDRuntimeDirectoryPath + "/llmd-auth-key"
+	LLMDRuntimeOpenRouterKeyPath          = LLMDRuntimeDirectoryPath + "/openrouter-api-key"
+	LLMDAuthKeyPath                       = "/root/.internkim/secrets/llmd-auth-key"
+	LLMDServiceCredentialDirectoryPath    = "/var/lib/internkim/llmd-credentials"
+	LLMDServiceAuthKeyPath                = "/var/lib/internkim/llmd-credentials/llmd-auth-key"
+	LLMDServiceOpenRouterKeyPath          = "/var/lib/internkim/llmd-credentials/openrouter-api-key"
 	OpenRouterKeyPath                     = "/root/.internkim/secrets/openrouter-api-key"
 	GraphitiKuzuPath                      = "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"
 	GraphitiEndpoint                      = "http://127.0.0.1:7791"
@@ -110,8 +110,8 @@ func CapabilitydHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
-func SDKDHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS --unix-socket " + SDKDSocketPath + " http://blueclaw-sdkd/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+func LLMDHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS --unix-socket " + LLMDSocketPath + " http://blueclaw-llmd/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
 func GraphitiMemorydHealthCheckCommand() string {

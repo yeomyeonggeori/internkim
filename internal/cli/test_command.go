@@ -90,12 +90,12 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
 	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
 	if languageModelProviderDefault == "" {
-		languageModelProviderDefault = "sdkd"
+		languageModelProviderDefault = "llmd"
 	}
-	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter, capability, or sdkd")
+	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter, capability, or llmd")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM Unix socket; defaults to BLUECLAW_E2E_LLM_UNIX_SOCKET")
-	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "SDKD installation auth key path; defaults to BLUECLAW_E2E_LLM_AUTH_KEY_PATH")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "LLMD installation auth key path; defaults to BLUECLAW_E2E_LLM_AUTH_KEY_PATH")
 	languageModelExecutionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode; defaults to BLUECLAW_E2E_LLM_EXECUTION_MODE")
 	expectedTools := repeatedStringFlag{}
 	scenarioNames := repeatedStringFlag{}
@@ -245,10 +245,10 @@ func describeGenerationOptions(configuration testCommandConfiguration) string {
 func normalizeTestLanguageModelProvider(provider string) (string, error) {
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	switch normalizedProvider {
-	case "openrouter", "capability", "sdkd":
+	case "openrouter", "capability", "llmd":
 		return normalizedProvider, nil
 	default:
-		return "", fmt.Errorf("llm provider must be openrouter, capability, or sdkd: %s", provider)
+		return "", fmt.Errorf("llm provider must be openrouter, capability, or llmd: %s", provider)
 	}
 }
 
@@ -285,7 +285,7 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
 		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
-		SDKDMode:              testSDKDMode(configuration.LanguageModelProvider),
+		LLMDMode:              testLLMDMode(configuration.LanguageModelProvider),
 		ShouldUseRealModels:   configuration.ShouldUseRealModels,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
 	})
@@ -314,9 +314,9 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 	return runError
 }
 
-func testSDKDMode(provider string) localfleet.SDKDMode {
-	if provider == "sdkd" {
-		return localfleet.SDKDModeAuthoritative
+func testLLMDMode(provider string) localfleet.LLMDMode {
+	if provider == "llmd" {
+		return localfleet.LLMDModeAuthoritative
 	}
 	return ""
 }
@@ -377,7 +377,7 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
 		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
-		SDKDMode:              localfleet.SDKDModeAuthoritative,
+		LLMDMode:              localfleet.LLMDModeAuthoritative,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
 		ShouldUseRealModels:   configuration.ShouldUseRealModels,
 	})
@@ -388,7 +388,7 @@ func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath stri
 	shouldCleanupFleet := !configuration.ShouldKeepArtifacts && !configuration.ShouldReuseFleet
 	fmt.Println("Test suite: expensive")
 	fmt.Println("Environment: Local Fleet Mattermost DM")
-	fmt.Println("LLM runtime: SDKD authoritative")
+	fmt.Println("LLM runtime: LLMD authoritative")
 	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	if configuration.ShouldUseRealModels {
 		fmt.Println("Model tiers: production (--real)")

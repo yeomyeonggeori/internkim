@@ -187,17 +187,17 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 	}
 }
 
-func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
-	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
-	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+func TestMattermostScenarioRequiresAuthoritativeLLMDProvenance(t *testing.T) {
+	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
-		t.Fatalf("validate SDKD provenance: %v", errorValue)
+		t.Fatalf("validate LLMD provenance: %v", errorValue)
 	}
 	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"capability","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
@@ -207,13 +207,13 @@ func TestMattermostScenarioRequiresAuthoritativeSDKDProvenance(t *testing.T) {
 
 func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
 	schemaName := "blueclaw_operation_contract"
-	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
-	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
 			{Name: "llm.call", Body: `{"schemaName":"` + schemaName + `","transport":"capability","provider":"openrouter","model":"model","selectedBackend":"remote","usedFallback":true}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
 		},
 	}}}
 
@@ -224,12 +224,12 @@ func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
 }
 
 func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
-	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
-	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
@@ -247,18 +247,18 @@ func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 
 func TestMattermostScenarioRequiresExactSelectedLLMProviderAndModel(t *testing.T) {
 	scenario := mattermostScenario{
-		Name:                "sdkd",
-		RequiresSDKD:        true,
+		Name:                "llmd",
+		RequiresLLMD:        true,
 		MaximumModelTier:    "low",
 		ExpectedLLMProvider: "openrouter",
 		ExpectedLLMModel:    "xiaomi/mimo-v2.5",
 		Steps:               []mattermostScenarioStep{{Prompt: "work"}},
 	}
-	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"sdkd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
@@ -384,13 +384,13 @@ func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing
 }
 
 func TestMattermostScenarioDoesNotAcceptRecoveryChatInsteadOfAgentAction(t *testing.T) {
-	scenario := mattermostScenario{Name: "sdkd", RequiresSDKD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
-	result := mattermostScenarioResult{ScenarioName: "sdkd", Steps: []mattermostScenarioStepResult{{
+	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"sdkd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"sdkd","isError":true}`},
-			{Name: "llm.call", Body: `{"kind":"recovery_chat","transport":"sdkd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"llmd","isError":true}`},
+			{Name: "llm.call", Body: `{"kind":"recovery_chat","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "blueclaw_agent_turn_action") {

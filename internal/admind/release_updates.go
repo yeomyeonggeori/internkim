@@ -254,10 +254,10 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSupervisor", blueclawruntime.BlueclawSupervisorBinaryPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSDKD", blueclawruntime.SDKDBinaryPath); errorValue != nil {
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", blueclawruntime.LLMDBinaryPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseSDKDService(ctx, manifest); errorValue != nil {
+	if errorValue := service.installReleaseLLMDService(ctx, manifest); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
@@ -285,8 +285,8 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			}
 		}
 	}
-	if _, hasSDKD := manifest.Components["blueclawSDKD"]; hasSDKD {
-		if errorValue := service.restartReleaseSDKD(ctx); errorValue != nil {
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
+		if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -300,8 +300,8 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			return errorValue
 		}
 	}
-	if _, hasSDKD := manifest.Components["blueclawSDKD"]; hasSDKD {
-		if errorValue := service.recordInstalledReleaseSDKD(manifest.ReleaseID); errorValue != nil {
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
+		if errorValue := service.recordInstalledReleaseLLMD(manifest.ReleaseID); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -328,7 +328,7 @@ func releaseProtocolIdentityComponentsPresent(manifest *releaseset.Manifest) boo
 }
 
 func releaseProtocolIdentityComponentNames() []string {
-	return []string{"capabilityd", "blueclawSDKD", "blueclawPayload"}
+	return []string{"capabilityd", "blueclawLLMD", "blueclawPayload"}
 }
 
 func missingReleaseProtocolIdentityComponents(manifest *releaseset.Manifest) []string {
@@ -366,7 +366,7 @@ func (service *Service) checkReleaseProtocolIdentityWithTimeout(ctx context.Cont
 }
 
 func releaseProtocolDependencyComponentsPresent(manifest *releaseset.Manifest) bool {
-	for _, componentName := range []string{"capabilityd", "blueclawSDKD"} {
+	for _, componentName := range []string{"capabilityd", "blueclawLLMD"} {
 		if _, isPresent := manifest.Components[componentName]; isPresent {
 			return true
 		}
@@ -453,28 +453,28 @@ func releaseBlueclawServiceNames(tenantBasePath string) []string {
 	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-blueclaw-", blueclawruntime.BlueclawServiceName)
 }
 
-func (service *Service) installReleaseSDKDService(ctx context.Context, manifest *releaseset.Manifest) error {
-	if _, hasSDKD := manifest.Components["blueclawSDKD"]; !hasSDKD {
+func (service *Service) installReleaseLLMDService(ctx context.Context, manifest *releaseset.Manifest) error {
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; !hasLLMD {
 		return nil
 	}
-	isLocalOnly, errorValue := releaseSDKDLocalOnly(service.Configuration.BlueclawRuntimeConfigPath)
+	isLocalOnly, errorValue := releaseLLMDLocalOnly(service.Configuration.BlueclawRuntimeConfigPath)
 	if errorValue != nil {
 		return errorValue
 	}
-	serviceDocument := blueclawruntime.SDKDServiceUnitForLocalOnly(isLocalOnly)
+	serviceDocument := blueclawruntime.LLMDServiceUnitForLocalOnly(isLocalOnly)
 	command := fmt.Sprintf(`set -eu
 %[1]s
 cat > %[2]s <<'SERVICEEOF'
 %[3]sSERVICEEOF
 systemctl daemon-reload
-systemctl enable %[4]s`, blueclawruntime.SDKDServiceCredentialInstallCommand(isLocalOnly), blueclawruntime.SDKDServicePath, serviceDocument, blueclawruntime.SDKDServiceName)
+systemctl enable %[4]s`, blueclawruntime.LLMDServiceCredentialInstallCommand(isLocalOnly), blueclawruntime.LLMDServicePath, serviceDocument, blueclawruntime.LLMDServiceName)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", command); errorValue != nil {
-		return fmt.Errorf("install SDKD service: %s: %w", strings.TrimSpace(string(output)), errorValue)
+		return fmt.Errorf("install LLMD service: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
 }
 
-func releaseSDKDLocalOnly(runtimeConfigurationPath string) (bool, error) {
+func releaseLLMDLocalOnly(runtimeConfigurationPath string) (bool, error) {
 	if strings.TrimSpace(runtimeConfigurationPath) == "" {
 		return false, nil
 	}
@@ -483,13 +483,13 @@ func releaseSDKDLocalOnly(runtimeConfigurationPath string) (bool, error) {
 		return false, nil
 	}
 	if errorValue != nil {
-		return false, fmt.Errorf("read SDKD local-only policy: %w", errorValue)
+		return false, fmt.Errorf("read LLMD local-only policy: %w", errorValue)
 	}
 	var runtimeConfiguration struct {
 		LanguageModel struct {
-			SDKD struct {
+			LLMD struct {
 				LocalOnly *bool `json:"localOnly"`
-			} `json:"sdkd"`
+			} `json:"llmd"`
 		} `json:"languageModel"`
 		Capabilities struct {
 			Routing struct {
@@ -498,10 +498,10 @@ func releaseSDKDLocalOnly(runtimeConfigurationPath string) (bool, error) {
 		} `json:"capabilities"`
 	}
 	if errorValue := json.Unmarshal(document, &runtimeConfiguration); errorValue != nil {
-		return false, fmt.Errorf("parse SDKD local-only policy: %w", errorValue)
+		return false, fmt.Errorf("parse LLMD local-only policy: %w", errorValue)
 	}
-	if runtimeConfiguration.LanguageModel.SDKD.LocalOnly != nil {
-		return *runtimeConfiguration.LanguageModel.SDKD.LocalOnly, nil
+	if runtimeConfiguration.LanguageModel.LLMD.LocalOnly != nil {
+		return *runtimeConfiguration.LanguageModel.LLMD.LocalOnly, nil
 	}
 	if runtimeConfiguration.Capabilities.Routing.LocalOnly != nil {
 		return *runtimeConfiguration.Capabilities.Routing.LocalOnly, nil
@@ -509,49 +509,49 @@ func releaseSDKDLocalOnly(runtimeConfigurationPath string) (bool, error) {
 	return false, nil
 }
 
-func (service *Service) restartReleaseSDKD(ctx context.Context) error {
-	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.SDKDServiceName); errorValue != nil {
-		return fmt.Errorf("restart SDKD: %s: %w", strings.TrimSpace(string(output)), errorValue)
+func (service *Service) restartReleaseLLMD(ctx context.Context) error {
+	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.LLMDServiceName); errorValue != nil {
+		return fmt.Errorf("restart LLMD: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.SDKDHealthCheckCommand()); errorValue != nil || strings.TrimSpace(string(output)) != "ok" {
-		return fmt.Errorf("SDKD health check failed: %s", strings.TrimSpace(string(output)))
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand()); errorValue != nil || strings.TrimSpace(string(output)) != "ok" {
+		return fmt.Errorf("LLMD health check failed: %s", strings.TrimSpace(string(output)))
 	}
 	return nil
 }
 
-func (service *Service) reconcileReleaseSDKDBootstrap(ctx context.Context) error {
-	return service.reconcileReleaseSDKDBootstrapAtPath(ctx, blueclawruntime.SDKDBinaryPath)
+func (service *Service) reconcileReleaseLLMDBootstrap(ctx context.Context) error {
+	return service.reconcileReleaseLLMDBootstrapAtPath(ctx, blueclawruntime.LLMDBinaryPath)
 }
 
-func (service *Service) reconcileReleaseSDKDBootstrapAtPath(ctx context.Context, binaryPath string) error {
+func (service *Service) reconcileReleaseLLMDBootstrapAtPath(ctx context.Context, binaryPath string) error {
 	manifest := service.readCurrentReleaseManifest()
 	if manifest == nil {
 		return nil
 	}
-	if _, hasSDKD := manifest.Components["blueclawSDKD"]; !hasSDKD {
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; !hasLLMD {
 		return nil
 	}
-	if readTrimmedFile(service.installedReleaseSDKDPath()) == manifest.ReleaseID {
+	if readTrimmedFile(service.installedReleaseLLMDPath()) == manifest.ReleaseID {
 		return nil
 	}
-	if service.releaseSDKDIsReady(ctx) {
-		return service.recordInstalledReleaseSDKD(manifest.ReleaseID)
+	if service.releaseLLMDIsReady(ctx) {
+		return service.recordInstalledReleaseLLMD(manifest.ReleaseID)
 	}
-	stagingPath, errorValue := service.releaseSDKDBootstrapStagingPath(manifest)
+	stagingPath, errorValue := service.releaseLLMDBootstrapStagingPath(manifest)
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.installReleaseSDKDBootstrap(ctx, manifest, stagingPath, binaryPath)
+	return service.installReleaseLLMDBootstrap(ctx, manifest, stagingPath, binaryPath)
 }
 
-func (service *Service) installReleaseSDKDBootstrap(ctx context.Context, manifest *releaseset.Manifest, stagingPath string, binaryPath string) error {
-	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSDKD", binaryPath); errorValue != nil {
+func (service *Service) installReleaseLLMDBootstrap(ctx context.Context, manifest *releaseset.Manifest, stagingPath string, binaryPath string) error {
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", binaryPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseSDKDService(ctx, manifest); errorValue != nil {
+	if errorValue := service.installReleaseLLMDService(ctx, manifest); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.restartReleaseSDKD(ctx); errorValue != nil {
+	if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
 		return errorValue
 	}
 	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
@@ -559,24 +559,24 @@ func (service *Service) installReleaseSDKDBootstrap(ctx context.Context, manifes
 			return errorValue
 		}
 	}
-	return service.recordInstalledReleaseSDKD(manifest.ReleaseID)
+	return service.recordInstalledReleaseLLMD(manifest.ReleaseID)
 }
 
-func (service *Service) releaseSDKDIsReady(ctx context.Context) bool {
-	output, errorValue := service.runCommand(ctx, "systemctl", "is-active", blueclawruntime.SDKDServiceName)
+func (service *Service) releaseLLMDIsReady(ctx context.Context) bool {
+	output, errorValue := service.runCommand(ctx, "systemctl", "is-active", blueclawruntime.LLMDServiceName)
 	if errorValue != nil || strings.TrimSpace(string(output)) != "active" {
 		return false
 	}
-	output, errorValue = service.runCommand(ctx, "sh", "-lc", blueclawruntime.SDKDHealthCheckCommand())
+	output, errorValue = service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand())
 	return errorValue == nil && strings.TrimSpace(string(output)) == "ok"
 }
 
-func (service *Service) releaseSDKDBootstrapStagingPath(manifest *releaseset.Manifest) (string, error) {
-	component := manifest.Components["blueclawSDKD"]
+func (service *Service) releaseLLMDBootstrapStagingPath(manifest *releaseset.Manifest) (string, error) {
+	component := manifest.Components["blueclawLLMD"]
 	stagingDirectoryPath := filepath.Join(service.Configuration.StateDirectory, "release-updates", "staging")
 	entries, errorValue := os.ReadDir(stagingDirectoryPath)
 	if errorValue != nil {
-		return "", fmt.Errorf("read SDKD release staging directory: %w", errorValue)
+		return "", fmt.Errorf("read LLMD release staging directory: %w", errorValue)
 	}
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -587,24 +587,24 @@ func (service *Service) releaseSDKDBootstrapStagingPath(manifest *releaseset.Man
 	sort.Strings(names)
 	for _, name := range names {
 		stagingPath := filepath.Join(stagingDirectoryPath, name)
-		archivePath := filepath.Join(stagingPath, "blueclawSDKD", "component.tar.gz")
+		archivePath := filepath.Join(stagingPath, "blueclawLLMD", "component.tar.gz")
 		if fileSHA256(archivePath) == component.SHA256 {
 			return stagingPath, nil
 		}
 	}
-	return "", fmt.Errorf("SDKD component for release %s is missing from staging", manifest.ReleaseID)
+	return "", fmt.Errorf("LLMD component for release %s is missing from staging", manifest.ReleaseID)
 }
 
-func (service *Service) recordInstalledReleaseSDKD(releaseID string) error {
-	path := service.installedReleaseSDKDPath()
+func (service *Service) recordInstalledReleaseLLMD(releaseID string) error {
+	path := service.installedReleaseLLMDPath()
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
 	return writeFileAtomically(path, []byte(strings.TrimSpace(releaseID)+"\n"), 0o600)
 }
 
-func (service *Service) installedReleaseSDKDPath() string {
-	return filepath.Join(service.Configuration.StateDirectory, "release-updates", "sdkd-current")
+func (service *Service) installedReleaseLLMDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "release-updates", "llmd-current")
 }
 
 func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) error {

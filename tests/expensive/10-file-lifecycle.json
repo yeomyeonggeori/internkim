@@ -1,6 +1,6 @@
 {
   "name": "file-lifecycle",
-  "requiresSDKD": true,
+  "requiresLLMD": true,
   "expectedLLMProvider": "openrouter",
   "expectedLLMModel": "xiaomi/mimo-v2.5",
   "allowedTools": ["file.write", "file.read", "file.edit", "file.deliver", "file.delete"],

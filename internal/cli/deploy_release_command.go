@@ -66,7 +66,7 @@ Deploy a release to the target device over Admin HTTPS.
 
 Options:
   --components <list>  Comma-separated component names to include.
-                       Available: admind, blueclawPayload, blueclawSDKD, blueclawSupervisor, capabilityd, fonts, internkim, mattermostPlugins, skills, web
+                       Available: admind, blueclawPayload, blueclawLLMD, blueclawSupervisor, capabilityd, fonts, internkim, mattermostPlugins, skills, web
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
@@ -380,7 +380,7 @@ func coupleBlueclawWithSkills(selectedComponentNames map[string]bool) map[string
 	if selectedComponentNames["blueclawPayload"] {
 		selectedComponentNames["skills"] = true
 	}
-	if selectedComponentNames["blueclawSDKD"] {
+	if selectedComponentNames["blueclawLLMD"] {
 		selectedComponentNames["admind"] = true
 		selectedComponentNames["blueclawPayload"] = true
 		selectedComponentNames["capabilityd"] = true

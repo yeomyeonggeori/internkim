@@ -3,8 +3,8 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 blueclaw_root="$repository_root/.dependency/blueclaw"
-artifact_directory="$repository_root/.dependency/blueclaw-sdkd"
-binary_path="$artifact_directory/blueclaw-sdkd"
+artifact_directory="$repository_root/.dependency/blueclaw-llmd"
+binary_path="$artifact_directory/blueclaw-llmd"
 bun_version="1.3.10"
 
 calculate_sha256() {
@@ -20,8 +20,8 @@ dirty_suffix() {
   tracked_diff_file="$(mktemp)"
   untracked_files_file="$(mktemp)"
   untracked_hashes_file="$(mktemp)"
-  git -C "$blueclaw_root" diff --binary HEAD -- protocol sdkd > "$tracked_diff_file"
-  git -C "$blueclaw_root" ls-files --others --exclude-standard -- protocol sdkd > "$untracked_files_file"
+  git -C "$blueclaw_root" diff --binary HEAD -- protocol llmd > "$tracked_diff_file"
+  git -C "$blueclaw_root" ls-files --others --exclude-standard -- protocol llmd > "$untracked_files_file"
   if [ ! -s "$tracked_diff_file" ] && [ ! -s "$untracked_files_file" ]; then
     rm -f "$tracked_diff_file" "$untracked_files_file" "$untracked_hashes_file"
     return
@@ -47,14 +47,14 @@ fi
 
 actual_bun_version="$(bun --version)"
 if [ "$actual_bun_version" != "$bun_version" ]; then
-  printf 'blueclaw-sdkd requires Bun %s, got %s\n' "$bun_version" "$actual_bun_version" >&2
+  printf 'blueclaw-llmd requires Bun %s, got %s\n' "$bun_version" "$actual_bun_version" >&2
   exit 1
 fi
 
 mkdir -p "$artifact_directory"
 cd "$blueclaw_root/protocol"
 bun install --frozen-lockfile
-cd "$blueclaw_root/sdkd"
+cd "$blueclaw_root/llmd"
 bun install --frozen-lockfile
 bun build src/main.ts --compile --target=bun-linux-arm64 --outfile "$binary_path"
 

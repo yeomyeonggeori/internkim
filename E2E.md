@@ -16,9 +16,9 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
 응답에 대한 상태 전이, 승인, 취소, 부작용, 증거 연결을 결정적으로 검증한다.
 실 LLM의 툴·스킬 판단 품질이나 AI SDK 경로는 보증하지 않는다. AI SDK
-acceptance는 SDKD authoritative로 실행되는 `./internkim test expensive` 또는
-lab runner의 `--llm-provider sdkd --live-llm --strict-assertions` 조합으로
-검증한다. `--live-llm`만 사용하면 실 호출을 허용할 뿐 SDKD 경로를 뜻하지 않는다.
+acceptance는 LLMD authoritative로 실행되는 `./internkim test expensive` 또는
+lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
+검증한다. `--live-llm`만 사용하면 실 호출을 허용할 뿐 LLMD 경로를 뜻하지 않는다.
 
 ## 가상 세션 시나리오 인벤토리
 

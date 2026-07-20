@@ -248,6 +248,20 @@ func TestSimulationServicesDoNotInstallLlamaCppUnits(t *testing.T) {
 	}
 }
 
+func TestServicesInstallCommandRemovesLegacySDKDUnit(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
+
+	for _, expectedValue := range []string{
+		"systemctl stop blueclaw-sdkd 2>/dev/null || true",
+		"systemctl disable blueclaw-sdkd 2>/dev/null || true",
+		"rm -f /etc/systemd/system/blueclaw-sdkd.service",
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected service install command to contain %q, got:\n%s", expectedValue, command)
+		}
+	}
+}
+
 func TestServicesInstallGraphitiMemoryd(t *testing.T) {
 	command := serviceUnitInstallCommand(&Context{
 		BoardType:    BoardJetsonOrinNano,
@@ -403,12 +417,12 @@ func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"sdkd=active",
+				"llmd=active",
 				"admind=active",
 				"graphiti=inactive",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
-				"sdkdHealth=ok",
+				"llmdHealth=ok",
 				"graphitiHealth=no",
 			}, "\n"),
 		},
@@ -426,11 +440,11 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"sdkd=active",
+				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
-				"sdkdHealth=ok",
+				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -448,10 +462,10 @@ func TestBlueclawServicesHealthSkipsMattermostCompositeHealthWithoutMattermost(t
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"sdkd=active",
+				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
-				"sdkdHealth=ok",
+				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -469,11 +483,11 @@ func TestBlueclawServicesHealthRequiresMattermostCompositeHealthWhenPlanned(t *t
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"sdkd=active",
+				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
 				"capabilitydHealth=no",
-				"sdkdHealth=ok",
+				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -534,9 +548,9 @@ func (connection serviceSatisfiedWithoutGraphitiBoardConnection) Run(command str
 		return "ok"
 	case strings.Contains(command, "rootfs_path="):
 		return "ok"
-	case strings.Contains(command, "systemctl is-active "+blueclaw.SDKDServiceName):
+	case strings.Contains(command, "systemctl is-active "+blueclaw.LLMDServiceName):
 		return "active"
-	case strings.Contains(command, blueclaw.SDKDHealthCheckCommand()):
+	case strings.Contains(command, blueclaw.LLMDHealthCheckCommand()):
 		return "ok"
 	case strings.Contains(command, "systemctl is-active graphiti-memoryd"):
 		return "inactive"

@@ -418,7 +418,7 @@ func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 	pollError := errors.New("poll failed")
 	detailCalls := 0
 	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "task.created"}
-	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "llm.call", Body: `{"provider":"sdkd"}`}
+	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "llm.call", Body: `{"provider":"llmd"}`}
 	admin := &fakeMattermostScenarioAdminAPI{
 		listTasksValue: func() []mattermostScenarioTaskSummary {
 			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
