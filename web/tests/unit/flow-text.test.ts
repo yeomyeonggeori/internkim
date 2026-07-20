@@ -36,6 +36,15 @@ describe('flowText', () => {
 		expect(flowText.ko.task.removeParticipantAction.replace('{name}', '김철수')).toBe('김철수 제거');
 		expect(flowText.en.task.removeParticipantAction.replace('{name}', 'Alice')).toBe('Remove Alice');
 	});
+
+	test('localizes personal score dialog labels', () => {
+		expect(flowText.ko.report.personalScoreClose).toBe('점수 상세 닫기');
+		expect(flowText.en.report.personalScoreClose).toBe('Close score details');
+		expect(flowText.ko.report.weekPeriodSingularLabel).toBe('1주 전');
+		expect(flowText.en.report.weekPeriodSingularLabel).toBe('1 week ago');
+		expect(flowText.ko.report.monthPeriodSingularLabel).toBe('1개월 전');
+		expect(flowText.en.report.monthPeriodSingularLabel).toBe('1 month ago');
+	});
 });
 
 function collectTextShape(node: TextNode, path: string[] = []): string[] {

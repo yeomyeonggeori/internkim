@@ -14,11 +14,13 @@
 		portalProps,
 		children,
 		showCloseButton = true,
+		closeLabel = "Close",
 		...restProps
 	}: WithoutChildrenOrChild<DialogPrimitive.ContentProps> & {
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof DialogPortal>>;
 		children: Snippet;
 		showCloseButton?: boolean;
+		closeLabel?: string;
 	} = $props();
 </script>
 
@@ -39,7 +41,7 @@
 				{#snippet child({ props })}
 					<Button variant="ghost" class="absolute top-2 right-2" size="icon-sm" {...props}>
 						<XIcon  />
-						<span class="sr-only">Close</span>
+						<span class="sr-only">{closeLabel}</span>
 					</Button>
 				{/snippet}
 			</DialogPrimitive.Close>

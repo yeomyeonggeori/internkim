@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { flowTypeColor } from '../flow-report-colors';
-	import type { FlowReportSection } from './flow-report-data';
+	import type { FlowMemberScoreSection } from './flow-report-data';
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowMemberScoreSection;
 	};
 
 	let { section }: Props = $props();
