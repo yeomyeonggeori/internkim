@@ -398,7 +398,7 @@ func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
 	}
 }
 
-func TestHealthRequiresMatchingSDKDProtocolIdentity(t *testing.T) {
+func TestHealthRequiresMatchingLLMDProtocolIdentity(t *testing.T) {
 	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
 	validDocument, errorValue := json.Marshal(map[string]string{
 		"status":                "ok",
@@ -410,20 +410,20 @@ func TestHealthRequiresMatchingSDKDProtocolIdentity(t *testing.T) {
 	}
 	cases := []struct {
 		name           string
-		sdkdDocument   string
-		sdkdError      error
+		llmdDocument   string
+		llmdError      error
 		expectedStatus int
 	}{
-		{name: "matching", sdkdDocument: string(validDocument), expectedStatus: http.StatusOK},
-		{name: "missing identity", sdkdDocument: `{"status":"ok"}`, expectedStatus: http.StatusServiceUnavailable},
-		{name: "malformed", sdkdDocument: `not-json`, expectedStatus: http.StatusServiceUnavailable},
-		{name: "unavailable", sdkdError: errors.New("SDKD unavailable"), expectedStatus: http.StatusServiceUnavailable},
-		{name: "mismatched identity", sdkdDocument: `{"status":"ok","protocolVersion":"0.4.0","aggregateProtocolHash":"0000000000000000000000000000000000000000000000000000000000000000"}`, expectedStatus: http.StatusServiceUnavailable},
+		{name: "matching", llmdDocument: string(validDocument), expectedStatus: http.StatusOK},
+		{name: "missing identity", llmdDocument: `{"status":"ok"}`, expectedStatus: http.StatusServiceUnavailable},
+		{name: "malformed", llmdDocument: `not-json`, expectedStatus: http.StatusServiceUnavailable},
+		{name: "unavailable", llmdError: errors.New("LLMD unavailable"), expectedStatus: http.StatusServiceUnavailable},
+		{name: "mismatched identity", llmdDocument: `{"status":"ok","protocolVersion":"0.4.0","aggregateProtocolHash":"0000000000000000000000000000000000000000000000000000000000000000"}`, expectedStatus: http.StatusServiceUnavailable},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			service := newHealthTestService(t, testCase.sdkdDocument, testCase.sdkdError)
+			service := newHealthTestService(t, testCase.llmdDocument, testCase.llmdError)
 			request := httptest.NewRequest(http.MethodGet, "/health", nil)
 			responseRecorder := httptest.NewRecorder()
 
@@ -449,7 +449,7 @@ func TestHealthRequiresMatchingSDKDProtocolIdentity(t *testing.T) {
 	}
 }
 
-func newHealthTestService(t *testing.T, sdkdDocument string, sdkdError error) Service {
+func newHealthTestService(t *testing.T, llmdDocument string, llmdError error) Service {
 	t.Helper()
 	tokenPath := filepath.Join(t.TempDir(), "mattermost-token")
 	if errorValue := os.WriteFile(tokenPath, []byte("test-token"), 0o600); errorValue != nil {
@@ -459,19 +459,19 @@ func newHealthTestService(t *testing.T, sdkdDocument string, sdkdError error) Se
 		Configuration: Configuration{
 			MattermostBaseURL:   "https://mattermost.test",
 			MattermostTokenPath: tokenPath,
-			SDKDSocketPath:      "/tmp/sdkd-health-test.sock",
+			LLMDSocketPath:      "/tmp/llmd-health-test.sock",
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
 		})},
-		SDKDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if sdkdError != nil {
-				return nil, sdkdError
+		LLMDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if llmdError != nil {
+				return nil, llmdError
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(sdkdDocument)),
+				Body:       io.NopCloser(strings.NewReader(llmdDocument)),
 			}, nil
 		})},
 		HealthState: &platformHealthState{MattermostForwarderRunning: true},

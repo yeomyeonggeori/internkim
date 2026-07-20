@@ -109,7 +109,7 @@ func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
 	expectedValues := []string{
 		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
-		blueclaw.BlueclawSDKDModeEnvironment + "=authoritative",
+		blueclaw.BlueclawLLMDModeEnvironment + "=authoritative",
 	}
 	for _, expectedValue := range expectedValues {
 		if !slices.Contains(environment, expectedValue) {
@@ -293,18 +293,18 @@ func TestParseDevVirtualSessionArgumentsForwardsStrictScenarioFile(t *testing.T)
 	}
 }
 
-func TestDevVirtualSessionCommandArgumentsForwardsSDKDProvider(t *testing.T) {
+func TestDevVirtualSessionCommandArgumentsForwardsLLMDProvider(t *testing.T) {
 	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
 		ScenarioName:             "plain_question_acceptance",
 		ArtifactDirectoryPath:    "artifacts",
-		LanguageModelEndpoint:    "http://sdkd",
-		LanguageModelSocket:      "/tmp/sdkd.sock",
-		LanguageModelProvider:    "sdkd",
-		LanguageModelAuthKeyPath: "/tmp/sdkd.key",
+		LanguageModelEndpoint:    "http://llmd",
+		LanguageModelSocket:      "/tmp/llmd.sock",
+		LanguageModelProvider:    "llmd",
+		LanguageModelAuthKeyPath: "/tmp/llmd.key",
 		IsLiveLanguageModel:      true,
 	})
 
-	for _, expectedArgument := range []string{"--llm-provider", "sdkd", "--llm-auth-key-path", "/tmp/sdkd.key"} {
+	for _, expectedArgument := range []string{"--llm-provider", "llmd", "--llm-auth-key-path", "/tmp/llmd.key"} {
 		if !slices.Contains(arguments, expectedArgument) {
 			t.Fatalf("expected %q in %#v", expectedArgument, arguments)
 		}

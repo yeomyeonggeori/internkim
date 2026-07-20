@@ -29,23 +29,23 @@ func TestJetsonBinariesSatisfiedWithoutLlamaServer(t *testing.T) {
 	}
 }
 
-func TestBinariesRequireSDKD(t *testing.T) {
+func TestBinariesRequireLLMD(t *testing.T) {
 	context := &Context{
 		Backend: BackendSSH,
-		SSH:     binaryPresenceWithoutSDKDBoardConnection{},
+		SSH:     binaryPresenceWithoutLLMDBoardConnection{},
 	}
 
 	if StepBinaries.IsSatisfied(context) {
-		t.Fatal("expected missing SDKD binary to require installation")
+		t.Fatal("expected missing LLMD binary to require installation")
 	}
 }
 
 type binaryPresenceBoardConnection struct{}
 
-type binaryPresenceWithoutSDKDBoardConnection struct{}
+type binaryPresenceWithoutLLMDBoardConnection struct{}
 
-func (connection binaryPresenceWithoutSDKDBoardConnection) Run(command string) string {
-	if strings.Contains(command, "'/usr/local/bin/blueclaw-sdkd'") {
+func (connection binaryPresenceWithoutLLMDBoardConnection) Run(command string) string {
+	if strings.Contains(command, "'/usr/local/bin/blueclaw-llmd'") {
 		return ""
 	}
 	if strings.Contains(command, "test -e ") {
@@ -54,7 +54,7 @@ func (connection binaryPresenceWithoutSDKDBoardConnection) Run(command string) s
 	return ""
 }
 
-func (connection binaryPresenceWithoutSDKDBoardConnection) SCP(localPath, remotePath string) error {
+func (connection binaryPresenceWithoutLLMDBoardConnection) SCP(localPath, remotePath string) error {
 	return nil
 }
 

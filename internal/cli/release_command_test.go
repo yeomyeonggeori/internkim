@@ -213,11 +213,11 @@ func containsDeletedObjectKey(values []string, expected string) bool {
 	return false
 }
 
-func TestBlueclawSDKDSourceRevisionUsesCleanHead(t *testing.T) {
-	repositoryRootPath, blueclawRootPath := initializeBlueclawSDKDSourceRepository(t)
+func TestBlueclawLLMDSourceRevisionUsesCleanHead(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
 	expectedRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
 
-	revision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -226,19 +226,19 @@ func TestBlueclawSDKDSourceRevisionUsesCleanHead(t *testing.T) {
 	}
 }
 
-func TestBlueclawSDKDSourceRevisionUsesDirtyContent(t *testing.T) {
-	repositoryRootPath, blueclawRootPath := initializeBlueclawSDKDSourceRepository(t)
+func TestBlueclawLLMDSourceRevisionUsesDirtyContent(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
 	headRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
 	trackedSourcePath := filepath.Join(blueclawRootPath, "protocol", "src", "index.ts")
 	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 2;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	firstRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	firstRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	repeatedRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	repeatedRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -249,7 +249,7 @@ func TestBlueclawSDKDSourceRevisionUsesDirtyContent(t *testing.T) {
 	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 3;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	secondRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	secondRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -257,18 +257,18 @@ func TestBlueclawSDKDSourceRevisionUsesDirtyContent(t *testing.T) {
 		t.Fatal("tracked source changes must change the dirty revision")
 	}
 
-	untrackedSourcePath := filepath.Join(blueclawRootPath, "sdkd", "src", "errors.ts")
+	untrackedSourcePath := filepath.Join(blueclawRootPath, "llmd", "src", "errors.ts")
 	if errorValue := os.WriteFile(untrackedSourcePath, []byte("export const code = 1;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	thirdRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	thirdRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if errorValue := os.WriteFile(untrackedSourcePath, []byte("export const code = 2;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	fourthRevision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	fourthRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -277,15 +277,15 @@ func TestBlueclawSDKDSourceRevisionUsesDirtyContent(t *testing.T) {
 	}
 }
 
-func TestBlueclawSDKDSourceRevisionIgnoresUnrelatedDirtyContent(t *testing.T) {
-	repositoryRootPath, blueclawRootPath := initializeBlueclawSDKDSourceRepository(t)
+func TestBlueclawLLMDSourceRevisionIgnoresUnrelatedDirtyContent(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
 	expectedRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
 	unrelatedPath := filepath.Join(blueclawRootPath, "tests", "integration", "guardrail_test.go")
 	if errorValue := os.WriteFile(unrelatedPath, []byte("package integration\n\nconst version = 2\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	revision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -294,65 +294,65 @@ func TestBlueclawSDKDSourceRevisionIgnoresUnrelatedDirtyContent(t *testing.T) {
 	}
 }
 
-func TestValidateBlueclawSDKDFreshness(t *testing.T) {
-	repositoryRootPath, _ := initializeBlueclawSDKDSourceRepository(t)
-	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-sdkd")
-	revision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+func TestValidateBlueclawLLMDFreshness(t *testing.T) {
+	repositoryRootPath, _ := initializeBlueclawLLMDSourceRepository(t)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd")
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeBlueclawSDKDArtifact(t, artifactDirectoryPath, revision)
+	writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
 
-	if errorValue := validateBlueclawSDKDFreshness(repositoryRootPath, artifactDirectoryPath); errorValue != nil {
+	if errorValue := validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 }
 
-func TestValidateBlueclawSDKDFreshnessRejectsStaleDirtySource(t *testing.T) {
-	repositoryRootPath, blueclawRootPath := initializeBlueclawSDKDSourceRepository(t)
-	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-sdkd")
-	revision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+func TestValidateBlueclawLLMDFreshnessRejectsStaleDirtySource(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd")
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeBlueclawSDKDArtifact(t, artifactDirectoryPath, revision)
-	if errorValue := os.WriteFile(filepath.Join(blueclawRootPath, "sdkd", "src", "main.ts"), []byte("export const version = 2;\n"), 0o644); errorValue != nil {
+	writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
+	if errorValue := os.WriteFile(filepath.Join(blueclawRootPath, "llmd", "src", "main.ts"), []byte("export const version = 2;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	errorValue = validateBlueclawSDKDFreshness(repositoryRootPath, artifactDirectoryPath)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "make prepare-blueclaw-sdkd") {
+	errorValue = validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "make prepare-blueclaw-llmd") {
 		t.Fatalf("expected stale dirty artifact rejection, got %v", errorValue)
 	}
 }
 
-func TestCreateReleaseBlobsPublishesDistinctDirtySDKDRevisions(t *testing.T) {
-	repositoryRootPath, blueclawRootPath := initializeBlueclawSDKDSourceRepository(t)
-	previousBuilder := buildBlueclawSDKDArtifact
-	buildBlueclawSDKDArtifact = func(repositoryRootPath string, artifactDirectoryPath string) error {
-		revision, errorValue := blueclawSDKDSourceRevision(repositoryRootPath)
+func TestCreateReleaseBlobsPublishesDistinctDirtyLLMDRevisions(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	previousBuilder := buildBlueclawLLMDArtifact
+	buildBlueclawLLMDArtifact = func(repositoryRootPath string, artifactDirectoryPath string) error {
+		revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
 		if errorValue != nil {
 			return errorValue
 		}
-		writeBlueclawSDKDArtifact(t, artifactDirectoryPath, revision)
+		writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
 		return nil
 	}
 	t.Cleanup(func() {
-		buildBlueclawSDKDArtifact = previousBuilder
+		buildBlueclawLLMDArtifact = previousBuilder
 	})
-	trackedSourcePath := filepath.Join(blueclawRootPath, "sdkd", "src", "main.ts")
+	trackedSourcePath := filepath.Join(blueclawRootPath, "llmd", "src", "main.ts")
 	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 2;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	firstBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawSDKD": true})
+	firstBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawLLMD": true})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 3;\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	secondBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawSDKD": true})
+	secondBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawLLMD": true})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -363,14 +363,14 @@ func TestCreateReleaseBlobsPublishesDistinctDirtySDKDRevisions(t *testing.T) {
 	}
 }
 
-func initializeBlueclawSDKDSourceRepository(t *testing.T) (string, string) {
+func initializeBlueclawLLMDSourceRepository(t *testing.T) (string, string) {
 	t.Helper()
 	repositoryRootPath := t.TempDir()
 	blueclawRootPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
 	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "protocol", "src", "index.ts"), "export const version = 1;\n", 0o644)
-	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "sdkd", "src", "main.ts"), "export const version = 1;\n", 0o644)
+	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "llmd", "src", "main.ts"), "export const version = 1;\n", 0o644)
 	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "tests", "integration", "guardrail_test.go"), "package integration\n\nconst version = 1\n", 0o644)
-	copyBlueclawSDKDPrepareScript(t, repositoryRootPath)
+	copyBlueclawLLMDPrepareScript(t, repositoryRootPath)
 	for _, arguments := range [][]string{{"init"}, {"add", "."}, {"commit", "-m", "test"}} {
 		if output, errorValue := runCommandForTest(blueclawRootPath, "git", arguments...); errorValue != nil {
 			t.Fatalf("git %v: %s", arguments, output)
@@ -379,9 +379,9 @@ func initializeBlueclawSDKDSourceRepository(t *testing.T) (string, string) {
 	return repositoryRootPath, blueclawRootPath
 }
 
-func copyBlueclawSDKDPrepareScript(t *testing.T, repositoryRootPath string) {
+func copyBlueclawLLMDPrepareScript(t *testing.T, repositoryRootPath string) {
 	t.Helper()
-	sourcePath, errorValue := filepath.Abs(filepath.Join("..", "..", "tools", "prepare-blueclaw-sdkd"))
+	sourcePath, errorValue := filepath.Abs(filepath.Join("..", "..", "tools", "prepare-blueclaw-llmd"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -389,12 +389,12 @@ func copyBlueclawSDKDPrepareScript(t *testing.T, repositoryRootPath string) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeReleaseTestFile(t, filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-sdkd"), string(document), 0o755)
+	writeReleaseTestFile(t, filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-llmd"), string(document), 0o755)
 }
 
-func writeBlueclawSDKDArtifact(t *testing.T, artifactDirectoryPath string, revision string) {
+func writeBlueclawLLMDArtifact(t *testing.T, artifactDirectoryPath string, revision string) {
 	t.Helper()
-	binaryPath := filepath.Join(artifactDirectoryPath, "blueclaw-sdkd")
+	binaryPath := filepath.Join(artifactDirectoryPath, "blueclaw-llmd")
 	writeReleaseTestFile(t, binaryPath, revision, 0o755)
 	binarySHA256, _, errorValue := releaseFileSHA256AndSize(binaryPath)
 	if errorValue != nil {

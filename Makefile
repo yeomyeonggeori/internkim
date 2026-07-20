@@ -7,7 +7,7 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-blueclaw-sdkd smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-blueclaw-llmd smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
 
 build: verify-generated-protocol build-mattermost-ephemeral-plugin
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -60,9 +60,9 @@ check: build build-companion
 	cd mattermost-plugin/internkim-ephemeral && bun test webapp
 	cd .dependency/blueclaw/protocol && bun run build
 	cd .dependency/blueclaw/protocol && bun test
-	cd .dependency/blueclaw/sdkd && bun install --frozen-lockfile
-	cd .dependency/blueclaw/sdkd && bun run build
-	cd .dependency/blueclaw/sdkd && bun test
+	cd .dependency/blueclaw/llmd && bun install --frozen-lockfile
+	cd .dependency/blueclaw/llmd && bun run build
+	cd .dependency/blueclaw/llmd && bun test
 	python3 -m unittest discover -s poc -p '*_test.py'
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
@@ -96,8 +96,8 @@ prepare-blueclaw-runtime-base:
 prepare-blueclaw-payload: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-payload
 
-prepare-blueclaw-sdkd: verify-generated-protocol
-	tools/prepare-blueclaw-sdkd
+prepare-blueclaw-llmd: verify-generated-protocol
+	tools/prepare-blueclaw-llmd
 
 smoke-blueclaw-runtime-lab: build
 	./internkim setup --sim --only blueclaw-runtime-base,blueclaw-payload,skills,services,users-sync --force-all --verify

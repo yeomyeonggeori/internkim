@@ -18,7 +18,7 @@ var StepBinaries = Step{
 		switch context.Backend {
 		case BackendSSH:
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
-				!sshFileExists(context, "/usr/local/bin/blueclaw-sdkd") ||
+				!sshFileExists(context, "/usr/local/bin/blueclaw-llmd") ||
 				!sshFileExists(context, "/usr/local/bin/blueclaw-supervisor") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
@@ -33,7 +33,7 @@ var StepBinaries = Step{
 			return trimmedRun(context, "cat /root/.internkim/state/binaries-version 2>/dev/null") == version
 		case BackendSD:
 			return stagedFileExists(context, "bin/blueclaw") &&
-				stagedFileExists(context, "bin/blueclaw-sdkd") &&
+				stagedFileExists(context, "bin/blueclaw-llmd") &&
 				stagedFileExists(context, "bin/internkim-capabilityd") &&
 				stagedFileExists(context, "bin/internkim-admind") &&
 				stagedFileExists(context, "bin/internkim-local-llm-runner")

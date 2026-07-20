@@ -50,20 +50,20 @@ WantedBy=multi-user.target
 `, BlueclawUser, BlueclawHomePath, GraphitiKuzuPath, GraphitiMemorydPath)
 }
 
-func SDKDServiceUnit() string {
-	return SDKDServiceUnitForLocalOnly(LocalOnlyEnabled())
+func LLMDServiceUnit() string {
+	return LLMDServiceUnitForLocalOnly(LocalOnlyEnabled())
 }
 
-func SDKDServiceUnitForLocalOnly(isLocalOnly bool) string {
+func LLMDServiceUnitForLocalOnly(isLocalOnly bool) string {
 	localOnlyValue := 0
-	openRouterEnvironment := "Environment=OPENROUTER_API_KEY_PATH=" + SDKDRuntimeOpenRouterKeyPath + "\n"
+	openRouterEnvironment := "Environment=OPENROUTER_API_KEY_PATH=" + LLMDRuntimeOpenRouterKeyPath + "\n"
 	networkPolicy := ""
 	if isLocalOnly {
 		localOnlyValue = 1
 		openRouterEnvironment = ""
 		networkPolicy = "IPAddressDeny=any\nIPAddressAllow=localhost\n"
 	}
-	authCredentialPreStart, openRouterCredentialPreStart := sdkdCredentialPreStartCommands(isLocalOnly)
+	authCredentialPreStart, openRouterCredentialPreStart := llmdCredentialPreStartCommands(isLocalOnly)
 	return fmt.Sprintf(`[Unit]
 Description=Blueclaw AI SDK Runtime
 After=network-online.target time-sync.target
@@ -71,15 +71,15 @@ Wants=network-online.target time-sync.target
 
 [Service]
 DynamicUser=yes
-RuntimeDirectory=blueclaw-sdkd
+RuntimeDirectory=blueclaw-llmd
 RuntimeDirectoryMode=0700
 UMask=0077
-Environment=BLUECLAW_SDKD_SOCKET_PATH=%s
-Environment=BLUECLAW_SDKD_LLAMA_BASE_URL=%s
-Environment=BLUECLAW_SDKD_LLAMA_MODEL=local/gemma-4-E2B-it-qat-UD-Q4_K_XL
-Environment=BLUECLAW_SDKD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true
-Environment=BLUECLAW_SDKD_LOCAL_ONLY=%d
-Environment=BLUECLAW_SDKD_AUTH_KEY_PATH=%s
+Environment=BLUECLAW_LLMD_SOCKET_PATH=%s
+Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=%s
+Environment=BLUECLAW_LLMD_LLAMA_MODEL=local/gemma-4-E2B-it-qat-UD-Q4_K_XL
+Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true
+Environment=BLUECLAW_LLMD_LOCAL_ONLY=%d
+Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=%s
 %s%s%sExecStart=%s
 Restart=on-failure
 RestartSec=2
@@ -101,44 +101,44 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 %s
 [Install]
 WantedBy=multi-user.target
-`, SDKDSocketPath, locallm.LlamaCppBaseURL, localOnlyValue, SDKDRuntimeAuthKeyPath, openRouterEnvironment, authCredentialPreStart, openRouterCredentialPreStart, SDKDBinaryPath, networkPolicy)
+`, LLMDSocketPath, locallm.LlamaCppBaseURL, localOnlyValue, LLMDRuntimeAuthKeyPath, openRouterEnvironment, authCredentialPreStart, openRouterCredentialPreStart, LLMDBinaryPath, networkPolicy)
 }
 
-func sdkdCredentialPreStartCommands(isLocalOnly bool) (string, string) {
+func llmdCredentialPreStartCommands(isLocalOnly bool) (string, string) {
 	authCredentialCommand := fmt.Sprintf(
 		"set -eu; install -m 0400 %s %s; chown --reference=%s %s",
-		SDKDServiceAuthKeyPath,
-		SDKDRuntimeAuthKeyPath,
-		SDKDRuntimeDirectoryPath,
-		SDKDRuntimeAuthKeyPath,
+		LLMDServiceAuthKeyPath,
+		LLMDRuntimeAuthKeyPath,
+		LLMDRuntimeDirectoryPath,
+		LLMDRuntimeAuthKeyPath,
 	)
 	if isLocalOnly {
-		return sdkdPrivilegedPreStart(authCredentialCommand), sdkdPrivilegedPreStart("rm -f " + SDKDRuntimeOpenRouterKeyPath)
+		return llmdPrivilegedPreStart(authCredentialCommand), llmdPrivilegedPreStart("rm -f " + LLMDRuntimeOpenRouterKeyPath)
 	}
 	openRouterCredentialCommand := fmt.Sprintf(
 		"set -eu; if [ -s %s ]; then install -m 0400 %s %s; chown --reference=%s %s; else rm -f %s; fi",
-		SDKDServiceOpenRouterKeyPath,
-		SDKDServiceOpenRouterKeyPath,
-		SDKDRuntimeOpenRouterKeyPath,
-		SDKDRuntimeDirectoryPath,
-		SDKDRuntimeOpenRouterKeyPath,
-		SDKDRuntimeOpenRouterKeyPath,
+		LLMDServiceOpenRouterKeyPath,
+		LLMDServiceOpenRouterKeyPath,
+		LLMDRuntimeOpenRouterKeyPath,
+		LLMDRuntimeDirectoryPath,
+		LLMDRuntimeOpenRouterKeyPath,
+		LLMDRuntimeOpenRouterKeyPath,
 	)
-	return sdkdPrivilegedPreStart(authCredentialCommand), sdkdPrivilegedPreStart(openRouterCredentialCommand)
+	return llmdPrivilegedPreStart(authCredentialCommand), llmdPrivilegedPreStart(openRouterCredentialCommand)
 }
 
-func sdkdPrivilegedPreStart(command string) string {
+func llmdPrivilegedPreStart(command string) string {
 	return "ExecStartPre=+/bin/sh -c '" + command + "'\n"
 }
 
-func SDKDServiceCredentialInstallCommand(isLocalOnly bool) string {
+func LLMDServiceCredentialInstallCommand(isLocalOnly bool) string {
 	openRouterCredentialCommand := "if [ -s " + OpenRouterKeyPath + " ]; then\n" +
-		"  install -o root -g root -m 600 " + OpenRouterKeyPath + " " + SDKDServiceOpenRouterKeyPath + "\n" +
+		"  install -o root -g root -m 600 " + OpenRouterKeyPath + " " + LLMDServiceOpenRouterKeyPath + "\n" +
 		"else\n" +
-		"  rm -f " + SDKDServiceOpenRouterKeyPath + "\n" +
+		"  rm -f " + LLMDServiceOpenRouterKeyPath + "\n" +
 		"fi"
 	if isLocalOnly {
-		openRouterCredentialCommand = "rm -f " + SDKDServiceOpenRouterKeyPath
+		openRouterCredentialCommand = "rm -f " + LLMDServiceOpenRouterKeyPath
 	}
 	return fmt.Sprintf(`mkdir -p %[1]s
 if [ ! -s %[2]s ]; then
@@ -149,7 +149,7 @@ chown root:root %[2]s
 chmod 600 %[2]s
 install -d -o root -g root -m 700 %[3]s
 install -o root -g root -m 600 %[2]s %[4]s
-%[5]s`, filepath.Dir(SDKDAuthKeyPath), SDKDAuthKeyPath, SDKDServiceCredentialDirectoryPath, SDKDServiceAuthKeyPath, openRouterCredentialCommand)
+%[5]s`, filepath.Dir(LLMDAuthKeyPath), LLMDAuthKeyPath, LLMDServiceCredentialDirectoryPath, LLMDServiceAuthKeyPath, openRouterCredentialCommand)
 }
 
 func CapabilitydServiceUnit() string {
@@ -159,8 +159,8 @@ func CapabilitydServiceUnit() string {
 func CapabilitydServiceUnitForLocalInferenceMode(localInferenceMode string) string {
 	return fmt.Sprintf(`[Unit]
 Description=InternKim Capability Daemon
-After=network-online.target time-sync.target mattermost.service blueclaw-sdkd.service
-Wants=network-online.target time-sync.target blueclaw-sdkd.service
+After=network-online.target time-sync.target mattermost.service blueclaw-llmd.service
+Wants=network-online.target time-sync.target blueclaw-llmd.service
 
 [Service]
 User=root
