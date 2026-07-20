@@ -4,13 +4,15 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
 	import OrgchartAddOrganizationPopover from './orgchart-add-organization-popover.svelte';
 	import { OrgchartDirectoryController } from './orgchart-directory-controller.svelte';
 	import OrgchartFilterPopover from './orgchart-filter-popover.svelte';
-	import OrgchartOrganizationCard from './orgchart-organization-card.svelte';
+	import OrgchartOrganizationTree from './orgchart-organization-tree.svelte';
+	import OrgchartPeopleLayer from './orgchart-people-layer.svelte';
 	import OrgchartPersonDetailPanel from './orgchart-person-detail-panel.svelte';
 	import { orgchartDirectoryText } from './text';
 
@@ -20,6 +22,7 @@
 	const detailSheetViewport = new IsMobile(1024);
 	const controller = new OrgchartDirectoryController(adminBaseURL, text, adminPageText);
 	const isDetailSheetOpen = $derived(detailSheetViewport.current && Boolean(controller.selectedRecord));
+	let isOrganizationSheetOpen = $state(false);
 
 	onMount(() => {
 		void controller.load();
@@ -29,42 +32,45 @@
 		if (nextOpen || !detailSheetViewport.current) return;
 		controller.clearSelection();
 	}
+
+	function selectOrganization(organizationID: string): void {
+		controller.selectGroup(organizationID);
+		if (detailSheetViewport.current) isOrganizationSheetOpen = false;
+	}
 </script>
 
 <svelte:head>
 	<title>{text.title}</title>
 </svelte:head>
 
-<main class="min-h-full w-full flex-1 bg-background text-foreground">
+<main class="h-full min-h-0 w-full flex-1 overflow-hidden bg-background text-foreground">
 	<div class="grid h-[calc(100vh-3rem)] min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-		<header class="border-b bg-background px-4 py-3 sm:px-6 sm:py-4">
-			<div class="grid gap-3 lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-4">
+		<header class="border-b bg-background px-4 py-3 sm:px-6">
+			<div class="grid gap-3 lg:flex lg:items-center lg:justify-between">
 				<div class="flex min-h-10 items-center justify-between gap-3">
 					<h1 class="text-xl font-semibold">{text.title}</h1>
 					{#if detailSheetViewport.current}
-					<div class="flex shrink-0 items-center gap-2">
-						<OrgchartFilterPopover
-							bind:isOpen={controller.isFilterOpen}
-							selectedGroupID={controller.groupID}
-							options={controller.options}
-							{text}
-							buttonSize="sm"
-							onSelectGroup={(groupID) => controller.selectGroup(groupID)}
-						/>
-						{#if controller.canManage}
-							<OrgchartAddOrganizationPopover
-								bind:isOpen={controller.isAddingGroup}
-								bind:newGroupName={controller.newGroupName}
-								isSaving={controller.isSavingGroups}
-								text={adminPageText.orgchart}
-								inputID="new-orgchart-group-mobile"
-								buttonSize="sm"
-								onAdd={() => controller.addGlobalGroup()}
-								onCancel={() => controller.cancelAddGroup()}
-								onOpenChange={(nextOpen) => controller.handleAddGroupOpenChange(nextOpen)}
-							/>
-						{/if}
-					</div>
+						<div class="flex shrink-0 items-center gap-2">
+							<Button type="button" size="sm" variant="outline" onclick={() => (isOrganizationSheetOpen = true)}>
+								<PanelLeftIcon class="size-4" />
+								{text.openOrganizations}
+							</Button>
+							{#if controller.canManage && !controller.organizationEdit.isEditing}
+								<OrgchartAddOrganizationPopover
+									bind:isOpen={controller.isAddingGroup}
+									bind:newGroupName={controller.newGroupName}
+									bind:newGroupParentID={controller.newGroupParentID}
+									groups={controller.groups}
+									isSaving={controller.isSavingGroups}
+									text={adminPageText.orgchart}
+									inputID="new-orgchart-group-mobile"
+									buttonSize="sm"
+									onAdd={() => controller.addGlobalGroup()}
+									onCancel={() => controller.cancelAddGroup()}
+									onOpenChange={(nextOpen) => controller.handleAddGroupOpenChange(nextOpen)}
+								/>
+							{/if}
+						</div>
 					{/if}
 				</div>
 
@@ -81,10 +87,12 @@
 							{text}
 							onSelectGroup={(groupID) => controller.selectGroup(groupID)}
 						/>
-						{#if controller.canManage}
+						{#if controller.canManage && !controller.organizationEdit.isEditing}
 							<OrgchartAddOrganizationPopover
 								bind:isOpen={controller.isAddingGroup}
 								bind:newGroupName={controller.newGroupName}
+								bind:newGroupParentID={controller.newGroupParentID}
+								groups={controller.groups}
 								isSaving={controller.isSavingGroups}
 								text={adminPageText.orgchart}
 								inputID="new-orgchart-group"
@@ -98,39 +106,51 @@
 			</div>
 		</header>
 
-		<section class="h-full min-h-0 min-w-0 overflow-auto px-4 py-5 sm:px-6 lg:overflow-hidden">
-			<div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-				{#if controller.errorMessage}
-					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
-				{:else}
-					<div class="hidden"></div>
-				{/if}
+		<section class="min-h-0 overflow-hidden">
+			{#if controller.isLoading}
+				<p class="p-6 text-sm text-muted-foreground">{text.loading}</p>
+			{:else}
+				<div class="grid h-full min-h-0 lg:grid-cols-[270px_minmax(0,1fr)]" data-testid="orgchart-board">
+					<div class="hidden min-h-0 lg:block">
+						<OrgchartOrganizationTree
+							tree={controller.organizationTree}
+							selectedOrganizationID={controller.groupID}
+							canManage={controller.canManage}
+							isEditing={controller.organizationEdit.isEditing}
+							isSaving={controller.isSavingGroups}
+							{text}
+							onSelect={selectOrganization}
+							onBeginEdit={() => controller.beginOrganizationEdit()}
+							onCancelEdit={() => controller.cancelOrganizationEdit()}
+							onSaveEdit={() => controller.saveOrganizationEdit()}
+							onMove={(groupID, insertionIndex, depth) => controller.moveOrganization(groupID, insertionIndex, depth)}
+						/>
+					</div>
 
-				{#if controller.isLoading}
-					<p class="text-sm text-muted-foreground">{text.loading}</p>
-				{:else}
-					<div class={['grid h-full min-h-0 gap-4 lg:overflow-hidden', controller.selectedRecord ? 'lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]' : '']} data-testid="orgchart-board">
-						<div class="min-h-0 lg:h-full lg:overflow-hidden">
-							<div class="min-h-0 pb-6 pr-1 lg:h-full lg:overflow-y-auto" data-testid="orgchart-list-scroll">
-								{#if controller.visibleRecords.length === 0}
+					<div class={['grid min-h-0 min-w-0', controller.selectedRecord && !detailSheetViewport.current ? 'grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1']}>
+						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+							<div class="flex min-h-20 items-center justify-between border-b px-4 sm:px-6">
+								<h2 class="truncate text-2xl font-semibold">{controller.selectedOrganizationName}</h2>
+							</div>
+							<div class="min-h-0 overflow-y-auto px-4 py-4 sm:px-6" data-testid="orgchart-list-scroll">
+								{#if controller.errorMessage}
+									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
+								{/if}
+									{#if controller.organizationSections.every((section) => section.records.length === 0)}
 									<p class="rounded-md border bg-muted/30 px-4 py-5 text-sm text-muted-foreground">{text.empty}</p>
 								{:else}
-									<div class={['grid gap-4', controller.selectedRecord ? 'xl:grid-cols-2' : 'lg:grid-cols-2']} data-testid="orgchart-organization-grid">
-										{#each controller.organizationSections as section (section.id)}
-											<OrgchartOrganizationCard
-												{section}
-												selectedUserID={controller.selectedUserID}
-												{text}
-												selectRecord={(record) => controller.selectRecord(record)}
-											/>
-										{/each}
-									</div>
+									<OrgchartPeopleLayer
+										sections={controller.organizationSections}
+										selectedUserID={controller.selectedUserID}
+										{text}
+										selectRecord={(record) => controller.selectRecord(record)}
+									/>
 								{/if}
 							</div>
 						</div>
 
 						{#if controller.selectedRecord && !detailSheetViewport.current}
-							<div class="min-h-0" data-testid="orgchart-detail-column">
+							<div class="min-h-0 border-l p-3" data-testid="orgchart-detail-column">
 								<OrgchartPersonDetailPanel
 									record={controller.selectedRecord}
 									groups={controller.groups}
@@ -150,24 +170,34 @@
 							</div>
 						{/if}
 					</div>
-				{/if}
-			</div>
+				</div>
+			{/if}
 		</section>
 	</div>
 
+	<Sheet.Root bind:open={isOrganizationSheetOpen}>
+		<Sheet.Content side="left" class="w-[min(20rem,90vw)] p-0 lg:hidden" showCloseButton={false}>
+			<Sheet.Header class="sr-only"><Sheet.Title>{text.openOrganizations}</Sheet.Title><Sheet.Description>{text.allOrganizations}</Sheet.Description></Sheet.Header>
+			<OrgchartOrganizationTree
+				tree={controller.organizationTree}
+				selectedOrganizationID={controller.groupID}
+				canManage={controller.canManage}
+				isEditing={controller.organizationEdit.isEditing}
+				isSaving={controller.isSavingGroups}
+				{text}
+				onSelect={selectOrganization}
+				onBeginEdit={() => controller.beginOrganizationEdit()}
+				onCancelEdit={() => controller.cancelOrganizationEdit()}
+				onSaveEdit={() => controller.saveOrganizationEdit()}
+				onMove={(groupID, insertionIndex, depth) => controller.moveOrganization(groupID, insertionIndex, depth)}
+			/>
+		</Sheet.Content>
+	</Sheet.Root>
+
 	{#if controller.selectedRecord && detailSheetViewport.current}
 		<Sheet.Root open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
-			<Sheet.Content
-				side="bottom"
-				class="max-h-[85svh] overflow-hidden rounded-t-xl p-0 lg:hidden"
-				showCloseButton={false}
-				closeLabel={text.closeDetail}
-				data-testid="orgchart-mobile-detail-sheet"
-			>
-				<Sheet.Header class="sr-only">
-					<Sheet.Title>{text.personDetail}</Sheet.Title>
-					<Sheet.Description>{controller.selectedRecord.name || controller.selectedRecord.email}</Sheet.Description>
-				</Sheet.Header>
+			<Sheet.Content side="bottom" class="max-h-[85svh] overflow-hidden rounded-t-xl p-0 lg:hidden" showCloseButton={false} closeLabel={text.closeDetail} data-testid="orgchart-mobile-detail-sheet">
+				<Sheet.Header class="sr-only"><Sheet.Title>{text.personDetail}</Sheet.Title><Sheet.Description>{controller.selectedRecord.name || controller.selectedRecord.email}</Sheet.Description></Sheet.Header>
 				<OrgchartPersonDetailPanel
 					record={controller.selectedRecord}
 					groups={controller.groups}
