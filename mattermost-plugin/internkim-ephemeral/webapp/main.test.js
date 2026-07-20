@@ -133,6 +133,31 @@ describe('internkim mattermost webapp plugin', () => {
 		expect(links.map((link) => link.props.href)).toEqual(['https://poc0-t01.example.test/calendar/']);
 	});
 
+	test('unmounts the calendar frame while another tab is active', () => {
+		resetHookStates();
+		const { registered } = initializePlugin();
+		const firstTree = renderComponent(registered.sidebar.component);
+		const calendarTab = collectElements(
+			firstTree,
+			(node) => node.type === 'button' && node.children[0] === '일정',
+		)[0];
+		calendarTab.props.onClick();
+		const secondTree = renderComponent(registered.sidebar.component);
+		const flowTab = collectElements(
+			secondTree,
+			(node) => node.type === 'button' && node.children[0] === '업무',
+		)[0];
+		flowTab.props.onClick();
+		const thirdTree = renderComponent(registered.sidebar.component);
+		const frameSources = collectElements(thirdTree, (node) => node.type === 'iframe').map(
+			(frame) => frame.props.src,
+		);
+
+		expect(frameSources).toEqual([
+			'https://poc0-t01.example.test/auth/mattermost/start?return=%2Fflow%2F',
+		]);
+	});
+
 	test('links only to the browser view for the active tab', () => {
 		resetHookStates();
 		const { registered } = initializePlugin();
