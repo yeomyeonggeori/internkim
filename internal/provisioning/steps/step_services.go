@@ -231,7 +231,7 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: capabilitydServiceUnitForContext(context)},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
-		{path: blueclaw.LLMDServicePath, document: blueclaw.LLMDServiceUnit()},
+		{path: blueclaw.LLMDServicePath, document: blueclaw.LLMDServiceUnit(shouldManageLocalLLMServices(context))},
 	}
 	if context.BoardType == BoardSimulation {
 		return services[:3]

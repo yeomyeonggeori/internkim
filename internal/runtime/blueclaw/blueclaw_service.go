@@ -50,11 +50,11 @@ WantedBy=multi-user.target
 `, BlueclawUser, BlueclawHomePath, GraphitiKuzuPath, GraphitiMemorydPath)
 }
 
-func LLMDServiceUnit() string {
-	return LLMDServiceUnitForLocalOnly(LocalOnlyEnabled())
+func LLMDServiceUnit(isLocalLlamaProvisioned bool) string {
+	return LLMDServiceUnitForLocalOnly(LocalOnlyEnabled(), isLocalLlamaProvisioned)
 }
 
-func LLMDServiceUnitForLocalOnly(isLocalOnly bool) string {
+func LLMDServiceUnitForLocalOnly(isLocalOnly bool, isLocalLlamaProvisioned bool) string {
 	localOnlyValue := 0
 	openRouterEnvironment := "Environment=OPENROUTER_API_KEY_PATH=" + LLMDRuntimeOpenRouterKeyPath + "\n"
 	networkPolicy := ""
@@ -62,6 +62,13 @@ func LLMDServiceUnitForLocalOnly(isLocalOnly bool) string {
 		localOnlyValue = 1
 		openRouterEnvironment = ""
 		networkPolicy = "IPAddressDeny=any\nIPAddressAllow=localhost\n"
+	}
+	llamaEnvironment := ""
+	if isLocalLlamaProvisioned {
+		llamaEnvironment = fmt.Sprintf(
+			"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=%s\nEnvironment=BLUECLAW_LLMD_LLAMA_MODEL=local/gemma-4-E2B-it-qat-UD-Q4_K_XL\nEnvironment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true\n",
+			locallm.LlamaCppBaseURL,
+		)
 	}
 	authCredentialPreStart, openRouterCredentialPreStart := llmdCredentialPreStartCommands(isLocalOnly)
 	return fmt.Sprintf(`[Unit]
@@ -75,10 +82,7 @@ RuntimeDirectory=blueclaw-llmd
 RuntimeDirectoryMode=0700
 UMask=0077
 Environment=BLUECLAW_LLMD_SOCKET_PATH=%s
-Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=%s
-Environment=BLUECLAW_LLMD_LLAMA_MODEL=local/gemma-4-E2B-it-qat-UD-Q4_K_XL
-Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true
-Environment=BLUECLAW_LLMD_LOCAL_ONLY=%d
+%sEnvironment=BLUECLAW_LLMD_LOCAL_ONLY=%d
 Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=%s
 %s%s%sExecStart=%s
 Restart=on-failure
@@ -101,7 +105,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 %s
 [Install]
 WantedBy=multi-user.target
-`, LLMDSocketPath, locallm.LlamaCppBaseURL, localOnlyValue, LLMDRuntimeAuthKeyPath, openRouterEnvironment, authCredentialPreStart, openRouterCredentialPreStart, LLMDBinaryPath, networkPolicy)
+`, LLMDSocketPath, llamaEnvironment, localOnlyValue, LLMDRuntimeAuthKeyPath, openRouterEnvironment, authCredentialPreStart, openRouterCredentialPreStart, LLMDBinaryPath, networkPolicy)
 }
 
 func llmdCredentialPreStartCommands(isLocalOnly bool) (string, string) {
@@ -159,8 +163,8 @@ func CapabilitydServiceUnit() string {
 func CapabilitydServiceUnitForLocalInferenceMode(localInferenceMode string) string {
 	return fmt.Sprintf(`[Unit]
 Description=InternKim Capability Daemon
-After=network-online.target time-sync.target mattermost.service blueclaw-llmd.service
-Wants=network-online.target time-sync.target blueclaw-llmd.service
+After=network-online.target time-sync.target mattermost.service blueclaw-llmd.service internkim-admind.service
+Wants=network-online.target time-sync.target blueclaw-llmd.service internkim-admind.service
 
 [Service]
 User=root

@@ -163,8 +163,8 @@ func tenantCapabilitydServiceUnit(options BootstrapOptions) string {
 		optionalGatewaySecretArgument(options)
 	return `[Unit]
 Description=InternKim Capability Daemon
-After=network-online.target time-sync.target mattermost.service
-Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target mattermost.service internkim-admind.service
+Wants=network-online.target time-sync.target internkim-admind.service
 
 [Service]
 User=root

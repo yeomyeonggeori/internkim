@@ -431,8 +431,8 @@ func hostRuntimeCapabilitydServiceUnit(manifest Manifest, paths RuntimePaths, co
 	}
 	return `[Unit]
 Description=InternKim tenant capability daemon ` + manifest.TenantID + `
-After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service
-Wants=network-online.target
+After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service ` + hostRuntimeAdmindServiceName(manifest) + `
+Wants=network-online.target ` + hostRuntimeAdmindServiceName(manifest) + `
 
 [Service]
 User=root

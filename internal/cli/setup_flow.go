@@ -2754,7 +2754,7 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 
 	if err := context.SD.WriteFile(
 		"internkim-firstboot.sh",
-		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail)),
+		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail, shouldInstallLocalLLMSSH(context))),
 		0o755,
 	); err != nil {
 		return err
