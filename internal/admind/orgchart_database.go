@@ -46,9 +46,13 @@ func ensureOrgchartSchema(ctx context.Context, database *sql.DB) error {
 CREATE TABLE IF NOT EXISTS orgchart_groups (
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL,
+	parent_id TEXT NOT NULL DEFAULT '',
 	position INTEGER NOT NULL
 )`)
 	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureOrgchartGroupParentColumn(ctx, database); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx, `
@@ -60,6 +64,18 @@ CREATE TABLE IF NOT EXISTS orgchart_metadata (
 		return errorValue
 	}
 	return ensureOrgchartPeopleCacheSchema(ctx, database)
+}
+
+func ensureOrgchartGroupParentColumn(ctx context.Context, database *sql.DB) error {
+	schema, errorValue := readSQLiteTableSchema(ctx, database, "orgchart_groups")
+	if errorValue != nil {
+		return errorValue
+	}
+	if strings.Contains(strings.ToLower(schema), "parent_id") {
+		return nil
+	}
+	_, errorValue = database.ExecContext(ctx, "ALTER TABLE orgchart_groups ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''")
+	return errorValue
 }
 
 func createOrgchartProfilesTable(ctx context.Context, executor orgchartSchemaExecutor, tableName string) error {

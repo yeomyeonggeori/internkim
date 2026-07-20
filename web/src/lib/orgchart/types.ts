@@ -15,6 +15,7 @@ export type UserRecord = {
 export type OrgGroup = {
 	id: string;
 	name: string;
+	parentID?: string;
 };
 
 export type UsersResponse = {
