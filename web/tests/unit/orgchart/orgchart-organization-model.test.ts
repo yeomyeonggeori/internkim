@@ -1,197 +1,113 @@
 import { describe, expect, test } from 'bun:test';
 import type { OrgGroup, UserRecord } from '../../../src/lib/orgchart/types';
-import { orgchartOrganizationSections, type OrgchartOrganizationMemberNode } from '../../../src/routes/orgchart/orgchart-organization-model';
+import { orgchartOrganizationSections } from '../../../src/routes/orgchart/orgchart-organization-model';
 
-function userRecord(overrides: Partial<UserRecord>): UserRecord {
+function record(userID: string, primaryGroupID = ''): UserRecord {
 	return {
-		userID: '',
-		handle: '',
-		name: '',
-		email: '',
-		...overrides
-	};
-}
-
-function nodeIDs(node: OrgchartOrganizationMemberNode): unknown {
-	return {
-		id: node.record.userID,
-		children: node.children.map(nodeIDs)
+		userID,
+		handle: userID,
+		name: userID,
+		email: `${userID}@example.com`,
+		primaryGroupID,
+		groupIDs: primaryGroupID ? [primaryGroupID] : []
 	};
 }
 
 describe('orgchart organization model', () => {
-	test('stacks one organization leader over direct and nested members', () => {
+	test('renders the synthetic root and every organization in hierarchy order', () => {
+		const groups: OrgGroup[] = [
+			{ id: 'product', name: '프로덕트 본부' },
+			{ id: 'engineering', name: '개발팀', parentID: 'product' },
+			{ id: 'design', name: '디자인팀', parentID: 'product' },
+			{ id: 'sales', name: '세일즈' }
+		];
+		const records = [record('ceo'), record('product-lead', 'product'), record('engineer', 'engineering'), record('designer', 'design'), record('sales', 'sales')];
+
+		const sections = orgchartOrganizationSections(records, groups, '전체 조직');
+
+		expect(sections.map((section) => [section.id, section.depth, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
+			['', 0, 5, ['ceo']],
+			['product', 1, 3, ['product-lead']],
+			['engineering', 2, 1, ['engineer']],
+			['design', 2, 1, ['designer']],
+			['sales', 1, 1, ['sales']]
+		]);
+	});
+
+	test('places people with unknown organizations in the root without creating a group', () => {
+		const records = [record('known', 'product'), record('unknown', 'missing')];
+
+		const sections = orgchartOrganizationSections(records, [{ id: 'product', name: '제품' }], '전체 조직');
+
+		expect(sections.map((section) => section.id)).toEqual(['', 'product']);
+		expect(sections[0]?.records.map((item) => item.userID)).toEqual(['unknown']);
+	});
+
+	test('shows only the selected organization subtree with rebased depth', () => {
+		const groups: OrgGroup[] = [
+			{ id: 'product', name: '프로덕트 본부' },
+			{ id: 'engineering', name: '개발팀', parentID: 'product' },
+			{ id: 'platform', name: '플랫폼팀', parentID: 'engineering' },
+			{ id: 'sales', name: '세일즈' }
+		];
+
+		const sections = orgchartOrganizationSections([], groups, '전체 조직', 'engineering');
+
+		expect(sections.map((section) => [section.id, section.depth])).toEqual([
+			['engineering', 0],
+			['platform', 1]
+		]);
+	});
+
+	test('keeps organization member counts based on all records while search filters visible people', () => {
 		const groups: OrgGroup[] = [{ id: 'product', name: '제품팀' }];
-		const records = [
-			userRecord({ userID: 'lead', name: 'Lead', hireDate: '2026-01-01', primaryGroupID: 'product', groupIDs: ['product'] }),
-			userRecord({ userID: 'designer', name: 'Designer', hireDate: '2026-02-01', primaryGroupID: 'product', groupIDs: ['product'], supervisorID: 'lead' }),
-			userRecord({ userID: 'engineer', name: 'Engineer', hireDate: '2026-02-02', primaryGroupID: 'product', groupIDs: ['product'], supervisorID: 'lead' }),
-			userRecord({ userID: 'intern', name: 'Intern', hireDate: '2026-03-01', primaryGroupID: 'product', groupIDs: ['product'], supervisorID: 'designer' })
-		];
+		const allRecords = [record('lead', 'product'), record('engineer', 'product')];
 
-		const [section] = orgchartOrganizationSections(records, groups, '팀 미지정');
+		const sections = orgchartOrganizationSections([allRecords[1]], groups, '전체 조직', '', allRecords);
 
-		expect(section?.leader.userID).toBe('lead');
-		expect(section?.memberCount).toBe(4);
-		expect(section?.memberNodes.map(nodeIDs)).toEqual([
-			{ id: 'designer', children: [{ id: 'intern', children: [] }] },
-			{ id: 'engineer', children: [] }
+		expect(sections.map((section) => [section.id, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
+			['', 2, []],
+			['product', 2, ['engineer']]
 		]);
 	});
 
-	test('keeps extra roots under the first organization leader', () => {
-		const groups: OrgGroup[] = [{ id: 'shared', name: '공유팀' }];
-		const records = [
-			userRecord({ userID: 'first', name: '김첫째', hireDate: '2026-01-01', primaryGroupID: 'shared', groupIDs: ['shared'] }),
-			userRecord({ userID: 'second', name: '이둘째', hireDate: '2026-01-01', primaryGroupID: 'shared', groupIDs: ['shared'] }),
-			userRecord({ userID: 'third', name: '박셋째', hireDate: '2026-02-01', primaryGroupID: 'shared', groupIDs: ['shared'] })
-		];
+	test('identifies the unique organization hierarchy root instead of the earliest employee as responsible', () => {
+		const leader = { ...record('leader', 'product'), hireDate: '2026-02-01' };
+		const employee = { ...record('employee', 'product'), hireDate: '2026-01-01', supervisorID: 'leader' };
 
-		const [section] = orgchartOrganizationSections(records, groups, '팀 미지정');
+		const sections = orgchartOrganizationSections([leader, employee], [{ id: 'product', name: '제품팀' }], '전체 조직');
+		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(section?.leader.userID).toBe('first');
-		expect(section?.memberNodes.map((node) => node.record.userID)).toEqual(['second', 'third']);
+		expect(productSection?.records.map((item) => item.userID)).toEqual(['employee', 'leader']);
+		expect(productSection?.responsibleUserID).toBe('leader');
 	});
 
-	test('includes unknown and unassigned organizations after known groups', () => {
-		const groups: OrgGroup[] = [{ id: 'known', name: '기존 조직' }];
-		const records = [
-			userRecord({ userID: 'known-user', primaryGroupID: 'known', groupIDs: ['known'] }),
-			userRecord({ userID: 'unknown-user', primaryGroupID: 'unknown', groupIDs: ['unknown'] }),
-			userRecord({ userID: 'unassigned-user' })
-		];
-
-		const sections = orgchartOrganizationSections(records, groups, '팀 미지정');
-
-		expect(sections.map((section) => [section.id, section.name, section.isUnassigned])).toEqual([
-			['known', '기존 조직', false],
-			['unknown', 'unknown', false],
-			['__unassigned__', '팀 미지정', true]
-		]);
-	});
-
-	test('orders organizations by normalized executive job titles across every membership', () => {
+	test('carries company responsibility into the organization containing the company leader', () => {
+		const companyLeader = record('company-leader', 'leadership');
+		const productLeader = { ...record('product-leader', 'product'), supervisorID: 'company-leader' };
+		const employee = { ...record('employee', 'product'), supervisorID: 'product-leader' };
 		const groups: OrgGroup[] = [
-			{ id: 'normal-zulu', name: 'Zulu' },
-			{ id: 'c-level', name: 'Zulu C-level' },
-			{ id: 'co-founder', name: 'Alpha Co-Founder' },
-			{ id: 'co-ceo', name: 'Zulu Co-CEO' },
-			{ id: 'founder', name: 'Alpha Founder' },
-			{ id: 'ceo-primary', name: 'Zulu CEO' },
-			{ id: 'ceo-secondary', name: 'Secondary CEO' },
-			{ id: 'normal-echo', name: 'Echo' }
-		];
-		const records = [
-			userRecord({ userID: 'ceo', jobTitle: ' C-E o ', primaryGroupID: 'ceo-primary', groupIDs: ['ceo-primary', 'ceo-secondary'] }),
-			userRecord({ userID: 'ceo-secondary-member', primaryGroupID: 'ceo-secondary', groupIDs: ['ceo-secondary'] }),
-			userRecord({ userID: 'founder', jobTitle: ' FOUN-DER ', primaryGroupID: 'founder', groupIDs: ['founder'] }),
-			userRecord({ userID: 'co-ceo', jobTitle: ' co - C E O ', primaryGroupID: 'co-ceo', groupIDs: ['co-ceo'] }),
-			userRecord({ userID: 'co-founder', jobTitle: ' Co- FOUNDer ', primaryGroupID: 'co-founder', groupIDs: ['co-founder'] }),
-			userRecord({ userID: 'c-level', jobTitle: ' C-T o ', primaryGroupID: 'c-level', groupIDs: ['c-level'] }),
-			userRecord({ userID: 'normal-zulu', primaryGroupID: 'normal-zulu', groupIDs: ['normal-zulu'] }),
-			userRecord({ userID: 'normal-echo', jobTitle: 'Engineering Lead', primaryGroupID: 'normal-echo', groupIDs: ['normal-echo'] }),
-			userRecord({ userID: 'unassigned' })
+			{ id: 'leadership', name: '경영' },
+			{ id: 'product', name: '제품팀' }
 		];
 
-		const sections = orgchartOrganizationSections(records, groups, '팀 미지정', records, 'en');
+		const sections = orgchartOrganizationSections([companyLeader, productLeader, employee], groups, '전체 조직');
+		const leadershipSection = sections.find((section) => section.id === 'leadership');
+		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(sections.map((section) => section.id)).toEqual([
-			'founder',
-			'ceo-secondary',
-			'ceo-primary',
-			'co-founder',
-			'co-ceo',
-			'c-level',
-			'normal-echo',
-			'normal-zulu',
-			'__unassigned__'
-		]);
+		expect(leadershipSection?.companyResponsibleUserID).toBe('company-leader');
+		expect(productSection?.companyResponsibleUserID).toBe('company-leader');
+		expect(leadershipSection?.responsibleUserID).toBe('company-leader');
+		expect(productSection?.responsibleUserID).toBe('product-leader');
 	});
 
-	test('treats another C-level abbreviation as executive priority', () => {
-		const groups: OrgGroup[] = [
-			{ id: 'general', name: 'Alpha' },
-			{ id: 'c-level', name: 'Zulu' }
-		];
-		const records = [
-			userRecord({ userID: 'general', primaryGroupID: 'general', groupIDs: ['general'] }),
-			userRecord({ userID: 'c-level', jobTitle: 'CFO', primaryGroupID: 'c-level', groupIDs: ['c-level'] })
-		];
+	test('does not assign responsibility when an organization has multiple hierarchy roots', () => {
+		const firstRoot = record('first-root', 'product');
+		const secondRoot = record('second-root', 'product');
 
-		const sections = orgchartOrganizationSections(records, groups, 'Unassigned');
+		const sections = orgchartOrganizationSections([firstRoot, secondRoot], [{ id: 'product', name: '제품팀' }], '전체 조직');
+		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(sections.map((section) => section.id)).toEqual(['c-level', 'general']);
-	});
-
-	test('keeps ordinary C and O words below standard C-suite acronyms', () => {
-		const groups: OrgGroup[] = [
-			{ id: 'cargo', name: 'Alpha Cargo' },
-			{ id: 'camo', name: 'Bravo Camo' },
-			{ id: 'content-seo', name: 'Charlie Content' },
-			{ id: 'ciso', name: 'Xray CISO' },
-			{ id: 'chro', name: 'Yankee CHRO' },
-			{ id: 'cfo', name: 'Zulu CFO' }
-		];
-		const records = [
-			userRecord({ userID: 'cargo', jobTitle: 'Cargo', primaryGroupID: 'cargo', groupIDs: ['cargo'] }),
-			userRecord({ userID: 'camo', jobTitle: 'Camo', primaryGroupID: 'camo', groupIDs: ['camo'] }),
-			userRecord({ userID: 'content-seo', jobTitle: 'Content SEO', primaryGroupID: 'content-seo', groupIDs: ['content-seo'] }),
-			userRecord({ userID: 'ciso', jobTitle: 'CiSo', primaryGroupID: 'ciso', groupIDs: ['ciso'] }),
-			userRecord({ userID: 'chro', jobTitle: 'chro', primaryGroupID: 'chro', groupIDs: ['chro'] }),
-			userRecord({ userID: 'cfo', jobTitle: ' C-F O ', primaryGroupID: 'cfo', groupIDs: ['cfo'] })
-		];
-
-		const sections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'en');
-
-		expect(sections.map((section) => section.id)).toEqual(['ciso', 'chro', 'cfo', 'cargo', 'camo', 'content-seo']);
-	});
-
-	test('treats non-executive job titles as general and orders them by localized name', () => {
-		const groups: OrgGroup[] = [
-			{ id: 'zero-zulu', name: 'Zulu' },
-			{ id: 'general-alpha', name: 'Alpha' }
-		];
-		const records = [
-			userRecord({ userID: 'zero', jobTitle: 'Vice President', primaryGroupID: 'zero-zulu', groupIDs: ['zero-zulu'] }),
-			userRecord({ userID: 'general', primaryGroupID: 'general-alpha', groupIDs: ['general-alpha'] })
-		];
-
-		const sections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'en');
-
-		expect(sections.map((section) => section.id)).toEqual(['general-alpha', 'zero-zulu']);
-	});
-
-	test('keeps organization priority from all records when visible records are filtered', () => {
-		const groups: OrgGroup[] = [
-			{ id: 'leadership', name: 'Zulu' },
-			{ id: 'product', name: 'Alpha' }
-		];
-		const allRecords = [
-			userRecord({ userID: 'ceo', jobTitle: 'CEO', primaryGroupID: 'leadership', groupIDs: ['leadership'] }),
-			userRecord({ userID: 'leadership-member', primaryGroupID: 'leadership', groupIDs: ['leadership'] }),
-			userRecord({ userID: 'product-member', primaryGroupID: 'product', groupIDs: ['product'] })
-		];
-		const visibleRecords = allRecords.filter((record) => record.userID !== 'ceo');
-
-		const sections = orgchartOrganizationSections(visibleRecords, groups, 'Unassigned', allRecords, 'en');
-
-		expect(sections.map((section) => section.id)).toEqual(['leadership', 'product']);
-	});
-
-	test('uses the active locale when organizations share the same priority', () => {
-		const groups: OrgGroup[] = [
-			{ id: 'korean', name: '가' },
-			{ id: 'english', name: 'A' }
-		];
-		const records = [
-			userRecord({ userID: 'korean', primaryGroupID: 'korean', groupIDs: ['korean'] }),
-			userRecord({ userID: 'english', primaryGroupID: 'english', groupIDs: ['english'] })
-		];
-
-		const koreanSections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'ko');
-		const englishSections = orgchartOrganizationSections(records, groups, 'Unassigned', records, 'en');
-
-		expect(koreanSections.map((section) => section.id)).toEqual(['korean', 'english']);
-		expect(englishSections.map((section) => section.id)).toEqual(['english', 'korean']);
+		expect(productSection?.responsibleUserID).toBe(undefined);
 	});
 });
