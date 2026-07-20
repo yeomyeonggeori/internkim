@@ -21,11 +21,13 @@
 
 	function weekLabel(row: FlowPersonalScoreRow): string {
 		if (row.periodIndex === 0) return text.currentWeekPeriodLabel;
+		if (row.periodIndex === 1) return text.weekPeriodSingularLabel;
 		return text.weekPeriodLabel.replace('{count}', String(row.periodIndex));
 	}
 
 	function monthLabel(row: FlowPersonalScoreRow): string {
 		if (row.periodIndex === 0) return text.currentMonthPeriodLabel;
+		if (row.periodIndex === 1) return text.monthPeriodSingularLabel;
 		return text.monthPeriodLabel.replace('{count}', String(row.periodIndex));
 	}
 
@@ -53,7 +55,7 @@
 		<ChartNoAxesColumnIncreasingIcon class="size-4" />
 		{text.personalScoreAction}
 	</Dialog.Trigger>
-	<Dialog.Content class="max-h-[calc(100vh-2rem)] overflow-y-auto p-0 sm:max-w-[calc(100vw-2rem)] xl:max-w-6xl">
+	<Dialog.Content closeLabel={text.personalScoreClose} class="max-h-[calc(100vh-2rem)] overflow-y-auto p-0 sm:max-w-[calc(100vw-2rem)] xl:max-w-6xl">
 		<Dialog.Header class="border-b px-6 py-5 pr-12">
 			<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 				<div class="space-y-1.5">

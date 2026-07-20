@@ -19,16 +19,36 @@ test.describe('flow personal score dialog', () => {
 		});
 		await expect(memberScoreCard.getByRole('button', { name: '내 점수 상세', exact: true })).toBeVisible();
 		await expect(memberScoreCard.getByRole('button')).toHaveCount(1);
+		await expect(memberScoreCard.getByRole('link')).toHaveCount(0);
 
 		await memberScoreCard.getByRole('button', { name: '내 점수 상세', exact: true }).click();
 		const dialog = page.getByRole('dialog');
 		await expect(dialog).toBeVisible();
-		await expect(dialog.getByRole('heading', { name: /점수 상세$/ })).toBeVisible();
+		await expect(dialog.getByRole('heading', { name: '김철수 점수 상세', exact: true })).toBeVisible();
 		await expect(dialog.getByText('주간 점수', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('월간 점수', { exact: true })).toBeVisible();
 		await expect(dialog.getByRole('columnheader', { name: '가중 점수', exact: true })).toHaveCount(2);
 
-		await page.keyboard.press('Escape');
+		const closeButton = dialog.getByRole('button', { name: '점수 상세 닫기', exact: true });
+		await expect(closeButton).toBeVisible();
+		await closeButton.click();
 		await expect(dialog).toBeHidden();
+	});
+
+	test('uses singular English labels for the first previous score periods', async ({ page }) => {
+		await page.route('**/admin/api/locale', async (route) => {
+			await route.fulfill({ json: { locale: 'en' } });
+		});
+		await page.addInitScript(() => {
+			localStorage.setItem('internkim.locale', 'en');
+		});
+		await page.goto('/flow/');
+
+		await page.getByRole('button', { name: 'Report', exact: true }).click();
+		await page.getByRole('button', { name: 'My score details', exact: true }).click();
+
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('1 week ago', { exact: true })).toBeVisible();
+		await expect(dialog.getByText('1 month ago', { exact: true })).toBeVisible();
 	});
 });
