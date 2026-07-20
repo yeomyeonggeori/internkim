@@ -9,7 +9,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
-func buildFirstbootScript(deviceURL, adminEmail string) string {
+func buildFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvisioned bool) string {
 	sections := []string{
 		renderFirstbootPreludeSection(),
 		renderFirstbootStagingSection(),
@@ -17,7 +17,7 @@ func buildFirstbootScript(deviceURL, adminEmail string) string {
 		renderFirstbootPackagesSection(),
 		renderFirstbootToolsSection(),
 		renderFirstbootApplicationsSection(deviceURL, adminEmail),
-		renderFirstbootServicesSection(),
+		renderFirstbootServicesSection(isLocalLlamaProvisioned),
 		renderFirstbootCompletionSection(),
 	}
 
@@ -860,7 +860,7 @@ fi`)
 	return fillFirstbootPlaceholders(section, replacements)
 }
 
-func renderFirstbootServicesSection() string {
+func renderFirstbootServicesSection(isLocalLlamaProvisioned bool) string {
 	section := strings.TrimSpace(fmt.Sprintf(`if phase_done services; then
   echo "Phase services already complete"
 else
@@ -995,7 +995,7 @@ fi`,
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
 		blueclaw.LLMDServicePath,
-		blueclaw.LLMDServiceUnit(),
+		blueclaw.LLMDServiceUnit(isLocalLlamaProvisioned),
 		blueclaw.GraphitiMemorydServicePath,
 		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,

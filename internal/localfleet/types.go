@@ -15,7 +15,6 @@ const (
 	ActionRunScenario      = "runScenario"
 	ActionVerifyRegression = "verifyRegression"
 
-	LLMDModeShadow        LLMDMode = "shadow"
 	LLMDModeAuthoritative LLMDMode = "authoritative"
 )
 

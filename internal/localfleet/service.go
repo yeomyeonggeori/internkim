@@ -281,7 +281,7 @@ func normalizeOptions(options Options) (Options, error) {
 func normalizeLLMDMode(mode LLMDMode) (LLMDMode, error) {
 	normalizedMode := LLMDMode(strings.ToLower(strings.TrimSpace(string(mode))))
 	switch normalizedMode {
-	case "", LLMDModeShadow, LLMDModeAuthoritative:
+	case "", LLMDModeAuthoritative:
 		return normalizedMode, nil
 	default:
 		return "", fmt.Errorf("unsupported LLMD mode: %s", mode)

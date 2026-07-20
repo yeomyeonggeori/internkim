@@ -13,6 +13,46 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
+func TestServiceUnitDocumentsOmitsLlamaEnvironmentWhenLocalLLMIsNotPlanned(t *testing.T) {
+	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano, PlannedSteps: map[string]bool{}}
+	for _, service := range serviceUnitDocuments(context) {
+		if service.path != blueclaw.LLMDServicePath {
+			continue
+		}
+		for _, unexpectedValue := range []string{
+			"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+			"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+			"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
+		} {
+			if strings.Contains(service.document, unexpectedValue) {
+				t.Fatalf("expected LLMD unit without a planned local-llm step to omit %q, got %s", unexpectedValue, service.document)
+			}
+		}
+		return
+	}
+	t.Fatal("expected LLMD service unit to be present")
+}
+
+func TestServiceUnitDocumentsEmitsLlamaEnvironmentWhenLocalLLMIsPlanned(t *testing.T) {
+	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano, PlannedSteps: map[string]bool{"local-llm": true}}
+	for _, service := range serviceUnitDocuments(context) {
+		if service.path != blueclaw.LLMDServicePath {
+			continue
+		}
+		for _, expectedValue := range []string{
+			"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+			"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+			"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
+		} {
+			if !strings.Contains(service.document, expectedValue) {
+				t.Fatalf("expected LLMD unit with a planned local-llm step to contain %q, got %s", expectedValue, service.document)
+			}
+		}
+		return
+	}
+	t.Fatal("expected LLMD service unit to be present")
+}
+
 func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T) {
 	command := blueclawRuntimeContractCheckCommand()
 	for _, expectedFragment := range []string{
