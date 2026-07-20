@@ -17,8 +17,8 @@
         {"pathGlob": "private/people/*/documents/*.docx"}
       ],
       "expectedEventCounts": [
-        {"name": "tool.terminal.run.requested", "bodyFragment": "분기 결산 운영 검토", "count": 1},
-        {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1}
+        {"name": "tool.terminal.run.requested", "bodyFragment": "분기 결산 운영 검토", "count": 1, "advisory": true},
+        {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1, "advisory": true}
       ],
       "expectedReplyFragments": ["분기 결산 운영 검토"],
       "expectedTaskStatus": "completed"
@@ -27,7 +27,7 @@
       "prompt": "방금 전달한 DOCX를 읽어서 제목, 상태, 담당과 다음 단계를 확인해줘.",
       "expectedToolCalls": ["document.read"],
       "expectedEventCounts": [
-        {"name": "tool.document.read.result", "outputFragment": ".docx", "count": 1},
+        {"name": "tool.document.read.result", "outputFragment": ".docx", "count": 1, "advisory": true},
         {"name": "tool.document.read.result", "outputFragment": "분기 결산 운영 검토", "count": 1}
       ],
       "expectedReplyFragments": ["분기 결산 운영 검토", "초안", "운영팀"],
@@ -45,9 +45,9 @@
         {"pathGlob": "private/people/*/documents/*.docx"}
       ],
       "expectedEventCounts": [
-        {"name": "tool.terminal.run.requested", "bodyFragment": "검토 완료", "count": 1},
-        {"name": "tool.terminal.run.requested", "bodyFragment": "재무팀", "count": 1},
-        {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1}
+        {"name": "tool.terminal.run.requested", "bodyFragment": "검토 완료", "count": 1, "advisory": true},
+        {"name": "tool.terminal.run.requested", "bodyFragment": "재무팀", "count": 1, "advisory": true},
+        {"name": "tool.file.deliver.result", "outputFragment": ".docx", "count": 1, "advisory": true}
       ],
       "expectedReplyFragments": ["검토 완료", "재무팀"],
       "expectedTaskStatus": "completed"
@@ -66,9 +66,8 @@
       "prompt": "수정한 DOCX를 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": ["file.delete"],
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.file.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.file.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
       "forbiddenWorkspaceFiles": ["private/people/*/documents/*.docx"],
