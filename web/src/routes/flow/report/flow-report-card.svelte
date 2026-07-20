@@ -1,12 +1,12 @@
 <script lang="ts">
-import * as Card from '$lib/components/ui/card';
-import FlowBusinessDistanceDonut from './flow-business-distance-donut.svelte';
-import FlowDailyTypeDistanceChart from './flow-daily-type-distance-chart.svelte';
-import FlowDistanceLineChart from './flow-distance-line-chart.svelte';
-	import type { FlowReportSection } from './flow-report-data';
+	import * as Card from '$lib/components/ui/card';
+	import FlowBusinessDistanceDonut from './flow-business-distance-donut.svelte';
+	import FlowDailyTypeDistanceChart from './flow-daily-type-distance-chart.svelte';
+	import FlowDistanceLineChart from './flow-distance-line-chart.svelte';
+	import type { FlowChartSection } from './flow-report-data';
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowChartSection;
 	};
 
 	let { section }: Props = $props();

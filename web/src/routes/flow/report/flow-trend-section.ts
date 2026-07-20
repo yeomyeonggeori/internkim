@@ -1,15 +1,15 @@
 import { emptyTrend } from './flow-report-section-helpers';
-import type { FlowReportCopy, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTrend } from './flow-report-types';
+import type { FlowReportCopy, FlowReportSectionLabel, FlowReportTrend, FlowTrendSection } from './flow-report-types';
 
 type BuildTrendSectionInput = {
-	id: FlowReportSectionID;
+	id: FlowTrendSection['id'];
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
 	copy: FlowReportCopy;
 	trend?: FlowReportTrend;
 };
 
-export function buildTrendSection(input: BuildTrendSectionInput): FlowReportSection {
+export function buildTrendSection(input: BuildTrendSectionInput): FlowTrendSection {
 	const trend = localizedTrend(input.trend ?? emptyTrend('km'), input.id, input.copy);
 	const maxValue = Math.max(1, ...trend.currentValues, ...trend.previousValues);
 
@@ -32,7 +32,7 @@ export function buildTrendSection(input: BuildTrendSectionInput): FlowReportSect
 	};
 }
 
-function localizedTrend(trend: FlowReportTrend, id: FlowReportSectionID, copy: FlowReportCopy): FlowReportTrend {
+function localizedTrend(trend: FlowReportTrend, id: FlowTrendSection['id'], copy: FlowReportCopy): FlowReportTrend {
 	if (id === 'weeklyDistanceTrend') {
 		return {
 			...trend,

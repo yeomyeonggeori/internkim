@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { FlowReportSection } from './flow-report-data';
+	import type { FlowTrendSection } from './flow-report-data';
 	import {
 		buildFlowLineChartData,
 		buildFlowLineGridTicks,
@@ -20,7 +20,7 @@
 	type LineChartVariant = 'weekly' | 'monthly';
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowTrendSection;
 		variant: LineChartVariant;
 	};
 

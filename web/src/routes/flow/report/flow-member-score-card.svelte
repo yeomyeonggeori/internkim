@@ -1,15 +1,15 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
-	import FlowPersonalScoreDetail from '../flow-personal-score-detail.svelte';
+	import FlowPersonalScoreDialog from '../flow-personal-score-dialog.svelte';
 	import type { FlowSummary } from '../flow-types';
 	import { flowText } from '../text';
-	import type { FlowReportSection } from './flow-report-data';
+	import type { FlowMemberScoreSection } from './flow-report-data';
 	import FlowMemberScoreList from './flow-member-score-list.svelte';
 
 	type FlowReportText = typeof flowText.ko.report;
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowMemberScoreSection;
 		summary: FlowSummary | null;
 		text: FlowReportText;
 	};
@@ -33,7 +33,7 @@
 					{section.teamAverageLabel}: {formatValue(section.averageValue, section.unit)}
 				</Card.Description>
 			</div>
-			<FlowPersonalScoreDetail {summary} {text} />
+			<FlowPersonalScoreDialog {summary} {text} />
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 flex-1">
