@@ -28,6 +28,9 @@ export const flowText = {
 		},
 		report: {
 			personalScoreTitle: '개인 상세 점수',
+			personalScoreAction: '내 점수 상세',
+			personalScoreMemberTitle: '{name} 점수 상세',
+			personalScoreOverallLabel: '종합',
 			personalScoreDescription: '최근 5주와 5개월의 완료 거리 기준 가중 점수입니다.',
 			weeklyScoreDetail: '주간 점수',
 			monthlyScoreDetail: '월간 점수',
@@ -244,6 +247,9 @@ export const flowText = {
 		},
 		report: {
 			personalScoreTitle: 'Personal score detail',
+			personalScoreAction: 'My score details',
+			personalScoreMemberTitle: '{name} score details',
+			personalScoreOverallLabel: 'Overall',
 			personalScoreDescription: 'Weighted score from completed distance over the last 5 weeks and 5 months.',
 			weeklyScoreDetail: 'Weekly score',
 			monthlyScoreDetail: 'Monthly score',
