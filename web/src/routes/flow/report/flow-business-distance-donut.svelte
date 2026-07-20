@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { flowProjectColor } from '../flow-report-colors';
-	import type { FlowReportItem, FlowReportSection } from './flow-report-data';
+	import type { FlowBusinessDistanceSection, FlowReportItem } from './flow-report-data';
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowBusinessDistanceSection;
 	};
 
 	let { section }: Props = $props();
