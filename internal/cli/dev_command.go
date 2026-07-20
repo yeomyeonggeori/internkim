@@ -191,7 +191,7 @@ func devFleetReprovisionEnvironment(environment []string, moduleCachePath string
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
 		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=low",
-		blueclaw.BlueclawSDKDModeEnvironment+"=authoritative",
+		blueclaw.BlueclawLLMDModeEnvironment+"=authoritative",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath == "" {
 		return environment
@@ -398,8 +398,8 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter, capability, or sdkd")
-	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "SDKD installation auth key path")
+	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter, capability, or llmd")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "LLMD installation auth key path")
 	languageModelName := flagSet.String("llm-model", "", "Live LLM model override")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")

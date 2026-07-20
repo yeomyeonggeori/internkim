@@ -424,9 +424,9 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: "/usr/local/bin/download",
 		},
 		{
-			name:       blueclaw.SDKDName,
-			localPath:  filepath.Join(state.scriptDir, ".dependency", "blueclaw-sdkd", blueclaw.SDKDName),
-			remotePath: blueclaw.SDKDBinaryPath,
+			name:       blueclaw.LLMDName,
+			localPath:  filepath.Join(state.scriptDir, ".dependency", "blueclaw-llmd", blueclaw.LLMDName),
+			remotePath: blueclaw.LLMDBinaryPath,
 		},
 		{
 			name:       blueclaw.CapabilitydName,
@@ -473,9 +473,9 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
-		if asset.name == blueclaw.SDKDName {
+		if asset.name == blueclaw.LLMDName {
 			fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
-			command := exec.Command(filepath.Join(state.scriptDir, "tools", "prepare-blueclaw-sdkd"))
+			command := exec.Command(filepath.Join(state.scriptDir, "tools", "prepare-blueclaw-llmd"))
 			command.Dir = state.scriptDir
 			if output, errorValue := command.CombinedOutput(); errorValue != nil {
 				fmt.Println("FAILED")
@@ -570,9 +570,9 @@ func (state *setupFlowState) binaryVersionSourcePaths() []string {
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "bun.lock"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "package.json"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "src"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "sdkd", "bun.lock"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "sdkd", "package.json"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "sdkd", "src"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "bun.lock"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "package.json"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "src"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
 	)

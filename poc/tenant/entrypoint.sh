@@ -5,31 +5,31 @@ postgresHost="${POSTGRES_HOST:-postgres}"
 mattermostHost="${MATTERMOST_HOST:-mattermost}"
 flowPublicURL="$(cat /root/.internkim/env/flow-public-url 2>/dev/null | tr -d '[:space:]')"
 mattermostInteractiveTokenPath="/workspace/.admind/state/mattermost-interactive-token"
-sdkdRuntimeDirectory="/run/internkim/sdkd"
-sdkdSocketPath="${sdkdRuntimeDirectory}/sdkd.sock"
-sdkdAuthKeyPath="${sdkdRuntimeDirectory}/sdkd-auth-key"
-sdkdAuthKeyTemporaryPath="${sdkdAuthKeyPath}.tmp"
+llmdRuntimeDirectory="/run/internkim/llmd"
+llmdSocketPath="${llmdRuntimeDirectory}/llmd.sock"
+llmdAuthKeyPath="${llmdRuntimeDirectory}/llmd-auth-key"
+llmdAuthKeyTemporaryPath="${llmdAuthKeyPath}.tmp"
 
-mkdir -p "${sdkdRuntimeDirectory}"
-chmod 700 "${sdkdRuntimeDirectory}"
-(umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${sdkdAuthKeyTemporaryPath}")
-chmod 600 "${sdkdAuthKeyTemporaryPath}"
-mv -f "${sdkdAuthKeyTemporaryPath}" "${sdkdAuthKeyPath}"
+mkdir -p "${llmdRuntimeDirectory}"
+chmod 700 "${llmdRuntimeDirectory}"
+(umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${llmdAuthKeyTemporaryPath}")
+chmod 600 "${llmdAuthKeyTemporaryPath}"
+mv -f "${llmdAuthKeyTemporaryPath}" "${llmdAuthKeyPath}"
 
-sdkdPid=""
+llmdPid=""
 capabilitydPid=""
 blueclawPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${blueclawPid}" "${capabilitydPid}" "${sdkdPid}"; do
+  for processID in "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     if [ -n "${processID}" ]; then kill "${processID}" 2>/dev/null || true; fi
   done
-  for processID in "${blueclawPid}" "${capabilitydPid}" "${sdkdPid}"; do
+  for processID in "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     if [ -n "${processID}" ]; then wait "${processID}" 2>/dev/null || true; fi
   done
-  rm -f "${sdkdAuthKeyPath}" "${sdkdAuthKeyTemporaryPath}"
+  rm -f "${llmdAuthKeyPath}" "${llmdAuthKeyTemporaryPath}"
   exit "${exitCode}"
 }
 trap shutdown INT TERM EXIT
@@ -40,24 +40,24 @@ until pg_isready -h "${postgresHost}" -p 5432 >/dev/null 2>&1; do sleep 1; done
 echo "[tenant] waiting for mattermost at ${mattermostHost}:8065"
 until nc -z "${mattermostHost}" 8065 >/dev/null 2>&1; do sleep 1; done
 
-echo "[tenant] starting blueclaw SDKD"
-BLUECLAW_SDKD_AUTH_KEY_PATH="${sdkdAuthKeyPath}" \
-BLUECLAW_SDKD_SOCKET_PATH="${sdkdSocketPath}" \
+echo "[tenant] starting blueclaw LLMD"
+BLUECLAW_LLMD_AUTH_KEY_PATH="${llmdAuthKeyPath}" \
+BLUECLAW_LLMD_SOCKET_PATH="${llmdSocketPath}" \
 OPENROUTER_API_KEY_PATH=/secrets/openrouter-key \
-  blueclaw-sdkd &
-sdkdPid="$!"
+  blueclaw-llmd &
+llmdPid="$!"
 
-echo "[tenant] waiting for blueclaw SDKD health"
-until curl --max-time 5 -fsS --unix-socket "${sdkdSocketPath}" http://blueclaw-sdkd/health >/dev/null 2>&1; do
-  if ! kill -0 "${sdkdPid}" 2>/dev/null; then wait "${sdkdPid}"; exit 1; fi
+echo "[tenant] waiting for blueclaw LLMD health"
+until curl --max-time 5 -fsS --unix-socket "${llmdSocketPath}" http://blueclaw-llmd/health >/dev/null 2>&1; do
+  if ! kill -0 "${llmdPid}" 2>/dev/null; then wait "${llmdPid}"; exit 1; fi
   sleep 1
 done
 
 echo "[tenant] starting capabilityd"
 internkim-capabilityd \
   --socket /run/internkim/capability.sock \
-  --sdkd-socket "${sdkdSocketPath}" \
-  --sdkd-auth-key "${sdkdAuthKeyPath}" \
+  --llmd-socket "${llmdSocketPath}" \
+  --llmd-auth-key "${llmdAuthKeyPath}" \
   --mattermost-url "http://${mattermostHost}:8065" \
   --mattermost-token /secrets/mattermost-bot-token \
   --mattermost-interactive-token "${mattermostInteractiveTokenPath}" \

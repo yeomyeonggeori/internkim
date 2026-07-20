@@ -264,41 +264,41 @@ func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
 	}
 }
 
-func TestUpPlanCanSetAuthoritativeSDKDMode(t *testing.T) {
+func TestUpPlanCanSetAuthoritativeLLMDMode(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
-		SDKDMode:           SDKDModeAuthoritative,
+		LLMDMode:           LLMDModeAuthoritative,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	expectedAssignment := blueclaw.BlueclawSDKDModeEnvironment + "='" + string(SDKDModeAuthoritative) + "'"
+	expectedAssignment := blueclaw.BlueclawLLMDModeEnvironment + "='" + string(LLMDModeAuthoritative) + "'"
 	if !strings.Contains(joinedPlans, expectedAssignment) {
-		t.Fatalf("expected authoritative SDKD mode:\n%s", joinedPlans)
+		t.Fatalf("expected authoritative LLMD mode:\n%s", joinedPlans)
 	}
 }
 
-func TestUpPlanOmitsUnspecifiedSDKDMode(t *testing.T) {
+func TestUpPlanOmitsUnspecifiedLLMDMode(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if strings.Contains(joinedPlans, blueclaw.BlueclawSDKDModeEnvironment) {
-		t.Fatalf("expected unspecified SDKD mode to remain absent:\n%s", joinedPlans)
+	if strings.Contains(joinedPlans, blueclaw.BlueclawLLMDModeEnvironment) {
+		t.Fatalf("expected unspecified LLMD mode to remain absent:\n%s", joinedPlans)
 	}
 }
 
-func TestServiceRejectsUnsupportedSDKDMode(t *testing.T) {
+func TestServiceRejectsUnsupportedLLMDMode(t *testing.T) {
 	_, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
-		SDKDMode:           "fallback",
+		LLMDMode:           "fallback",
 	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported SDKD mode") {
-		t.Fatalf("expected unsupported SDKD mode error, got %v", errorValue)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported LLMD mode") {
+		t.Fatalf("expected unsupported LLMD mode error, got %v", errorValue)
 	}
 }
 
@@ -481,11 +481,11 @@ func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
 	}
 }
 
-func TestSDKDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
+func TestLLMDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
-		RunID:              "sdkd-host-topology",
+		RunID:              "llmd-host-topology",
 		IsEphemeral:        true,
 		AdminHostPort:      19080,
 		MattermostHostPort: 19065,
@@ -493,47 +493,47 @@ func TestSDKDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	plans := service.sdkdHostTopologyScenarioPlans()
+	plans := service.llmdHostTopologyScenarioPlans()
 	joinedPlans := joinedPlanArguments(plans)
 	for _, expectedFragment := range []string{
 		"vm-up --config",
 		"make build",
 		"setup --board lab",
 		"--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,mattermost",
-		"sudo bash '/mnt/shared/workspace/lab/scripts/scenario-sdkd-host-topology.sh'",
+		"sudo bash '/mnt/shared/workspace/lab/scripts/scenario-llmd-host-topology.sh'",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
 	if strings.Contains(joinedPlans, "virtual-session") || strings.Contains(joinedPlans, "verify mattermost") || strings.Contains(joinedPlans, "configure-mattermost-test-settings.sh") {
-		t.Fatalf("SDKD topology should run against provisioned host services:\n%s", joinedPlans)
+		t.Fatalf("LLMD topology should run against provisioned host services:\n%s", joinedPlans)
 	}
 	for _, plan := range plans {
 		if strings.Contains(strings.Join(plan.Arguments, " "), "setup --board lab") {
-			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawSDKDModeEnvironment+"=authoritative") {
-				t.Fatalf("expected authoritative SDKD setup environment, got %v", plan.Environment)
+			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawLLMDModeEnvironment+"=authoritative") {
+				t.Fatalf("expected authoritative LLMD setup environment, got %v", plan.Environment)
 			}
 			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestModelTierEnvironment) {
-				t.Fatalf("expected SDKD scenario to preserve production task level, got %v", plan.Environment)
+				t.Fatalf("expected LLMD scenario to preserve production task level, got %v", plan.Environment)
 			}
 			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
-				t.Fatalf("expected SDKD scenario to omit the test maximum model tier for production task-level intent, got %v", plan.Environment)
+				t.Fatalf("expected LLMD scenario to omit the test maximum model tier for production task-level intent, got %v", plan.Environment)
 			}
 			if strings.Contains(strings.Join(plan.Arguments, " "), blueclaw.BlueclawTestMaximumModelTierEnvironment+"=") {
-				t.Fatalf("expected SDKD setup command to omit the test maximum model tier for production task-level intent, got %v", plan.Arguments)
+				t.Fatalf("expected LLMD setup command to omit the test maximum model tier for production task-level intent, got %v", plan.Arguments)
 			}
 			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true") {
-				t.Fatalf("expected SDKD diagnostic preset environment, got %v", plan.Environment)
+				t.Fatalf("expected LLMD diagnostic preset environment, got %v", plan.Environment)
 			}
 		}
 	}
 }
 
-func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
-	scriptPath := filepath.Join("..", "..", "lab", "scripts", "scenario-sdkd-host-topology.sh")
+func TestLLMDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
+	scriptPath := filepath.Join("..", "..", "lab", "scripts", "scenario-llmd-host-topology.sh")
 	if output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput(); errorValue != nil {
-		t.Fatalf("invalid SDKD topology script: %v: %s", errorValue, output)
+		t.Fatalf("invalid LLMD topology script: %v: %s", errorValue, output)
 	}
 	document, errorValue := os.ReadFile(scriptPath)
 	if errorValue != nil {
@@ -541,35 +541,35 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 	}
 	script := string(document)
 	for _, expectedFragment := range []string{
-		`.languageModel.defaultProvider == "sdkd"`,
+		`.languageModel.defaultProvider == "llmd"`,
 		`exec sudo bash "$0" "$@"`,
-		`conversation_id="sdkd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
+		`conversation_id="llmd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
 		`requester_person_id=`,
 		`--arg requesterPersonID "$requester_person_id"`,
 		`requesterPersonID:$requesterPersonID`,
 		`conversationID:$conversationID`,
 		`taskDecisionPreset:$taskDecisionPreset`,
-		`task_decision_preset=${2-sdkd_topology}`,
+		`task_decision_preset=${2-llmd_topology}`,
 		`requires_completed_finish=${3-true}`,
 		`workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json`,
-		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]'`,
-		`jq -e '.languageModel.sdkd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config"`,
+		`jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]'`,
+		`jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config"`,
 		`http://127.0.0.1:8080/admin/api/policy`,
 		`.people[0].personID | select(length > 0)`,
-		`router_task_run_id=$(run_task 'Reply with exactly SDKD topology router ok.' '' false)`,
-		`assert_guest_sdkd_router_transport "$router_task_run_id"`,
+		`router_task_run_id=$(run_task 'Reply with exactly LLMD topology router ok.' '' false)`,
+		`assert_guest_llmd_router_transport "$router_task_run_id"`,
 		`response_path=$(mktemp)`,
 		`--connect-timeout 10 --max-time 300`,
 		`task run response did not contain the required task result`,
 		`capability_socket_path=/run/internkim/capability.sock`,
-		`chat_bridge_path=/_internkim/sdkd/v1/llm/chat`,
+		`chat_bridge_path=/_internkim/llmd/v1/llm/chat`,
 		`Authorization: Bearer $(cat "$auth_key_path")`,
 		`--unix-socket "$capability_socket_path"`,
 		`http://internkim-capability$chat_bridge_path`,
 		`invalid_chat_request=`,
 		`run_host_chat_bridge_request()`,
 		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
-		`assert_guest_sdkd_structured_transport "$authoritative_task_run_id" false`,
+		`assert_guest_llmd_structured_transport "$authoritative_task_run_id" false`,
 		`.taskRun.taskRunID`,
 		`/admin/api/task/detail?taskRunID=`,
 		`select(.schemaName == "blueclaw_agent_turn_action")`,
@@ -580,16 +580,16 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		`all($launches[]; (.isIntakePrecomputed // false) == false)`,
 		`all($router_calls[]; (.usedFallback // false) == false)`,
 		`systemctl stop "$service_name"`,
-		`assert_host_chat_bridge_response 503 sdkd_bridge_unavailable true`,
+		`assert_host_chat_bridge_response 503 llmd_bridge_unavailable true`,
 		`host chat bridge returned an unexpected error envelope`,
-		`assert_guest_sdkd_structured_transport "$fallback_task_run_id" true`,
+		`assert_guest_llmd_structured_transport "$fallback_task_run_id" true`,
 		`systemctl restart "$service_name"`,
 		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
-		`assert_guest_sdkd_structured_transport "$recovered_task_run_id" false`,
-		`trap restore_sdkd EXIT`,
+		`assert_guest_llmd_structured_transport "$recovered_task_run_id" false`,
+		`trap restore_llmd EXIT`,
 	} {
 		if !strings.Contains(script, expectedFragment) {
-			t.Fatalf("expected %q in SDKD topology script", expectedFragment)
+			t.Fatalf("expected %q in LLMD topology script", expectedFragment)
 		}
 	}
 	for _, forbiddenFragment := range []string{
@@ -601,7 +601,7 @@ func TestSDKDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
 		"sync_workspace_runtime_config",
 	} {
 		if strings.Contains(script, forbiddenFragment) {
-			t.Fatalf("did not expect %q in SDKD topology script", forbiddenFragment)
+			t.Fatalf("did not expect %q in LLMD topology script", forbiddenFragment)
 		}
 	}
 }

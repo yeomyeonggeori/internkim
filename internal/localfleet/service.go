@@ -163,8 +163,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return errors.New("scenario is required")
 	}
 	if withoutMattermost {
-		if normalizedScenario == "sdkd-host-topology" {
-			return service.runPlans(contextValue, logger, service.sdkdHostTopologyScenarioPlans())
+		if normalizedScenario == "llmd-host-topology" {
+			return service.runPlans(contextValue, logger, service.llmdHostTopologyScenarioPlans())
 		}
 		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
 	}
@@ -259,11 +259,11 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.MattermostHostPort = mattermostHostPort
 	}
-	sdkdMode, errorValue := normalizeSDKDMode(options.SDKDMode)
+	llmdMode, errorValue := normalizeLLMDMode(options.LLMDMode)
 	if errorValue != nil {
 		return options, errorValue
 	}
-	options.SDKDMode = sdkdMode
+	options.LLMDMode = llmdMode
 	maximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(options.MaximumModelTier)
 	if errorValue != nil {
 		return options, errorValue
@@ -278,13 +278,13 @@ func normalizeOptions(options Options) (Options, error) {
 	return options, nil
 }
 
-func normalizeSDKDMode(mode SDKDMode) (SDKDMode, error) {
-	normalizedMode := SDKDMode(strings.ToLower(strings.TrimSpace(string(mode))))
+func normalizeLLMDMode(mode LLMDMode) (LLMDMode, error) {
+	normalizedMode := LLMDMode(strings.ToLower(strings.TrimSpace(string(mode))))
 	switch normalizedMode {
-	case "", SDKDModeShadow, SDKDModeAuthoritative:
+	case "", LLMDModeShadow, LLMDModeAuthoritative:
 		return normalizedMode, nil
 	default:
-		return "", fmt.Errorf("unsupported SDKD mode: %s", mode)
+		return "", fmt.Errorf("unsupported LLMD mode: %s", mode)
 	}
 }
 

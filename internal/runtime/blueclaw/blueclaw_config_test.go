@@ -91,12 +91,12 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if languageModel["defaultProvider"] != "sdkd" {
-		t.Fatalf("expected direct execution to use SDKD, got %+v", languageModel)
+	if languageModel["defaultProvider"] != "llmd" {
+		t.Fatalf("expected direct execution to use LLMD, got %+v", languageModel)
 	}
-	sdkd := languageModel["sdkd"].(map[string]any)
-	if sdkd["endpoint"] != "http://internkim/_internkim/sdkd" || sdkd["unixSocketPath"] != "/run/internkim/capability.sock" {
-		t.Fatalf("expected direct execution to use the capabilityd SDKD bridge, got %+v", sdkd)
+	llmd := languageModel["llmd"].(map[string]any)
+	if llmd["endpoint"] != "http://internkim/_internkim/llmd" || llmd["unixSocketPath"] != "/run/internkim/capability.sock" {
+		t.Fatalf("expected direct execution to use the capabilityd LLMD bridge, got %+v", llmd)
 	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "remote" {
@@ -114,8 +114,8 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 }
 
-func TestBlueclawRuntimeConfigIncludesCredentiallessSDKDBridge(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{SDKDMode: "shadow"})
+func TestBlueclawRuntimeConfigIncludesCredentiallessLLMDBridge(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{LLMDMode: "shadow"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -124,24 +124,24 @@ func TestBlueclawRuntimeConfigIncludesCredentiallessSDKDBridge(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	sdkd := languageModel["sdkd"].(map[string]any)
-	if sdkd["endpoint"] != "http://127.0.0.1:18081/_internkim/sdkd" || sdkd["shadowEnabled"] != true {
-		t.Fatalf("unexpected SDKD bridge configuration: %+v", sdkd)
+	llmd := languageModel["llmd"].(map[string]any)
+	if llmd["endpoint"] != "http://127.0.0.1:18081/_internkim/llmd" || llmd["shadowEnabled"] != true {
+		t.Fatalf("unexpected LLMD bridge configuration: %+v", llmd)
 	}
-	if sdkd["authKeyPath"] != "" || sdkd["unixSocketPath"] != "" {
-		t.Fatalf("expected no host SDKD paths in guest configuration: %+v", sdkd)
+	if llmd["authKeyPath"] != "" || llmd["unixSocketPath"] != "" {
+		t.Fatalf("expected no host LLMD paths in guest configuration: %+v", llmd)
 	}
-	structuredSchemaNames, isStructuredSchemaNames := sdkd["structuredSchemaNames"].([]any)
+	structuredSchemaNames, isStructuredSchemaNames := llmd["structuredSchemaNames"].([]any)
 	if !isStructuredSchemaNames || len(structuredSchemaNames) != 5 ||
 		structuredSchemaNames[0] != "blueclaw_agent_turn_action" ||
 		structuredSchemaNames[1] != "blueclaw_agent_turn_finalizer" ||
 		structuredSchemaNames[2] != "blueclaw_turn_router" ||
 		structuredSchemaNames[3] != "blueclaw_recovery_decision" ||
 		structuredSchemaNames[4] != "blueclaw_operation_contract" {
-		t.Fatalf("expected authoritative SDKD structured schemas, got %+v", sdkd["structuredSchemaNames"])
+		t.Fatalf("expected authoritative LLMD structured schemas, got %+v", llmd["structuredSchemaNames"])
 	}
-	if strings.Contains(document, SDKDSocketPath) || strings.Contains(document, SDKDAuthKeyPath) {
-		t.Fatal("expected host SDKD secrets and socket to stay out of guest configuration")
+	if strings.Contains(document, LLMDSocketPath) || strings.Contains(document, LLMDAuthKeyPath) {
+		t.Fatal("expected host LLMD secrets and socket to stay out of guest configuration")
 	}
 }
 
@@ -441,11 +441,11 @@ func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
 		t.Fatalf("expected diagnostic profile, got %+v", agentProfiles)
 	}
 	diagnosticProfile := agentProfiles[0].(map[string]any)
-	if diagnosticProfile["name"] != BlueclawSDKDTopologyDiagnosticProfileName {
-		t.Fatalf("expected SDKD diagnostic profile, got %+v", diagnosticProfile)
+	if diagnosticProfile["name"] != BlueclawLLMDTopologyDiagnosticProfileName {
+		t.Fatalf("expected LLMD diagnostic profile, got %+v", diagnosticProfile)
 	}
 	allowedToolNames := diagnosticProfile["allowedToolNames"].([]any)
-	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawSDKDTopologyDiagnosticToolSentinel {
+	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawLLMDTopologyDiagnosticToolSentinel {
 		t.Fatalf("expected diagnostic deny-all sentinel, got %+v", diagnosticProfile)
 	}
 }
@@ -482,15 +482,15 @@ func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
 		t.Fatalf("expected local-only capability routing, got %+v", routing)
 	}
 	languageModelConfiguration := runtimeConfiguration["languageModel"].(map[string]any)
-	sdkdConfiguration := languageModelConfiguration["sdkd"].(map[string]any)
-	if sdkdConfiguration["localOnly"] != true {
-		t.Fatalf("expected local-only SDKD fallback policy, got %+v", sdkdConfiguration)
+	llmdConfiguration := languageModelConfiguration["llmd"].(map[string]any)
+	if llmdConfiguration["localOnly"] != true {
+		t.Fatalf("expected local-only LLMD fallback policy, got %+v", llmdConfiguration)
 	}
 	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
 		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
 	}
-	if !strings.Contains(SDKDServiceUnit(), "Environment=BLUECLAW_SDKD_LOCAL_ONLY=1") {
-		t.Fatalf("expected SDKD local-only environment, got %s", SDKDServiceUnit())
+	if !strings.Contains(LLMDServiceUnit(), "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") {
+		t.Fatalf("expected LLMD local-only environment, got %s", LLMDServiceUnit())
 	}
 }
 
@@ -852,22 +852,22 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 }
 
-func TestSDKDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
+func TestLLMDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
 	t.Setenv(LocalOnlyEnvironment, "")
-	serviceDocument := SDKDServiceUnit()
+	serviceDocument := LLMDServiceUnit()
 	for _, expectedValue := range []string{
 		"DynamicUser=yes",
-		"RuntimeDirectory=blueclaw-sdkd",
+		"RuntimeDirectory=blueclaw-llmd",
 		"RuntimeDirectoryMode=0700",
 		"UMask=0077",
-		"Environment=BLUECLAW_SDKD_AUTH_KEY_PATH=" + SDKDRuntimeAuthKeyPath,
-		"Environment=OPENROUTER_API_KEY_PATH=" + SDKDRuntimeOpenRouterKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + SDKDServiceAuthKeyPath + " " + SDKDRuntimeAuthKeyPath,
-		"chown --reference=" + SDKDRuntimeDirectoryPath + " " + SDKDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; if [ -s " + SDKDServiceOpenRouterKeyPath + " ]; then install -m 0400 " + SDKDServiceOpenRouterKeyPath + " " + SDKDRuntimeOpenRouterKeyPath,
-		"chown --reference=" + SDKDRuntimeDirectoryPath + " " + SDKDRuntimeOpenRouterKeyPath,
-		"Environment=BLUECLAW_SDKD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
-		"Environment=BLUECLAW_SDKD_LOCAL_ONLY=0",
+		"Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=" + LLMDRuntimeAuthKeyPath,
+		"Environment=OPENROUTER_API_KEY_PATH=" + LLMDRuntimeOpenRouterKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + LLMDServiceAuthKeyPath + " " + LLMDRuntimeAuthKeyPath,
+		"chown --reference=" + LLMDRuntimeDirectoryPath + " " + LLMDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; if [ -s " + LLMDServiceOpenRouterKeyPath + " ]; then install -m 0400 " + LLMDServiceOpenRouterKeyPath + " " + LLMDRuntimeOpenRouterKeyPath,
+		"chown --reference=" + LLMDRuntimeDirectoryPath + " " + LLMDRuntimeOpenRouterKeyPath,
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
+		"Environment=BLUECLAW_LLMD_LOCAL_ONLY=0",
 		"NoNewPrivileges=yes",
 		"PrivateTmp=yes",
 		"ProtectSystem=strict",
@@ -875,66 +875,66 @@ func TestSDKDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
 		"CapabilityBoundingSet=",
 	} {
 		if !strings.Contains(serviceDocument, expectedValue) {
-			t.Fatalf("expected SDKD service unit to contain %q, got %s", expectedValue, serviceDocument)
+			t.Fatalf("expected LLMD service unit to contain %q, got %s", expectedValue, serviceDocument)
 		}
 	}
 	if strings.Contains(serviceDocument, "EnvironmentFile=") {
-		t.Fatal("expected SDKD credentials to stay out of environment files")
+		t.Fatal("expected LLMD credentials to stay out of environment files")
 	}
 	if strings.Contains(serviceDocument, "LoadCredential=") || strings.Contains(serviceDocument, "CREDENTIALS_DIRECTORY") {
-		t.Fatal("expected SDKD service to avoid unsupported systemd credential transport")
+		t.Fatal("expected LLMD service to avoid unsupported systemd credential transport")
 	}
 	if strings.Contains(serviceDocument, "IPAddressDeny=") {
-		t.Fatal("expected remote-capable SDKD service to retain provider network access")
+		t.Fatal("expected remote-capable LLMD service to retain provider network access")
 	}
-	runtimeDirectoryIndex := strings.Index(serviceDocument, "RuntimeDirectory=blueclaw-sdkd")
-	authStageIndex := strings.Index(serviceDocument, "install -m 0400 "+SDKDServiceAuthKeyPath+" "+SDKDRuntimeAuthKeyPath)
-	openRouterStageIndex := strings.Index(serviceDocument, "install -m 0400 "+SDKDServiceOpenRouterKeyPath+" "+SDKDRuntimeOpenRouterKeyPath)
-	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+SDKDBinaryPath)
+	runtimeDirectoryIndex := strings.Index(serviceDocument, "RuntimeDirectory=blueclaw-llmd")
+	authStageIndex := strings.Index(serviceDocument, "install -m 0400 "+LLMDServiceAuthKeyPath+" "+LLMDRuntimeAuthKeyPath)
+	openRouterStageIndex := strings.Index(serviceDocument, "install -m 0400 "+LLMDServiceOpenRouterKeyPath+" "+LLMDRuntimeOpenRouterKeyPath)
+	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+LLMDBinaryPath)
 	if runtimeDirectoryIndex < 0 || authStageIndex < runtimeDirectoryIndex || openRouterStageIndex < authStageIndex || serviceStartIndex < openRouterStageIndex {
-		t.Fatalf("expected runtime directory and private credential copies before SDKD activation, got %s", serviceDocument)
+		t.Fatalf("expected runtime directory and private credential copies before LLMD activation, got %s", serviceDocument)
 	}
 }
 
-func TestSDKDLocalOnlyServiceWithholdsRemoteCredentialAndNetwork(t *testing.T) {
-	serviceDocument := SDKDServiceUnitForLocalOnly(true)
+func TestLLMDLocalOnlyServiceWithholdsRemoteCredentialAndNetwork(t *testing.T) {
+	serviceDocument := LLMDServiceUnitForLocalOnly(true)
 	for _, expectedValue := range []string{
-		"Environment=BLUECLAW_SDKD_LOCAL_ONLY=1",
-		"Environment=BLUECLAW_SDKD_AUTH_KEY_PATH=" + SDKDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + SDKDServiceAuthKeyPath + " " + SDKDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'rm -f " + SDKDRuntimeOpenRouterKeyPath + "'",
+		"Environment=BLUECLAW_LLMD_LOCAL_ONLY=1",
+		"Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=" + LLMDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + LLMDServiceAuthKeyPath + " " + LLMDRuntimeAuthKeyPath,
+		"ExecStartPre=+/bin/sh -c 'rm -f " + LLMDRuntimeOpenRouterKeyPath + "'",
 		"IPAddressDeny=any",
 		"IPAddressAllow=localhost",
 	} {
 		if !strings.Contains(serviceDocument, expectedValue) {
-			t.Fatalf("expected local-only SDKD service to contain %q, got %s", expectedValue, serviceDocument)
+			t.Fatalf("expected local-only LLMD service to contain %q, got %s", expectedValue, serviceDocument)
 		}
 	}
-	if strings.Contains(serviceDocument, "OPENROUTER_API_KEY_PATH=") || strings.Contains(serviceDocument, SDKDServiceOpenRouterKeyPath) {
-		t.Fatalf("expected local-only SDKD service to withhold the staged OpenRouter credential, got %s", serviceDocument)
+	if strings.Contains(serviceDocument, "OPENROUTER_API_KEY_PATH=") || strings.Contains(serviceDocument, LLMDServiceOpenRouterKeyPath) {
+		t.Fatalf("expected local-only LLMD service to withhold the staged OpenRouter credential, got %s", serviceDocument)
 	}
-	remoteRemovalIndex := strings.Index(serviceDocument, "rm -f "+SDKDRuntimeOpenRouterKeyPath)
-	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+SDKDBinaryPath)
+	remoteRemovalIndex := strings.Index(serviceDocument, "rm -f "+LLMDRuntimeOpenRouterKeyPath)
+	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+LLMDBinaryPath)
 	if remoteRemovalIndex < 0 || serviceStartIndex < remoteRemovalIndex {
-		t.Fatalf("expected local-only SDKD service to remove the remote credential before activation, got %s", serviceDocument)
+		t.Fatalf("expected local-only LLMD service to remove the remote credential before activation, got %s", serviceDocument)
 	}
 }
 
-func TestSDKDServiceCredentialInstallCommandStagesRequiredCredentials(t *testing.T) {
-	remoteCommand := SDKDServiceCredentialInstallCommand(false)
+func TestLLMDServiceCredentialInstallCommandStagesRequiredCredentials(t *testing.T) {
+	remoteCommand := LLMDServiceCredentialInstallCommand(false)
 	for _, expectedValue := range []string{
-		SDKDAuthKeyPath,
-		SDKDServiceCredentialDirectoryPath,
-		SDKDServiceAuthKeyPath,
+		LLMDAuthKeyPath,
+		LLMDServiceCredentialDirectoryPath,
+		LLMDServiceAuthKeyPath,
 		OpenRouterKeyPath,
-		SDKDServiceOpenRouterKeyPath,
+		LLMDServiceOpenRouterKeyPath,
 	} {
 		if !strings.Contains(remoteCommand, expectedValue) {
-			t.Fatalf("expected SDKD credential command to contain %q, got %s", expectedValue, remoteCommand)
+			t.Fatalf("expected LLMD credential command to contain %q, got %s", expectedValue, remoteCommand)
 		}
 	}
-	localCommand := SDKDServiceCredentialInstallCommand(true)
-	if !strings.Contains(localCommand, "rm -f "+SDKDServiceOpenRouterKeyPath) || strings.Contains(localCommand, "install -o root -g root -m 600 "+OpenRouterKeyPath) {
+	localCommand := LLMDServiceCredentialInstallCommand(true)
+	if !strings.Contains(localCommand, "rm -f "+LLMDServiceOpenRouterKeyPath) || strings.Contains(localCommand, "install -o root -g root -m 600 "+OpenRouterKeyPath) {
 		t.Fatalf("expected local-only credential command to remove remote credential, got %s", localCommand)
 	}
 }

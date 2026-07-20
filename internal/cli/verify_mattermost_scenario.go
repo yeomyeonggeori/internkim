@@ -18,7 +18,7 @@ import (
 
 type mattermostScenario struct {
 	Name                      string                             `json:"name"`
-	RequiresSDKD              bool                               `json:"requiresSDKD"`
+	RequiresLLMD              bool                               `json:"requiresLLMD"`
 	ExpectedLLMProvider       string                             `json:"expectedLLMProvider"`
 	ExpectedLLMModel          string                             `json:"expectedLLMModel"`
 	SkillDirectoryPaths       []string                           `json:"skillDirectoryPaths"`
@@ -323,8 +323,8 @@ func validateMattermostScenarioResult(scenario mattermostScenario, result *matte
 		return fmt.Errorf("Mattermost scenario returned %d steps, expected %d", len(result.Steps), len(scenario.Steps))
 	}
 	for stepIndex, expectedStep := range scenario.Steps {
-		if scenario.RequiresSDKD {
-			if errorValue := validateMattermostScenarioSDKD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario); errorValue != nil {
+		if scenario.RequiresLLMD {
+			if errorValue := validateMattermostScenarioLLMD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -868,7 +868,7 @@ func missingMattermostScenarioEventError(stepIndex int, expectation mattermostSc
 	return fmt.Errorf("Mattermost scenario step %d is missing event %q", stepIndex, expectation.Name)
 }
 
-func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
+func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
 	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
 	authoritativeSchemaNameSet := testStringSet([]string{
 		"blueclaw_agent_turn_action",
@@ -898,7 +898,7 @@ func validateMattermostScenarioSDKD(stepIndex int, events []mattermostScenarioTa
 		if !authoritativeSchemaNameSet[call.SchemaName] {
 			continue
 		}
-		if call.Transport != "sdkd" {
+		if call.Transport != "llmd" {
 			return fmt.Errorf("Mattermost scenario step %d used %s transport for authoritative AI SDK call %s", stepIndex, call.Transport, call.SchemaName)
 		}
 		if call.UsedFallback {

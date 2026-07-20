@@ -16,11 +16,11 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
-func TestSDKDBridgeInjectsHostCredentialAndPreservesResponse(t *testing.T) {
+func TestLLMDBridgeInjectsHostCredentialAndPreservesResponse(t *testing.T) {
 	temporaryDirectory := t.TempDir()
-	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-sdkd.sock")
+	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-llmd.sock")
 	t.Cleanup(func() { _ = os.Remove(socketPath) })
-	authKeyPath := filepath.Join(temporaryDirectory, "sdkd.key")
+	authKeyPath := filepath.Join(temporaryDirectory, "llmd.key")
 	if errorValue := os.WriteFile(authKeyPath, []byte("host-key\n"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -30,11 +30,11 @@ func TestSDKDBridgeInjectsHostCredentialAndPreservesResponse(t *testing.T) {
 	}
 	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/v1/llm/structured" || request.Header.Get("Authorization") != "Bearer host-key" {
-			t.Fatalf("unexpected SDKD request: %s %s", request.URL.Path, request.Header.Get("Authorization"))
+			t.Fatalf("unexpected LLMD request: %s %s", request.URL.Path, request.Header.Get("Authorization"))
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.Header().Set("Retry-After", "3")
-		responseWriter.Header().Set("X-Request-ID", "sdkd-request-1")
+		responseWriter.Header().Set("X-Request-ID", "llmd-request-1")
 		responseWriter.WriteHeader(http.StatusTooManyRequests)
 		_, _ = responseWriter.Write([]byte(`{"error":{"code":"rate_limited"}}`))
 	})}
@@ -44,28 +44,28 @@ func TestSDKDBridgeInjectsHostCredentialAndPreservesResponse(t *testing.T) {
 		_ = listener.Close()
 	})
 
-	service := Service{Configuration: Configuration{SDKDSocketPath: socketPath, SDKDAuthKeyPath: authKeyPath}.WithDefaults()}
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/v1/llm/structured", strings.NewReader(`{"model":"test"}`))
+	service := Service{Configuration: Configuration{LLMDSocketPath: socketPath, LLMDAuthKeyPath: authKeyPath}.WithDefaults()}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/llmd/v1/llm/structured", strings.NewReader(`{"model":"test"}`))
 	request.Header.Set("Authorization", "Bearer guest-key")
 	responseRecorder := httptest.NewRecorder()
 	service.router().ServeHTTP(responseRecorder, request)
 
 	if responseRecorder.Code != http.StatusTooManyRequests || responseRecorder.Body.String() != `{"error":{"code":"rate_limited"}}` {
-		t.Fatalf("expected unchanged SDKD response, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+		t.Fatalf("expected unchanged LLMD response, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
 	if responseRecorder.Header().Get("Content-Type") != "application/json" {
-		t.Fatalf("expected SDKD content type, got %+v", responseRecorder.Header())
+		t.Fatalf("expected LLMD content type, got %+v", responseRecorder.Header())
 	}
-	if responseRecorder.Header().Get("Retry-After") != "3" || responseRecorder.Header().Get("X-Request-ID") != "sdkd-request-1" {
-		t.Fatalf("expected safe SDKD response headers, got %+v", responseRecorder.Header())
+	if responseRecorder.Header().Get("Retry-After") != "3" || responseRecorder.Header().Get("X-Request-ID") != "llmd-request-1" {
+		t.Fatalf("expected safe LLMD response headers, got %+v", responseRecorder.Header())
 	}
 }
 
-func TestSDKDBridgeInjectsHostCredentialAndPreservesChatResponse(t *testing.T) {
+func TestLLMDBridgeInjectsHostCredentialAndPreservesChatResponse(t *testing.T) {
 	temporaryDirectory := t.TempDir()
-	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-sdkd.sock")
+	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-llmd.sock")
 	t.Cleanup(func() { _ = os.Remove(socketPath) })
-	authKeyPath := filepath.Join(temporaryDirectory, "sdkd.key")
+	authKeyPath := filepath.Join(temporaryDirectory, "llmd.key")
 	if errorValue := os.WriteFile(authKeyPath, []byte("host-chat-key\n"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -75,12 +75,12 @@ func TestSDKDBridgeInjectsHostCredentialAndPreservesChatResponse(t *testing.T) {
 	}
 	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/v1/llm/chat" || request.Header.Get("Authorization") != "Bearer host-chat-key" {
-			t.Fatalf("unexpected SDKD chat request: %s %s", request.URL.Path, request.Header.Get("Authorization"))
+			t.Fatalf("unexpected LLMD chat request: %s %s", request.URL.Path, request.Header.Get("Authorization"))
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
-		responseWriter.Header().Set("X-Request-ID", "sdkd-chat-request-1")
+		responseWriter.Header().Set("X-Request-ID", "llmd-chat-request-1")
 		responseWriter.WriteHeader(http.StatusOK)
-		_, _ = responseWriter.Write([]byte(`{"provider":"sdkd","model":"test","selectedBackend":"device","finishReason":"stop","message":{"role":"assistant","content":"done"}}`))
+		_, _ = responseWriter.Write([]byte(`{"provider":"llmd","model":"test","selectedBackend":"device","finishReason":"stop","message":{"role":"assistant","content":"done"}}`))
 	})}
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(func() {
@@ -88,27 +88,27 @@ func TestSDKDBridgeInjectsHostCredentialAndPreservesChatResponse(t *testing.T) {
 		_ = listener.Close()
 	})
 
-	service := Service{Configuration: Configuration{SDKDSocketPath: socketPath, SDKDAuthKeyPath: authKeyPath}.WithDefaults()}
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/v1/llm/chat", strings.NewReader(`{"model":"test"}`))
+	service := Service{Configuration: Configuration{LLMDSocketPath: socketPath, LLMDAuthKeyPath: authKeyPath}.WithDefaults()}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/llmd/v1/llm/chat", strings.NewReader(`{"model":"test"}`))
 	request.Header.Set("Authorization", "Bearer guest-key")
 	responseRecorder := httptest.NewRecorder()
 	service.router().ServeHTTP(responseRecorder, request)
 
-	if responseRecorder.Code != http.StatusOK || responseRecorder.Body.String() != `{"provider":"sdkd","model":"test","selectedBackend":"device","finishReason":"stop","message":{"role":"assistant","content":"done"}}` {
-		t.Fatalf("expected unchanged SDKD chat response, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+	if responseRecorder.Code != http.StatusOK || responseRecorder.Body.String() != `{"provider":"llmd","model":"test","selectedBackend":"device","finishReason":"stop","message":{"role":"assistant","content":"done"}}` {
+		t.Fatalf("expected unchanged LLMD chat response, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	if responseRecorder.Header().Get("Content-Type") != "application/json" || responseRecorder.Header().Get("X-Request-ID") != "sdkd-chat-request-1" {
-		t.Fatalf("expected safe SDKD chat response headers, got %+v", responseRecorder.Header())
+	if responseRecorder.Header().Get("Content-Type") != "application/json" || responseRecorder.Header().Get("X-Request-ID") != "llmd-chat-request-1" {
+		t.Fatalf("expected safe LLMD chat response headers, got %+v", responseRecorder.Header())
 	}
 }
 
-func TestSDKDHealthBridgeUsesExactReadOnlyRoute(t *testing.T) {
+func TestLLMDHealthBridgeUsesExactReadOnlyRoute(t *testing.T) {
 	identity := capabilityprotocol.GeneratedProtocolIdentity()
 	service := Service{
-		Configuration: Configuration{SDKDSocketPath: "/tmp/sdkd-health-test.sock"},
-		SDKDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		Configuration: Configuration{LLMDSocketPath: "/tmp/llmd-health-test.sock"},
+		LLMDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			if request.Method != http.MethodGet || request.URL.Path != "/health" || request.Header.Get("Authorization") != "" {
-				t.Fatalf("unexpected SDKD health request: %s %s authorization=%q", request.Method, request.URL.Path, request.Header.Get("Authorization"))
+				t.Fatalf("unexpected LLMD health request: %s %s authorization=%q", request.Method, request.URL.Path, request.Header.Get("Authorization"))
 			}
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"status":                "ok",
@@ -117,30 +117,30 @@ func TestSDKDHealthBridgeUsesExactReadOnlyRoute(t *testing.T) {
 			}), nil
 		})},
 	}
-	request := httptest.NewRequest(http.MethodGet, "/_internkim/sdkd/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/_internkim/llmd/health", nil)
 	responseRecorder := httptest.NewRecorder()
 
 	service.router().ServeHTTP(responseRecorder, request)
 
 	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("expected SDKD health bridge success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+		t.Fatalf("expected LLMD health bridge success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	var response sdkdHealthResponse
+	var response llmdHealthResponse
 	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
-		t.Fatalf("expected typed SDKD health response: %v", errorValue)
+		t.Fatalf("expected typed LLMD health response: %v", errorValue)
 	}
 	if response.ProtocolIdentity != identity || response.Status != "ok" {
-		t.Fatalf("unexpected SDKD health response: %+v", response)
+		t.Fatalf("unexpected LLMD health response: %+v", response)
 	}
 }
 
-func TestSDKDHealthBridgeRejectsMalformedResponse(t *testing.T) {
+func TestLLMDHealthBridgeRejectsMalformedResponse(t *testing.T) {
 	identity := capabilityprotocol.GeneratedProtocolIdentity()
 	unknownFieldDocument := `{"status":"ok","protocolVersion":"` + identity.ProtocolVersion + `","aggregateProtocolHash":"` + identity.AggregateProtocolHash + `","unexpected":true}`
 	for _, document := range []string{`{"status":"ok"}`, `not-json`, unknownFieldDocument} {
 		service := Service{
-			Configuration: Configuration{SDKDSocketPath: "/tmp/sdkd-health-test.sock"},
-			SDKDHTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			Configuration: Configuration{LLMDSocketPath: "/tmp/llmd-health-test.sock"},
+			LLMDHTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Header:     make(http.Header),
@@ -148,24 +148,24 @@ func TestSDKDHealthBridgeRejectsMalformedResponse(t *testing.T) {
 				}, nil
 			})},
 		}
-		request := httptest.NewRequest(http.MethodGet, "/_internkim/sdkd/health", nil)
+		request := httptest.NewRequest(http.MethodGet, "/_internkim/llmd/health", nil)
 		responseRecorder := httptest.NewRecorder()
 
 		service.router().ServeHTTP(responseRecorder, request)
 
 		if responseRecorder.Code != http.StatusBadGateway {
-			t.Fatalf("expected malformed SDKD health rejection, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+			t.Fatalf("expected malformed LLMD health rejection, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
 		}
-		assertSDKDErrorResponse(t, responseRecorder, "sdkd_bridge_response_invalid", false)
+		assertLLMDErrorResponse(t, responseRecorder, "llmd_bridge_response_invalid", false)
 	}
 }
 
-func TestSDKDBridgeRejectsOversizedRequestWithoutFallback(t *testing.T) {
+func TestLLMDBridgeRejectsOversizedRequestWithoutFallback(t *testing.T) {
 	service := Service{Configuration: DefaultConfiguration()}
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/_internkim/sdkd/v1/llm/structured",
-		strings.NewReader(strings.Repeat("x", sdkdMaximumBodyBytes+1)),
+		"/_internkim/llmd/v1/llm/structured",
+		strings.NewReader(strings.Repeat("x", llmdMaximumBodyBytes+1)),
 	)
 	responseRecorder := httptest.NewRecorder()
 
@@ -174,21 +174,21 @@ func TestSDKDBridgeRejectsOversizedRequestWithoutFallback(t *testing.T) {
 	if responseRecorder.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected request size rejection, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	assertSDKDErrorResponse(t, responseRecorder, "request_too_large", false)
+	assertLLMDErrorResponse(t, responseRecorder, "request_too_large", false)
 }
 
-func TestSDKDBridgeRejectsOversizedResponseWithoutFallback(t *testing.T) {
+func TestLLMDBridgeRejectsOversizedResponseWithoutFallback(t *testing.T) {
 	response := &http.Response{
 		StatusCode: http.StatusCreated,
 		Header: http.Header{
 			"Content-Type": []string{"application/octet-stream"},
 			"X-Request-ID": []string{"oversized-request"},
 		},
-		Body: io.NopCloser(strings.NewReader(strings.Repeat("x", sdkdMaximumBodyBytes+1))),
+		Body: io.NopCloser(strings.NewReader(strings.Repeat("x", llmdMaximumBodyBytes+1))),
 	}
 	responseRecorder := httptest.NewRecorder()
 
-	copySDKDResponse(responseRecorder, response)
+	copyLLMDResponse(responseRecorder, response)
 
 	if responseRecorder.Code != http.StatusBadGateway {
 		t.Fatalf("expected response size rejection, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
@@ -196,10 +196,10 @@ func TestSDKDBridgeRejectsOversizedResponseWithoutFallback(t *testing.T) {
 	if responseRecorder.Header().Get("Content-Type") != "application/json" || responseRecorder.Header().Get("X-Request-ID") != "" {
 		t.Fatalf("expected deterministic bridge error headers, got %+v", responseRecorder.Header())
 	}
-	assertSDKDErrorResponse(t, responseRecorder, "sdkd_bridge_response_invalid", false)
+	assertLLMDErrorResponse(t, responseRecorder, "llmd_bridge_response_invalid", false)
 }
 
-func assertSDKDErrorResponse(t *testing.T, responseRecorder *httptest.ResponseRecorder, expectedCode string, expectedFallback bool) {
+func assertLLMDErrorResponse(t *testing.T, responseRecorder *httptest.ResponseRecorder, expectedCode string, expectedFallback bool) {
 	t.Helper()
 	var responseDocument struct {
 		Error struct {
@@ -208,16 +208,16 @@ func assertSDKDErrorResponse(t *testing.T, responseRecorder *httptest.ResponseRe
 		} `json:"error"`
 	}
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &responseDocument); errorValue != nil {
-		t.Fatalf("expected JSON SDKD error: %v", errorValue)
+		t.Fatalf("expected JSON LLMD error: %v", errorValue)
 	}
 	if responseDocument.Error.Code != expectedCode || responseDocument.Error.AllowLegacyFallback != expectedFallback {
-		t.Fatalf("unexpected SDKD error: %+v", responseDocument.Error)
+		t.Fatalf("unexpected LLMD error: %+v", responseDocument.Error)
 	}
 }
 
-func TestSDKDBridgeExposesOnlyAllowedRoutes(t *testing.T) {
+func TestLLMDBridgeExposesOnlyAllowedRoutes(t *testing.T) {
 	service := Service{Configuration: DefaultConfiguration()}
-	for _, path := range []string{"/_internkim/sdkd/v1/llm/text", "/_internkim/sdkd/v1/tools/test/invoke", "/_internkim/sdkd/v1/llm/unknown"} {
+	for _, path := range []string{"/_internkim/llmd/v1/llm/text", "/_internkim/llmd/v1/tools/test/invoke", "/_internkim/llmd/v1/llm/unknown"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		responseRecorder := httptest.NewRecorder()
 		service.router().ServeHTTP(responseRecorder, request)
@@ -225,17 +225,17 @@ func TestSDKDBridgeExposesOnlyAllowedRoutes(t *testing.T) {
 			t.Fatalf("expected %s to be hidden, got %d", path, responseRecorder.Code)
 		}
 	}
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/health", nil)
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/llmd/health", nil)
 	responseRecorder := httptest.NewRecorder()
 	service.router().ServeHTTP(responseRecorder, request)
 	if responseRecorder.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected SDKD health to allow only GET, got %d", responseRecorder.Code)
+		t.Fatalf("expected LLMD health to allow only GET, got %d", responseRecorder.Code)
 	}
 }
 
-func TestSDKDBridgePreservesCancellation(t *testing.T) {
+func TestLLMDBridgePreservesCancellation(t *testing.T) {
 	temporaryDirectory := t.TempDir()
-	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-sdkd.sock")
+	socketPath := filepath.Join("/tmp", filepath.Base(temporaryDirectory)+"-llmd.sock")
 	t.Cleanup(func() { _ = os.Remove(socketPath) })
 	requestStarted := make(chan struct{})
 	listener, errorValue := net.Listen("unix", socketPath)
@@ -253,11 +253,11 @@ func TestSDKDBridgePreservesCancellation(t *testing.T) {
 	})
 
 	service := Service{
-		Configuration: Configuration{SDKDSocketPath: socketPath}.WithDefaults(),
-		SDKDAuthKey:   "host-key",
+		Configuration: Configuration{LLMDSocketPath: socketPath}.WithDefaults(),
+		LLMDAuthKey:   "host-key",
 	}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/sdkd/v1/llm/chat", strings.NewReader(`{"model":"test"}`)).WithContext(requestContext)
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/llmd/v1/llm/chat", strings.NewReader(`{"model":"test"}`)).WithContext(requestContext)
 	responseRecorder := httptest.NewRecorder()
 	requestFinished := make(chan struct{})
 	go func() {
@@ -268,31 +268,31 @@ func TestSDKDBridgePreservesCancellation(t *testing.T) {
 	select {
 	case <-requestStarted:
 	case <-time.After(time.Second):
-		t.Fatal("SDKD request did not start")
+		t.Fatal("LLMD request did not start")
 	}
 	cancelRequest()
 	select {
 	case <-requestFinished:
 	case <-time.After(time.Second):
-		t.Fatal("SDKD request did not finish after cancellation")
+		t.Fatal("LLMD request did not finish after cancellation")
 	}
 
 	if responseRecorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected cancellation fallback status, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	assertSDKDErrorResponse(t, responseRecorder, "sdkd_bridge_unavailable", true)
+	assertLLMDErrorResponse(t, responseRecorder, "llmd_bridge_unavailable", true)
 }
 
-func TestSDKDHTTPClientHasNoIndependentRequestTimeout(t *testing.T) {
-	client := (Service{Configuration: DefaultConfiguration()}).newSDKDHTTPClient()
+func TestLLMDHTTPClientHasNoIndependentRequestTimeout(t *testing.T) {
+	client := (Service{Configuration: DefaultConfiguration()}).newLLMDHTTPClient()
 	if client.Timeout != 0 {
-		t.Fatalf("expected request context to own SDKD cancellation, got client timeout %s", client.Timeout)
+		t.Fatalf("expected request context to own LLMD cancellation, got client timeout %s", client.Timeout)
 	}
 	transport, isTransport := client.Transport.(*http.Transport)
 	if !isTransport {
-		t.Fatalf("expected SDKD HTTP transport, got %T", client.Transport)
+		t.Fatalf("expected LLMD HTTP transport, got %T", client.Transport)
 	}
 	if transport.ResponseHeaderTimeout != 0 {
-		t.Fatalf("expected no independent SDKD response header timeout, got %s", transport.ResponseHeaderTimeout)
+		t.Fatalf("expected no independent LLMD response header timeout, got %s", transport.ResponseHeaderTimeout)
 	}
 }
