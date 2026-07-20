@@ -13,7 +13,7 @@ func TestOrgchartGroupCacheHitAndCorruptRebuild(t *testing.T) {
 		if errorValue := service.writeOrgchartGroups(ctx, []orgGroupRecord{{ID: "engineering", Name: "Engineering"}}); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		first, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		first, errorValue := service.readCachedOrgchartGroups(ctx)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -28,7 +28,7 @@ func TestOrgchartGroupCacheHitAndCorruptRebuild(t *testing.T) {
 		if errorValue := database.Close(); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		second, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		second, errorValue := service.readCachedOrgchartGroups(ctx)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -52,7 +52,7 @@ func TestOrgchartGroupCacheHitAndCorruptRebuild(t *testing.T) {
 		if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", corruptPayload); errorValue != nil || !written {
 			t.Fatalf("write corrupt group cache: written = %t error = %v", written, errorValue)
 		}
-		groups, errorValue := service.readCachedOrgchartGroups(ctx, nil)
+		groups, errorValue := service.readCachedOrgchartGroups(ctx)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}

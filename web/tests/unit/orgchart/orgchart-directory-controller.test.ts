@@ -1,22 +1,18 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import type { UserRecord } from '../../../src/lib/orgchart/types';
 import { adminText } from '../../../src/routes/admin/text';
+import { unassignedGroupID } from '../../../src/routes/orgchart/orgchart-directory-model';
 import { orgchartDirectoryText } from '../../../src/routes/orgchart/text';
 
-let localeValue: 'ko' | 'en' = 'ko';
-
-mock.module('../../../src/lib/i18n/locale.svelte', () => ({
-	currentLocale: {
-		get value() {
-			return localeValue;
-		}
+Object.assign(globalThis, {
+	$state<Value>(value: Value): Value {
+		return value;
 	},
-	setLocale(nextLocale: 'ko' | 'en') {
-		localeValue = nextLocale;
+	$derived<Value>(value: Value): Value {
+		return value;
 	}
-}));
+});
 
-const { currentLocale, setLocale } = await import('../../../src/lib/i18n/locale.svelte');
 const { OrgchartDirectoryController } = await import('../../../src/routes/orgchart/orgchart-directory-controller.svelte');
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
@@ -29,45 +25,40 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	};
 }
 
-function createController(): InstanceType<typeof OrgchartDirectoryController> {
-	Object.assign(globalThis, {
-		$state<Value>(value: Value): Value {
-			return value;
-		},
-		$derived<Value>(value: Value): Value {
-			return value;
-		}
-	});
-	try {
-		return new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
-	} finally {
-		Reflect.deleteProperty(globalThis, '$state');
-		Reflect.deleteProperty(globalThis, '$derived');
-	}
-}
-
 describe('orgchart directory controller', () => {
-	test('recalculates organization order when the current locale changes', () => {
-		const originalLocale = currentLocale.value;
-		const controller = createController();
+	test('exposes the root and selected organization subtree', () => {
+		const controller = new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
 		controller.groups = [
-			{ id: 'korean', name: '가' },
-			{ id: 'english', name: 'A' }
+			{ id: 'product', name: '프로덕트 본부' },
+			{ id: 'engineering', name: '개발팀', parentID: 'product' },
+			{ id: 'sales', name: '세일즈' }
 		];
 		controller.records = [
-			userRecord({ userID: 'korean', primaryGroupID: 'korean', groupIDs: ['korean'] }),
-			userRecord({ userID: 'english', primaryGroupID: 'english', groupIDs: ['english'] })
+			userRecord({ userID: 'lead', primaryGroupID: 'product' }),
+			userRecord({ userID: 'engineer', primaryGroupID: 'engineering' }),
+			userRecord({ userID: 'sales', primaryGroupID: 'sales' })
 		];
-		controller.visibleRecords = controller.records;
 
-		try {
-			setLocale('ko');
-			expect(controller.organizationSections.map((section) => section.id)).toEqual(['korean', 'english']);
+		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'product', 'engineering', 'sales']);
+		expect(controller.organizationTree.nodes.find((node) => node.id === 'product')?.memberCount).toBe(2);
 
-			setLocale('en');
-			expect(controller.organizationSections.map((section) => section.id)).toEqual(['english', 'korean']);
-		} finally {
-			setLocale(originalLocale);
-		}
+		controller.groupID = 'product';
+		expect(controller.organizationSections.map((section) => section.id)).toEqual(['product', 'engineering']);
+		expect(controller.selectedOrganizationName).toBe('프로덕트 본부');
+	});
+
+	test('labels and counts unassigned members separately from all organizations', () => {
+		const controller = new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
+		controller.groups = [{ id: 'product', name: '프로덕트 본부' }];
+		controller.records = [
+			userRecord({ userID: 'assigned', primaryGroupID: 'product' }),
+			userRecord({ userID: 'unassigned' })
+		];
+		controller.groupID = unassignedGroupID;
+
+		expect(controller.selectedOrganizationName).toBe('팀 미지정');
+		expect(controller.organizationSections.length).toBe(1);
+		expect(controller.organizationSections[0]).toMatchObject({ name: '팀 미지정', memberCount: 1 });
+		expect(controller.organizationSections.flatMap((section) => section.records).map((record) => record.userID)).toEqual(['unassigned']);
 	});
 });
