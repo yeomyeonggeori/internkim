@@ -33,7 +33,7 @@ test.describe('embedded calendar multi-day proxy interactions', () => {
 		await expect(page.locator('.df-week-event.df-event-timed[data-event-id="week-multi-day-timed-event"]:visible')).toHaveCount(0);
 		await expect(page.locator('.df-week-event.df-event-timed[data-event-id="week-multi-day-timed-event-2"]:visible')).toHaveCount(0);
 
-		await page.locator('.calendar-multi-day-all-day-proxy', { hasText: '주간 멀티' }).first().dblclick();
+		await page.locator('.calendar-multi-day-all-day-proxy', { hasText: '주간 멀티' }).first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.locator('.df-event-detail-panel')).toHaveCount(0);
 
@@ -182,7 +182,7 @@ test.describe('embedded calendar multi-day proxy interactions', () => {
 		await expect(proxy).toBeFocused();
 	});
 
-	test('keeps a trusted pointer click selection-only through multi-day proxy layout sync', async ({ page }) => {
+	test('opens a trusted pointer click editor without replacing the multi-day proxy', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'pointer-multi-day-proxy',
@@ -247,7 +247,7 @@ test.describe('embedded calendar multi-day proxy interactions', () => {
 		expect(attributeMutationCount).toBeLessThanOrEqual(2);
 		await expect(proxy).toHaveAttribute('data-proxy-content-mutation-count', '0');
 		await expect(proxy).toHaveAttribute('data-proxy-layer-move-mutation-count', '0');
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 	});
 
 	test('does not open a multi-day proxy popover after a moved pointer gesture', async ({ page }) => {
@@ -278,7 +278,7 @@ test.describe('embedded calendar multi-day proxy interactions', () => {
 		await page.mouse.down();
 		await page.mouse.move(sourceX + 90, sourceY + 14, { steps: 8 });
 		await page.mouse.up();
-		await page.locator(proxySelector).dblclick();
+		await page.locator(proxySelector).click();
 
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});

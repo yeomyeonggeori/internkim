@@ -56,7 +56,7 @@ test.describe('embedded calendar month popovers', () => {
 			};
 		}, 'split-anchor-event');
 
-		await page.mouse.dblclick(splitEvent.clickX, splitEvent.clickY);
+		await page.mouse.click(splitEvent.clickX, splitEvent.clickY);
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
 		await expect
@@ -114,7 +114,7 @@ test.describe('embedded calendar month popovers', () => {
 
 		await openCalendarEmbed(page, '월');
 		await navigateEmbeddedCalendar(page, '2026-06-20');
-		await page.locator('[data-event-id="right-edge-popover-event"].calendar-month-direct-event').dblclick();
+		await page.locator('[data-event-id="right-edge-popover-event"].calendar-month-direct-event').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
 		await expect
@@ -178,7 +178,7 @@ test.describe('embedded calendar month popovers', () => {
 			};
 		});
 
-		await hiddenEventRow.dblclick();
+		await hiddenEventRow.click();
 
 		await expect(morePopover).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();

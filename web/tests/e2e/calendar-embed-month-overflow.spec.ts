@@ -125,7 +125,7 @@ test.describe('embedded calendar month overflow', () => {
 		const { moreButton, morePopover } = await openOverflowCalendar(page, 'desktop-editor-escape');
 		await moreButton.click();
 		const hiddenEvent = morePopover.locator('.calendar-month-more-popover-event').first();
-		await hiddenEvent.dblclick();
+		await hiddenEvent.click();
 		const editor = page.locator('.calendar-draft-popover');
 		await expect(editor.getByLabel('제목')).toBeFocused();
 
@@ -140,7 +140,7 @@ test.describe('embedded calendar month overflow', () => {
 	test('keeps the overflow dialog open while interacting with the desktop editor', async ({ page }) => {
 		const { moreButton, morePopover } = await openOverflowCalendar(page, 'desktop-editor-pointer');
 		await moreButton.click();
-		await morePopover.locator('.calendar-month-more-popover-event').first().dblclick();
+		await morePopover.locator('.calendar-month-more-popover-event').first().click();
 		const editor = page.locator('.calendar-draft-popover');
 		await editor.getByLabel('장소').click();
 
@@ -154,7 +154,7 @@ test.describe('embedded calendar month overflow', () => {
 		const { moreButton, morePopover } = await openOverflowCalendar(page, 'mobile-editor-escape');
 		await moreButton.click();
 		const hiddenEvent = morePopover.locator('.calendar-month-more-popover-event').first();
-		await hiddenEvent.dblclick();
+		await hiddenEvent.click();
 		const editor = page.locator('.calendar-mobile-event-editor [role="dialog"]');
 		await expect(editor).toBeVisible();
 

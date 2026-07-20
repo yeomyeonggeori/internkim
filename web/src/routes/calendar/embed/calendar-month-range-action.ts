@@ -88,18 +88,12 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 	};
 
 	const handleClick = (event: MouseEvent) => {
-		if (Date.now() - lastRangeCreationTime > 350) return;
-		event.preventDefault();
-		event.stopPropagation();
-		event.stopImmediatePropagation();
-	};
-
-	const handleDoubleClick = (event: MouseEvent) => {
 		const dateCell = monthDateCellFromEventTarget(options, event.target);
 		if (!dateCell) return;
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+		if (Date.now() - lastRangeCreationTime <= 350) return;
 		options.createSingleDayEvent(dateCell.dateKey, monthDateAnchorFromCell(dateCell.element));
 	};
 
@@ -108,7 +102,6 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 	document.addEventListener('pointerup', handlePointerUp);
 	document.addEventListener('pointercancel', handlePointerCancel);
 	options.stageElement.addEventListener('click', handleClick, true);
-	options.stageElement.addEventListener('dblclick', handleDoubleClick, true);
 
 	return () => {
 		options.stageElement.removeEventListener('pointerdown', handlePointerDown);
@@ -116,6 +109,5 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		document.removeEventListener('pointerup', handlePointerUp);
 		document.removeEventListener('pointercancel', handlePointerCancel);
 		options.stageElement.removeEventListener('click', handleClick, true);
-		options.stageElement.removeEventListener('dblclick', handleDoubleClick, true);
 	};
 }

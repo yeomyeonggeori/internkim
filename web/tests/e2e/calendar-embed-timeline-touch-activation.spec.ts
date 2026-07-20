@@ -18,25 +18,12 @@ test.describe('embedded calendar touch event activation', () => {
 		]);
 	});
 
-	test('keeps a single tap as selection only', async ({ page }) => {
+	test('opens the compact editor after a single tap', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
 
 		const eventBlock = touchActivationEvent(page);
 		await expect(eventBlock).toBeVisible();
 		await eventBlock.tap();
-		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-	});
-
-	test('opens the compact editor after a double tap', async ({ page }) => {
-		await openCalendarEmbed(page, '일');
-
-		const eventBlock = touchActivationEvent(page);
-		await expect(eventBlock).toBeVisible();
-		await eventBlock.tap();
-		await eventBlock.tap();
-
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
 		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -52,11 +39,11 @@ test.describe('embedded calendar touch event activation', () => {
 
 		await expect(eventBlock).toHaveAttribute('data-dragging', 'false');
 		await expect(page.locator('body')).not.toHaveClass(/df-drag-active/);
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
-	test('does not treat a tap after a moved gesture as a double tap', async ({ page }) => {
+	test('does not open an editor after a moved touch gesture', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
 
 		const eventBlock = touchActivationEvent(page);
@@ -74,25 +61,20 @@ test.describe('embedded calendar touch event activation', () => {
 				element.dispatchEvent(touchEvent);
 			};
 			dispatchTouch('touchstart', 100, 100);
-			dispatchTouch('touchend', 100, 100);
-			dispatchTouch('touchstart', 100, 100);
 			dispatchTouch('touchmove', 107, 100);
 			dispatchTouch('touchend', 107, 100);
-			dispatchTouch('touchstart', 100, 100);
-			dispatchTouch('touchend', 100, 100);
 		});
 
 		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
-	test('opens the anchored editor after a double tap at the compact boundary', async ({ page }) => {
+	test('opens the anchored editor after a single tap at the compact boundary', async ({ page }) => {
 		await page.setViewportSize({ width: 768, height: 900 });
 		await openCalendarEmbed(page, '일');
 
 		const eventBlock = touchActivationEvent(page);
 		await expect(eventBlock).toBeVisible();
-		await eventBlock.tap();
 		await eventBlock.tap();
 
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
@@ -100,7 +82,7 @@ test.describe('embedded calendar touch event activation', () => {
 		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
 	});
 
-	test('opens a visible month event compact editor after a double tap', async ({ page }) => {
+	test('opens a visible month event compact editor after a single tap', async ({ page }) => {
 		await openCalendarEmbed(page, '월');
 		await navigateEmbeddedCalendar(page, '2026-06-08');
 
@@ -111,13 +93,12 @@ test.describe('embedded calendar touch event activation', () => {
 		const eventBlockBox = await eventBlock.boundingBox();
 		expect(eventBlockBox?.height ?? 0).toBeGreaterThanOrEqual(24);
 		await eventBlock.tap();
-		await eventBlock.tap();
 
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
 		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
 	});
 
-	test('opens a hidden month event compact editor after a double tap', async ({ page }) => {
+	test('opens a hidden month event compact editor after a single tap', async ({ page }) => {
 		await routeCalendarEvents(
 			page,
 			Array.from({ length: 9 }, (_, index) => ({
@@ -140,7 +121,6 @@ test.describe('embedded calendar touch event activation', () => {
 		await expect(hiddenEvent).toBeVisible();
 		const hiddenEventBox = await hiddenEvent.boundingBox();
 		expect(hiddenEventBox?.height ?? 0).toBeGreaterThanOrEqual(24);
-		await hiddenEvent.tap();
 		await hiddenEvent.tap();
 
 		await expect(page.locator('.calendar-stage')).toHaveAttribute('data-calendar-selected-date-key', '2026-06-17');

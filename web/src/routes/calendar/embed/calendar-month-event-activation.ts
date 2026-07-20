@@ -1,7 +1,6 @@
 import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
 import { calendarEventAnchorForEventID } from './calendar-draft-popover-anchor';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
-import { isCalendarEventAccessibleClick } from './calendar-event-accessible-click';
 import type { MonthEventPlacement } from './calendar-month-event-geometry';
 import type { MonthEventSegment } from './calendar-month-event-model';
 
@@ -16,9 +15,7 @@ type CalendarMonthEventActivationContext = {
 
 export type CalendarMonthEventActivation = {
 	handleDirectEventClick: (mouseEvent: MouseEvent, placement: MonthEventPlacement) => void;
-	handleDirectEventDoubleClick: (mouseEvent: MouseEvent, placement: MonthEventPlacement) => void;
 	handleOverflowEventClick: (mouseEvent: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
-	handleOverflowEventDoubleClick: (mouseEvent: MouseEvent, segment: MonthEventSegment, activeDateKey: string) => void;
 	selectDate: (target: CalendarMonthEventActivationTarget) => void;
 };
 
@@ -41,13 +38,6 @@ export function createCalendarMonthEventActivation(
 	function handleDirectEventClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
 		stopEventActivation(mouseEvent);
 		if (context.shouldSuppressEventActivation()) return;
-		if (!isCalendarEventAccessibleClick(mouseEvent)) return;
-		openDirectEvent(mouseEvent, placement);
-	}
-
-	function handleDirectEventDoubleClick(mouseEvent: MouseEvent, placement: MonthEventPlacement): void {
-		stopEventActivation(mouseEvent);
-		if (context.shouldSuppressEventActivation()) return;
 		openDirectEvent(mouseEvent, placement);
 	}
 
@@ -68,19 +58,6 @@ export function createCalendarMonthEventActivation(
 		activeDateKey: string
 	): void {
 		stopEventActivation(mouseEvent);
-		if (!isCalendarEventAccessibleClick(mouseEvent)) {
-			context.selectDate(activeDateKey);
-			return;
-		}
-		openOverflowEvent(mouseEvent, segment, activeDateKey);
-	}
-
-	function handleOverflowEventDoubleClick(
-		mouseEvent: MouseEvent,
-		segment: MonthEventSegment,
-		activeDateKey: string
-	): void {
-		stopEventActivation(mouseEvent);
 		openOverflowEvent(mouseEvent, segment, activeDateKey);
 	}
 
@@ -92,9 +69,7 @@ export function createCalendarMonthEventActivation(
 
 	return {
 		handleDirectEventClick,
-		handleDirectEventDoubleClick,
 		handleOverflowEventClick,
-		handleOverflowEventDoubleClick,
 		selectDate
 	};
 }

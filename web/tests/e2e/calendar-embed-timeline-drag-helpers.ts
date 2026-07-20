@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '일' | '주'): Promise<void> {
+export async function createTimelineSlotByClick(page: Page, viewLabel: '일' | '주'): Promise<void> {
 	await expect(page.locator('header .calendar-toolbar-title')).toBeVisible();
 	await page.waitForSelector(timelineTargetSelector(viewLabel), { state: 'attached' });
 	await resetTimelineScrollerTop(page, viewLabel);
@@ -9,7 +9,7 @@ export async function createTimelineSlotByDoubleClick(page: Page, viewLabel: '�
 		if (!(target instanceof HTMLElement)) throw new Error(`Missing timeline target: ${selector}`);
 		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
-		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 
 		function visibleTimelineTarget(targetSelector: string, viewLabel: '일' | '주'): { target: Element | null; clientX: number; clientY: number } {
 			const scroller = document.querySelector(viewLabel === '일' ? '.df-day-content-grid' : '.df-week-time-grid-scroller');
