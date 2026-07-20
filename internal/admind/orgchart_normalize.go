@@ -104,7 +104,10 @@ func normalizeOrgchartGroupsWithAliases(groups []orgGroupRecord) ([]orgGroupReco
 			continue
 		}
 		groupIDsByName[nameKey] = id
-		result = append(result, orgGroupRecord{ID: id, Name: name})
+		result = append(result, orgGroupRecord{ID: id, Name: name, ParentID: strings.TrimSpace(group.ParentID)})
+	}
+	for index, group := range result {
+		result[index].ParentID = canonicalOrgchartGroupID(group.ParentID, aliases)
 	}
 	return result, aliases
 }
