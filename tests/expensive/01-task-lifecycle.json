@@ -43,10 +43,9 @@
       "prompt": "방금 확인한 '고객지원 분기 결산 검토 완료' 업무를 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": ["task.list", "task.delete"],
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
         {"name": "tool.task.list.result", "outputFragment": "고객지원 분기 결산 검토 완료", "count": 1},
-        {"name": "tool.task.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.task.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
