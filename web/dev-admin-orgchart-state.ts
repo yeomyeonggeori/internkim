@@ -82,11 +82,10 @@ function usersResponse(state: DevAdminOrgchartMockState): UsersResponse {
 }
 
 function publicOrgchartUsersResponse(state: DevAdminOrgchartMockState): UsersResponse {
-	const visibleGroupIDs = new Set(state.users.flatMap((user) => [user.primaryGroupID ?? '', ...(user.groupIDs ?? [])].map((groupID) => groupID.trim()).filter(Boolean)));
 	return {
 		users: state.users.map((user) => user.email),
 		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])] })),
-		availableGroups: state.groups.filter((group) => visibleGroupIDs.has(group.id)).map((group) => ({ ...group })),
+		availableGroups: state.groups.map((group) => ({ ...group })),
 		availableCircles: []
 	};
 }
@@ -99,7 +98,8 @@ function groupsFromBody(body: string | undefined): OrgGroup[] {
 		if (!record) return [];
 		const id = stringFromUnknown(record.id).trim();
 		const name = stringFromUnknown(record.name).trim();
-		return id && name ? [{ id, name }] : [];
+		const parentID = stringFromUnknown(record.parentID).trim();
+		return id && name ? [{ id, name, ...(parentID ? { parentID } : {}) }] : [];
 	});
 }
 
@@ -114,9 +114,14 @@ function normalizeOrgGroups(groups: OrgGroup[]): OrgGroup[] {
 		if (!id || !name || seenIDs.has(id) || seenNames.has(normalizedName)) continue;
 		seenIDs.add(id);
 		seenNames.add(normalizedName);
-		normalizedGroups.push({ id, name });
+		normalizedGroups.push({ id, name, ...(group.parentID?.trim() ? { parentID: group.parentID.trim() } : {}) });
 	}
-	return normalizedGroups;
+	const groupIDs = new Set(normalizedGroups.map((group) => group.id));
+	return normalizedGroups.map((group) => ({
+		id: group.id,
+		name: group.name,
+		...(group.parentID && group.parentID !== group.id && groupIDs.has(group.parentID) ? { parentID: group.parentID } : {})
+	}));
 }
 
 function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
