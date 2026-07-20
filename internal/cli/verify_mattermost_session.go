@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	mattermostAdminPasswordPath = "/root/.internkim/secrets/mm-admin-pass"
-	mattermostBotTokenPath      = "/root/.internkim/secrets/mattermost-bot-token"
+	mattermostAdminPasswordPath        = "/root/.internkim/secrets/mm-admin-pass"
+	mattermostBotTokenPath             = "/root/.internkim/secrets/mattermost-bot-token"
+	mattermostScenarioStepReplyTimeout = 15 * time.Minute
 )
 
 var mattermostScenarioURLPattern = regexp.MustCompile(`https?://[^\s<>()]+`)
@@ -47,6 +49,7 @@ type mattermostScenarioSession struct {
 	result            mattermostScenarioResult
 	startedAt         time.Time
 	poll              func(context.Context) error
+	stepTimeout       time.Duration
 	shouldAutoConfirm bool
 	cleanupMutex      sync.Mutex
 	isCleanupFinished bool
@@ -87,6 +90,7 @@ func newMattermostScenarioSession(scenario mattermostScenario, mattermost matter
 		admin:          admin,
 		seenBotPostIDs: map[string]bool{},
 		poll:           waitForMattermostScenarioPoll,
+		stepTimeout:    mattermostScenarioStepReplyTimeout,
 		result: mattermostScenarioResult{
 			ScenarioName: scenario.Name,
 			TurnCount:    len(scenario.Steps),
@@ -200,7 +204,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	}
 	session.result.Posts = append(session.result.Posts, convertMattermostScenarioPost(userPost))
 	sourceReference := session.stepSourceReference(userPost.ID)
-	detail, events, replyPostID, errorValue := session.waitForStepTask(contextValue, snapshot, sourceReference)
+	detail, events, replyPostID, errorValue := session.waitForStepTask(contextValue, stepIndex, snapshot, sourceReference)
 	stepResult.TaskRunID = detail.TaskRun.TaskRunID
 	stepResult.TaskStatus = detail.TaskRun.Status
 	stepResult.TaskEvents = events
@@ -209,7 +213,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
-	botPost, errorValue := session.waitForStepReply(contextValue, replyPostID)
+	botPost, errorValue := session.waitForStepReply(contextValue, stepIndex, replyPostID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -234,7 +238,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 
 func (session *mattermostScenarioSession) finishApprovalStep(contextValue context.Context, stepIndex int) error {
 	stepResult := &session.result.Steps[stepIndex]
-	detail, newEvents, replyPostID, errorValue := session.waitForApprovalCompletion(contextValue, stepResult.TaskRunID, stepResult.TaskEvents)
+	detail, newEvents, replyPostID, errorValue := session.waitForApprovalCompletion(contextValue, stepIndex, stepResult.TaskRunID, stepResult.TaskEvents)
 	stepResult.TaskStatus = detail.TaskRun.Status
 	stepResult.TaskEvents = append(stepResult.TaskEvents, newEvents...)
 	setMattermostScenarioStepMetrics(stepResult)
@@ -242,7 +246,7 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	if errorValue != nil {
 		return errorValue
 	}
-	botPost, errorValue := session.waitForStepReply(contextValue, replyPostID)
+	botPost, errorValue := session.waitForStepReply(contextValue, stepIndex, replyPostID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -257,8 +261,9 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	return errorValue
 }
 
-func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue context.Context, taskRunID string, previousEvents []mattermostScenarioTaskEvent) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
+func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue context.Context, stepIndex int, taskRunID string, previousEvents []mattermostScenarioTaskEvent) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
 	previousEventIDs := mattermostScenarioEventIDSet(previousEvents)
+	waitStartedAt := time.Now()
 	for {
 		detail, errorValue := session.admin.taskDetail(contextValue, taskRunID)
 		if errorValue != nil {
@@ -268,6 +273,9 @@ func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue
 		replyPostID := mattermostScenarioReplyPostID(newEvents, detail.TaskRun.Status, "")
 		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && replyPostID != "" {
 			return detail, newEvents, replyPostID, nil
+		}
+		if errorValue := session.stepWaitTimeoutError(stepIndex, "approval completion", waitStartedAt); errorValue != nil {
+			return detail, newEvents, replyPostID, errorValue
 		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
 			return detail, newEvents, replyPostID, errorValue
@@ -324,10 +332,11 @@ func (session *mattermostScenarioSession) snapshotTasks(contextValue context.Con
 	return snapshot, nil
 }
 
-func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, snapshot map[string]mattermostScenarioTaskSnapshot, sourceReference string) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
+func (session *mattermostScenarioSession) waitForStepTask(contextValue context.Context, stepIndex int, snapshot map[string]mattermostScenarioTaskSnapshot, sourceReference string) (mattermostScenarioTaskDetail, []mattermostScenarioTaskEvent, string, error) {
 	var latestDetail mattermostScenarioTaskDetail
 	var latestEvents []mattermostScenarioTaskEvent
 	var latestReplyPostID string
+	waitStartedAt := time.Now()
 	for {
 		tasks, errorValue := session.admin.listTasks(contextValue, session.conversationID())
 		if errorValue != nil {
@@ -357,6 +366,9 @@ func (session *mattermostScenarioSession) waitForStepTask(contextValue context.C
 			}
 			return detail, newEvents, latestReplyPostID, nil
 		}
+		if errorValue := session.stepWaitTimeoutError(stepIndex, "task status", waitStartedAt); errorValue != nil {
+			return latestDetail, latestEvents, latestReplyPostID, errorValue
+		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
 			return latestDetail, latestEvents, latestReplyPostID, errorValue
 		}
@@ -374,7 +386,8 @@ func (session *mattermostScenarioSession) stepSourceReference(postID string) str
 	return "mattermost:" + session.conversationID() + ":" + postID
 }
 
-func (session *mattermostScenarioSession) waitForStepReply(contextValue context.Context, replyPostID string) (mattermostProbePost, error) {
+func (session *mattermostScenarioSession) waitForStepReply(contextValue context.Context, stepIndex int, replyPostID string) (mattermostProbePost, error) {
+	waitStartedAt := time.Now()
 	for {
 		posts, errorValue := session.mattermost.ListChannelPosts(contextValue, session.adminToken, session.channelID)
 		if errorValue != nil {
@@ -386,6 +399,9 @@ func (session *mattermostScenarioSession) waitForStepReply(contextValue context.
 			}
 			session.seenBotPostIDs[post.ID] = true
 			return post, nil
+		}
+		if errorValue := session.stepWaitTimeoutError(stepIndex, "a bot reply", waitStartedAt); errorValue != nil {
+			return mattermostProbePost{}, errorValue
 		}
 		if errorValue := session.poll(contextValue); errorValue != nil {
 			return mattermostProbePost{}, errorValue
@@ -599,6 +615,14 @@ func findMattermostScenarioEventPublicURL(events []mattermostScenarioTaskEvent) 
 		}
 	}
 	return ""
+}
+
+func (session *mattermostScenarioSession) stepWaitTimeoutError(stepIndex int, waitKind string, waitStartedAt time.Time) error {
+	elapsed := time.Since(waitStartedAt)
+	if elapsed < session.stepTimeout {
+		return nil
+	}
+	return fmt.Errorf("Mattermost scenario step %d timed out after %s waiting for %s; inspect the fleet VM (kept with --keep) for a stalled Mattermost or Blueclaw dependency", stepIndex, elapsed.Round(time.Second), waitKind)
 }
 
 func waitForMattermostScenarioPoll(contextValue context.Context) error {

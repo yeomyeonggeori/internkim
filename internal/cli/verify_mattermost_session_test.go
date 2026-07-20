@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -572,7 +573,7 @@ func TestMattermostScenarioUnexpectedTerminalStatusReturnsWithoutPolling(t *test
 	pollCount := 0
 	session.poll = func(context.Context) error { pollCount++; return nil }
 
-	detail, _, _, errorValue := session.waitForStepTask(context.Background(), map[string]mattermostScenarioTaskSnapshot{}, "mattermost:thread:channel:user-post:post")
+	detail, _, _, errorValue := session.waitForStepTask(context.Background(), 0, map[string]mattermostScenarioTaskSnapshot{}, "mattermost:thread:channel:user-post:post")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -643,9 +644,84 @@ func TestMattermostScenarioPollingStopsWhenContextIsCancelled(t *testing.T) {
 	contextValue, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, _, errorValue := session.waitForStepTask(contextValue, nil, "source")
+	_, _, _, errorValue := session.waitForStepTask(contextValue, 0, nil, "source")
 	if !errors.Is(errorValue, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", errorValue)
+	}
+}
+
+func TestNewMattermostScenarioSessionDefaultsToFifteenMinuteStepTimeout(t *testing.T) {
+	session := newMattermostScenarioSession(mattermostScenario{}, &fakeMattermostProbeAPI{}, &fakeMattermostScenarioAdminAPI{})
+	if session.stepTimeout != mattermostScenarioStepReplyTimeout {
+		t.Fatalf("expected default step timeout of %s, got %s", mattermostScenarioStepReplyTimeout, session.stepTimeout)
+	}
+}
+
+func TestMattermostScenarioWaitForStepTaskTimesOutWithoutProgress(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{
+		listTasksValue: func() []mattermostScenarioTaskSummary {
+			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
+		},
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			return mattermostScenarioTaskDetail{
+				TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "running"},
+				TaskEvents: []mattermostScenarioTaskEvent{testMattermostSourceEvent("source", "post")},
+			}
+		},
+	}
+	session := newTestMattermostScenarioSession(mattermostScenario{}, &fakeMattermostProbeAPI{}, admin)
+	session.stepTimeout = time.Millisecond
+	session.poll = func(context.Context) error {
+		time.Sleep(time.Millisecond)
+		return nil
+	}
+
+	_, _, _, errorValue := session.waitForStepTask(context.Background(), 2, map[string]mattermostScenarioTaskSnapshot{}, "mattermost:thread:channel:user-post:post")
+	if errorValue == nil {
+		t.Fatal("expected a step timeout error")
+	}
+	if !strings.Contains(errorValue.Error(), "step 2") || !strings.Contains(errorValue.Error(), "task status") || !strings.Contains(errorValue.Error(), "--keep") {
+		t.Fatalf("unexpected timeout error: %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioWaitForStepReplyTimesOutWithoutABotReply(t *testing.T) {
+	mattermost := &fakeMattermostProbeAPI{listChannelPosts: func() []mattermostProbePost { return nil }}
+	session := newTestMattermostScenarioSession(mattermostScenario{}, mattermost, &fakeMattermostScenarioAdminAPI{})
+	session.stepTimeout = time.Millisecond
+	session.poll = func(context.Context) error {
+		time.Sleep(time.Millisecond)
+		return nil
+	}
+
+	_, errorValue := session.waitForStepReply(context.Background(), 1, "missing-post")
+	if errorValue == nil {
+		t.Fatal("expected a step timeout error")
+	}
+	if !strings.Contains(errorValue.Error(), "step 1") || !strings.Contains(errorValue.Error(), "a bot reply") || !strings.Contains(errorValue.Error(), "--keep") {
+		t.Fatalf("unexpected timeout error: %v", errorValue)
+	}
+}
+
+func TestMattermostScenarioWaitForApprovalCompletionTimesOutWithoutProgress(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"}}
+		},
+	}
+	session := newTestMattermostScenarioSession(mattermostScenario{}, &fakeMattermostProbeAPI{}, admin)
+	session.stepTimeout = time.Millisecond
+	session.poll = func(context.Context) error {
+		time.Sleep(time.Millisecond)
+		return nil
+	}
+
+	_, _, _, errorValue := session.waitForApprovalCompletion(context.Background(), 3, "task", nil)
+	if errorValue == nil {
+		t.Fatal("expected a step timeout error")
+	}
+	if !strings.Contains(errorValue.Error(), "step 3") || !strings.Contains(errorValue.Error(), "approval completion") || !strings.Contains(errorValue.Error(), "--keep") {
+		t.Fatalf("unexpected timeout error: %v", errorValue)
 	}
 }
 
