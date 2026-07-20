@@ -131,14 +131,8 @@ func TestBlueclawRuntimeConfigIncludesCredentiallessLLMDBridge(t *testing.T) {
 	if llmd["authKeyPath"] != "" || llmd["unixSocketPath"] != "" {
 		t.Fatalf("expected no host LLMD paths in guest configuration: %+v", llmd)
 	}
-	structuredSchemaNames, isStructuredSchemaNames := llmd["structuredSchemaNames"].([]any)
-	if !isStructuredSchemaNames || len(structuredSchemaNames) != 5 ||
-		structuredSchemaNames[0] != "blueclaw_agent_turn_action" ||
-		structuredSchemaNames[1] != "blueclaw_agent_turn_finalizer" ||
-		structuredSchemaNames[2] != "blueclaw_turn_router" ||
-		structuredSchemaNames[3] != "blueclaw_recovery_decision" ||
-		structuredSchemaNames[4] != "blueclaw_operation_contract" {
-		t.Fatalf("expected authoritative LLMD structured schemas, got %+v", llmd["structuredSchemaNames"])
+	if _, hasStructuredSchemaNames := llmd["structuredSchemaNames"]; hasStructuredSchemaNames {
+		t.Fatalf("expected structured schema names to come from the Blueclaw default, got %+v", llmd["structuredSchemaNames"])
 	}
 	if strings.Contains(document, LLMDSocketPath) || strings.Contains(document, LLMDAuthKeyPath) {
 		t.Fatal("expected host LLMD secrets and socket to stay out of guest configuration")

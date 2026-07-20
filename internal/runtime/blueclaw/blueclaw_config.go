@@ -261,12 +261,11 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		llmdUnixSocketPath = capabilitySocketPath
 	}
 	languageModelConfiguration["llmd"] = map[string]any{
-		"endpoint":              llmdEndpoint,
-		"unixSocketPath":        llmdUnixSocketPath,
-		"authKeyPath":           "",
-		"executionMode":         languageModelExecutionMode,
-		"localOnly":             options.LocalOnly,
-		"structuredSchemaNames": []string{"blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"},
+		"endpoint":       llmdEndpoint,
+		"unixSocketPath": llmdUnixSocketPath,
+		"authKeyPath":    "",
+		"executionMode":  languageModelExecutionMode,
+		"localOnly":      options.LocalOnly,
 	}
 	if options.DirectExecution || strings.EqualFold(options.LLMDMode, "authoritative") {
 		languageModelConfiguration["defaultProvider"] = "llmd"
