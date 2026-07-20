@@ -1,10 +1,12 @@
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
+import { createCalendarEventActivationGuard } from './calendar-event-activation-guard';
 import { calendarEventAnchorFromElement } from './calendar-event-anchor-capture';
-import { isCalendarEventAccessibleClick } from './calendar-event-accessible-click';
-import { calendarEventElementFromTarget, normalizedCalendarEventID } from './calendar-event-elements';
-
-const calendarAccessibleEventActivatorSelector =
-	'.calendar-dayflow-event-activator, .calendar-multi-day-all-day-proxy';
+import {
+	calendarEventElementFromTarget,
+	isCalendarMonthEventLayerElement,
+	normalizedCalendarEventID
+} from './calendar-event-elements';
+import { installCalendarEventTouchActivation } from './calendar-event-touch-activation';
 
 type CalendarDayFlowEventActivationOptions = {
 	stageElement: HTMLElement;
@@ -14,22 +16,23 @@ type CalendarDayFlowEventActivationOptions = {
 export function installCalendarDayFlowEventActivation(
 	options: CalendarDayFlowEventActivationOptions
 ): () => void {
+	const activationGuard = createCalendarEventActivationGuard(options.stageElement);
 	const handleClick = (event: MouseEvent): void => {
-		if (!isCalendarEventAccessibleClick(event)) return;
-		if (!(event.target instanceof Element)) return;
-		const activator = event.target.closest<HTMLElement>(calendarAccessibleEventActivatorSelector);
-		if (!activator || !options.stageElement.contains(activator)) return;
 		const eventElement = calendarEventElementFromTarget(options.stageElement, event.target);
 		const eventID = normalizedCalendarEventID(eventElement?.dataset.eventId);
-		if (!eventElement || !eventID) return;
+		if (!eventElement || isCalendarMonthEventLayerElement(eventElement) || !eventID) return;
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+		if (activationGuard.shouldSuppressActivation(event)) return;
 		options.openEvent(eventID, calendarEventAnchorFromElement(eventElement));
 	};
 
 	options.stageElement.addEventListener('click', handleClick, true);
+	const stopTouchActivation = installCalendarEventTouchActivation(options);
 	return () => {
 		options.stageElement.removeEventListener('click', handleClick, true);
+		stopTouchActivation();
+		activationGuard.destroy();
 	};
 }

@@ -13,7 +13,7 @@ export type CalendarAllDayCellActionOptions = {
 };
 
 export function installCalendarAllDayCellAction(options: CalendarAllDayCellActionOptions): () => void {
-	const handleDoubleClick = (event: MouseEvent) => {
+	const handleClick = (event: MouseEvent) => {
 		const target = allDayTarget(options, event.target);
 		if (!target) return;
 		const targetDateKey = allDayTargetDateKey(options, target);
@@ -29,10 +29,10 @@ export function installCalendarAllDayCellAction(options: CalendarAllDayCellActio
 		options.createAllDayEvent(targetDateKey, anchor);
 	};
 
-	options.stageElement.addEventListener('dblclick', handleDoubleClick, true);
+	options.stageElement.addEventListener('click', handleClick, true);
 
 	return () => {
-		options.stageElement.removeEventListener('dblclick', handleDoubleClick, true);
+		options.stageElement.removeEventListener('click', handleClick, true);
 	};
 }
 

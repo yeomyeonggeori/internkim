@@ -41,6 +41,14 @@
 		cursor: pointer;
 	}
 
+	.calendar-stage .calendar-month-direct-event.calendar-month-event-drag-ready {
+		filter: brightness(0.94);
+		transform: scale(0.985);
+		transition:
+			filter 100ms ease,
+			transform 100ms ease;
+	}
+
 	.calendar-stage .df-month-event.draft-empty-title-event {
 		border-color: transparent !important;
 		background: linear-gradient(135deg, #9aa6df 0%, #8794d6 100%) !important;

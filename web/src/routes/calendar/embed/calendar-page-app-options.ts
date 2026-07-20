@@ -71,7 +71,6 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 					: middle;
 				context.setVisibleDate(visibleDate);
 			},
-			onEventDoubleClick: () => false,
 			onEventCreate: context.saveCreatedEvent,
 			onEventUpdate: (event) => context.saveUpdatedEvent(event),
 			onEventDelete: context.deleteEvent

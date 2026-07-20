@@ -37,7 +37,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 	test('exposes the compact editor as a named modal and restores event focus after Escape', async ({ page }) => {
 		const eventActivator = accessibleEventActivator(page);
 		await eventActivator.focus();
-		await eventActivator.dblclick();
+		await eventActivator.click();
 
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 		await expect(dialog).toBeVisible();
@@ -51,7 +51,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 	});
 
 	test('keeps Tab focus inside the compact editor', async ({ page }) => {
-		await accessibleEventActivator(page).dblclick();
+		await accessibleEventActivator(page).click();
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 		const deleteButton = dialog.locator('[data-mobile-editor-action="delete"]');
 		await deleteButton.focus();
@@ -63,7 +63,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 
 	test('closes compact participant suggestions before closing the editor with Escape', async ({ page }) => {
 		await prepareAccessibleParticipantSuggestions(page);
-		await accessibleEventActivator(page).dblclick();
+		await accessibleEventActivator(page).click();
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 		const participantCombobox = dialog.getByRole('combobox', { name: '참여자' });
 		await participantCombobox.focus();
@@ -109,7 +109,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 	test('keeps the event selected while interacting with the compact editor', async ({ page }) => {
 		const eventActivator = accessibleEventActivator(page);
 		const eventBlock = accessibleEventBlock(page);
-		await eventActivator.dblclick();
+		await eventActivator.click();
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
@@ -174,7 +174,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 
 	test('keeps the compact editor field focus ring visible in forced colors', async ({ page }) => {
 		await page.emulateMedia({ forcedColors: 'active' });
-		await accessibleEventActivator(page).dblclick();
+		await accessibleEventActivator(page).click();
 
 		await expectForcedColorFocusRing(page.locator('input[data-mobile-editor-field="title"]'));
 	});
@@ -191,7 +191,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 		const updatedEvents = await routeCalendarEventUpdates(page);
 		const eventActivator = accessibleEventActivator(page);
 		await eventActivator.focus();
-		await eventActivator.dblclick();
+		await eventActivator.click();
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 		await dialog.locator('input[data-mobile-editor-field="title"]').fill('Accessible Editor Event Updated');
 		await dialog.getByRole('button', { name: '완료' }).click();
@@ -204,7 +204,7 @@ test.describe('embedded calendar event editor accessibility', () => {
 		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
 		const eventActivator = accessibleEventActivator(page);
 		await eventActivator.focus();
-		await eventActivator.dblclick();
+		await eventActivator.click();
 		await page.getByRole('dialog', { name: '일정 편집' }).getByRole('button', { name: '삭제' }).click();
 
 		await expect.poll(() => deleteIntentRequests.registeredEventIDs).toEqual(['accessible-editor-event']);

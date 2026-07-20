@@ -30,6 +30,8 @@ export type TimelineRangeActionOptions = {
 };
 
 export function installCalendarTimelineRangeAction(options: TimelineRangeActionOptions): () => void {
+	let lastRangeCreationTime = 0;
+
 	const handlePointerDown = (event: PointerEvent) => {
 		if (!isTimelineActionEvent(options, event)) return;
 		const startDate = timelineDateFromPointerEvent(options, event);
@@ -65,6 +67,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+		lastRangeCreationTime = Date.now();
 		options.createRangeEvent(selection.startDate, endDate, selection.currentAnchor);
 	};
 
@@ -85,18 +88,12 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 
 	const handleClick = (event: MouseEvent) => {
 		if (!isTimelineActionEvent(options, event)) return;
-		event.preventDefault();
-		event.stopPropagation();
-		event.stopImmediatePropagation();
-	};
-
-	const handleDoubleClick = (event: MouseEvent) => {
-		if (!isTimelineActionEvent(options, event)) return;
 		const startDate = timelineDateFromPointerEvent(options, event);
 		if (!startDate) return;
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+		if (Date.now() - lastRangeCreationTime <= 350) return;
 		if (options.isMobileTwoDayWeekView()) {
 			options.createMobileSingleEvent(startDate);
 			return;
@@ -110,7 +107,6 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 	window.addEventListener('pointercancel', handlePointerCancel, true);
 	options.stageElement.addEventListener('mousedown', handleMouseDown, true);
 	options.stageElement.addEventListener('click', handleClick, true);
-	options.stageElement.addEventListener('dblclick', handleDoubleClick, true);
 
 	return () => {
 		options.setSelection(null);
@@ -120,7 +116,6 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		window.removeEventListener('pointercancel', handlePointerCancel, true);
 		options.stageElement.removeEventListener('mousedown', handleMouseDown, true);
 		options.stageElement.removeEventListener('click', handleClick, true);
-		options.stageElement.removeEventListener('dblclick', handleDoubleClick, true);
 	};
 }
 

@@ -9,7 +9,7 @@ import {
 	routeDefaultCalendarAPI
 } from './calendar-embed-test-utils';
 import { expectMiniCalendarSelectedDayTextVisible } from './calendar-embed-draft-assertions';
-import { navigateEmbeddedCalendar, openCalendarEmbed, createTimelineSlotByDoubleClick } from './calendar-embed-interaction-helpers';
+import { navigateEmbeddedCalendar, openCalendarEmbed, createTimelineSlotByClick } from './calendar-embed-interaction-helpers';
 
 test.describe('embedded calendar mini calendar', () => {
 	test.beforeEach(async ({ page }) => {
@@ -86,7 +86,7 @@ test.describe('embedded calendar mini calendar', () => {
 		expect(selectedDayMarkerStyle['background-color']).toBe('rgb(195, 203, 214)');
 		expect(selectedDayMarkerStyle.content).toBe('""');
 
-		await createTimelineSlotByDoubleClick(page, '일');
+		await createTimelineSlotByClick(page, '일');
 		const popoverStyle = await computedStyle(page, '.calendar-draft-popover', [
 			'position',
 			'width',
@@ -130,7 +130,7 @@ test.describe('embedded calendar mini calendar', () => {
 		await expect(page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]')).toHaveAttribute('data-selected', 'true');
 		await expect(page.getByRole('heading', { name: '6월 10일 수요일' })).toBeVisible();
 
-		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -145,7 +145,7 @@ test.describe('embedded calendar mini calendar', () => {
 		await expect(page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)')).toHaveCount(1);
 		await expect.poll(() => deleteIntentRequests.canceledEventIDs.slice()).toEqual(['deletable-event']);
 
-		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -163,7 +163,7 @@ test.describe('embedded calendar mini calendar', () => {
 			'deletable-event'
 		]);
 
-		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await page.locator('.calendar-stage [data-event-id="deletable-event"]:not(.df-right-panel-event-card)').first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -174,6 +174,8 @@ test.describe('embedded calendar mini calendar', () => {
 		const keyboardDeleteEvent = page.locator('.calendar-stage [data-event-id="keyboard-delete-event"]:not(.df-right-panel-event-card)').first();
 		await keyboardDeleteEvent.click();
 		await expect(keyboardDeleteEvent).toHaveClass(/internkim-calendar-event-focused/);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.keyboard.press('Escape');
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await page.keyboard.press('Backspace');
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -211,7 +213,7 @@ test.describe('embedded calendar mini calendar', () => {
 
 		await openCalendarEmbed(page, '일');
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
-		await page.locator('.calendar-stage [data-event-id="failed-delete-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await page.locator('.calendar-stage [data-event-id="failed-delete-event"]:not(.df-right-panel-event-card)').first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		const deleteUndo = page.locator('.calendar-delete-undo-toast');
@@ -220,6 +222,8 @@ test.describe('embedded calendar mini calendar', () => {
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-11"]').click();
 		const pendingDeleteEvent = page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)').first();
 		await pendingDeleteEvent.click();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.keyboard.press('Escape');
 		await page.keyboard.press('Backspace');
 		await expect(page.locator('.calendar-stage [data-event-id="pending-delete-event"]:not(.df-right-panel-event-card)')).toHaveCount(0);
 		await expect.poll(() => deleteIntentRequests.registeredEventIDs.slice()).toEqual([
@@ -249,7 +253,7 @@ test.describe('embedded calendar mini calendar', () => {
 
 		await openCalendarEmbed(page, '일');
 		await page.locator('.df-mini-calendar-day[data-mini-date-key="2026-06-10"]').click();
-		await page.locator('.calendar-stage [data-event-id="pagehide-delete-event"]:not(.df-right-panel-event-card)').first().dblclick();
+		await page.locator('.calendar-stage [data-event-id="pagehide-delete-event"]:not(.df-right-panel-event-card)').first().click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.locator('.calendar-draft-popover .draft-popover-delete').click();
 		const deleteUndo = page.locator('.calendar-delete-undo-toast');

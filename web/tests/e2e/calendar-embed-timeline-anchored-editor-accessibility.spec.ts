@@ -179,9 +179,9 @@ test.describe('desktop anchored calendar event editor accessibility', () => {
 		await expect(page.locator('.calendar-stage')).toBeFocused();
 	});
 
-	test('keeps pointer double click in the current page', async ({ context, page }) => {
+	test('keeps pointer click in the current page', async ({ context, page }) => {
 		const eventActivator = accessibleEventActivator(page);
-		await eventActivator.dblclick();
+		await eventActivator.click();
 		const dialog = page.getByRole('dialog', { name: '일정 편집' });
 
 		await expect(dialog).toBeVisible();

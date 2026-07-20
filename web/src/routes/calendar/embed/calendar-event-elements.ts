@@ -88,7 +88,7 @@ function syncCalendarEventPressedState(element: HTMLElement, isPressed: boolean)
 
 function detailOpenEventForElement(element: HTMLElement): MouseEvent {
 	const rectangle = element.getBoundingClientRect();
-	return new MouseEvent('dblclick', {
+	return new MouseEvent('click', {
 		bubbles: true,
 		cancelable: true,
 		view: window,

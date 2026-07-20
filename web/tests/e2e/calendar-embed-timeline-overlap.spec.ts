@@ -6,7 +6,7 @@ import {
 	expectTimelineEventsUseSeparateLanes
 } from './calendar-embed-interaction-assertions';
 import { expectPopoverArrowPointsToEventTimeEnd } from './calendar-embed-draft-assertions';
-import { doubleClickCalendarEvent, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { clickCalendarEvent, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 
 test.describe('embedded calendar timeline overlap layout', () => {
 	test.beforeEach(async ({ page }) => {
@@ -38,7 +38,7 @@ test.describe('embedded calendar timeline overlap layout', () => {
 		await expect(page.locator(secondEventSelector)).toBeVisible();
 
 		await expectTimelineEventsUseSeparateLanes(page, firstEventSelector, secondEventSelector);
-		await doubleClickCalendarEvent(page, secondEventSelector);
+		await clickCalendarEvent(page, secondEventSelector);
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expectPopoverArrowPointsToEventTimeEnd(page, secondEventSelector);

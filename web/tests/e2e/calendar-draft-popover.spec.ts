@@ -166,7 +166,7 @@ test.describe('calendar draft popover', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="unchanged-edit-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="unchanged-edit-event"]').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		const unexpectedUpdate = page
 			.waitForRequest(
@@ -190,7 +190,7 @@ test.describe('calendar draft popover', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="changed-edit-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="changed-edit-event"]').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await page.getByLabel('제목').fill('수정 후 일정');
 		await page.getByLabel('장소').fill('회의실 B');
@@ -224,7 +224,7 @@ test.describe('calendar draft popover', () => {
 		await expect(popover.getByRole('button', { name: '완료' })).toBeDisabled();
 	});
 
-	test('keeps month single click as selection and opens the popover on double click', async ({ page }) => {
+	test('opens a month draft popover on a single click', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
@@ -232,10 +232,6 @@ test.describe('calendar draft popover', () => {
 		const dateCell = page.locator('.df-month-day-cell[data-date="2026-06-10"]');
 		await dateCell.click();
 		await expect(dateCell).toHaveClass(/month-selected-date/);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-
-		await dateCell.dblclick();
-
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.getByLabel('제목')).toBeVisible();
 	});
@@ -298,7 +294,7 @@ test.describe('calendar draft popover', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').dblclick();
+		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.locator('.calendar-month-direct-event.draft-empty-title-event')).toBeVisible();
 
@@ -321,7 +317,7 @@ test.describe('calendar draft popover', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').dblclick();
+		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').click();
 
 		const showedPopoverBeforeDraftEvent = await page.evaluate(() => {
 			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');

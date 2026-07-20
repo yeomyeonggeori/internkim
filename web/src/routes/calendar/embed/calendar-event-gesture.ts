@@ -14,7 +14,6 @@ export type CalendarEventTap = {
 };
 
 const calendarEventMovementThresholdPx = 6;
-const calendarEventDoubleTapDistanceThresholdPx = 24;
 const calendarEventTapDurationLimitMs = 450;
 
 export function hasCalendarEventGestureMoved(
@@ -22,13 +21,6 @@ export function hasCalendarEventGestureMoved(
 	current: CalendarEventGesturePosition
 ): boolean {
 	return gestureDistance(start, current) > calendarEventMovementThresholdPx;
-}
-
-export function isCalendarEventDoubleTap(previousTap: CalendarEventTap | null, currentTap: CalendarEventTap): boolean {
-	if (!previousTap || previousTap.eventID !== currentTap.eventID) return false;
-	if (!isCalendarEventTap(previousTap) || !isCalendarEventTap(currentTap)) return false;
-	if (currentTap.end.timestamp - previousTap.end.timestamp > calendarEventTapDurationLimitMs) return false;
-	return gestureDistance(previousTap.end, currentTap.end) <= calendarEventDoubleTapDistanceThresholdPx;
 }
 
 export function isCalendarEventTap(tap: CalendarEventTap): boolean {

@@ -5,7 +5,7 @@ import {
 	expectPopoverArrowPointsToEventTimeEnd,
 	expectPopoverOpensLeftOfElement
 } from './calendar-embed-draft-assertions';
-import { doubleClickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { clickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 import {
 	duplicateDayAnchorPanelEventSelector,
 	duplicateDayAnchorTimelineEventSelector,
@@ -25,18 +25,18 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		const panelEventSelector = '.calendar-stage [data-event-id="right-panel-all-day-a"].df-right-panel-event-card';
 		await expect(page.locator(panelEventSelector)).toBeVisible();
 
-		await doubleClickCalendarEvent(page, panelEventSelector);
+		await clickCalendarEvent(page, panelEventSelector);
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expectPopoverOpensLeftOfElement(page, panelEventSelector);
 		await expectPopoverArrowPointsToElement(page, panelEventSelector);
 	});
 
-	test('opens a timeline event popover only on double click after selecting it', async ({ page }) => {
+	test('opens a timeline event popover after a single click', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
-				id: 'double-click-timeline-event',
-				title: 'Double Click Timeline Event',
+				id: 'single-click-timeline-event',
+				title: 'Single Click Timeline Event',
 				startISO: '2026-06-08T09:00:00+09:00',
 				endISO: '2026-06-08T10:00:00+09:00',
 				isAllDay: false
@@ -44,19 +44,15 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		]);
 
 		await openCalendarEmbed(page, '일');
-		const eventBlock = page.locator(
-			'.calendar-stage [data-event-id="double-click-timeline-event"].df-day-event:not(.df-right-panel-event-card)'
-		);
+		const eventSelector =
+			'.calendar-stage [data-event-id="single-click-timeline-event"].df-day-event:not(.df-right-panel-event-card)';
+		const eventBlock = page.locator(eventSelector);
 		await expect(eventBlock).toBeVisible();
-		await eventBlock.click();
+		await clickCalendarEvent(page, eventSelector);
 
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-
-		await eventBlock.dblclick();
-
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.getByLabel('제목')).toHaveValue('Double Click Timeline Event');
+		await expect(page.getByLabel('제목')).toHaveValue('Single Click Timeline Event');
 	});
 
 	test('switches existing day event editors at the compact viewport boundary', async ({ page }) => {
@@ -79,9 +75,6 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		expect(await page.evaluate(() => window.innerWidth)).toBe(767);
 		await eventBlock.click();
 		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await eventBlock.dblclick();
 		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await page
@@ -95,7 +88,7 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
 		expect(await page.evaluate(() => window.innerWidth)).toBe(768);
 		await expect(eventBlock).toBeVisible();
-		await eventBlock.dblclick();
+		await eventBlock.click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
 	});
@@ -117,7 +110,7 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expect(page.locator(proxySelector)).toBeVisible();
 		await expect(page.locator('.calendar-stage .df-day-event.df-event-timed[data-event-id="day-proxy-anchor-event"]:visible')).toHaveCount(0);
 
-		await doubleClickCalendarEvent(page, proxySelector);
+		await clickCalendarEvent(page, proxySelector);
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expectPopoverArrowPointsToElement(page, proxySelector);
@@ -158,7 +151,7 @@ test.describe('embedded calendar timeline popover anchors', () => {
 
 		for (const anchorSelector of anchorSelectors) {
 			await expect(page.locator(anchorSelector)).toBeVisible();
-			await doubleClickCalendarEvent(page, anchorSelector);
+			await clickCalendarEvent(page, anchorSelector);
 			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 			await expectPopoverArrowPointsToElement(page, anchorSelector);
 			await page.keyboard.press('Escape');
@@ -174,7 +167,7 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expect(timelineEvent).toBeVisible();
 		await expect(panelEvent).toBeVisible();
 
-		await doubleClickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
+		await clickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expectPopoverArrowPointsToEventTimeEnd(page, duplicateDayAnchorTimelineEventSelector);
@@ -189,7 +182,7 @@ test.describe('embedded calendar timeline popover anchors', () => {
 		await expect(timelineEvent).toBeVisible();
 		await expect(panelEvent).toBeVisible();
 
-		await doubleClickCalendarEvent(page, duplicateDayAnchorPanelEventSelector);
+		await clickCalendarEvent(page, duplicateDayAnchorPanelEventSelector);
 
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expectPopoverOpensLeftOfElement(page, duplicateDayAnchorPanelEventSelector);
