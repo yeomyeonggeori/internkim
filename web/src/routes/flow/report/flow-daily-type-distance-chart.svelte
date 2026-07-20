@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { flowTypeColor } from '../flow-report-colors';
-	import type { FlowReportRow, FlowReportSection } from './flow-report-data';
+	import type { FlowDailyTypeDistanceSection, FlowReportRow } from './flow-report-data';
 
 	type Props = {
-		section: FlowReportSection;
+		section: FlowDailyTypeDistanceSection;
 	};
 
 	let { section }: Props = $props();

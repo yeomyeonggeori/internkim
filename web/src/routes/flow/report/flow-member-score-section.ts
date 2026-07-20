@@ -1,8 +1,8 @@
 import { emptyTrend, percentage } from './flow-report-section-helpers';
-import type { FlowReportCopy, FlowReportMemberScoreDetail, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel } from './flow-report-types';
+import type { FlowMemberScoreSection, FlowReportCopy, FlowReportMemberScoreDetail, FlowReportRow, FlowReportSectionLabel } from './flow-report-types';
 
 type BuildMemberScoreSectionInput = {
-	id: FlowReportSectionID;
+	id: FlowMemberScoreSection['id'];
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
 	copy: FlowReportCopy;
@@ -11,7 +11,7 @@ type BuildMemberScoreSectionInput = {
 	averageValue?: number;
 };
 
-export function buildMemberScoreSection(input: BuildMemberScoreSectionInput): FlowReportSection {
+export function buildMemberScoreSection(input: BuildMemberScoreSectionInput): FlowMemberScoreSection {
 	const rows = buildMemberScoreRows(input.memberScores, input.memberScoreDetails, input.copy);
 	const total = rows.reduce((sum, row) => sum + row.total, 0);
 	const maxValue = Math.max(1, ...rows.map((row) => row.total));
