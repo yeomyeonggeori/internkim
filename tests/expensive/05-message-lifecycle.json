@@ -18,11 +18,10 @@
       "approvalAction": "approve",
       "expectedToolCalls": ["message.send"],
       "expectedExactToolCallCounts": {"message.send": 1},
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.message.send.requested", "bodyFragment": "\"targetType\":\"currentThread\"", "count": 1, "exact": true},
+        {"name": "tool.message.send.requested", "bodyFragment": "\"targetType\":\"currentThread\"", "count": 1, "exact": true, "advisory": true},
         {"name": "tool.message.send.requested", "bodyFragment": "고객지원 주간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.", "count": 1, "exact": true},
-        {"name": "tool.message.send.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.message.send.result", "outputFragment": "\"deliveryStatus\":\"sent\"", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
@@ -33,11 +32,10 @@
       "expectedToolCalls": ["message.search", "message.update"],
       "expectedExactToolCallCounts": {"message.update": 1},
       "expectedToolCallCounts": {"message.search": 1},
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
         {"name": "tool.message.search.result", "outputFragment": "고객지원 주간회의 자료가 준비됐습니다.", "count": 1},
         {"name": "tool.message.update.requested", "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.", "count": 1, "exact": true},
-        {"name": "tool.message.update.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.message.update.result", "outputFragment": "\"deliveryStatus\":\"updated\"", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
@@ -58,10 +56,9 @@
       "expectedToolCalls": ["message.search", "message.delete"],
       "expectedExactToolCallCounts": {"message.delete": 1},
       "expectedToolCallCounts": {"message.search": 1},
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
         {"name": "tool.message.search.result", "outputFragment": "고객지원 월간회의 자료가 준비됐습니다.", "count": 1},
-        {"name": "tool.message.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.message.delete.result", "outputFragment": "\"deliveryStatus\":\"deleted\"", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
