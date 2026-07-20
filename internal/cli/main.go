@@ -1594,40 +1594,13 @@ su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuse
 		}
 		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 건너뜀 — 기존 설치 사용", "Skipping Mattermost download — using existing installation"))
 	} else {
-		fmt.Printf("  %s\n", m.t("Mattermost 버전 확인 중...", "Checking Mattermost version..."))
-		installOut := ssh.run(`
-cd /tmp
-cached_tarball_valid() {
-  [ -s /tmp/mattermost.tar.gz ] || return 1
-  [ -s /tmp/mattermost.tar.gz.sha256 ] || return 1
-  [ "$(sha256sum /tmp/mattermost.tar.gz | awk '{print $1}')" = "$(cat /tmp/mattermost.tar.gz.sha256)" ]
-}
-if cached_tarball_valid; then
-  echo "MMVER=cached"
-  echo "download_ok"
-else
-  if [ -s /tmp/mattermost.tar.gz ]; then
-    echo "MMSHA_EXPECTED=$(cat /tmp/mattermost.tar.gz.sha256 2>/dev/null)"
-    echo "MMSHA_ACTUAL=$(sha256sum /tmp/mattermost.tar.gz | awk '{print $1}')"
-  fi
-  rm -f /tmp/mattermost.tar.gz /tmp/mattermost.tar.gz.sha256
-  MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
-  [ -z "$MMVER" ] && MMVER="10.9.1"
-  echo "MMVER=${MMVER}"
-  URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
-  echo "Downloading Mattermost ${MMVER}..."
-  downloadPath="/tmp/mattermost.tar.gz.download.$$"
-  if curl -fsSL -o "$downloadPath" "$URL" 2>&1 | tail -1 && gzip -t "$downloadPath" 2>/dev/null; then
-    sha256sum "$downloadPath" | awk '{print $1}' > "$downloadPath.sha256"
-    mv "$downloadPath.sha256" /tmp/mattermost.tar.gz.sha256
-    mv "$downloadPath" /tmp/mattermost.tar.gz
-    echo "download_ok"
-  else
-    echo "MMSHA_ACTUAL=$(sha256sum "$downloadPath" 2>/dev/null | awk '{print $1}')"
-    rm -f "$downloadPath" "$downloadPath.sha256"
-    echo "download_failed"
-  fi
-fi`)
+		mattermostVersion := resolveMattermostVersion()
+		fmt.Printf("  %s: %s\n", m.t("Mattermost 버전 (고정)", "Mattermost version (pinned)"), mattermostVersion)
+		fmt.Printf("  %s\n", m.t("호스트 캐시에서 Mattermost 확보 중...", "Ensuring Mattermost tarball from host cache..."))
+		if hostCacheError := ensureMattermostTarballOnGuest(ssh, mattermostVersion); hostCacheError != nil {
+			fmt.Printf("  WARN: %s: %v\n", m.t("호스트 캐시 실패 — 게스트에서 직접 다운로드", "Host cache failed — falling back to guest-side download"), hostCacheError)
+		}
+		installOut := ssh.run(mattermostGuestFallbackInstallScript(mattermostVersion))
 		mmver := ""
 		mmShaExpected := ""
 		mmShaActual := ""
