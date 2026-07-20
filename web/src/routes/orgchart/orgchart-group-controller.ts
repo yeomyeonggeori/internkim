@@ -6,14 +6,14 @@ export type OrgchartGroupSavePlan = {
 	shouldPersist: boolean;
 };
 
-export function orgchartGroupSavePlan(groups: OrgGroup[], name: string, createGroupID: () => string): OrgchartGroupSavePlan {
+export function orgchartGroupSavePlan(groups: OrgGroup[], name: string, parentID: string, createGroupID: () => string): OrgchartGroupSavePlan {
 	const trimmedName = name.trim();
 	if (!trimmedName) return { groupID: '', groups, shouldPersist: false };
 
 	const existingGroupID = groupIDByName(groups, trimmedName);
 	if (existingGroupID) return { groupID: existingGroupID, groups, shouldPersist: false };
 
-	const group = { id: createGroupID(), name: trimmedName };
+	const group = { id: createGroupID(), name: trimmedName, ...(parentID ? { parentID } : {}) };
 	return {
 		groupID: group.id,
 		groups: [...groups, group],
