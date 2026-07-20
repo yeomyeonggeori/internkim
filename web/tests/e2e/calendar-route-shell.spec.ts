@@ -6,40 +6,27 @@ test.describe('calendar route shell', () => {
 		await routeCalendarShellAPI(page);
 	});
 
-	test('renders the embedded calendar without the old sidebar', async ({ page }) => {
+	test('renders the calendar directly without the old sidebar or a nested frame', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/');
 
-		const calendarFrame = page.frameLocator('iframe');
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('2026년 6월');
+		await expect(page.locator('.calendar-toolbar-title')).toHaveText('2026년 6월');
 		await expect(page.getByText('내 일정')).toHaveCount(0);
 		await expect(page.locator('[data-mini-date-key]')).toHaveCount(0);
-		await expectRouteCalendarFrameToFillContent(page);
+		await expect(page.locator('iframe')).toHaveCount(0);
+		await expectRouteCalendarToFillContent(page);
 	});
 
 	test('keeps event clicks inside the calendar shell', async ({ context, page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
 		await page.goto('/calendar/');
 
-		const eventButton = page.frameLocator('iframe').locator('[data-event-id="event-2026-06-15"]:visible').first();
+		const eventButton = page.locator('[data-event-id="event-2026-06-15"]:visible').first();
 		await expect(eventButton).toBeVisible();
 		await eventButton.click();
 
 		await expect(eventButton).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.frameLocator('iframe').locator('.calendar-draft-popover')).toHaveCount(0);
-		expect(context.pages()).toHaveLength(1);
-	});
-
-	test('opens an event popover on double click inside the calendar shell', async ({ context, page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/');
-
-		const calendarFrame = page.frameLocator('iframe');
-		const eventButton = calendarFrame.locator('[data-event-id="event-2026-06-15"]:visible').first();
-		await expect(eventButton).toBeVisible();
-		await eventButton.dblclick();
-
-		await expect(calendarFrame.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		expect(context.pages()).toHaveLength(1);
 	});
 
@@ -48,13 +35,12 @@ test.describe('calendar route shell', () => {
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
 		await page.goto('/calendar/');
 
-		const calendarFrame = page.frameLocator('iframe');
-		const eventButton = calendarFrame.locator('[data-event-id="event-2026-06-15"]:visible').first();
+		const eventButton = page.locator('[data-event-id="event-2026-06-15"]:visible').first();
 		await expect(eventButton).toBeVisible();
-		await eventButton.dblclick();
+		await eventButton.click();
 
-		await expect(calendarFrame.locator('.calendar-mobile-event-editor')).toBeVisible();
-		await expect(calendarFrame.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		expect(context.pages()).toHaveLength(1);
 	});
 
@@ -78,40 +64,39 @@ test.describe('calendar route shell', () => {
 		});
 		await page.goto('/calendar/');
 
-		const calendarFrame = page.frameLocator('iframe');
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
+		await expect(page.locator('.calendar-toolbar-title')).toBeVisible();
 		await expect.poll(() => eventRequestCount).toBeGreaterThan(0);
-		await calendarFrame.getByRole('button', { name: '새로고침' }).click();
+		await page.getByRole('button', { name: '새로고침' }).click();
 
 		await expect.poll(() => eventRequestCount).toBeGreaterThan(1);
-		await expect(page.locator('iframe')).toBeVisible();
-		await expectRouteCalendarFrameToFillContent(page);
+		await expect(page.locator('iframe')).toHaveCount(0);
+		await expectRouteCalendarToFillContent(page);
 	});
 
 	test('orders toolbar actions and opens the month year picker from the title', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/');
 
-		const calendarFrame = page.frameLocator('iframe');
-		const refreshButton = calendarFrame.getByRole('button', { name: '새로고침' });
-		const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
-		const searchInput = calendarFrame.getByRole('textbox', { name: '일정 검색' });
-		const searchBox = calendarFrame.locator('.calendar-search-shell');
+		const refreshButton = page.getByRole('button', { name: '새로고침' });
+		const settingsButton = page.getByRole('button', { name: '설정' });
+		const searchInput = page.getByRole('textbox', { name: '일정 검색' });
+		const searchBox = page.locator('.calendar-search-shell');
 		await expectToolbarOrder(refreshButton, settingsButton, searchInput);
 		await expectToolbarAdjacent(settingsButton, searchBox);
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveCSS('font-size', '20px');
+		await expect(page.locator('.calendar-toolbar-title')).toHaveCSS('font-size', '20px');
 
-		await calendarFrame.getByRole('button', { name: '2026년 6월' }).click();
-		const picker = calendarFrame.getByRole('dialog', { name: '월과 연도 선택' });
+		await page.getByRole('button', { name: '2026년 6월' }).click();
+		const picker = page.getByRole('dialog', { name: '월과 연도 선택' });
 		await expect(picker).toBeVisible();
 		await picker.getByRole('button', { name: '7월' }).click();
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('2026년 7월');
+		await expect(page.locator('.calendar-toolbar-title')).toHaveText('2026년 7월');
 	});
 
 	test('does not create horizontal overflow on calendar routes', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto('/calendar/');
-		await expect(page.locator('iframe')).toBeVisible();
+		await expect(page.locator('.calendar-toolbar-title')).toBeVisible();
+		await expect(page.locator('iframe')).toHaveCount(0);
 		await expectHorizontalOverflow(page, false);
 
 		await page.goto('/calendar/embed');
@@ -120,10 +105,10 @@ test.describe('calendar route shell', () => {
 	});
 });
 
-async function expectRouteCalendarFrameToFillContent(page: Page): Promise<void> {
+async function expectRouteCalendarToFillContent(page: Page): Promise<void> {
 	await expect
 		.poll(async () =>
-			page.locator('iframe').evaluate((element) => {
+			page.locator('.calendar-page').evaluate((element) => {
 				const rectangle = element.getBoundingClientRect();
 				const parentRectangle = element.parentElement?.getBoundingClientRect();
 				if (!parentRectangle) return false;
@@ -134,9 +119,8 @@ async function expectRouteCalendarFrameToFillContent(page: Page): Promise<void> 
 }
 
 async function openCalendarSettings(page: Page): Promise<void> {
-	const calendarFrame = page.frameLocator('iframe');
-	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
-	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
+	await expect(page.locator('.calendar-toolbar-title')).toBeVisible();
+	const settingsButton = page.getByRole('button', { name: '설정' });
 	const settingsHeading = page.getByRole('heading', { name: '설정' });
 	await expect
 		.poll(async () => {
