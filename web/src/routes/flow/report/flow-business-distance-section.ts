@@ -1,9 +1,9 @@
 import { taskTeamDistance } from './flow-report-distance';
 import { emptyTrend, percentage } from './flow-report-section-helpers';
-import type { FlowReportCopy, FlowReportDefinitions, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
+import type { FlowBusinessDistanceSection, FlowReportCopy, FlowReportDefinitions, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
 type BuildBusinessDistanceSectionInput = {
-	id: FlowReportSectionID;
+	id: FlowBusinessDistanceSection['id'];
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
 	copy: FlowReportCopy;
@@ -11,7 +11,7 @@ type BuildBusinessDistanceSectionInput = {
 	definitions: FlowReportDefinitions;
 };
 
-export function buildBusinessDistanceSection(input: BuildBusinessDistanceSectionInput): FlowReportSection {
+export function buildBusinessDistanceSection(input: BuildBusinessDistanceSectionInput): FlowBusinessDistanceSection {
 	const values = new Map<string, number>();
 	for (const task of input.tasks) {
 		const distance = taskTeamDistance(task, input.definitions);
