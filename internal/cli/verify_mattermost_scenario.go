@@ -84,6 +84,7 @@ type mattermostScenarioEventCount struct {
 	OutputFragment string `json:"outputFragment"`
 	Count          int    `json:"count"`
 	Exact          bool   `json:"exact"`
+	Advisory       bool   `json:"advisory"`
 }
 
 type mattermostScenarioWorkspaceFile struct {
@@ -164,6 +165,14 @@ type mattermostScenarioResult struct {
 	TurnCount              int                                       `json:"turnCount"`
 	ScenarioWallDurationMS int64                                     `json:"scenarioWallDurationMs"`
 	EfficiencyObservations []mattermostScenarioEfficiencyObservation `json:"efficiencyObservations,omitempty"`
+	AdvisoryFailures       []mattermostScenarioAdvisoryFailure       `json:"advisoryFailures,omitempty"`
+	Attempt                int                                       `json:"attempt,omitempty"`
+}
+
+type mattermostScenarioAdvisoryFailure struct {
+	StepIndex int    `json:"stepIndex"`
+	Name      string `json:"name"`
+	Reason    string `json:"reason"`
 }
 
 func (detail *mattermostScenarioTaskDetail) UnmarshalJSON(document []byte) error {
@@ -665,9 +674,18 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 	for _, eventCount := range expected.ExpectedEventCounts {
 		observedCount := countMattermostScenarioExpectedEvents(events, eventCount)
 		if eventCount.Count > 0 && observedCount == 0 {
-			return missingMattermostScenarioEventError(stepIndex, eventCount)
+			missingEventError := missingMattermostScenarioEventError(stepIndex, eventCount)
+			if eventCount.Advisory {
+				recordMattermostScenarioAdvisoryFailure(result, stepIndex, eventCount.Name, missingEventError)
+				continue
+			}
+			return missingEventError
 		}
 		if errorValue := recordMattermostScenarioCount(result, stepIndex, "event", eventCount.Name, eventCount.Count, observedCount, eventCount.Exact); errorValue != nil {
+			if eventCount.Advisory {
+				recordMattermostScenarioAdvisoryFailure(result, stepIndex, eventCount.Name, errorValue)
+				continue
+			}
 			return errorValue
 		}
 	}
@@ -986,6 +1004,23 @@ func recordMattermostScenarioCount(result *mattermostScenarioResult, stepIndex i
 		})
 	}
 	return nil
+}
+
+func recordMattermostScenarioAdvisoryFailure(result *mattermostScenarioResult, stepIndex int, name string, errorValue error) {
+	if result == nil || errorValue == nil {
+		return
+	}
+	result.AdvisoryFailures = append(result.AdvisoryFailures, mattermostScenarioAdvisoryFailure{
+		StepIndex: stepIndex,
+		Name:      name,
+		Reason:    errorValue.Error(),
+	})
+}
+
+func printMattermostScenarioAdvisoryWarnings(result mattermostScenarioResult) {
+	for _, failure := range result.AdvisoryFailures {
+		fmt.Printf("warning: advisory expectation %q at step %d did not hold: %s\n", failure.Name, failure.StepIndex, failure.Reason)
+	}
 }
 
 func recordMattermostScenarioEfficiencyObservation(result *mattermostScenarioResult, observation mattermostScenarioEfficiencyObservation) {

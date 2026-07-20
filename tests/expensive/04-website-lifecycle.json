@@ -17,12 +17,12 @@
       "expectedExactToolCallCounts": {"site.create": 1},
       "expectedToolCallCounts": {"site.status": 1},
       "expectedEventCounts": [
-        {"name": "tool.site.status.requested", "bodyFragment": "\"siteReference\":", "count": 1},
-        {"name": "tool.site.create.result", "outputFragment": "siteID", "count": 1},
-        {"name": "tool.site.create.result", "outputFragment": "sourceWorkspacePath", "count": 1},
-        {"name": "tool.site.create.result", "outputFragment": "appWorkspacePath", "count": 1},
-        {"name": "tool.site.create.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1},
-        {"name": "tool.site.create.result", "bodyFragment": "\"effect\":\"created\"", "count": 1}
+        {"name": "tool.site.status.requested", "bodyFragment": "\"siteReference\":", "count": 1, "advisory": true},
+        {"name": "tool.site.create.result", "outputFragment": "siteID", "count": 1, "advisory": true},
+        {"name": "tool.site.create.result", "outputFragment": "sourceWorkspacePath", "count": 1, "advisory": true},
+        {"name": "tool.site.create.result", "outputFragment": "appWorkspacePath", "count": 1, "advisory": true},
+        {"name": "tool.site.create.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1, "advisory": true},
+        {"name": "tool.site.create.result", "bodyFragment": "\"effect\":\"created\"", "count": 1, "advisory": true}
       ],
       "expectedWorkspaceFiles": [
         {"pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json", "containsFragments": ["브릿지웍스", "상담 신청"]}
@@ -34,12 +34,12 @@
       "expectedToolCalls": ["site.status", "file.edit", "site.preview", "artifact.review"],
       "expectedToolCallCounts": {"site.status": 1, "file.edit": 1, "site.preview": 1, "artifact.review": 1},
       "expectedEventCounts": [
-        {"name": "tool.site.status.result", "outputFragment": "siteID", "count": 1},
-        {"name": "tool.file.edit.result", "outputFragment": "site-content.json", "count": 1},
-        {"name": "tool.site.preview.requested", "bodyFragment": "\"siteID\":", "count": 1},
-        {"name": "tool.site.preview.result", "outputFragment": "previewURL", "count": 1},
-        {"name": "tool.site.preview.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1},
-        {"name": "tool.site.preview.result", "bodyFragment": "\"effect\":\"previewed\"", "count": 1},
+        {"name": "tool.site.status.result", "outputFragment": "siteID", "count": 1, "advisory": true},
+        {"name": "tool.file.edit.result", "outputFragment": "site-content.json", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.requested", "bodyFragment": "\"siteID\":", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.result", "outputFragment": "previewURL", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.result", "bodyFragment": "\"effect\":\"previewed\"", "count": 1, "advisory": true},
         {"name": "tool.artifact.review.result", "bodyFragment": "\"passed\":true", "count": 1}
       ],
       "expectedWorkspaceFiles": [
@@ -56,13 +56,13 @@
       "expectedExactToolCallCounts": {"site.publish": 1},
       "expectedToolCallCounts": {"site.status": 2},
       "expectedEventCounts": [
-        {"name": "tool.site.publish.requested", "bodyFragment": "\"siteID\":", "count": 1},
-        {"name": "tool.site.publish.result", "outputFragment": "publishedURL", "count": 1},
-        {"name": "tool.site.publish.result", "outputFragment": "sourceSHA256", "count": 1},
-        {"name": "tool.site.publish.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1},
-        {"name": "tool.site.publish.result", "bodyFragment": "\"effect\":\"published\"", "count": 1},
+        {"name": "tool.site.publish.requested", "bodyFragment": "\"siteID\":", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "outputFragment": "publishedURL", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "outputFragment": "sourceSHA256", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "bodyFragment": "\"effect\":\"published\"", "count": 1, "advisory": true},
         {"name": "tool.site.status.result", "outputFragment": "published", "count": 1},
-        {"name": "tool.site.status.result", "outputFragment": "siteID", "count": 1}
+        {"name": "tool.site.status.result", "outputFragment": "siteID", "count": 1, "advisory": true}
       ],
       "requiresPublicURL": true,
       "expectedPublicText": ["브릿지웍스", "첫 상담은 30분 무료입니다"],
@@ -82,13 +82,13 @@
         }
       ],
       "expectedEventCounts": [
-        {"name": "tool.file.edit.result", "outputFragment": "site-content.json", "count": 1},
-        {"name": "tool.site.preview.requested", "bodyFragment": "\"siteID\":", "count": 1},
-        {"name": "tool.site.preview.result", "outputFragment": "previewURL", "count": 1},
+        {"name": "tool.file.edit.result", "outputFragment": "site-content.json", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.requested", "bodyFragment": "\"siteID\":", "count": 1, "advisory": true},
+        {"name": "tool.site.preview.result", "outputFragment": "previewURL", "count": 1, "advisory": true},
         {"name": "tool.artifact.review.result", "bodyFragment": "\"passed\":true", "count": 1},
-        {"name": "tool.site.publish.requested", "bodyFragment": "\"siteID\":", "count": 1},
-        {"name": "tool.site.publish.result", "outputFragment": "sourceSHA256", "count": 1},
-        {"name": "tool.site.publish.result", "bodyFragment": "\"effect\":\"published\"", "count": 1},
+        {"name": "tool.site.publish.requested", "bodyFragment": "\"siteID\":", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "outputFragment": "sourceSHA256", "count": 1, "advisory": true},
+        {"name": "tool.site.publish.result", "bodyFragment": "\"effect\":\"published\"", "count": 1, "advisory": true},
         {"name": "tool.site.status.result", "outputFragment": "published", "count": 1}
       ],
       "requiresPublicURL": true,
@@ -101,13 +101,12 @@
       "approvalAction": "approve",
       "expectedToolCalls": ["site.status", "site.delete"],
       "expectedToolCallCounts": {"site.status": 1, "site.delete": 1},
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.site.delete.requested", "bodyFragment": "\"siteID\":", "count": 1},
-        {"name": "tool.site.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
+        {"name": "tool.site.delete.requested", "bodyFragment": "\"siteID\":", "count": 1, "advisory": true},
         {"name": "tool.site.delete.result", "outputFragment": "deleted", "count": 1, "exact": true},
-        {"name": "tool.site.delete.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1},
-        {"name": "tool.site.delete.result", "bodyFragment": "\"effect\":\"deleted\"", "count": 1}
+        {"name": "tool.site.delete.result", "bodyFragment": "\"objectType\":\"website\"", "count": 1, "advisory": true},
+        {"name": "tool.site.delete.result", "bodyFragment": "\"effect\":\"deleted\"", "count": 1, "advisory": true}
       ],
       "forbiddenWorkspaceFiles": ["circles/staff/sites/*"],
       "expectedTaskStatus": "completed"

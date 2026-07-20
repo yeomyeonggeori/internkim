@@ -155,10 +155,6 @@ type expensiveMattermostBrowserRequest struct {
 func verifyExpensiveMattermostStep(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, siteProxyURL string, mattermostURL string, scenario mattermostScenario, execution mattermostScenarioExecution, stepIndex int, shouldAutoConfirm bool) error {
 	step := scenario.Steps[stepIndex]
 	result := execution.Result.Steps[stepIndex]
-	isFinalStep := stepIndex == len(scenario.Steps)-1
-	if !isFinalStep && len(step.ExpectedAttachments) == 0 && result.PublicURL == "" && step.ApprovalAction == "" {
-		return nil
-	}
 	botReply, hasBotReply := latestMattermostScenarioPost(execution.Result.Posts)
 	if !hasBotReply {
 		return fmt.Errorf("verify Mattermost UI for step %s: bot reply is missing", strconv.Itoa(stepIndex+1))
@@ -246,6 +242,44 @@ func runExpensiveMattermostBrowserVerification(contextValue context.Context, req
 		return fmt.Errorf("verify Mattermost UI for step %s: %w", strconv.Itoa(request.StepIndex+1), errorValue)
 	}
 	return nil
+}
+
+type expensiveMattermostFailureContext struct {
+	StepIndex       int    `json:"stepIndex"`
+	FailureReason   string `json:"failureReason"`
+	LastBotPostText string `json:"lastBotPostText"`
+}
+
+func captureExpensiveMattermostFailureEvidence(contextValue context.Context, repositoryRootPath string, artifactDirectoryPath string, mattermostURL string, execution mattermostScenarioExecution, stepIndex int, failureReason string) {
+	if stepIndex < 0 {
+		return
+	}
+	failureContextPath := filepath.Join(artifactDirectoryPath, "evidence", fmt.Sprintf("step-%02d", stepIndex+1), "failure-context.json")
+	failureContext := expensiveMattermostFailureContext{
+		StepIndex:       stepIndex,
+		FailureReason:   failureReason,
+		LastBotPostText: mattermostScenarioLastBotPostText(execution.Result),
+	}
+	if errorValue := writeExpensiveJSONArtifact(failureContextPath, failureContext); errorValue != nil {
+		fmt.Println("warning: failed to write failure context for step " + strconv.Itoa(stepIndex+1) + ": " + errorValue.Error())
+	}
+	botReplyPostID := ""
+	if stepIndex < len(execution.Result.Steps) {
+		botReplyPostID = execution.Result.Steps[stepIndex].BotPostID
+	}
+	screenshotError := runExpensiveMattermostBrowserVerification(contextValue, expensiveMattermostBrowserRequest{
+		RepositoryRootPath:    repositoryRootPath,
+		ArtifactDirectoryPath: artifactDirectoryPath,
+		MattermostURL:         mattermostURL,
+		Execution:             execution,
+		StepIndex:             stepIndex,
+		BotReplyPostID:        botReplyPostID,
+		ScreenshotName:        "failure-dm.png",
+		PlaywrightRunName:     fmt.Sprintf("step-%02d-failure", stepIndex+1),
+	})
+	if screenshotError != nil {
+		fmt.Println("warning: failed to capture failure screenshot for step " + strconv.Itoa(stepIndex+1) + ": " + screenshotError.Error())
+	}
 }
 
 func latestMattermostScenarioPost(posts []mattermostScenarioPost) (mattermostScenarioPost, bool) {

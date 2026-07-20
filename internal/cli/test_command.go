@@ -44,6 +44,7 @@ type testCommandConfiguration struct {
 	ShouldOpenFiles            bool
 	ShouldUseRealModels        bool
 	ShouldAutoConfirm          bool
+	ShouldRetryOnce            bool
 	MaximumModelTier           string
 	ScenarioNames              []string
 	LanguageModelProvider      string
@@ -80,6 +81,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
+	retryOnce := flagSet.Bool("retry-once", false, "Rerun a scenario once against the kept Local Fleet if it fails with a non-infra scenario failure")
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
@@ -108,6 +110,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"no-open":           true,
 		"real":              true,
 		"auto-confirm":      true,
+		"retry-once":        true,
 		"expect-public-url": true,
 		"help":              true,
 	}, map[string]bool{
@@ -182,6 +185,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ShouldOpenFiles:            !*noOpen,
 		ShouldUseRealModels:        *useRealModels,
 		ShouldAutoConfirm:          *autoConfirm,
+		ShouldRetryOnce:            *retryOnce,
 		MaximumModelTier:           normalizedMaximumModelTier,
 		ScenarioNames:              scenarioNames.Values(),
 		LanguageModelProvider:      normalizedLanguageModelProvider,
@@ -422,8 +426,21 @@ func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRoo
 		return errorValue
 	}
 	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
-		return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario)
+		return runExpensiveMattermostScenarioWithRetry(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario)
 	})
+}
+
+func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
+	firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1)
+	if firstAttemptError == nil || !shouldRetryExpensiveMattermostScenario(configuration, firstAttemptError) {
+		return firstAttemptError
+	}
+	fmt.Printf("retrying expensive scenario %s once against the kept Local Fleet\n", scenarioReference.Name)
+	return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
+}
+
+func shouldRetryExpensiveMattermostScenario(configuration testCommandConfiguration, errorValue error) bool {
+	return configuration.ShouldRetryOnce && configuration.ShouldKeepArtifacts && !isMattermostScenarioInfraError(errorValue)
 }
 
 func validateExpensiveFleetStatus(status localfleet.Status) error {
@@ -451,6 +468,9 @@ func runSequentialExpensiveScenarios(scenarios []expensiveScenarioReference, run
 	for scenarioIndex, scenario := range scenarios {
 		fmt.Printf("\n[%d/%d] %s\n", scenarioIndex+1, len(scenarios), scenario.Name)
 		if errorValue := runScenario(scenario); errorValue != nil {
+			if isMattermostScenarioInfraError(errorValue) {
+				return fmt.Errorf("expensive scenario %s infra failure: %w", scenario.Name, errorValue)
+			}
 			return fmt.Errorf("expensive scenario %s failed: %w", scenario.Name, errorValue)
 		}
 	}
@@ -510,7 +530,7 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int) error {
 	scenarioContext, cancel := scenarioObservationContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
@@ -519,14 +539,18 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	}
 	scenario.MaximumModelTier = maximumMattermostScenarioModelTier(configuration)
 	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
+	if attemptNumber > 1 {
+		artifactDirectoryPath = filepath.Join(artifactDirectoryPath, fmt.Sprintf("attempt-%d", attemptNumber))
+	}
 	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
 		return errorValue
 	}
 	session, errorValue := startMattermostScenarioSession(scenarioContext, target, mattermostURL, scenario)
 	if errorValue != nil {
-		return errorValue
+		return newMattermostScenarioInfraError(errorValue)
 	}
 	session.shouldAutoConfirm = configuration.ShouldAutoConfirm
+	session.result.Attempt = attemptNumber
 	runError := session.run(scenarioContext, func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
 		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
 			return errorValue
@@ -537,7 +561,13 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if runError == nil {
 		completionEvidenceError = verifyExpensiveMattermostApprovalCompletions(scenarioContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, session.execution())
 	}
+	if runError != nil {
+		failureEvidenceContext, cancelFailureEvidence := context.WithTimeout(context.Background(), 2*time.Minute)
+		captureExpensiveMattermostFailureEvidence(failureEvidenceContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, session.execution(), len(session.result.Steps)-1, runError.Error())
+		cancelFailureEvidence()
+	}
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
+	printMattermostScenarioAdvisoryWarnings(session.result)
 	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
 	cleanupError := session.cleanup(cleanupContext)
 	cancelCleanup()

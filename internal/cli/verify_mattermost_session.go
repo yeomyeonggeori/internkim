@@ -21,6 +21,48 @@ const (
 
 var mattermostScenarioURLPattern = regexp.MustCompile(`https?://[^\s<>()]+`)
 
+type mattermostScenarioInfraError struct {
+	cause error
+}
+
+func newMattermostScenarioInfraError(cause error) error {
+	if cause == nil {
+		return nil
+	}
+	if isMattermostScenarioInfraError(cause) {
+		return cause
+	}
+	return &mattermostScenarioInfraError{cause: cause}
+}
+
+func (infraError *mattermostScenarioInfraError) Error() string {
+	return "infra-suspect: " + infraError.cause.Error()
+}
+
+func (infraError *mattermostScenarioInfraError) Unwrap() error {
+	return infraError.cause
+}
+
+func isMattermostScenarioInfraError(errorValue error) bool {
+	var infraError *mattermostScenarioInfraError
+	return errors.As(errorValue, &infraError)
+}
+
+func wrapMattermostScenarioStepError(errorValue error) error {
+	if errorValue == nil || isMattermostScenarioInfraError(errorValue) {
+		return errorValue
+	}
+	if isMattermostScenarioServerError(errorValue) {
+		return newMattermostScenarioInfraError(errorValue)
+	}
+	return errorValue
+}
+
+func isMattermostScenarioServerError(errorValue error) bool {
+	var responseError mattermostProbeHTTPError
+	return errors.As(errorValue, &responseError) && responseError.StatusCode >= 500
+}
+
 type mattermostScenarioExecution struct {
 	Result      mattermostScenarioResult `json:"result"`
 	Username    string                   `json:"-"`
@@ -163,7 +205,7 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 	}()
 	for stepIndex := range session.scenario.Steps {
 		if errorValue := session.runStep(contextValue, stepIndex); errorValue != nil {
-			return errorValue
+			return wrapMattermostScenarioStepError(errorValue)
 		}
 		step := session.scenario.Steps[stepIndex]
 		if step.ApprovalAction != "" && !session.shouldAutoConfirm {
@@ -171,12 +213,12 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 		}
 		if hook != nil {
 			if errorValue := hook(contextValue, session.execution(), stepIndex); errorValue != nil {
-				return errorValue
+				return wrapMattermostScenarioStepError(errorValue)
 			}
 		}
 		if step.ApprovalAction != "" {
 			if errorValue := session.finishApprovalStep(contextValue, stepIndex); errorValue != nil {
-				return errorValue
+				return wrapMattermostScenarioStepError(errorValue)
 			}
 			if errorValue := validateMattermostScenarioStep(stepIndex, session.scenario, step, session.result.Steps[stepIndex], &session.result); errorValue != nil {
 				return errorValue
@@ -622,7 +664,16 @@ func (session *mattermostScenarioSession) stepWaitTimeoutError(stepIndex int, wa
 	if elapsed < session.stepTimeout {
 		return nil
 	}
-	return fmt.Errorf("Mattermost scenario step %d timed out after %s waiting for %s; inspect the fleet VM (kept with --keep) for a stalled Mattermost or Blueclaw dependency", stepIndex, elapsed.Round(time.Second), waitKind)
+	return newMattermostScenarioInfraError(fmt.Errorf("Mattermost scenario step %d timed out after %s waiting for %s; inspect the fleet VM (kept with --keep) for a stalled Mattermost or Blueclaw dependency", stepIndex, elapsed.Round(time.Second), waitKind))
+}
+
+func mattermostScenarioLastBotPostText(result mattermostScenarioResult) string {
+	for stepIndex := len(result.Steps) - 1; stepIndex >= 0; stepIndex-- {
+		if message := strings.TrimSpace(result.Steps[stepIndex].BotMessage); message != "" {
+			return message
+		}
+	}
+	return ""
 }
 
 func waitForMattermostScenarioPoll(contextValue context.Context) error {

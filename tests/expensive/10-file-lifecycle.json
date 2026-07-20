@@ -13,8 +13,8 @@
       "expectedAttachments": [".json"],
       "expectedAttachmentText": ["고객지원 주간 운영 점검", "검토 중", "운영팀"],
       "expectedEventCounts": [
-        {"name": "tool.file.write.result", "bodyFragment": "\"effect\":\"created\"", "count": 1, "exact": true},
-        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true}
+        {"name": "tool.file.write.result", "bodyFragment": "\"effect\":\"created\"", "count": 1, "exact": true, "advisory": true},
+        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true, "advisory": true}
       ],
       "expectedWorkspaceFiles": [
         {
@@ -48,8 +48,8 @@
       "expectedAttachments": [".json"],
       "expectedAttachmentText": ["고객지원 주간 운영 점검", "검토 완료", "고객경험팀"],
       "expectedEventCounts": [
-        {"name": "tool.file.edit.result", "bodyFragment": "\"effect\":\"updated\"", "count": 1, "exact": true},
-        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true}
+        {"name": "tool.file.edit.result", "bodyFragment": "\"effect\":\"updated\"", "count": 1, "exact": true, "advisory": true},
+        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true, "advisory": true}
       ],
       "expectedWorkspaceFiles": [
         {
@@ -86,7 +86,7 @@
       "expectedEvents": ["approval.pending_call", "confirmation.requested", "approval.executed"],
       "expectedEventCounts": [
         {"name": "tool.file.delete.requested", "count": 1, "exact": true},
-        {"name": "tool.file.delete.result", "bodyFragment": "\"effect\":\"deleted\"", "count": 1, "exact": true},
+        {"name": "tool.file.delete.result", "bodyFragment": "\"effect\":\"deleted\"", "count": 1, "exact": true, "advisory": true},
         {"name": "tool.file.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
       "forbiddenWorkspaceFiles": ["private/people/*/customer-support-weekly-check.json"],

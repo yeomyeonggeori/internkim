@@ -43,10 +43,9 @@
       "prompt": "내 캘린더에서 방금 수정한 '고객지원팀 분기 결산 검토'를 찾아서 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": ["calendar.list", "calendar.delete"],
-      "expectedEvents": ["confirmation.requested", "approval.executed"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call", "approval.executed"],
       "expectedEventCounts": [
         {"name": "tool.calendar.list.result", "outputFragment": "{{tomorrow}}T14:00:00+09:00", "count": 1},
-        {"name": "tool.calendar.delete.result", "outputFragment": "approval_required", "count": 1, "exact": true},
         {"name": "tool.calendar.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
       ],
       "expectedTaskStatus": "completed"
