@@ -42,7 +42,7 @@ func TestNativeActionToolsKeepPerToolSchemasInsteadOfDispatcher(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolExposesEitherOrToolInputProperties(t *testing.T) {
+func TestNativeActionToolExposesOptionalToolInputProperties(t *testing.T) {
 	descriptors := multiToolActionDescriptors(t)
 	schema := StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
@@ -64,7 +64,7 @@ func TestNativeActionToolExposesEitherOrToolInputProperties(t *testing.T) {
 	if errorValue := json.Unmarshal(readTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("document.read parameters parse failed: %v", errorValue)
 	}
-	for _, propertyName := range []string{"path", "materialID"} {
+	for _, propertyName := range []string{"path", "maxPages", "maxOutputBytes"} {
 		if _, isPresent := parameters.Properties[propertyName]; !isPresent {
 			t.Fatalf("document.read native schema is missing %q so the model has no field to fill; got %v", propertyName, parameters.Properties)
 		}
