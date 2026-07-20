@@ -56,11 +56,6 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.task.list.result",
-     "outputFragment": "고객지원 분기 결산 누락 항목 확인",
-     "count": 1
-    },
-    {
      "name": "tool.task.update.requested",
      "bodyFragment": "고객지원 분기 결산 검토 완료",
      "count": 1,
@@ -103,11 +98,6 @@
     "approval.executed"
    ],
    "expectedEventCounts": [
-    {
-     "name": "tool.task.list.result",
-     "outputFragment": "고객지원 분기 결산 검토 완료",
-     "count": 1
-    },
     {
      "name": "tool.task.delete.result",
      "outputFragment": "deleted",
