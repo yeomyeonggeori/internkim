@@ -62,10 +62,10 @@ test.describe('flow task board drag interactions', () => {
 		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
 
 		await page.getByRole('button', { name: '보고', exact: true }).click();
-		await expect(page.getByRole('heading', { name: '개인 상세 점수', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '내 점수 상세', exact: true })).toBeVisible();
 		await page.getByRole('button', { name: '업무', exact: true }).click();
 
-		await expect(page.getByRole('heading', { name: '개인 상세 점수', exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: '내 점수 상세', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
 		await expect(page.getByRole('button', { name: '필터', exact: true })).toBeVisible();
 	});
@@ -314,13 +314,19 @@ test.describe('flow task board drag interactions', () => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openFlowBoard(page);
 		await setFlowPageScrollTop(page, 0);
-		const topHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		const topBounds = await taskColumn(page, '진행').evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			return { top: bounds.top, height: bounds.height };
+		});
 
 		await scrollFlowBoardToTop(page);
 
 		await expect.poll(async () => {
-			return taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
-		}).toBeGreaterThan(topHeight + 120);
+			return taskColumn(page, '진행').evaluate((element, initialBounds) => {
+				const bounds = element.getBoundingClientRect();
+				return bounds.top < initialBounds.top && bounds.height > initialBounds.height;
+			}, topBounds);
+		}).toBe(true);
 
 		await scrollFlowPageBy(page, 2000);
 		await waitForFlowBoardHeightUpdate(page);
