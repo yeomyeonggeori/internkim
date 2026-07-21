@@ -262,6 +262,72 @@ func TestMattermostProbeClientValidatesResponses(t *testing.T) {
 	}
 }
 
+func TestMattermostProbeClientGetPostParsesApprovalActions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.EscapedPath() != "/api/v4/posts/post%2Fid" {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		writeJSONDocument(t, responseWriter, http.StatusOK, `{"id":"post/id","root_id":"root/id","user_id":"bot/id","message":"승인해 주세요","props":{"attachments":[{"actions":[{"id":"askConfirm","name":"확인","type":"button"},{"id":"askCancel","name":"취소","type":"button"}]}]}}`)
+	}))
+	defer server.Close()
+	client, errorValue := newMattermostProbeClient(server.URL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	post, errorValue := client.GetPost(context.Background(), "token", "post/id")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(post.Props.Attachments) != 1 || len(post.Props.Attachments[0].Actions) != 2 {
+		t.Fatalf("unexpected post props: %+v", post.Props)
+	}
+	actionID, hasApprovalAction := mattermostProbeApprovalActionID(post)
+	if !hasApprovalAction || actionID != "askConfirm" {
+		t.Fatalf("actionID = %q, hasApprovalAction = %t", actionID, hasApprovalAction)
+	}
+}
+
+func TestMattermostProbeClientDoPostActionSendsActionRequest(t *testing.T) {
+	var requestedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		requestedPath = request.Method + " " + request.URL.EscapedPath()
+		if request.Header.Get("Authorization") != "Bearer user-token" {
+			t.Fatalf("authorization = %q", request.Header.Get("Authorization"))
+		}
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	client, errorValue := newMattermostProbeClient(server.URL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := client.DoPostAction(context.Background(), "user-token", "post/id", "askConfirm"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if requestedPath != "POST /api/v4/posts/post%2Fid/actions/askConfirm" {
+		t.Fatalf("unexpected request path: %q", requestedPath)
+	}
+}
+
+func TestMattermostProbeApprovalActionIDMatchesNameWhenIDDiffers(t *testing.T) {
+	post := mattermostProbePost{Props: mattermostProbePostProps{Attachments: []mattermostProbePostAttachment{{
+		Actions: []mattermostProbePostAction{{ID: "action-1", Name: "Approve"}, {ID: "action-2", Name: "Cancel"}},
+	}}}}
+	actionID, hasApprovalAction := mattermostProbeApprovalActionID(post)
+	if !hasApprovalAction || actionID != "action-1" {
+		t.Fatalf("actionID = %q, hasApprovalAction = %t", actionID, hasApprovalAction)
+	}
+}
+
+func TestMattermostProbeApprovalActionIDReportsMissingApproval(t *testing.T) {
+	post := mattermostProbePost{Props: mattermostProbePostProps{Attachments: []mattermostProbePostAttachment{{
+		Actions: []mattermostProbePostAction{{ID: "askChoiceA", Name: "옵션 A"}},
+	}}}}
+	if _, hasApprovalAction := mattermostProbeApprovalActionID(post); hasApprovalAction {
+		t.Fatal("expected no approval action to be found")
+	}
+}
+
 func querySuffix(request *http.Request) string {
 	if request.URL.RawQuery == "" {
 		return ""
