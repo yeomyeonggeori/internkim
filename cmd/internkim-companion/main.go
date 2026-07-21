@@ -86,7 +86,11 @@ func runServer(arguments []string) error {
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", notImplemented)
 
-	return http.ListenAndServe(*listenAddress, multiplexer)
+	listener, errorValue := listenLoopbackOnly("tcp", *listenAddress, "companion server")
+	if errorValue != nil {
+		return errorValue
+	}
+	return http.Serve(listener, multiplexer)
 }
 
 type companionStatusDocument struct {

@@ -174,13 +174,9 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	if trimmedAddress == "" {
 		return nil, nil
 	}
-	listener, errorValue := net.Listen("tcp", trimmedAddress)
+	listener, errorValue := listenLoopbackOnly("tcp", trimmedAddress, "companion control server")
 	if errorValue != nil {
 		return nil, errorValue
-	}
-	if !listener.Addr().(*net.TCPAddr).IP.IsLoopback() {
-		_ = listener.Close()
-		return nil, errors.New("companion control server must listen on loopback")
 	}
 	server := &http.Server{Handler: controlHandler(grantStore, mountStore, handoffStore, browserRuntime, handoffCompletionHandler, runtime, localLLM, httpClient)}
 	go func() {
@@ -353,6 +349,19 @@ func isLoopbackRemoteAddress(remoteAddress string) bool {
 	}
 	parsedIP := net.ParseIP(host)
 	return parsedIP != nil && parsedIP.IsLoopback()
+}
+
+func listenLoopbackOnly(network string, address string, serverLabel string) (net.Listener, error) {
+	listener, errorValue := net.Listen(network, address)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	tcpAddress, isTCPAddress := listener.Addr().(*net.TCPAddr)
+	if !isTCPAddress || !tcpAddress.IP.IsLoopback() {
+		_ = listener.Close()
+		return nil, errors.New(serverLabel + " must listen on loopback")
+	}
+	return listener, nil
 }
 
 func localBackendsSummary(backends []llmbackend.Backend) localLLMStatus {
