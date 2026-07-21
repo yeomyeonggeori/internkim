@@ -32,6 +32,39 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
 
+## Engineering Discipline (no cheating, no blind retries)
+
+- Cheating is any change that makes a check pass without making the product
+  better. All of these are cheating and are forbidden:
+  - Injecting test-specific knowledge into prompts, guidance, or code paths
+    (a scenario's expected date, title, or answer must never appear outside
+    the scenario file).
+  - Hardcoded surrender or refusal instructions in runtime prompts.
+  - Keyword/regex/path filters that decide meaning, intent, or security.
+    Deterministic string checks are allowed only for machine identifiers:
+    exact IDs, exact handles, exact paths, wire-format grammar, and unique
+    deterministic hint resolution. Fuzzy or substring identity is never
+    allowed.
+  - Test-only branches that production never takes, weakened assertions
+    without a stated reason, or reporting a failure as success.
+- Never rerun a failed test unchanged. The loop is always: form a hypothesis
+  from the evidence, confirm the root cause from the event ledger and logs,
+  fix that cause at the layer it lives in, then rerun once as verification of
+  the fix. If you cannot explain a failure, the next task is diagnosis, not
+  another attempt.
+- Treat every acceptance failure as a probe into how this production agent
+  falls short of a strong general agent (Claude Code, Codex): ask what a
+  strong agent loop would have done differently (see its own state, keep
+  context across steps, recover without thrashing), turn that gap into a
+  testable hypothesis, and fix the runtime — not the test — when the
+  hypothesis holds.
+- Division of labor: the LLM judges meaning, outcomes, wording, and recovery
+  direction; deterministic code supplies facts the model cannot know
+  (identity resolution, recorded effects, schema validity, permissions) and
+  enforces only narrow-blast-radius guards. Wide or irreversible actions get
+  deterministic gates; everything else trusts the model and verifies through
+  evidence.
+
 ## Runtime Test Hygiene
 
 - Use clearly identifiable test messages, users, and channels.
