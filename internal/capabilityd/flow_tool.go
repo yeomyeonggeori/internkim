@@ -112,6 +112,7 @@ type flowTaskForTool struct {
 	RequestReason            string                      `json:"requestReason"`
 	DecisionReason           string                      `json:"decisionReason"`
 	MattermostPostID         string                      `json:"mattermostPostID"`
+	CreatedAt                string                      `json:"createdAt,omitempty"`
 }
 
 const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
@@ -138,13 +139,22 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	members, errorValue := service.fetchFlowMembers(ctx, request.Context.RequesterEmail)
+	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	members := summary.Members
 	ownerResolution := resolveFlowOwner(input, request.Context.RequesterEmail, members)
 	if ownerResolution.Failure != nil {
 		return flowTaskAddErrorResponse(request.ToolName, *ownerResolution.Failure), nil
+	}
+	if duplicateTask, isDuplicate := findRecentDuplicateFlowTask(summary.Tasks, ownerResolution.OwnerID, input.Title, time.Now()); isDuplicate {
+		logFlowTaskAddDeduplicated(duplicateTask.ID, ownerResolution.OwnerID)
+		result, errorValue := json.Marshal(flowTaskResultDocument(duplicateTask, members))
+		if errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
+		return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
 	}
 	participantIDs, participantFailure := resolveFlowParticipantIDs(input.ParticipantPersonHints, ownerResolution.OwnerID, members)
 	if participantFailure != nil {

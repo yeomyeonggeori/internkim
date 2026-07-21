@@ -38,6 +38,7 @@ func flowTaskResultDocument(task flowTaskForTool, members []flowMemberForTool) m
 	encodedTask, _ := json.Marshal(flowTaskWithParticipantPresentations(task, members))
 	json.Unmarshal(encodedTask, &document)
 	delete(document, "id")
+	delete(document, "createdAt")
 	document["taskID"] = task.ID
 	return document
 }
