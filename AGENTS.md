@@ -19,6 +19,14 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
 - Do not include unrelated dirty changes in commits or deployments.
+- Never run `git add -A`, `git add .`, or `git commit -a` inside
+  `.dependency/blueclaw`. Always run `git status --short` first and `git add`
+  only the exact paths you changed. Pre-existing dirt in
+  `tests/integration/` or `.claude/` belongs to the user: never stage, commit,
+  revert, or delete it.
+- `rg` inside `.dependency/blueclaw` must exclude `.claude/` (it contains
+  nested repo copies): use `rg --glob '!.claude'` or `git grep`, which only
+  searches tracked files.
 - If a clean checkout or worktree is used to avoid unrelated changes, report it
   and clean it up or say why it remains.
 - Keep generated test artifacts, platform users, memories, and remote messages
@@ -94,6 +102,50 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
   `--reuse` runs.
 
+## Expensive Acceptance Gates (real Mattermost)
+
+- Run one scenario per invocation and keep the VM for autopsy:
+  `./internkim test expensive --maximum-model-tier low --scenario <name>
+  --auto-confirm --keep --retry-once`. Rerun on the same fleet without
+  reprovisioning: add `--skip-provisioning --run-id <existing runID>`.
+- Preflight before every run: `df -h /` must show 15Gi+ free (Mattermost
+  install fails opaquely below that), and `container ls -a` must show no
+  leftover `internkim-e2e-expensive-*` container (stop+rm leftovers first;
+  never touch VMs from other sessions).
+- Launch the runner so its lifetime is tracked by your harness. Never pipe the
+  runner through `tail`/`head` (they buffer everything and the output file
+  stays empty for the whole run) and never orphan it with bare `nohup` from a
+  tool call.
+- The ONLY pass/fail signal is a line-anchored
+  `^(✓|✗) expensive scenario <name>`. Inner playwright test names also contain
+  the words "expensive scenario", so an unanchored grep produces false DONE
+  verdicts.
+- Artifacts: `.artifacts/expensive/<runID>/<scenario>/diagnostics/result.json`
+  (per-step status), `diagnostics/events/step-XX.json` (full task event
+  ledger), `evidence/step-XX/*.png` (acceptance screenshots),
+  `attempt-2/` (retry artifacts). Guest admin API for live autopsy:
+  `./internkim lab vm-ssh --config .local/local-fleet/runs/<runID>/config.json
+  -- "curl -s 127.0.0.1:8080/admin/api/task"` and
+  `/admin/api/task/detail?taskRunID=<id>`.
+- Failure triage order, always: (1) read the step's event ledger, (2) classify
+  the failing layer — product (agent/runtime), harness (stale scenario
+  expectation), or infra (lines prefixed `infra failure`/`infra-suspect`,
+  provisioning, VM postgres/disk) — (3) fix that layer at the root, (4) rerun
+  only to verify the fix. Never rerun an unexplained failure, and if the
+  failure reason is missing from the log, fix that reporting gap first.
+- Scenario JSON expectation rules: `expectedTaskStatus`, approval lifecycle
+  events (`approval.pending_call`, `approval.executed`,
+  `confirmation.requested`), and user-visible side-effect results stay
+  required; implementation-detail expectations (exact tool output content,
+  internal event bodies) get `"advisory": true`. Never pin an exact model
+  (the tier ceiling plus llmd transport is the contract; the runtime may
+  ladder within the ceiling). Never require a `*.list` call before a
+  hint-based mutation (`taskHint` tools resolve server-side without listing).
+- A gate binary/payload pairs with the Blueclaw HEAD it was built from: after
+  any `.dependency/blueclaw` commit, rebuild `make prepare-blueclaw-payload`
+  and `make prepare-blueclaw-llmd` before launching, or the run ships the old
+  agent.
+
 ## Blueclaw Skill Size Budget
 
 - Treat oversized `SKILL.md` files as prompt-runtime bugs, not documentation
@@ -160,6 +212,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
+- The AI SDK sidecar is `llmd` (directory `.dependency/blueclaw/llmd/`, deploy
+  component `blueclawLLMD`, artifact `make prepare-blueclaw-llmd`, systemd unit
+  `blueclaw-llmd`). Any llmd TypeScript change ships only through a rebuilt
+  llmd artifact; any llmd protocol/schema change is a contract change and
+  ships coupled with `capabilityd` and `blueclawPayload`.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device
@@ -280,6 +337,19 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - For real task failures, do not fully suppress the user reply. Try local LLM
   failure wording first, then send a compact raw error summary if no LLM path can
   produce a usable notice.
+- When writing instructions for a weak-tier LLM role (judge, router,
+  classifier), always pair every must-check rule with an explicit
+  must-not-invent rule ("do not add requirements the instruction does not
+  state; wording, formatting, and list placement are not failures"). A lone
+  must-check makes weak models over-reject with invented criteria; a lone
+  lenient prompt makes them under-check stated values.
+- Facts the runtime already knows (recorded effects, created record IDs,
+  resolved dates) must be surfaced to the model as deterministic context, not
+  re-asked from the model. The model decides; the runtime informs.
+- Once the deterministic completion gate has passed and a completion reply
+  exists, terminal persistence and delivery must not depend on the live
+  request context: a task whose work is done and recorded must never end
+  undelivered because a late validation call ran out of budget.
 - Full suppression is only for intentionally ignored control/runtime cases such
   as duplicate delivery, cancelled task output, or self/bot messages.
 
