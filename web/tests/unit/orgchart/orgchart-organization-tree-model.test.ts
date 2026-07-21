@@ -8,14 +8,15 @@ import {
 	orgchartOrganizationTreeIndex
 } from '../../../src/routes/orgchart/orgchart-organization-tree-model';
 
-function record(userID: string, primaryGroupID = ''): UserRecord {
+function record(userID: string, primaryGroupID = '', fields: Partial<UserRecord> = {}): UserRecord {
 	return {
 		userID,
 		handle: userID,
 		name: userID,
 		email: `${userID}@example.com`,
 		primaryGroupID,
-		groupIDs: primaryGroupID ? [primaryGroupID] : []
+		groupIDs: primaryGroupID ? [primaryGroupID] : [],
+		...fields
 	};
 }
 
@@ -39,6 +40,22 @@ describe('orgchart organization tree model', () => {
 			['design', 1, 1],
 			['sales', 0, 1]
 		]);
+	});
+
+	test('orders direct and aggregate records by reporting hierarchy', () => {
+		const groups: OrgGroup[] = [{ id: 'engineering', name: '개발팀' }];
+		const records = [
+			record('report', 'engineering', { hireDate: '2023-01-01', supervisorID: 'manager' }),
+			record('member', 'engineering', { hireDate: '2024-01-01', supervisorID: 'leader' }),
+			record('manager', 'engineering', { hireDate: '2025-01-01', supervisorID: 'leader' }),
+			record('leader', 'engineering', { hireDate: '2026-01-01' })
+		];
+
+		const tree = orgchartOrganizationTree(groups, records, '전체 조직');
+		const engineering = tree.nodes.find((node) => node.id === 'engineering');
+
+		expect(engineering?.directRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
+		expect(tree.root.aggregateRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
 	});
 
 	test('moves an organization to a new parent while preserving its subtree', () => {
