@@ -353,6 +353,16 @@ func TestMainSubcommandsReturnAfterExecution(t *testing.T) {
 	}
 }
 
+func TestRunServerRejectsNonLoopbackListenAddress(t *testing.T) {
+	errorValue := runServer([]string{"--listen", "0.0.0.0:0"})
+	if errorValue == nil {
+		t.Fatal("expected non-loopback listen address to be rejected")
+	}
+	if !strings.Contains(errorValue.Error(), "must listen on loopback") {
+		t.Fatalf("expected loopback rejection error, got %v", errorValue)
+	}
+}
+
 func hasCapability(descriptors []capabilities.Descriptor, name string) bool {
 	for _, descriptor := range descriptors {
 		if descriptor.Name == name {
