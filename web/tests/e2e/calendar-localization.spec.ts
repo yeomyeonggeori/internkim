@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { routeCalendarBackgroundAPI, routeCalendarParticipants } from './calendar-embed-test-utils';
 
 test.describe('calendar localization', () => {
-	test('updates calendar labels when language changes', async ({ page }) => {
+	test('updates embedded calendar labels when language changes', async ({ page }) => {
 		let locale = 'ko';
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.route('**/admin/api/session', async (route) => {
@@ -40,12 +40,14 @@ test.describe('calendar localization', () => {
 		await routeCalendarParticipants(page, []);
 
 		await page.goto('/calendar/');
-		await expect(page.getByRole('button', { name: '설정' })).toBeVisible();
+		let calendarFrame = page.frameLocator('iframe');
+		await expect(calendarFrame.getByRole('button', { name: '설정' })).toBeVisible();
 		await page.getByRole('button', { name: '언어 변경' }).click();
 		await page.getByRole('menuitemradio', { name: 'English' }).click();
 
-		await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
-		await page.getByRole('button', { name: 'Settings' }).click();
+		calendarFrame = page.frameLocator('iframe');
+		await expect(calendarFrame.getByRole('button', { name: 'Settings' })).toBeVisible();
+		await calendarFrame.getByRole('button', { name: 'Settings' }).click();
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 		await expect(page.getByText('Connected Google Calendar', { exact: true })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Connect' })).toBeHidden();
@@ -53,14 +55,14 @@ test.describe('calendar localization', () => {
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();
 
-		await expect(page.getByRole('button', { name: 'June 2026' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Month' })).toBeVisible();
+		await expect(calendarFrame.getByRole('button', { name: 'June 2026' })).toBeVisible();
+		await expect(calendarFrame.getByRole('button', { name: 'Month' })).toBeVisible();
 
-		await page.getByRole('button', { name: 'New', exact: true }).click();
-		const popover = page.locator('.calendar-draft-popover');
+		await calendarFrame.getByRole('button', { name: 'New', exact: true }).click();
+		const popover = calendarFrame.locator('.calendar-draft-popover');
 		await expect(popover.getByLabel('Title')).toBeVisible();
 		await popover.getByRole('button', { name: /Start date 2026\.06\.08 09:00/ }).click();
-		const picker = page.locator('.draft-date-time-picker');
+		const picker = calendarFrame.locator('.draft-date-time-picker');
 		await expect(picker).toHaveAttribute('aria-label', 'Edit start date and time');
 		await expect(picker.getByRole('button', { name: 'Previous month' })).toBeVisible();
 		await expect(picker.getByRole('button', { name: 'June 17, 2026' })).toBeVisible();
