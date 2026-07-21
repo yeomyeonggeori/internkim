@@ -61,7 +61,6 @@ type fakeBrowserRuntime struct {
 	waitRequest     browserruntime.WaitRequest
 	observeResult   browserruntime.ObserveResult
 	startResults    []browserruntime.SessionStartResult
-	navigateResults []browserruntime.NavigateResult
 	observeCount    int
 	startCount      int
 	navigateCount   int
@@ -129,9 +128,6 @@ func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browser
 	runtime.navigateCount++
 	if runtime.errorValue != nil {
 		return browserruntime.NavigateResult{}, runtime.errorValue
-	}
-	if runtime.navigateCount <= len(runtime.navigateResults) {
-		return runtime.navigateResults[runtime.navigateCount-1], nil
 	}
 	return browserruntime.NavigateResult{URL: request.URL}, nil
 }
@@ -562,56 +558,17 @@ func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffSkipsPauseWhenAlreadySignedIn(t *testing.T) {
+func TestBrowserHandoffTakesHumanPathForGoogleHost(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{navigateResults: []browserruntime.NavigateResult{{
+	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
 		URL:             "https://console.cloud.google.com/project",
 		Title:           "Google Cloud",
 		SnapshotText:    "- button \"Create\" [ref=e1]",
 		InteractiveRefs: []string{"@e1"},
-		CapturedAt:      "2026-05-07T00:00:00Z",
-	}}}
+		CapturedAt:      "2026-05-07T00:00:01Z",
+	}}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
-		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인이 필요하면 계속을 눌러주세요."}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected signed-in automation handoff response: %v", errorValue)
-	}
-
-	var result BrowserHandoffResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != HandoffStateCompleted || result.CompletedByUser || result.SnapshotText == "" {
-		t.Fatalf("expected completed automation result without user handoff, response=%+v result=%+v", response, result)
-	}
-	if browserRuntime.pauseCount != 0 || browserRuntime.navigateCount != 1 || handoffStore.Snapshot().Active {
-		t.Fatalf("expected an automation probe only, pause=%d navigate=%d snapshot=%+v", browserRuntime.pauseCount, browserRuntime.navigateCount, handoffStore.Snapshot())
-	}
-}
-
-func TestBrowserHandoffPausesWhenGoogleProfileNeedsLogin(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{
-		navigateResults: []browserruntime.NavigateResult{{
-			URL:          "https://accounts.google.com/v3/signin/identifier",
-			Title:        "Sign in",
-			SnapshotText: "Sign in with Google",
-			CapturedAt:   "2026-05-07T00:00:00Z",
-		}},
-		observeResult: browserruntime.ObserveResult{
-			URL:             "https://console.cloud.google.com/project",
-			Title:           "Google Cloud",
-			SnapshotText:    "- button \"Create\" [ref=e1]",
-			InteractiveRefs: []string{"@e1"},
-			CapturedAt:      "2026-05-07T00:00:01Z",
-		},
-	}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com/project")
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
@@ -621,7 +578,7 @@ func TestBrowserHandoffPausesWhenGoogleProfileNeedsLogin(t *testing.T) {
 		t.Fatalf("expected handoff completion: %v", completionError)
 	}
 	if errorValue != nil {
-		t.Fatalf("expected paused handoff response: %v", errorValue)
+		t.Fatalf("expected completed handoff response: %v", errorValue)
 	}
 
 	var result BrowserHandoffResult
@@ -631,8 +588,8 @@ func TestBrowserHandoffPausesWhenGoogleProfileNeedsLogin(t *testing.T) {
 	if !result.CompletedByUser || result.SnapshotText == "" {
 		t.Fatalf("expected user-completed handoff with resumed snapshot, got %+v", result)
 	}
-	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 || browserRuntime.startCount != 0 {
-		t.Fatalf("expected the runtime to pause/resume in place without opening a second window, pause=%d resume=%d start=%d", browserRuntime.pauseCount, browserRuntime.resumeCount, browserRuntime.startCount)
+	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 || browserRuntime.navigateCount != 0 || browserRuntime.startCount != 0 {
+		t.Fatalf("expected the Google host to pause for a human like any other host, pause=%d resume=%d navigate=%d start=%d", browserRuntime.pauseCount, browserRuntime.resumeCount, browserRuntime.navigateCount, browserRuntime.startCount)
 	}
 }
 
