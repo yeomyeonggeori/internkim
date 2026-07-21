@@ -65,7 +65,8 @@
           "name": "tool.message.send.requested",
           "bodyFragment": "고객지원 주간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
           "count": 1,
-          "exact": true
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.message.send.result",
@@ -104,7 +105,8 @@
           "name": "tool.message.update.requested",
           "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
           "count": 1,
-          "exact": true
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.message.update.result",
@@ -214,7 +216,8 @@
           "name": "tool.message.send.requested",
           "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. DM으로도 전달드립니다.",
           "count": 1,
-          "exact": true
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.message.send.result",
@@ -250,7 +253,8 @@
           "name": "tool.message.send.requested",
           "bodyFragment": "고객지원 월간회의 자료가 공유되었습니다. town-square에서 확인해주세요.",
           "count": 1,
-          "exact": true
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.message.send.result",
