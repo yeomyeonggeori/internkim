@@ -1578,10 +1578,6 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				return event, hasEvent, errorValue
 			}
 			event = service.enrichMattermostEvent(ctx, event)
-			handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
-			if handled || errorValue != nil {
-				return event, false, errorValue
-			}
 			return event, true, nil
 		},
 		AfterForward: func(ctx context.Context, payload []byte) {
@@ -1611,7 +1607,6 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 	}
 	service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
 	go service.runMattermostPollingFallback(ctx, &pollState, &lastSeenMutex)
-	go service.runMattermostImportCleanup(ctx)
 	go listener.Start(ctx)
 }
 
@@ -1796,17 +1791,6 @@ func (service Service) forwardMattermostPosts(ctx context.Context, botUserID str
 			continue
 		}
 		event = service.enrichMattermostEvent(ctx, event)
-		handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
-		if errorValue != nil {
-			log.Printf("mattermost companion connect command failed: %s: %v", post.ID, errorValue)
-			continue
-		}
-		if handled {
-			if post.CreateAt > nextSeen {
-				nextSeen = post.CreateAt
-			}
-			continue
-		}
 		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
 			continue
