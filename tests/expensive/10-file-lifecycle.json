@@ -1,96 +1,228 @@
 {
-  "name": "file-lifecycle",
-  "requiresLLMD": true,
-  "expectedLLMProvider": "openrouter",
-  "expectedLLMModel": "xiaomi/mimo-v2.5",
-  "allowedTools": ["file.write", "file.read", "file.edit", "file.deliver", "file.delete"],
-  "initialToolNames": ["file.write", "file.deliver"],
-  "steps": [
+ "name": "file-lifecycle",
+ "requiresLLMD": true,
+ "expectedLLMProvider": "openrouter",
+ "allowedTools": [
+  "file.write",
+  "file.read",
+  "file.edit",
+  "file.deliver",
+  "file.delete"
+ ],
+ "initialToolNames": [
+  "file.write",
+  "file.deliver"
+ ],
+ "steps": [
+  {
+   "prompt": "고객지원팀 주간 운영 점검에 쓸 작은 JSON 파일을 만들어서 보내줘. 파일 이름은 customer-support-weekly-check.json으로 하고, 보고서 이름은 '고객지원 주간 운영 점검', 상태는 '검토 중', 담당은 '운영팀'으로 넣어줘.",
+   "expectedToolCalls": [
+    "file.write",
+    "file.deliver"
+   ],
+   "expectedExactToolCallCounts": {
+    "file.write": 1,
+    "file.deliver": 1
+   },
+   "expectedAttachments": [
+    ".json"
+   ],
+   "expectedAttachmentText": [
+    "고객지원 주간 운영 점검",
+    "검토 중",
+    "운영팀"
+   ],
+   "expectedEventCounts": [
     {
-      "prompt": "고객지원팀 주간 운영 점검에 쓸 작은 JSON 파일을 만들어서 보내줘. 파일 이름은 customer-support-weekly-check.json으로 하고, 보고서 이름은 '고객지원 주간 운영 점검', 상태는 '검토 중', 담당은 '운영팀'으로 넣어줘.",
-      "expectedToolCalls": ["file.write", "file.deliver"],
-      "expectedExactToolCallCounts": {"file.write": 1, "file.deliver": 1},
-      "expectedAttachments": [".json"],
-      "expectedAttachmentText": ["고객지원 주간 운영 점검", "검토 중", "운영팀"],
-      "expectedEventCounts": [
-        {"name": "tool.file.write.result", "bodyFragment": "\"effect\":\"created\"", "count": 1, "exact": true, "advisory": true},
-        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true, "advisory": true}
-      ],
-      "expectedWorkspaceFiles": [
-        {
-          "pathGlob": "private/people/*/customer-support-weekly-check.json",
-          "containsFragments": ["고객지원 주간 운영 점검", "검토 중", "운영팀"]
-        }
-      ],
-      "expectedReplyFragments": ["customer-support-weekly-check.json"],
-      "expectedTaskStatus": "completed"
+     "name": "tool.file.write.result",
+     "bodyFragment": "\"effect\":\"created\"",
+     "count": 1,
+     "exact": true,
+     "advisory": true
     },
     {
-      "prompt": "방금 만든 JSON 파일을 읽어서 보고서 이름, 상태, 담당을 확인해줘.",
-      "expectedToolCalls": ["file.read"],
-      "expectedToolCallCounts": {"file.read": 1},
-      "expectedEventCounts": [
-        {"name": "tool.file.read.result", "outputFragment": "고객지원 주간 운영 점검", "count": 1}
-      ],
-      "expectedReplyFragments": ["고객지원 주간 운영 점검", "검토 중", "운영팀"],
-      "expectedWorkspaceFiles": [
-        {
-          "pathGlob": "private/people/*/customer-support-weekly-check.json",
-          "containsFragments": ["고객지원 주간 운영 점검", "검토 중", "운영팀"]
-        }
-      ],
-      "expectedTaskStatus": "completed"
-    },
-    {
-      "prompt": "그 JSON 파일의 상태를 '검토 완료'로 바꾸고 담당을 '고객경험팀'으로 수정한 뒤 같은 파일로 다시 보내줘.",
-      "expectedToolCalls": ["file.edit", "file.deliver"],
-      "expectedExactToolCallCounts": {"file.edit": 1, "file.deliver": 1},
-      "expectedAttachments": [".json"],
-      "expectedAttachmentText": ["고객지원 주간 운영 점검", "검토 완료", "고객경험팀"],
-      "expectedEventCounts": [
-        {"name": "tool.file.edit.result", "bodyFragment": "\"effect\":\"updated\"", "count": 1, "exact": true, "advisory": true},
-        {"name": "tool.file.deliver.result", "bodyFragment": "\"effect\":\"attached\"", "count": 1, "exact": true, "advisory": true}
-      ],
-      "expectedWorkspaceFiles": [
-        {
-          "pathGlob": "private/people/*/customer-support-weekly-check.json",
-          "containsFragments": ["고객지원 주간 운영 점검", "검토 완료", "고객경험팀"],
-          "forbiddenFragments": ["검토 중", "운영팀"]
-        }
-      ],
-      "expectedReplyFragments": ["검토 완료", "고객경험팀"],
-      "expectedTaskStatus": "completed"
-    },
-    {
-      "prompt": "수정한 JSON 파일을 다시 읽어서 상태와 담당이 제대로 바뀌었는지 확인해줘.",
-      "expectedToolCalls": ["file.read"],
-      "expectedToolCallCounts": {"file.read": 1},
-      "expectedEventCounts": [
-        {"name": "tool.file.read.result", "outputFragment": "검토 완료", "count": 1},
-        {"name": "tool.file.read.result", "outputFragment": "고객경험팀", "count": 1}
-      ],
-      "expectedReplyFragments": ["검토 완료", "고객경험팀"],
-      "expectedWorkspaceFiles": [
-        {
-          "pathGlob": "private/people/*/customer-support-weekly-check.json",
-          "containsFragments": ["검토 완료", "고객경험팀"],
-          "forbiddenFragments": ["검토 중", "운영팀"]
-        }
-      ],
-      "expectedTaskStatus": "completed"
-    },
-    {
-      "prompt": "확인한 customer-support-weekly-check.json 파일을 삭제해줘.",
-      "approvalAction": "approve",
-      "expectedToolCalls": ["file.delete"],
-      "expectedEvents": ["approval.pending_call", "confirmation.requested", "approval.executed"],
-      "expectedEventCounts": [
-        {"name": "tool.file.delete.requested", "count": 1, "exact": true},
-        {"name": "tool.file.delete.result", "bodyFragment": "\"effect\":\"deleted\"", "count": 1, "exact": true, "advisory": true},
-        {"name": "tool.file.delete.result", "outputFragment": "deleted", "count": 1, "exact": true}
-      ],
-      "forbiddenWorkspaceFiles": ["private/people/*/customer-support-weekly-check.json"],
-      "expectedTaskStatus": "completed"
+     "name": "tool.file.deliver.result",
+     "bodyFragment": "\"effect\":\"attached\"",
+     "count": 1,
+     "exact": true,
+     "advisory": true
     }
-  ]
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/customer-support-weekly-check.json",
+     "containsFragments": [
+      "고객지원 주간 운영 점검",
+      "검토 중",
+      "운영팀"
+     ]
+    }
+   ],
+   "expectedReplyFragments": [
+    "customer-support-weekly-check.json"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "방금 만든 JSON 파일을 읽어서 보고서 이름, 상태, 담당을 확인해줘.",
+   "expectedToolCalls": [
+    "file.read"
+   ],
+   "expectedToolCallCounts": {
+    "file.read": 1
+   },
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.read.result",
+     "outputFragment": "고객지원 주간 운영 점검",
+     "count": 1
+    }
+   ],
+   "expectedReplyFragments": [
+    "고객지원 주간 운영 점검",
+    "검토 중",
+    "운영팀"
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/customer-support-weekly-check.json",
+     "containsFragments": [
+      "고객지원 주간 운영 점검",
+      "검토 중",
+      "운영팀"
+     ]
+    }
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "그 JSON 파일의 상태를 '검토 완료'로 바꾸고 담당을 '고객경험팀'으로 수정한 뒤 같은 파일로 다시 보내줘.",
+   "expectedToolCalls": [
+    "file.edit",
+    "file.deliver"
+   ],
+   "expectedExactToolCallCounts": {
+    "file.edit": 1,
+    "file.deliver": 1
+   },
+   "expectedAttachments": [
+    ".json"
+   ],
+   "expectedAttachmentText": [
+    "고객지원 주간 운영 점검",
+    "검토 완료",
+    "고객경험팀"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.edit.result",
+     "bodyFragment": "\"effect\":\"updated\"",
+     "count": 1,
+     "exact": true,
+     "advisory": true
+    },
+    {
+     "name": "tool.file.deliver.result",
+     "bodyFragment": "\"effect\":\"attached\"",
+     "count": 1,
+     "exact": true,
+     "advisory": true
+    }
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/customer-support-weekly-check.json",
+     "containsFragments": [
+      "고객지원 주간 운영 점검",
+      "검토 완료",
+      "고객경험팀"
+     ],
+     "forbiddenFragments": [
+      "검토 중",
+      "운영팀"
+     ]
+    }
+   ],
+   "expectedReplyFragments": [
+    "검토 완료",
+    "고객경험팀"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "수정한 JSON 파일을 다시 읽어서 상태와 담당이 제대로 바뀌었는지 확인해줘.",
+   "expectedToolCalls": [
+    "file.read"
+   ],
+   "expectedToolCallCounts": {
+    "file.read": 1
+   },
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.read.result",
+     "outputFragment": "검토 완료",
+     "count": 1
+    },
+    {
+     "name": "tool.file.read.result",
+     "outputFragment": "고객경험팀",
+     "count": 1
+    }
+   ],
+   "expectedReplyFragments": [
+    "검토 완료",
+    "고객경험팀"
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/customer-support-weekly-check.json",
+     "containsFragments": [
+      "검토 완료",
+      "고객경험팀"
+     ],
+     "forbiddenFragments": [
+      "검토 중",
+      "운영팀"
+     ]
+    }
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "확인한 customer-support-weekly-check.json 파일을 삭제해줘.",
+   "approvalAction": "approve",
+   "expectedToolCalls": [
+    "file.delete"
+   ],
+   "expectedEvents": [
+    "approval.pending_call",
+    "confirmation.requested",
+    "approval.executed"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.delete.requested",
+     "count": 1,
+     "exact": true
+    },
+    {
+     "name": "tool.file.delete.result",
+     "bodyFragment": "\"effect\":\"deleted\"",
+     "count": 1,
+     "exact": true,
+     "advisory": true
+    },
+    {
+     "name": "tool.file.delete.result",
+     "outputFragment": "deleted",
+     "count": 1,
+     "exact": true
+    }
+   ],
+   "forbiddenWorkspaceFiles": [
+    "private/people/*/customer-support-weekly-check.json"
+   ],
+   "expectedTaskStatus": "completed"
+  }
+ ]
 }
