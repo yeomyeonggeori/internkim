@@ -701,3 +701,22 @@ func TestMattermostScenarioToolEvidenceRequiresRequestedEvent(t *testing.T) {
 		t.Fatal("expected direct typed request event to count")
 	}
 }
+
+func TestCountMattermostScenarioExpectedEventsAcceptsAnyOfNames(t *testing.T) {
+	events := []mattermostScenarioTaskEvent{
+		{Name: "tool.task.add.result", Body: `{"output":{"content":"{\"endDate\":\"\"}"}}`},
+		{Name: "tool.task.update.result", Body: `{"output":{"content":"{\"endDate\":\"2026-07-24\"}"}}`},
+	}
+	expectation := mattermostScenarioEventCount{
+		AnyOfNames:     []string{"tool.task.add.result", "tool.task.update.result"},
+		OutputFragment: "2026-07-24",
+		Count:          1,
+	}
+
+	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 1 {
+		t.Fatalf("expected the update result to satisfy the any-of expectation, got %d", count)
+	}
+	if !expectation.matchesEventName("tool.task.update.result") || expectation.matchesEventName("tool.task.list.result") {
+		t.Fatal("expected any-of name matching to accept listed names only")
+	}
+}

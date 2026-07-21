@@ -78,12 +78,33 @@ type mattermostScenarioStep struct {
 }
 
 type mattermostScenarioEventCount struct {
-	Name           string `json:"name"`
-	BodyFragment   string `json:"bodyFragment"`
-	OutputFragment string `json:"outputFragment"`
-	Count          int    `json:"count"`
-	Exact          bool   `json:"exact"`
-	Advisory       bool   `json:"advisory"`
+	Name           string   `json:"name"`
+	AnyOfNames     []string `json:"anyOfNames"`
+	BodyFragment   string   `json:"bodyFragment"`
+	OutputFragment string   `json:"outputFragment"`
+	Count          int      `json:"count"`
+	Exact          bool     `json:"exact"`
+	Advisory       bool     `json:"advisory"`
+}
+
+func (expectation mattermostScenarioEventCount) eventNames() []string {
+	if len(expectation.AnyOfNames) > 0 {
+		return expectation.AnyOfNames
+	}
+	return []string{expectation.Name}
+}
+
+func (expectation mattermostScenarioEventCount) matchesEventName(name string) bool {
+	for _, expectedName := range expectation.eventNames() {
+		if name == expectedName {
+			return true
+		}
+	}
+	return false
+}
+
+func (expectation mattermostScenarioEventCount) eventNamesLabel() string {
+	return strings.Join(expectation.eventNames(), "|")
 }
 
 type mattermostScenarioWorkspaceFile struct {
@@ -293,11 +314,13 @@ func validateMattermostScenarioBoundary(stepIndex int, step mattermostScenarioSt
 		}
 	}
 	for eventIndex, eventCount := range step.ExpectedEventCounts {
-		if strings.TrimSpace(eventCount.Name) == "" || eventCount.Count < 0 {
+		if (strings.TrimSpace(eventCount.Name) == "" && len(eventCount.AnyOfNames) == 0) || eventCount.Count < 0 {
 			return fmt.Errorf("Mattermost scenario step %d event count %d is invalid", stepIndex, eventIndex)
 		}
-		if eventCount.OutputFragment != "" && !isMattermostScenarioToolResultEvent(eventCount.Name) {
-			return fmt.Errorf("Mattermost scenario step %d event count %d outputFragment requires a tool result event", stepIndex, eventIndex)
+		for _, eventName := range eventCount.eventNames() {
+			if eventCount.OutputFragment != "" && !isMattermostScenarioToolResultEvent(eventName) {
+				return fmt.Errorf("Mattermost scenario step %d event count %d outputFragment requires a tool result event", stepIndex, eventIndex)
+			}
 		}
 		if eventCount.BodyFragment != "" && eventCount.OutputFragment != "" {
 			return fmt.Errorf("Mattermost scenario step %d event count %d cannot combine bodyFragment and outputFragment", stepIndex, eventIndex)
@@ -882,12 +905,12 @@ func mattermostScenarioToolResultData(event mattermostScenarioTaskEvent) json.Ra
 
 func missingMattermostScenarioEventError(stepIndex int, expectation mattermostScenarioEventCount) error {
 	if expectation.OutputFragment != "" {
-		return fmt.Errorf("Mattermost scenario step %d is missing event %q with output containing %q", stepIndex, expectation.Name, expectation.OutputFragment)
+		return fmt.Errorf("Mattermost scenario step %d is missing event %q with output containing %q", stepIndex, expectation.eventNamesLabel(), expectation.OutputFragment)
 	}
 	if expectation.BodyFragment != "" {
-		return fmt.Errorf("Mattermost scenario step %d is missing event %q with body containing %q", stepIndex, expectation.Name, expectation.BodyFragment)
+		return fmt.Errorf("Mattermost scenario step %d is missing event %q with body containing %q", stepIndex, expectation.eventNamesLabel(), expectation.BodyFragment)
 	}
-	return fmt.Errorf("Mattermost scenario step %d is missing event %q", stepIndex, expectation.Name)
+	return fmt.Errorf("Mattermost scenario step %d is missing event %q", stepIndex, expectation.eventNamesLabel())
 }
 
 func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
@@ -1052,12 +1075,18 @@ func countMattermostScenarioEvents(events []mattermostScenarioTaskEvent, expecte
 }
 
 func countMattermostScenarioExpectedEvents(events []mattermostScenarioTaskEvent, expected mattermostScenarioEventCount) int {
-	if expected.OutputFragment == "" {
-		return countMattermostScenarioEvents(events, expected.Name, expected.BodyFragment)
-	}
 	count := 0
 	for _, event := range events {
-		if event.Name == expected.Name && toolResultOutputContains(event.Body, expected.OutputFragment) {
+		if !expected.matchesEventName(event.Name) {
+			continue
+		}
+		if expected.OutputFragment != "" {
+			if toolResultOutputContains(event.Body, expected.OutputFragment) {
+				count++
+			}
+			continue
+		}
+		if strings.Contains(event.Body, expected.BodyFragment) {
 			count++
 		}
 	}
