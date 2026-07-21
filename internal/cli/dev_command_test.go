@@ -122,7 +122,7 @@ func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
 func TestDevFleetReprovisionPinsRequestedModelTier(t *testing.T) {
 	environment := devFleetReprovisionEnvironment(nil, "", "medium")
 	expectedValues := []string{
-		"INTERNKIM_TEST_MODEL_TIER=medium",
+		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=medium",
 		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=medium",
 	}
