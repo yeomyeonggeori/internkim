@@ -55,7 +55,9 @@
         {
           "name": "tool.calendar.update.requested",
           "bodyFragment": "{{tomorrow}}T14:00:00+09:00",
-          "count": 1
+          "count": 1,
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.calendar.update.result",
@@ -74,7 +76,9 @@
         {
           "name": "tool.calendar.list.requested",
           "bodyFragment": "고객지원팀 분기 결산 검토",
-          "count": 1
+          "count": 1,
+          "exact": true,
+          "advisory": true
         },
         {
           "name": "tool.calendar.list.result",
