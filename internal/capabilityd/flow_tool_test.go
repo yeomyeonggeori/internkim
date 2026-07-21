@@ -476,6 +476,161 @@ func TestFlowTaskAddReportsDuplicateAsTypedFailure(t *testing.T) {
 	}
 }
 
+func TestFlowTaskAddDeduplicatesSameTitleSameOwnerWithinWindow(t *testing.T) {
+	postCalled := false
+	recentCreatedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				postCalled = true
+				return flowToolJSONResponse(`{"id":"task-new"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.add",
+		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if postCalled {
+		t.Fatal("task.add should not create a second record for a recent same-title same-owner duplicate")
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		t.Fatalf("response = %+v", response)
+	}
+	var result struct {
+		TaskID string `json:"taskID"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.TaskID != "task-existing" {
+		t.Fatalf("taskID = %q, expected the first task's ID", result.TaskID)
+	}
+	if strings.Contains(string(response.Result), "createdAt") {
+		t.Fatalf("result leaked internal createdAt field: %s", response.Result)
+	}
+}
+
+func TestFlowTaskAddCreatesNewTaskForDifferentTitle(t *testing.T) {
+	recentCreatedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"다른 업무","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				return flowToolJSONResponse(`{"id":"task-new"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.add",
+		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		TaskID string `json:"taskID"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.TaskID != "task-new" {
+		t.Fatalf("taskID = %q, expected a new task to be created for a different title", result.TaskID)
+	}
+}
+
+func TestFlowTaskAddCreatesNewTaskForDifferentOwner(t *testing.T) {
+	recentCreatedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				return flowToolJSONResponse(`{"id":"task-new"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.add",
+		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		TaskID string `json:"taskID"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.TaskID != "task-new" {
+		t.Fatalf("taskID = %q, expected a new task to be created for a different owner", result.TaskID)
+	}
+}
+
+func TestFlowTaskAddCreatesNewTaskAfterDuplicateWindowExpires(t *testing.T) {
+	staleCreatedAt := time.Now().UTC().Add(-15 * time.Minute).Format(time.RFC3339)
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, staleCreatedAt)), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+				return flowToolJSONResponse(`{"id":"task-new"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task.add",
+		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		TaskID string `json:"taskID"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.TaskID != "task-new" {
+		t.Fatalf("taskID = %q, expected a new task after the duplicate window expired", result.TaskID)
+	}
+}
+
 func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	postCalled := false
 	var updatedPayload map[string]any
