@@ -40,7 +40,7 @@
     {
       "prompt": "방금 찾은 '비용 테스트 발표자료' 파일과 작업 폴더를 삭제해줘.",
       "expectedToolCalls": ["file.delete"],
-      "expectedEvents": ["confirmation.requested"],
+      "expectedEvents": ["confirmation.requested", "approval.pending_call"],
       "expectedTaskStatus": "waiting_approval"
     },
     {
