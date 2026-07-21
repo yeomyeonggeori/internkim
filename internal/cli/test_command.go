@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/localfleet"
@@ -45,6 +46,7 @@ type testCommandConfiguration struct {
 	ShouldUseRealModels        bool
 	ShouldAutoConfirm          bool
 	ShouldRetryOnce            bool
+	ShouldRunFast              bool
 	MaximumModelTier           string
 	ScenarioNames              []string
 	LanguageModelProvider      string
@@ -82,6 +84,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
 	retryOnce := flagSet.Bool("retry-once", false, "Rerun a scenario once against the kept Local Fleet if it fails with a non-infra scenario failure")
+	fastMode := flagSet.Bool("fast", false, "Skip Playwright browser verification for the expensive suite and click approvals over the Mattermost REST API; defer per-scenario cleanup to one combined cleanup at the end")
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
@@ -111,6 +114,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"real":              true,
 		"auto-confirm":      true,
 		"retry-once":        true,
+		"fast":              true,
 		"expect-public-url": true,
 		"help":              true,
 	}, map[string]bool{
@@ -186,6 +190,7 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ShouldUseRealModels:        *useRealModels,
 		ShouldAutoConfirm:          *autoConfirm,
 		ShouldRetryOnce:            *retryOnce,
+		ShouldRunFast:              *fastMode,
 		MaximumModelTier:           normalizedMaximumModelTier,
 		ScenarioNames:              scenarioNames.Values(),
 		LanguageModelProvider:      normalizedLanguageModelProvider,
@@ -425,20 +430,53 @@ func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRoo
 	if errorValue != nil {
 		return errorValue
 	}
-	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
-		return runExpensiveMattermostScenarioWithRetry(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario)
+	cleanupQueue := &expensiveMattermostCleanupQueue{}
+	runError := runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
+		return runExpensiveMattermostScenarioWithRetry(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario, cleanupQueue)
 	})
+	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
+	cleanupError := cleanupQueue.runAll(cleanupContext)
+	cancelCleanup()
+	return errors.Join(runError, cleanupError)
 }
 
-func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
-	firstResult, firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1)
+// expensiveMattermostCleanupQueue collects deferred scenario cleanups so a
+// fast-mode multi-scenario invocation can run one combined cleanup at the end
+// instead of tearing down Mattermost/task state between every scenario.
+type expensiveMattermostCleanupQueue struct {
+	mutex   sync.Mutex
+	cleanup []func(context.Context) error
+}
+
+func (queue *expensiveMattermostCleanupQueue) add(cleanup func(context.Context) error) {
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
+	queue.cleanup = append(queue.cleanup, cleanup)
+}
+
+func (queue *expensiveMattermostCleanupQueue) runAll(contextValue context.Context) error {
+	queue.mutex.Lock()
+	pendingCleanup := queue.cleanup
+	queue.cleanup = nil
+	queue.mutex.Unlock()
+	cleanupErrors := make([]error, 0, len(pendingCleanup))
+	for _, cleanup := range pendingCleanup {
+		if errorValue := cleanup(contextValue); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, errorValue)
+		}
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, cleanupQueue *expensiveMattermostCleanupQueue) error {
+	firstResult, firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1, cleanupQueue)
 	if firstAttemptError == nil || !shouldRetryExpensiveMattermostScenario(configuration, firstAttemptError) {
 		printMattermostScenarioVerdict(scenarioReference.Name, firstResult, firstAttemptError)
 		return firstAttemptError
 	}
 	fmt.Printf("✗ expensive scenario %s attempt 1 failed: %v\n", scenarioReference.Name, firstAttemptError)
 	fmt.Printf("retrying expensive scenario %s once against the kept Local Fleet\n", scenarioReference.Name)
-	retryResult, retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
+	retryResult, retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2, cleanupQueue)
 	if retryError != nil {
 		printMattermostScenarioVerdict(scenarioReference.Name, retryResult, retryError)
 		return fmt.Errorf("attempt 1: %v; attempt 2: %w", firstAttemptError, retryError)
@@ -555,7 +593,7 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int) (mattermostScenarioResult, error) {
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int, cleanupQueue *expensiveMattermostCleanupQueue) (mattermostScenarioResult, error) {
 	scenarioContext, cancel := scenarioObservationContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
@@ -575,31 +613,66 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 		return mattermostScenarioResult{}, newMattermostScenarioInfraError(errorValue)
 	}
 	session.shouldAutoConfirm = configuration.ShouldAutoConfirm
+	session.shouldRunFast = configuration.ShouldRunFast
 	session.result.Attempt = attemptNumber
-	runError := session.run(scenarioContext, func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
-		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
-			return errorValue
-		}
-		return verifyExpensiveMattermostStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex, configuration.ShouldAutoConfirm)
-	})
+	runError := session.run(scenarioContext, buildExpensiveMattermostStepHook(
+		artifactDirectoryPath, repositoryRootPath, siteProxyURL, mattermostURL, scenario, configuration, session, verifyExpensiveMattermostStep,
+	))
 	var completionEvidenceError error
-	if runError == nil {
+	if runError == nil && !configuration.ShouldRunFast {
 		completionEvidenceError = verifyExpensiveMattermostApprovalCompletions(scenarioContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, session.execution())
 	}
-	if runError != nil {
+	if runError != nil && !configuration.ShouldRunFast {
 		failureEvidenceContext, cancelFailureEvidence := context.WithTimeout(context.Background(), 2*time.Minute)
 		captureExpensiveMattermostFailureEvidence(failureEvidenceContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, session.execution(), len(session.result.Steps)-1, runError.Error())
 		cancelFailureEvidence()
 	}
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
 	printMattermostScenarioAdvisoryWarnings(session.result)
-	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
-	cleanupError := session.cleanup(cleanupContext)
-	cancelCleanup()
+	cleanupError := runOrDeferExpensiveMattermostCleanup(configuration, cleanupQueue, session)
 	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
 		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
 	return session.result, errors.Join(runError, completionEvidenceError, writeError, cleanupError)
+}
+
+// buildExpensiveMattermostStepHook wires the per-step evidence write and,
+// depending on fast mode, either a Mattermost REST approval click or the
+// Playwright browser verification. verifyStep is injected so tests can
+// substitute a spy instead of shelling out to Playwright.
+func buildExpensiveMattermostStepHook(
+	artifactDirectoryPath string,
+	repositoryRootPath string,
+	siteProxyURL string,
+	mattermostURL string,
+	scenario mattermostScenario,
+	configuration testCommandConfiguration,
+	session *mattermostScenarioSession,
+	verifyStep func(context.Context, string, string, string, string, mattermostScenario, mattermostScenarioExecution, int, bool) error,
+) mattermostScenarioStepHook {
+	return func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
+		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
+			return errorValue
+		}
+		if configuration.ShouldRunFast {
+			return session.clickPendingApproval(hookContext, stepIndex)
+		}
+		return verifyStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex, configuration.ShouldAutoConfirm)
+	}
+}
+
+// runOrDeferExpensiveMattermostCleanup runs the scenario's Mattermost/task
+// cleanup immediately, unless fast mode is combining multiple scenarios in
+// one invocation, in which case the cleanup is queued and flushed once after
+// every scenario has run.
+func runOrDeferExpensiveMattermostCleanup(configuration testCommandConfiguration, cleanupQueue *expensiveMattermostCleanupQueue, session *mattermostScenarioSession) error {
+	if configuration.ShouldRunFast {
+		cleanupQueue.add(session.cleanup)
+		return nil
+	}
+	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelCleanup()
+	return session.cleanup(cleanupContext)
 }
 
 func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) string {

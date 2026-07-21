@@ -93,6 +93,8 @@ type mattermostScenarioSession struct {
 	poll              func(context.Context) error
 	stepTimeout       time.Duration
 	shouldAutoConfirm bool
+	shouldRunFast     bool
+	clickedPostIDs    map[string]bool
 	cleanupMutex      sync.Mutex
 	isCleanupFinished bool
 }
@@ -131,6 +133,7 @@ func newMattermostScenarioSession(scenario mattermostScenario, mattermost matter
 		mattermost:     mattermost,
 		admin:          admin,
 		seenBotPostIDs: map[string]bool{},
+		clickedPostIDs: map[string]bool{},
 		poll:           waitForMattermostScenarioPoll,
 		stepTimeout:    mattermostScenarioStepReplyTimeout,
 		result: mattermostScenarioResult{
@@ -326,6 +329,11 @@ func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue
 		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && replyPostID != "" {
 			return detail, newEvents, replyPostID, nil
 		}
+		if session.shouldRunFast && detail.TaskRun.Status == "waiting_approval" && replyPostID != "" {
+			if clickError := session.clickMattermostApprovalPost(contextValue, replyPostID); clickError != nil {
+				return detail, newEvents, replyPostID, clickError
+			}
+		}
 		if errorValue := session.stepWaitTimeoutError(stepIndex, "approval completion", waitStartedAt); errorValue != nil {
 			return detail, newEvents, replyPostID, errorValue
 		}
@@ -333,6 +341,52 @@ func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue
 			return detail, newEvents, replyPostID, errorValue
 		}
 	}
+}
+
+func (session *mattermostScenarioSession) clickPendingApproval(contextValue context.Context, stepIndex int) error {
+	if stepIndex < 0 || stepIndex >= len(session.scenario.Steps) || stepIndex >= len(session.result.Steps) {
+		return nil
+	}
+	if session.scenario.Steps[stepIndex].ApprovalAction == "" {
+		return nil
+	}
+	return session.clickMattermostApprovalPost(contextValue, session.result.Steps[stepIndex].BotPostID)
+}
+
+func (session *mattermostScenarioSession) clickMattermostApprovalPost(contextValue context.Context, postID string) error {
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return errors.New("Mattermost approval post ID is empty")
+	}
+	if session.clickedPostIDs[trimmedPostID] {
+		return nil
+	}
+	post, errorValue := session.mattermost.GetPost(contextValue, session.adminToken, trimmedPostID)
+	if errorValue != nil {
+		return fmt.Errorf("fetch Mattermost approval post %s: %w", trimmedPostID, errorValue)
+	}
+	actionID, hasApprovalAction := mattermostProbeApprovalActionID(post)
+	if !hasApprovalAction {
+		return fmt.Errorf("Mattermost approval post %s has no approve action", trimmedPostID)
+	}
+	if errorValue := session.mattermost.DoPostAction(contextValue, session.userToken, trimmedPostID, actionID); errorValue != nil {
+		return fmt.Errorf("click Mattermost approval post %s: %w", trimmedPostID, errorValue)
+	}
+	session.clickedPostIDs[trimmedPostID] = true
+	return nil
+}
+
+var mattermostProbeApprovalActionNamePattern = regexp.MustCompile(`(?i)^(confirm|approve|확인|승인)$`)
+
+func mattermostProbeApprovalActionID(post mattermostProbePost) (string, bool) {
+	for _, attachment := range post.Props.Attachments {
+		for _, action := range attachment.Actions {
+			if action.ID == "askConfirm" || mattermostProbeApprovalActionNamePattern.MatchString(strings.TrimSpace(action.Name)) {
+				return action.ID, true
+			}
+		}
+	}
+	return "", false
 }
 
 func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {

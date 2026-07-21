@@ -26,6 +26,8 @@ type mattermostProbeAPI interface {
 	CreateDirectChannel(context.Context, string, string, string) (mattermostProbeChannel, error)
 	PostMessage(context.Context, string, mattermostProbeMessage) (mattermostProbePost, error)
 	ListChannelPosts(context.Context, string, string) ([]mattermostProbePost, error)
+	GetPost(context.Context, string, string) (mattermostProbePost, error)
+	DoPostAction(context.Context, string, string, string) error
 	FileMetadata(context.Context, string, string) (mattermostProbeFileMetadata, error)
 	DownloadFile(context.Context, string, string) ([]byte, error)
 	DeletePost(context.Context, string, string) error
@@ -69,12 +71,27 @@ type mattermostProbeMessage struct {
 }
 
 type mattermostProbePost struct {
-	ID        string   `json:"id"`
-	RootID    string   `json:"root_id"`
-	UserID    string   `json:"user_id"`
-	Message   string   `json:"message"`
-	FileIDs   []string `json:"file_ids"`
-	CreatedAt int64    `json:"create_at"`
+	ID        string                   `json:"id"`
+	RootID    string                   `json:"root_id"`
+	UserID    string                   `json:"user_id"`
+	Message   string                   `json:"message"`
+	FileIDs   []string                 `json:"file_ids"`
+	CreatedAt int64                    `json:"create_at"`
+	Props     mattermostProbePostProps `json:"props"`
+}
+
+type mattermostProbePostProps struct {
+	Attachments []mattermostProbePostAttachment `json:"attachments"`
+}
+
+type mattermostProbePostAttachment struct {
+	Actions []mattermostProbePostAction `json:"actions"`
+}
+
+type mattermostProbePostAction struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 type mattermostProbeFileMetadata struct {
@@ -247,6 +264,27 @@ func (client *mattermostProbeClient) ListChannelPosts(contextValue context.Conte
 		posts = append(posts, normalizeMattermostProbePost(post))
 	}
 	return posts, nil
+}
+
+func (client *mattermostProbeClient) GetPost(contextValue context.Context, token string, postID string) (mattermostProbePost, error) {
+	requestPath := "/api/v4/posts/" + url.PathEscape(postID)
+	var post mattermostProbePost
+	document, errorValue := client.requestJSON(contextValue, http.MethodGet, requestPath, token, nil)
+	if errorValue == nil {
+		errorValue = json.Unmarshal(document, &post)
+	}
+	if errorValue != nil {
+		return mattermostProbePost{}, errorValue
+	}
+	if errorValue := validateMattermostProbePost(post); errorValue != nil {
+		return mattermostProbePost{}, errorValue
+	}
+	return normalizeMattermostProbePost(post), nil
+}
+
+func (client *mattermostProbeClient) DoPostAction(contextValue context.Context, token string, postID string, actionID string) error {
+	requestPath := "/api/v4/posts/" + url.PathEscape(postID) + "/actions/" + url.PathEscape(actionID)
+	return client.requestWithoutResult(contextValue, http.MethodPost, requestPath, token)
 }
 
 func (client *mattermostProbeClient) FileMetadata(contextValue context.Context, token string, fileID string) (mattermostProbeFileMetadata, error) {

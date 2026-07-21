@@ -9,14 +9,18 @@ import (
 )
 
 type fakeMattermostProbeAPI struct {
-	postMessage      func(mattermostProbeMessage) mattermostProbePost
-	listChannelPosts func() []mattermostProbePost
-	fileMetadata     map[string]mattermostProbeFileMetadata
-	fileContents     map[string][]byte
-	deletedPostIDs   []string
-	deletedUserIDs   []string
-	deletePostError  error
-	deleteUserError  error
+	postMessage       func(mattermostProbeMessage) mattermostProbePost
+	listChannelPosts  func() []mattermostProbePost
+	fileMetadata      map[string]mattermostProbeFileMetadata
+	fileContents      map[string][]byte
+	deletedPostIDs    []string
+	deletedUserIDs    []string
+	deletePostError   error
+	deleteUserError   error
+	posts             map[string]mattermostProbePost
+	getPostError      error
+	clickedActions    []string
+	doPostActionError error
 }
 
 func (fake *fakeMattermostProbeAPI) Login(context.Context, string, string) (string, error) {
@@ -49,6 +53,21 @@ func (fake *fakeMattermostProbeAPI) PostMessage(_ context.Context, _ string, mes
 
 func (fake *fakeMattermostProbeAPI) ListChannelPosts(context.Context, string, string) ([]mattermostProbePost, error) {
 	return fake.listChannelPosts(), nil
+}
+
+func (fake *fakeMattermostProbeAPI) GetPost(_ context.Context, _ string, postID string) (mattermostProbePost, error) {
+	if fake.getPostError != nil {
+		return mattermostProbePost{}, fake.getPostError
+	}
+	return fake.posts[postID], nil
+}
+
+func (fake *fakeMattermostProbeAPI) DoPostAction(_ context.Context, _ string, postID string, actionID string) error {
+	if fake.doPostActionError != nil {
+		return fake.doPostActionError
+	}
+	fake.clickedActions = append(fake.clickedActions, postID+":"+actionID)
+	return nil
 }
 
 func (fake *fakeMattermostProbeAPI) FileMetadata(_ context.Context, _ string, fileID string) (mattermostProbeFileMetadata, error) {
@@ -374,6 +393,146 @@ func TestMattermostScenarioAutoConfirmationFinishesSameTask(t *testing.T) {
 	}
 	if len(result.TaskEvents) != 5 || len(session.result.Posts) != 3 {
 		t.Fatalf("events=%#v posts=%#v", result.TaskEvents, session.result.Posts)
+	}
+}
+
+func testMattermostApprovalProps() mattermostProbePostProps {
+	return mattermostProbePostProps{Attachments: []mattermostProbePostAttachment{{
+		Actions: []mattermostProbePostAction{{ID: "askConfirm", Name: "확인", Type: "button"}, {ID: "askCancel", Name: "취소", Type: "button"}},
+	}}}
+}
+
+func TestMattermostScenarioClickPendingApprovalClicksTheApproveAction(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{}
+	mattermost := &fakeMattermostProbeAPI{
+		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", Props: testMattermostApprovalProps()}},
+	}
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: mattermostScenarioApprovalApprove}}}
+	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
+	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "approval-post"}}
+
+	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(mattermost.clickedActions) != 1 || mattermost.clickedActions[0] != "approval-post:askConfirm" {
+		t.Fatalf("expected the approve action to be clicked once, got %v", mattermost.clickedActions)
+	}
+
+	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(mattermost.clickedActions) != 1 {
+		t.Fatalf("expected an already-clicked post not to be clicked again, got %v", mattermost.clickedActions)
+	}
+}
+
+func TestMattermostScenarioClickPendingApprovalSkipsStepsWithoutApproval(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{}
+	mattermost := &fakeMattermostProbeAPI{}
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "업무 요청"}}}
+	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
+	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "업무 요청", BotPostID: "bot-post"}}
+
+	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(mattermost.clickedActions) != 0 {
+		t.Fatalf("expected no click for a step without an approval action, got %v", mattermost.clickedActions)
+	}
+}
+
+func TestWaitForApprovalCompletionClicksEachNewConfirmationPromptInFastMode(t *testing.T) {
+	sourceEvent := testMattermostSourceEvent("source", "user-post")
+	initialAsk := mattermostScenarioTaskEvent{TaskEventID: "ask-1", Name: "confirmation.requested"}
+	firstReAskEvent := mattermostScenarioTaskEvent{TaskEventID: "ask-2", Name: "confirmation.requested"}
+	secondReAskEvent := mattermostScenarioTaskEvent{TaskEventID: "ask-3", Name: "confirmation.requested"}
+	completedEvent := mattermostScenarioTaskEvent{TaskEventID: "executed", Name: "approval.executed"}
+	firstReAskReply := testMattermostReplyEvent("reply-1", "user_notice", "approval-post-1", "user-post")
+	secondReAskReply := testMattermostReplyEvent("reply-2", "user_notice", "approval-post-2", "user-post")
+	completedReply := testMattermostReplyEvent("reply-3", "success", "completed-post", "user-post")
+
+	pollCount := 0
+	admin := &fakeMattermostScenarioAdminAPI{
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			events := []mattermostScenarioTaskEvent{sourceEvent, initialAsk, firstReAskEvent, firstReAskReply}
+			status := "waiting_approval"
+			switch {
+			case pollCount >= 2:
+				events = append(events, secondReAskEvent, secondReAskReply, completedEvent, completedReply)
+				status = "completed"
+			case pollCount >= 1:
+				events = append(events, secondReAskEvent, secondReAskReply)
+			}
+			return mattermostScenarioTaskDetail{TaskRun: mattermostScenarioTaskRun{TaskRunID: "task", Status: status}, TaskEvents: events}
+		},
+	}
+	mattermost := &fakeMattermostProbeAPI{
+		posts: map[string]mattermostProbePost{
+			"approval-post-1": {ID: "approval-post-1", Props: testMattermostApprovalProps()},
+			"approval-post-2": {ID: "approval-post-2", Props: testMattermostApprovalProps()},
+		},
+	}
+	session := newTestMattermostScenarioSession(mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘"}}}, mattermost, admin)
+	session.shouldRunFast = true
+	session.poll = func(context.Context) error {
+		pollCount++
+		return nil
+	}
+
+	detail, _, replyPostID, errorValue := session.waitForApprovalCompletion(context.Background(), 0, "task", []mattermostScenarioTaskEvent{sourceEvent, initialAsk})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if detail.TaskRun.Status != "completed" || replyPostID != "completed-post" {
+		t.Fatalf("unexpected completion: status=%q replyPostID=%q", detail.TaskRun.Status, replyPostID)
+	}
+	expectedClicks := []string{"approval-post-1:askConfirm", "approval-post-2:askConfirm"}
+	if len(mattermost.clickedActions) != len(expectedClicks) || mattermost.clickedActions[0] != expectedClicks[0] || mattermost.clickedActions[1] != expectedClicks[1] {
+		t.Fatalf("expected both re-ask prompts to be clicked in order, got %v", mattermost.clickedActions)
+	}
+}
+
+func TestWaitForApprovalCompletionDoesNotClickWhenNotFast(t *testing.T) {
+	sourceEvent := testMattermostSourceEvent("source", "user-post")
+	initialAsk := mattermostScenarioTaskEvent{TaskEventID: "ask-1", Name: "confirmation.requested"}
+	reAskEvent := mattermostScenarioTaskEvent{TaskEventID: "ask-2", Name: "confirmation.requested"}
+	reAskReply := testMattermostReplyEvent("reply-1", "user_notice", "approval-post-1", "user-post")
+	completedEvent := mattermostScenarioTaskEvent{TaskEventID: "executed", Name: "approval.executed"}
+	completedReply := testMattermostReplyEvent("reply-2", "success", "completed-post", "user-post")
+
+	pollCount := 0
+	admin := &fakeMattermostScenarioAdminAPI{
+		taskDetailValue: func(string) mattermostScenarioTaskDetail {
+			if pollCount >= 1 {
+				return mattermostScenarioTaskDetail{
+					TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "completed"},
+					TaskEvents: []mattermostScenarioTaskEvent{sourceEvent, initialAsk, reAskEvent, reAskReply, completedEvent, completedReply},
+				}
+			}
+			return mattermostScenarioTaskDetail{
+				TaskRun:    mattermostScenarioTaskRun{TaskRunID: "task", Status: "waiting_approval"},
+				TaskEvents: []mattermostScenarioTaskEvent{sourceEvent, initialAsk, reAskEvent, reAskReply},
+			}
+		},
+	}
+	mattermost := &fakeMattermostProbeAPI{
+		posts: map[string]mattermostProbePost{"approval-post-1": {ID: "approval-post-1", Props: testMattermostApprovalProps()}},
+	}
+	session := newTestMattermostScenarioSession(mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘"}}}, mattermost, admin)
+	session.poll = func(context.Context) error {
+		pollCount++
+		return nil
+	}
+
+	detail, _, replyPostID, errorValue := session.waitForApprovalCompletion(context.Background(), 0, "task", []mattermostScenarioTaskEvent{sourceEvent, initialAsk})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if detail.TaskRun.Status != "completed" || replyPostID != "completed-post" {
+		t.Fatalf("unexpected completion: status=%q replyPostID=%q", detail.TaskRun.Status, replyPostID)
+	}
+	if len(mattermost.clickedActions) != 0 {
+		t.Fatalf("expected no REST clicks outside fast mode, got %v", mattermost.clickedActions)
 	}
 }
 
