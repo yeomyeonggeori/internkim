@@ -105,11 +105,26 @@ func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 }
 
 func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
-	environment := devFleetReprovisionEnvironment(nil, "")
+	environment := devFleetReprovisionEnvironment(nil, "", "")
 	expectedValues := []string{
 		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
+		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=low",
 		blueclaw.BlueclawLLMDModeEnvironment + "=authoritative",
+	}
+	for _, expectedValue := range expectedValues {
+		if !slices.Contains(environment, expectedValue) {
+			t.Fatalf("expected %q in %#v", expectedValue, environment)
+		}
+	}
+}
+
+func TestDevFleetReprovisionPinsRequestedModelTier(t *testing.T) {
+	environment := devFleetReprovisionEnvironment(nil, "", "medium")
+	expectedValues := []string{
+		"INTERNKIM_TEST_MODEL_TIER=medium",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=medium",
+		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=medium",
 	}
 	for _, expectedValue := range expectedValues {
 		if !slices.Contains(environment, expectedValue) {
