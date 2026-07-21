@@ -80,6 +80,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   enforces only narrow-blast-radius guards. Wide or irreversible actions get
   deterministic gates; everything else trusts the model and verifies through
   evidence.
+- Delete half-baked features whose main output is side effects. An automatic
+  behavior that fires on weak signals, mutates state or messages people
+  without being asked, or ships partially wired (dead flags, unowned
+  fallbacks, config nothing reads) is a defect: remove it or gate it behind
+  an explicit request instead of tuning it. No behavior beats a wrong
+  automatic behavior. A new automatic behavior must state its trigger
+  evidence, its blast radius, and how it is turned off.
 
 ## Runtime Test Hygiene
 
