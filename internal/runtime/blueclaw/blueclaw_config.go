@@ -20,6 +20,7 @@ const (
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
+	BlueclawTestMinimumModelTierEnvironment             = "INTERNKIM_TEST_MINIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 	BlueclawLLMDModeEnvironment                         = "INTERNKIM_BLUECLAW_LLMD_MODE"
@@ -67,6 +68,7 @@ type RuntimeConfigOptions struct {
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
 	MaximumModelTier          string
+	MinimumModelTier          string
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualCPUCount           int
@@ -125,6 +127,10 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
 	}
+	minimumModelTier, errorValue := NormalizeMaximumModelTier(optionalStringEnvironment(BlueclawTestMinimumModelTierEnvironment))
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
 	virtualCPUCount, errorValue := optionalInt64Environment(BlueclawVirtualCPUCountEnvironment)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
@@ -143,6 +149,7 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
 		LocalOnly:                 LocalOnlyEnabled(),
 		MaximumModelTier:          maximumModelTier,
+		MinimumModelTier:          minimumModelTier,
 	}
 	if virtualCPUCount != nil {
 		options.VirtualCPUCount = int(*virtualCPUCount)
@@ -183,6 +190,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	}
 	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
 		capabilityLanguageModel["maximumModelTier"] = maximumModelTier
+	}
+	if minimumModelTier := strings.TrimSpace(options.MinimumModelTier); minimumModelTier != "" {
+		capabilityLanguageModel["minimumModelTier"] = minimumModelTier
 	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
