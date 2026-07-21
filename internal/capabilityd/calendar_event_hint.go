@@ -43,11 +43,11 @@ func (service Service) resolveCalendarEventHintTarget(ctx context.Context, reque
 	if errorValue != nil {
 		return "", nil, errorValue
 	}
-	eventID, failure := resolveCalendarEventHint(eventHint, events)
+	eventID, failure := resolveCalendarEventHint(eventHint, request.Context.RequesterEmail, events)
 	return eventID, failure, nil
 }
 
-func resolveCalendarEventHint(eventHint string, events []calendarEventForTool) (string, *calendarEventHintFailure) {
+func resolveCalendarEventHint(eventHint string, requesterEmail string, events []calendarEventForTool) (string, *calendarEventHintFailure) {
 	trimmedHint := strings.TrimSpace(eventHint)
 	if event, found := findCalendarEventByID(trimmedHint, events); found {
 		return event.EventID, nil
@@ -56,8 +56,31 @@ func resolveCalendarEventHint(eventHint string, events []calendarEventForTool) (
 	if len(titleMatches) == 1 {
 		return titleMatches[0].EventID, nil
 	}
+	if participatingMatch, isUnique := uniqueParticipatingCalendarEvent(titleMatches, requesterEmail); isUnique {
+		return participatingMatch.EventID, nil
+	}
 	failure := calendarEventHintUnresolvedFailure(events)
 	return "", &failure
+}
+
+func uniqueParticipatingCalendarEvent(events []calendarEventForTool, requesterEmail string) (calendarEventForTool, bool) {
+	requesterEmail = strings.ToLower(strings.TrimSpace(requesterEmail))
+	if requesterEmail == "" {
+		return calendarEventForTool{}, false
+	}
+	participatingMatches := make([]calendarEventForTool, 0, 1)
+	for _, event := range events {
+		for _, participant := range event.Participants {
+			if strings.ToLower(strings.TrimSpace(participant.Email)) == requesterEmail {
+				participatingMatches = append(participatingMatches, event)
+				break
+			}
+		}
+	}
+	if len(participatingMatches) != 1 {
+		return calendarEventForTool{}, false
+	}
+	return participatingMatches[0], true
 }
 
 func findCalendarEventByID(eventID string, events []calendarEventForTool) (calendarEventForTool, bool) {
