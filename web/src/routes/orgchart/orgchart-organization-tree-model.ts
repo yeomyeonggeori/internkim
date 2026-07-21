@@ -1,4 +1,4 @@
-import { compareOrgchartPeople } from '$lib/orgchart/person-order';
+import { orderOrgchartPeopleByHierarchy } from '$lib/orgchart/person-order';
 import type { OrgGroup, UserRecord } from '$lib/orgchart/types';
 
 export type OrgchartOrganizationTreeNode = {
@@ -39,8 +39,8 @@ export function orgchartOrganizationTree(groups: OrgGroup[], records: UserRecord
 		const children = (childrenByParentID.get(group.id) ?? [])
 			.filter((child) => !visitedGroupIDs.has(child.id))
 			.map((child) => buildBranch(child, depth + 1));
-		const directRecords = sortedRecords(directRecordsByGroupID.get(group.id) ?? []);
-		const aggregateRecords = sortedRecords([...directRecords, ...children.flatMap((child) => child.node.aggregateRecords)]);
+		const directRecords = orderedRecords(directRecordsByGroupID.get(group.id) ?? []);
+		const aggregateRecords = orderedRecords([...directRecords, ...children.flatMap((child) => child.node.aggregateRecords)]);
 		const node = {
 			id: group.id,
 			name: group.name,
@@ -60,7 +60,7 @@ export function orgchartOrganizationTree(groups: OrgGroup[], records: UserRecord
 		if (!visitedGroupIDs.has(group.id)) nodes.push(...buildBranch({ ...group, parentID: '' }, 0).flatNodes);
 	}
 
-	const rootDirectRecords = sortedRecords(directRecordsByGroupID.get('') ?? []);
+	const rootDirectRecords = orderedRecords(directRecordsByGroupID.get('') ?? []);
 	return {
 		root: {
 			id: '',
@@ -68,7 +68,7 @@ export function orgchartOrganizationTree(groups: OrgGroup[], records: UserRecord
 			parentID: '',
 			depth: -1,
 			directRecords: rootDirectRecords,
-			aggregateRecords: sortedRecords(records),
+			aggregateRecords: orderedRecords(records),
 			memberCount: records.length
 		},
 		nodes
@@ -179,6 +179,6 @@ function movePreviewForNodes(nodes: OrgchartOrganizationTreeNode[], insertionInd
 	};
 }
 
-function sortedRecords(records: UserRecord[]): UserRecord[] {
-	return [...records].sort(compareOrgchartPeople);
+function orderedRecords(records: UserRecord[]): UserRecord[] {
+	return orderOrgchartPeopleByHierarchy(records);
 }
