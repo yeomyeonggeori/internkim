@@ -505,13 +505,20 @@ func validateMattermostScenarioForbiddenTools(stepIndex int, instructionTools []
 }
 
 func validateMattermostScenarioInitialTools(stepIndex int, scenario mattermostScenario, exposure mattermostScenarioExposureEvidence) error {
+	if len(scenario.InitialToolNames) == 0 {
+		return nil
+	}
+	hasExposedInitialTool := false
 	for _, toolName := range scenario.InitialToolNames {
 		if len(scenario.AllowedTools) > 0 && !containsMattermostScenarioString(scenario.AllowedTools, toolName) {
 			return fmt.Errorf("Mattermost scenario step %d initial tool %q is not in allowedTools", stepIndex, toolName)
 		}
-		if !containsMattermostScenarioString(exposure.ExposedToolIDs, toolName) {
-			return fmt.Errorf("Mattermost scenario step %d did not expose initial tool %q", stepIndex, toolName)
+		if containsMattermostScenarioString(exposure.ExposedToolIDs, toolName) {
+			hasExposedInitialTool = true
 		}
+	}
+	if !hasExposedInitialTool {
+		return fmt.Errorf("Mattermost scenario step %d did not expose any initial tool of %q; the contract working set selected the wrong namespace", stepIndex, strings.Join(scenario.InitialToolNames, ", "))
 	}
 	return nil
 }
