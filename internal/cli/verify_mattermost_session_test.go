@@ -752,6 +752,93 @@ func TestMattermostScenarioStepMetricsCountsNativeAgentActionsWithoutDoubleCount
 	}
 }
 
+func TestMattermostScenarioStepMetricsAggregateTokenUsageAcrossLLMCalls(t *testing.T) {
+	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "llm.call", Body: `{"promptTokens":100,"completionTokens":20,"totalTokens":120,"cachedPromptTokens":40,"reasoningTokens":5,"costUSD":0.01}`},
+		{Name: "llm.call", Body: `{"promptTokens":50,"completionTokens":10,"totalTokens":60,"cachedPromptTokens":10,"reasoningTokens":0,"costUSD":0.005}`},
+		{Name: "agent.action"},
+		{Name: "tool.task.add.requested"},
+	}}
+	setMattermostScenarioStepMetrics(&result)
+	usage := result.TokenUsage
+	if usage.LLMCallCount != 2 {
+		t.Fatalf("expected two llm calls, got %#v", usage)
+	}
+	if usage.PromptTokens != 150 || usage.CompletionTokens != 30 || usage.TotalTokens != 180 {
+		t.Fatalf("unexpected token totals: %#v", usage)
+	}
+	if usage.CachedPromptTokens != 50 || usage.ReasoningTokens != 5 {
+		t.Fatalf("unexpected cache/reasoning totals: %#v", usage)
+	}
+	if usage.CostUSD != 0.015 {
+		t.Fatalf("unexpected cost total: %#v", usage)
+	}
+	expectedHitRatio := 50.0 / 150.0
+	if usage.CacheHitRatio != expectedHitRatio {
+		t.Fatalf("expected cache hit ratio %v, got %v", expectedHitRatio, usage.CacheHitRatio)
+	}
+}
+
+func TestMattermostScenarioTokenUsageGuardsZeroPromptDivision(t *testing.T) {
+	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "llm.call", Body: `{"completionTokens":20,"totalTokens":20}`},
+	}}
+	setMattermostScenarioStepMetrics(&result)
+	if result.TokenUsage.PromptTokens != 0 || result.TokenUsage.CachedPromptTokens != 0 {
+		t.Fatalf("expected zero prompt and cached tokens, got %#v", result.TokenUsage)
+	}
+	if result.TokenUsage.CacheHitRatio != 0 {
+		t.Fatalf("expected cache hit ratio 0 when prompt tokens are zero, got %v", result.TokenUsage.CacheHitRatio)
+	}
+}
+
+func TestMattermostScenarioTokenUsageTreatsOmittedFieldsAsZero(t *testing.T) {
+	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
+		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd"}`},
+		{Name: "agent.action"},
+	}}
+	setMattermostScenarioStepMetrics(&result)
+	if result.TokenUsage.LLMCallCount != 1 {
+		t.Fatalf("expected one llm call counted despite missing usage fields, got %#v", result.TokenUsage)
+	}
+	usage := result.TokenUsage
+	if usage.PromptTokens != 0 || usage.CompletionTokens != 0 || usage.TotalTokens != 0 || usage.CachedPromptTokens != 0 || usage.ReasoningTokens != 0 || usage.CostUSD != 0 || usage.CacheHitRatio != 0 {
+		t.Fatalf("expected all zero-value usage fields, got %#v", usage)
+	}
+}
+
+func TestSumMattermostScenarioTokenUsageAggregatesStepsAndTokensPerStep(t *testing.T) {
+	steps := []mattermostScenarioStepResult{
+		{TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"promptTokens":100,"completionTokens":20,"totalTokens":120,"cachedPromptTokens":25,"costUSD":0.01}`},
+		}},
+		{TaskEvents: []mattermostScenarioTaskEvent{
+			{Name: "llm.call", Body: `{"promptTokens":200,"completionTokens":40,"totalTokens":240,"cachedPromptTokens":75,"costUSD":0.02}`},
+		}},
+	}
+	for stepIndex := range steps {
+		setMattermostScenarioStepMetrics(&steps[stepIndex])
+	}
+	total := sumMattermostScenarioTokenUsage(steps)
+	if total.LLMCallCount != 2 || total.PromptTokens != 300 || total.CompletionTokens != 60 || total.TotalTokens != 360 {
+		t.Fatalf("unexpected scenario token totals: %#v", total)
+	}
+	if total.CachedPromptTokens != 100 || total.CostUSD != 0.03 {
+		t.Fatalf("unexpected scenario cache/cost totals: %#v", total)
+	}
+	expectedHitRatio := 100.0 / 300.0
+	if total.CacheHitRatio != expectedHitRatio {
+		t.Fatalf("expected scenario cache hit ratio %v, got %v", expectedHitRatio, total.CacheHitRatio)
+	}
+	tokensPerStep := mattermostScenarioTokensPerStep(total, len(steps))
+	if tokensPerStep != 180 {
+		t.Fatalf("expected 180 tokens per step, got %v", tokensPerStep)
+	}
+	if mattermostScenarioTokensPerStep(total, 0) != 0 {
+		t.Fatalf("expected tokens per step to guard against zero step count")
+	}
+}
+
 func TestMattermostScenarioEventPublicURLRequiresDirectTypedResult(t *testing.T) {
 	events := []mattermostScenarioTaskEvent{
 		{Name: "tool.site.publish.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
