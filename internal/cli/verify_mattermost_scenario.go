@@ -104,9 +104,10 @@ type mattermostScenarioTaskRun struct {
 }
 
 type mattermostScenarioTaskEvent struct {
-	TaskEventID string `json:"taskEventID"`
-	Name        string `json:"name"`
-	Body        string `json:"body"`
+	TaskEventID string    `json:"taskEventID"`
+	Name        string    `json:"name"`
+	Body        string    `json:"body"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type mattermostScenarioPost struct {
