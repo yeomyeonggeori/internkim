@@ -1,7 +1,7 @@
 import type { ComposeDraft, MailAccount, Mailbox, MailMessage } from './mail-types';
 import type { mailText } from './text';
 
-type MailPageText = (typeof mailText)['ko'];
+type MailPageText = (typeof mailText)[keyof typeof mailText];
 
 export function defaultMailboxes(text: MailPageText): Mailbox[] {
 	return [
@@ -22,8 +22,23 @@ export function visibleMailMessages(messages: MailMessage[], isUnreadOnly: boole
 	return messages.filter((message) => !isUnreadOnly || !message.isRead);
 }
 
-export function mailMessageCountText(messages: MailMessage[], suffix: string) {
-	return `${messages.length}${suffix}`;
+export function selectedMailboxCountText(mailboxes: Mailbox[], selectedMailbox: string, text: MailPageText) {
+	const mailbox = mailboxes.find((candidateMailbox) => candidateMailbox.name === selectedMailbox);
+	if (!mailbox) return '';
+	const total = mailboxTotalCount(mailbox);
+	const unread = mailboxUnreadCount(mailbox);
+	if (total === 0 && unread === 0) return '';
+	return text.mailboxCountSummary
+		.replace('{total}', String(total))
+		.replace('{unread}', String(unread));
+}
+
+export function mailboxUnreadCount(mailbox: Mailbox) {
+	return Math.max(mailbox.unseen, 0);
+}
+
+export function mailboxUnreadCountText(mailbox: Mailbox, text: MailPageText) {
+	return text.mailboxUnreadCount.replace('{count}', String(mailboxUnreadCount(mailbox)));
 }
 
 export function mailMessageBody(message: MailMessage | null) {
@@ -51,4 +66,8 @@ export function mailboxNameByHint(mailboxes: Mailbox[], hint: string) {
 
 export function mailApiErrorMessages(fallback: string, serviceUnavailable: string) {
 	return { fallback, serviceUnavailable };
+}
+
+function mailboxTotalCount(mailbox: Mailbox) {
+	return Math.max(mailbox.total, 0);
 }
