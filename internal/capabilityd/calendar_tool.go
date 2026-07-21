@@ -606,6 +606,7 @@ func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string
 	}
 	event.People = normalizeCalendarToolPeople(event.People)
 	event.Participants = normalizeCalendarToolParticipants(event.Participants)
+	event = localizeCalendarEventTimes(event)
 	if errorValue := validateCalendarEventResult(event); errorValue != nil {
 		return nil, calendarEventForTool{}, errorValue
 	}
@@ -614,6 +615,24 @@ func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string
 		return nil, calendarEventForTool{}, errorValue
 	}
 	return normalizedResult, event, nil
+}
+
+func localizeCalendarEventTimes(event calendarEventForTool) calendarEventForTool {
+	location, errorValue := time.LoadLocation(strings.TrimSpace(event.TimeZone))
+	if errorValue != nil {
+		return event
+	}
+	event.StartISO = localizeCalendarISOTime(event.StartISO, location)
+	event.EndISO = localizeCalendarISOTime(event.EndISO, location)
+	return event
+}
+
+func localizeCalendarISOTime(value string, location *time.Location) string {
+	parsed, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if errorValue != nil {
+		return value
+	}
+	return parsed.In(location).Format(time.RFC3339)
 }
 
 func validateCalendarEventResult(event calendarEventForTool) error {
