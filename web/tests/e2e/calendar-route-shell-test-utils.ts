@@ -148,8 +148,9 @@ export async function routeWritableGoogleCalendars(page: Page, options: GoogleCa
 }
 
 export async function openCalendarSettings(page: Page): Promise<void> {
-	await expect(page.locator('.calendar-toolbar-title')).toBeVisible();
-	const settingsButton = page.getByRole('button', { name: '설정' });
+	const calendarFrame = page.frameLocator('iframe');
+	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
+	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
 	const settingsHeading = page.getByRole('heading', { name: '설정' });
 	await expect
 		.poll(async () => {
