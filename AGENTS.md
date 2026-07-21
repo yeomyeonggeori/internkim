@@ -45,6 +45,22 @@ the codebase. Keep it short, concrete, and updated when workflows change.
     exact IDs, exact handles, exact paths, wire-format grammar, and unique
     deterministic hint resolution. Fuzzy or substring identity is never
     allowed.
+- When you are tempted to parse or filter model text with string matching,
+  use one of these two sanctioned shapes instead — never a regex over prose:
+  1. Structured output: give the model a strict closed typed schema
+     (additionalProperties false, enum where finite) and read the typed
+     fields. The model decides; the schema only shapes the answer.
+  2. Resolver layer (the `personHint`/`fileHint`/`taskHint` pattern): the
+     model supplies a natural reference it actually knows (a current title,
+     a name, a path it saw), and the runtime resolves it deterministically
+     to the canonical identity — exact ID match, else exact unique
+     field match, no fuzzy matching. Ambiguity or no match fails closed
+     with a candidates list returned to the model for one informed retry.
+     Describe the hint field precisely (e.g. "the exact CURRENT title,
+     never a new or intended title") — weak models fill vague hint fields
+     with the wrong referent.
+  If neither shape fits, the decision belongs to the LLM as judgment, not to
+  code.
   - Test-only branches that production never takes, weakened assertions
     without a stated reason, or reporting a failure as success.
 - Never rerun a failed test unchanged. The loop is always: form a hypothesis
