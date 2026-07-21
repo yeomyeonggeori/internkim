@@ -41,7 +41,7 @@ Environment=HOME=%s
 Environment=BLUECLAW_GRAPHITI_KUZU_PATH=%s
 Environment=BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1
 Environment=BLUECLAW_GRAPHITI_PORT=7791
-ExecStart=%s -companion-url http://127.0.0.1:18080/_internkim/companion
+ExecStart=%s
 Restart=on-failure
 RestartSec=2
 
