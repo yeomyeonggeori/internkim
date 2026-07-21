@@ -194,7 +194,7 @@ func devFleetReprovisionEnvironment(environment []string, moduleCachePath string
 	environment = append(environment,
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL_TIER="+normalizedModelTier,
+		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+normalizedModelTier,
 		blueclaw.BlueclawTestMinimumModelTierEnvironment+"="+normalizedModelTier,
 		blueclaw.BlueclawLLMDModeEnvironment+"=authoritative",
