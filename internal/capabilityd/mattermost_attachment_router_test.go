@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
@@ -78,8 +77,8 @@ func TestMattermostImportRecordStoreRoundtrip(t *testing.T) {
 	service := Service{Configuration: Configuration{BlueclawWorkspacePath: workspacePath}}
 
 	originalRecords := []mattermostImportRecord{
-		{FileID: "file-1", PostID: "post-1", ChannelID: "channel-1", ImportedAt: "2026-01-01T00:00:00Z"},
-		{FileID: "file-2", PostID: "post-2", ChannelID: "channel-2", ImportedAt: "2026-01-02T00:00:00Z"},
+		{FileID: "file-1", PostID: "post-1", ChannelID: "channel-1"},
+		{FileID: "file-2", PostID: "post-2", ChannelID: "channel-2"},
 	}
 
 	if errorValue := service.saveMattermostImportRecords(originalRecords); errorValue != nil {
@@ -92,7 +91,7 @@ func TestMattermostImportRecordStoreRoundtrip(t *testing.T) {
 	}
 	for index, record := range originalRecords {
 		loaded := loadedRecords[index]
-		if loaded.FileID != record.FileID || loaded.PostID != record.PostID || loaded.ChannelID != record.ChannelID || loaded.ImportedAt != record.ImportedAt {
+		if loaded.FileID != record.FileID || loaded.PostID != record.PostID || loaded.ChannelID != record.ChannelID {
 			t.Fatalf("record %d mismatch: expected %+v, got %+v", index, record, loaded)
 		}
 	}
@@ -103,7 +102,7 @@ func TestMattermostImportRecordStoreIdempotency(t *testing.T) {
 	service := Service{Configuration: Configuration{BlueclawWorkspacePath: workspacePath}}
 
 	records := []mattermostImportRecord{
-		{FileID: "file-1", PostID: "post-1", ChannelID: "channel-1", ImportedAt: "2026-01-01T00:00:00Z"},
+		{FileID: "file-1", PostID: "post-1", ChannelID: "channel-1"},
 	}
 	if errorValue := service.saveMattermostImportRecords(records); errorValue != nil {
 		t.Fatalf("save failed: %v", errorValue)
@@ -124,7 +123,7 @@ func TestMattermostImportStoreFileLocation(t *testing.T) {
 	service := Service{Configuration: Configuration{BlueclawWorkspacePath: workspacePath}}
 
 	records := []mattermostImportRecord{
-		{FileID: "file-x", PostID: "post-x", ChannelID: "channel-x", ImportedAt: "2026-01-01T00:00:00Z"},
+		{FileID: "file-x", PostID: "post-x", ChannelID: "channel-x"},
 	}
 	if errorValue := service.saveMattermostImportRecords(records); errorValue != nil {
 		t.Fatalf("save failed: %v", errorValue)
@@ -145,43 +144,6 @@ func TestMattermostImportStoreFileLocation(t *testing.T) {
 	}
 	if len(store.Records) != 1 || store.Records[0].FileID != "file-x" {
 		t.Fatalf("unexpected store contents: %+v", store)
-	}
-}
-
-func TestMattermostImportRecordExpiredRetentionWindow(t *testing.T) {
-	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
-
-	thirtyOneDaysAgo := now.Add(-31 * 24 * time.Hour).Format(time.RFC3339)
-	if !mattermostImportRecordExpired(thirtyOneDaysAgo, now) {
-		t.Fatal("expected record 31 days old to be expired")
-	}
-
-	twentyNineDaysAgo := now.Add(-29 * 24 * time.Hour).Format(time.RFC3339)
-	if mattermostImportRecordExpired(twentyNineDaysAgo, now) {
-		t.Fatal("expected record 29 days old to not be expired")
-	}
-
-	exactly30DaysAgo := now.Add(-30 * 24 * time.Hour).Format(time.RFC3339)
-	if mattermostImportRecordExpired(exactly30DaysAgo, now) {
-		t.Fatal("expected record exactly 30 days old to not be expired (boundary)")
-	}
-}
-
-func TestMattermostImportRecordExpiredInvalidTimestamp(t *testing.T) {
-	now := time.Now().UTC()
-	if mattermostImportRecordExpired("not-a-date", now) {
-		t.Fatal("expected invalid timestamp to not be considered expired")
-	}
-	if mattermostImportRecordExpired("", now) {
-		t.Fatal("expected empty timestamp to not be considered expired")
-	}
-}
-
-func TestMattermostImportRecordExpiredFuture(t *testing.T) {
-	now := time.Now().UTC()
-	future := now.Add(24 * time.Hour).Format(time.RFC3339)
-	if mattermostImportRecordExpired(future, now) {
-		t.Fatal("expected future timestamp to not be expired")
 	}
 }
 
