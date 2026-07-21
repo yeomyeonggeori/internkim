@@ -53,6 +53,21 @@ describe('mail page message mutation actions', () => {
 		expect(controller.messageDetailCache.get('INBOX:1')).toEqual({ ...detailedMessage, isRead: true });
 	});
 
+	test('refreshes mailbox counts after toggling read state', async () => {
+		const controller = createController({
+			messages: [inboxMessage],
+			selectedMessage: inboxMessage,
+			mailboxes: [{ name: 'INBOX', displayName: 'INBOX', unseen: 1, total: 3 }]
+		});
+		updateMessageFlagResponses.push(Promise.resolve());
+		mailboxListResponses.push(Promise.resolve([{ name: 'INBOX', displayName: 'INBOX', unseen: 0, total: 3 }]));
+
+		await toggleSelectedMailMessageRead(controller, mailText.ko);
+
+		expect(fetchMailboxesCallCount).toBe(1);
+		expect(controller.mailboxes).toEqual([{ name: 'INBOX', displayName: 'INBOX', unseen: 0, total: 3 }]);
+	});
+
 	test('removes moved messages locally and refreshes mailbox counts', async () => {
 		const controller = createController({
 			messages: [inboxMessage, archiveMessage],

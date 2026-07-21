@@ -23,7 +23,7 @@ import {
 	mailApiErrorMessages,
 	mailMessageBody,
 	mailMessageBodyHTML,
-	mailMessageCountText,
+	selectedMailboxCountText,
 	visibleMailMessages
 } from './mail-page-utils';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
@@ -74,7 +74,7 @@ class MailPageController {
 	canNextMessagePage = () => this.hasMoreMessages || hasCachedNextMessagePage(this);
 	selectedMessageBody = () => mailMessageBody(this.selectedMessage);
 	selectedMessageBodyHTML = () => mailMessageBodyHTML(this.selectedMessage);
-	messageCountText = () => mailMessageCountText(this.visibleMessages(), this.text.messageCountSuffix);
+	selectedMailboxCountText = () => selectedMailboxCountText(this.pageMailboxes(), this.selectedMailbox, this.text);
 
 	loadMail = async () => {
 		this.isLoading = !this.hasLoadedAccount && this.messages.length === 0;
