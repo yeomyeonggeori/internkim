@@ -528,16 +528,18 @@ func validateExpensiveFleetStatus(status localfleet.Status) error {
 }
 
 func runSequentialExpensiveScenarios(scenarios []expensiveScenarioReference, runScenario func(expensiveScenarioReference) error) error {
+	scenarioErrors := []error{}
 	for scenarioIndex, scenario := range scenarios {
 		fmt.Printf("\n[%d/%d] %s\n", scenarioIndex+1, len(scenarios), scenario.Name)
 		if errorValue := runScenario(scenario); errorValue != nil {
 			if isMattermostScenarioInfraError(errorValue) {
-				return fmt.Errorf("expensive scenario %s infra failure: %w", scenario.Name, errorValue)
+				scenarioErrors = append(scenarioErrors, fmt.Errorf("expensive scenario %s infra failure: %w", scenario.Name, errorValue))
+				continue
 			}
-			return fmt.Errorf("expensive scenario %s failed: %w", scenario.Name, errorValue)
+			scenarioErrors = append(scenarioErrors, fmt.Errorf("expensive scenario %s failed: %w", scenario.Name, errorValue))
 		}
 	}
-	return nil
+	return errors.Join(scenarioErrors...)
 }
 
 func loadExpensiveScenarioReferences(repositoryRootPath string, selectedScenarioNames []string) ([]expensiveScenarioReference, error) {
