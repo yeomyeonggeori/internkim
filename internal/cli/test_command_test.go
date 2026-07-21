@@ -115,6 +115,30 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	}
 }
 
+func TestParseTestArgumentsAcceptsFastFlag(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{
+		"expensive",
+		"--scenario", "task-lifecycle",
+		"--fast",
+	}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !configuration.ShouldRunFast {
+		t.Fatalf("expected --fast to set ShouldRunFast: %+v", configuration)
+	}
+}
+
+func TestParseTestArgumentsDefaultsFastFlagToFalse(t *testing.T) {
+	configuration, errorValue := parseTestArguments([]string{"expensive", "--scenario", "task-lifecycle"}, time.Now())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.ShouldRunFast {
+		t.Fatalf("expected --fast to default to false: %+v", configuration)
+	}
+}
+
 func TestParseTestArgumentsAcceptsPreparedExpensiveRun(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{
 		"expensive",
@@ -258,6 +282,137 @@ func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
 	}
 	if strings.Join(runNames, ",") != "first,second" {
 		t.Fatalf("expected fail-fast execution, got %v", runNames)
+	}
+}
+
+func TestBuildExpensiveMattermostStepHookSkipsPlaywrightInFastMode(t *testing.T) {
+	artifactDirectoryPath := t.TempDir()
+	scenario := mattermostScenario{Name: "fast-scenario", Steps: []mattermostScenarioStep{{Prompt: "업무 요청"}}}
+	session := newTestMattermostScenarioSession(scenario, &fakeMattermostProbeAPI{}, &fakeMattermostScenarioAdminAPI{})
+	verifyStepCalled := false
+	verifyStep := func(context.Context, string, string, string, string, mattermostScenario, mattermostScenarioExecution, int, bool) error {
+		verifyStepCalled = true
+		return nil
+	}
+	hook := buildExpensiveMattermostStepHook(artifactDirectoryPath, "/repo", "", "https://mattermost.test", scenario, testCommandConfiguration{ShouldRunFast: true}, session, verifyStep)
+
+	execution := mattermostScenarioExecution{Result: mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{Prompt: "업무 요청"}}}}
+	if errorValue := hook(context.Background(), execution, 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if verifyStepCalled {
+		t.Fatal("expected fast mode to skip Playwright verification")
+	}
+	if _, errorValue := os.Stat(filepath.Join(artifactDirectoryPath, "diagnostics", "result.json")); errorValue != nil {
+		t.Fatalf("expected evidence to still be written in fast mode: %v", errorValue)
+	}
+}
+
+func TestBuildExpensiveMattermostStepHookClicksApprovalInFastMode(t *testing.T) {
+	artifactDirectoryPath := t.TempDir()
+	scenario := mattermostScenario{Name: "approval-scenario", Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: mattermostScenarioApprovalApprove}}}
+	mattermost := &fakeMattermostProbeAPI{
+		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", Props: testMattermostApprovalProps()}},
+	}
+	session := newTestMattermostScenarioSession(scenario, mattermost, &fakeMattermostScenarioAdminAPI{})
+	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "approval-post"}}
+	verifyStep := func(context.Context, string, string, string, string, mattermostScenario, mattermostScenarioExecution, int, bool) error {
+		t.Fatal("fast mode must not invoke Playwright verification")
+		return nil
+	}
+	hook := buildExpensiveMattermostStepHook(artifactDirectoryPath, "/repo", "", "https://mattermost.test", scenario, testCommandConfiguration{ShouldRunFast: true}, session, verifyStep)
+
+	execution := mattermostScenarioExecution{Result: session.result}
+	if errorValue := hook(context.Background(), execution, 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(mattermost.clickedActions) != 1 || mattermost.clickedActions[0] != "approval-post:askConfirm" {
+		t.Fatalf("expected the pending approval to be clicked, got %v", mattermost.clickedActions)
+	}
+}
+
+func TestBuildExpensiveMattermostStepHookInvokesPlaywrightWhenNotFast(t *testing.T) {
+	artifactDirectoryPath := t.TempDir()
+	scenario := mattermostScenario{Name: "slow-scenario", Steps: []mattermostScenarioStep{{Prompt: "업무 요청"}}}
+	session := newTestMattermostScenarioSession(scenario, &fakeMattermostProbeAPI{}, &fakeMattermostScenarioAdminAPI{})
+	verifyStepCalled := false
+	verifyStep := func(_ context.Context, repositoryRootPath string, receivedArtifactDirectoryPath string, _ string, mattermostURL string, receivedScenario mattermostScenario, _ mattermostScenarioExecution, stepIndex int, shouldAutoConfirm bool) error {
+		verifyStepCalled = true
+		if repositoryRootPath != "/repo" || receivedArtifactDirectoryPath != artifactDirectoryPath || mattermostURL != "https://mattermost.test" || receivedScenario.Name != scenario.Name || stepIndex != 0 || !shouldAutoConfirm {
+			t.Fatalf("unexpected verifyStep arguments: repo=%q dir=%q url=%q scenario=%q step=%d autoConfirm=%t", repositoryRootPath, receivedArtifactDirectoryPath, mattermostURL, receivedScenario.Name, stepIndex, shouldAutoConfirm)
+		}
+		return nil
+	}
+	configuration := testCommandConfiguration{ShouldRunFast: false, ShouldAutoConfirm: true}
+	hook := buildExpensiveMattermostStepHook(artifactDirectoryPath, "/repo", "", "https://mattermost.test", scenario, configuration, session, verifyStep)
+
+	execution := mattermostScenarioExecution{Result: mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{Prompt: "업무 요청"}}}}
+	if errorValue := hook(context.Background(), execution, 0); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !verifyStepCalled {
+		t.Fatal("expected non-fast mode to invoke Playwright verification")
+	}
+}
+
+func TestExpensiveMattermostCleanupQueueRunsAllDeferredCleanupsOnce(t *testing.T) {
+	queue := &expensiveMattermostCleanupQueue{}
+	runOrder := []string{}
+	queue.add(func(context.Context) error {
+		runOrder = append(runOrder, "first")
+		return nil
+	})
+	queue.add(func(context.Context) error {
+		runOrder = append(runOrder, "second")
+		return errors.New("second cleanup failed")
+	})
+
+	errorValue := queue.runAll(context.Background())
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "second cleanup failed") {
+		t.Fatalf("expected the second cleanup failure to surface, got %v", errorValue)
+	}
+	if strings.Join(runOrder, ",") != "first,second" {
+		t.Fatalf("expected both deferred cleanups to run, got %v", runOrder)
+	}
+
+	runOrder = nil
+	if errorValue := queue.runAll(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(runOrder) != 0 {
+		t.Fatalf("expected the queue to be empty after flushing, got %v", runOrder)
+	}
+}
+
+func TestRunOrDeferExpensiveMattermostCleanupDefersInFastMode(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{}
+	session := newTestMattermostScenarioSession(mattermostScenario{Name: "fast"}, &fakeMattermostProbeAPI{}, admin)
+	queue := &expensiveMattermostCleanupQueue{}
+
+	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: true}, queue, session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 0 {
+		t.Fatalf("expected fast mode to defer cleanup instead of running it immediately, got %d calls", admin.cleanupCount)
+	}
+	if errorValue := queue.runAll(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 1 {
+		t.Fatalf("expected the deferred cleanup to run once the queue is flushed, got %d calls", admin.cleanupCount)
+	}
+}
+
+func TestRunOrDeferExpensiveMattermostCleanupRunsImmediatelyWhenNotFast(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{}
+	session := newTestMattermostScenarioSession(mattermostScenario{Name: "slow"}, &fakeMattermostProbeAPI{}, admin)
+	queue := &expensiveMattermostCleanupQueue{}
+
+	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: false}, queue, session); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 1 {
+		t.Fatalf("expected the cleanup to run immediately outside fast mode, got %d calls", admin.cleanupCount)
 	}
 }
 
