@@ -141,6 +141,9 @@ func newMattermostScenarioSession(scenario mattermostScenario, mattermost matter
 }
 
 func (session *mattermostScenarioSession) setup(contextValue context.Context) error {
+	if errorValue := session.waitForBlueclawReadiness(contextValue); errorValue != nil {
+		return errorValue
+	}
 	adminPassword, errorValue := session.admin.readSecret(contextValue, mattermostAdminPasswordPath)
 	if errorValue != nil {
 		return errorValue
@@ -419,6 +422,25 @@ func (session *mattermostScenarioSession) postStep(contextValue context.Context,
 		session.result.ConversationID = session.conversationID()
 	}
 	return post, nil
+}
+
+const blueclawReadinessTimeout = 6 * time.Minute
+
+func (session *mattermostScenarioSession) waitForBlueclawReadiness(contextValue context.Context) error {
+	waitStartedAt := time.Now()
+	var lastError error
+	for {
+		_, lastError = session.admin.listTasks(contextValue, "")
+		if lastError == nil {
+			return nil
+		}
+		if time.Since(waitStartedAt) > blueclawReadinessTimeout {
+			return newMattermostScenarioInfraError(fmt.Errorf("Blueclaw admin API did not become ready within %s: %w", blueclawReadinessTimeout, lastError))
+		}
+		if errorValue := session.poll(contextValue); errorValue != nil {
+			return errorValue
+		}
+	}
 }
 
 func (session *mattermostScenarioSession) snapshotTasks(contextValue context.Context) (map[string]mattermostScenarioTaskSnapshot, error) {
