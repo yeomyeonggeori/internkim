@@ -330,6 +330,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleReactionRemove)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/attachments.import", service.handleAttachmentsImport)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
@@ -507,6 +508,21 @@ func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, req
 	switch request.PathValue("platform") {
 	case "mattermost":
 		response, errorValue = service.mattermostAddReactionFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleReactionRemove(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostRemoveReactionFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -763,6 +779,30 @@ func (service Service) mattermostAddReactionFromRequest(ctx context.Context, rea
 		"emoji_name": emojiName,
 	}
 	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/reactions", body, nil)
+	return map[string]string{"status": "ok"}, errorValue
+}
+
+func (service Service) mattermostRemoveReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	var request reactionAddRequest
+	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
+		return nil, errorValue
+	}
+	messageID := strings.TrimSpace(request.MessageID)
+	emojiName := strings.TrimSpace(request.EmojiName)
+	if messageID == "" {
+		return nil, errors.New("messageID is required")
+	}
+	if emojiName == "" {
+		return nil, errors.New("emojiName is required")
+	}
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		return nil, errorValue
+	}
+	path := "/api/v4/users/" + botUser.ID + "/posts/" + messageID + "/reactions/" + emojiName
+	errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, nil, nil)
 	return map[string]string{"status": "ok"}, errorValue
 }
 
