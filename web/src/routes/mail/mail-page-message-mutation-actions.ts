@@ -46,6 +46,7 @@ export async function toggleSelectedMailMessageRead(controller: MailPageControll
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.updateMessage;
 		return;
 	}
+	controller.errorMessage = '';
 	const cachedMessage = controller.messageDetailCache.get(messageKey);
 	if (cachedMessage) controller.messageDetailCache.set(messageKey, { ...cachedMessage, isRead: seen });
 	if (mailPageMessageKey(controller.selectedMessage) === messageKey) {
@@ -56,6 +57,11 @@ export async function toggleSelectedMailMessageRead(controller: MailPageControll
 	if (!controller.visibleMessages().some((message) => mailPageMessageKey(message) === mailPageMessageKey(controller.selectedMessage))) {
 		controller.selectedMessage = controller.visibleMessages()[0] ?? null;
 		if (controller.selectedMessage) await loadMessageDetail(controller, text, controller.selectedMessage);
+	}
+	try {
+		await loadPageMailboxes(controller, text);
+	} catch (error) {
+		controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMailboxes;
 	}
 }
 
