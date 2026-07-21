@@ -32,3 +32,20 @@ func flowTaskCreatedWithinDuplicateWindow(createdAt string, now time.Time) bool 
 func logFlowTaskAddDeduplicated(taskID string, ownerID string) {
 	log.Printf("task.add deduplicated: taskID=%s ownerID=%s", taskID, ownerID)
 }
+
+func mergeFlowTaskAddInputIntoDuplicate(task flowTaskForTool, input flowTaskAddInput) (flowTaskForTool, bool) {
+	hasNewValues := false
+	applyValue := func(target *string, value string) {
+		value = strings.TrimSpace(value)
+		if value != "" && value != *target {
+			*target = value
+			hasNewValues = true
+		}
+	}
+	applyValue(&task.Goal, input.Goal)
+	applyValue(&task.Size, input.Size)
+	applyValue(&task.Status, input.Status)
+	applyValue(&task.StartDate, input.StartDate)
+	applyValue(&task.EndDate, input.EndDate)
+	return task, hasNewValues
+}
