@@ -35,7 +35,7 @@
 	<MailMessageList
 		account={page.account}
 		selectedMailbox={page.selectedMailbox}
-		messageCountText={page.messageCountText()}
+		selectedMailboxCountText={page.selectedMailboxCountText()}
 		isLoading={page.isLoading}
 		isSyncing={page.isSyncing}
 		hasLoadedAccount={page.hasLoadedAccount}

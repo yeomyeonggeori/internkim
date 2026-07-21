@@ -17,7 +17,7 @@
 	type Props = {
 		account: MailAccount;
 		selectedMailbox: string;
-		messageCountText: string;
+		selectedMailboxCountText: string;
 		isLoading: boolean;
 		isSyncing: boolean;
 		hasLoadedAccount: boolean;
@@ -43,7 +43,7 @@
 	let {
 		account,
 		selectedMailbox,
-		messageCountText,
+		selectedMailboxCountText,
 		isLoading,
 		isSyncing,
 		hasLoadedAccount,
@@ -79,7 +79,9 @@
 		</Button>
 		<div class="min-w-0 flex-1">
 			<p class="truncate text-sm font-semibold">{selectedMailbox}</p>
-			<p class="truncate text-xs text-muted-foreground">{messageCountText}</p>
+			{#if selectedMailboxCountText}
+				<p class="truncate text-xs text-muted-foreground">{selectedMailboxCountText}</p>
+			{/if}
 		</div>
 		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={loadMail} disabled={isLoading || isSyncing}>
 			<RefreshCwIcon class={isSyncing || isLoading || isLoadingMessages ? 'animate-spin' : ''} />
