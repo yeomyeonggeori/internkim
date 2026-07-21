@@ -164,6 +164,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `./internkim test expensive --maximum-model-tier low --scenario <name>
   --auto-confirm --keep --retry-once`. Rerun on the same fleet without
   reprovisioning: add `--skip-provisioning --run-id <existing runID>`.
+- Never run two expensive scenarios concurrently against one fleet: each
+  run tears down and recreates the shared SSH tunnel recorded in the run
+  directory, killing the other run's connection mid-flight. Chain
+  scenarios sequentially in a single command instead.
 - Reusing the kept fleet is the default; each fresh provision costs ~10
   minutes and several GB of host disk. Scenario or harness-only changes
   rerun with `--skip-provisioning --run-id`; Go changes push in place with
