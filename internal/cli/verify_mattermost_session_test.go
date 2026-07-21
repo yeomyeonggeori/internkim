@@ -405,11 +405,17 @@ func testMattermostApprovalProps() mattermostProbePostProps {
 func TestMattermostScenarioClickPendingApprovalClicksTheApproveAction(t *testing.T) {
 	admin := &fakeMattermostScenarioAdminAPI{}
 	mattermost := &fakeMattermostProbeAPI{
-		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", Props: testMattermostApprovalProps()}},
+		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", UserID: "bot", Props: testMattermostApprovalProps()}},
+		listChannelPosts: func() []mattermostProbePost {
+			return []mattermostProbePost{
+				{ID: "notice-post", UserID: "bot", CreatedAt: 1},
+				{ID: "approval-post", UserID: "bot", CreatedAt: 2},
+			}
+		},
 	}
 	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: mattermostScenarioApprovalApprove}}}
 	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
-	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "approval-post"}}
+	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "notice-post"}}
 
 	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil {
 		t.Fatal(errorValue)
@@ -418,7 +424,7 @@ func TestMattermostScenarioClickPendingApprovalClicksTheApproveAction(t *testing
 		t.Fatalf("expected the approve action to be clicked once, got %v", mattermost.clickedActions)
 	}
 
-	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil {
+	if errorValue := session.clickPendingApproval(context.Background(), 0); errorValue != nil && !strings.Contains(errorValue.Error(), "no pending Mattermost approval post") {
 		t.Fatal(errorValue)
 	}
 	if len(mattermost.clickedActions) != 1 {
