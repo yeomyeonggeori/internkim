@@ -155,3 +155,11 @@ func flowTaskAddMention(member flowMemberForTool) string {
 	}
 	return "@" + strings.TrimPrefix(handle, "@")
 }
+
+func requesterFlowOwnerID(requesterEmail string, members []flowMemberForTool) string {
+	resolution := resolveFlowOwnerHint(strings.TrimSpace(requesterEmail), members)
+	if resolution.Failure != nil {
+		return ""
+	}
+	return resolution.OwnerID
+}
