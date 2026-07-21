@@ -86,7 +86,7 @@ test.describe('admin org chart ordering', () => {
 				handle: 'linus',
 				name: 'Linus Park',
 				email: 'linus@example.com',
-				hireDate: '2026-03-01',
+				hireDate: '2026-01-01',
 				role: 'member',
 				jobTitle: 'Engineer',
 				supervisorID: 'user-grace',
