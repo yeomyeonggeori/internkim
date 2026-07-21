@@ -78,8 +78,14 @@ func TestMessageLifecycleUsesCanonicalSearchMutationLineageAndButtonApproval(t *
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(scenario.Steps) != 5 {
-		t.Fatalf("expected message CRUD and final absence verification, got %d steps", len(scenario.Steps))
+	if len(scenario.Steps) != 7 {
+		t.Fatalf("expected message CRUD, absence verification, and cross-target sends, got %d steps", len(scenario.Steps))
+	}
+	for _, stepIndex := range []int{5, 6} {
+		step := scenario.Steps[stepIndex]
+		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message.send") || step.ApprovalAction != mattermostScenarioApprovalApprove {
+			t.Fatalf("step %d does not send with button approval: %#v", stepIndex+1, step)
+		}
 	}
 	if len(scenario.InitialToolNames) != 1 || scenario.InitialToolNames[0] != "message.send" {
 		t.Fatalf("unexpected initial message tools: %#v", scenario.InitialToolNames)
