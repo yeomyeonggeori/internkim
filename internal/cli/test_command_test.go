@@ -267,7 +267,7 @@ func TestParseTestArgumentsRejectsRealModeWithTierCeiling(t *testing.T) {
 	}
 }
 
-func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
+func TestRunSequentialExpensiveScenariosRunsEveryScenarioAndJoinsFailures(t *testing.T) {
 	scenarios := []expensiveScenarioReference{{Name: "first"}, {Name: "second"}, {Name: "third"}}
 	runNames := []string{}
 	errorValue := runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
@@ -280,8 +280,8 @@ func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "second") {
 		t.Fatalf("expected second scenario failure, got %v", errorValue)
 	}
-	if strings.Join(runNames, ",") != "first,second" {
-		t.Fatalf("expected fail-fast execution, got %v", runNames)
+	if strings.Join(runNames, ",") != "first,second,third" {
+		t.Fatalf("expected every scenario to run despite the failure, got %v", runNames)
 	}
 }
 
@@ -312,10 +312,16 @@ func TestBuildExpensiveMattermostStepHookClicksApprovalInFastMode(t *testing.T) 
 	artifactDirectoryPath := t.TempDir()
 	scenario := mattermostScenario{Name: "approval-scenario", Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ApprovalAction: mattermostScenarioApprovalApprove}}}
 	mattermost := &fakeMattermostProbeAPI{
-		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", Props: testMattermostApprovalProps()}},
+		posts: map[string]mattermostProbePost{"approval-post": {ID: "approval-post", UserID: "bot", Props: testMattermostApprovalProps()}},
+		listChannelPosts: func() []mattermostProbePost {
+			return []mattermostProbePost{
+				{ID: "notice-post", UserID: "bot", CreatedAt: 1},
+				{ID: "approval-post", UserID: "bot", CreatedAt: 2},
+			}
+		},
 	}
 	session := newTestMattermostScenarioSession(scenario, mattermost, &fakeMattermostScenarioAdminAPI{})
-	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "approval-post"}}
+	session.result.Steps = []mattermostScenarioStepResult{{Prompt: "삭제해줘", BotPostID: "notice-post"}}
 	verifyStep := func(context.Context, string, string, string, string, mattermostScenario, mattermostScenarioExecution, int, bool) error {
 		t.Fatal("fast mode must not invoke Playwright verification")
 		return nil

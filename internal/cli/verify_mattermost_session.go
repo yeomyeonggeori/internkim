@@ -329,7 +329,10 @@ func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue
 		if detail.TaskRun.Status != "waiting_approval" && !isMattermostScenarioTaskInProgress(detail.TaskRun.Status) && replyPostID != "" {
 			return detail, newEvents, replyPostID, nil
 		}
-		if session.shouldRunFast && detail.TaskRun.Status == "waiting_approval" && replyPostID != "" {
+		if session.shouldRunFast && detail.TaskRun.Status == "waiting_approval" {
+			if approvalPostID, findError := session.findPendingApprovalPostID(contextValue); findError == nil {
+				replyPostID = approvalPostID
+			}
 			if clickError := session.clickMattermostApprovalPost(contextValue, replyPostID); clickError != nil {
 				return detail, newEvents, replyPostID, clickError
 			}
@@ -350,7 +353,38 @@ func (session *mattermostScenarioSession) clickPendingApproval(contextValue cont
 	if session.scenario.Steps[stepIndex].ApprovalAction == "" {
 		return nil
 	}
-	return session.clickMattermostApprovalPost(contextValue, session.result.Steps[stepIndex].BotPostID)
+	approvalPostID, errorValue := session.findPendingApprovalPostID(contextValue)
+	if errorValue != nil {
+		return errorValue
+	}
+	return session.clickMattermostApprovalPost(contextValue, approvalPostID)
+}
+
+func (session *mattermostScenarioSession) findPendingApprovalPostID(contextValue context.Context) (string, error) {
+	posts, errorValue := session.mattermost.ListChannelPosts(contextValue, session.adminToken, session.channelID)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	newestPostID := ""
+	newestCreatedAt := int64(0)
+	for _, post := range posts {
+		if post.UserID != session.botUserID || session.clickedPostIDs[post.ID] || post.CreatedAt <= newestCreatedAt {
+			continue
+		}
+		fullPost, postError := session.mattermost.GetPost(contextValue, session.adminToken, post.ID)
+		if postError != nil {
+			continue
+		}
+		if _, hasApprovalAction := mattermostProbeApprovalActionID(fullPost); !hasApprovalAction {
+			continue
+		}
+		newestCreatedAt = post.CreatedAt
+		newestPostID = post.ID
+	}
+	if newestPostID == "" {
+		return "", errors.New("no pending Mattermost approval post with an approve action")
+	}
+	return newestPostID, nil
 }
 
 func (session *mattermostScenarioSession) clickMattermostApprovalPost(contextValue context.Context, postID string) error {
