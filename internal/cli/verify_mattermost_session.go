@@ -202,6 +202,8 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 	session.startedAt = time.Now()
 	defer func() {
 		session.result.ScenarioWallDurationMS = time.Since(session.startedAt).Milliseconds()
+		session.result.TokenUsage = sumMattermostScenarioTokenUsage(session.result.Steps)
+		session.result.TokensPerStep = mattermostScenarioTokensPerStep(session.result.TokenUsage, len(session.result.Steps))
 	}()
 	for stepIndex := range session.scenario.Steps {
 		if errorValue := session.runStep(contextValue, stepIndex); errorValue != nil {
@@ -340,6 +342,65 @@ func setMattermostScenarioStepMetrics(result *mattermostScenarioStepResult) {
 			result.ToolCallCount++
 		}
 	}
+	result.TokenUsage = mattermostScenarioTokenUsageFromEvents(result.TaskEvents)
+}
+
+func mattermostScenarioTokenUsageFromEvents(events []mattermostScenarioTaskEvent) mattermostScenarioTokenUsage {
+	var usage mattermostScenarioTokenUsage
+	for _, event := range events {
+		if event.Name != "llm.call" {
+			continue
+		}
+		var call struct {
+			PromptTokens       int64   `json:"promptTokens"`
+			CompletionTokens   int64   `json:"completionTokens"`
+			TotalTokens        int64   `json:"totalTokens"`
+			CachedPromptTokens int64   `json:"cachedPromptTokens"`
+			ReasoningTokens    int64   `json:"reasoningTokens"`
+			CostUSD            float64 `json:"costUSD"`
+		}
+		if json.Unmarshal([]byte(event.Body), &call) != nil {
+			continue
+		}
+		usage.LLMCallCount++
+		usage.PromptTokens += call.PromptTokens
+		usage.CompletionTokens += call.CompletionTokens
+		usage.TotalTokens += call.TotalTokens
+		usage.CachedPromptTokens += call.CachedPromptTokens
+		usage.ReasoningTokens += call.ReasoningTokens
+		usage.CostUSD += call.CostUSD
+	}
+	usage.CacheHitRatio = mattermostScenarioCacheHitRatio(usage.CachedPromptTokens, usage.PromptTokens)
+	return usage
+}
+
+func mattermostScenarioCacheHitRatio(cachedPromptTokens int64, promptTokens int64) float64 {
+	if promptTokens == 0 {
+		return 0
+	}
+	return float64(cachedPromptTokens) / float64(promptTokens)
+}
+
+func sumMattermostScenarioTokenUsage(stepResults []mattermostScenarioStepResult) mattermostScenarioTokenUsage {
+	var total mattermostScenarioTokenUsage
+	for _, stepResult := range stepResults {
+		total.LLMCallCount += stepResult.TokenUsage.LLMCallCount
+		total.PromptTokens += stepResult.TokenUsage.PromptTokens
+		total.CompletionTokens += stepResult.TokenUsage.CompletionTokens
+		total.TotalTokens += stepResult.TokenUsage.TotalTokens
+		total.CachedPromptTokens += stepResult.TokenUsage.CachedPromptTokens
+		total.ReasoningTokens += stepResult.TokenUsage.ReasoningTokens
+		total.CostUSD += stepResult.TokenUsage.CostUSD
+	}
+	total.CacheHitRatio = mattermostScenarioCacheHitRatio(total.CachedPromptTokens, total.PromptTokens)
+	return total
+}
+
+func mattermostScenarioTokensPerStep(usage mattermostScenarioTokenUsage, stepCount int) float64 {
+	if stepCount == 0 {
+		return 0
+	}
+	return float64(usage.TotalTokens) / float64(stepCount)
 }
 
 func (session *mattermostScenarioSession) postStep(contextValue context.Context, prompt string) (mattermostProbePost, error) {

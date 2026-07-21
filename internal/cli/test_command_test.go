@@ -261,6 +261,26 @@ func TestRunSequentialExpensiveScenariosStopsAtFirstFailure(t *testing.T) {
 	}
 }
 
+func TestMattermostScenarioTokenUsageSummaryLineFormatsCostAndCacheHitRatio(t *testing.T) {
+	result := mattermostScenarioResult{
+		Attempt: 1,
+		TokenUsage: mattermostScenarioTokenUsage{
+			LLMCallCount:       3,
+			PromptTokens:       300,
+			CompletionTokens:   60,
+			TotalTokens:        360,
+			CachedPromptTokens: 100,
+			CostUSD:            0.03,
+			CacheHitRatio:      100.0 / 300.0,
+		},
+	}
+	line := mattermostScenarioTokenUsageSummaryLine("task-lifecycle", result)
+	expected := "scenario task-lifecycle tokens: prompt=300 cached=100 (hitRatio=0.33) completion=60 costUSD=0.0300 calls=3 attempt=1"
+	if line != expected {
+		t.Fatalf("unexpected token usage summary line: %q", line)
+	}
+}
+
 func TestParseTestArgumentsUsesProviderGenerationDefaults(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{"보고서 만들어줘"}, time.Now())
 	if errorValue != nil {
