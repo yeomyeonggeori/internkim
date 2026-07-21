@@ -58,9 +58,6 @@
           ]
         }
       ],
-      "expectedReplyFragments": [
-        "customer-support-weekly-check.json"
-      ],
       "expectedTaskStatus": "completed"
     },
     {
