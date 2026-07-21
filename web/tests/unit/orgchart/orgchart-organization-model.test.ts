@@ -71,14 +71,14 @@ describe('orgchart organization model', () => {
 		]);
 	});
 
-	test('identifies the unique organization hierarchy root instead of the earliest employee as responsible', () => {
+	test('places the unique organization hierarchy root before earlier employees and marks it responsible', () => {
 		const leader = { ...record('leader', 'product'), hireDate: '2026-02-01' };
 		const employee = { ...record('employee', 'product'), hireDate: '2026-01-01', supervisorID: 'leader' };
 
 		const sections = orgchartOrganizationSections([leader, employee], [{ id: 'product', name: '제품팀' }], '전체 조직');
 		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(productSection?.records.map((item) => item.userID)).toEqual(['employee', 'leader']);
+		expect(productSection?.records.map((item) => item.userID)).toEqual(['leader', 'employee']);
 		expect(productSection?.responsibleUserID).toBe('leader');
 	});
 
