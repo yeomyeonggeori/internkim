@@ -2,7 +2,7 @@ import type { MailErrorMessages } from './mail-api';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
 import type { mailText } from './text';
 
-export type MailPageText = (typeof mailText)['ko'];
+export type MailPageText = (typeof mailText)[keyof typeof mailText];
 
 export type MailMessagePageCacheEntry = {
 	actorEmail: string;

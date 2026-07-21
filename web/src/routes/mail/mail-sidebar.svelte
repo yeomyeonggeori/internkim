@@ -8,6 +8,7 @@
 	import SendIcon from '@lucide/svelte/icons/send';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { mailboxUnreadCount, mailboxUnreadCountText } from './mail-page-utils';
 	import type { MailAccount, Mailbox } from './mail-types';
 	import type { mailText } from './text';
 
@@ -66,6 +67,7 @@
 			{/if}
 			{#each mailboxes as mailbox (mailbox.name)}
 				{@const Icon = mailboxIcon(mailbox.name)}
+				{@const unreadCount = mailboxUnreadCount(mailbox)}
 				<button
 					type="button"
 					class="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50"
@@ -75,10 +77,16 @@
 				>
 					<Icon class="size-4 shrink-0" />
 					<span class="min-w-0 flex-1 truncate">{mailbox.displayName || mailbox.name}</span>
-					{#if mailbox.unseen}
-						<span class="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">{mailbox.unseen}</span>
-					{:else if mailbox.total}
-						<span class="text-xs text-muted-foreground">{mailbox.total}</span>
+					{#if unreadCount}
+						<span class="flex w-7 shrink-0 justify-end">
+							<span
+								class="inline-flex min-w-5 items-center justify-center rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-foreground"
+								title={mailboxUnreadCountText(mailbox, text)}
+								aria-label={mailboxUnreadCountText(mailbox, text)}
+							>
+								{unreadCount}
+							</span>
+						</span>
 					{/if}
 				</button>
 			{/each}
