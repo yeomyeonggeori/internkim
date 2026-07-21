@@ -68,11 +68,12 @@ type setupParameterValues struct {
 }
 
 type localBinaryAsset struct {
-	name         string
-	localPath    string
-	remotePath   string
-	downloadURL  string
-	archiveEntry string
+	name           string
+	localPath      string
+	remotePath     string
+	downloadURL    string
+	archiveEntry   string
+	expectedSHA256 string
 }
 
 func installSkillPythonDependenciesCommand() string {
@@ -400,11 +401,12 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			archiveEntry: "pocketbase",
 		},
 		{
-			name:         "rtk",
-			localPath:    filepath.Join(state.boardBinDir, "rtk"),
-			remotePath:   "/usr/local/bin/rtk",
-			downloadURL:  "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz",
-			archiveEntry: "rtk",
+			name:           "rtk",
+			localPath:      filepath.Join(state.boardBinDir, "rtk"),
+			remotePath:     "/usr/local/bin/rtk",
+			downloadURL:    "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-aarch64-unknown-linux-gnu.tar.gz",
+			archiveEntry:   "rtk",
+			expectedSHA256: "86bd2badb697e41fa4fae805ed1a42d9b2495600260918d6ba9c148bc40013cf",
 		},
 		{
 			name:        "agent-browser",
@@ -507,11 +509,35 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 				fmt.Println("FAILED")
 				return nil, fmt.Errorf("download %s: %w", asset.name, downloadError)
 			}
+			if asset.expectedSHA256 != "" {
+				if checksumError := verifyLocalBinaryChecksum(asset.localPath, asset.expectedSHA256); checksumError != nil {
+					os.Remove(asset.localPath)
+					fmt.Println("FAILED")
+					return nil, fmt.Errorf("verify %s: %w", asset.name, checksumError)
+				}
+			}
 			fmt.Println("ok")
 		}
 	}
 
 	return assets, nil
+}
+
+func verifyLocalBinaryChecksum(localPath, expectedSHA256 string) error {
+	file, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return err
+	}
+	actualSHA256 := hex.EncodeToString(hash.Sum(nil))
+	if actualSHA256 != expectedSHA256 {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
+	}
+	return nil
 }
 
 func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
