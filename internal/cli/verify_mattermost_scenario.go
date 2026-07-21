@@ -154,6 +154,18 @@ type mattermostScenarioStepResult struct {
 	AgentStepCount int                                 `json:"agentStepCount"`
 	ToolCallCount  int                                 `json:"toolCallCount"`
 	ProcessingMS   int64                               `json:"processingMs"`
+	TokenUsage     mattermostScenarioTokenUsage        `json:"tokenUsage"`
+}
+
+type mattermostScenarioTokenUsage struct {
+	LLMCallCount       int     `json:"llmCallCount"`
+	PromptTokens       int64   `json:"promptTokens"`
+	CompletionTokens   int64   `json:"completionTokens"`
+	TotalTokens        int64   `json:"totalTokens"`
+	CachedPromptTokens int64   `json:"cachedPromptTokens"`
+	ReasoningTokens    int64   `json:"reasoningTokens"`
+	CostUSD            float64 `json:"costUSD"`
+	CacheHitRatio      float64 `json:"cacheHitRatio"`
 }
 
 type mattermostScenarioWorkspaceResult struct {
@@ -188,6 +200,8 @@ type mattermostScenarioResult struct {
 	EfficiencyObservations []mattermostScenarioEfficiencyObservation `json:"efficiencyObservations,omitempty"`
 	AdvisoryFailures       []mattermostScenarioAdvisoryFailure       `json:"advisoryFailures,omitempty"`
 	Attempt                int                                       `json:"attempt,omitempty"`
+	TokenUsage             mattermostScenarioTokenUsage              `json:"tokenUsage"`
+	TokensPerStep          float64                                   `json:"tokensPerStep"`
 }
 
 type mattermostScenarioAdvisoryFailure struct {

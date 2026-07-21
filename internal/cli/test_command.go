@@ -431,17 +431,37 @@ func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRoo
 }
 
 func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference) error {
-	firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1)
+	firstResult, firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1)
 	if firstAttemptError == nil || !shouldRetryExpensiveMattermostScenario(configuration, firstAttemptError) {
+		printMattermostScenarioVerdict(scenarioReference.Name, firstResult, firstAttemptError)
 		return firstAttemptError
 	}
 	fmt.Printf("✗ expensive scenario %s attempt 1 failed: %v\n", scenarioReference.Name, firstAttemptError)
 	fmt.Printf("retrying expensive scenario %s once against the kept Local Fleet\n", scenarioReference.Name)
-	retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
+	retryResult, retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
 	if retryError != nil {
+		printMattermostScenarioVerdict(scenarioReference.Name, retryResult, retryError)
 		return fmt.Errorf("attempt 1: %v; attempt 2: %w", firstAttemptError, retryError)
 	}
+	printMattermostScenarioVerdict(scenarioReference.Name, retryResult, nil)
 	return nil
+}
+
+func printMattermostScenarioVerdict(scenarioName string, result mattermostScenarioResult, errorValue error) {
+	marker, outcome := "✓", "passed"
+	if errorValue != nil {
+		marker, outcome = "✗", "failed: "+errorValue.Error()
+	}
+	fmt.Printf("%s expensive scenario %s %s\n", marker, scenarioName, outcome)
+	fmt.Println(mattermostScenarioTokenUsageSummaryLine(scenarioName, result))
+}
+
+func mattermostScenarioTokenUsageSummaryLine(scenarioName string, result mattermostScenarioResult) string {
+	usage := result.TokenUsage
+	return fmt.Sprintf(
+		"scenario %s tokens: prompt=%d cached=%d (hitRatio=%.2f) completion=%d costUSD=%.4f calls=%d attempt=%d",
+		scenarioName, usage.PromptTokens, usage.CachedPromptTokens, usage.CacheHitRatio, usage.CompletionTokens, usage.CostUSD, usage.LLMCallCount, result.Attempt,
+	)
 }
 
 func shouldRetryExpensiveMattermostScenario(configuration testCommandConfiguration, errorValue error) bool {
@@ -535,12 +555,12 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int) error {
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int) (mattermostScenarioResult, error) {
 	scenarioContext, cancel := scenarioObservationContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
 	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
 	if errorValue != nil {
-		return errorValue
+		return mattermostScenarioResult{}, errorValue
 	}
 	scenario.MaximumModelTier = maximumMattermostScenarioModelTier(configuration)
 	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
@@ -548,11 +568,11 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 		artifactDirectoryPath = filepath.Join(artifactDirectoryPath, fmt.Sprintf("attempt-%d", attemptNumber))
 	}
 	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
-		return errorValue
+		return mattermostScenarioResult{}, errorValue
 	}
 	session, errorValue := startMattermostScenarioSession(scenarioContext, target, mattermostURL, scenario)
 	if errorValue != nil {
-		return newMattermostScenarioInfraError(errorValue)
+		return mattermostScenarioResult{}, newMattermostScenarioInfraError(errorValue)
 	}
 	session.shouldAutoConfirm = configuration.ShouldAutoConfirm
 	session.result.Attempt = attemptNumber
@@ -579,7 +599,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
 		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
-	return errors.Join(runError, completionEvidenceError, writeError, cleanupError)
+	return session.result, errors.Join(runError, completionEvidenceError, writeError, cleanupError)
 }
 
 func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) string {
