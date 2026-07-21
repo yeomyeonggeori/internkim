@@ -17,7 +17,6 @@ type PayloadArtifactManifest struct {
 	Platform         string `json:"platform"`
 	BlueclawRevision string `json:"blueclawRevision"`
 	BlueclawSHA256   string `json:"blueclawSHA256"`
-	RTKSHA256        string `json:"rtkSHA256"`
 	MigrationsSHA256 string `json:"migrationsSHA256"`
 }
 
@@ -95,15 +94,6 @@ func validatePayloadArtifactDirectory(artifactDirectoryPath string, manifest Pay
 	}
 	if !strings.EqualFold(blueclawSHA256, strings.TrimSpace(manifest.BlueclawSHA256)) {
 		return PayloadArtifactManifest{}, fmt.Errorf("Blueclaw payload binary checksum mismatch")
-	}
-
-	rtkBinaryPath := filepath.Join(artifactDirectoryPath, "workspace", ".blueclaw", "runtime", "current", "bin", "rtk")
-	rtkSHA256, errorValue := calculateFileSHA256(rtkBinaryPath)
-	if errorValue != nil {
-		return PayloadArtifactManifest{}, fmt.Errorf("hash RTK payload binary: %w", errorValue)
-	}
-	if !strings.EqualFold(rtkSHA256, strings.TrimSpace(manifest.RTKSHA256)) {
-		return PayloadArtifactManifest{}, fmt.Errorf("RTK payload binary checksum mismatch")
 	}
 
 	migrationsSHA256, errorValue := calculateDirectorySHA256(filepath.Join(artifactDirectoryPath, "workspace", ".blueclaw", "runtime", "current", "migrations"))
