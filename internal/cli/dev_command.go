@@ -148,6 +148,7 @@ type devFleetRunConfiguration struct {
 func runDevFleetReprovision(arguments []string) error {
 	flagSet := flag.NewFlagSet("dev fleet reprovision", flag.ContinueOnError)
 	configurationPathArgument := flagSet.String("config", "", "Local Fleet configuration path")
+	modelTierArgument := flagSet.String("model-tier", "", "Pin every test model tier to this tier; defaults to low")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -178,19 +179,24 @@ func runDevFleetReprovision(arguments []string) error {
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
 		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
-	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath())
+	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath(), *modelTierArgument)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	return command.Run()
 }
 
-func devFleetReprovisionEnvironment(environment []string, moduleCachePath string) []string {
+func devFleetReprovisionEnvironment(environment []string, moduleCachePath string, modelTier string) []string {
+	normalizedModelTier := strings.TrimSpace(modelTier)
+	if normalizedModelTier == "" {
+		normalizedModelTier = "low"
+	}
 	environment = append(environment,
 		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
 		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL_TIER=low",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=low",
+		"INTERNKIM_TEST_MODEL_TIER="+normalizedModelTier,
+		blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+normalizedModelTier,
+		blueclaw.BlueclawTestMinimumModelTierEnvironment+"="+normalizedModelTier,
 		blueclaw.BlueclawLLMDModeEnvironment+"=authoritative",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath == "" {
