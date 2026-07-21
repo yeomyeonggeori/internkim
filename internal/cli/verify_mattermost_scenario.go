@@ -141,20 +141,21 @@ type mattermostScenarioPost struct {
 }
 
 type mattermostScenarioStepResult struct {
-	Prompt         string                              `json:"prompt"`
-	TaskRunID      string                              `json:"taskRunID"`
-	TaskStatus     string                              `json:"taskStatus"`
-	BotPostID      string                              `json:"botPostID"`
-	BotMessage     string                              `json:"botMessage"`
-	TaskEvents     []mattermostScenarioTaskEvent       `json:"taskEvents"`
-	Attachments    []downloadedMattermostFile          `json:"attachments"`
-	WorkspaceFiles []mattermostScenarioWorkspaceResult `json:"workspaceFiles"`
-	PublicURL      string                              `json:"publicURL,omitempty"`
-	LLMCallCount   int                                 `json:"llmCallCount"`
-	AgentStepCount int                                 `json:"agentStepCount"`
-	ToolCallCount  int                                 `json:"toolCallCount"`
-	ProcessingMS   int64                               `json:"processingMs"`
-	TokenUsage     mattermostScenarioTokenUsage        `json:"tokenUsage"`
+	Prompt                 string                              `json:"prompt"`
+	TaskRunID              string                              `json:"taskRunID"`
+	TaskStatus             string                              `json:"taskStatus"`
+	BotPostID              string                              `json:"botPostID"`
+	BotMessage             string                              `json:"botMessage"`
+	TaskEvents             []mattermostScenarioTaskEvent       `json:"taskEvents"`
+	Attachments            []downloadedMattermostFile          `json:"attachments"`
+	WorkspaceFiles         []mattermostScenarioWorkspaceResult `json:"workspaceFiles"`
+	WorkspaceEvidenceError string                              `json:"workspaceEvidenceError,omitempty"`
+	PublicURL              string                              `json:"publicURL,omitempty"`
+	LLMCallCount           int                                 `json:"llmCallCount"`
+	AgentStepCount         int                                 `json:"agentStepCount"`
+	ToolCallCount          int                                 `json:"toolCallCount"`
+	ProcessingMS           int64                               `json:"processingMs"`
+	TokenUsage             mattermostScenarioTokenUsage        `json:"tokenUsage"`
 }
 
 type mattermostScenarioTokenUsage struct {
@@ -414,7 +415,10 @@ func validateMattermostScenarioStep(stepIndex int, scenario mattermostScenario, 
 		return fmt.Errorf("Mattermost scenario step %d reply does not expose its published site URL", stepIndex)
 	}
 	if errorValue := validateMattermostScenarioWorkspace(stepIndex, expected, actual.WorkspaceFiles); errorValue != nil {
-		return errorValue
+		if strings.TrimSpace(actual.WorkspaceEvidenceError) == "" {
+			return errorValue
+		}
+		recordMattermostScenarioAdvisoryFailure(result, stepIndex, "workspace_files", errorValue)
 	}
 	return validateMattermostScenarioEvents(stepIndex, expected, actual.TaskEvents, result)
 }
