@@ -58,6 +58,22 @@ describe('orgchart organization tree model', () => {
 		expect(tree.root.aggregateRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
 	});
 
+	test('orders a parent organization aggregate across child organizations by reporting hierarchy', () => {
+		const groups: OrgGroup[] = [
+			{ id: 'product', name: '프로덕트 본부' },
+			{ id: 'engineering', name: '개발팀', parentID: 'product' }
+		];
+		const records = [
+			record('report', 'engineering', { hireDate: '2025-01-01', supervisorID: 'manager' }),
+			record('manager', 'product', { hireDate: '2026-01-01' })
+		];
+
+		const tree = orgchartOrganizationTree(groups, records, '전체 조직');
+		const product = tree.nodes.find((node) => node.id === 'product');
+
+		expect(product?.aggregateRecords.map((item) => item.userID)).toEqual(['manager', 'report']);
+	});
+
 	test('moves an organization to a new parent while preserving its subtree', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'product', name: '프로덕트 본부' },
