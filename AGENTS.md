@@ -164,6 +164,18 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `./internkim test expensive --maximum-model-tier low --scenario <name>
   --auto-confirm --keep --retry-once`. Rerun on the same fleet without
   reprovisioning: add `--skip-provisioning --run-id <existing runID>`.
+- Reusing the kept fleet is the default; each fresh provision costs ~10
+  minutes and several GB of host disk. Scenario or harness-only changes
+  rerun with `--skip-provisioning --run-id`; Go changes push in place with
+  `./internkim dev fleet reprovision --config
+  .local/local-fleet/runs/<runID>/config.json` after committing. Create a
+  fresh VM only when the current one is suspect (guest postgres fsync
+  death, broken provisioning). Retire a fleet by powering it off (`lab
+  vm-ssh ... 'sudo poweroff'`); the next run's reaper removes stopped
+  fleets and reclaims their disk. Prune old run evidence with
+  `tools/prune-expensive-artifacts <keepCount>` (archives to a verified
+  sibling tarball before deleting; never hand-roll this with ad-hoc
+  shell).
 - Preflight before every run: `df -h /` must show 15Gi+ free (Mattermost
   install fails opaquely below that), and `container ls -a` must show no
   leftover `internkim-e2e-expensive-*` container (stop+rm leftovers first;
