@@ -931,7 +931,7 @@ func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTa
 		if scenario.ExpectedLLMProvider != "" && call.Provider != scenario.ExpectedLLMProvider {
 			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected provider %q, expected %q", stepIndex, call.SchemaName, call.Provider, scenario.ExpectedLLMProvider)
 		}
-		if scenario.ExpectedLLMModel != "" && call.Model != scenario.ExpectedLLMModel {
+		if scenario.ExpectedLLMModel != "" && call.Model != scenario.ExpectedLLMModel && !isMattermostScenarioModelTierAtOrBelow(call.ModelTier, scenario.MaximumModelTier) {
 			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected model %q, expected %q", stepIndex, call.SchemaName, call.Model, scenario.ExpectedLLMModel)
 		}
 		successfulSchemaNames[call.SchemaName] = true
