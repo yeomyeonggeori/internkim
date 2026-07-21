@@ -435,8 +435,13 @@ func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repos
 	if firstAttemptError == nil || !shouldRetryExpensiveMattermostScenario(configuration, firstAttemptError) {
 		return firstAttemptError
 	}
+	fmt.Printf("✗ expensive scenario %s attempt 1 failed: %v\n", scenarioReference.Name, firstAttemptError)
 	fmt.Printf("retrying expensive scenario %s once against the kept Local Fleet\n", scenarioReference.Name)
-	return runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
+	retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2)
+	if retryError != nil {
+		return fmt.Errorf("attempt 1: %v; attempt 2: %w", firstAttemptError, retryError)
+	}
+	return nil
 }
 
 func shouldRetryExpensiveMattermostScenario(configuration testCommandConfiguration, errorValue error) bool {
