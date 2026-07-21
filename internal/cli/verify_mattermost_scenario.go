@@ -20,7 +20,6 @@ type mattermostScenario struct {
 	Name                      string                             `json:"name"`
 	RequiresLLMD              bool                               `json:"requiresLLMD"`
 	ExpectedLLMProvider       string                             `json:"expectedLLMProvider"`
-	ExpectedLLMModel          string                             `json:"expectedLLMModel"`
 	SkillDirectoryPaths       []string                           `json:"skillDirectoryPaths"`
 	AllowedTools              []string                           `json:"allowedTools"`
 	CapabilityToolNames       []string                           `json:"capabilityToolNames"`
@@ -704,12 +703,12 @@ func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected matte
 		if !isMutation || !containsMattermostScenarioString(expected.ExpectedToolCalls, toolName) {
 			continue
 		}
-		eventID := mattermostScenarioCalendarMutationEventID(event.Body)
-		if eventID == "" {
-			return fmt.Errorf("Mattermost scenario step %d %s request has no eventID", stepIndex, toolName)
+		eventHint := mattermostScenarioCalendarMutationEventHint(event.Body)
+		if eventHint == "" {
+			return fmt.Errorf("Mattermost scenario step %d %s request has no eventHint", stepIndex, toolName)
 		}
-		if !listedMattermostScenarioCalendarEventIDs(events[:eventIndex])[eventID] {
-			return fmt.Errorf("Mattermost scenario step %d %s used eventID %q before calendar.list returned it", stepIndex, toolName, eventID)
+		if !listedMattermostScenarioCalendarEventHints(events[:eventIndex])[eventHint] {
+			return fmt.Errorf("Mattermost scenario step %d %s used eventHint %q before calendar.list returned it", stepIndex, toolName, eventHint)
 		}
 	}
 	return nil
@@ -724,47 +723,51 @@ func mattermostScenarioCalendarMutationName(eventName string) (string, bool) {
 	return "", false
 }
 
-func mattermostScenarioCalendarMutationEventID(body string) string {
+func mattermostScenarioCalendarMutationEventHint(body string) string {
 	var request struct {
 		Input struct {
-			EventID string `json:"eventID"`
+			EventHint string `json:"eventHint"`
 		} `json:"input"`
 	}
 	if json.Unmarshal([]byte(body), &request) != nil {
 		return ""
 	}
-	return strings.TrimSpace(request.Input.EventID)
+	return strings.TrimSpace(request.Input.EventHint)
 }
 
-func listedMattermostScenarioCalendarEventIDs(events []mattermostScenarioTaskEvent) map[string]bool {
-	eventIDs := map[string]bool{}
+func listedMattermostScenarioCalendarEventHints(events []mattermostScenarioTaskEvent) map[string]bool {
+	eventHints := map[string]bool{}
 	for _, event := range events {
-		for _, eventID := range mattermostScenarioCalendarListEventIDs(event) {
-			eventIDs[eventID] = true
+		for _, eventHint := range mattermostScenarioCalendarListEventHints(event) {
+			eventHints[eventHint] = true
 		}
 	}
-	return eventIDs
+	return eventHints
 }
 
-func mattermostScenarioCalendarListEventIDs(event mattermostScenarioTaskEvent) []string {
+func mattermostScenarioCalendarListEventHints(event mattermostScenarioTaskEvent) []string {
 	if event.Name != "tool.calendar.list.result" {
 		return nil
 	}
 	var result struct {
 		Events []struct {
 			EventID string `json:"eventID"`
+			Title   string `json:"title"`
 		} `json:"events"`
 	}
 	if json.Unmarshal(mattermostScenarioToolResultData(event), &result) != nil {
 		return nil
 	}
-	eventIDs := make([]string, 0, len(result.Events))
+	eventHints := make([]string, 0, len(result.Events)*2)
 	for _, eventValue := range result.Events {
 		if eventID := strings.TrimSpace(eventValue.EventID); eventID != "" {
-			eventIDs = append(eventIDs, eventID)
+			eventHints = append(eventHints, eventID)
+		}
+		if title := strings.TrimSpace(eventValue.Title); title != "" {
+			eventHints = append(eventHints, title)
 		}
 	}
-	return eventIDs
+	return eventHints
 }
 
 func validateMattermostScenarioMessageMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent, result *mattermostScenarioResult) error {
@@ -930,9 +933,6 @@ func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTa
 		}
 		if scenario.ExpectedLLMProvider != "" && call.Provider != scenario.ExpectedLLMProvider {
 			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected provider %q, expected %q", stepIndex, call.SchemaName, call.Provider, scenario.ExpectedLLMProvider)
-		}
-		if scenario.ExpectedLLMModel != "" && call.Model != scenario.ExpectedLLMModel && !isMattermostScenarioModelTierAtOrBelow(call.ModelTier, scenario.MaximumModelTier) {
-			return fmt.Errorf("Mattermost scenario step %d authoritative AI SDK call %s selected model %q, expected %q", stepIndex, call.SchemaName, call.Model, scenario.ExpectedLLMModel)
 		}
 		successfulSchemaNames[call.SchemaName] = true
 	}

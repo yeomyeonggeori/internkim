@@ -2,7 +2,6 @@
  "name": "task-lifecycle",
  "requiresLLMD": true,
  "expectedLLMProvider": "openrouter",
- "expectedLLMModel": "xiaomi/mimo-v2.5",
  "skillDirectoryPaths": [
   "../../assets/blueclaw-workspace/skills/internkim-flow"
  ],

@@ -137,9 +137,9 @@ func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T)
 	if descriptor.Version != "3" {
 		t.Fatalf("calendar.update version = %q", descriptor.Version)
 	}
-	assertSchemaHasProperties(t, schema, "eventID", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
-	assertSchemaOmitsProperties(t, schema, "query")
-	assertSchemaRequires(t, schema, "eventID")
+	assertSchemaHasProperties(t, schema, "eventHint", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	assertSchemaOmitsProperties(t, schema, "query", "eventID")
+	assertSchemaRequires(t, schema, "eventHint")
 	if schema.MinProperties != 2 {
 		t.Fatalf("calendar.update minProperties = %d", schema.MinProperties)
 	}
@@ -147,6 +147,17 @@ func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T)
 		if stringSliceContains(schema.Required, fieldName) {
 			t.Fatalf("expected omitted %s to preserve the stored value", fieldName)
 		}
+	}
+}
+
+func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
+	schema := descriptorSchema(t, CalendarDescriptors(), "calendar.delete")
+
+	assertSchemaHasProperties(t, schema, "eventHint")
+	assertSchemaOmitsProperties(t, schema, "query", "eventID")
+	assertSchemaRequires(t, schema, "eventHint")
+	if descriptorForTool(t, CalendarDescriptors(), "calendar.delete").Version != "2" {
+		t.Fatal("calendar.delete descriptor must use the canonical-result v2 contract")
 	}
 }
 

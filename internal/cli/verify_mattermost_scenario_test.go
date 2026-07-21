@@ -245,28 +245,27 @@ func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 	}
 }
 
-func TestMattermostScenarioRequiresExactSelectedLLMProviderAndModel(t *testing.T) {
+func TestMattermostScenarioAcceptsInCeilingModelSubstitution(t *testing.T) {
 	scenario := mattermostScenario{
 		Name:                "llmd",
 		RequiresLLMD:        true,
 		MaximumModelTier:    "low",
 		ExpectedLLMProvider: "openrouter",
-		ExpectedLLMModel:    "xiaomi/mimo-v2.5",
 		Steps:               []mattermostScenarioStep{{Prompt: "work"}},
 	}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
 			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"deepseek/deepseek-v4-flash","modelTier":"xlow","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
-		t.Fatalf("validate exact model provenance: %v", errorValue)
+		t.Fatalf("expected in-ceiling model substitution to pass, got %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = strings.Replace(result.Steps[0].TaskEvents[1].Body, "xiaomi/mimo-v2.5", "other/model", 1)
-	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "selected model") {
-		t.Fatalf("expected exact model failure, got %v", errorValue)
+	result.Steps[0].TaskEvents[1].Body = `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"openai/gpt-5.6-luna","modelTier":"xhigh","selectedBackend":"remote"}`
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "above maximum") {
+		t.Fatalf("expected above-ceiling tier failure, got %v", errorValue)
 	}
 }
 
@@ -354,27 +353,32 @@ func TestResolveMattermostScenarioExpectedValuesUsesStrictFutureDatesInAsiaSeoul
 	}
 }
 
-func TestMattermostScenarioCalendarMutationUsesListedEventID(t *testing.T) {
+func TestMattermostScenarioCalendarMutationUsesListedEventHint(t *testing.T) {
 	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.update"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
-		{Name: "tool.calendar.update.requested", Body: `{"input":{"eventID":"event-1"}}`},
+		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1","title":"IR 미팅"}]}}}`},
+		{Name: "tool.calendar.update.requested", Body: `{"input":{"eventHint":"event-1"}}`},
 	}
 
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue != nil {
-		t.Fatalf("validate listed calendar event ID: %v", errorValue)
+		t.Fatalf("validate listed calendar event hint: %v", errorValue)
 	}
 
-	events[1].Body = `{"input":{"eventID":"event-2"}}`
+	events[1].Body = `{"input":{"eventHint":"IR 미팅"}}`
+	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue != nil {
+		t.Fatalf("validate listed calendar event title hint: %v", errorValue)
+	}
+
+	events[1].Body = `{"input":{"eventHint":"event-2"}}`
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue == nil {
-		t.Fatal("expected unlisted calendar event ID to fail")
+		t.Fatal("expected unlisted calendar event hint to fail")
 	}
 }
 
 func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing.T) {
 	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.delete"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar.delete.requested", Body: `{"input":{"eventID":"event-1"}}`},
+		{Name: "tool.calendar.delete.requested", Body: `{"input":{"eventHint":"event-1"}}`},
 		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
 	}
 
