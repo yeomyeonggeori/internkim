@@ -226,14 +226,14 @@ func TestCalendarInputsRejectUnknownTrailingAndLegacyAliases(t *testing.T) {
 		{
 			name: "update internal participants",
 			decode: func() error {
-				_, errorValue := decodeCalendarEventUpdateInput([]byte(`{"eventID":"event-1","participants":[]}`))
+				_, errorValue := decodeCalendarEventUpdateInput([]byte(`{"eventHint":"event-1","participants":[]}`))
 				return errorValue
 			},
 		},
 		{
 			name: "delete unknown query",
 			decode: func() error {
-				_, errorValue := decodeCalendarEventDeleteInput([]byte(`{"eventID":"event-1","query":"Demo"}`))
+				_, errorValue := decodeCalendarEventDeleteInput([]byte(`{"eventHint":"event-1","query":"Demo"}`))
 				return errorValue
 			},
 		},
@@ -260,9 +260,9 @@ func TestCalendarListRequiresPositiveWholeNumberLimit(t *testing.T) {
 
 func TestCalendarUpdateRequiresPatchAndAllowedReminder(t *testing.T) {
 	for _, document := range []string{
-		`{"eventID":"event-1"}`,
-		`{"eventID":"event-1","reminderLeadHours":0}`,
-		`{"eventID":"event-1","reminderLeadHours":5}`,
+		`{"eventHint":"event-1"}`,
+		`{"eventHint":"event-1","reminderLeadHours":0}`,
+		`{"eventHint":"event-1","reminderLeadHours":5}`,
 	} {
 		if _, errorValue := decodeCalendarEventUpdateInput([]byte(document)); errorValue == nil {
 			t.Fatalf("expected update validation error for %s", document)
@@ -421,7 +421,7 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 }
 
-func TestCalendarMutationInputsRequireExactEventID(t *testing.T) {
+func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 	tests := []struct {
 		name   string
 		invoke func(Service) error
@@ -437,7 +437,7 @@ func TestCalendarMutationInputsRequireExactEventID(t *testing.T) {
 			},
 		},
 		{
-			name: "update title without ID",
+			name: "update title without hint",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
 					ToolName: "calendar.update",
@@ -464,7 +464,7 @@ func TestCalendarMutationInputsRequireExactEventID(t *testing.T) {
 				return nil, nil
 			})}}
 			if errorValue := testCase.invoke(service); errorValue == nil {
-				t.Fatal("expected exact eventID validation error")
+				t.Fatal("expected eventHint validation error")
 			}
 		})
 	}
@@ -478,6 +478,8 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 			requestCount++
 			switch requestCount {
 			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Original title", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
 				return calendarToolJSONResponse(`{
 					"id":"event-1",
 					"title":"Original title",
@@ -493,7 +495,7 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 					"reminderLeadHours":6,
 					"updatedAt":"2026-07-16T00:00:00Z"
 				}`), nil
-			case 2:
+			case 3:
 				var payload map[string]any
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -524,13 +526,13 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar.update",
-		Input:    []byte(`{"eventID":"event-1","title":"Changed title"}`),
+		Input:    []byte(`{"eventHint":"event-1","title":"Changed title"}`),
 	})
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "updated" || requestCount != 2 {
+	if response.Status != "updated" || requestCount != 3 {
 		t.Fatalf("response = %+v requests = %d", response, requestCount)
 	}
 	assertCalendarMutationEffect(t, response, "event-1", "updated")
@@ -550,7 +552,7 @@ func TestCalendarEventUpdateAppliesExplicitEmptyAndFalseFields(t *testing.T) {
 		ReminderLeadHours: 6,
 	}
 	update, errorValue := decodeCalendarEventUpdateInput([]byte(`{
-		"eventID":"event-1",
+		"eventHint":"event-1",
 		"description":"",
 		"location":"",
 		"isAllDay":false,
@@ -582,23 +584,27 @@ func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestCount++
-			if requestCount == 1 {
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
 				if request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s", request.URL.String())
 				}
 				return calendarToolEventResponse("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 			}
-			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 		})},
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar.update",
-		Input:    []byte(`{"eventID":"event-1","title":"Conflicted event","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+		Input:    []byte(`{"eventHint":"event-1","title":"Conflicted event","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
 	})
 
 	assertCalendarToolVersionConflict(t, response, errorValue)
-	if requestCount != 2 {
+	if requestCount != 3 {
 		t.Fatalf("request count = %d", requestCount)
 	}
 }
@@ -622,13 +628,16 @@ func TestCalendarEventUpdateRejectsInvalidDirectLookupContract(t *testing.T) {
 				Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 					requestCount++
+					if requestCount == 1 {
+						return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Original title", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+					}
 					return calendarToolJSONStatusResponse(test.status, test.response), nil
 				})},
 			}
 
 			response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
 				ToolName: "calendar.update",
-				Input:    []byte(`{"eventID":"event-1","title":"Changed","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+				Input:    []byte(`{"eventHint":"event-1","title":"Changed","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
 			})
 
 			if test.status == http.StatusNotFound {
@@ -638,17 +647,283 @@ func TestCalendarEventUpdateRejectsInvalidDirectLookupContract(t *testing.T) {
 			} else if errorValue == nil {
 				t.Fatalf("expected contract error, response=%+v", response)
 			}
-			if requestCount != 1 {
+			if requestCount != 2 {
 				t.Fatalf("request count = %d", requestCount)
 			}
 		})
 	}
 }
 
-func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
+func TestCalendarEventUpdateResolvesByExactEventIDAcrossAllEvents(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(
+					calendarToolEventDocument("event-other", "10분 회의", "2026-07-16T13:00:00+09:00", "2026-07-16T13:10:00+09:00"),
+					calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"),
+				), nil
+			case 2:
+				return calendarToolEventResponse("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			case 3:
+				return calendarToolEventResponse("event-1", "IR 미팅 완료", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":"event-1","title":"IR 미팅 완료"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("expected exact eventID hint to resolve, got error response %+v", response)
+	}
+	assertCalendarMutationEffect(t, response, "event-1", "updated")
+}
+
+func TestCalendarEventUpdateResolvesByExactUniqueTitle(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
+				return calendarToolEventResponse("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			case 3:
+				return calendarToolEventResponse("event-1", "IR 미팅 완료", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("expected exact unique title hint to resolve, got error response %+v", response)
+	}
+	assertCalendarMutationEffect(t, response, "event-1", "updated")
+}
+
+func TestCalendarEventUpdateAmbiguousTitleReturnsCandidatesWithoutWrite(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolEventsResponse(
+				calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"),
+				calendarToolEventDocument("event-2", "IR 미팅", "2026-07-17T14:00:00+09:00", "2026-07-17T15:00:00+09:00"),
+			), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(string(response.Result), "event-1") || !strings.Contains(string(response.Result), "event-2") {
+		t.Fatalf("expected both ambiguous candidates, got result = %s", response.Result)
+	}
+}
+
+func TestCalendarEventUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":"missing-event","title":"IR 미팅 완료"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(string(response.Result), "event-1") {
+		t.Fatalf("expected the requester's current events as candidates, got result = %s", response.Result)
+	}
+}
+
+func TestCalendarEventUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR Meeting", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":"ir meeting","title":"IR Meeting Done"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" {
+		t.Fatalf("expected case-mismatched title to stay unresolved, got response = %+v", response)
+	}
+}
+
+func TestCalendarEventUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
+				return calendarToolEventResponse("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			case 3:
+				return calendarToolEventResponse("event-1", "IR 미팅 완료", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.update",
+		Input:    []byte(`{"eventHint":" IR 미팅 ","title":"IR 미팅 완료"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("expected trimmed title hint to resolve, got error response %+v", response)
+	}
+}
+
+func TestCalendarEventDeleteResolvesByExactUniqueTitle(t *testing.T) {
+	requestCount := 0
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "고객지원 분기 결산 검토", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
+				return calendarToolEventResponse("event-1", "고객지원 분기 결산 검토", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			case 3:
+				return calendarToolJSONResponse(`{"deleted":true}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.delete",
+		Input:    []byte(`{"eventHint":"고객지원 분기 결산 검토"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "deleted" {
+		t.Fatalf("expected exact unique title hint to resolve and delete, got response = %+v", response)
+	}
+}
+
+func TestCalendarEventDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolEventsResponse(
+				calendarToolEventDocument("event-1", "IR 미팅", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"),
+				calendarToolEventDocument("event-2", "IR 미팅", "2026-07-17T14:00:00+09:00", "2026-07-17T15:00:00+09:00"),
+			), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.delete",
+		Input:    []byte(`{"eventHint":"IR 미팅"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(string(response.Result), "event-1") || !strings.Contains(string(response.Result), "event-2") {
+		t.Fatalf("expected both ambiguous candidates, got result = %s", response.Result)
+	}
+}
+
+func TestCalendarEventDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolEventsResponse(calendarToolEventDocument("event-1", "회의", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.delete",
+		Input:    []byte(`{"eventHint":"missing-event"}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(string(response.Result), "event-1") {
+		t.Fatalf("expected the requester's current events as candidates, got result = %s", response.Result)
+	}
+}
+
+func TestCalendarEventDeleteRequiresEventHint(t *testing.T) {
 	_, errorValue := decodeCalendarEventDeleteInput([]byte(`{}`))
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventID") {
-		t.Fatalf("expected eventID error, got %v", errorValue)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventHint") {
+		t.Fatalf("expected eventHint error, got %v", errorValue)
 	}
 }
 
@@ -671,11 +946,13 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 			requestCount++
 			switch requestCount {
 			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Scheduled event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
 				if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s %s", request.Method, request.URL.String())
 				}
 				return calendarToolEventResponse("event-1", "Scheduled event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
-			case 2:
+			case 3:
 				if request.Method != http.MethodDelete || request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected delete request %s %s", request.Method, request.URL.String())
 				}
@@ -695,11 +972,11 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.delete", strings.NewReader(`{"input":{"eventID":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "deleted" || response.IsError || requestCount != 2 {
+	if response.Status != "deleted" || response.IsError || requestCount != 3 {
 		t.Fatalf("expected scheduled delete to execute, got %+v", response)
 	}
 	assertCalendarMutationEffect(t, response, "event-1", "deleted")
@@ -714,23 +991,27 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestCount++
-			if requestCount == 1 {
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
 				if request.URL.String() != "http://admind.local/calendar/api/events/event-1" {
 					t.Fatalf("unexpected lookup request %s", request.URL.String())
 				}
 				return calendarToolEventResponse("event-1", "Conflicted event", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 			}
-			return calendarToolJSONStatusResponse(http.StatusConflict, `{"code":"calendar_event_version_conflict"}`), nil
 		})},
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar.delete",
-		Input:    []byte(`{"eventID":"event-1"}`),
+		Input:    []byte(`{"eventHint":"event-1"}`),
 	})
 
 	assertCalendarToolVersionConflict(t, response, errorValue)
-	if requestCount != 2 {
+	if requestCount != 3 {
 		t.Fatalf("request count = %d", requestCount)
 	}
 }

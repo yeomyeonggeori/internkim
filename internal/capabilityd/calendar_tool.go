@@ -71,7 +71,7 @@ type calendarEventListInput struct {
 }
 
 type calendarEventUpdateInput struct {
-	EventID           string                   `json:"eventID"`
+	EventHint         string                   `json:"eventHint"`
 	Title             *string                  `json:"title"`
 	Description       *string                  `json:"description"`
 	Location          *string                  `json:"location"`
@@ -86,7 +86,7 @@ type calendarEventUpdateInput struct {
 }
 
 type calendarEventDeleteInput struct {
-	EventID string `json:"eventID"`
+	EventHint string `json:"eventHint"`
 }
 
 type calendarToolPeopleInput []string
@@ -183,7 +183,14 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, updateInput.EventID)
+	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, updateInput.EventHint)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if hintFailure != nil {
+		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
+	}
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -216,7 +223,14 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, input.EventID)
+	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, input.EventHint)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if hintFailure != nil {
+		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
+	}
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -373,7 +387,7 @@ func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpda
 	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
 		return calendarEventUpdateInput{}, errorValue
 	}
-	input.EventID = strings.TrimSpace(input.EventID)
+	input.EventHint = strings.TrimSpace(input.EventHint)
 	trimStringPointer(&input.Title)
 	trimStringPointer(&input.Description)
 	trimStringPointer(&input.Location)
@@ -384,8 +398,8 @@ func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpda
 	if _, errorValue := calendarToolReminderLeadHours(input.ReminderLeadHours); errorValue != nil {
 		return calendarEventUpdateInput{}, errorValue
 	}
-	if input.EventID == "" {
-		return calendarEventUpdateInput{}, fmt.Errorf("eventID is required")
+	if input.EventHint == "" {
+		return calendarEventUpdateInput{}, fmt.Errorf("eventHint is required")
 	}
 	if !hasCalendarEventUpdatePatch(input) {
 		return calendarEventUpdateInput{}, fmt.Errorf("calendar.update requires at least one mutable field")
@@ -395,15 +409,15 @@ func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpda
 
 func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+		return calendarEventDeleteInput{}, fmt.Errorf("eventHint is required")
 	}
 	var input calendarEventDeleteInput
 	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
 		return calendarEventDeleteInput{}, errorValue
 	}
-	input.EventID = strings.TrimSpace(input.EventID)
-	if input.EventID == "" {
-		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+	input.EventHint = strings.TrimSpace(input.EventHint)
+	if input.EventHint == "" {
+		return calendarEventDeleteInput{}, fmt.Errorf("eventHint is required")
 	}
 	return input, nil
 }
