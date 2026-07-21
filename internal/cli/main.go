@@ -5323,19 +5323,7 @@ func resolveAutomaticSetupBackend(messenger *msg, configuration config, options 
 
 func attemptSetupBackend(options setupLiveOptions, backend setup.Backend) (setupBackendSelection, bool) {
 	selection := setupBackendSelection{backend: backend, target: options.target}
-	pendingError := errors.New("setup backend pending")
-	errorValue := retryOperation(retryOptions{
-		AttemptCount: 3,
-		DelayForAttempt: func(attemptIndex int) time.Duration {
-			return 2 * time.Second
-		},
-	}, func(attemptIndex int) error {
-		if setupBackendIsReady(options, &selection) {
-			return nil
-		}
-		return pendingError
-	})
-	return selection, errorValue == nil
+	return selection, setupBackendIsReady(options, &selection)
 }
 
 func setupBackendIsReady(options setupLiveOptions, selection *setupBackendSelection) bool {

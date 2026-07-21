@@ -64,13 +64,11 @@ type blueclawQuiesceRequest struct {
 }
 
 type blueclawQuiesceResponse struct {
-	Quiesced        bool `json:"quiesced"`
-	ActiveTaskCount int  `json:"activeTaskCount"`
+	ActiveTaskCount int `json:"activeTaskCount"`
 }
 
 type blueclawPrepareShutdownResponse struct {
-	Quiesced             bool `json:"quiesced"`
-	InterruptedTaskCount int  `json:"interruptedTaskCount"`
+	InterruptedTaskCount int `json:"interruptedTaskCount"`
 }
 
 type BlueclawUpdateUpload struct {
