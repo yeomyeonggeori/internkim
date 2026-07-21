@@ -16,3 +16,26 @@ func TestMergeFlowTaskAddInputIntoDuplicateAppliesNewValues(t *testing.T) {
 		t.Fatal("expected an identical re-add to report no new values")
 	}
 }
+
+func TestResolveFlowTaskHintPrefersRequesterOwnedTitleMatch(t *testing.T) {
+	tasks := []flowTaskForTool{
+		{ID: "t1", OwnerID: "other", Content: "결산 확인"},
+		{ID: "t2", OwnerID: "me", Content: "결산 확인"},
+	}
+
+	task, failure := resolveFlowTaskHint("결산 확인", "me", tasks)
+	if failure != nil || task.ID != "t2" {
+		t.Fatalf("expected the requester-owned task to resolve, got %+v failure=%+v", task, failure)
+	}
+
+	_, failure = resolveFlowTaskHint("결산 확인", "", tasks)
+	if failure == nil {
+		t.Fatal("expected ambiguity without a requester scope")
+	}
+
+	ambiguous := append(tasks, flowTaskForTool{ID: "t3", OwnerID: "me", Content: "결산 확인"})
+	_, failure = resolveFlowTaskHint("결산 확인", "me", ambiguous)
+	if failure == nil {
+		t.Fatal("expected ambiguity when the requester owns multiple matches")
+	}
+}

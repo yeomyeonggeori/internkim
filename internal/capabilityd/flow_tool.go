@@ -207,7 +207,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 			summary.Members = members
 		}
 	}
-	task, failure := resolveFlowTaskHint(input.TaskHint, summary.Tasks)
+	task, failure := resolveFlowTaskHint(input.TaskHint, requesterFlowOwnerID(request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if failure != nil {
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
 	}
@@ -277,7 +277,7 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	task, failure := resolveFlowTaskHint(input.TaskHint, summary.Tasks)
+	task, failure := resolveFlowTaskHint(input.TaskHint, requesterFlowOwnerID(request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if failure != nil {
 		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
 	}
@@ -973,7 +973,7 @@ func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
 
 const flowTaskHintCandidateLimit = 20
 
-func resolveFlowTaskHint(taskHint string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
+func resolveFlowTaskHint(taskHint string, requesterOwnerID string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
 	trimmedHint := strings.TrimSpace(taskHint)
 	if task, found := findFlowTaskByID(trimmedHint, tasks); found {
 		return task, nil
@@ -982,8 +982,28 @@ func resolveFlowTaskHint(taskHint string, tasks []flowTaskForTool) (flowTaskForT
 	if len(titleMatches) == 1 {
 		return titleMatches[0], nil
 	}
+	if ownedMatch, isUnique := uniqueOwnedFlowTask(titleMatches, requesterOwnerID); isUnique {
+		return ownedMatch, nil
+	}
 	failure := flowTaskHintUnresolvedFailure(tasks)
 	return flowTaskForTool{}, &failure
+}
+
+func uniqueOwnedFlowTask(tasks []flowTaskForTool, requesterOwnerID string) (flowTaskForTool, bool) {
+	requesterOwnerID = strings.TrimSpace(requesterOwnerID)
+	if requesterOwnerID == "" {
+		return flowTaskForTool{}, false
+	}
+	ownedMatches := make([]flowTaskForTool, 0, 1)
+	for _, task := range tasks {
+		if task.OwnerID == requesterOwnerID {
+			ownedMatches = append(ownedMatches, task)
+		}
+	}
+	if len(ownedMatches) != 1 {
+		return flowTaskForTool{}, false
+	}
+	return ownedMatches[0], true
 }
 
 func findFlowTaskByID(taskID string, tasks []flowTaskForTool) (flowTaskForTool, bool) {
