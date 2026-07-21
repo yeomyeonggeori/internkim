@@ -150,6 +150,14 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	}
 	if duplicateTask, isDuplicate := findRecentDuplicateFlowTask(summary.Tasks, ownerResolution.OwnerID, input.Title, time.Now()); isDuplicate {
 		logFlowTaskAddDeduplicated(duplicateTask.ID, ownerResolution.OwnerID)
+		if mergedTask, hasNewValues := mergeFlowTaskAddInputIntoDuplicate(duplicateTask, input); hasNewValues {
+			result, errorValue := service.putFlowTask(ctx, mergedTask, request.Context.RequesterEmail)
+			if errorValue != nil {
+				return capabilities.ToolInvokeResponse{}, errorValue
+			}
+			result = enrichFlowTaskResultDocument(result, members)
+			return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
+		}
 		result, errorValue := json.Marshal(flowTaskResultDocument(duplicateTask, members))
 		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
