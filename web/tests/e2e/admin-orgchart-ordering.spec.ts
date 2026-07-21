@@ -11,7 +11,9 @@ test.describe('admin org chart ordering', () => {
 				...usersResponse.records[1],
 				name: 'Aaron Analyst',
 				hireDate: '2026-04-01',
-				supervisorID: 'user-ada'
+				supervisorID: 'user-ada',
+				primaryGroupID: 'engineering',
+				groupIDs: ['engineering']
 			},
 			{
 				userID: 'user-zara',
