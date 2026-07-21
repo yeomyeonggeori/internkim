@@ -504,10 +504,13 @@ func TestMattermostScenarioPreservesReplyEvidenceWhenWorkspaceInspectionFails(t 
 	)
 
 	errorValue := session.runStep(context.Background(), 0)
-	if !errors.Is(errorValue, workspaceError) {
-		t.Fatalf("expected workspace failure, got %v", errorValue)
+	if errorValue != nil {
+		t.Fatalf("expected blocked workspace evidence to record instead of aborting, got %v", errorValue)
 	}
 	stepResult := session.result.Steps[0]
+	if !strings.Contains(stepResult.WorkspaceEvidenceError, "workspace unavailable") {
+		t.Fatalf("expected the workspace failure recorded on the step, got %#v", stepResult)
+	}
 	if stepResult.TaskRunID != "task" || stepResult.BotMessage != "완료했습니다." || len(stepResult.TaskEvents) != 3 {
 		t.Fatalf("unexpected partial reply evidence: %#v", stepResult)
 	}
