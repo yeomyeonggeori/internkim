@@ -388,10 +388,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.BlueclawSupervisorBinaryPath,
 		},
 		{
-			name:        "cloudflared",
-			localPath:   filepath.Join(state.boardBinDir, "cloudflared"),
-			remotePath:  "/usr/local/bin/cloudflared",
-			downloadURL: "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64",
+			name:           "cloudflared",
+			localPath:      filepath.Join(state.boardBinDir, "cloudflared"),
+			remotePath:     "/usr/local/bin/cloudflared",
+			downloadURL:    "https://github.com/cloudflare/cloudflared/releases/download/2026.7.2/cloudflared-linux-arm64",
+			expectedSHA256: "405df476437e027fc6d18729a5a77155c0a33a6082aeee60a799a688f3052e66",
 		},
 		{
 			name:         "pocketbase",
@@ -401,24 +402,18 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			archiveEntry: "pocketbase",
 		},
 		{
-			name:           "rtk",
-			localPath:      filepath.Join(state.boardBinDir, "rtk"),
-			remotePath:     "/usr/local/bin/rtk",
-			downloadURL:    "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-aarch64-unknown-linux-gnu.tar.gz",
-			archiveEntry:   "rtk",
-			expectedSHA256: "86bd2badb697e41fa4fae805ed1a42d9b2495600260918d6ba9c148bc40013cf",
+			name:           "agent-browser",
+			localPath:      filepath.Join(state.boardBinDir, "agent-browser"),
+			remotePath:     "/usr/local/bin/agent-browser",
+			downloadURL:    "https://github.com/vercel-labs/agent-browser/releases/download/v0.32.3/agent-browser-linux-arm64",
+			expectedSHA256: "87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18",
 		},
 		{
-			name:        "agent-browser",
-			localPath:   filepath.Join(state.boardBinDir, "agent-browser"),
-			remotePath:  "/usr/local/bin/agent-browser",
-			downloadURL: "https://github.com/vercel-labs/agent-browser/releases/latest/download/agent-browser-linux-arm64",
-		},
-		{
-			name:        "lightpanda",
-			localPath:   filepath.Join(state.boardBinDir, "lightpanda"),
-			remotePath:  browserruntime.DeviceBrowserExecutablePath,
-			downloadURL: "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+			name:           "lightpanda",
+			localPath:      filepath.Join(state.boardBinDir, "lightpanda"),
+			remotePath:     browserruntime.DeviceBrowserExecutablePath,
+			downloadURL:    "https://github.com/lightpanda-io/browser/releases/download/0.3.5/lightpanda-aarch64-linux",
+			expectedSHA256: "8d7b3a1d7b9024beef94e7fc7ce854030ee4d6def5f802b8e0e8824731c3d93a",
 		},
 		{
 			name:       "download",
@@ -1084,7 +1079,16 @@ id blueclaw >/dev/null 2>&1 || useradd -r -g blueclaw -m -d /home/blueclaw -s "$
 install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw /home/blueclaw/.bun
 if [ ! -x /opt/internkim/managed-bin/bun ]; then
   if [ ! -x /home/blueclaw/.bun/bin/bun ]; then
-    su -s /bin/bash blueclaw -c 'env HOME=/home/blueclaw bash -lc "curl -fsSL https://bun.sh/install | bash"'
+    bun_zip_url="https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip"
+    bun_zip_sha256="fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3"
+    bun_tmp_zip="$(mktemp)"
+    bun_tmp_dir="$(mktemp -d)"
+    curl -fsSL -o "$bun_tmp_zip" "$bun_zip_url"
+    echo "$bun_zip_sha256  $bun_tmp_zip" | sha256sum -c -
+    unzip -q "$bun_tmp_zip" -d "$bun_tmp_dir"
+    install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw/.bun/bin
+    install -o blueclaw -g blueclaw -m 755 "$bun_tmp_dir/bun-linux-aarch64/bun" /home/blueclaw/.bun/bin/bun
+    rm -rf "$bun_tmp_zip" "$bun_tmp_dir"
   fi
   install -o root -g root -m 755 /home/blueclaw/.bun/bin/bun /opt/internkim/managed-bin/bun
 fi

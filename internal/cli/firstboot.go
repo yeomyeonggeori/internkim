@@ -522,7 +522,19 @@ else
 		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimeDependencyInstallScript()+`
 apt-get install -y -qq unzip >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
-  sudo -u blueclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
+  sudo -u blueclaw bash -s -- <<'BUNEOF' >/dev/null 2>&1 || true
+set -eu
+bun_zip_url="https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip"
+bun_zip_sha256="fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3"
+bun_tmp_zip="$(mktemp)"
+bun_tmp_dir="$(mktemp -d)"
+curl -fsSL -o "$bun_tmp_zip" "$bun_zip_url"
+echo "$bun_zip_sha256  $bun_tmp_zip" | sha256sum -c -
+unzip -q "$bun_tmp_zip" -d "$bun_tmp_dir"
+mkdir -p /home/blueclaw/.bun/bin
+install -m 755 "$bun_tmp_dir/bun-linux-aarch64/bun" /home/blueclaw/.bun/bin/bun
+rm -rf "$bun_tmp_zip" "$bun_tmp_dir"
+BUNEOF
 fi
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/bun
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/node
