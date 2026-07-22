@@ -258,14 +258,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		"tasks":        tasks,
 		"count":        len(tasks),
 	})
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
-		Result:          result,
-	}, nil
+	return capabilitySuccessResponse(request.ToolName, "ok", result)
 }
 
 func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

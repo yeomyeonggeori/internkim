@@ -81,18 +81,15 @@ func (service Service) invokeArtifactReviewTool(ctx context.Context, request cap
 	if errorValue != nil {
 		return artifactReviewErrorResponse(request.ToolName, errorValue.Error(), "openrouter_review_failed", "llm_review", true), nil
 	}
-	if !json.Valid([]byte(response.Content)) {
-		return artifactReviewErrorResponse(request.ToolName, "artifact review response was not valid JSON", "invalid_review_json", "llm_review", true), nil
-	}
-	return capabilities.ToolInvokeResponse{
+	validatedResponse, errorValue := capabilitySuccessResponseFrom(request.ToolName, "ok", json.RawMessage(response.Content), capabilityResponseOrigin{
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
 		Content:         response.Content,
-		Result:          json.RawMessage(response.Content),
-	}, nil
+	})
+	if errorValue != nil {
+		return artifactReviewErrorResponse(request.ToolName, errorValue.Error(), "invalid_review_json", "llm_review", true), nil
+	}
+	return validatedResponse, nil
 }
 
 func decodeArtifactReviewInput(document json.RawMessage) (artifactReviewInput, error) {
