@@ -97,6 +97,24 @@ type mattermostScenarioSession struct {
 	clickedPostIDs    map[string]bool
 	cleanupMutex      sync.Mutex
 	isCleanupFinished bool
+	requesterPersonID string
+}
+
+func (session *mattermostScenarioSession) stepWithResolvedWorkspaceGlobs(step mattermostScenarioStep) mattermostScenarioStep {
+	personID := strings.TrimSpace(session.requesterPersonID)
+	if personID == "" {
+		return step
+	}
+	resolvedStep := step
+	resolvedStep.ExpectedWorkspaceFiles = append([]mattermostScenarioWorkspaceFile{}, step.ExpectedWorkspaceFiles...)
+	for index := range resolvedStep.ExpectedWorkspaceFiles {
+		resolvedStep.ExpectedWorkspaceFiles[index].PathGlob = strings.ReplaceAll(resolvedStep.ExpectedWorkspaceFiles[index].PathGlob, "{requesterPersonID}", personID)
+	}
+	resolvedStep.ForbiddenWorkspaceFiles = append([]string{}, step.ForbiddenWorkspaceFiles...)
+	for index := range resolvedStep.ForbiddenWorkspaceFiles {
+		resolvedStep.ForbiddenWorkspaceFiles[index] = strings.ReplaceAll(resolvedStep.ForbiddenWorkspaceFiles[index], "{requesterPersonID}", personID)
+	}
+	return resolvedStep
 }
 
 type mattermostScenarioTaskSnapshot struct {
@@ -228,7 +246,7 @@ func (session *mattermostScenarioSession) run(contextValue context.Context, hook
 			if errorValue := session.finishApprovalStep(contextValue, stepIndex); errorValue != nil {
 				return wrapMattermostScenarioStepError(errorValue)
 			}
-			if errorValue := validateMattermostScenarioStep(stepIndex, session.scenario, step, session.result.Steps[stepIndex], &session.result); errorValue != nil {
+			if errorValue := validateMattermostScenarioStep(stepIndex, session.scenario, session.stepWithResolvedWorkspaceGlobs(step), session.result.Steps[stepIndex], &session.result); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -257,6 +275,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	detail, events, replyPostID, errorValue := session.waitForStepTask(contextValue, stepIndex, snapshot, sourceReference)
 	stepResult.TaskRunID = detail.TaskRun.TaskRunID
 	stepResult.TaskStatus = detail.TaskRun.Status
+	session.requesterPersonID = firstNonEmptyString(session.requesterPersonID, detail.TaskRun.RequesterPersonID)
 	stepResult.TaskEvents = events
 	setMattermostScenarioStepMetrics(stepResult)
 	stepResult.PublicURL = findMattermostScenarioEventPublicURL(events)
@@ -275,7 +294,8 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if errorValue != nil {
 		return errorValue
 	}
-	workspaceFiles, errorValue := session.admin.workspaceFiles(contextValue, step)
+	resolvedStep := session.stepWithResolvedWorkspaceGlobs(step)
+	workspaceFiles, errorValue := session.admin.workspaceFiles(contextValue, resolvedStep)
 	if errorValue != nil {
 		stepResult.WorkspaceEvidenceError = errorValue.Error()
 		recordMattermostScenarioAdvisoryFailure(&session.result, stepIndex, "workspace_evidence", errorValue)
@@ -284,7 +304,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 	if step.ApprovalAction != "" {
 		return nil
 	}
-	return validateMattermostScenarioStep(stepIndex, session.scenario, step, *stepResult, &session.result)
+	return validateMattermostScenarioStep(stepIndex, session.scenario, resolvedStep, *stepResult, &session.result)
 }
 
 func (session *mattermostScenarioSession) finishApprovalStep(contextValue context.Context, stepIndex int) error {
@@ -308,7 +328,7 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	if errorValue != nil {
 		return errorValue
 	}
-	stepResult.WorkspaceFiles, errorValue = session.admin.workspaceFiles(contextValue, session.scenario.Steps[stepIndex])
+	stepResult.WorkspaceFiles, errorValue = session.admin.workspaceFiles(contextValue, session.stepWithResolvedWorkspaceGlobs(session.scenario.Steps[stepIndex]))
 	if errorValue != nil {
 		stepResult.WorkspaceEvidenceError = errorValue.Error()
 		recordMattermostScenarioAdvisoryFailure(&session.result, stepIndex, "workspace_evidence", errorValue)

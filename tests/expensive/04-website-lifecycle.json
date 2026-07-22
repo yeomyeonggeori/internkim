@@ -94,7 +94,7 @@
    ],
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "상담 신청"
@@ -162,7 +162,7 @@
    ],
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "첫 상담은 30분 무료입니다",
@@ -265,7 +265,7 @@
    },
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "circles/staff/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "상담 신청은 평일 오전에 접수합니다",
@@ -377,7 +377,7 @@
     }
    ],
    "forbiddenWorkspaceFiles": [
-    "circles/staff/sites/*"
+    "private/people/{requesterPersonID}/sites/*"
    ],
    "expectedTaskStatus": "completed"
   }
