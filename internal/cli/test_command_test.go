@@ -395,7 +395,7 @@ func TestRunOrDeferExpensiveMattermostCleanupDefersInFastMode(t *testing.T) {
 	session := newTestMattermostScenarioSession(mattermostScenario{Name: "fast"}, &fakeMattermostProbeAPI{}, admin)
 	queue := &expensiveMattermostCleanupQueue{}
 
-	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: true}, queue, session); errorValue != nil {
+	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: true}, queue, session, false); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if admin.cleanupCount != 0 {
@@ -414,11 +414,30 @@ func TestRunOrDeferExpensiveMattermostCleanupRunsImmediatelyWhenNotFast(t *testi
 	session := newTestMattermostScenarioSession(mattermostScenario{Name: "slow"}, &fakeMattermostProbeAPI{}, admin)
 	queue := &expensiveMattermostCleanupQueue{}
 
-	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: false}, queue, session); errorValue != nil {
+	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: false}, queue, session, false); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if admin.cleanupCount != 1 {
 		t.Fatalf("expected the cleanup to run immediately outside fast mode, got %d calls", admin.cleanupCount)
+	}
+}
+
+func TestRunOrDeferExpensiveMattermostCleanupRunsImmediatelyForFailedFastAttempt(t *testing.T) {
+	admin := &fakeMattermostScenarioAdminAPI{}
+	session := newTestMattermostScenarioSession(mattermostScenario{Name: "fast-failed"}, &fakeMattermostProbeAPI{}, admin)
+	queue := &expensiveMattermostCleanupQueue{}
+
+	if errorValue := runOrDeferExpensiveMattermostCleanup(testCommandConfiguration{ShouldRunFast: true}, queue, session, true); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 1 {
+		t.Fatalf("expected a failed fast attempt to clean up immediately before any retry, got %d calls", admin.cleanupCount)
+	}
+	if errorValue := queue.runAll(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if admin.cleanupCount != 1 {
+		t.Fatalf("expected no deferred duplicate cleanup, got %d calls", admin.cleanupCount)
 	}
 }
 

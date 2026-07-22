@@ -2304,3 +2304,37 @@ func TestValidateSiteStagingPathsRejectsClaimedAlias(t *testing.T) {
 		t.Fatalf("expected claimed staging path rejection, got %v", errorValue)
 	}
 }
+
+func TestFrontendBuildFreshnessIgnoresDesignDocumentEdits(t *testing.T) {
+	workspacePath := t.TempDir()
+	applicationPath := filepath.Join(workspacePath, "app")
+	distPath := filepath.Join(applicationPath, "dist")
+	if errorValue := os.MkdirAll(filepath.Join(applicationPath, "src"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.MkdirAll(distPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	buildTime := time.Now().Add(-time.Hour)
+	sourcePath := filepath.Join(applicationPath, "src", "main.ts")
+	if errorValue := os.WriteFile(sourcePath, []byte("export {}"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.Chtimes(sourcePath, buildTime.Add(-time.Minute), buildTime.Add(-time.Minute)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	builtPath := filepath.Join(distPath, "index.html")
+	if errorValue := os.WriteFile(builtPath, []byte("<html></html>"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.Chtimes(builtPath, buildTime, buildTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(applicationPath, siteDesignDocumentPath), []byte("---\nstyle: editorial\n---\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := ensureSiteFrontendBuildIsFresh(workspacePath, distPath); errorValue != nil {
+		t.Fatalf("expected a DESIGN.md edit after the build to stay fresh, got %v", errorValue)
+	}
+}

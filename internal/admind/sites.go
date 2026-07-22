@@ -1785,7 +1785,7 @@ func latestFrontendSourceModTimeWithPath(applicationPath string) (time.Time, str
 		if information.IsDir() && frontendSourcePathIsIgnored(relativePath) {
 			return filepath.SkipDir
 		}
-		if information.Mode().IsRegular() && information.ModTime().After(latestModTime) {
+		if information.Mode().IsRegular() && !frontendSourcePathIsIgnored(relativePath) && information.ModTime().After(latestModTime) {
 			latestModTime = information.ModTime()
 			latestPath = filepath.Join("app", relativePath)
 		}
