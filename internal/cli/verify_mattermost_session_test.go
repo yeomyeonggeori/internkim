@@ -52,7 +52,14 @@ func (fake *fakeMattermostProbeAPI) PostMessage(_ context.Context, _ string, mes
 }
 
 func (fake *fakeMattermostProbeAPI) ListChannelPosts(context.Context, string, string) ([]mattermostProbePost, error) {
-	return fake.listChannelPosts(), nil
+	if fake.listChannelPosts != nil {
+		return fake.listChannelPosts(), nil
+	}
+	posts := []mattermostProbePost{}
+	for _, post := range fake.posts {
+		posts = append(posts, post)
+	}
+	return posts, nil
 }
 
 func (fake *fakeMattermostProbeAPI) GetPost(_ context.Context, _ string, postID string) (mattermostProbePost, error) {

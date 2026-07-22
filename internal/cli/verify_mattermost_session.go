@@ -330,11 +330,15 @@ func (session *mattermostScenarioSession) waitForApprovalCompletion(contextValue
 			return detail, newEvents, replyPostID, nil
 		}
 		if session.shouldRunFast && detail.TaskRun.Status == "waiting_approval" {
+			clickTargetPostID := replyPostID
 			if approvalPostID, findError := session.findPendingApprovalPostID(contextValue); findError == nil {
+				clickTargetPostID = approvalPostID
 				replyPostID = approvalPostID
 			}
-			if clickError := session.clickMattermostApprovalPost(contextValue, replyPostID); clickError != nil {
-				return detail, newEvents, replyPostID, clickError
+			if strings.TrimSpace(clickTargetPostID) != "" {
+				if clickError := session.clickMattermostApprovalPost(contextValue, clickTargetPostID); clickError != nil {
+					return detail, newEvents, replyPostID, clickError
+				}
 			}
 		}
 		if errorValue := session.stepWaitTimeoutError(stepIndex, "approval completion", waitStartedAt); errorValue != nil {
@@ -353,11 +357,29 @@ func (session *mattermostScenarioSession) clickPendingApproval(contextValue cont
 	if session.scenario.Steps[stepIndex].ApprovalAction == "" {
 		return nil
 	}
-	approvalPostID, errorValue := session.findPendingApprovalPostID(contextValue)
+	approvalPostID, errorValue := session.waitForPendingApprovalPostID(contextValue)
 	if errorValue != nil {
 		return errorValue
 	}
 	return session.clickMattermostApprovalPost(contextValue, approvalPostID)
+}
+
+func (session *mattermostScenarioSession) waitForPendingApprovalPostID(contextValue context.Context) (string, error) {
+	deadline := time.Now().Add(90 * time.Second)
+	for {
+		approvalPostID, errorValue := session.findPendingApprovalPostID(contextValue)
+		if errorValue == nil {
+			return approvalPostID, nil
+		}
+		if time.Now().After(deadline) {
+			return "", errorValue
+		}
+		select {
+		case <-contextValue.Done():
+			return "", contextValue.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 func (session *mattermostScenarioSession) findPendingApprovalPostID(contextValue context.Context) (string, error) {
