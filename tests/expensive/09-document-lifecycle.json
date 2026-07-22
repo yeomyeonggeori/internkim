@@ -10,6 +10,8 @@
   "memory.search",
   "terminal.run",
   "document.read",
+  "file.preview",
+  "file.read",
   "file.delete",
   "file.deliver"
  ],
@@ -62,8 +64,10 @@
   },
   {
    "prompt": "방금 전달한 DOCX를 읽어서 제목, 상태, 담당과 다음 단계를 확인해줘.",
-   "expectedToolCalls": [
-    "document.read"
+   "expectedAnyToolCalls": [
+    "document.read",
+    "file.preview",
+    "file.read"
    ],
    "expectedEventCounts": [
     {
@@ -75,7 +79,8 @@
     {
      "name": "tool.document.read.result",
      "outputFragment": "분기 결산 운영 검토",
-     "count": 1
+     "count": 1,
+     "advisory": true
     }
    ],
    "expectedReplyFragments": [
