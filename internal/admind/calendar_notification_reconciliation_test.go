@@ -11,8 +11,8 @@ import (
 func TestFinishCalendarEventPersistenceUsesCurrentEventForNotifications(t *testing.T) {
 	service := newCalendarTestService(t)
 	olderEvent := calendarTestEvent("notification-current-version", "Older", "")
-	olderEvent.StartISO = time.Now().UTC().Add(4 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
-	olderEvent.EndISO = time.Now().UTC().Add(5 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	olderEvent.StartISO = nextDayCalendarHour(10).Format(time.RFC3339)
+	olderEvent.EndISO = nextDayCalendarHour(11).Format(time.RFC3339)
 	olderEvent.ReminderLeadHours = 1
 	if errorValue := service.writeCalendarEvent(context.Background(), olderEvent); errorValue != nil {
 		t.Fatal(errorValue)
@@ -20,8 +20,8 @@ func TestFinishCalendarEventPersistenceUsesCurrentEventForNotifications(t *testi
 
 	newerEvent := olderEvent
 	newerEvent.Title = "Newer"
-	newerEvent.StartISO = time.Now().UTC().Add(8 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
-	newerEvent.EndISO = time.Now().UTC().Add(9 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	newerEvent.StartISO = nextDayCalendarHour(14).Format(time.RFC3339)
+	newerEvent.EndISO = nextDayCalendarHour(15).Format(time.RFC3339)
 	if errorValue := service.writeCalendarEvent(context.Background(), newerEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -29,21 +29,32 @@ func TestFinishCalendarEventPersistenceUsesCurrentEventForNotifications(t *testi
 	service.finishCalendarEventPersistence(context.Background(), olderEvent)
 	waitForCalendarNotificationReconciliation(t, service, olderEvent.ID)
 
-	expectedStartTime, errorValue := time.Parse(time.RFC3339, newerEvent.StartISO)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedNotifyAt := expectedStartTime.Add(-time.Hour).Format(time.RFC3339)
+	expectedNotifyAt := expectedCalendarNotifyAt(t, newerEvent)
 	if notifyAt := readCalendarNotificationTime(t, service, newerEvent.ID); notifyAt != expectedNotifyAt {
 		t.Fatalf("notify_at = %q, expected %q", notifyAt, expectedNotifyAt)
 	}
 }
 
+func expectedCalendarNotifyAt(t *testing.T, event calendarEvent) string {
+	t.Helper()
+	startTime, errorValue := time.Parse(time.RFC3339, event.StartISO)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	leadDuration := time.Duration(normalizeCalendarReminderLeadHours(event.ReminderLeadHours)) * time.Hour
+	return calendarNotificationDeliveryTime(startTime.Add(-leadDuration), event.TimeZone).Format(time.RFC3339)
+}
+
+func nextDayCalendarHour(hour int) time.Time {
+	nextDay := time.Now().UTC().AddDate(0, 0, 1)
+	return time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), hour, 0, 0, 0, time.UTC)
+}
+
 func TestCalendarNotificationReschedulesSentEventAfterFutureMove(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := calendarTestEvent("notification-rescheduled-sent", "Original", "")
-	event.StartISO = time.Now().UTC().Add(4 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
-	event.EndISO = time.Now().UTC().Add(5 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	event.StartISO = nextDayCalendarHour(10).Format(time.RFC3339)
+	event.EndISO = nextDayCalendarHour(11).Format(time.RFC3339)
 	event.ReminderLeadHours = 1
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
@@ -60,8 +71,8 @@ func TestCalendarNotificationReschedulesSentEventAfterFutureMove(t *testing.T) {
 		t.Fatalf("status after title update = %q, expected sent", status)
 	}
 
-	event.StartISO = time.Now().UTC().Add(8 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
-	event.EndISO = time.Now().UTC().Add(9 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	event.StartISO = nextDayCalendarHour(14).Format(time.RFC3339)
+	event.EndISO = nextDayCalendarHour(15).Format(time.RFC3339)
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -69,11 +80,7 @@ func TestCalendarNotificationReschedulesSentEventAfterFutureMove(t *testing.T) {
 	if status := readCalendarNotificationStatus(t, service, event.ID); status != "pending" {
 		t.Fatalf("status after future move = %q, expected pending", status)
 	}
-	expectedStartTime, errorValue := time.Parse(time.RFC3339, event.StartISO)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedNotifyAt := expectedStartTime.Add(-time.Hour).Format(time.RFC3339)
+	expectedNotifyAt := expectedCalendarNotifyAt(t, event)
 	if notifyAt := readCalendarNotificationTime(t, service, event.ID); notifyAt != expectedNotifyAt {
 		t.Fatalf("notify_at = %q, expected %q", notifyAt, expectedNotifyAt)
 	}
