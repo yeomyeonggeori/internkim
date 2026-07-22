@@ -185,7 +185,7 @@ func TestSiteAppStatusResolvesExactReference(t *testing.T) {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
 				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"person-1"},"status":"draft"}]}`), nil
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1":
-				return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","title":"Demo","status":"draft","sourceWorkspacePath":"home/sites/site-1","appWorkspacePath":"home/sites/site-1/app","ownerIdentity":{"personID":"person-1"}}`), nil
+				return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","title":"Demo","status":"draft","sourceWorkspacePath":"~/sites/site-1","appWorkspacePath":"~/sites/site-1/app","ownerIdentity":{"personID":"person-1"}}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -205,7 +205,7 @@ func TestSiteAppStatusResolvesExactReference(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(string(response.Result), `"appWorkspacePath":"home/sites/site-1/app"`) {
+	if !strings.Contains(string(response.Result), `"appWorkspacePath":"~/sites/site-1/app"`) {
 		t.Fatalf("expected status result to include appWorkspacePath, got %s", response.Result)
 	}
 	if strings.Join(requests, ",") != "GET /admin/api/sites,GET /admin/api/sites/site-1" {
@@ -361,7 +361,7 @@ func TestSiteAppStatusBySlugDoesNotExposeNonEditorSite(t *testing.T) {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
 				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}]}`), nil
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1":
-				return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","title":"Demo","description":"Public description","sourceWorkspacePath":"home/sites/site-1","appWorkspacePath":"home/sites/site-1/app","hostSourcePath":"/root/sites/site-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}`), nil
+				return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","title":"Demo","description":"Public description","sourceWorkspacePath":"~/sites/site-1","appWorkspacePath":"~/sites/site-1/app","hostSourcePath":"/root/sites/site-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
