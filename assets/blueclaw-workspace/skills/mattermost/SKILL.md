@@ -1,6 +1,6 @@
 ---
 name: mattermost
-description: Read, search, post, update, and delete Mattermost messages, manage channels, and inspect approved workspace conversations. Use for Mattermost, chat, 채팅, 메시지, channel, or team requests.
+description: Read, search, post, update, and delete Mattermost messages, manage channels, and inspect approved workspace conversations. Use for Mattermost, chat, 채팅, 메시지, channel, or team requests, and for leaving, editing, or removing a visible note in the current conversation (대화/스레드에 메모·노트 남기기, posted with message.send).
 tool-references: message.context message.search message.send message.update message.delete channel.update
 ---
 
