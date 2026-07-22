@@ -373,10 +373,22 @@ func decodeCalendarEventListInput(document json.RawMessage) (calendarEventListIn
 	if input.Limit != nil && (*input.Limit <= 0 || math.Trunc(*input.Limit) != *input.Limit) {
 		return calendarEventListInput{}, fmt.Errorf("limit must be a positive whole number")
 	}
-	if (input.StartISO == "") != (input.EndISO == "") {
-		return calendarEventListInput{}, fmt.Errorf("startISO and endISO must be provided together")
-	}
+	input.StartISO, input.EndISO = completeCalendarListRange(input.StartISO, input.EndISO)
 	return input, nil
+}
+
+func completeCalendarListRange(startISO string, endISO string) (string, string) {
+	if startISO != "" && endISO == "" {
+		if startTime, errorValue := time.Parse(time.RFC3339, startISO); errorValue == nil {
+			return startISO, startTime.Add(24 * time.Hour).Format(time.RFC3339)
+		}
+	}
+	if startISO == "" && endISO != "" {
+		if endTime, errorValue := time.Parse(time.RFC3339, endISO); errorValue == nil {
+			return endTime.Add(-24 * time.Hour).Format(time.RFC3339), endISO
+		}
+	}
+	return startISO, endISO
 }
 
 func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpdateInput, error) {
