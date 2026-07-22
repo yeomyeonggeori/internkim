@@ -68,6 +68,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   fix that cause at the layer it lives in, then rerun once as verification of
   the fix. If you cannot explain a failure, the next task is diagnosis, not
   another attempt.
+- Do not silently rewrite our own artifacts at a boundary to make a
+  downstream rejection disappear (e.g. pruning schema fields until a
+  provider accepts the request). That is masking, not fixing. When an
+  external system rejects something we generated: identify the exact
+  artifact and the source that authored it, fix the source, and add a
+  generation-time guard test that fails when the same inconsistency
+  reappears. A boundary adapter is acceptable only for a documented
+  provider constraint the source legitimately cannot express, and it must
+  stay loud — a diagnostic event naming the affected artifact — never a
+  silent rewrite.
 - Treat every acceptance failure as a probe into how this production agent
   falls short of a strong general agent (Claude Code, Codex): ask what a
   strong agent loop would have done differently (see its own state, keep
@@ -397,7 +407,12 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   is provider-safe on the native tool path (verified live per model by
   `internal/llmbackend/openrouter_required_strip_live_test.go`); treat
   required-stripping as a size/complexity choice, not a compatibility
-  requirement.
+  requirement. Provider-portable means the least common denominator across
+  native tool-call backends: string-only enums (Gemini drops properties
+  with numeric enums and then 400s on the orphaned `required`), no `const`,
+  no `$ref`, no exotic `format` values in input schemas. Enumerated
+  numeric values go in the description; the runtime validates the actual
+  value deterministically.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.
