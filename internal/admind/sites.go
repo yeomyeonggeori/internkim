@@ -3200,7 +3200,7 @@ func siteOwnerProjectWorkspacePath(site *SiteRecord) string {
 	if siteID == "" {
 		return ""
 	}
-	return "home/sites/" + siteID
+	return "~/sites/" + siteID
 }
 
 func siteOwnerSourceWorkspacePath(site *SiteRecord) string {

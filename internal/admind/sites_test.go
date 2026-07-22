@@ -1653,7 +1653,7 @@ func TestWriteSiteRepairsBrokenSlugAliasDirectory(t *testing.T) {
 	if string(content) != "read repaired" {
 		t.Fatalf("migrated source = %q", string(content))
 	}
-	expectedSourcePath := "home/sites/" + site.SiteID + "/draft"
+	expectedSourcePath := "~/sites/" + site.SiteID + "/draft"
 	if !strings.Contains(response.Body.String(), expectedSourcePath) {
 		t.Fatalf("response should expose the personal source workspace path %q: %s", expectedSourcePath, response.Body.String())
 	}
