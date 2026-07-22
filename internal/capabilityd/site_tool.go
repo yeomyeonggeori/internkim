@@ -186,6 +186,7 @@ func projectSiteCreateResult(record siteAppRecord) (json.RawMessage, error) {
 		"status":              record.Status,
 		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
 		"appWorkspacePath":    strings.TrimSpace(record.AppWorkspacePath),
+		"sourceFiles":         record.SourceFiles,
 	})
 }
 
