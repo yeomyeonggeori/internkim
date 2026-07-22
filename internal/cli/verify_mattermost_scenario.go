@@ -120,8 +120,9 @@ type mattermostScenarioTaskDetail struct {
 }
 
 type mattermostScenarioTaskRun struct {
-	TaskRunID string `json:"taskRunID"`
-	Status    string `json:"status"`
+	TaskRunID         string `json:"taskRunID"`
+	Status            string `json:"status"`
+	RequesterPersonID string `json:"requesterPersonID"`
 }
 
 type mattermostScenarioTaskEvent struct {
