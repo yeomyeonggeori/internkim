@@ -3203,7 +3203,7 @@ func (service *Service) siteScaffoldFiles(site *SiteRecord, content *siteContent
 	}
 	files = append(files, appSourceFiles...)
 	files = append(files, siteScaffoldDistFilesWithRenderedContent(site, contentDocument)...)
-	return files
+	return dedupeSiteTemplateFilesByPath(files)
 }
 
 // siteScaffoldDistFilesWithRenderedContent mirrors the embedded canonical dist
@@ -3478,4 +3478,17 @@ func siteCommitMessage(message string) string {
 		return "Publish prototype site"
 	}
 	return cleanMessage
+}
+
+func dedupeSiteTemplateFilesByPath(files []siteTemplateFile) []siteTemplateFile {
+	seenPath := map[string]bool{}
+	dedupedFiles := make([]siteTemplateFile, 0, len(files))
+	for _, file := range files {
+		if seenPath[file.Path] {
+			continue
+		}
+		seenPath[file.Path] = true
+		dedupedFiles = append(dedupedFiles, file)
+	}
+	return dedupedFiles
 }
