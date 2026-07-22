@@ -23,7 +23,7 @@ func (service *Service) flowMembers(request *http.Request) []flowMember {
 func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUserMutation {
 	var policyDocument map[string]any
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return nil
+		return service.cachedPolicyUserRecords()
 	}
 	people, _ := policyDocument["people"].([]any)
 	records := []adminUserMutation{}
@@ -43,7 +43,20 @@ func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUs
 			records = append(records, adminUserMutation{Email: email, Name: name, JobTitle: jobTitle, Status: "active"})
 		}
 	}
+	service.storePolicyUserRecords(records)
 	return records
+}
+
+func (service *Service) cachedPolicyUserRecords() []adminUserMutation {
+	service.policyRecordCacheMutex.Lock()
+	defer service.policyRecordCacheMutex.Unlock()
+	return append([]adminUserMutation{}, service.policyRecordCache...)
+}
+
+func (service *Service) storePolicyUserRecords(records []adminUserMutation) {
+	service.policyRecordCacheMutex.Lock()
+	defer service.policyRecordCacheMutex.Unlock()
+	service.policyRecordCache = append([]adminUserMutation{}, records...)
 }
 
 func mergeUserRecordsByEmail(primaryRecords []adminUserMutation, additionalRecords []adminUserMutation) []adminUserMutation {
