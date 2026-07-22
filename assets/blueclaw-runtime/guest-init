@@ -268,6 +268,35 @@ fi
 log_guest_init "postgres database ready"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -listen 127.0.0.1:18081 -host-cid 2 -host-port 7000 >>/workspace/.blueclaw/logs/vsock-http-proxy.log 2>&1 &
+
+sync_guest_clock_once() {
+  local remote_date remote_epoch local_epoch skew
+  remote_date="$(curl --silent --head --max-time 5 http://127.0.0.1:18081/v1/capabilities 2>/dev/null | awk -F': ' 'tolower($1)=="date"{print $2}' | tr -d '\r')"
+  [ -n "$remote_date" ] || return 1
+  remote_epoch="$(date -u -d "$remote_date" +%s 2>/dev/null)" || return 1
+  [ -n "$remote_epoch" ] || return 1
+  local_epoch="$(date -u +%s)"
+  skew=$((remote_epoch - local_epoch))
+  [ "$skew" -lt 0 ] && skew=$((-skew))
+  if [ "$skew" -ge 2 ]; then
+    date -u -s "@$remote_epoch" >/dev/null
+    log_guest_init "guest clock stepped ${skew}s to host time"
+  fi
+  return 0
+}
+
+for clock_sync_attempt in $(seq 1 15); do
+  sync_guest_clock_once && break
+  sleep 1
+done
+log_guest_init "guest clock synchronized"
+(
+  while true; do
+    sleep 30
+    sync_guest_clock_once || log_guest_init "guest clock sync attempt failed"
+  done
+) &
+
 su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=http://127.0.0.1:18081 BLUECLAW_GRAPHITI_KUZU_PATH=/workspace/.blueclaw/graphiti/kuzu BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1 BLUECLAW_GRAPHITI_PORT=7791 /usr/local/bin/graphiti-memoryd' >>/workspace/.blueclaw/logs/graphiti-memoryd.log 2>&1 &
 graphiti_process_id="$!"
 log_guest_init "graphiti started pid=$graphiti_process_id"
