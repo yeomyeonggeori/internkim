@@ -149,6 +149,46 @@ func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
 	}
 }
 
+func TestWebSearchFillsMissingEchoFieldsDeterministically(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := `{"results":[{"title":"InternKim","url":"https://internkim.example","snippet":"An agent platform"}],"extraProviderField":"dropped"}`
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web search: %v", errorValue)
+	}
+	var result struct {
+		Provider          string `json:"provider"`
+		RemoteLLMInvolved bool   `json:"remoteLLMInvolved"`
+		Compatibility     string `json:"compatibility"`
+		Query             string `json:"query"`
+		Answer            string `json:"answer"`
+		Results           []struct {
+			Title string `json:"title"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized search result: %v", errorValue)
+	}
+	if response.IsError || result.Provider != "openrouter" || !result.RemoteLLMInvolved || result.Compatibility != "openrouter_server_tool_auto" || result.Query != "internkim" {
+		t.Fatalf("expected deterministic echo fills, response=%+v result=%+v", response, result)
+	}
+	if len(result.Results) != 1 || result.Results[0].Title != "InternKim" || strings.Contains(string(response.Result), "extraProviderField") {
+		t.Fatalf("expected provider extras dropped and results preserved, result=%s", string(response.Result))
+	}
+}
+
 func TestWebFetchRejectsPrivateURLBeforeProviderCall(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
 	wasCalled := false
