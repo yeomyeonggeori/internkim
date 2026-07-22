@@ -177,7 +177,14 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Never run two expensive scenarios concurrently against one fleet: each
   run tears down and recreates the shared SSH tunnel recorded in the run
   directory, killing the other run's connection mid-flight. Chain
-  scenarios sequentially in a single command instead.
+  scenarios sequentially with `tools/run-expensive-chain --run-id <runID>
+  [scenario ...]`; do not hand-roll the chain with ad-hoc shell. The tool
+  is single-instance (PID file, no string matching against process lists)
+  and writes each run to its own
+  `.local/local-fleet/runs/<runID>/chain-<stamp>.log` with a
+  `chain-current.log` symlink, so a dead run's lingering append descriptor
+  can never contaminate a new run's log and a log watcher never replays a
+  previous run's verdicts.
 - Reusing the kept fleet is the default; each fresh provision costs ~10
   minutes and several GB of host disk. Scenario or harness-only changes
   rerun with `--skip-provisioning --run-id`; Go changes push in place with
