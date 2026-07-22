@@ -2230,3 +2230,77 @@ func readDirectoryFiles(t *testing.T, rootPath string) map[string]string {
 	}
 	return files
 }
+
+func TestSiteSourcePathMatchesSiteAcceptsAdvertisedForms(t *testing.T) {
+	site := &SiteRecord{
+		SiteID:              "abc123",
+		Slug:                "demo",
+		SourceWorkspacePath: "/workspace/circles/staff/sites/demo/draft",
+	}
+
+	acceptedPaths := []string{
+		"/workspace/circles/staff/sites/demo/draft",
+		"home/sites/abc123/draft",
+		"/workspace/private/people/person-1/sites/abc123/draft",
+	}
+	for _, path := range acceptedPaths {
+		if !siteSourcePathMatchesSite(site, path) {
+			t.Fatalf("expected %q to match site", path)
+		}
+	}
+	rejectedPaths := []string{
+		"",
+		"home/sites/other456/draft",
+		"/workspace/private/people/person-1/sites/other456/draft",
+		"/workspace/shared/anything",
+	}
+	for _, path := range rejectedPaths {
+		if siteSourcePathMatchesSite(site, path) {
+			t.Fatalf("expected %q to be rejected", path)
+		}
+	}
+}
+
+func TestValidateSiteStagingPathsQuarantinesOrphanedAlias(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.newUnpersistedSiteRecord(siteCreateRequest{
+		Slug:        "orphan-demo",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	orphanPath := service.siteProjectAliasHostPath(site)
+	if errorValue := os.MkdirAll(orphanPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := service.validateSiteStagingPaths(site); errorValue != nil {
+		t.Fatalf("expected orphaned staging path to be quarantined, got %v", errorValue)
+	}
+	if _, errorValue := os.Lstat(orphanPath); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected orphan path to be moved aside, got %v", errorValue)
+	}
+}
+
+func TestValidateSiteStagingPathsRejectsClaimedAlias(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	existingSite, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
+		Slug:        "claimed-demo",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	duplicateSite := &SiteRecord{
+		SiteID:         "different-id",
+		Slug:           existingSite.Slug,
+		HostSourcePath: service.siteSourceLedgerPath("different-id"),
+	}
+
+	errorValue = service.validateSiteStagingPaths(duplicateSite)
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "already exists") {
+		t.Fatalf("expected claimed staging path rejection, got %v", errorValue)
+	}
+}
