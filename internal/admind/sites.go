@@ -909,12 +909,7 @@ func (service *Service) newUnpersistedSiteRecord(payload siteCreateRequest) (*Si
 }
 
 func (service *Service) validateSiteStagingPaths(site *SiteRecord) error {
-	paths := []string{
-		service.siteProjectAliasHostPath(site),
-		service.siteProjectStorageHostPath(site.SiteID),
-		site.HostSourcePath,
-	}
-	for _, path := range paths {
+	for _, path := range service.siteStagingPaths(site) {
 		_, errorValue := os.Lstat(path)
 		if errors.Is(errorValue, os.ErrNotExist) {
 			continue
@@ -922,8 +917,48 @@ func (service *Service) validateSiteStagingPaths(site *SiteRecord) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		return fmt.Errorf("site staging path already exists: %s", path)
+		if service.liveSiteClaimsStagingPath(site.SiteID, path) {
+			return fmt.Errorf("site staging path already exists: %s", path)
+		}
+		if errorValue := service.quarantineOrphanedSiteStagingPath(path); errorValue != nil {
+			return errorValue
+		}
 	}
+	return nil
+}
+
+func (service *Service) siteStagingPaths(site *SiteRecord) []string {
+	return []string{
+		service.siteProjectAliasHostPath(site),
+		service.siteProjectStorageHostPath(site.SiteID),
+		site.HostSourcePath,
+	}
+}
+
+func (service *Service) liveSiteClaimsStagingPath(newSiteID string, path string) bool {
+	for _, existingSite := range service.sites {
+		if existingSite == nil || existingSite.Status == SiteStatusDeleted || existingSite.SiteID == newSiteID {
+			continue
+		}
+		for _, claimedPath := range service.siteStagingPaths(existingSite) {
+			if claimedPath != "" && claimedPath == path {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (service *Service) quarantineOrphanedSiteStagingPath(path string) error {
+	quarantineDirectory := filepath.Join(service.Configuration.BlueclawWorkspacePath, ".blueclaw", "site-orphans")
+	if errorValue := os.MkdirAll(quarantineDirectory, 0o700); errorValue != nil {
+		return fmt.Errorf("quarantine orphaned site staging path %s: %w", path, errorValue)
+	}
+	quarantinePath := filepath.Join(quarantineDirectory, filepath.Base(path)+"-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+	if errorValue := os.Rename(path, quarantinePath); errorValue != nil {
+		return fmt.Errorf("quarantine orphaned site staging path %s: %w", path, errorValue)
+	}
+	log.Printf("quarantined orphaned site staging path %s -> %s", path, quarantinePath)
 	return nil
 }
 
@@ -1219,7 +1254,7 @@ func validateWorkspaceOnlyPublish(payload sitePublishRequest) error {
 
 func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *SiteRecord, payload sitePublishRequest) error {
 	if strings.TrimSpace(payload.SourceBundleBase64) != "" {
-		if strings.TrimSpace(payload.SourceWorkspacePath) == "" || strings.TrimSpace(payload.SourceWorkspacePath) != strings.TrimSpace(site.SourceWorkspacePath) {
+		if !siteSourcePathMatchesSite(site, payload.SourceWorkspacePath) {
 			return errors.New("sourceWorkspacePath does not match site")
 		}
 		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
@@ -3174,6 +3209,24 @@ func siteOwnerSourceWorkspacePath(site *SiteRecord) string {
 		return ""
 	}
 	return projectPath + "/draft"
+}
+
+func siteSourcePathMatchesSite(site *SiteRecord, requestedPath string) bool {
+	if site == nil {
+		return false
+	}
+	normalizedPath := strings.TrimSuffix(filepath.ToSlash(strings.TrimSpace(requestedPath)), "/")
+	if normalizedPath == "" {
+		return false
+	}
+	if normalizedPath == strings.TrimSpace(site.SourceWorkspacePath) {
+		return true
+	}
+	if normalizedPath == siteOwnerSourceWorkspacePath(site) {
+		return true
+	}
+	siteID := strings.TrimSpace(site.SiteID)
+	return siteID != "" && strings.HasSuffix(normalizedPath, "/sites/"+siteID+"/draft")
 }
 
 type siteSourceFile struct {
