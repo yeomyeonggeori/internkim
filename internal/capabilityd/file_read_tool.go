@@ -126,16 +126,11 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilities.ToolInvokeResponse{
+	return capabilitySuccessResponseFrom(request.ToolName, "ok", resultDocument, capabilityResponseOrigin{
 		Provider:        "markitdown",
 		SelectedBackend: selectedDocumentBackend(backend),
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Effects:         []capabilities.ResourceEffect{},
-		Status:          "ok",
 		Content:         content,
-		Result:          resultDocument,
-	}, nil
+	})
 }
 
 func (service Service) invokeImageReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -177,16 +172,11 @@ func (service Service) invokeImageReadTool(ctx context.Context, request capabili
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilities.ToolInvokeResponse{
+	return capabilitySuccessResponseFrom(request.ToolName, "ok", resultDocument, capabilityResponseOrigin{
 		Provider:        "workspace",
 		SelectedBackend: capabilities.LLMBackendDevice,
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Effects:         []capabilities.ResourceEffect{},
-		Status:          "ok",
 		Content:         "image loaded",
-		Result:          resultDocument,
-	}, nil
+	})
 }
 
 func decodeDocumentReadInput(document json.RawMessage) (documentReadInput, error) {

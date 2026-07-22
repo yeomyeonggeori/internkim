@@ -45,6 +45,24 @@ func TestCapabilitySuccessResponseProjectsRegisteredResultContracts(t *testing.T
 	}
 }
 
+func TestCapabilitySuccessResponseFromCarriesOriginAndValidates(t *testing.T) {
+	result := `{"scope":"self","weekFrom":0,"weekTo":0,"statusFilter":"","ownerID":"member-1","tasks":[{"taskID":"task-1"}],"count":1}`
+	response, errorValue := capabilitySuccessResponseFrom("task.list", "ok", []byte(result), capabilityResponseOrigin{
+		Provider:        "internkim-test",
+		SelectedBackend: capabilities.LLMBackendRemote,
+		Content:         "listed",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Provider != "internkim-test" || response.SelectedBackend != capabilities.LLMBackendRemote || response.Content != "listed" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 0 {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
 func TestCapabilitySuccessResponseFailsClosed(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -54,6 +72,8 @@ func TestCapabilitySuccessResponseFailsClosed(t *testing.T) {
 	}{
 		{name: "missing descriptor", toolName: "task.unknown", result: `{"taskID":"task-1"}`, errorMatch: "descriptor is missing"},
 		{name: "invalid result", toolName: "task.add", result: `{"status":"created"}`, errorMatch: "violates task.add contract"},
+		{name: "invalid list result", toolName: "task.list", result: `{"tasks":null,"count":0,"scope":"self"}`, errorMatch: "violates task.list contract"},
+		{name: "invalid calendar list result", toolName: "calendar.list", result: `{"events":[{"eventID":""}]}`, errorMatch: "violates calendar.list contract"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
