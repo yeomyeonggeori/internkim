@@ -1,0 +1,61 @@
+#!/bin/bash
+set -u
+
+usage() {
+  echo "usage: tools/run-expensive-chain --run-id <runID> [--tier <tier>] [scenario ...]" >&2
+  echo "  Runs the expensive Mattermost gate scenarios sequentially on a kept fleet." >&2
+  echo "  Default scenarios: task calendar message document file website (-lifecycle)." >&2
+  echo "  Single-instance guarded by a PID file; each run writes its own log under" >&2
+  echo "  .local/local-fleet/runs/<runID>/ with chain-current.log pointing at it." >&2
+  exit 2
+}
+
+RUN_ID=""
+MODEL_TIER="medium"
+SCENARIOS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --run-id) RUN_ID="${2:-}"; shift 2 ;;
+    --tier) MODEL_TIER="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) SCENARIOS+=("$1"); shift ;;
+  esac
+done
+[ -n "$RUN_ID" ] || usage
+if [ ${#SCENARIOS[@]} -eq 0 ]; then
+  SCENARIOS=(task-lifecycle calendar-lifecycle message-lifecycle document-lifecycle file-lifecycle website-lifecycle)
+fi
+
+REPOSITORY_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+RUN_DIRECTORY="$REPOSITORY_ROOT/.local/local-fleet/runs/$RUN_ID"
+[ -d "$RUN_DIRECTORY" ] || { echo "run directory not found: $RUN_DIRECTORY" >&2; exit 2; }
+PID_FILE="$RUN_DIRECTORY/chain.pid"
+
+if [ -f "$PID_FILE" ]; then
+  PREVIOUS_PID=$(cat "$PID_FILE" 2>/dev/null || true)
+  if [ -n "$PREVIOUS_PID" ] && kill -0 "$PREVIOUS_PID" 2>/dev/null && ps -p "$PREVIOUS_PID" -o command= | grep -q "run-expensive-chain"; then
+    echo "expensive chain already running as pid $PREVIOUS_PID for $RUN_ID; refusing to start" >&2
+    exit 3
+  fi
+fi
+echo $$ > "$PID_FILE"
+trap 'rm -f "$PID_FILE"' EXIT
+
+RUN_STAMP=$(date +%Y%m%dT%H%M%S)
+LOG_FILE="$RUN_DIRECTORY/chain-$RUN_STAMP.log"
+ln -sfn "$LOG_FILE" "$RUN_DIRECTORY/chain-current.log"
+exec >>"$LOG_FILE" 2>&1
+echo "=== expensive chain run $RUN_STAMP pid $$ runID $RUN_ID tier $MODEL_TIER ==="
+
+SCENARIO_FLAGS=()
+for SCENARIO in "${SCENARIOS[@]}"; do
+  SCENARIO_FLAGS+=(--scenario "$SCENARIO")
+done
+
+cd "$REPOSITORY_ROOT"
+./internkim test expensive --fast --maximum-model-tier "$MODEL_TIER" \
+  "${SCENARIO_FLAGS[@]}" \
+  --auto-confirm --keep --retry-once --skip-provisioning --run-id "$RUN_ID"
+STATUS=$?
+echo "=== expensive chain finished exit $STATUS ==="
+exit $STATUS
