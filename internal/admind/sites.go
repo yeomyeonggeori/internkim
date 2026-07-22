@@ -3226,7 +3226,10 @@ func siteSourcePathMatchesSite(site *SiteRecord, requestedPath string) bool {
 		return true
 	}
 	siteID := strings.TrimSpace(site.SiteID)
-	return siteID != "" && strings.HasSuffix(normalizedPath, "/sites/"+siteID+"/draft")
+	if siteID == "" {
+		return false
+	}
+	return normalizedPath == "sites/"+siteID+"/draft" || strings.HasSuffix(normalizedPath, "/sites/"+siteID+"/draft")
 }
 
 type siteSourceFile struct {
