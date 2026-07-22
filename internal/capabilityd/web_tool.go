@@ -42,6 +42,12 @@ func (service Service) invokeWebTool(ctx context.Context, request capabilities.T
 	if errorValue != nil {
 		return webToolErrorResponse(request.ToolName, errorValue.Error(), "openrouter_web_tool_failed", true), nil
 	}
+	if capabilityToolHasResultContract(request.ToolName) {
+		return capabilitySuccessResponseFrom(request.ToolName, "ok", result, capabilityResponseOrigin{
+			Provider:        "openrouter",
+			SelectedBackend: capabilities.LLMBackendRemote,
+		})
+	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
@@ -272,7 +278,7 @@ func normalizeOpenRouterSearchContent(input webSearchInput) openRouterWebContent
 		if !found {
 			return marshalOpenRouterSearchTextResult(input, content)
 		}
-		if normalizedContent, isSearchSchemaJSON := normalizeOpenRouterSearchJSON(embeddedContent); isSearchSchemaJSON {
+		if normalizedContent, isSearchSchemaJSON := normalizeOpenRouterSearchJSON(embeddedContent, input); isSearchSchemaJSON {
 			return normalizedContent, nil
 		}
 		return marshalOpenRouterSearchTextResult(input, content)
@@ -378,34 +384,60 @@ type openRouterSearchDocumentResult struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
+	Source  string `json:"source,omitempty"`
 }
 
-func normalizeOpenRouterSearchJSON(embeddedContent json.RawMessage) (json.RawMessage, bool) {
+func normalizeOpenRouterSearchJSON(embeddedContent json.RawMessage, input webSearchInput) (json.RawMessage, bool) {
 	var document struct {
-		Provider string                           `json:"provider"`
-		Query    string                           `json:"query"`
-		Answer   string                           `json:"answer"`
-		Results  []openRouterSearchDocumentResult `json:"results"`
+		Provider          string                           `json:"provider"`
+		RemoteLLMInvolved *bool                            `json:"remoteLLMInvolved"`
+		Compatibility     string                           `json:"compatibility"`
+		Query             string                           `json:"query"`
+		Answer            string                           `json:"answer"`
+		Results           []openRouterSearchDocumentResult `json:"results"`
 	}
 	if errorValue := json.Unmarshal(embeddedContent, &document); errorValue != nil {
 		return nil, false
 	}
-	if !openRouterSearchJSONLooksValid(document.Provider, document.Query, document.Results) {
+	if !openRouterSearchJSONLooksValid(document.Answer, document.Results) {
 		return nil, false
 	}
-	return embeddedContent, true
+	results := document.Results
+	if results == nil {
+		results = []openRouterSearchDocumentResult{}
+	}
+	remoteLLMInvolved := true
+	if document.RemoteLLMInvolved != nil {
+		remoteLLMInvolved = *document.RemoteLLMInvolved
+	}
+	normalized, errorValue := json.Marshal(map[string]any{
+		"provider":          nonEmptyStringOr(document.Provider, "openrouter"),
+		"remoteLLMInvolved": remoteLLMInvolved,
+		"compatibility":     nonEmptyStringOr(document.Compatibility, "openrouter_server_tool_auto"),
+		"query":             nonEmptyStringOr(document.Query, input.Query),
+		"answer":            document.Answer,
+		"results":           results,
+	})
+	if errorValue != nil {
+		return nil, false
+	}
+	return normalized, true
 }
 
-func openRouterSearchJSONLooksValid(provider string, query string, results []openRouterSearchDocumentResult) bool {
-	if strings.TrimSpace(provider) == "" || strings.TrimSpace(query) == "" {
-		return false
-	}
+func openRouterSearchJSONLooksValid(answer string, results []openRouterSearchDocumentResult) bool {
 	for _, result := range results {
 		if strings.TrimSpace(result.Title) == "" || strings.TrimSpace(result.URL) == "" || strings.TrimSpace(result.Snippet) == "" {
 			return false
 		}
 	}
-	return true
+	return len(results) > 0 || strings.TrimSpace(answer) != ""
+}
+
+func nonEmptyStringOr(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 func marshalOpenRouterSearchTextResult(input webSearchInput, content string) (json.RawMessage, error) {
