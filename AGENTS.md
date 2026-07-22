@@ -397,8 +397,17 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   under `/workspace/circles/<circleID>`, not `shared/public`.
 - There is no executable allow or deny list for the terminal: POSIX user, group,
   and file permissions are the execution boundary, so a system-modification
-  command simply fails at execution for an unprivileged actor. Preserve the
-  denied path guardrails (system paths like /etc, /root).
+  command simply fails at execution for an unprivileged actor.
+- No path-string access filters anywhere: do not block file or directory
+  access by matching path strings (denied prefixes, workspace-root escapes,
+  protected-file name checks). Ownership and mode bits are the only access
+  boundary; a path outside the workspace resolves as-is and POSIX decides.
+  Product invariants (for example managed site manifests) are enforced by
+  outcome gates such as build and publish validation, never by write blocks.
+  Service-side reads made on a person's behalf must impersonate that person
+  through the POSIX actor rather than consulting a Go-side ACL model; any
+  remaining Go-side access pre-check is a migration leftover slated for
+  removal, not a pattern to extend.
 - Built-in tools that read through grants must not leave privileged source files
   in raw-terminal-visible paths.
 
