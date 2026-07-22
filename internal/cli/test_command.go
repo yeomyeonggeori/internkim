@@ -631,7 +631,7 @@ func runExpensiveMattermostScenario(contextValue context.Context, repositoryRoot
 	}
 	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
 	printMattermostScenarioAdvisoryWarnings(session.result)
-	cleanupError := runOrDeferExpensiveMattermostCleanup(configuration, cleanupQueue, session)
+	cleanupError := runOrDeferExpensiveMattermostCleanup(configuration, cleanupQueue, session, runError != nil)
 	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
 		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
 	}
@@ -667,8 +667,8 @@ func buildExpensiveMattermostStepHook(
 // cleanup immediately, unless fast mode is combining multiple scenarios in
 // one invocation, in which case the cleanup is queued and flushed once after
 // every scenario has run.
-func runOrDeferExpensiveMattermostCleanup(configuration testCommandConfiguration, cleanupQueue *expensiveMattermostCleanupQueue, session *mattermostScenarioSession) error {
-	if configuration.ShouldRunFast {
+func runOrDeferExpensiveMattermostCleanup(configuration testCommandConfiguration, cleanupQueue *expensiveMattermostCleanupQueue, session *mattermostScenarioSession, didAttemptFail bool) error {
+	if configuration.ShouldRunFast && !didAttemptFail {
 		cleanupQueue.add(session.cleanup)
 		return nil
 	}
