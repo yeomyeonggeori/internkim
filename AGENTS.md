@@ -408,6 +408,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   through the POSIX actor rather than consulting a Go-side ACL model; any
   remaining Go-side access pre-check is a migration leftover slated for
   removal, not a pattern to extend.
+- Agreed direction for file tools: route them through the shell as the
+  requester (the same helper-exec primitive as terminal.run) so tilde,
+  globs, and relative paths carry native POSIX semantics and the Go path
+  resolver, the access pre-checks, and every virtual path vocabulary
+  disappear together. Mechanical argument quoting is serialization, not a
+  filter; mapping exit codes and stderr to failure kinds is diagnostics,
+  not an access decision. Do not extend the Go resolver — shrink it.
 - Built-in tools that read through grants must not leave privileged source files
   in raw-terminal-visible paths.
 
