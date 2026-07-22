@@ -175,7 +175,7 @@ func (service Service) invokeCalendarEventList(ctx context.Context, request capa
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolResponse(request.ToolName, "ok", filteredResult), nil
+	return capabilitySuccessResponse(request.ToolName, "ok", filteredResult)
 }
 
 func (service Service) invokeCalendarEventUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -619,9 +619,6 @@ func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string
 	event.People = normalizeCalendarToolPeople(event.People)
 	event.Participants = normalizeCalendarToolParticipants(event.Participants)
 	event = localizeCalendarEventTimes(event)
-	if errorValue := validateCalendarEventResult(event); errorValue != nil {
-		return nil, calendarEventForTool{}, errorValue
-	}
 	normalizedResult, errorValue = json.Marshal(event)
 	if errorValue != nil {
 		return nil, calendarEventForTool{}, errorValue
@@ -645,26 +642,6 @@ func localizeCalendarISOTime(value string, location *time.Location) string {
 		return value
 	}
 	return parsed.In(location).Format(time.RFC3339)
-}
-
-func validateCalendarEventResult(event calendarEventForTool) error {
-	requiredValues := []struct {
-		field string
-		value string
-	}{
-		{field: "eventID", value: event.EventID},
-		{field: "title", value: event.Title},
-		{field: "startISO", value: event.StartISO},
-		{field: "endISO", value: event.EndISO},
-		{field: "timeZone", value: event.TimeZone},
-		{field: "updatedAt", value: event.UpdatedAt},
-	}
-	for _, requiredValue := range requiredValues {
-		if strings.TrimSpace(requiredValue.value) == "" {
-			return fmt.Errorf("calendar result requires %s", requiredValue.field)
-		}
-	}
-	return nil
 }
 
 func normalizeCalendarEventsResult(result json.RawMessage) (calendarEventsForTool, error) {
@@ -716,17 +693,6 @@ func calendarEventMatchesQuery(event calendarEventForTool, query string) bool {
 	}
 	searchText := strings.ToLower(strings.Join([]string{event.Title, event.Description, event.Location}, "\n"))
 	return strings.Contains(searchText, normalizedQuery)
-}
-
-func calendarToolResponse(toolName string, status string, result json.RawMessage) capabilities.ToolInvokeResponse {
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          status,
-		Result:          result,
-	}
 }
 
 func isCalendarDuplicateCandidateResult(result json.RawMessage) bool {
