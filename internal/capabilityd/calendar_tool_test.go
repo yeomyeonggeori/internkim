@@ -1079,3 +1079,14 @@ func calendarToolJSONStatusResponse(statusCode int, document string) *http.Respo
 		Body:       io.NopCloser(strings.NewReader(document)),
 	}
 }
+
+func TestCompleteCalendarListRangeDefaultsMissingEnd(t *testing.T) {
+	startISO, endISO := completeCalendarListRange("2026-07-23T00:00:00+09:00", "")
+	if startISO != "2026-07-23T00:00:00+09:00" || endISO != "2026-07-24T00:00:00+09:00" {
+		t.Fatalf("unexpected range: %s %s", startISO, endISO)
+	}
+	startISO, endISO = completeCalendarListRange("", "2026-07-23T00:00:00+09:00")
+	if startISO != "2026-07-22T00:00:00+09:00" || endISO != "2026-07-23T00:00:00+09:00" {
+		t.Fatalf("unexpected backfilled range: %s %s", startISO, endISO)
+	}
+}
