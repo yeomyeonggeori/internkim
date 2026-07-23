@@ -68,11 +68,12 @@ type setupParameterValues struct {
 }
 
 type localBinaryAsset struct {
-	name         string
-	localPath    string
-	remotePath   string
-	downloadURL  string
-	archiveEntry string
+	name           string
+	localPath      string
+	remotePath     string
+	downloadURL    string
+	archiveEntry   string
+	expectedSHA256 string
 }
 
 func installSkillPythonDependenciesCommand() string {
@@ -387,10 +388,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.BlueclawSupervisorBinaryPath,
 		},
 		{
-			name:        "cloudflared",
-			localPath:   filepath.Join(state.boardBinDir, "cloudflared"),
-			remotePath:  "/usr/local/bin/cloudflared",
-			downloadURL: "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64",
+			name:           "cloudflared",
+			localPath:      filepath.Join(state.boardBinDir, "cloudflared"),
+			remotePath:     "/usr/local/bin/cloudflared",
+			downloadURL:    "https://github.com/cloudflare/cloudflared/releases/download/2026.7.2/cloudflared-linux-arm64",
+			expectedSHA256: "405df476437e027fc6d18729a5a77155c0a33a6082aeee60a799a688f3052e66",
 		},
 		{
 			name:         "pocketbase",
@@ -400,28 +402,28 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			archiveEntry: "pocketbase",
 		},
 		{
-			name:         "rtk",
-			localPath:    filepath.Join(state.boardBinDir, "rtk"),
-			remotePath:   "/usr/local/bin/rtk",
-			downloadURL:  "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz",
-			archiveEntry: "rtk",
+			name:           "agent-browser",
+			localPath:      filepath.Join(state.boardBinDir, "agent-browser"),
+			remotePath:     "/usr/local/bin/agent-browser",
+			downloadURL:    "https://github.com/vercel-labs/agent-browser/releases/download/v0.32.3/agent-browser-linux-arm64",
+			expectedSHA256: "87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18",
 		},
 		{
-			name:        "agent-browser",
-			localPath:   filepath.Join(state.boardBinDir, "agent-browser"),
-			remotePath:  "/usr/local/bin/agent-browser",
-			downloadURL: "https://github.com/vercel-labs/agent-browser/releases/latest/download/agent-browser-linux-arm64",
-		},
-		{
-			name:        "lightpanda",
-			localPath:   filepath.Join(state.boardBinDir, "lightpanda"),
-			remotePath:  browserruntime.DeviceBrowserExecutablePath,
-			downloadURL: "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+			name:           "lightpanda",
+			localPath:      filepath.Join(state.boardBinDir, "lightpanda"),
+			remotePath:     browserruntime.DeviceBrowserExecutablePath,
+			downloadURL:    "https://github.com/lightpanda-io/browser/releases/download/0.3.5/lightpanda-aarch64-linux",
+			expectedSHA256: "8d7b3a1d7b9024beef94e7fc7ce854030ee4d6def5f802b8e0e8824731c3d93a",
 		},
 		{
 			name:       "download",
 			localPath:  filepath.Join(state.boardBinDir, "download"),
 			remotePath: "/usr/local/bin/download",
+		},
+		{
+			name:       blueclaw.LLMDName,
+			localPath:  filepath.Join(state.scriptDir, ".dependency", "blueclaw-llmd", blueclaw.LLMDName),
+			remotePath: blueclaw.LLMDBinaryPath,
 		},
 		{
 			name:       blueclaw.CapabilitydName,
@@ -468,6 +470,18 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
+		if asset.name == blueclaw.LLMDName {
+			fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
+			command := exec.Command(filepath.Join(state.scriptDir, "tools", "prepare-blueclaw-llmd"))
+			command.Dir = state.scriptDir
+			if output, errorValue := command.CombinedOutput(); errorValue != nil {
+				fmt.Println("FAILED")
+				return nil, fmt.Errorf("build %s: %s", asset.name, strings.TrimSpace(string(output)))
+			}
+			fmt.Println("ok")
+			continue
+		}
+
 		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.AdmindName || asset.name == blueclaw.LocalLLMRunnerName {
 			if err := buildGoBinaryAsset(state, asset); err != nil {
 				return nil, err
@@ -490,11 +504,35 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 				fmt.Println("FAILED")
 				return nil, fmt.Errorf("download %s: %w", asset.name, downloadError)
 			}
+			if asset.expectedSHA256 != "" {
+				if checksumError := verifyLocalBinaryChecksum(asset.localPath, asset.expectedSHA256); checksumError != nil {
+					os.Remove(asset.localPath)
+					fmt.Println("FAILED")
+					return nil, fmt.Errorf("verify %s: %w", asset.name, checksumError)
+				}
+			}
 			fmt.Println("ok")
 		}
 	}
 
 	return assets, nil
+}
+
+func verifyLocalBinaryChecksum(localPath, expectedSHA256 string) error {
+	file, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return err
+	}
+	actualSHA256 := hex.EncodeToString(hash.Sum(nil))
+	if actualSHA256 != expectedSHA256 {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
+	}
+	return nil
 }
 
 func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
@@ -550,6 +588,12 @@ func (state *setupFlowState) binaryVersionSourcePaths() []string {
 		paths = fallbackBinaryVersionSourcePaths(state.scriptDir)
 	}
 	paths = append(paths,
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "bun.lock"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "package.json"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "src"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "bun.lock"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "package.json"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "llmd", "src"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
 	)
@@ -1035,7 +1079,16 @@ id blueclaw >/dev/null 2>&1 || useradd -r -g blueclaw -m -d /home/blueclaw -s "$
 install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw /home/blueclaw/.bun
 if [ ! -x /opt/internkim/managed-bin/bun ]; then
   if [ ! -x /home/blueclaw/.bun/bin/bun ]; then
-    su -s /bin/bash blueclaw -c 'env HOME=/home/blueclaw bash -lc "curl -fsSL https://bun.sh/install | bash"'
+    bun_zip_url="https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip"
+    bun_zip_sha256="fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3"
+    bun_tmp_zip="$(mktemp)"
+    bun_tmp_dir="$(mktemp -d)"
+    curl -fsSL -o "$bun_tmp_zip" "$bun_zip_url"
+    echo "$bun_zip_sha256  $bun_tmp_zip" | sha256sum -c -
+    unzip -q "$bun_tmp_zip" -d "$bun_tmp_dir"
+    install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw/.bun/bin
+    install -o blueclaw -g blueclaw -m 755 "$bun_tmp_dir/bun-linux-aarch64/bun" /home/blueclaw/.bun/bin/bun
+    rm -rf "$bun_tmp_zip" "$bun_tmp_dir"
   fi
   install -o root -g root -m 755 /home/blueclaw/.bun/bin/bun /opt/internkim/managed-bin/bun
 fi
@@ -2731,7 +2784,7 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 
 	if err := context.SD.WriteFile(
 		"internkim-firstboot.sh",
-		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail)),
+		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail, shouldInstallLocalLLMSSH(context))),
 		0o755,
 	); err != nil {
 		return err

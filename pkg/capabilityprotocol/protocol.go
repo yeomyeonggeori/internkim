@@ -1,9 +1,10 @@
 package capabilityprotocol
 
 import (
+	"encoding/hex"
 	"encoding/json"
-
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	"errors"
+	"strings"
 )
 
 const (
@@ -22,10 +23,58 @@ const (
 	CapabilityNotConnected = "not_connected"
 	CapabilityNotReady     = "not_ready"
 	CapabilityNotAllowed   = "not_allowed"
+
+	ToolOutcomeSucceeded ToolOutcome = "succeeded"
+	ToolOutcomeFailed    ToolOutcome = "failed"
+	ToolOutcomeDenied    ToolOutcome = "denied"
+
+	ToolConflictResolutionAllowDuplicate ToolConflictResolution = "allow_duplicate"
+
+	ResourceEffectIdentityID   ResourceEffectIdentity = "id"
+	ResourceEffectIdentityPath ResourceEffectIdentity = "path"
+	ResourceEffectIdentityURL  ResourceEffectIdentity = "url"
 )
+
+type ToolOutcome string
+type ToolConflictResolution string
+type ResourceEffectIdentity string
+
+type ProtocolIdentity struct {
+	ProtocolVersion       string `json:"protocolVersion"`
+	AggregateProtocolHash string `json:"aggregateProtocolHash"`
+}
+
+func GeneratedProtocolIdentity() ProtocolIdentity {
+	return ProtocolIdentity{
+		ProtocolVersion:       GeneratedProtocolVersion(),
+		AggregateProtocolHash: GeneratedAggregateProtocolHash(),
+	}
+}
+
+func (identity ProtocolIdentity) Validate() error {
+	if identity.ProtocolVersion == "" || identity.ProtocolVersion != strings.TrimSpace(identity.ProtocolVersion) {
+		return errors.New("protocol version must be a non-empty trimmed string")
+	}
+	aggregateProtocolHash := identity.AggregateProtocolHash
+	if aggregateProtocolHash != strings.TrimSpace(aggregateProtocolHash) {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	if len(aggregateProtocolHash) != 64 || aggregateProtocolHash != strings.ToLower(aggregateProtocolHash) {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	if _, errorValue := hex.DecodeString(aggregateProtocolHash); errorValue != nil {
+		return errors.New("aggregate protocol hash must be a 64-character lowercase hexadecimal hash")
+	}
+	return nil
+}
 
 type Descriptor struct {
 	Name                 string                        `json:"name"`
+	CanonicalName        string                        `json:"canonicalName"`
+	Namespace            string                        `json:"namespace"`
+	ModelName            string                        `json:"modelName"`
+	ModelVisibility      string                        `json:"modelVisibility"`
+	ModelVisible         bool                          `json:"modelVisible"`
 	Description          string                        `json:"description,omitempty"`
 	Version              string                        `json:"version"`
 	PrivacyClass         string                        `json:"privacyClass"`
@@ -33,11 +82,31 @@ type Descriptor struct {
 	RequiresUserPresence bool                          `json:"requiresUserPresence"`
 	WorksOffline         bool                          `json:"worksOffline"`
 	InputSchema          json.RawMessage               `json:"inputSchema,omitempty"`
+	InputIntentSchema    json.RawMessage               `json:"inputIntentSchema,omitempty"`
 	OutputSchema         json.RawMessage               `json:"outputSchema,omitempty"`
+	InputSchemaStrict    bool                          `json:"inputSchemaStrict"`
+	OutputSchemaStrict   bool                          `json:"outputSchemaStrict"`
+	ResultContract       *ToolResultContract           `json:"resultContract,omitempty"`
 	PolicyResource       string                        `json:"policyResource,omitempty"`
 	SideEffectClass      string                        `json:"sideEffectClass,omitempty"`
+	SideEffect           string                        `json:"sideEffect"`
 	RequiresApproval     bool                          `json:"requiresApproval,omitempty"`
 	CompletionEvidence   *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
+	Availability         AvailabilityMetadata          `json:"availability"`
+	Idempotency          IdempotencyMetadata           `json:"idempotency"`
+}
+
+type ToolDescriptor = Descriptor
+
+type AvailabilityMetadata struct {
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type IdempotencyMetadata struct {
+	Supported bool   `json:"supported"`
+	Required  bool   `json:"required"`
+	Scope     string `json:"scope,omitempty"`
 }
 
 type CompletionEvidenceDescriptor struct {
@@ -46,7 +115,39 @@ type CompletionEvidenceDescriptor struct {
 	TargetKind string `json:"targetKind,omitempty"`
 }
 
+type ToolResultContract struct {
+	Schema            json.RawMessage          `json:"schema"`
+	Effects           []ResourceEffectContract `json:"effects,omitempty"`
+	EvidenceCondition *EvidenceCondition       `json:"evidenceCondition,omitempty"`
+}
+
+type EvidenceCondition struct {
+	ResultField string          `json:"resultField"`
+	Equals      json.RawMessage `json:"equals"`
+}
+
+type ResourceEffectContract struct {
+	ObjectType     string                 `json:"objectType"`
+	Effect         string                 `json:"effect"`
+	ResultField    string                 `json:"resultField"`
+	EffectIdentity ResourceEffectIdentity `json:"effectIdentity"`
+}
+
+type ResourceEffect struct {
+	ObjectType  string `json:"objectType"`
+	Effect      string `json:"effect"`
+	ID          string `json:"id,omitempty"`
+	Path        string `json:"path,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Visibility  string `json:"visibility,omitempty"`
+	Durability  string `json:"durability,omitempty"`
+	Filename    string `json:"filename,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+}
+
 type RegistryResponse struct {
+	ProtocolIdentity
 	LocalOnly             bool         `json:"localOnly"`
 	RoutingCandidates     []string     `json:"routingCandidates"`
 	DeviceCapabilities    []Descriptor `json:"deviceCapabilities,omitempty"`
@@ -56,35 +157,48 @@ type RegistryResponse struct {
 }
 
 type ToolInvokeRequest struct {
-	ToolName             string            `json:"toolName"`
-	Input                json.RawMessage   `json:"input"`
-	IdempotencyKey       string            `json:"idempotencyKey,omitempty"`
-	Context              ToolInvokeContext `json:"context,omitempty"`
-	Actor                ActorContext      `json:"actor,omitempty"`
-	ExecutionMode        string            `json:"executionMode"`
-	RequiresUserPresence bool              `json:"requiresUserPresence"`
-	PrivacyClass         string            `json:"privacyClass"`
-	SessionID            string            `json:"sessionID"`
-	ParentJobID          string            `json:"parentJobID,omitempty"`
-	GrantID              string            `json:"grantID,omitempty"`
-	ResourceScope        ResourceScope     `json:"resourceScope,omitempty"`
-	TimeoutSecond        int               `json:"timeoutSecond"`
+	ToolName             string              `json:"toolName"`
+	Input                json.RawMessage     `json:"input"`
+	IdempotencyKey       string              `json:"idempotencyKey,omitempty"`
+	Context              ToolInvokeContext   `json:"context,omitempty"`
+	Actor                ActorContext        `json:"actor,omitempty"`
+	Transport            ToolInvokeTransport `json:"transport,omitempty"`
+	ExecutionMode        string              `json:"executionMode"`
+	RequiresUserPresence bool                `json:"requiresUserPresence"`
+	PrivacyClass         string              `json:"privacyClass"`
+	SessionID            string              `json:"sessionID"`
+	ParentJobID          string              `json:"parentJobID,omitempty"`
+	GrantID              string              `json:"grantID,omitempty"`
+	ResourceScope        ResourceScope       `json:"resourceScope,omitempty"`
+	TimeoutSecond        int                 `json:"timeoutSecond"`
+}
+
+type ToolInvokeTransport struct {
+	SiteSourceBundle *SiteSourceBundle `json:"siteSourceBundle,omitempty"`
+}
+
+type SiteSourceBundle struct {
+	WorkspacePath string `json:"workspacePath"`
+	ContentBase64 string `json:"contentBase64"`
+	Format        string `json:"format"`
+	SHA256        string `json:"sha256"`
 }
 
 type ToolInvokeContext struct {
-	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
-	RequesterEmail          string `json:"requesterEmail,omitempty"`
-	RequesterName           string `json:"requesterName,omitempty"`
-	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
-	TaskSource              string `json:"taskSource,omitempty"`
-	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
-	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
-	ConversationID          string `json:"conversationID,omitempty"`
-	ConversationType        string `json:"conversationType,omitempty"`
-	ChannelID               string `json:"channelID,omitempty"`
-	ChannelName             string `json:"channelName,omitempty"`
-	ReplyTargetID           string `json:"replyTargetID,omitempty"`
-	Platform                string `json:"platform,omitempty"`
+	RequesterPersonID       string                 `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string                 `json:"requesterEmail,omitempty"`
+	RequesterName           string                 `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string                 `json:"requesterPlatformUserID,omitempty"`
+	TaskSource              string                 `json:"taskSource,omitempty"`
+	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
+	IsApprovalContinuation  bool                   `json:"isApprovalContinuation,omitempty"`
+	ConversationID          string                 `json:"conversationID,omitempty"`
+	ConversationType        string                 `json:"conversationType,omitempty"`
+	ChannelID               string                 `json:"channelID,omitempty"`
+	ChannelName             string                 `json:"channelName,omitempty"`
+	ReplyTargetID           string                 `json:"replyTargetID,omitempty"`
+	Platform                string                 `json:"platform,omitempty"`
+	ConflictResolution      ToolConflictResolution `json:"conflictResolution,omitempty"`
 }
 
 type ActorContext struct {
@@ -97,18 +211,20 @@ type ActorContext struct {
 }
 
 type ToolInvokeResponse struct {
-	Provider        string          `json:"provider"`
-	SelectedBackend string          `json:"selectedBackend"`
-	ToolName        string          `json:"toolName"`
-	Status          string          `json:"status,omitempty"`
-	Content         string          `json:"content,omitempty"`
-	IsError         bool            `json:"isError,omitempty"`
-	Message         string          `json:"message,omitempty"`
-	ErrorCode       string          `json:"errorCode,omitempty"`
-	FailureStage    string          `json:"failureStage,omitempty"`
-	Retryable       bool            `json:"retryable,omitempty"`
-	SafeRetry       bool            `json:"safeRetry,omitempty"`
-	Result          json.RawMessage `json:"result"`
+	Provider        string           `json:"provider"`
+	SelectedBackend string           `json:"selectedBackend"`
+	ToolName        string           `json:"toolName"`
+	Outcome         ToolOutcome      `json:"outcome,omitempty"`
+	Effects         []ResourceEffect `json:"effects,omitempty"`
+	Status          string           `json:"status,omitempty"`
+	Content         string           `json:"content,omitempty"`
+	IsError         bool             `json:"isError,omitempty"`
+	Message         string           `json:"message,omitempty"`
+	ErrorCode       string           `json:"errorCode,omitempty"`
+	FailureStage    string           `json:"failureStage,omitempty"`
+	Retryable       bool             `json:"retryable,omitempty"`
+	SafeRetry       bool             `json:"safeRetry,omitempty"`
+	Result          json.RawMessage  `json:"result"`
 }
 
 type ResourceScope struct {
@@ -146,143 +262,6 @@ type RecoveryAction struct {
 	DownloadURL    string `json:"downloadURL,omitempty"`
 	ConnectCommand string `json:"connectCommand,omitempty"`
 	PlatformUserID string `json:"platformUserID,omitempty"`
-}
-
-func CompanionToolDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userConfirmInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
-		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
-		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: filePickInputSchema(), SideEffectClass: "local_file", RequiresApproval: true},
-		{Name: "filesystem.mount.create", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "filesystem.mount.list", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.pause", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.resume", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.revoke", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.status", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.stat", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.list_directory", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.read", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.write", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.mkdir", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.rename", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.delete", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.truncate", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.chmod", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.watch", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserOpenInputSchema()},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserSnapshotInputSchema()},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserScreenshotInputSchema()},
-		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserHandoffInputSchema()},
-		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserTargetInputSchema()},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserFillInputSchema()},
-		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserSelectInputSchema()},
-		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserPressInputSchema()},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false, InputSchema: browserWaitInputSchema()},
-	}
-}
-
-func browserOpenInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("url", jsonschema.String()),
-		jsonschema.Field("startURL", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserSnapshotInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Field("interactive", jsonschema.Boolean())).RawMessage()
-}
-
-func browserScreenshotInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Field("ttlSeconds", jsonschema.Integer())).RawMessage()
-}
-
-func browserHandoffInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("url", jsonschema.String()),
-		jsonschema.Field("message", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserTargetInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserFillInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Required("text", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserSelectInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Required("value", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserPressInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("key", jsonschema.String())).RawMessage()
-}
-
-func browserWaitInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Field("milliseconds", jsonschema.Integer()),
-	).RawMessage()
-}
-
-func userConfirmInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("reason", jsonschema.String()),
-	).RawMessage()
-}
-
-func userInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("placeholder", jsonschema.String()),
-	).RawMessage()
-}
-
-func filePickInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("accept", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("multiple", jsonschema.Boolean()),
-	).RawMessage()
-}
-
-func CompanionLLMDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: AttentionTriageToolName, Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-	}
-}
-
-func DeviceBrowserDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.click", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.select", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.press", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-	}
 }
 
 func RoutingCandidates() []string {

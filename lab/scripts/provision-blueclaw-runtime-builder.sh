@@ -48,7 +48,18 @@ printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-
   xz-utils
 
 if ! command -v bun >/dev/null 2>&1; then
-  printf '%s\n' "$sudo_password" | sudo -S env BUN_INSTALL=/usr/local bash -c 'curl -fsSL https://bun.sh/install | bash'
+  printf '%s\n' "$sudo_password" | sudo -S bash -c '
+    set -eu
+    bun_zip_url="https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip"
+    bun_zip_sha256="fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3"
+    bun_tmp_zip="$(mktemp)"
+    bun_tmp_dir="$(mktemp -d)"
+    curl -fsSL -o "$bun_tmp_zip" "$bun_zip_url"
+    echo "$bun_zip_sha256  $bun_tmp_zip" | sha256sum -c -
+    unzip -q "$bun_tmp_zip" -d "$bun_tmp_dir"
+    install -m 755 "$bun_tmp_dir/bun-linux-aarch64/bun" /usr/local/bin/bun
+    rm -rf "$bun_tmp_zip" "$bun_tmp_dir"
+  '
 fi
 
 ensure_shared_workspace

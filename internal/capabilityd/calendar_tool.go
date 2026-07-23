@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,34 +31,62 @@ func (errorValue *calendarToolRequestError) Error() string {
 }
 
 type calendarEventWriteInput struct {
-	EventID           string                    `json:"eventID"`
-	Title             string                    `json:"title"`
-	Description       string                    `json:"description"`
-	Location          string                    `json:"location"`
-	StartISO          string                    `json:"startISO"`
-	EndISO            string                    `json:"endISO"`
-	TimeZone          string                    `json:"timeZone"`
-	IsAllDay          bool                      `json:"isAllDay"`
-	Color             string                    `json:"color"`
-	People            calendarToolPeopleInput   `json:"people"`
-	Participants      []calendarToolParticipant `json:"participants"`
-	ReminderLeadHours int                       `json:"reminderLeadHours"`
-	AllowDuplicate    bool                      `json:"allowDuplicate"`
-	IncludeRequester  *bool                     `json:"includeRequester"`
-	ExpectedUpdatedAt string                    `json:"-"`
-	GeneratedEventID  bool                      `json:"-"`
+	EventID           string
+	Title             string
+	Description       string
+	Location          string
+	StartISO          string
+	EndISO            string
+	TimeZone          string
+	IsAllDay          bool
+	Color             string
+	People            calendarToolPeopleInput
+	Participants      []calendarToolParticipant
+	ReminderLeadHours int
+	AllowDuplicate    bool
+	IncludeRequester  *bool
+	ExpectedUpdatedAt string
+	GeneratedEventID  bool
+}
+
+type calendarEventAddInput struct {
+	Title             string                  `json:"title"`
+	Description       string                  `json:"description"`
+	Location          string                  `json:"location"`
+	StartISO          string                  `json:"startISO"`
+	EndISO            string                  `json:"endISO"`
+	TimeZone          string                  `json:"timeZone"`
+	IsAllDay          bool                    `json:"isAllDay"`
+	Color             string                  `json:"color"`
+	People            calendarToolPeopleInput `json:"people"`
+	ReminderLeadHours *int                    `json:"reminderLeadHours"`
+	IncludeRequester  *bool                   `json:"includeRequester"`
 }
 
 type calendarEventListInput struct {
-	StartISO string `json:"startISO"`
-	EndISO   string `json:"endISO"`
-	Query    string `json:"query"`
-	Limit    int    `json:"limit"`
+	StartISO string   `json:"startISO"`
+	EndISO   string   `json:"endISO"`
+	Query    string   `json:"query"`
+	Limit    *float64 `json:"limit"`
+}
+
+type calendarEventUpdateInput struct {
+	EventHint         string                   `json:"eventHint"`
+	Title             *string                  `json:"title"`
+	Description       *string                  `json:"description"`
+	Location          *string                  `json:"location"`
+	StartISO          *string                  `json:"startISO"`
+	EndISO            *string                  `json:"endISO"`
+	TimeZone          *string                  `json:"timeZone"`
+	IsAllDay          *bool                    `json:"isAllDay"`
+	Color             *string                  `json:"color"`
+	People            *calendarToolPeopleInput `json:"people"`
+	ReminderLeadHours *int                     `json:"reminderLeadHours"`
+	IncludeRequester  *bool                    `json:"includeRequester"`
 }
 
 type calendarEventDeleteInput struct {
-	EventID string `json:"eventID"`
-	Query   string `json:"query"`
+	EventHint string `json:"eventHint"`
 }
 
 type calendarToolPeopleInput []string
@@ -73,7 +102,7 @@ type calendarEventsForTool struct {
 }
 
 type calendarEventForTool struct {
-	ID                string                    `json:"id"`
+	EventID           string                    `json:"eventID"`
 	Title             string                    `json:"title"`
 	Description       string                    `json:"description"`
 	Location          string                    `json:"location"`
@@ -104,8 +133,11 @@ func (service Service) invokeCalendarTool(ctx context.Context, request capabilit
 }
 
 func (service Service) invokeCalendarEventAdd(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeCalendarEventWriteInput(request.Input, false)
+	input, errorValue := decodeCalendarEventWriteInput(request.Input)
 	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if errorValue := applyCalendarConflictResolution(&input, request.Context.ConflictResolution); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	input, failure, hasFailure := service.prepareCalendarEventWriteInput(ctx, input, request.Context, true)
@@ -116,7 +148,14 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolResponse(request.ToolName, "created", result), nil
+	if isCalendarDuplicateCandidateResult(result) {
+		return calendarToolDuplicateCandidateResponse(request.ToolName, result), nil
+	}
+	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, input.EventID)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilitySuccessResponse(request.ToolName, "created", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -128,29 +167,37 @@ func (service Service) invokeCalendarEventList(ctx context.Context, request capa
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	filteredResult, errorValue := filterCalendarEventsForTool(result, input)
+	events, errorValue := normalizeCalendarEventsResult(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolResponse(request.ToolName, "ok", filteredResult), nil
+	filteredResult, errorValue := filterCalendarEventsForTool(events, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilitySuccessResponse(request.ToolName, "ok", filteredResult)
 }
 
 func (service Service) invokeCalendarEventUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
+	updateInput, errorValue := decodeCalendarEventUpdateInput(request.Input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, updateInput.EventHint)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if hintFailure != nil {
+		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
+	}
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if failure != nil {
 		return *failure, nil
 	}
-	resolvedInput, errorValue := mergeCalendarEventUpdateInput(request.Input, target.Event)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	input, errorValue := decodeCalendarEventWriteInput(resolvedInput, true)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
+	input := mergeCalendarEventUpdateInput(updateInput, target.Event)
 	input, personFailure, hasFailure := service.prepareCalendarEventWriteInput(ctx, input, request.Context, false)
 	if hasFailure {
 		return calendarToolPersonResolveErrorResponse(request.ToolName, personFailure), nil
@@ -164,18 +211,33 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return calendarToolResponse(request.ToolName, "updated", result), nil
+	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, target.EventID)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilitySuccessResponse(request.ToolName, "updated", normalizedResult)
 }
 
 func (service Service) invokeCalendarEventDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request)
+	input, errorValue := decodeCalendarEventDeleteInput(request.Input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, input.EventHint)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if hintFailure != nil {
+		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
+	}
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if failure != nil {
 		return *failure, nil
 	}
-	path := "/calendar/api/events/" + url.PathEscape(target.ID)
+	path := "/calendar/api/events/" + url.PathEscape(target.EventID)
 	payload := map[string]any{"expectedUpdatedAt": target.UpdatedAt}
 	if _, errorValue := service.sendCalendarToolRequest(ctx, http.MethodDelete, path, payload, request.Context.RequesterEmail); errorValue != nil {
 		if response, isVersionConflict := calendarToolVersionConflictResponse(request.ToolName, errorValue); isVersionConflict {
@@ -183,62 +245,56 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	result, _ := json.Marshal(map[string]any{"eventID": target.ID, "deleted": true})
-	return calendarToolResponse(request.ToolName, "deleted", result), nil
+	result, _ := json.Marshal(map[string]any{"eventID": target.EventID, "deleted": true})
+	return capabilitySuccessResponse(request.ToolName, "deleted", result)
 }
 
-func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {
+func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWriteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
 		return calendarEventWriteInput{}, fmt.Errorf("calendar event input is required")
 	}
-	var input calendarEventWriteInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	var externalInput calendarEventAddInput
+	if errorValue := decodeStrictCalendarToolInput(document, &externalInput); errorValue != nil {
 		return calendarEventWriteInput{}, errorValue
 	}
-	input.EventID = strings.TrimSpace(input.EventID)
-	input.Title = strings.TrimSpace(input.Title)
-	input.Description = strings.TrimSpace(input.Description)
-	input.Location = strings.TrimSpace(input.Location)
-	input.StartISO = strings.TrimSpace(input.StartISO)
-	input.EndISO = strings.TrimSpace(input.EndISO)
-	input.TimeZone = strings.TrimSpace(input.TimeZone)
-	input.Color = strings.TrimSpace(input.Color)
-	input.People = normalizeCalendarToolPeople([]string(input.People))
-	input.Participants = normalizeCalendarToolParticipants(input.Participants)
-	input.ReminderLeadHours = normalizeCalendarToolReminderLeadHours(input.ReminderLeadHours)
-	if needsEventID && input.EventID == "" {
-		return calendarEventWriteInput{}, fmt.Errorf("eventID is required")
+	input := calendarEventWriteInput{
+		Title:            strings.TrimSpace(externalInput.Title),
+		Description:      strings.TrimSpace(externalInput.Description),
+		Location:         strings.TrimSpace(externalInput.Location),
+		StartISO:         strings.TrimSpace(externalInput.StartISO),
+		EndISO:           strings.TrimSpace(externalInput.EndISO),
+		TimeZone:         strings.TrimSpace(externalInput.TimeZone),
+		IsAllDay:         externalInput.IsAllDay,
+		Color:            strings.TrimSpace(externalInput.Color),
+		People:           normalizeCalendarToolPeople([]string(externalInput.People)),
+		IncludeRequester: externalInput.IncludeRequester,
+		GeneratedEventID: true,
 	}
+	reminderLeadHours, errorValue := calendarToolReminderLeadHours(externalInput.ReminderLeadHours)
+	if errorValue != nil {
+		return calendarEventWriteInput{}, errorValue
+	}
+	input.ReminderLeadHours = reminderLeadHours
 	if input.Title == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("title is required")
 	}
 	if input.StartISO == "" || input.EndISO == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
 	}
-	if input.EventID == "" {
-		input.EventID = stableCalendarToolEventID(input)
-		input.GeneratedEventID = true
-	}
+	input.EventID = stableCalendarToolEventID(input)
 	return input, nil
 }
 
-func (people *calendarToolPeopleInput) UnmarshalJSON(document []byte) error {
-	trimmedDocument := bytes.TrimSpace(document)
-	if len(trimmedDocument) == 0 || bytes.Equal(trimmedDocument, []byte("null")) {
-		*people = nil
+func applyCalendarConflictResolution(input *calendarEventWriteInput, resolution capabilities.ToolConflictResolution) error {
+	switch resolution {
+	case "":
 		return nil
-	}
-	var values []string
-	if errorValue := json.Unmarshal(trimmedDocument, &values); errorValue == nil {
-		*people = normalizeCalendarToolPeople(values)
+	case capabilities.ToolConflictResolutionAllowDuplicate:
+		input.AllowDuplicate = true
 		return nil
+	default:
+		return fmt.Errorf("calendar conflict resolution %q is not supported", resolution)
 	}
-	var value string
-	if errorValue := json.Unmarshal(trimmedDocument, &value); errorValue != nil {
-		return errorValue
-	}
-	*people = normalizeCalendarToolPeople(strings.Split(value, ","))
-	return nil
 }
 
 func normalizeCalendarToolPeople(values []string) []string {
@@ -291,12 +347,15 @@ func calendarToolParticipantKey(participant calendarToolParticipant) string {
 	return ""
 }
 
-func normalizeCalendarToolReminderLeadHours(value int) int {
-	switch value {
+func calendarToolReminderLeadHours(value *int) (int, error) {
+	if value == nil {
+		return 24, nil
+	}
+	switch *value {
 	case 1, 2, 3, 6, 12, 24, 48:
-		return value
+		return *value, nil
 	default:
-		return 24
+		return 0, fmt.Errorf("reminderLeadHours is not allowed")
 	}
 }
 
@@ -305,34 +364,100 @@ func decodeCalendarEventListInput(document json.RawMessage) (calendarEventListIn
 		return calendarEventListInput{}, nil
 	}
 	var input calendarEventListInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
 		return calendarEventListInput{}, errorValue
 	}
 	input.StartISO = strings.TrimSpace(input.StartISO)
 	input.EndISO = strings.TrimSpace(input.EndISO)
 	input.Query = strings.TrimSpace(input.Query)
-	if input.Limit < 0 {
-		return calendarEventListInput{}, fmt.Errorf("limit must be positive")
+	if input.Limit != nil && (*input.Limit <= 0 || math.Trunc(*input.Limit) != *input.Limit) {
+		return calendarEventListInput{}, fmt.Errorf("limit must be a positive whole number")
 	}
-	if (input.StartISO == "") != (input.EndISO == "") {
-		return calendarEventListInput{}, fmt.Errorf("startISO and endISO must be provided together")
+	input.StartISO, input.EndISO = completeCalendarListRange(input.StartISO, input.EndISO)
+	return input, nil
+}
+
+func completeCalendarListRange(startISO string, endISO string) (string, string) {
+	if startISO != "" && endISO == "" {
+		if startTime, errorValue := time.Parse(time.RFC3339, startISO); errorValue == nil {
+			return startISO, startTime.Add(24 * time.Hour).Format(time.RFC3339)
+		}
+	}
+	if startISO == "" && endISO != "" {
+		if endTime, errorValue := time.Parse(time.RFC3339, endISO); errorValue == nil {
+			return endTime.Add(-24 * time.Hour).Format(time.RFC3339), endISO
+		}
+	}
+	return startISO, endISO
+}
+
+func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpdateInput, error) {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return calendarEventUpdateInput{}, fmt.Errorf("calendar.update input is required")
+	}
+	var input calendarEventUpdateInput
+	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
+		return calendarEventUpdateInput{}, errorValue
+	}
+	input.EventHint = strings.TrimSpace(input.EventHint)
+	trimStringPointer(&input.Title)
+	trimStringPointer(&input.Description)
+	trimStringPointer(&input.Location)
+	trimStringPointer(&input.StartISO)
+	trimStringPointer(&input.EndISO)
+	trimStringPointer(&input.TimeZone)
+	trimStringPointer(&input.Color)
+	if _, errorValue := calendarToolReminderLeadHours(input.ReminderLeadHours); errorValue != nil {
+		return calendarEventUpdateInput{}, errorValue
+	}
+	if input.EventHint == "" {
+		return calendarEventUpdateInput{}, fmt.Errorf("eventHint is required")
+	}
+	if !hasCalendarEventUpdatePatch(input) {
+		return calendarEventUpdateInput{}, fmt.Errorf("calendar.update requires at least one mutable field")
 	}
 	return input, nil
 }
 
 func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+		return calendarEventDeleteInput{}, fmt.Errorf("eventHint is required")
 	}
 	var input calendarEventDeleteInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
 		return calendarEventDeleteInput{}, errorValue
 	}
-	input.EventID = strings.TrimSpace(input.EventID)
-	if input.EventID == "" {
-		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+	input.EventHint = strings.TrimSpace(input.EventHint)
+	if input.EventHint == "" {
+		return calendarEventDeleteInput{}, fmt.Errorf("eventHint is required")
 	}
 	return input, nil
+}
+
+func decodeStrictCalendarToolInput(document json.RawMessage, value any) error {
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(value); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		return fmt.Errorf("calendar input contains trailing data")
+	}
+	return nil
+}
+
+func hasCalendarEventUpdatePatch(input calendarEventUpdateInput) bool {
+	return input.Title != nil ||
+		input.Description != nil ||
+		input.Location != nil ||
+		input.StartISO != nil ||
+		input.EndISO != nil ||
+		input.TimeZone != nil ||
+		input.IsAllDay != nil ||
+		input.Color != nil ||
+		input.People != nil ||
+		input.ReminderLeadHours != nil ||
+		input.IncludeRequester != nil
 }
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
@@ -443,6 +568,7 @@ func calendarToolVersionConflictResponse(toolName string, errorValue error) (cap
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         message,
 		IsError:         true,
@@ -463,21 +589,93 @@ func setCalendarRequesterEmailHeader(request *http.Request, requesterEmail strin
 	request.Header.Set("CF-Access-Authenticated-User-Email", normalizedEmail)
 }
 
-func filterCalendarEventsForTool(result json.RawMessage, input calendarEventListInput) (json.RawMessage, error) {
-	if strings.TrimSpace(input.Query) == "" && input.Limit == 0 {
-		return result, nil
+func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string) (json.RawMessage, calendarEventForTool, error) {
+	var document map[string]json.RawMessage
+	if errorValue := json.Unmarshal(result, &document); errorValue != nil {
+		return nil, calendarEventForTool{}, errorValue
 	}
-	var response calendarEventsForTool
-	if errorValue := json.Unmarshal(result, &response); errorValue != nil {
-		return nil, errorValue
+	var eventID string
+	if errorValue := json.Unmarshal(document["id"], &eventID); errorValue != nil {
+		return nil, calendarEventForTool{}, fmt.Errorf("calendar result requires id: %w", errorValue)
 	}
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return nil, calendarEventForTool{}, fmt.Errorf("calendar result requires id")
+	}
+	if expectedEventID != "" && eventID != strings.TrimSpace(expectedEventID) {
+		return nil, calendarEventForTool{}, fmt.Errorf("calendar result returned event %q for requested event %q", eventID, strings.TrimSpace(expectedEventID))
+	}
+	eventIDDocument, _ := json.Marshal(eventID)
+	document["eventID"] = eventIDDocument
+	delete(document, "id")
+	normalizedResult, errorValue := json.Marshal(document)
+	if errorValue != nil {
+		return nil, calendarEventForTool{}, errorValue
+	}
+	var event calendarEventForTool
+	if errorValue := json.Unmarshal(normalizedResult, &event); errorValue != nil {
+		return nil, calendarEventForTool{}, errorValue
+	}
+	event.People = normalizeCalendarToolPeople(event.People)
+	event.Participants = normalizeCalendarToolParticipants(event.Participants)
+	event = localizeCalendarEventTimes(event)
+	normalizedResult, errorValue = json.Marshal(event)
+	if errorValue != nil {
+		return nil, calendarEventForTool{}, errorValue
+	}
+	return normalizedResult, event, nil
+}
+
+func localizeCalendarEventTimes(event calendarEventForTool) calendarEventForTool {
+	location, errorValue := time.LoadLocation(strings.TrimSpace(event.TimeZone))
+	if errorValue != nil {
+		return event
+	}
+	event.StartISO = localizeCalendarISOTime(event.StartISO, location)
+	event.EndISO = localizeCalendarISOTime(event.EndISO, location)
+	return event
+}
+
+func localizeCalendarISOTime(value string, location *time.Location) string {
+	parsed, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if errorValue != nil {
+		return value
+	}
+	return parsed.In(location).Format(time.RFC3339)
+}
+
+func normalizeCalendarEventsResult(result json.RawMessage) (calendarEventsForTool, error) {
+	var document map[string]json.RawMessage
+	if errorValue := json.Unmarshal(result, &document); errorValue != nil {
+		return calendarEventsForTool{}, errorValue
+	}
+	eventsDocument, found := document["events"]
+	if !found {
+		return calendarEventsForTool{}, fmt.Errorf("calendar list result requires events")
+	}
+	var rawEvents []json.RawMessage
+	if errorValue := json.Unmarshal(eventsDocument, &rawEvents); errorValue != nil {
+		return calendarEventsForTool{}, errorValue
+	}
+	events := make([]calendarEventForTool, 0, len(rawEvents))
+	for _, rawEvent := range rawEvents {
+		_, event, errorValue := normalizeCalendarEventResult(rawEvent, "")
+		if errorValue != nil {
+			return calendarEventsForTool{}, errorValue
+		}
+		events = append(events, event)
+	}
+	return calendarEventsForTool{Events: events}, nil
+}
+
+func filterCalendarEventsForTool(response calendarEventsForTool, input calendarEventListInput) (json.RawMessage, error) {
 	filteredEvents := make([]calendarEventForTool, 0, len(response.Events))
 	for _, event := range response.Events {
 		if !calendarEventMatchesQuery(event, input.Query) {
 			continue
 		}
 		filteredEvents = append(filteredEvents, event)
-		if input.Limit > 0 && len(filteredEvents) >= input.Limit {
+		if input.Limit != nil && float64(len(filteredEvents)) >= *input.Limit {
 			break
 		}
 	}
@@ -497,12 +695,23 @@ func calendarEventMatchesQuery(event calendarEventForTool, query string) bool {
 	return strings.Contains(searchText, normalizedQuery)
 }
 
-func calendarToolResponse(toolName string, status string, result json.RawMessage) capabilities.ToolInvokeResponse {
+func isCalendarDuplicateCandidateResult(result json.RawMessage) bool {
+	var document struct {
+		Status string `json:"status"`
+	}
+	return json.Unmarshal(result, &document) == nil && strings.TrimSpace(document.Status) == "duplicate_candidate"
+}
+
+func calendarToolDuplicateCandidateResponse(toolName string, result json.RawMessage) capabilities.ToolInvokeResponse {
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
-		Status:          status,
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Status:          "duplicate_candidate",
+		IsError:         true,
+		ErrorCode:       "calendar_duplicate_candidate",
+		FailureStage:    "resolution",
 		Result:          result,
 	}
 }

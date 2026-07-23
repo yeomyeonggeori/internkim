@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo bash "$0" "$@"
+fi
+
+service_name=blueclaw-llmd.service
+runtime_directory=/run/blueclaw-llmd
+socket_path=$runtime_directory/llmd.sock
+auth_key_path=/root/.internkim/secrets/llmd-auth-key
+runtime_config=/root/.blueclaw/config/runtime.json
+workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json
+capability_socket_path=/run/internkim/capability.sock
+chat_bridge_path=/_internkim/llmd/v1/llm/chat
+invalid_chat_request='{"executionMode":"auto","messages":[],"parallelToolCalls":"invalid"}'
+requester_person_id=
+
+restore_llmd() {
+  systemctl start "$service_name" >/dev/null 2>&1 || true
+}
+
+wait_for_llmd() {
+  for _ in $(seq 1 30); do
+    if curl --fail --silent --max-time 5 --unix-socket "$socket_path" http://blueclaw-llmd/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+  systemctl status "$service_name" --no-pager >&2
+  return 1
+}
+
+run_task() {
+  local prompt=$1
+  local task_decision_preset=${2-llmd_topology}
+  local requires_completed_finish=${3-true}
+  local conversation_id="llmd-topology-$(cat /proc/sys/kernel/random/uuid)"
+  local request_body response_path http_status task_run_id
+  response_path=$(mktemp)
+  if [ -n "$task_decision_preset" ]; then
+    request_body=$(jq -cn --arg requesterPersonID "$requester_person_id" --arg conversationID "$conversation_id" --arg prompt "$prompt" --arg taskDecisionPreset "$task_decision_preset" '{requesterPersonID:$requesterPersonID,conversationID:$conversationID,prompt:$prompt,taskDecisionPreset:$taskDecisionPreset}')
+  else
+    request_body=$(jq -cn --arg requesterPersonID "$requester_person_id" --arg conversationID "$conversation_id" --arg prompt "$prompt" '{requesterPersonID:$requesterPersonID,conversationID:$conversationID,prompt:$prompt}')
+  fi
+  if ! http_status=$(curl --silent --show-error --connect-timeout 10 --max-time 300 \
+    -H 'Content-Type: application/json' \
+    -d "$request_body" \
+    --output "$response_path" \
+    --write-out '%{http_code}' \
+    http://127.0.0.1:8080/admin/api/task/run); then
+    echo "task run request failed (curl status $http_status)" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  case "$http_status" in
+    2??) ;;
+    *)
+      echo "task run request returned HTTP $http_status" >&2
+      sed -n '1,120p' "$response_path" >&2 || true
+      rm -f "$response_path"
+      return 1
+      ;;
+  esac
+  if [ "$requires_completed_finish" = true ]; then
+    task_run_id=$(jq -er 'select(.taskRun.status == "completed" and (.finishMessage | length > 0)) | .taskRun.taskRunID' "$response_path") || true
+  else
+    task_run_id=$(jq -er '.taskRun.taskRunID | select(length > 0)' "$response_path") || true
+  fi
+  if [ -z "$task_run_id" ]; then
+    echo "task run response did not contain the required task result" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
+  printf '%s\n' "$task_run_id"
+}
+
+assert_guest_llmd_router_transport() {
+  local task_run_id=$1
+  local response_path
+  response_path=$(mktemp)
+  if ! curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$response_path" \
+    "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id"; then
+    echo "task detail request failed for router task $task_run_id" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  if ! jq -e '
+      [.taskEvents[] |
+        select(.name == "agent.intake") |
+        (.body | fromjson)
+      ] as $intakes |
+      [.taskEvents[] |
+        select(.name == "agent.task_launched") |
+        (.body | fromjson)
+      ] as $launches |
+      [.taskEvents[] |
+        select(.name == "llm.call") |
+        (.body | fromjson) |
+        select(.schemaName == "blueclaw_turn_router")
+      ] as $router_calls |
+      ($intakes | length) > 0 and
+      all($intakes[]; .usedDeterministicFallback == false) and
+      ($launches | length) > 0 and
+      all($launches[]; (.isIntakePrecomputed // false) == false) and
+      ($router_calls | length) > 0 and
+      all($router_calls[]; (.usedFallback // false) == false)
+    ' "$response_path" >/dev/null; then
+    echo "task detail did not prove non-diagnostic LLMD router transport for $task_run_id" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
+}
+
+assert_guest_llmd_structured_transport() {
+  local task_run_id=$1
+  local expected_fallback=$2
+  local response_path
+  response_path=$(mktemp)
+  if ! curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$response_path" \
+    "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id"; then
+    echo "task detail request failed for $task_run_id" >&2
+    sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  if ! jq -e --argjson expectedFallback "$expected_fallback" '
+      [.taskEvents[] |
+        select(.name == "llm.call") |
+        (.body | fromjson) |
+        select(.schemaName == "blueclaw_agent_turn_action")
+      ] as $calls |
+      [.taskEvents[] |
+        select(.name == "agent.task_launched") |
+        (.body | fromjson) |
+        select(.isIntakePrecomputed == true)
+      ] as $diagnostic_launches |
+      ($calls | length) > 0 and
+      ($diagnostic_launches | length) == 1 and
+      all($calls[]; (.usedFallback // false) == $expectedFallback)
+    ' "$response_path" >/dev/null; then
+    echo "task detail did not prove LLMD structured transport for $task_run_id (expected fallback: $expected_fallback)" >&2
+    jq . "$response_path" >&2 || sed -n '1,120p' "$response_path" >&2 || true
+    rm -f "$response_path"
+    return 1
+  fi
+  rm -f "$response_path"
+}
+
+run_host_chat_bridge_request() {
+  curl --silent --show-error --max-time 10 \
+    --unix-socket "$capability_socket_path" \
+    -H "Authorization: Bearer $(cat "$auth_key_path")" \
+    -H 'Content-Type: application/json' \
+    -d "$invalid_chat_request" \
+    -w '\n%{http_code}' \
+    "http://internkim-capability$chat_bridge_path"
+}
+
+assert_host_chat_bridge_response() {
+  local expected_status=$1
+  local expected_code=$2
+  local expected_fallback=$3
+  local response status body
+  if ! response="$(run_host_chat_bridge_request)"; then
+    echo "host chat bridge request failed (expected HTTP $expected_status)" >&2
+    return 1
+  fi
+  status="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+  if [ "$status" != "$expected_status" ]; then
+    echo "host chat bridge returned HTTP $status, expected $expected_status" >&2
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
+  if ! jq -e --arg expectedCode "$expected_code" --argjson expectedFallback "$expected_fallback" \
+    '.error.code == $expectedCode and .error.allowLegacyFallback == $expectedFallback' <<<"$body" >/dev/null; then
+    echo "host chat bridge returned an unexpected error envelope" >&2
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
+}
+
+trap restore_llmd EXIT
+
+systemctl is-active --quiet "$service_name"
+test "$(stat -c %a "$runtime_directory")" = 700
+test -S "$socket_path"
+test "$(stat -c %a "$socket_path")" = 600
+test "$(stat -c %a "$auth_key_path")" = 600
+curl --fail --silent --show-error --max-time 10 --unix-socket "$socket_path" http://blueclaw-llmd/health | jq -e '.status == "ok"' >/dev/null
+
+jq -e '
+  .languageModel.defaultProvider == "llmd" and
+  .languageModel.llmd.endpoint == "http://127.0.0.1:18081/_internkim/llmd" and
+  .languageModel.llmd.unixSocketPath == "" and
+  .languageModel.llmd.authKeyPath == "" and
+  .firecracker.guestListenerProxies[0].guestPort == 7000 and
+  .firecracker.guestListenerProxies[0].targetUnixSocketPath == "/run/internkim/capability.sock"
+' "$runtime_config" >/dev/null
+
+if grep -qE '/run/blueclaw-llmd|llmd-auth-key' "$runtime_config"; then
+  echo "guest runtime exposes host LLMD paths" >&2
+  exit 1
+fi
+
+jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$runtime_config" >/dev/null
+jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config" >/dev/null
+requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
+router_task_run_id=$(run_task 'Reply with exactly LLMD topology router ok.' '' false)
+assert_guest_llmd_router_transport "$router_task_run_id"
+
+authoritative_task_run_id=$(run_task 'Reply with exactly LLMD topology authoritative ok.')
+assert_host_chat_bridge_response 400 invalid_chat_completion_request false
+assert_guest_llmd_structured_transport "$authoritative_task_run_id" false
+
+systemctl stop "$service_name"
+assert_host_chat_bridge_response 503 llmd_bridge_unavailable true
+fallback_task_run_id=$(run_task 'Reply with exactly LLMD topology fallback ok.')
+assert_guest_llmd_structured_transport "$fallback_task_run_id" true
+
+systemctl restart "$service_name"
+wait_for_llmd
+assert_host_chat_bridge_response 400 invalid_chat_completion_request false
+recovered_task_run_id=$(run_task 'Reply with exactly LLMD topology recovered ok.')
+assert_guest_llmd_structured_transport "$recovered_task_run_id" false

@@ -105,8 +105,15 @@ func TestMattermostChannelUpdateAdminPatchesAndInvites(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "updated" || !patchedChannel || !invitedUser {
+	if response.Status != "updated" || response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "channel-1" || !patchedChannel || !invitedUser {
 		t.Fatalf("expected channel update and invite, response=%+v patched=%v invited=%v", response, patchedChannel, invitedUser)
+	}
+	var result mattermostChannelUpdateResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !reflect.DeepEqual(result.InvitedUserIDs, []string{"alice-1"}) {
+		t.Fatalf("unexpected canonical channel result: %+v", result)
 	}
 }
 
@@ -236,7 +243,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "channel",
-			"targetType": "channel", "channelID": "channel-1",
+			"channelID":  "channel-1",
 			"authoredBy": "assistant",
 			"limit":      3,
 		}),
@@ -245,16 +252,14 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" {
+	if response.Status != "ok" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("expected search success, got %+v", response)
 	}
-	var result struct {
-		CandidateCount int `json:"candidateCount"`
-	}
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.CandidateCount != 2 {
+	if len(result.Candidates) != 2 {
 		t.Fatalf("unexpected search result: %+v", result)
 	}
 }
@@ -353,27 +358,17 @@ func TestPlatformMessageSearchPaginatesCandidates(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result struct {
-		CandidateCount         int      `json:"candidateCount"`
-		ReturnedCandidateCount int      `json:"returnedCandidateCount"`
-		HasMore                bool     `json:"hasMore"`
-		Cursor                 string   `json:"cursor"`
-		NextCursor             string   `json:"nextCursor"`
-		MessageIDs             []string `json:"messageIDs"`
-		Candidates             []struct {
-			PostID string `json:"postID"`
-		} `json:"candidates"`
-	}
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.HasMore || result.Cursor != "1" || result.NextCursor != "" {
+	if result.HasMore || result.NextCursor != "" {
 		t.Fatalf("unexpected pagination state: %+v", result)
 	}
-	if result.CandidateCount != 5 || result.ReturnedCandidateCount != 5 {
+	if len(result.Candidates) != 5 {
 		t.Fatalf("unexpected candidate counts: %+v", result)
 	}
-	if result.Candidates[0].PostID != "bot-post-101" {
+	if result.Candidates[0].MessageID != "bot-post-101" {
 		t.Fatalf("expected second page candidates with exact IDs, got %+v", result.Candidates)
 	}
 	if len(result.MessageIDs) != 5 || result.MessageIDs[0] != "bot-post-101" {
@@ -428,15 +423,11 @@ func TestPlatformMessageSearchScansUntilLimitMatches(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result struct {
-		CandidateCount int      `json:"candidateCount"`
-		HasMore        bool     `json:"hasMore"`
-		MessageIDs     []string `json:"messageIDs"`
-	}
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.HasMore || result.CandidateCount != 5 || !reflect.DeepEqual(result.MessageIDs, []string{"match-post-01", "match-post-02", "match-post-03", "match-post-04", "match-post-05"}) {
+	if result.HasMore || len(result.Candidates) != 5 || !reflect.DeepEqual(result.MessageIDs, []string{"match-post-01", "match-post-02", "match-post-03", "match-post-04", "match-post-05"}) {
 		t.Fatalf("expected search to scan past non-matching latest page, got %+v", result)
 	}
 }
@@ -484,7 +475,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if messageResponse.Status != "denied" || messageResponse.ErrorCode != "not_bot_post" {
+	if messageResponse.Status != "denied" || messageResponse.Outcome != capabilities.ToolOutcomeDenied || messageResponse.ErrorCode != "not_bot_post" {
 		t.Fatalf("expected non-bot message update denial, got %+v", messageResponse)
 	}
 
@@ -499,7 +490,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if pinResponse.Status != "updated" || !userPostPinned {
+	if pinResponse.Status != "updated" || pinResponse.Outcome != capabilities.ToolOutcomeSucceeded || len(pinResponse.Effects) != 1 || pinResponse.Effects[0].ID != "user-post" || !userPostPinned {
 		t.Fatalf("expected user post pin, response=%+v pinned=%v", pinResponse, userPostPinned)
 	}
 
@@ -514,7 +505,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if protectedResponse.Status != "denied" || protectedResponse.ErrorCode != "protected_post" {
+	if protectedResponse.Status != "denied" || protectedResponse.Outcome != capabilities.ToolOutcomeDenied || protectedResponse.ErrorCode != "protected_post" {
 		t.Fatalf("expected protected post denial, got %+v", protectedResponse)
 	}
 
@@ -529,7 +520,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if protectedFlowResponse.Status != "error" || protectedFlowResponse.ErrorCode != "post_delete_not_completed" {
+	if protectedFlowResponse.Status != "error" || protectedFlowResponse.Outcome != capabilities.ToolOutcomeFailed || len(protectedFlowResponse.Effects) != 0 || protectedFlowResponse.ErrorCode != "post_delete_not_completed" {
 		t.Fatalf("expected protected Flow post delete denial, got %+v", protectedFlowResponse)
 	}
 
@@ -544,7 +535,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if deleteResponse.Status != "deleted" || !botPostDeleted {
+	if deleteResponse.Status != "deleted" || deleteResponse.Outcome != capabilities.ToolOutcomeSucceeded || len(deleteResponse.Effects) != 1 || deleteResponse.Effects[0].ID != "bot-post" || !botPostDeleted {
 		t.Fatalf("expected bot post delete, response=%+v deleted=%v", deleteResponse, botPostDeleted)
 	}
 }
@@ -583,17 +574,14 @@ func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "deleted" || len(deletedPostIDs) != 2 {
+	if response.Status != "deleted" || response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 2 || len(deletedPostIDs) != 2 {
 		t.Fatalf("expected partial delete success, response=%+v deleted=%+v", response, deletedPostIDs)
 	}
-	var result struct {
-		DeletedCount int `json:"deletedCount"`
-		FailedCount  int `json:"failedCount"`
-	}
+	var result platformMessageDeleteResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.DeletedCount != 2 || result.FailedCount != 1 {
+	if len(result.MessageIDs) != 2 || len(result.Failures) != 1 {
 		t.Fatalf("unexpected delete result: %+v", result)
 	}
 }
@@ -728,11 +716,11 @@ func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result mattermostPostSearchResult
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(result.Candidates) != 1 || result.Candidates[0].PostID != "active-match" {
+	if len(result.Candidates) != 1 || result.Candidates[0].MessageID != "active-match" {
 		t.Fatalf("expected only active post candidate, got %+v", result.Candidates)
 	}
 }
@@ -761,7 +749,7 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "currentChannel",
-			"targetType": "currentChannel", "channelID": "circle-secret",
+			"channelID":  "circle-secret",
 			"authoredBy": "assistant",
 			"queries":    []string{"비밀"},
 		}),
@@ -776,11 +764,11 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result mattermostPostSearchResult
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || result.Channel["id"] != "channel-1" {
+	if response.Status != "ok" || len(result.Candidates) != 1 || result.Candidates[0].ChannelID != "channel-1" {
 		t.Fatalf("expected currentChannel to ignore foreign override and read channel-1, got %+v", response)
 	}
 }
@@ -844,7 +832,7 @@ func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "post_delete_not_completed" {
+	if !response.IsError || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 || response.ErrorCode != "post_delete_not_completed" {
 		t.Fatalf("expected delete failure, got %+v", response)
 	}
 }
@@ -879,8 +867,15 @@ func TestMattermostContextInspectReturnsCurrentMattermostContext(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" {
+	if response.Status != "ok" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("expected inspect success, got %+v", response)
+	}
+	var result platformMessageContextResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.RootMessageID != "root-1" || result.CurrentMessageID != "post-1" || result.BotUserID != "bot-1" {
+		t.Fatalf("unexpected canonical context result: %+v", result)
 	}
 }
 
@@ -923,15 +918,11 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result struct {
-		CandidateCount int      `json:"candidateCount"`
-		AuthoredBy     string   `json:"authoredBy"`
-		MessageIDs     []string `json:"messageIDs"`
-	}
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || result.CandidateCount != 1 {
+	if response.Status != "ok" || len(result.Candidates) != 1 {
 		t.Fatalf("expected one bot candidate, response=%+v result=%+v", response, result)
 	}
 	if result.AuthoredBy != "assistant" || len(result.MessageIDs) != 1 || result.MessageIDs[0] != "bot-post" {
@@ -976,7 +967,7 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 		ToolName: "message.search",
 		Input: mustJSON(t, map[string]any{
 			"scope":      "directMessage",
-			"targetType": "directMessage", "personHint": "alice@example.com",
+			"personHint": "alice@example.com",
 			"authoredBy": "assistant",
 		}),
 		Context: capabilities.ToolInvokeContext{
@@ -989,16 +980,11 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result struct {
-		Channel struct {
-			ID string `json:"id"`
-		} `json:"channel"`
-		CandidateCount int `json:"candidateCount"`
-	}
+	var result platformMessageSearchResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || result.Channel.ID != "dm-1" || result.CandidateCount != 1 {
+	if response.Status != "ok" || len(result.Candidates) != 1 || result.Candidates[0].ChannelID != "dm-1" {
 		t.Fatalf("expected direct message candidate, response=%+v result=%+v", response, result)
 	}
 }

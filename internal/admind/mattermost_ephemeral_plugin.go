@@ -3,8 +3,6 @@ package admind
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
@@ -19,11 +17,6 @@ import (
 )
 
 const mattermostEphemeralPluginID = "com.internkim.ephemeral"
-
-type mattermostEphemeralPluginDeleteRequest struct {
-	UserID string `json:"userID"`
-	PostID string `json:"postID"`
-}
 
 func (service *Service) ensureMattermostEphemeralPluginWithRetry(ctx context.Context) {
 	for attempt := 0; attempt < 10; attempt++ {
@@ -73,12 +66,7 @@ func (service *Service) writeMattermostPluginSyncDiagnostic(responseWriter http.
 		service.writeJSON(responseWriter, map[string]string{"status": "failed", "error": errorValue.Error()})
 		return
 	}
-	probeStatus, probeError := service.postMattermostEphemeralPluginDelete(request.Context(), service.mattermostEphemeralPluginSecret(), []byte(`{}`))
-	probe := map[string]any{"status": "ok", "authProbeStatus": probeStatus}
-	if probeError != nil {
-		probe["authProbeError"] = probeError.Error()
-	}
-	service.writeJSON(responseWriter, probe)
+	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
 }
 
 func (service *Service) logMattermostEphemeralPluginStatus(ctx context.Context, token string) {
@@ -107,10 +95,6 @@ func (service *Service) ensureMattermostEphemeralPluginSecret() (string, error) 
 		return "", errorValue
 	}
 	return secret, nil
-}
-
-func (service *Service) mattermostEphemeralPluginSecret() string {
-	return strings.TrimSpace(readTrimmedFile(service.mattermostEphemeralPluginSecretPath()))
 }
 
 func (service *Service) mattermostEphemeralPluginSecretPath() string {
@@ -243,60 +227,4 @@ func (service *Service) patchMattermostEphemeralPluginSecret(ctx context.Context
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
-}
-
-func (service *Service) deleteMattermostAskEphemeralPostInBackground(payload mattermostInteractivePayload) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	if errorValue := service.deleteMattermostAskEphemeralPost(ctx, payload); errorValue != nil {
-		log.Printf("mattermost ask ephemeral delete failed: %v", errorValue)
-	}
-}
-
-func (service *Service) deleteMattermostAskEphemeralPost(ctx context.Context, payload mattermostInteractivePayload) error {
-	secret := service.mattermostEphemeralPluginSecret()
-	if secret == "" {
-		return fmt.Errorf("mattermost ephemeral plugin secret is not configured; deploy the mattermostPlugins component or run sync-mattermost-plugins")
-	}
-	deleteRequest := mattermostEphemeralPluginDeleteRequest{
-		UserID: strings.TrimSpace(payload.UserID),
-		PostID: strings.TrimSpace(payload.PostID),
-	}
-	if deleteRequest.UserID == "" || deleteRequest.PostID == "" {
-		return nil
-	}
-	document, errorValue := json.Marshal(deleteRequest)
-	if errorValue != nil {
-		return errorValue
-	}
-	statusCode, errorValue := service.postMattermostEphemeralPluginDelete(ctx, secret, document)
-	if statusCode != http.StatusNotFound {
-		return errorValue
-	}
-	installedSecret, ensureError := service.ensureMattermostEphemeralPlugin(ctx)
-	if ensureError != nil {
-		return ensureError
-	}
-	_, errorValue = service.postMattermostEphemeralPluginDelete(ctx, installedSecret, document)
-	return errorValue
-}
-
-func (service *Service) postMattermostEphemeralPluginDelete(ctx context.Context, secret string, document []byte) (int, error) {
-	endpoint := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/plugins/" + mattermostEphemeralPluginID + "/api/v1/delete-ephemeral"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
-	if errorValue != nil {
-		return 0, errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-InternKim-Token", secret)
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return 0, errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return response.StatusCode, mattermostStatusError(response)
-	}
-	_, _ = io.Copy(io.Discard, response.Body)
-	return response.StatusCode, nil
 }

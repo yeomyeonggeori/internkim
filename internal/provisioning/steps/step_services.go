@@ -28,13 +28,14 @@ var StepServices = Step{
 		rootfsBaseCheck := trimmedRun(context, blueclawRootfsBaseContractCheckCommand())
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+			llmdServiceIsReady(context) &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
+			capabilitydHealthIsReady(context) &&
 			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
+			mattermostServiceIsReady(context) &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
 	},
@@ -61,6 +62,21 @@ chown root:root /root/.internkim/secrets /root/.internkim/secrets/mattermost-bot
 chmod 700 /root/.internkim/secrets 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
 rm -f /root/.internkim/env/bot-token`)
+
+		connection.Run(`mkdir -p /root/.internkim/secrets
+if [ ! -s /root/.internkim/secrets/llmd-auth-key ]; then
+  umask 077
+  head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /root/.internkim/secrets/llmd-auth-key
+fi
+chown root:root /root/.internkim/secrets/llmd-auth-key
+chmod 600 /root/.internkim/secrets/llmd-auth-key
+install -d -o root -g root -m 700 ` + blueclaw.LLMDServiceCredentialDirectoryPath + `
+install -o root -g root -m 600 /root/.internkim/secrets/llmd-auth-key ` + blueclaw.LLMDServiceAuthKeyPath + `
+if [ -s /root/.internkim/secrets/openrouter-api-key ]; then
+  install -o root -g root -m 600 /root/.internkim/secrets/openrouter-api-key ` + blueclaw.LLMDServiceOpenRouterKeyPath + `
+else
+  rm -f ` + blueclaw.LLMDServiceOpenRouterKeyPath + `
+fi`)
 
 		connection.Run(`cd /root/.blueclaw/workspace/skills 2>/dev/null && \
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
@@ -130,6 +146,20 @@ func shouldReconcileMattermostSiteURL(context *Context) bool {
 	return context != nil && context.PlannedSteps["mattermost"]
 }
 
+func capabilitydHealthIsReady(context *Context) bool {
+	if !isPlannedStep(context, "mattermost") {
+		return true
+	}
+	return trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+}
+
+func mattermostServiceIsReady(context *Context) bool {
+	if !isPlannedStep(context, "mattermost") {
+		return true
+	}
+	return trimmedRun(context, "systemctl is-active mattermost") == "active"
+}
+
 func mattermostSiteURLReconcileCommand(deviceURL string) string {
 	quotedDeviceURL := shellQuote(deviceURL)
 	return `set -e
@@ -144,6 +174,14 @@ if [ -f "$configuration_path" ]; then
     systemctl restart mattermost 2>/dev/null || true
   fi
 fi`
+}
+
+func llmdServiceIsReady(context *Context) bool {
+	if context.BoardType == BoardSimulation {
+		return true
+	}
+	return trimmedRun(context, "systemctl is-active "+blueclaw.LLMDServiceName) == "active" &&
+		trimmedRun(context, blueclaw.LLMDHealthCheckCommand()) == "ok"
 }
 
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {
@@ -169,6 +207,9 @@ func serviceUnitInstallCommand(context *Context) string {
 systemctl disable zeroclaw 2>/dev/null || true
 rm -f /etc/systemd/system/zeroclaw.service
 rm -rf /etc/systemd/system/zeroclaw.service.d
+systemctl stop blueclaw-sdkd 2>/dev/null || true
+systemctl disable blueclaw-sdkd 2>/dev/null || true
+rm -f /etc/systemd/system/blueclaw-sdkd.service
 systemctl enable systemd-time-wait-sync.service 2>/dev/null
 `)
 	for _, service := range services {
@@ -190,9 +231,10 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: capabilitydServiceUnitForContext(context)},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
+		{path: blueclaw.LLMDServicePath, document: blueclaw.LLMDServiceUnit(shouldManageLocalLLMServices(context))},
 	}
 	if context.BoardType == BoardSimulation {
-		return services
+		return services[:3]
 	}
 	if !shouldManageLocalLLMServices(context) {
 		return services
@@ -213,12 +255,13 @@ func capabilitydServiceUnitForContext(context *Context) string {
 
 func enabledServiceNames(context *Context) []string {
 	serviceNames := []string{
+		blueclaw.LLMDServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	}
 	if context.BoardType == BoardSimulation {
-		return serviceNames
+		return serviceNames[1:]
 	}
 	if !shouldManageLocalLLMServices(context) {
 		return serviceNames
@@ -242,13 +285,19 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["capabilityd"] != "active" {
 		return false
 	}
+	if context.BoardType != BoardSimulation && report["llmd"] != "active" {
+		return false
+	}
 	if report["admind"] != "active" {
 		return false
 	}
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
-	if report["capabilitydHealth"] != "ok" {
+	if isPlannedStep(context, "mattermost") && report["capabilitydHealth"] != "ok" {
+		return false
+	}
+	if context.BoardType != BoardSimulation && report["llmdHealth"] != "ok" {
 		return false
 	}
 	if context.BoardType == BoardSimulation {
@@ -289,7 +338,15 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
-		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+	}
+	if isPlannedStep(context, "mattermost") {
+		checks = append(checks, serviceHealthCheck{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()})
+	}
+	if context.BoardType != BoardSimulation {
+		checks = append(checks,
+			serviceHealthCheck{name: "llmd", command: "systemctl is-active " + blueclaw.LLMDServiceName + " 2>/dev/null"},
+			serviceHealthCheck{name: "llmdHealth", command: blueclaw.LLMDHealthCheckCommand()},
+		)
 	}
 	if shouldManageLocalLLMServices(context) {
 		checks = append(checks,
@@ -336,22 +393,29 @@ if runtime_configuration != workspace_runtime_configuration:
     print("runtime-config-mirror-drift")
     raise SystemExit
 
-forbidden_keys = {"apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend", "defaultBudgetClass"}
+legacy_runtime_paths = (
+    ("agent", "defaultBudgetClass"),
+    ("languageModel", "backend"),
+    ("languageModel", "capability", "backend"),
+    ("capabilities", "backend"),
+    ("languageModel", "openRouter", "apiKeyPath"),
+    ("languageModel", "liteRTLM", "wrapperPath"),
+    ("languageModel", "liteRTLM", "modelPath"),
+    ("languageModel", "liteRTLM", "backend"),
+    ("connectors", "mattermost", "botTokenPath"),
+    ("connectors", "slack", "botTokenPath"),
+    ("connectors", "slack", "signingSecretPath"),
+)
 
-def contains_forbidden_key(value):
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            if key in forbidden_keys or contains_forbidden_key(nested):
-                return True
-        return False
-    if isinstance(value, list):
-        for item in value:
-            if contains_forbidden_key(item):
-                return True
-        return False
-    return False
+def has_path(document, path):
+    value = document
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            return False
+        value = value[key]
+    return True
 
-if contains_forbidden_key(runtime_configuration):
+if any(has_path(runtime_configuration, path) for path in legacy_runtime_paths):
     print("legacy-runtime-config")
     raise SystemExit
 
@@ -368,8 +432,8 @@ if capabilities.get("endpoint") != "http://internkim-capability":
     print("runtime-capability-endpoint")
     raise SystemExit
 
-for tool_name in capabilities.get("toolNames", []):
-    if str(tool_name).startswith("google."):
+for descriptor in capabilities.get("toolDescriptors", []):
+    if descriptor.get("namespace") == "google":
         print("runtime-capability-google-tool")
         raise SystemExit
 
@@ -405,23 +469,6 @@ if outbound_network.get("networkCIDR") != "172.31.0.0/30":
 if outbound_network.get("guestGateway") != "172.31.0.1":
     print("runtime-outbound-network-gateway")
     raise SystemExit
-
-profile_tool_names = []
-for profile in runtime_configuration.get("agentProfiles", []):
-    if profile.get("name") == "default":
-        profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
-        break
-
-mandatory_profile_tools = {"terminal.run", "ask.input", "ask.confirm", "file.deliver", "skill.search", "file.read", "file.write", "file.edit", "file.patch", "file.preview", "image.read"}
-missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
-if missing_tools:
-    print("runtime-profile-missing-tools:" + ",".join(missing_tools))
-    raise SystemExit
-
-for tool_name in profile_tool_names:
-    if tool_name.startswith("google."):
-        print("runtime-profile-google-tool")
-        raise SystemExit
 
 print("ok")
 PY`

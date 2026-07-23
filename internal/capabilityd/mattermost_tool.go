@@ -133,6 +133,12 @@ type mattermostPostDeleteResult struct {
 	FailedCount    int                           `json:"failedCount"`
 }
 
+type mattermostChannelUpdateResult struct {
+	ChannelID      string   `json:"channelID"`
+	Updated        bool     `json:"updated"`
+	InvitedUserIDs []string `json:"invitedUserIDs,omitempty"`
+}
+
 const (
 	mattermostToolStaffCircle = "staff"
 	mattermostToolAdminCircle = "admin"
@@ -176,21 +182,21 @@ func (service Service) invokeMattermostContextInspect(ctx context.Context, reque
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("bot_lookup", "mattermost_unavailable", errorValue)), nil
 	}
 	handle, _, _ := mattermostHandleFromContext(request.Context)
-	result := map[string]any{
-		"platform":                "mattermost",
-		"conversationID":          request.Context.ConversationID,
-		"conversationType":        request.Context.ConversationType,
-		"channelID":               firstNonEmpty(strings.TrimSpace(request.Context.ChannelID), strings.TrimSpace(handle.ChannelID)),
-		"channelName":             request.Context.ChannelName,
-		"replyTargetID":           request.Context.ReplyTargetID,
-		"rootPostID":              handle.RootID,
-		"currentPostID":           handle.MessageID,
-		"requesterPersonID":       request.Context.RequesterPersonID,
-		"requesterPlatformUserID": request.Context.RequesterPlatformUserID,
-		"botUserID":               botUser.ID,
-		"botUsername":             botUser.Username,
+	result := platformMessageContextResult{
+		Platform:                "mattermost",
+		ConversationID:          request.Context.ConversationID,
+		ConversationType:        request.Context.ConversationType,
+		ChannelID:               firstNonEmpty(strings.TrimSpace(request.Context.ChannelID), strings.TrimSpace(handle.ChannelID)),
+		ChannelName:             request.Context.ChannelName,
+		ReplyTargetID:           request.Context.ReplyTargetID,
+		RootMessageID:           handle.RootID,
+		CurrentMessageID:        handle.MessageID,
+		RequesterPersonID:       request.Context.RequesterPersonID,
+		RequesterPlatformUserID: request.Context.RequesterPlatformUserID,
+		BotUserID:               botUser.ID,
+		BotUsername:             botUser.Username,
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "ok", result), nil
+	return mattermostToolSuccessResponse(request.ToolName, "ok", result)
 }
 
 func (service Service) invokeMattermostPostSearch(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -202,22 +208,8 @@ func (service Service) invokeMattermostPostSearch(ctx context.Context, request c
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	result := map[string]any{
-		"scope":                  searchResult.Scope,
-		"channel":                searchResult.Channel,
-		"rootPostID":             searchResult.RootPostID,
-		"queries":                searchResult.Queries,
-		"authoredBy":             platformMessageAuthorLabel(searchResult.AuthoredBy),
-		"cursor":                 searchResult.Cursor,
-		"nextCursor":             searchResult.NextCursor,
-		"hasMore":                searchResult.HasMore,
-		"candidateCount":         len(searchResult.Candidates),
-		"returnedCandidateCount": len(searchResult.Candidates),
-		"messageIDs":             deletableMattermostCandidateIDs(searchResult.Candidates),
-		"candidates":             searchResult.Candidates,
-		"recommendedNextAction":  "Delete returned messageIDs with message.delete. For delete-all tasks, repeat the same search after each delete until messageIDs is empty.",
-	}
-	return mattermostToolSuccessResponse(request.ToolName, "ok", result), nil
+	result := canonicalPlatformMessageSearchResult(searchResult, request.Context.RequesterPlatformUserID)
+	return mattermostToolSuccessResponse(request.ToolName, "ok", result)
 }
 
 func (service Service) invokeMattermostPostUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -244,8 +236,13 @@ func (service Service) invokeMattermostPostUpdate(ctx context.Context, request c
 			return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("post_pin", "mattermost_unavailable", errorValue)), nil
 		}
 	}
-	result := map[string]any{"postID": input.PostID, "isPinned": input.IsPinned, "messageUpdated": input.Message != nil}
-	return mattermostToolSuccessResponse(request.ToolName, "updated", result), nil
+	result := platformMessageUpdateResult{
+		MessageID:      input.PostID,
+		DeliveryStatus: "updated",
+		MessageUpdated: input.Message != nil,
+		IsPinned:       input.IsPinned,
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "updated", result)
 }
 
 func (service Service) invokeMattermostPostDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -259,7 +256,7 @@ func (service Service) invokeMattermostPostDelete(ctx context.Context, request c
 		response.Result = mustMarshalPlatformMessageInput(result)
 		return response, nil
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "deleted", result), nil
+	return mattermostToolSuccessResponse(request.ToolName, "deleted", canonicalPlatformMessageDeleteResult(result))
 }
 
 func (service Service) deleteMattermostPosts(ctx context.Context, postIDs []string) (mattermostPostDeleteResult, mattermostToolFailure) {
@@ -318,8 +315,12 @@ func (service Service) invokeMattermostChannelUpdate(ctx context.Context, reques
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	result := map[string]any{"channelID": channel.ID, "updated": true, "invitedUsers": invitedUsers}
-	return mattermostToolSuccessResponse(request.ToolName, "updated", result), nil
+	result := mattermostChannelUpdateResult{
+		ChannelID:      channel.ID,
+		Updated:        true,
+		InvitedUserIDs: mattermostInvitedUserIDs(invitedUsers),
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "updated", result)
 }
 
 func decodeMattermostChannelUpdateInput(document json.RawMessage) (mattermostChannelUpdateInput, error) {
@@ -1178,19 +1179,28 @@ func normalizedMattermostToolPerPage(perPage int) int {
 	return perPage
 }
 
-func mattermostToolSuccessResponse(toolName string, status string, result any) capabilities.ToolInvokeResponse {
-	resultDocument, _ := json.Marshal(result)
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Status:          status,
-		Result:          resultDocument,
+func mattermostInvitedUserIDs(invitedUsers []map[string]string) []string {
+	userIDs := make([]string, 0, len(invitedUsers))
+	for _, user := range invitedUsers {
+		userID := strings.TrimSpace(user["mattermostUserID"])
+		if userID != "" {
+			userIDs = append(userIDs, userID)
+		}
 	}
+	return userIDs
+}
+
+func mattermostToolSuccessResponse(toolName string, status string, result any) (capabilities.ToolInvokeResponse, error) {
+	resultDocument, errorValue := json.Marshal(result)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilitySuccessResponse(toolName, status, resultDocument)
 }
 
 func mattermostToolDeniedResponse(toolName string, failure mattermostToolFailure) capabilities.ToolInvokeResponse {
 	response := mattermostToolErrorResponse(toolName, failure)
+	response.Outcome = capabilities.ToolOutcomeDenied
 	response.Status = "denied"
 	return response
 }
@@ -1201,6 +1211,7 @@ func mattermostToolErrorResponse(toolName string, failure mattermostToolFailure)
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         failure.Message,
 		IsError:         true,

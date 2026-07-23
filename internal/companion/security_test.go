@@ -134,7 +134,7 @@ func TestGrantStoreDeniesWithReason(t *testing.T) {
 	}
 }
 
-func TestGrantStoreRemembersCapabilityForSession(t *testing.T) {
+func TestGrantStoreRemembersCapabilityForRestOfTaskOnly(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true, RememberSession: true}}
 	request := capabilities.ToolInvokeRequest{ToolName: "browser.handoff"}
@@ -143,23 +143,80 @@ func TestGrantStoreRemembersCapabilityForSession(t *testing.T) {
 	if errorValue := store.Authorize(context.Background(), envelope, request, approvalHandler); errorValue != nil {
 		t.Fatalf("expected approval to create session grant: %v", errorValue)
 	}
-	nextRequest := capabilities.ToolInvokeRequest{
+
+	sameTaskRequest := capabilities.ToolInvokeRequest{
 		ToolName:      "browser.open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://console.cloud.google.com"},
 	}
-	nextEnvelope := JobEnvelope{
+	sameTaskEnvelope := JobEnvelope{
 		JobID:         "job-2",
+		ParentJobID:   "job-1",
 		ToolName:      "browser.open",
-		ResourceScope: nextRequest.ResourceScope,
+		ResourceScope: sameTaskRequest.ResourceScope,
 	}
-	if errorValue := store.Authorize(context.Background(), nextEnvelope, nextRequest, approvalHandler); errorValue != nil {
-		t.Fatalf("expected session grant reuse: %v", errorValue)
+	if errorValue := store.Authorize(context.Background(), sameTaskEnvelope, sameTaskRequest, approvalHandler); errorValue != nil {
+		t.Fatalf("expected session grant reuse within the same task: %v", errorValue)
 	}
 	if approvalHandler.calls != 1 {
-		t.Fatalf("expected one approval call, got %d", approvalHandler.calls)
+		t.Fatalf("expected reuse within the same task to skip approval, got %d calls", approvalHandler.calls)
 	}
-	if displayName := store.ListActive()[0].DisplayName; displayName != "Browser access to this session" {
-		t.Fatalf("unexpected grant display name: %s", displayName)
+
+	unrelatedTaskRequest := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.open",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://console.cloud.google.com"},
+	}
+	unrelatedTaskEnvelope := JobEnvelope{
+		JobID:         "job-99",
+		ToolName:      "browser.open",
+		ResourceScope: unrelatedTaskRequest.ResourceScope,
+	}
+	if errorValue := store.Authorize(context.Background(), unrelatedTaskEnvelope, unrelatedTaskRequest, approvalHandler); errorValue != nil {
+		t.Fatalf("expected an unrelated task to be approved independently: %v", errorValue)
+	}
+	if approvalHandler.calls != 2 {
+		t.Fatalf("expected a job outside the granting task to require a fresh approval, got %d calls", approvalHandler.calls)
+	}
+
+	grants := store.ListActive()
+	if len(grants) != 2 {
+		t.Fatalf("expected the original task grant and the new unrelated task grant to both remain active, got %d", len(grants))
+	}
+	displayNamesByAnchor := map[string]string{}
+	for _, grant := range grants {
+		displayNamesByAnchor[grant.AnchorJobID] = grant.DisplayName
+	}
+	if displayNamesByAnchor["job-1"] != "Browser access to this session" {
+		t.Fatalf("unexpected display name for the original task grant: %s", displayNamesByAnchor["job-1"])
+	}
+	if displayNamesByAnchor["job-99"] != "Browser access to https://console.cloud.google.com" {
+		t.Fatalf("unexpected display name for the unrelated task grant: %s", displayNamesByAnchor["job-99"])
+	}
+}
+
+func TestGrantStoreRejectsReuseAcrossUnrelatedTasks(t *testing.T) {
+	store := NewMemoryGrantStore()
+	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true, RememberSession: true}}
+
+	taskARequest := capabilities.ToolInvokeRequest{ToolName: "browser.handoff"}
+	taskAEnvelope := JobEnvelope{JobID: "task-a-root", ToolName: "browser.handoff"}
+	if errorValue := store.Authorize(context.Background(), taskAEnvelope, taskARequest, approvalHandler); errorValue != nil {
+		t.Fatalf("expected task A approval to create a session grant: %v", errorValue)
+	}
+
+	taskBRequest := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.open",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
+	}
+	taskBEnvelope := JobEnvelope{
+		JobID:         "task-b-root",
+		ToolName:      "browser.open",
+		ResourceScope: taskBRequest.ResourceScope,
+	}
+	if errorValue := store.Authorize(context.Background(), taskBEnvelope, taskBRequest, approvalHandler); errorValue != nil {
+		t.Fatalf("expected task B to be approved on its own: %v", errorValue)
+	}
+	if approvalHandler.calls != 2 {
+		t.Fatalf("expected a job from an unrelated task to require its own approval despite matching capability, got %d calls", approvalHandler.calls)
 	}
 }
 

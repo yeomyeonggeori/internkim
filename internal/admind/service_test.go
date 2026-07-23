@@ -4392,7 +4392,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	adminJoinedCalendarChannel := false
 	adminJoinedAttendanceChannel := false
 	oauthAppCreated := false
-	botEphemeralPermissionUpdated := false
 	staffJoinedDefaultChannels := map[string]bool{}
 	botTokenPath := filepath.Join(stateDirectory, "bot-token")
 	writeFile(t, botTokenPath, "bot-token")
@@ -4418,21 +4417,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
 			assertMattermostBearerToken(t, request, "bot-token")
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim" && request.Method == http.MethodGet:
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/roles" && request.Method == http.MethodPut:
-			assertMattermostBearerToken(t, request, "admin-token")
-			var payload map[string]string
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if payload["roles"] != "system_user system_admin" {
-				t.Fatalf("bot roles = %q", payload["roles"])
-			}
-			botEphemeralPermissionUpdated = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/staff-1":
 			return jsonResponse(http.StatusOK, `{"id":"staff-1","email":"staff@example.com","username":"staff"}`, nil), nil
@@ -4589,9 +4574,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	if !oauthAppCreated {
 		t.Fatal("oauth app was not created")
-	}
-	if !botEphemeralPermissionUpdated {
-		t.Fatal("bot ephemeral permission was not updated")
 	}
 	for _, channelID := range []string{"town-square-channel", "off-topic-channel", "flow-channel", "calendar-channel", "attendance-channel"} {
 		if !staffJoinedDefaultChannels[channelID] {

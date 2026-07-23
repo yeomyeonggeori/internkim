@@ -8,8 +8,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 const (
@@ -18,12 +16,18 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
-	BlueclawTestModelName                               = "google/gemini-3.1-flash-lite"
 	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
+	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
+	BlueclawTestMinimumModelTierEnvironment             = "INTERNKIM_TEST_MINIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
+	BlueclawLLMDModeEnvironment                         = "INTERNKIM_BLUECLAW_LLMD_MODE"
+	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
+	BlueclawLLMDTopologyDiagnosticProfileName           = "llmd-diagnostic"
+	BlueclawLLMDTopologyDiagnosticToolSentinel          = "llmd.diagnostic.no_tools"
+	LocalOnlyEnvironment                                = "INTERNKIM_LOCAL_ONLY"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
 
@@ -64,8 +68,13 @@ type RuntimeConfigOptions struct {
 	GenerationSeed            *int64
 	GenerationTemperature     *float64
 	MaximumModelTier          string
+	MinimumModelTier          string
 	ShouldUseModelForAllTiers bool
+	DefaultTaskLevel          string
 	VirtualCPUCount           int
+	LLMDMode                  string
+	AllowAdminTaskDiagnostic  bool
+	LocalOnly                 bool
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -76,23 +85,14 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
 }
 
-var blueclawNativeToolNames = []string{
-	"terminal.run",
-	"ask.input",
-	"ask.confirm",
-	"file.deliver",
-	"skill.search",
-	"file.read",
-	"file.write",
-	"file.edit",
-	"file.patch",
-	"file.preview",
-	"file.delete",
-	"image.read",
-}
-
-func BlueclawDefaultAllowedToolNames() []string {
-	return uniqueStringList(blueclawNativeToolNames)
+func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
+	if !allowAdminTaskDiagnostic {
+		return nil
+	}
+	return []map[string]any{{
+		"name":             BlueclawLLMDTopologyDiagnosticProfileName,
+		"allowedToolNames": []string{BlueclawLLMDTopologyDiagnosticToolSentinel},
+	}}
 }
 
 func removeDefaultSkillScopedToolNames(toolNames []string) []string {
@@ -122,7 +122,12 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		return RuntimeConfigOptions{}, errorValue
 	}
 	modelName := optionalStringEnvironment(BlueclawTestModelEnvironment)
+	modelTier := optionalStringEnvironment(BlueclawTestModelTierEnvironment)
 	maximumModelTier, errorValue := NormalizeMaximumModelTier(optionalStringEnvironment(BlueclawTestMaximumModelTierEnvironment))
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
+	minimumModelTier, errorValue := NormalizeMaximumModelTier(optionalStringEnvironment(BlueclawTestMinimumModelTierEnvironment))
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
 	}
@@ -130,12 +135,21 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	if errorValue != nil {
 		return RuntimeConfigOptions{}, errorValue
 	}
+	allowAdminTaskDiagnostic, errorValue := optionalBooleanEnvironment(BlueclawAdminTaskDiagnosticEnvironment)
+	if errorValue != nil {
+		return RuntimeConfigOptions{}, errorValue
+	}
 	options := RuntimeConfigOptions{
 		ModelName:                 modelName,
 		ShouldUseModelForAllTiers: modelName != "",
+		DefaultTaskLevel:          modelTier,
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
+		LLMDMode:                  optionalStringEnvironment(BlueclawLLMDModeEnvironment),
+		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
+		LocalOnly:                 LocalOnlyEnabled(),
 		MaximumModelTier:          maximumModelTier,
+		MinimumModelTier:          minimumModelTier,
 	}
 	if virtualCPUCount != nil {
 		options.VirtualCPUCount = int(*virtualCPUCount)
@@ -177,6 +191,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
 		capabilityLanguageModel["maximumModelTier"] = maximumModelTier
 	}
+	if minimumModelTier := strings.TrimSpace(options.MinimumModelTier); minimumModelTier != "" {
+		capabilityLanguageModel["minimumModelTier"] = minimumModelTier
+	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
 	capabilitySocketPath := firstNonEmptyString(options.CapabilitySocketPath, CapabilitySocketPath)
@@ -212,12 +229,13 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	outboundGuestGateway := firstNonEmptyString(options.OutboundGuestGateway, "172.31.0.1")
 	bridgeListenAddress := firstNonEmptyString(options.BridgeListenAddress, BlueclawBridgeListenAddress)
 	agentConfiguration := map[string]any{
-		"adminTaskLinkBaseURL": strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
+		"adminTaskLinkBaseURL":     strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
+		"allowAdminTaskDiagnostic": options.AllowAdminTaskDiagnostic,
 		"intake": map[string]any{
 			"enabled":       true,
 			"executionMode": "auto",
 		},
-		"defaultTaskLevel":    "low",
+		"defaultTaskLevel":    firstNonEmptyString(options.DefaultTaskLevel, "low"),
 		"skillTaskLevelFloor": "high",
 		"toolResultMaxBytes":  32768,
 		"failureRecovery": map[string]any{
@@ -241,28 +259,47 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if len(generationOptions) > 0 {
 		agentConfiguration["generationOptions"] = generationOptions
 	}
+	languageModelConfiguration := map[string]any{
+		"defaultProvider":  "capabilityLLM",
+		"fallbackProvider": "",
+		"capability":       capabilityLanguageModel,
+	}
+	llmdEndpoint := "http://127.0.0.1:18081/_internkim/llmd"
+	llmdUnixSocketPath := ""
+	if options.DirectExecution {
+		llmdEndpoint = "http://internkim/_internkim/llmd"
+		llmdUnixSocketPath = capabilitySocketPath
+	}
+	languageModelConfiguration["llmd"] = map[string]any{
+		"endpoint":       llmdEndpoint,
+		"unixSocketPath": llmdUnixSocketPath,
+		"authKeyPath":    "",
+		"executionMode":  languageModelExecutionMode,
+		"localOnly":      options.LocalOnly,
+	}
+	if options.DirectExecution || strings.EqualFold(options.LLMDMode, "authoritative") {
+		languageModelConfiguration["defaultProvider"] = "llmd"
+	}
+	capabilityContract := CurrentCapabilityContract()
 
 	document := map[string]any{
 		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
 		"capabilities": map[string]any{
-			"transport":       capabilityTransport,
-			"unixSocketPath":  capabilityUnixSocketPath,
-			"endpoint":        "http://internkim-capability",
-			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
-			"vsockCID":        CapabilityVSockHostCID,
-			"vsockPort":       capabilityVSockPort,
-			"toolNames":       capabilities.DefaultToolNames(),
-			"toolDescriptors": capabilities.DefaultToolDescriptors(),
+			"transport":             capabilityTransport,
+			"unixSocketPath":        capabilityUnixSocketPath,
+			"endpoint":              "http://internkim-capability",
+			"timeoutSecond":         BlueclawCapabilityTimeoutSecond,
+			"vsockCID":              CapabilityVSockHostCID,
+			"vsockPort":             capabilityVSockPort,
+			"protocolVersion":       capabilityContract.ProtocolVersion,
+			"aggregateProtocolHash": capabilityContract.AggregateProtocolHash,
+			"toolDescriptors":       capabilityContract.ToolDescriptors,
 			"routing": map[string]any{
-				"candidates": capabilities.RoutingCandidates(),
-				"localOnly":  false,
+				"candidates": capabilityContract.RoutingCandidates,
+				"localOnly":  options.LocalOnly,
 			},
 		},
-		"languageModel": map[string]any{
-			"defaultProvider":  "capabilityLLM",
-			"fallbackProvider": "",
-			"capability":       capabilityLanguageModel,
-		},
+		"languageModel": languageModelConfiguration,
 		"firecracker": map[string]any{
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
@@ -323,19 +360,13 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				"baseURL": BlueclawSlackAPIBaseURL,
 			},
 		},
-		"agentProfiles": []map[string]any{
-			{
-				"name":             "default",
-				"allowedToolNames": BlueclawDefaultAllowedToolNames(),
-			},
-		},
-		"mcpServers": []map[string]any{},
+		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
+		"mcpServers":    []map[string]any{},
 		"terminal": map[string]any{
-			"mode":               terminalMode,
-			"sandboxProvider":    "",
-			"workspaceRootPath":  terminalWorkspaceRootPath,
-			"posixHelperPath":    terminalPOSIXHelperPath,
-			"deniedPathPrefixes": BlueclawDeniedPathPrefixes,
+			"mode":              terminalMode,
+			"sandboxProvider":   "",
+			"workspaceRootPath": terminalWorkspaceRootPath,
+			"posixHelperPath":   terminalPOSIXHelperPath,
 			"requesterWorkspace": map[string]any{
 				"requesterTemporaryEnvironmentVariable": "BLUECLAW_REQUESTER_TMP",
 				"taskTemporaryEnvironmentVariable":      "BLUECLAW_TASK_TMP",
@@ -398,6 +429,27 @@ func firstPositiveInt(values ...int) int {
 
 func optionalStringEnvironment(name string) string {
 	return strings.TrimSpace(os.Getenv(name))
+}
+
+func optionalBooleanEnvironment(name string) (bool, error) {
+	value := optionalStringEnvironment(name)
+	if value == "" {
+		return false, nil
+	}
+	parsedValue, errorValue := strconv.ParseBool(value)
+	if errorValue != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, errorValue)
+	}
+	return parsedValue, nil
+}
+
+func LocalOnlyEnabled() bool {
+	value := optionalStringEnvironment(LocalOnlyEnvironment)
+	if value == "" {
+		return false
+	}
+	localOnly, errorValue := strconv.ParseBool(value)
+	return errorValue != nil || localOnly
 }
 
 func optionalInt64Environment(name string) (*int64, error) {
@@ -547,13 +599,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:site.preview", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.history", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.diff", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.logs", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.restore", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.repair", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.rollback", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.unpublish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}...)

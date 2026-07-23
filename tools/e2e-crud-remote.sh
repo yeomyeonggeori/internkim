@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Runs ON the fleet VM. Drives a real Mattermost conversation against 김인턴 and
-# reports the real task outcome + step count as JSON. No cassettes, no scripted
-# model responses: a live agent processes a real channel message.
 set -euo pipefail
 
 MATTERMOST="http://localhost:8065"

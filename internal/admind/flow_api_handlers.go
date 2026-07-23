@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
@@ -83,7 +82,7 @@ func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
 }
 
 func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, request *http.Request) {
-	now := time.Now()
+	now := flowDateNow()
 	weekCode, errorValue := parseFlowSummaryWeekCode(request.URL.Query().Get("week"), now)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -118,7 +117,7 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 }
 
 func (service *Service) writeFlowState(responseWriter http.ResponseWriter, request *http.Request) {
-	now := time.Now()
+	now := flowDateNow()
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)

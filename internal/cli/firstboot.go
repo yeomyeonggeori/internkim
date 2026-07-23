@@ -9,7 +9,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
-func buildFirstbootScript(deviceURL, adminEmail string) string {
+func buildFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvisioned bool) string {
 	sections := []string{
 		renderFirstbootPreludeSection(),
 		renderFirstbootStagingSection(),
@@ -17,7 +17,7 @@ func buildFirstbootScript(deviceURL, adminEmail string) string {
 		renderFirstbootPackagesSection(),
 		renderFirstbootToolsSection(),
 		renderFirstbootApplicationsSection(deviceURL, adminEmail),
-		renderFirstbootServicesSection(),
+		renderFirstbootServicesSection(isLocalLlamaProvisioned),
 		renderFirstbootCompletionSection(),
 	}
 
@@ -368,6 +368,12 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
+if [ ! -s /root/.internkim/secrets/llmd-auth-key ]; then
+  umask 077
+  head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /root/.internkim/secrets/llmd-auth-key
+fi
+chown root:root /root/.internkim/secrets/llmd-auth-key
+chmod 600 /root/.internkim/secrets/llmd-auth-key
 if [ -f /root/.internkim/secrets/google-sa.json ]; then
   chown root:root /root/.internkim/secrets/google-sa.json
   chmod 600 /root/.internkim/secrets/google-sa.json
@@ -516,7 +522,19 @@ else
 		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimeDependencyInstallScript()+`
 apt-get install -y -qq unzip >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
-  sudo -u blueclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
+  sudo -u blueclaw bash -s -- <<'BUNEOF' >/dev/null 2>&1 || true
+set -eu
+bun_zip_url="https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip"
+bun_zip_sha256="fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3"
+bun_tmp_zip="$(mktemp)"
+bun_tmp_dir="$(mktemp -d)"
+curl -fsSL -o "$bun_tmp_zip" "$bun_zip_url"
+echo "$bun_zip_sha256  $bun_tmp_zip" | sha256sum -c -
+unzip -q "$bun_tmp_zip" -d "$bun_tmp_dir"
+mkdir -p /home/blueclaw/.bun/bin
+install -m 755 "$bun_tmp_dir/bun-linux-aarch64/bun" /home/blueclaw/.bun/bin/bun
+rm -rf "$bun_tmp_zip" "$bun_tmp_dir"
+BUNEOF
 fi
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/bun
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/node
@@ -854,7 +872,7 @@ fi`)
 	return fillFirstbootPlaceholders(section, replacements)
 }
 
-func renderFirstbootServicesSection() string {
+func renderFirstbootServicesSection(isLocalLlamaProvisioned bool) string {
 	section := strings.TrimSpace(fmt.Sprintf(`if phase_done services; then
   echo "Phase services already complete"
 else
@@ -865,10 +883,13 @@ else
   systemctl disable zeroclaw 2>/dev/null || true
   rm -f /etc/systemd/system/zeroclaw.service
   rm -rf /etc/systemd/system/zeroclaw.service.d
+%s
   cat > %s <<'SVCEOF'
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+  cat > %s <<'LLMDEOF'
+%sLLMDEOF
   cat > %s <<'GRAPHITIEOF'
 %sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
@@ -944,6 +965,8 @@ CLOUDFLARED_NODE_EOF
   systemctl start %s
   systemctl enable %s
   systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
   systemctl enable --now internkim-blueclaw-tmp-clean.timer
   systemctl enable cloudflared-node-ssh
@@ -961,7 +984,7 @@ CLOUDFLARED_NODE_EOF
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s $cloudflaredServiceNames postgresql; do
+    for serviceName in mattermost %s %s %s %s %s %s $cloudflaredServiceNames postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -978,10 +1001,13 @@ CLOUDFLARED_NODE_EOF
 
   mark_phase_done services
 fi`,
+		blueclaw.LLMDServiceCredentialInstallCommand(blueclaw.LocalOnlyEnabled()),
 		blueclaw.BlueclawServicePath,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
+		blueclaw.LLMDServicePath,
+		blueclaw.LLMDServiceUnit(isLocalLlamaProvisioned),
 		blueclaw.GraphitiMemorydServicePath,
 		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
@@ -1006,6 +1032,8 @@ fi`,
 		blueclaw.InternKimBlueclawTemporaryCleanupTimerUnit(),
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
+		blueclaw.LLMDServiceName,
+		blueclaw.LLMDServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
@@ -1019,6 +1047,7 @@ fi`,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
+		blueclaw.LLMDServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.GraphitiMemorydServiceName,

@@ -27,6 +27,7 @@ type OpenRouterBackend struct {
 // DefaultActionModelName is the single source of truth for the model the agent
 // runs on. Every default-model reference across the codebase points here.
 const DefaultActionModelName = "google/gemini-3.1-flash-lite"
+const defaultXLowModelName = "deepseek/deepseek-v4-flash"
 
 // Action turns try the primary model first, then these degraded fallbacks.
 var DefaultOpenRouterActionFallbackModels = []string{
@@ -81,6 +82,7 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 			return backend.completeJSONSchema(ctx, apiKey, request, modelName)
 		}
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=native model=%s", modelName)
 			return response, nil
 		}
 		log.Printf("native action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
@@ -90,16 +92,20 @@ func (backend OpenRouterBackend) completeActionStructured(ctx context.Context, a
 	for _, modelName := range modelNames {
 		response, errorValue := backend.completeJSONSchema(ctx, apiKey, request, modelName)
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=json-schema model=%s", modelName)
 			return response, nil
 		}
+		log.Printf("json schema action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
 		fallbackErrors = append(fallbackErrors, modelAttemptError(modelName, errorValue))
 	}
 	promptedErrors := []error{}
 	for _, modelName := range modelNames {
 		response, errorValue := backend.completePromptedJSON(ctx, apiKey, request, modelName)
 		if errorValue == nil {
+			log.Printf("action structured completion succeeded: mode=prompted-json model=%s", modelName)
 			return response, nil
 		}
+		log.Printf("prompted json action attempt failed; trying next action model: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
 		promptedErrors = append(promptedErrors, modelAttemptError(modelName, errorValue))
 	}
 	return Response{}, nativeActionModelFallbackError(nativeErrors, fallbackErrors, promptedErrors)
@@ -512,6 +518,9 @@ func addGenerationOptions(document map[string]any, options *GenerationOptions) {
 	}
 	if options.Temperature != nil {
 		document["temperature"] = *options.Temperature
+	}
+	if options.MaxTokens != nil {
+		document["max_tokens"] = *options.MaxTokens
 	}
 }
 

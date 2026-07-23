@@ -98,8 +98,7 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 		service.writeMattermostInteractiveError(responseWriter, "요청 전달에 실패했습니다. 버튼을 다시 눌러 주세요.")
 		return
 	}
-	service.writeMattermostInteractiveSuccess(responseWriter)
-	go service.deleteMattermostAskEphemeralPostInBackground(payload)
+	service.writeMattermostAskInteractiveSuccess(responseWriter)
 }
 
 func (service *Service) forwardMattermostAskAction(ctx context.Context, payload mattermostInteractivePayload) error {
@@ -145,7 +144,6 @@ func normalizedMattermostAskEventEnvelope(payload mattermostInteractivePayload) 
 			"taskRunID":     strings.TrimSpace(payload.Context.TaskRunID),
 			"choiceKey":     choiceKey,
 			"postID":        strings.TrimSpace(payload.PostID),
-			"ephemeralAsk":  true,
 		},
 	}}
 }
@@ -215,6 +213,10 @@ func (service *Service) mattermostInteractiveActionBuilder() mattermostinteracti
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
+}
+
+func (service *Service) writeMattermostAskInteractiveSuccess(responseWriter http.ResponseWriter) {
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {

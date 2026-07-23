@@ -23,7 +23,7 @@ def require_string_list(document, key):
     return values
 
 
-def validate_tool_descriptors(contract, tool_names):
+def validate_tool_descriptors(contract):
     descriptors = contract.get('toolDescriptors')
     if not isinstance(descriptors, list) or not descriptors:
         raise ValueError('toolDescriptors must be a non-empty list')
@@ -31,8 +31,10 @@ def validate_tool_descriptors(contract, tool_names):
         descriptor.get('name') if isinstance(descriptor, dict) else None
         for descriptor in descriptors
     ]
-    if descriptor_names != tool_names:
-        raise ValueError('tool descriptor names must match toolNames in order')
+    if not all(isinstance(name, str) and name for name in descriptor_names):
+        raise ValueError('tool descriptors must have names')
+    if len(descriptor_names) != len(set(descriptor_names)):
+        raise ValueError('tool descriptor names must be unique')
 
 
 def validate_policy_contract(contract):
@@ -51,12 +53,21 @@ def validate_policy_contract(contract):
         raise ValueError('policy resource defaults must be unique')
 
 
+def validate_protocol_identity(contract):
+    protocol_version = contract.get('protocolVersion')
+    aggregate_protocol_hash = contract.get('aggregateProtocolHash')
+    if not isinstance(protocol_version, str) or not protocol_version or protocol_version != protocol_version.strip():
+        raise ValueError('protocolVersion must be a non-empty trimmed string')
+    if not isinstance(aggregate_protocol_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', aggregate_protocol_hash):
+        raise ValueError('aggregateProtocolHash must be a 64-character lowercase hexadecimal hash')
+
+
 def load_contract(path):
     contract = load_json(path)
-    if not isinstance(contract, dict) or contract.get('version') != 1:
-        raise ValueError('capability contract version must be 1')
-    tool_names = require_string_list(contract, 'toolNames')
-    validate_tool_descriptors(contract, tool_names)
+    if not isinstance(contract, dict) or contract.get('version') != 3:
+        raise ValueError('capability contract version must be 3')
+    validate_protocol_identity(contract)
+    validate_tool_descriptors(contract)
     require_string_list(contract, 'routingCandidates')
     validate_policy_contract(contract)
     return contract
@@ -75,7 +86,9 @@ def refreshed_runtime_document(runtime_document, contract):
     refreshed_document = copy.deepcopy(runtime_document)
     capability_configuration = require_object(refreshed_document, 'capabilities', 'runtime')
     routing_configuration = require_object(capability_configuration, 'routing', 'runtime.capabilities')
-    capability_configuration['toolNames'] = copy.deepcopy(contract['toolNames'])
+    capability_configuration.pop('toolNames', None)
+    capability_configuration['protocolVersion'] = contract['protocolVersion']
+    capability_configuration['aggregateProtocolHash'] = contract['aggregateProtocolHash']
     capability_configuration['toolDescriptors'] = copy.deepcopy(contract['toolDescriptors'])
     routing_configuration['candidates'] = copy.deepcopy(contract['routingCandidates'])
     return refreshed_document

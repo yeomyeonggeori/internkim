@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+keep_count="${1:-5}"
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+artifact_root="$repository_root/.artifacts/expensive"
+[ -d "$artifact_root" ] || exit 0
+cd "$artifact_root"
+
+runs="$(find . -maxdepth 1 -type d -name 'expensive-*' | sed 's|^\./||' | sort -r)"
+index=0
+for run in $runs; do
+  index=$((index + 1))
+  if [ "$index" -le "$keep_count" ]; then
+    continue
+  fi
+  archive="$run.tar.gz"
+  tar -czf "$archive.partial" "$run"
+  tar -tzf "$archive.partial" >/dev/null
+  mv "$archive.partial" "$archive"
+  rm -rf "$run"
+  echo "archived $run"
+done

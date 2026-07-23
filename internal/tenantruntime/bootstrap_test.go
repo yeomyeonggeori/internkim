@@ -35,6 +35,8 @@ func TestBootstrapTenantInstallsServicesAndDeviceTokenWithoutProviderKey(t *test
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "etc/systemd/system/internkim-capabilityd.service"), "After=network-online.target time-sync.target mattermost.service internkim-admind.service")
+	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "etc/systemd/system/internkim-capabilityd.service"), "Wants=network-online.target time-sync.target internkim-admind.service")
 	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "etc/systemd/system/internkim-capabilityd.service"), "--local-inference-mode remote")
 	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "etc/systemd/system/internkim-capabilityd.service"), "--openrouter-url http://10.0.0.1:18081/api/v1/chat/completions")
 	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "etc/systemd/system/internkim-capabilityd.service"), "--openrouter-key /root/.internkim/secrets/llm-device-token")

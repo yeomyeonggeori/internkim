@@ -6,24 +6,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
-const mattermostImportRetentionDays = 30
-const mattermostImportCleanupInterval = 6 * time.Hour
-
 type mattermostImportRecord struct {
-	FileID     string `json:"fileID"`
-	PostID     string `json:"postID"`
-	ChannelID  string `json:"channelID"`
-	ImportedAt string `json:"importedAt"`
+	FileID    string `json:"fileID"`
+	PostID    string `json:"postID"`
+	ChannelID string `json:"channelID"`
 }
 
 type mattermostImportRecordStore struct {
@@ -109,10 +103,9 @@ func (service Service) routeUploadedMattermostAttachments(ctx context.Context, p
 		}
 		log.Printf("mattermost attachment router: imported: fileID=%s postID=%s path=%s", fileID, post.ID, imported.Path)
 		newRecords = append(newRecords, mattermostImportRecord{
-			FileID:     fileID,
-			PostID:     post.ID,
-			ChannelID:  post.ChannelID,
-			ImportedAt: time.Now().UTC().Format(time.RFC3339),
+			FileID:    fileID,
+			PostID:    post.ID,
+			ChannelID: post.ChannelID,
 		})
 	}
 
@@ -262,64 +255,4 @@ func (service Service) writeMattermostImportRecords(records []mattermostImportRe
 		return errorValue
 	}
 	return os.WriteFile(storePath, document, 0o644)
-}
-
-func mattermostImportRecordExpired(importedAt string, now time.Time) bool {
-	parsedTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(importedAt))
-	if errorValue != nil {
-		return false
-	}
-	return now.Sub(parsedTime) > mattermostImportRetentionDays*24*time.Hour
-}
-
-func (service Service) runMattermostImportCleanup(ctx context.Context) {
-	service.cleanupExpiredMattermostImports(ctx)
-
-	ticker := time.NewTicker(mattermostImportCleanupInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			service.cleanupExpiredMattermostImports(ctx)
-		}
-	}
-}
-
-func (service Service) cleanupExpiredMattermostImports(ctx context.Context) {
-	mattermostImportStoreMutex.Lock()
-	records := service.readMattermostImportRecords()
-	mattermostImportStoreMutex.Unlock()
-
-	now := time.Now().UTC()
-	expiredPostIDs := map[string]bool{}
-	remainingRecords := []mattermostImportRecord{}
-
-	for _, record := range records {
-		if mattermostImportRecordExpired(record.ImportedAt, now) {
-			if strings.TrimSpace(record.PostID) != "" {
-				expiredPostIDs[record.PostID] = true
-			}
-		} else {
-			remainingRecords = append(remainingRecords, record)
-		}
-	}
-
-	for postID := range expiredPostIDs {
-		errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postID), nil, nil)
-		if errorValue != nil {
-			log.Printf("mattermost import cleanup: delete post failed: postID=%s: %v", postID, errorValue)
-			continue
-		}
-		log.Printf("mattermost import cleanup: deleted post: postID=%s", postID)
-	}
-
-	if len(expiredPostIDs) == 0 {
-		return
-	}
-
-	if errorValue := service.saveMattermostImportRecords(remainingRecords); errorValue != nil {
-		log.Printf("mattermost import cleanup: save records failed: %v", errorValue)
-	}
 }

@@ -7,6 +7,7 @@ require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-webdav v0.7.0
+	github.com/google/jsonschema-go v0.4.3
 	github.com/mdlayher/vsock v1.2.1
 	golang.org/x/crypto v0.37.0
 	golang.org/x/oauth2 v0.36.0

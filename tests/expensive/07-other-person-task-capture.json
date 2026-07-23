@@ -1,9 +1,9 @@
 {
   "name": "other-person-task-capture",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/internkim-flow"],
-  "allowedTools": ["conversation.history", "memory.search", "capability.invoke"],
+  "allowedTools": ["conversation.history", "memory.search", "task.add", "task.list", "task.update"],
   "capabilityToolNames": ["task.add", "task.list", "task.update"],
-  "initialToolNames": ["capability.invoke"],
+  "initialToolNames": ["task.add"],
   "steps": [
     {
       "prompt": "@박예시 님 내일까지 신규 가입 플로우 점검 작업 해주세요.",
@@ -12,11 +12,11 @@
       "channelID": "town-square",
       "channelName": "town-square",
       "addressing": {"otherPersonMentioned": true},
-      "expectedToolCalls": ["task.list", "task.add"],
+      "expectedToolCalls": ["task.add"],
       "expectedEventCounts": [
         {"name": "agent.ambient_duty_launch", "bodyFragment": "team_flow", "count": 1},
-        {"name": "tool.capability.invoke.requested", "bodyFragment": "\"targetPersonHint\":\"박예시\"", "count": 2},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "\"targetPersonHint\":\"박예시\"", "count": 1}
+        {"name": "tool.task.add.requested", "bodyFragment": "\"targetPersonHint\":\"박예시\"", "count": 1},
+        {"name": "tool.task.add.result", "outputFragment": "박예시", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }

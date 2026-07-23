@@ -11,6 +11,7 @@ func TestUsersSyncScriptReadsCanonicalAdminEmailWithLegacyFallback(t *testing.T)
 	for _, fragment := range []string{
 		"/root/.internkim/config/admin-email",
 		"/root/.internkim/admin-email",
+		`[ "$email" = "$admin_email" ] && continue`,
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync script to include %q", fragment)
@@ -18,7 +19,34 @@ func TestUsersSyncScriptReadsCanonicalAdminEmailWithLegacyFallback(t *testing.T)
 	}
 }
 
-func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) {
+func TestUsersSyncScriptOnlyPersistsInvitablePolicyTargets(t *testing.T) {
+	script := InternKimUsersSyncScript()
+
+	for _, fragment := range []string{
+		`select((.userID // "") != "" and (.email // "") != "")`,
+		"else\n    empty\n  end",
+		`cut -f2 "$desired_records_path"`,
+		`done < "$desired_records_path"`,
+		`jusers="$(jq -R . "$desired_path" | jq -s .)"`,
+		`--argjson users "$jusers"`,
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected users sync script to include %q", fragment)
+		}
+	}
+	if strings.Contains(script, `.users[]? | ["", .`) {
+		t.Fatal("legacy email-only users must not become policy or state targets")
+	}
+	desiredRecordsIndex := strings.Index(script, `select((.userID // "") != "" and (.email // "") != "")`)
+	desiredEmailsIndex := strings.Index(script, `cut -f2 "$desired_records_path"`)
+	inviteIndex := strings.Index(script, `done < "$desired_records_path"`)
+	stateIndex := strings.Index(script, `--argjson users "$jusers"`)
+	if desiredRecordsIndex < 0 || desiredEmailsIndex < desiredRecordsIndex || inviteIndex < desiredEmailsIndex || stateIndex < inviteIndex {
+		t.Fatalf("expected one filtered target set to drive policy invitations and persisted state, got %s", script)
+	}
+}
+
+func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *testing.T) {
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{

@@ -66,7 +66,7 @@ Deploy a release to the target device over Admin HTTPS.
 
 Options:
   --components <list>  Comma-separated component names to include.
-                       Available: admind, blueclawPayload, blueclawSupervisor, capabilityd, fonts, internkim, mattermostPlugins, skills, web
+                       Available: admind, blueclawPayload, blueclawLLMD, blueclawSupervisor, capabilityd, fonts, internkim, mattermostPlugins, skills, web
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
@@ -201,6 +201,11 @@ func deployReleaseToRegistryTargets(repositoryRootPath string, targets []deployo
 	jetsonTargets, pocContainerTargets, errorValue := splitRegistryDeployTargets(targets)
 	if errorValue != nil {
 		return errorValue
+	}
+	if len(pocContainerTargets) > 0 {
+		if _, errorValue := selectedPocContainerComponents(arguments); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := deployReleaseToJetsonTargets(repositoryRootPath, jetsonTargets, arguments); errorValue != nil {
 		return errorValue
@@ -373,6 +378,12 @@ func createDirectReleaseBundle(repositoryRootPath string, temporaryDirectoryPath
 // components", which already includes skills.
 func coupleBlueclawWithSkills(selectedComponentNames map[string]bool) map[string]bool {
 	if selectedComponentNames["blueclawPayload"] {
+		selectedComponentNames["skills"] = true
+	}
+	if selectedComponentNames["blueclawLLMD"] {
+		selectedComponentNames["admind"] = true
+		selectedComponentNames["blueclawPayload"] = true
+		selectedComponentNames["capabilityd"] = true
 		selectedComponentNames["skills"] = true
 	}
 	return selectedComponentNames

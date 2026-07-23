@@ -25,6 +25,15 @@ func TestCoupleBlueclawWithSkillsAddsSkillsForPayload(t *testing.T) {
 	}
 }
 
+func TestCoupleBlueclawWithSkillsAddsProtocolComponentsForLLMD(t *testing.T) {
+	coupled := coupleBlueclawWithSkills(map[string]bool{"blueclawLLMD": true})
+	for _, componentName := range []string{"admind", "blueclawLLMD", "blueclawPayload", "capabilityd", "skills"} {
+		if !coupled[componentName] {
+			t.Fatalf("expected LLMD deploy to carry %s, got %+v", componentName, coupled)
+		}
+	}
+}
+
 func TestCoupleBlueclawWithSkillsLeavesOtherComponentsAlone(t *testing.T) {
 	coupled := coupleBlueclawWithSkills(map[string]bool{"admind": true, "web": true})
 	if coupled["skills"] {
@@ -93,7 +102,7 @@ func TestLegacySSHDeploySetupStepNamesRejectsUnsupportedComponents(t *testing.T)
 
 func TestDeployUsageTextContainsComponentNames(t *testing.T) {
 	usage := deployUsageText()
-	for _, componentName := range []string{"admind", "blueclawPayload", "capabilityd", "internkim", "mattermostPlugins", "skills", "web"} {
+	for _, componentName := range []string{"admind", "blueclawPayload", "blueclawLLMD", "capabilityd", "internkim", "mattermostPlugins", "skills", "web"} {
 		if !strings.Contains(usage, componentName) {
 			t.Errorf("deployUsageText() missing component name %q", componentName)
 		}
