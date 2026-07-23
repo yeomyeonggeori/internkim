@@ -1,0 +1,195 @@
+{
+ "name": "document-lifecycle",
+ "requiresLLMD": true,
+ "expectedLLMProvider": "openrouter",
+ "skillDirectoryPaths": [
+  "../../assets/blueclaw-workspace/skills/document"
+ ],
+ "allowedTools": [
+  "conversation.history",
+  "memory.search",
+  "terminal.run",
+  "document.read",
+  "file.preview",
+  "file.read",
+  "file.delete",
+  "file.deliver"
+ ],
+ "capabilityToolNames": [
+  "document.read"
+ ],
+ "initialToolNames": [
+  "terminal.run",
+  "document.read",
+  "file.deliver"
+ ],
+ "steps": [
+  {
+   "prompt": "운영팀과 재무팀이 함께 볼 수 있도록 '분기 결산 운영 검토'라는 제목의 짧은 DOCX 문서를 작성해서 보내줘. 검토 목적과 다음 단계를 간단히 적고, 현재 상태는 초안, 담당은 운영팀이라고 표시해줘.",
+   "expectedToolCalls": [
+    "terminal.run",
+    "file.deliver"
+   ],
+   "expectedAttachments": [
+    ".docx"
+   ],
+   "expectedDocumentText": [
+    "분기 결산 운영 검토",
+    "초안",
+    "운영팀"
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/documents/*.docx"
+    }
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.terminal.run.requested",
+     "bodyFragment": "분기 결산 운영 검토",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.file.deliver.result",
+     "outputFragment": ".docx",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "expectedReplyFragments": [
+    "분기 결산 운영 검토"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "방금 전달한 DOCX를 읽어서 제목, 상태, 담당과 다음 단계를 확인해줘.",
+   "expectedAnyToolCalls": [
+    "document.read",
+    "file.preview",
+    "file.read"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.document.read.result",
+     "outputFragment": ".docx",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.document.read.result",
+     "outputFragment": "분기 결산 운영 검토",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "expectedReplyFragments": [
+    "분기 결산 운영 검토",
+    "초안",
+    "운영팀"
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/documents/*.docx"
+    }
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "방금 만든 DOCX의 상태를 '검토 완료'로 바꾸고 담당을 '재무팀'으로 수정해서 같은 문서로 다시 전달해줘.",
+   "expectedToolCalls": [
+    "terminal.run",
+    "file.deliver"
+   ],
+   "expectedAttachments": [
+    ".docx"
+   ],
+   "expectedDocumentText": [
+    "분기 결산 운영 검토",
+    "검토 완료",
+    "재무팀"
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/*/documents/*.docx"
+    }
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.terminal.run.requested",
+     "bodyFragment": "검토 완료",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.terminal.run.requested",
+     "bodyFragment": "재무팀",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.file.deliver.result",
+     "outputFragment": ".docx",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "expectedReplyFragments": [
+    "검토 완료",
+    "재무팀"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "수정한 DOCX를 다시 읽어서 상태가 검토 완료이고 담당이 재무팀인지 확인해줘.",
+   "expectedAnyToolCalls": [
+    "document.read",
+    "file.preview",
+    "file.read"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.document.read.result",
+     "outputFragment": "검토 완료",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.document.read.result",
+     "outputFragment": "재무팀",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "expectedReplyFragments": [
+    "검토 완료",
+    "재무팀"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "수정한 DOCX를 삭제해줘.",
+   "approvalAction": "approve",
+   "expectedToolCalls": [
+    "file.delete"
+   ],
+   "expectedEvents": [
+    "confirmation.requested",
+    "approval.pending_call",
+    "approval.executed"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.delete.result",
+     "outputFragment": "deleted",
+     "count": 1,
+     "exact": true
+    }
+   ],
+   "forbiddenWorkspaceFiles": [
+    "private/people/*/documents/*.docx"
+   ],
+   "expectedTaskStatus": "completed"
+  }
+ ]
+}

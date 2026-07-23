@@ -87,18 +87,34 @@ func (service Service) upPlans(skipWeb bool) []CommandPlan {
 	return service.upPlansWithSkippedSetupSteps(skipWeb, nil)
 }
 
-func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
+func (service Service) preparedFleetPlans() []CommandPlan {
 	return []CommandPlan{
+		service.labCommand("vm-up"),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
+		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
+	}
+}
+
+func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
+	plans := []CommandPlan{
 		service.prepareContainerKernelPlan(),
 		service.prepareLocalEmbeddingPlan(),
 		service.labCommand("vm-up"),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
 		service.command("make", "build"),
+	}
+	if !service.options.IsEphemeral && !slices.Contains(additionalSkippedSteps, "blueclaw-runtime-base") {
+		plans = append(plans, service.shellPlan("ensure reusable runtime base", service.ensureRuntimeBaseCommand()))
+	}
+	plans = append(plans,
 		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
 		service.configureLocalEmbeddingPlan(),
-		service.mattermostTestSettingsPlan(),
+	)
+	if slices.Contains(additionalSkippedSteps, "mattermost") {
+		return plans
 	}
+	return append(plans, service.mattermostTestSettingsPlan())
 }
 
 func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
@@ -124,6 +140,21 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.withoutMattermostVirtualSessionPlan(scenario),
 	}
+}
+
+func (service Service) llmdHostTopologyScenarioPlans() []CommandPlan {
+	service.options.ShouldUseRealModels = true
+	service.options.MaximumModelTier = ""
+	service.options.LLMDMode = LLMDModeAuthoritative
+	plans := service.upPlansWithSkippedSetupSteps(true, []string{"mattermost"})
+	for index := range plans {
+		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawLLMDModeEnvironment+"="+string(LLMDModeAuthoritative))
+		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")
+	}
+	return append(
+		plans,
+		service.labCommand("vm-ssh", "sudo bash "+quoteShell("/mnt/shared/workspace/lab/scripts/scenario-llmd-host-topology.sh")),
+	)
 }
 
 func (service Service) prepareContainerKernelPlan() CommandPlan {
@@ -271,7 +302,6 @@ func (service Service) checkSharedWorkspaceCommand() string {
 }
 
 func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...string) string {
-	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	skippedSteps := []string{"wifi", "local-llm", "cloudflare-access", "tunnel", "google", "slack"}
 	if skipWeb {
 		skippedSteps = append(skippedSteps, "web")
@@ -284,11 +314,20 @@ func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...stri
 			skippedSteps = append(skippedSteps, skippedStep)
 		}
 	}
+	return service.setupSSHCommand("--force --skip " + strings.Join(skippedSteps, ","))
+}
+
+func (service Service) ensureRuntimeBaseCommand() string {
+	return service.setupSSHCommand("--only blueclaw-runtime-base --skip web")
+}
+
+func (service Service) setupSSHCommand(selectionArguments string) string {
+	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	setupCommandParts := append(service.setupEnvironmentAssignments(), quoteShell(service.options.ExecutablePath))
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force --skip " + strings.Join(skippedSteps, ","),
+		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock " + selectionArguments,
 	}, " && ")
 }
 
@@ -302,6 +341,9 @@ func (service Service) setupEnvironmentAssignments() []string {
 	}
 	if maximumModelTier := strings.TrimSpace(service.options.MaximumModelTier); maximumModelTier != "" {
 		assignments = append(assignments, blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+quoteShell(maximumModelTier))
+	}
+	if service.options.LLMDMode != "" {
+		assignments = append(assignments, blueclaw.BlueclawLLMDModeEnvironment+"="+quoteShell(string(service.options.LLMDMode)))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))
@@ -319,11 +361,13 @@ func (service Service) startTunnelCommand() string {
 	logPath := quoteShell(service.tunnelLogPath())
 	adminForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:18080", service.options.AdminHostPort)
 	mattermostForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:8065", service.options.MattermostHostPort)
+	forwardHealthCheck := fmt.Sprintf("nc -z 127.0.0.1 %d && nc -z 127.0.0.1 %d", service.options.AdminHostPort, service.options.MattermostHostPort)
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi",
-		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
+		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi",
+		"if [ -s " + pidPath + " ]; then kill \"$(cat " + pidPath + ")\" 2>/dev/null || true; fi",
+		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 

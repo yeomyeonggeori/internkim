@@ -564,19 +564,23 @@ func TestOpenRouterBackendUsesPromptedJSONFirstForFreeModel(t *testing.T) {
 func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	seed := int64(12)
 	temperature := 0.6
+	maxTokens := 2048
 	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
 		FunctionName: "continue__site_app_publish",
 		Description:  "Call site.publish",
 		Action:       "continue",
 		ToolName:     "site.publish",
 		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
-	}}, GenerationOptions{Seed: &seed, Temperature: &temperature})
+	}}, GenerationOptions{Seed: &seed, Temperature: &temperature, MaxTokens: &maxTokens})
 
 	if request.Seed == nil || *request.Seed != seed {
 		t.Fatalf("expected seed on OpenAI-compatible request, got %+v", request)
 	}
 	if request.Temperature == nil || *request.Temperature != temperature {
 		t.Fatalf("expected temperature on OpenAI-compatible request, got %+v", request)
+	}
+	if request.MaxTokens == nil || *request.MaxTokens != maxTokens {
+		t.Fatalf("expected max tokens on OpenAI-compatible request, got %+v", request)
 	}
 	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "continue__site_app_publish" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)

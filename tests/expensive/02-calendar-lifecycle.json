@@ -1,45 +1,129 @@
 {
   "name": "calendar-lifecycle",
-  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/calendar"],
-  "allowedTools": ["conversation.history", "memory.search", "capability.invoke"],
-  "capabilityToolNames": ["calendar.add", "calendar.list", "calendar.update", "calendar.delete"],
-  "capabilityToolDescriptors": [
-    {"name": "calendar.delete", "requiresApproval": true}
+  "requiresLLMD": true,
+  "expectedLLMProvider": "openrouter",
+  "skillDirectoryPaths": [
+    "../../assets/blueclaw-workspace/skills/calendar"
   ],
-  "initialToolNames": ["capability.invoke"],
+  "allowedTools": [
+    "conversation.history",
+    "memory.search",
+    "calendar.add",
+    "calendar.list",
+    "calendar.update",
+    "calendar.delete"
+  ],
+  "capabilityToolNames": [
+    "calendar.add",
+    "calendar.list",
+    "calendar.update",
+    "calendar.delete"
+  ],
+  "capabilityToolDescriptors": [
+    {
+      "name": "calendar.delete",
+      "requiresApproval": true
+    }
+  ],
+  "initialToolNames": [
+    "calendar.add",
+    "calendar.list",
+    "calendar.update",
+    "calendar.delete"
+  ],
   "steps": [
     {
-      "prompt": "내일 오전 10시부터 11시까지 '비용 테스트 일정'을 캘린더에 추가해줘.",
-      "expectedToolCalls": ["calendar.add"],
+      "prompt": "내일 오전 10시부터 11시까지 고객지원팀과 분기 결산 누락 항목을 검토하는 회의를 잡아줘. 회의 제목은 '고객지원팀 분기 결산 검토'로 해줘.",
+      "expectedToolCalls": [
+        "calendar.add"
+      ],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 일정", "count": 1}
+        {
+          "name": "tool.calendar.add.result",
+          "outputFragment": "{{tomorrow}}T10:00:00+09:00",
+          "count": 1
+        }
       ],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 만든 '비용 테스트 일정'을 내일 오후 2시부터 3시로 수정해줘.",
-      "expectedToolCalls": ["calendar.update"],
+      "prompt": "방금 만든 '고객지원팀 분기 결산 검토' 일정을 내일 오후 2시부터 3시로 옮겨줘.",
+      "expectedToolCalls": [
+        "calendar.update"
+      ],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.requested", "bodyFragment": "T14:00:00+09:00", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "T14:00:00+09:00", "count": 1}
+        {
+          "name": "tool.calendar.update.requested",
+          "bodyFragment": "{{tomorrow}}T14:00:00+09:00",
+          "count": 1,
+          "exact": true,
+          "advisory": true
+        },
+        {
+          "name": "tool.calendar.update.result",
+          "outputFragment": "{{tomorrow}}T14:00:00+09:00",
+          "count": 1
+        }
       ],
       "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "방금 수정한 '비용 테스트 일정'을 삭제해줘.",
-      "expectedToolCalls": ["calendar.delete"],
-      "expectedEvents": ["confirmation.requested"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
+      "prompt": "내 캘린더를 조회해서 방금 옮긴 '고객지원팀 분기 결산 검토'가 오후 2시부터 3시로 등록되어 있는지 확인해줘.",
+      "expectedToolCalls": [
+        "calendar.list"
       ],
-      "expectedTaskStatus": "waiting_approval"
+      "expectedEventCounts": [
+        {
+          "name": "tool.calendar.list.requested",
+          "bodyFragment": "고객지원팀 분기 결산 검토",
+          "count": 1,
+          "exact": true,
+          "advisory": true
+        },
+        {
+          "name": "tool.calendar.list.result",
+          "outputFragment": "{{tomorrow}}T14:00:00+09:00",
+          "count": 1
+        }
+      ],
+      "expectedReplyFragments": [
+        "고객지원팀 분기 결산 검토"
+      ],
+      "expectedTaskStatus": "completed"
     },
     {
-      "prompt": "일정 삭제 승인할게.",
-      "expectedToolCalls": ["calendar.delete"],
-      "expectedEvents": ["approval.executed"],
+      "prompt": "방금 확인한 '고객지원팀 분기 결산 검토' 일정을 삭제해줘.",
+      "approvalAction": "approve",
+      "expectedToolCalls": [
+        "calendar.delete"
+      ],
+      "expectedEvents": [
+        "confirmation.requested",
+        "approval.pending_call",
+        "approval.executed"
+      ],
       "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
+        {
+          "name": "tool.calendar.delete.result",
+          "outputFragment": "deleted",
+          "count": 1,
+          "exact": true
+        }
+      ],
+      "expectedTaskStatus": "completed"
+    },
+    {
+      "prompt": "내 캘린더를 다시 조회해서 삭제한 '고객지원팀 분기 결산 검토'가 남아 있지 않은지 확인해줘.",
+      "expectedToolCalls": [
+        "calendar.list"
+      ],
+      "expectedEventCounts": [
+        {
+          "name": "tool.calendar.list.result",
+          "outputFragment": "고객지원팀 분기 결산 검토",
+          "count": 0,
+          "exact": true
+        }
       ],
       "expectedTaskStatus": "completed"
     }

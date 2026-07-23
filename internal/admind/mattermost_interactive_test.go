@@ -23,21 +23,10 @@ func TestMattermostInteractiveActionURLUsesConfiguredPublicBaseURL(t *testing.T)
 
 func TestMattermostAskActionAcknowledgesWithResolvedUpdateAndForwardsEvent(t *testing.T) {
 	forwardedRequests := make(chan map[string]any, 1)
-	deletedPosts := make(chan mattermostEphemeralPluginDeleteRequest, 1)
 	service := &Service{Configuration: DefaultConfiguration()}
 	service.Configuration.StateDirectory = t.TempDir()
 	service.Configuration.BlueclawBaseURL = "http://blueclaw.test"
-	service.Configuration.MattermostBaseURL = "http://mattermost.test"
-	writeFile(t, service.mattermostEphemeralPluginSecretPath(), "shared-secret")
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.test/plugins/com.internkim.ephemeral/api/v1/delete-ephemeral" && request.Method == http.MethodPost {
-			var payload mattermostEphemeralPluginDeleteRequest
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatalf("expected delete payload to decode: %v", errorValue)
-			}
-			deletedPosts <- payload
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		}
 		if request.URL.String() != "http://blueclaw.test/connectors/mattermost/events" || request.Method != http.MethodPost {
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 		}
@@ -75,31 +64,19 @@ func TestMattermostAskActionAcknowledgesWithResolvedUpdateAndForwardsEvent(t *te
 		if !isMap {
 			t.Fatalf("expected legacy fields, got %+v", eventDocument)
 		}
-		if legacyFields["askAction"] != "cancel" || legacyFields["taskRunID"] != "task-1" || legacyFields["postID"] != "post-1" || legacyFields["ephemeralAsk"] != true {
+		if legacyFields["askAction"] != "cancel" || legacyFields["taskRunID"] != "task-1" || legacyFields["postID"] != "post-1" {
 			t.Fatalf("expected ask action to be forwarded, got %+v", payload)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected ask action to be forwarded")
 	}
-	select {
-	case payload := <-deletedPosts:
-		if payload.PostID != "post-1" || payload.UserID != "user-1" {
-			t.Fatalf("deleted ephemeral post = %+v", payload)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("expected ask control post to be deleted")
-	}
 }
 
 func TestMattermostAskActionKeepsControlWhenForwardFails(t *testing.T) {
-	deleteRequests := make(chan struct{}, 1)
 	service := &Service{Configuration: DefaultConfiguration()}
 	service.Configuration.StateDirectory = t.TempDir()
 	service.Configuration.BlueclawBaseURL = "http://blueclaw.test"
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if strings.Contains(request.URL.String(), "delete-ephemeral") {
-			deleteRequests <- struct{}{}
-		}
 		return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
 	})}
 	token := service.ensureMattermostInteractiveActionToken()
@@ -115,14 +92,9 @@ func TestMattermostAskActionKeepsControlWhenForwardFails(t *testing.T) {
 	if response.EphemeralText != "요청 전달에 실패했습니다. 버튼을 다시 눌러 주세요." || response.Update != nil {
 		t.Fatalf("expected forward failure response, got %+v", response)
 	}
-	select {
-	case <-deleteRequests:
-		t.Fatal("expected failed forward to preserve the ask control")
-	case <-time.After(50 * time.Millisecond):
-	}
 }
 
-func TestMattermostAskActionAcknowledgesWithoutPostUpdate(t *testing.T) {
+func TestMattermostAskActionAcknowledgesWithAttachmentClear(t *testing.T) {
 	service := &Service{Configuration: DefaultConfiguration()}
 	service.Configuration.StateDirectory = t.TempDir()
 	service.Configuration.BlueclawBaseURL = "http://blueclaw.test"
@@ -220,7 +192,25 @@ func assertMattermostAskAcknowledged(t *testing.T, response mattermostInteractiv
 	if response.EphemeralText != "" {
 		t.Fatalf("expected acknowledged ask without ephemeral error, got %q", response.EphemeralText)
 	}
+	if response.Update == nil {
+		t.Fatal("expected ask acknowledgement to clear interactive attachments")
+	}
+	document, errorValue := json.Marshal(response.Update)
+	if errorValue != nil || !strings.Contains(string(document), `"attachments":[]`) {
+		t.Fatalf("expected attachment-clearing update, got %+v", response.Update)
+	}
+}
+
+func TestMattermostInteractiveSuccessKeepsReusableAttachments(t *testing.T) {
+	responseRecorder := httptest.NewRecorder()
+
+	(&Service{}).writeMattermostInteractiveSuccess(responseRecorder)
+
+	var response mattermostInteractiveResponse
+	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
+		t.Fatalf("expected response to decode: %v", errorValue)
+	}
 	if response.Update != nil {
-		t.Fatalf("expected no immediate post update for ask acknowledgement, got %+v", response.Update)
+		t.Fatalf("expected reusable controls to remain, got %+v", response.Update)
 	}
 }

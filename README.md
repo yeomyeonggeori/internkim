@@ -452,7 +452,7 @@ cd .dependency/blueclaw
 
 BLUECLAW_E2E_LIVE=1 \
 BLUECLAW_E2E_LLM_UNIX_SOCKET=/run/internkim/capability.sock \
-go test ./internal/e2e -run TestSlidesLocalMultiturnSuccessLive -count=1
+go test ./internal/e2e -run TestPresentationLocalMultiturnSuccessLive -count=1
 ```
 
 산출물을 사람이 직접 확인해야 할 때는 `--live-llm`을 붙여 lab runner를 실행합니다.

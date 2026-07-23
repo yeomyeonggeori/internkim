@@ -296,7 +296,7 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 		Title:           observation.Title,
 		SnapshotText:    observation.SnapshotText,
 		InteractiveRefs: observation.InteractiveRefs,
-		CapturedAt:      observation.CapturedAt,
+		CapturedAt:      firstNonEmpty(observation.CapturedAt, runtime.now().UTC().Format(time.RFC3339)),
 	}, nil
 }
 

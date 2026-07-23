@@ -14,42 +14,44 @@ type personPresentationForTool struct {
 }
 
 func enrichFlowTaskResultDocument(result json.RawMessage, members []flowMemberForTool) json.RawMessage {
-	object := map[string]any{}
-	if json.Unmarshal(result, &object) != nil {
+	var task flowTaskForTool
+	if json.Unmarshal(result, &task) != nil || strings.TrimSpace(task.ID) == "" {
 		return result
 	}
-	if _, hasTaskID := object["id"]; hasTaskID {
-		enrichFlowTaskMap(object, members)
-	}
-	if duplicateTask, ok := object["duplicateTask"].(map[string]any); ok {
-		enrichFlowTaskMap(duplicateTask, members)
-		object["duplicateTask"] = duplicateTask
-	}
-	document, errorValue := json.Marshal(object)
+	document, errorValue := json.Marshal(flowTaskResultDocument(task, members))
 	if errorValue != nil {
 		return result
 	}
 	return document
 }
 
-func enrichFlowTasksForTool(tasks []flowTaskForTool, members []flowMemberForTool) []flowTaskForTool {
-	result := append([]flowTaskForTool(nil), tasks...)
-	for index := range result {
-		result[index] = flowTaskWithParticipantPresentations(result[index], members)
+func enrichFlowTasksForTool(tasks []flowTaskForTool, members []flowMemberForTool) []map[string]any {
+	result := make([]map[string]any, 0, len(tasks))
+	for _, task := range tasks {
+		result = append(result, flowTaskResultDocument(task, members))
 	}
 	return result
 }
 
-func flowTaskWithParticipantPresentations(task flowTaskForTool, members []flowMemberForTool) flowTaskForTool {
-	task.ParticipantPresentations = flowParticipantPresentations(task.ParticipantIDs, task.ParticipantNames, members)
-	return task
+func flowTaskResultDocument(task flowTaskForTool, members []flowMemberForTool) map[string]any {
+	document := map[string]any{}
+	encodedTask, _ := json.Marshal(flowTaskWithParticipantPresentations(task, members))
+	json.Unmarshal(encodedTask, &document)
+	delete(document, "id")
+	delete(document, "createdAt")
+	document["taskID"] = task.ID
+	return document
 }
 
-func enrichFlowTaskMap(task map[string]any, members []flowMemberForTool) {
-	participantIDs := stringValuesFromUnknown(task["participantIDs"])
-	participantNames := stringValuesFromUnknown(task["participantNames"])
-	presentations := flowParticipantPresentations(participantIDs, participantNames, members)
-	task["participantPresentations"] = presentations
+func flowTaskWithParticipantPresentations(task flowTaskForTool, members []flowMemberForTool) flowTaskForTool {
+	if task.ParticipantIDs == nil {
+		task.ParticipantIDs = []string{}
+	}
+	if task.ParticipantNames == nil {
+		task.ParticipantNames = []string{}
+	}
+	task.ParticipantPresentations = flowParticipantPresentations(task.ParticipantIDs, task.ParticipantNames, members)
+	return task
 }
 
 func flowParticipantPresentations(participantIDs []string, participantNames []string, members []flowMemberForTool) []personPresentationForTool {
@@ -95,23 +97,6 @@ func personPresentationFromParticipantName(participantID string, participantName
 	return personPresentationForTool{
 		PersonID:    strings.TrimSpace(participantID),
 		DisplayName: displayName,
-	}
-}
-
-func stringValuesFromUnknown(value any) []string {
-	switch typedValue := value.(type) {
-	case []string:
-		return uniqueTrimmedStringValues(typedValue)
-	case []any:
-		values := make([]string, 0, len(typedValue))
-		for _, item := range typedValue {
-			if text, ok := item.(string); ok {
-				values = append(values, text)
-			}
-		}
-		return uniqueTrimmedStringValues(values)
-	default:
-		return nil
 	}
 }
 

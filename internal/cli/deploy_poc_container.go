@@ -177,7 +177,37 @@ func syncPocContainerBlueclaw(target deployops.Target, repositoryRootPath string
 	if errorValue := syncPocContainerBinary(target, blueclawRootPath, temporaryDirectoryPath, "blueclaw-posix-helper", "./cmd/blueclaw-posix-helper", true); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := syncPocContainerLLMD(target, repositoryRootPath); errorValue != nil {
+		return errorValue
+	}
 	return syncMigrations(target, repositoryRootPath, temporaryDirectoryPath)
+}
+
+func syncPocContainerLLMD(target deployops.Target, repositoryRootPath string) error {
+	artifactDirectoryPath := pocContainerLLMDArtifactDirectoryPath(repositoryRootPath)
+	if errorValue := ensurePocContainerLLMDArtifact(repositoryRootPath, artifactDirectoryPath); errorValue != nil {
+		return errorValue
+	}
+	artifactPath := pocContainerLLMDArtifactPath(repositoryRootPath)
+	return scpToTarget(target, artifactPath, path.Join(target.Workdir, "tenant", "bin", blueclawruntime.LLMDName))
+}
+
+func pocContainerLLMDArtifactDirectoryPath(repositoryRootPath string) string {
+	return filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd")
+}
+
+func pocContainerLLMDArtifactPath(repositoryRootPath string) string {
+	return filepath.Join(pocContainerLLMDArtifactDirectoryPath(repositoryRootPath), blueclawruntime.LLMDName)
+}
+
+func ensurePocContainerLLMDArtifact(repositoryRootPath string, artifactDirectoryPath string) error {
+	if validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath) == nil {
+		return nil
+	}
+	if errorValue := buildBlueclawLLMDArtifact(repositoryRootPath, artifactDirectoryPath); errorValue != nil {
+		return errorValue
+	}
+	return validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath)
 }
 
 func buildLinuxBinary(directoryPath string, packagePath string, outputPath string, isStatic bool) error {
@@ -316,6 +346,7 @@ func pocContainerOverlayDockerfile(baseImageTag string) string {
 	return "FROM " + baseImageTag + "\n" +
 		"COPY --chmod=0755 bin/internkim-capabilityd /usr/local/bin/internkim-capabilityd\n" +
 		"COPY --chmod=0755 bin/blueclaw /usr/local/bin/blueclaw\n" +
+		"COPY --chmod=0755 bin/blueclaw-llmd /usr/local/bin/blueclaw-llmd\n" +
 		"COPY --chmod=4755 bin/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper\n" +
 		"COPY --chmod=0755 bin/internkim-admind /usr/local/bin/internkim-admind\n" +
 		"COPY migrations /opt/blueclaw/migrations\n" +

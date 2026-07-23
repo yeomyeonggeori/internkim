@@ -19,10 +19,84 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
 - Do not include unrelated dirty changes in commits or deployments.
+- Never run `git add -A`, `git add .`, or `git commit -a` inside
+  `.dependency/blueclaw`. Always run `git status --short` first and `git add`
+  only the exact paths you changed. Pre-existing dirt in
+  `tests/integration/` or `.claude/` belongs to the user: never stage, commit,
+  revert, or delete it.
+- `rg` inside `.dependency/blueclaw` must exclude `.claude/` (it contains
+  nested repo copies): use `rg --glob '!.claude'` or `git grep`, which only
+  searches tracked files.
 - If a clean checkout or worktree is used to avoid unrelated changes, report it
   and clean it up or say why it remains.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
+
+## Engineering Discipline (no cheating, no blind retries)
+
+- Cheating is any change that makes a check pass without making the product
+  better. All of these are cheating and are forbidden:
+  - Injecting test-specific knowledge into prompts, guidance, or code paths
+    (a scenario's expected date, title, or answer must never appear outside
+    the scenario file).
+  - Hardcoded surrender or refusal instructions in runtime prompts.
+  - Keyword/regex/path filters that decide meaning, intent, or security.
+    Deterministic string checks are allowed only for machine identifiers:
+    exact IDs, exact handles, exact paths, wire-format grammar, and unique
+    deterministic hint resolution. Fuzzy or substring identity is never
+    allowed.
+- When you are tempted to parse or filter model text with string matching,
+  use one of these two sanctioned shapes instead — never a regex over prose:
+  1. Structured output: give the model a strict closed typed schema
+     (additionalProperties false, enum where finite) and read the typed
+     fields. The model decides; the schema only shapes the answer.
+  2. Resolver layer (the `personHint`/`fileHint`/`taskHint` pattern): the
+     model supplies a natural reference it actually knows (a current title,
+     a name, a path it saw), and the runtime resolves it deterministically
+     to the canonical identity — exact ID match, else exact unique
+     field match, no fuzzy matching. Ambiguity or no match fails closed
+     with a candidates list returned to the model for one informed retry.
+     Describe the hint field precisely (e.g. "the exact CURRENT title,
+     never a new or intended title") — weak models fill vague hint fields
+     with the wrong referent.
+  If neither shape fits, the decision belongs to the LLM as judgment, not to
+  code.
+  - Test-only branches that production never takes, weakened assertions
+    without a stated reason, or reporting a failure as success.
+- Never rerun a failed test unchanged. The loop is always: form a hypothesis
+  from the evidence, confirm the root cause from the event ledger and logs,
+  fix that cause at the layer it lives in, then rerun once as verification of
+  the fix. If you cannot explain a failure, the next task is diagnosis, not
+  another attempt.
+- Do not silently rewrite our own artifacts at a boundary to make a
+  downstream rejection disappear (e.g. pruning schema fields until a
+  provider accepts the request). That is masking, not fixing. When an
+  external system rejects something we generated: identify the exact
+  artifact and the source that authored it, fix the source, and add a
+  generation-time guard test that fails when the same inconsistency
+  reappears. A boundary adapter is acceptable only for a documented
+  provider constraint the source legitimately cannot express, and it must
+  stay loud — a diagnostic event naming the affected artifact — never a
+  silent rewrite.
+- Treat every acceptance failure as a probe into how this production agent
+  falls short of a strong general agent (Claude Code, Codex): ask what a
+  strong agent loop would have done differently (see its own state, keep
+  context across steps, recover without thrashing), turn that gap into a
+  testable hypothesis, and fix the runtime — not the test — when the
+  hypothesis holds.
+- Division of labor: the LLM judges meaning, outcomes, wording, and recovery
+  direction; deterministic code supplies facts the model cannot know
+  (identity resolution, recorded effects, schema validity, permissions) and
+  enforces only narrow-blast-radius guards. Wide or irreversible actions get
+  deterministic gates; everything else trusts the model and verifies through
+  evidence.
+- Delete half-baked features whose main output is side effects. An automatic
+  behavior that fires on weak signals, mutates state or messages people
+  without being asked, or ships partially wired (dead flags, unowned
+  fallbacks, config nothing reads) is a defect: remove it or gate it behind
+  an explicit request instead of tuning it. No behavior beats a wrong
+  automatic behavior. A new automatic behavior must state its trigger
+  evidence, its blast radius, and how it is turned off.
 
 ## Runtime Test Hygiene
 
@@ -40,9 +114,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 - For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
   behavior changes, start with `./internkim dev simulate --scenario <name>`.
-- Use scripted/cassette virtual sessions for repeatability. Record live model
-  decisions with `--live-llm --record-cassette <path>`, then replay the same
-  cassette instead of relying on seed stability alone.
+- Use scripted virtual sessions only for deterministic runtime invariants such
+  as state transitions, approval, cancellation, effects, and evidence.
+- Verify model judgment and AI SDK behavior through the live LLM path. Preserve
+  request, response, routing, tool, timing, and artifact evidence instead of
+  replaying recorded model output as acceptance.
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
@@ -91,6 +167,73 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   gitignored evidence under `.local/local-fleet/runs/<runID>` and
   `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
   `--reuse` runs.
+
+## Expensive Acceptance Gates (real Mattermost)
+
+- Run one scenario per invocation and keep the VM for autopsy:
+  `./internkim test expensive --maximum-model-tier low --scenario <name>
+  --auto-confirm --keep --retry-once`. Rerun on the same fleet without
+  reprovisioning: add `--skip-provisioning --run-id <existing runID>`.
+- Never run two expensive scenarios concurrently against one fleet: each
+  run tears down and recreates the shared SSH tunnel recorded in the run
+  directory, killing the other run's connection mid-flight. Chain
+  scenarios sequentially with `tools/run-expensive-chain --run-id <runID>
+  [scenario ...]`; do not hand-roll the chain with ad-hoc shell. The tool
+  is single-instance (PID file, no string matching against process lists)
+  and writes each run to its own
+  `.local/local-fleet/runs/<runID>/chain-<stamp>.log` with a
+  `chain-current.log` symlink, so a dead run's lingering append descriptor
+  can never contaminate a new run's log and a log watcher never replays a
+  previous run's verdicts.
+- Reusing the kept fleet is the default; each fresh provision costs ~10
+  minutes and several GB of host disk. Scenario or harness-only changes
+  rerun with `--skip-provisioning --run-id`; Go changes push in place with
+  `./internkim dev fleet reprovision --config
+  .local/local-fleet/runs/<runID>/config.json` after committing. Create a
+  fresh VM only when the current one is suspect (guest postgres fsync
+  death, broken provisioning). Retire a fleet by powering it off (`lab
+  vm-ssh ... 'sudo poweroff'`); the next run's reaper removes stopped
+  fleets and reclaims their disk. Prune old run evidence with
+  `tools/prune-expensive-artifacts <keepCount>` (archives to a verified
+  sibling tarball before deleting; never hand-roll this with ad-hoc
+  shell).
+- Preflight before every run: `df -h /` must show 15Gi+ free (Mattermost
+  install fails opaquely below that), and `container ls -a` must show no
+  leftover `internkim-e2e-expensive-*` container (stop+rm leftovers first;
+  never touch VMs from other sessions).
+- Launch the runner so its lifetime is tracked by your harness. Never pipe the
+  runner through `tail`/`head` (they buffer everything and the output file
+  stays empty for the whole run) and never orphan it with bare `nohup` from a
+  tool call.
+- The ONLY pass/fail signal is a line-anchored
+  `^(✓|✗) expensive scenario <name>`. Inner playwright test names also contain
+  the words "expensive scenario", so an unanchored grep produces false DONE
+  verdicts.
+- Artifacts: `.artifacts/expensive/<runID>/<scenario>/diagnostics/result.json`
+  (per-step status), `diagnostics/events/step-XX.json` (full task event
+  ledger), `evidence/step-XX/*.png` (acceptance screenshots),
+  `attempt-2/` (retry artifacts). Guest admin API for live autopsy:
+  `./internkim lab vm-ssh --config .local/local-fleet/runs/<runID>/config.json
+  -- "curl -s 127.0.0.1:8080/admin/api/task"` and
+  `/admin/api/task/detail?taskRunID=<id>`.
+- Failure triage order, always: (1) read the step's event ledger, (2) classify
+  the failing layer — product (agent/runtime), harness (stale scenario
+  expectation), or infra (lines prefixed `infra failure`/`infra-suspect`,
+  provisioning, VM postgres/disk) — (3) fix that layer at the root, (4) rerun
+  only to verify the fix. Never rerun an unexplained failure, and if the
+  failure reason is missing from the log, fix that reporting gap first.
+- Scenario JSON expectation rules: `expectedTaskStatus`, approval lifecycle
+  events (`approval.pending_call`, `approval.executed`,
+  `confirmation.requested`), and user-visible side-effect results stay
+  required; implementation-detail expectations (exact tool output content,
+  internal event bodies) get `"advisory": true`. Never pin an exact model
+  (the tier ceiling plus llmd transport is the contract; the runtime may
+  ladder within the ceiling). Never require a `*.list` call before a
+  hint-based mutation (`taskHint` tools resolve server-side without listing).
+- A gate binary/payload pairs with the Blueclaw HEAD it was built from: after
+  any `.dependency/blueclaw` commit, rebuild `make prepare-blueclaw-payload`
+  and `make prepare-blueclaw-llmd` before launching, or the run ships the old
+  agent.
 
 ## Blueclaw Skill Size Budget
 
@@ -158,6 +301,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
+- The AI SDK sidecar is `llmd` (directory `.dependency/blueclaw/llmd/`, deploy
+  component `blueclawLLMD`, artifact `make prepare-blueclaw-llmd`, systemd unit
+  `blueclaw-llmd`). Any llmd TypeScript change ships only through a rebuilt
+  llmd artifact; any llmd protocol/schema change is a contract change and
+  ships coupled with `capabilityd` and `blueclawPayload`.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device
@@ -249,8 +397,24 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   under `/workspace/circles/<circleID>`, not `shared/public`.
 - There is no executable allow or deny list for the terminal: POSIX user, group,
   and file permissions are the execution boundary, so a system-modification
-  command simply fails at execution for an unprivileged actor. Preserve the
-  denied path guardrails (system paths like /etc, /root).
+  command simply fails at execution for an unprivileged actor.
+- No path-string access filters anywhere: do not block file or directory
+  access by matching path strings (denied prefixes, workspace-root escapes,
+  protected-file name checks). Ownership and mode bits are the only access
+  boundary; a path outside the workspace resolves as-is and POSIX decides.
+  Product invariants (for example managed site manifests) are enforced by
+  outcome gates such as build and publish validation, never by write blocks.
+  Service-side reads made on a person's behalf must impersonate that person
+  through the POSIX actor rather than consulting a Go-side ACL model; any
+  remaining Go-side access pre-check is a migration leftover slated for
+  removal, not a pattern to extend.
+- Agreed direction for file tools: route them through the shell as the
+  requester (the same helper-exec primitive as terminal.run) so tilde,
+  globs, and relative paths carry native POSIX semantics and the Go path
+  resolver, the access pre-checks, and every virtual path vocabulary
+  disappear together. Mechanical argument quoting is serialization, not a
+  filter; mapping exit codes and stderr to failure kinds is diagnostics,
+  not an access decision. Do not extend the Go resolver — shrink it.
 - Built-in tools that read through grants must not leave privileged source files
   in raw-terminal-visible paths.
 
@@ -266,7 +430,12 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   is provider-safe on the native tool path (verified live per model by
   `internal/llmbackend/openrouter_required_strip_live_test.go`); treat
   required-stripping as a size/complexity choice, not a compatibility
-  requirement.
+  requirement. Provider-portable means the least common denominator across
+  native tool-call backends: string-only enums (Gemini drops properties
+  with numeric enums and then 400s on the orphaned `required`), no `const`,
+  no `$ref`, no exotic `format` values in input schemas. Enumerated
+  numeric values go in the description; the runtime validates the actual
+  value deterministically.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.
@@ -278,6 +447,19 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - For real task failures, do not fully suppress the user reply. Try local LLM
   failure wording first, then send a compact raw error summary if no LLM path can
   produce a usable notice.
+- When writing instructions for a weak-tier LLM role (judge, router,
+  classifier), always pair every must-check rule with an explicit
+  must-not-invent rule ("do not add requirements the instruction does not
+  state; wording, formatting, and list placement are not failures"). A lone
+  must-check makes weak models over-reject with invented criteria; a lone
+  lenient prompt makes them under-check stated values.
+- Facts the runtime already knows (recorded effects, created record IDs,
+  resolved dates) must be surfaced to the model as deterministic context, not
+  re-asked from the model. The model decides; the runtime informs.
+- Once the deterministic completion gate has passed and a completion reply
+  exists, terminal persistence and delivery must not depend on the live
+  request context: a task whose work is done and recorded must never end
+  undelivered because a late validation call ran out of budget.
 - Full suppression is only for intentionally ignored control/runtime cases such
   as duplicate delivery, cancelled task output, or self/bot messages.
 

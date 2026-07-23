@@ -27,7 +27,7 @@ var StepHealth = Step{
 		}
 
 		var failedChecks []string
-		checkService(context, "mattermost", &failedChecks)
+		checkMattermostHealth(context, &failedChecks)
 		if isPlannedStep(context, "tunnel") && trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
 			checkService(context, "cloudflared", &failedChecks)
 		} else {
@@ -43,12 +43,9 @@ var StepHealth = Step{
 		checkBlueclawFirecrackerRuntime(context, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
-		checkCapabilityHealth(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
 		checkFirstAdminBootstrap(context, &failedChecks)
-		checkMattermostPing(context, &failedChecks)
-		checkMattermostURL(context, &failedChecks)
-		if isPlannedStep(context, "tunnel") {
+		if isPlannedStep(context, "mattermost") && isPlannedStep(context, "tunnel") {
 			checkMattermostPublic(context, &failedChecks)
 		} else {
 			fmt.Println("  mattermost public: skipped")
@@ -56,7 +53,6 @@ var StepHealth = Step{
 		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
-		checkMattermostProfileLookup(context, &failedChecks)
 		checkLLMCapability(context, &failedChecks)
 		checkLiteRTCapability(context, &failedChecks)
 		checkSlackProfileLookup(context, &failedChecks)
@@ -69,6 +65,22 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
+}
+
+func checkMattermostHealth(context *Context, failedChecks *[]string) {
+	if !isPlannedStep(context, "mattermost") {
+		fmt.Println("  mattermost: skipped")
+		fmt.Println("  capabilityd composite health: skipped")
+		fmt.Println("  mattermost ping: skipped")
+		fmt.Println("  mattermost url: skipped")
+		fmt.Println("  mattermost profile lookup: skipped")
+		return
+	}
+	checkService(context, "mattermost", failedChecks)
+	checkCapabilityHealth(context, failedChecks)
+	checkMattermostPing(context, failedChecks)
+	checkMattermostURL(context, failedChecks)
+	checkMattermostProfileLookup(context, failedChecks)
 }
 
 func checkFirstAdminBootstrap(context *Context, failedChecks *[]string) {
@@ -173,7 +185,23 @@ func checkCapabilityHealth(context *Context, failedChecks *[]string) {
 }
 
 func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
+	check := strings.TrimSpace(context.SSH.Run(blueclawUsersPolicyCheckCommand()))
+	if check == "ok" {
+		fmt.Println("  blueclaw users policy: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "blueclaw-users-policy")
+	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
+}
+
+func blueclawUsersPolicyCheckCommand() string {
+	return fmt.Sprintf(`policy_response_path="$(mktemp)"
+trap 'rm -f "$policy_response_path"' EXIT
+if ! curl --silent --show-error --fail %s/admin/api/policy > "$policy_response_path" 2>/dev/null; then
+  echo policy-api-unavailable
+  exit 0
+fi
+python3 - "$policy_response_path" <<'PY'
 import json
 import sys
 import urllib.request
@@ -191,10 +219,10 @@ if not desired:
     raise SystemExit
 
 try:
-    with urllib.request.urlopen("http://127.0.0.1:8080/admin/api/policy") as response:
-        policy = json.load(response)
+    with open(sys.argv[1]) as file:
+        policy = json.load(file)
 except Exception:
-    print("policy-missing")
+    print("policy-api-invalid")
     raise SystemExit(1)
 
 emails = set()
@@ -207,13 +235,7 @@ if missing:
     print(",".join(missing))
     sys.exit(1)
 print("ok")
-PY`))
-	if check == "ok" {
-		fmt.Println("  blueclaw users policy: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "blueclaw-users-policy")
-	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
+PY`, blueclaw.BlueclawBaseURL)
 }
 
 func checkBlueclawBackupManifest(context *Context, failedChecks *[]string) {

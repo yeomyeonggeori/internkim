@@ -76,6 +76,8 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--blueclaw-url http://127.0.0.1:18100")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--mattermost-admin-password "+filepath.Join(paths.InternKimSecretsPath, "mm-admin-pass"))
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-admind-pilot-01.service"), "--fleet-id-path "+filepath.Join(paths.InternKimPath, "env", "fleet-id"))
+	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "After=network-online.target internkim-mattermost-pilot-01.service internkim-tenant-admind-pilot-01.service")
+	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "Wants=network-online.target internkim-tenant-admind-pilot-01.service")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--mattermost-url http://127.0.0.1:18065")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--socket "+filepath.Join(paths.InternKimPath, "run", "capability.sock"))
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--openrouter-key "+filepath.Join(paths.InternKimSecretsPath, "llm-device-token"))
@@ -84,8 +86,8 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "release-download-token"), "release-token")
 	assertFileDoesNotContain(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--vsock-port")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-blueclaw-pilot-01.service"), filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"))
-	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"), runtimeDirectoryBasePath)
-	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/runtime.json"), runtimeDirectoryBasePath)
+	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"), runtimeDirectoryBasePath, filepath.Join(paths.InternKimPath, "run", "capability.sock"))
+	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/runtime.json"), runtimeDirectoryBasePath, filepath.Join(paths.InternKimPath, "run", "capability.sock"))
 	assertFileContains(t, filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw/config/policy.json"), "admin@pilot-01.local")
 	assertHostRuntimeCommands(t, commandRunner.commands)
 }
@@ -104,7 +106,7 @@ func TestInstallHostRuntimeRequiresGatewayURL(t *testing.T) {
 	}
 }
 
-func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirectoryBasePath string) {
+func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirectoryBasePath string, capabilitySocketPath string) {
 	t.Helper()
 	documentBytes, errorValue := os.ReadFile(path)
 	if errorValue != nil {
@@ -124,9 +126,12 @@ func assertTenantRuntimeConfiguration(t *testing.T, path string, runtimeDirector
 	assertRuntimeConfigurationValue(t, runtimeConfiguration, []string{"firecracker", "runtimeDirectoryPath"}, filepath.Join(runtimeDirectoryBasePath, "pilot-01"))
 	assertRuntimeConfigurationValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
 	guestListenerProxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+	if len(guestListenerProxies) != 1 {
+		t.Fatalf("expected tenant capability listener proxy, got %+v", guestListenerProxies)
+	}
 	firstGuestListenerProxy := guestListenerProxies[0].(map[string]any)
-	if !strings.HasSuffix(firstGuestListenerProxy["targetUnixSocketPath"].(string), "/internkim/run/capability.sock") {
-		t.Fatalf("expected tenant capability socket path, got %+v", firstGuestListenerProxy)
+	if firstGuestListenerProxy["guestPort"] != float64(7000) || firstGuestListenerProxy["targetUnixSocketPath"] != capabilitySocketPath {
+		t.Fatalf("unexpected tenant capability listener proxy: %+v", firstGuestListenerProxy)
 	}
 }
 

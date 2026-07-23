@@ -126,6 +126,8 @@ type Service struct {
 	calendarActorCache         map[string]calendarActorProfileCacheEntry
 	companyShareMutex          sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
+	policyRecordCacheMutex     sync.Mutex
+	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
 	calendarWindowCache        calendarEventWindowCacheAvailability
@@ -328,6 +330,9 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	if errorValue := service.reconcileReleaseLLMDBootstrap(ctx); errorValue != nil {
+		return fmt.Errorf("reconcile LLMD release bootstrap: %w", errorValue)
+	}
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {

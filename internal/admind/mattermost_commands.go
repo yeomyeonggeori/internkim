@@ -42,7 +42,6 @@ type mattermostSlashCommandResponse struct {
 type blueclawTaskStopResponse struct {
 	CancelledTaskRunCount int  `json:"cancelledTaskRunCount"`
 	MultipleTargets       bool `json:"multipleTargets"`
-	ScheduleTouched       bool `json:"scheduleTouched"`
 }
 
 func (service *Service) handleMattermostCommand(responseWriter http.ResponseWriter, request *http.Request) {

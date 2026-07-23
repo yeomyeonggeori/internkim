@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const testCompanionBackend = capabilities.LLMBackendCompanionLocal
@@ -47,6 +48,10 @@ func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 	}
 	if !response.LocalOnly {
 		t.Fatal("expected local-only mode to be reported")
+	}
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	if response.ProtocolVersion != expectedIdentity.ProtocolVersion || response.AggregateProtocolHash != expectedIdentity.AggregateProtocolHash {
+		t.Fatalf("expected generated protocol identity, got protocolVersion=%q aggregateProtocolHash=%q", response.ProtocolVersion, response.AggregateProtocolHash)
 	}
 	if len(response.CompanionCapabilities) != 1 || response.CompanionCapabilities[0].Name != "llm.structured" {
 		t.Fatalf("unexpected companion capabilities: %+v", response.CompanionCapabilities)
@@ -153,6 +158,187 @@ func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) 
 	}
 	if request.Context.RequesterPersonID != "person-1" {
 		t.Fatalf("expected trimmed requesterPersonID, got %q", request.Context.RequesterPersonID)
+	}
+}
+
+func TestDecodeToolInvokeRequestRejectsOperationMismatch(t *testing.T) {
+	_, errorValue := decodeToolInvokeRequest("site.status", strings.NewReader(`{
+		"toolName": "site.delete",
+		"input": {}
+	}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "tool name mismatch") {
+		t.Fatalf("expected URL/body operation mismatch, got %v", errorValue)
+	}
+}
+
+func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
+	testCases := []struct {
+		toolName string
+		input    string
+	}{
+		{toolName: "site.publish", input: `{"siteID":42}`},
+		{toolName: "site.publish", input: `{"siteID":" site-1 "}`},
+		{toolName: "site.delete", input: `{"siteID":"site-1","confirm":"DELETE"}`},
+		{toolName: "site.delete", input: `{"siteID":"site-1","userConfirmed":true}`},
+	}
+	for _, testCase := range testCases {
+		response, errorValue := (Service{}).invokeCapabilityTool(
+			context.Background(),
+			testCase.toolName,
+			strings.NewReader(`{"context":{"requesterPersonID":"person-1","isApprovalContinuation":true},"input":`+testCase.input+`}`),
+		)
+		if errorValue != nil {
+			t.Fatalf("%s returned an unexpected error: %v", testCase.toolName, errorValue)
+		}
+		if !response.IsError || response.ErrorCode != "invalid_input" || response.FailureStage != "input_schema" {
+			t.Fatalf("%s accepted input %s: %+v", testCase.toolName, testCase.input, response)
+		}
+	}
+}
+
+func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("site.delete")
+	if !found {
+		t.Fatal("expected site.delete descriptor")
+	}
+	if descriptor.CanonicalName != "site.delete" {
+		t.Fatalf("expected canonical site.delete descriptor, got %+v", descriptor)
+	}
+	if descriptor.PolicyResource != "tool:site.delete" {
+		t.Fatalf("expected descriptor policy resource, got %q", descriptor.PolicyResource)
+	}
+	if !descriptor.RequiresApproval {
+		t.Fatal("expected site.delete descriptor to require approval")
+	}
+	if descriptor.RequiresUserPresence {
+		t.Fatal("site.delete executes on the device; requiring user presence routes it to the companion")
+	}
+	if _, found := capabilityToolDescriptorFor("site."); found {
+		t.Fatal("expected prefix-only operation to have no descriptor")
+	}
+}
+
+func TestInvokeCapabilityToolRejectsUnknownPrefixOperation(t *testing.T) {
+	service := Service{}
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "company.unknown", strings.NewReader(`{"input":{}}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capability tool is not configured") {
+		t.Fatalf("expected unknown prefix operation to be rejected, got %v", errorValue)
+	}
+}
+
+func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("task.add")
+	if !found {
+		t.Fatal("expected task.add descriptor")
+	}
+
+	validResult := json.RawMessage(`{"taskID":"task-1"}`)
+	validEffects := []capabilities.ResourceEffect{{ObjectType: "task", Effect: "created", ID: "task-1"}}
+	testCases := []struct {
+		name     string
+		response capabilities.ToolInvokeResponse
+		message  string
+	}{
+		{
+			name: "missing identity",
+			response: capabilities.ToolInvokeResponse{
+				ToolName: "task.add",
+				Outcome:  capabilities.ToolOutcomeSucceeded,
+				Result:   validResult,
+			},
+			message: "provider and selectedBackend are required",
+		},
+		{
+			name: "wrong tool name",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.update",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          validResult,
+				Effects:         validEffects,
+			},
+			message: "toolName does not match",
+		},
+		{
+			name: "invalid result schema",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.add",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          json.RawMessage(`{"status":"created"}`),
+				Effects:         validEffects,
+			},
+			message: "violates task.add contract",
+		},
+		{
+			name: "mismatched effects",
+			response: capabilities.ToolInvokeResponse{
+				Provider:        "internkim",
+				SelectedBackend: "device",
+				ToolName:        "task.add",
+				Outcome:         capabilities.ToolOutcomeSucceeded,
+				Result:          validResult,
+				Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "updated", ID: "task-1"}},
+			},
+			message: "effects do not match",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			errorValue := validateContractedCapabilityResponse(descriptor, testCase.response, "", "")
+			if errorValue == nil || !strings.Contains(errorValue.Error(), testCase.message) {
+				t.Fatalf("expected %q, got %v", testCase.message, errorValue)
+			}
+		})
+	}
+}
+
+func TestValidateContractedCapabilityResponseRequiresExpectedCompanionIdentity(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("task.add")
+	if !found {
+		t.Fatal("expected task.add descriptor")
+	}
+	response := capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        "task.add",
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "created", ID: "task-1"}},
+		Result:          json.RawMessage(`{"taskID":"task-1"}`),
+	}
+
+	errorValue := validateContractedCapabilityResponse(descriptor, response, "companion", testCompanionBackend)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "provider does not match companion") {
+		t.Fatalf("expected companion provider mismatch, got %v", errorValue)
+	}
+
+	response.Provider = "companion"
+	errorValue = validateContractedCapabilityResponse(descriptor, response, "companion", testCompanionBackend)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "selectedBackend does not match") {
+		t.Fatalf("expected companion backend mismatch, got %v", errorValue)
+	}
+}
+
+func TestCompanionProviderDoesNotInferIdentity(t *testing.T) {
+	provider := companionProvider{
+		BaseURL: "https://companion.test",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/jobs" {
+				t.Fatalf("unexpected companion path: %s", request.URL.Path)
+			}
+			return jsonResponse(capabilities.ToolInvokeResponse{Result: json.RawMessage(`{"ok":true}`)}), nil
+		})},
+	}
+
+	response, errorValue := provider.InvokeTool(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.open"})
+	if errorValue != nil {
+		t.Fatalf("expected companion response: %v", errorValue)
+	}
+	if response.Provider != "" || response.SelectedBackend != "" || response.ToolName != "" {
+		t.Fatalf("expected companion identity to remain absent, got %+v", response)
 	}
 }
 
@@ -392,8 +578,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"calendar.delete",
 		"mail.connection.start",
 		"mail.message.send",
-		"site.rollback",
-		"site.unpublish",
 		"site.delete",
 		"google.gmail.send",
 	}
@@ -405,6 +589,32 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 			}
 			assertCapabilityApprovalRequired(t, response, toolName)
 		})
+	}
+}
+
+func TestInvokeCapabilityToolSiteDeleteInjectsInternalApprovalProof(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			var input map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&input); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if input["confirm"] != "DELETE" || input["userConfirmed"] != true {
+				t.Fatalf("expected internal approval proof, got %+v", input)
+			}
+			return siteToolJSONResponse(`{"siteID":"site-1","status":"deleted"}`), nil
+		})},
+	}
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "site.delete", strings.NewReader(`{
+		"input":{"siteID":"site-1","reason":"Remove obsolete launch page"},
+		"context":{"requesterPersonID":"person-1","isApprovalContinuation":true}
+	}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded || string(response.Result) != `{"deleted":true,"siteID":"site-1"}` {
+		t.Fatalf("unexpected delete response %+v", response)
 	}
 }
 
@@ -461,7 +671,8 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 				Context:  testCase.context,
 			}
 			service := Service{}
-			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+			descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 			if isDenied != testCase.requiresApproval {
 				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
 			}
@@ -485,7 +696,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"동하"}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if isDenied {
 			t.Fatalf("expected self direct message to be pre-approved, got %+v", response)
 		}
@@ -498,7 +710,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"동하"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected direct message to a different person to require approval")
 		}
@@ -512,7 +725,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"동하","personHints":["동하"]}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected multi-recipient directMessage to require approval")
 		}
@@ -528,7 +742,8 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"동하"}`),
 			Context:  requesterContext,
 		}
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request)
+		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
+		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 		if !isDenied {
 			t.Fatal("expected resolution failure to require approval")
 		}
@@ -912,7 +1127,7 @@ func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}
-	_, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true}`))
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
 	if errorValue == nil {
 		t.Fatal("expected missing companion to fail")
 	}
@@ -923,7 +1138,7 @@ func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 
 func assertCapabilityApprovalRequired(t *testing.T, response capabilities.ToolInvokeResponse, toolName string) {
 	t.Helper()
-	if response.Status != "denied" || !response.IsError {
+	if response.Status != "denied" || response.Outcome != capabilities.ToolOutcomeDenied || !response.IsError {
 		t.Fatalf("expected approval denial, got %+v", response)
 	}
 	if response.ToolName != toolName || response.ErrorCode != "approval_required" || response.FailureStage != "authorization" {
@@ -937,6 +1152,15 @@ func assertCapabilityApprovalRequired(t *testing.T, response capabilities.ToolIn
 	if failure.ErrorCode != response.ErrorCode || failure.FailureStage != response.FailureStage || failure.Message != expectedMessage {
 		t.Fatalf("unexpected approval failure: %+v response=%+v", failure, response)
 	}
+}
+
+func descriptorForCapabilityToolTest(t *testing.T, toolName string) capabilities.Descriptor {
+	t.Helper()
+	descriptor, found := capabilityToolDescriptorFor(toolName)
+	if !found {
+		t.Fatalf("expected descriptor for %s", toolName)
+	}
+	return descriptor
 }
 
 func jsonResponse(response any) *http.Response {

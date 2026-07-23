@@ -153,11 +153,8 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 		"/workspace/shared/public",
 		"/workspace/shared/cache/dependencies",
 		"/workspace/skills/<skill>/scripts/...",
-		"Denied or internal paths",
-		"/workspace/.blueclaw/*",
-		"Concrete private POSIX paths for people",
-		"/opt/*",
-		"/tmp/*",
+		"Linux UID, GID, supplementary groups, and file permissions",
+		"Do not infer authorization from path",
 		"Some parent directories allow",
 	} {
 		if !strings.Contains(content, expectedText) {
@@ -173,7 +170,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	calendarContent := string(calendarDocument)
-	for _, expectedText := range []string{"task.add", "task.update", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+	for _, expectedText := range []string{"task.add", "task.update", "calendar.list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
 		if !strings.Contains(calendarContent, expectedText) {
 			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
 		}
@@ -220,7 +217,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"UI archetype", "Stitch canonical format", "browser capability operations", "`bun scripts/build.ts`", "artifact.review", "same URL", "app/public/site-content.json", "no build step", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.publish", "site.status", "the site.preview operation", "workspaceHealth", "black-on-white", "dark navy shell", "embed fonts only as WOFF2", `format("woff2")`} {
+	for _, expectedText := range []string{"source of truth", "source checklist", "archetype", "`bun scripts/build.ts`", "artifact.review", "app/public/site-content.json", ".internkim/artifact-brief.md", "ambiguous", "site.publish", "site.status", "site.preview", "workspace health", "dark navy shell", "file.edit", "siteReference", "sourceSHA256"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("website must document managed scaffold contract %q", expectedText)
 		}
@@ -389,6 +386,20 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
+	expectedToolReferences := "tool-references: terminal.run file.read file.write file.edit browser.open browser.snapshot browser.screenshot browser.click artifact.review site.create site.status site.preview site.publish site.delete"
+	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
+		t.Fatalf("website skill must use the canonical tool references")
+	}
+	for _, removedToolName := range []string{"site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
+		if strings.Contains(string(siteSkillDocument), " "+removedToolName) {
+			t.Fatalf("website skill must not reference %q", removedToolName)
+		}
+	}
+	for _, expectedText := range []string{"file.edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
+		if !strings.Contains(string(siteSkillDocument), expectedText) {
+			t.Fatalf("website skill must include %q", expectedText)
+		}
+	}
 }
 
 func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
@@ -442,7 +453,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	content := string(document)
 	for _, expectedText := range []string{
 		"latest compatible artifact in recent same-conversation posts",
-		"older PDF or Markdown files are supporting material",
+		"Older PDF or Markdown files are supporting material",
 		"work only in `artifacts/<deck-slug>/`",
 		"`slides.html` as the canonical controller-free source",
 		"restore_source.py",
@@ -625,7 +636,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"status chips",
 		"raw `<table>` or bare `<ul>`",
 		"same 2x2 card dashboard",
-		"board-floor composition set",
+		"A board or quarterly deck needs KPI cards",
 		"composition-seeds.md",
 		"visual-styles.md",
 		"webfonts.md",
@@ -725,7 +736,6 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 		}
 	}
 }
-
 
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")

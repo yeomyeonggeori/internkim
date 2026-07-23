@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/localfleet"
@@ -27,24 +28,32 @@ const (
 )
 
 type testCommandConfiguration struct {
-	Suite                 string
-	Prompt                string
-	DownloadDirectoryPath string
-	OutputFilePath        string
-	ResultJSONPath        string
-	RunID                 string
-	TimeoutSeconds        int
-	GenerationSeed        int64
-	GenerationTemperature float64
-	ExpectedTools         []string
-	ShouldExpectPublicURL bool
-	ShouldReuseFleet      bool
-	ShouldKeepArtifacts   bool
-	ShouldOpenFiles       bool
-	ShouldUseRealModels   bool
-	ShouldAutoConfirm     bool
-	MaximumModelTier      string
-	ScenarioNames         []string
+	Suite                      string
+	Prompt                     string
+	DownloadDirectoryPath      string
+	OutputFilePath             string
+	ResultJSONPath             string
+	RunID                      string
+	TimeoutSeconds             int
+	GenerationSeed             *int64
+	GenerationTemperature      *float64
+	ExpectedTools              []string
+	ShouldExpectPublicURL      bool
+	ShouldReuseFleet           bool
+	ShouldSkipProvisioning     bool
+	ShouldKeepArtifacts        bool
+	ShouldOpenFiles            bool
+	ShouldUseRealModels        bool
+	ShouldAutoConfirm          bool
+	ShouldRetryOnce            bool
+	ShouldRunFast              bool
+	MaximumModelTier           string
+	ScenarioNames              []string
+	LanguageModelProvider      string
+	LanguageModelEndpoint      string
+	LanguageModelSocket        string
+	LanguageModelAuthKeyPath   string
+	LanguageModelExecutionMode string
 }
 
 func runTest() {
@@ -69,28 +78,43 @@ func runTestArguments(arguments []string) error {
 func parseTestArguments(arguments []string, now time.Time) (testCommandConfiguration, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM, messages, and users after the test")
+	skipProvisioning := flagSet.Bool("skip-provisioning", false, "Run against an already prepared Local Fleet")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM and evidence after the test")
 	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
+	retryOnce := flagSet.Bool("retry-once", false, "Rerun a scenario once against the kept Local Fleet if it fails with a non-infra scenario failure")
+	fastMode := flagSet.Bool("fast", false, "Skip Playwright browser verification for the expensive suite and click approvals over the Mattermost REST API; defer per-scenario cleanup to one combined cleanup at the end")
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
-	timeoutSeconds := flagSet.Int("timeout", 900, "Maximum seconds for the whole task or scenario; individual provider requests are not limited")
-	generationSeed := flagSet.Int64("seed", 41, "Generation seed to apply before the Mattermost prompt")
+	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds to observe scenario work; 0 disables the deadline")
+	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
 	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL and remote desktop/mobile screenshot verification")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
+	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
+	if languageModelProviderDefault == "" {
+		languageModelProviderDefault = "llmd"
+	}
+	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter, capability, or llmd")
+	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
+	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM Unix socket; defaults to BLUECLAW_E2E_LLM_UNIX_SOCKET")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "LLMD installation auth key path; defaults to BLUECLAW_E2E_LLM_AUTH_KEY_PATH")
+	languageModelExecutionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode; defaults to BLUECLAW_E2E_LLM_EXECUTION_MODE")
 	expectedTools := repeatedStringFlag{}
 	scenarioNames := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event; repeat for multiple tools")
 	flagSet.Var(&scenarioNames, "scenario", "Run one expensive scenario by name; repeat for multiple scenarios")
 	flagArguments, positionalArguments := splitFlagsAndPositionals(arguments, map[string]bool{
 		"reuse":             true,
+		"skip-provisioning": true,
 		"keep":              true,
 		"no-open":           true,
 		"real":              true,
 		"auto-confirm":      true,
+		"retry-once":        true,
+		"fast":              true,
 		"expect-public-url": true,
 		"help":              true,
 	}, map[string]bool{
@@ -103,22 +127,34 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"expect-tool":        true,
 		"maximum-model-tier": true,
 		"scenario":           true,
+		"llm-provider":       true,
+		"llm-endpoint":       true,
+		"llm-unix-socket":    true,
+		"llm-auth-key-path":  true,
+		"llm-execution-mode": true,
 	})
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
 		return testCommandConfiguration{}, errorValue
 	}
+	providedFlags := visitedFlagNames(flagSet)
 	suite, prompt, errorValue := parseTestSuiteAndPrompt(positionalArguments)
 	if errorValue != nil {
 		return testCommandConfiguration{}, errorValue
 	}
-	if *timeoutSeconds <= 0 {
-		return testCommandConfiguration{}, errors.New("--timeout must be greater than 0")
+	if *timeoutSeconds < 0 {
+		return testCommandConfiguration{}, errors.New("--timeout must be 0 or greater")
 	}
-	if math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0 {
+	if providedFlags["temperature"] && (math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0) {
 		return testCommandConfiguration{}, errors.New("--temperature must be 0 or greater")
 	}
 	if *reuseFleet && strings.TrimSpace(*runID) != "" {
 		return testCommandConfiguration{}, errors.New("--run-id requires a disposable Local Fleet run; remove --reuse")
+	}
+	if *skipProvisioning && suite != testSuiteExpensive {
+		return testCommandConfiguration{}, errors.New("--skip-provisioning requires the expensive suite")
+	}
+	if *skipProvisioning && !*reuseFleet && strings.TrimSpace(*runID) == "" {
+		return testCommandConfiguration{}, errors.New("--skip-provisioning requires --run-id or --reuse")
 	}
 	normalizedMaximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(*maximumModelTier)
 	if errorValue != nil {
@@ -128,29 +164,101 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		return testCommandConfiguration{}, errors.New("--real cannot be combined with --maximum-model-tier")
 	}
 	if !*useRealModels && normalizedMaximumModelTier == "" {
-		normalizedMaximumModelTier = "xlow"
+		normalizedMaximumModelTier = "low"
+	}
+	normalizedLanguageModelProvider, errorValue := normalizeTestLanguageModelProvider(*languageModelProvider)
+	if errorValue != nil {
+		return testCommandConfiguration{}, errorValue
 	}
 	defaultDownloadDirectoryPath := filepath.Join("/tmp", "internkim-test-"+now.UTC().Format("20060102T150405"))
 	return testCommandConfiguration{
-		Suite:                 suite,
-		Prompt:                prompt,
-		DownloadDirectoryPath: defaultDownloadDirectoryPath,
-		OutputFilePath:        strings.TrimSpace(*outputFilePath),
-		ResultJSONPath:        strings.TrimSpace(*resultJSONPath),
-		RunID:                 strings.TrimSpace(*runID),
-		TimeoutSeconds:        *timeoutSeconds,
-		GenerationSeed:        *generationSeed,
-		GenerationTemperature: *generationTemperature,
-		ExpectedTools:         expectedTools.Values(),
-		ShouldExpectPublicURL: *expectPublicURL,
-		ShouldReuseFleet:      *reuseFleet,
-		ShouldKeepArtifacts:   *keepArtifacts,
-		ShouldOpenFiles:       !*noOpen,
-		ShouldUseRealModels:   *useRealModels,
-		ShouldAutoConfirm:     *autoConfirm,
-		MaximumModelTier:      normalizedMaximumModelTier,
-		ScenarioNames:         scenarioNames.Values(),
+		Suite:                      suite,
+		Prompt:                     prompt,
+		DownloadDirectoryPath:      defaultDownloadDirectoryPath,
+		OutputFilePath:             strings.TrimSpace(*outputFilePath),
+		ResultJSONPath:             strings.TrimSpace(*resultJSONPath),
+		RunID:                      strings.TrimSpace(*runID),
+		TimeoutSeconds:             *timeoutSeconds,
+		GenerationSeed:             optionalInt64(providedFlags["seed"], *generationSeed),
+		GenerationTemperature:      optionalFloat64(providedFlags["temperature"], *generationTemperature),
+		ExpectedTools:              expectedTools.Values(),
+		ShouldExpectPublicURL:      *expectPublicURL,
+		ShouldReuseFleet:           *reuseFleet,
+		ShouldSkipProvisioning:     *skipProvisioning,
+		ShouldKeepArtifacts:        *keepArtifacts,
+		ShouldOpenFiles:            !*noOpen,
+		ShouldUseRealModels:        *useRealModels,
+		ShouldAutoConfirm:          *autoConfirm,
+		ShouldRetryOnce:            *retryOnce,
+		ShouldRunFast:              *fastMode,
+		MaximumModelTier:           normalizedMaximumModelTier,
+		ScenarioNames:              scenarioNames.Values(),
+		LanguageModelProvider:      normalizedLanguageModelProvider,
+		LanguageModelEndpoint:      strings.TrimSpace(*languageModelEndpoint),
+		LanguageModelSocket:        strings.TrimSpace(*languageModelSocket),
+		LanguageModelAuthKeyPath:   strings.TrimSpace(*languageModelAuthKeyPath),
+		LanguageModelExecutionMode: strings.TrimSpace(*languageModelExecutionMode),
 	}, nil
+}
+
+func visitedFlagNames(flagSet *flag.FlagSet) map[string]bool {
+	flagNames := map[string]bool{}
+	flagSet.Visit(func(flagValue *flag.Flag) {
+		flagNames[flagValue.Name] = true
+	})
+	return flagNames
+}
+
+func optionalInt64(isProvided bool, value int64) *int64 {
+	if !isProvided {
+		return nil
+	}
+	return &value
+}
+
+func optionalFloat64(isProvided bool, value float64) *float64 {
+	if !isProvided {
+		return nil
+	}
+	return &value
+}
+
+func formatOptionalInt64(value *int64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatInt(*value, 10)
+}
+
+func formatOptionalFloat64(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return formatTestFloat(*value)
+}
+
+func describeGenerationOptions(configuration testCommandConfiguration) string {
+	options := []string{}
+	if configuration.GenerationSeed != nil {
+		options = append(options, "seed="+formatOptionalInt64(configuration.GenerationSeed))
+	}
+	if configuration.GenerationTemperature != nil {
+		options = append(options, "temperature="+formatOptionalFloat64(configuration.GenerationTemperature))
+	}
+	if len(options) == 0 {
+		return "provider defaults"
+	}
+	return strings.Join(options, " ")
+}
+
+func normalizeTestLanguageModelProvider(provider string) (string, error) {
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	switch normalizedProvider {
+	case "openrouter", "capability", "llmd":
+		return normalizedProvider, nil
+	default:
+		return "", fmt.Errorf("llm provider must be openrouter, capability, or llmd: %s", provider)
+	}
 }
 
 func parseTestSuiteAndPrompt(positionalArguments []string) (string, string, error) {
@@ -183,9 +291,10 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		RepositoryRootPath:    repositoryRootPath,
 		ExecutablePath:        executablePath,
 		RunID:                 configuration.RunID,
-		GenerationSeed:        strconv.FormatInt(configuration.GenerationSeed, 10),
-		GenerationTemperature: formatTestFloat(configuration.GenerationTemperature),
+		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
+		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
 		MaximumModelTier:      configuration.MaximumModelTier,
+		LLMDMode:              testLLMDMode(configuration.LanguageModelProvider),
 		ShouldUseRealModels:   configuration.ShouldUseRealModels,
 		IsEphemeral:           !configuration.ShouldReuseFleet,
 	})
@@ -212,6 +321,13 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 		}
 	}
 	return runError
+}
+
+func testLLMDMode(provider string) localfleet.LLMDMode {
+	if provider == "llmd" {
+		return localfleet.LLMDModeAuthoritative
+	}
+	return ""
 }
 
 func runTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
@@ -244,37 +360,186 @@ type expensiveScenarioReference struct {
 	Path string `json:"-"`
 }
 
+var realMattermostScenarioNames = map[string]bool{
+	"task-lifecycle":     true,
+	"calendar-lifecycle": true,
+	"website-lifecycle":  true,
+	"document-lifecycle": true,
+	"message-lifecycle":  true,
+	"file-lifecycle":     true,
+}
+
 func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
 	scenarios, errorValue := loadExpensiveScenarioReferences(repositoryRootPath, configuration.ScenarioNames)
 	if errorValue != nil {
 		return errorValue
 	}
-	embeddingService, errorValue := startLocalTestEmbeddingService(contextValue, repositoryRootPath)
+	executablePath, errorValue := currentExecutablePath()
 	if errorValue != nil {
 		return errorValue
 	}
-	defer embeddingService.stop()
+	runID := firstNonEmptyString(configuration.RunID, "expensive-"+time.Now().UTC().Format("20060102T150405")+"-"+randomHexString(4))
+	service, errorValue := localfleet.NewService(localfleet.Options{
+		RepositoryRootPath:    repositoryRootPath,
+		ExecutablePath:        executablePath,
+		RunID:                 runID,
+		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
+		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
+		MaximumModelTier:      configuration.MaximumModelTier,
+		LLMDMode:              localfleet.LLMDModeAuthoritative,
+		IsEphemeral:           !configuration.ShouldReuseFleet,
+		ShouldUseRealModels:   configuration.ShouldUseRealModels,
+	})
+	if errorValue != nil {
+		return errorValue
+	}
+	logger := standardLocalFleetLogger{}
+	shouldCleanupFleet := !configuration.ShouldKeepArtifacts && !configuration.ShouldReuseFleet
 	fmt.Println("Test suite: expensive")
-	fmt.Println("Embedding model: baai/bge-m3 (local llama.cpp)")
-	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
+	fmt.Println("Environment: Local Fleet Mattermost DM")
+	fmt.Println("LLM runtime: LLMD authoritative")
+	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	if configuration.ShouldUseRealModels {
 		fmt.Println("Model tiers: production (--real)")
 	} else {
 		fmt.Println("Maximum model tier: " + configuration.MaximumModelTier)
 	}
-	return runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
-		return runExpensiveScenario(contextValue, repositoryRootPath, configuration, scenario, embeddingService.endpoint)
+	var runError error
+	if configuration.ShouldSkipProvisioning {
+		fmt.Println("Provisioning: skipped (restoring prepared Local Fleet connectivity)")
+		runError = service.ConnectPreparedFleet(contextValue, logger)
+	} else {
+		runError = service.Run(contextValue, logger, localfleet.JobRequest{Action: localfleet.ActionUp, KeepArtifacts: true, SkipWeb: false})
+	}
+	if runError == nil {
+		runError = runExpensiveMattermostScenarios(contextValue, repositoryRootPath, executablePath, runID, service, configuration, scenarios)
+	}
+	if shouldCleanupFleet {
+		cleanupError := service.CleanupEphemeral(contextValue, logger)
+		return errors.Join(runError, cleanupError)
+	}
+	return runError
+}
+
+func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRootPath string, executablePath string, runID string, service localfleet.Service, configuration testCommandConfiguration, scenarios []expensiveScenarioReference) error {
+	status := service.Status(contextValue)
+	if errorValue := validateExpensiveFleetStatus(status); errorValue != nil {
+		return errorValue
+	}
+	target, errorValue := resolveLocalFleetTestTarget(contextValue, service, repositoryRootPath, executablePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	cleanupQueue := &expensiveMattermostCleanupQueue{}
+	runError := runSequentialExpensiveScenarios(scenarios, func(scenario expensiveScenarioReference) error {
+		return runExpensiveMattermostScenarioWithRetry(contextValue, repositoryRootPath, runID, target, status.AdminURL, status.MattermostURL, configuration, scenario, cleanupQueue)
 	})
+	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
+	cleanupError := cleanupQueue.runAll(cleanupContext)
+	cancelCleanup()
+	return errors.Join(runError, cleanupError)
+}
+
+// expensiveMattermostCleanupQueue collects deferred scenario cleanups so a
+// fast-mode multi-scenario invocation can run one combined cleanup at the end
+// instead of tearing down Mattermost/task state between every scenario.
+type expensiveMattermostCleanupQueue struct {
+	mutex   sync.Mutex
+	cleanup []func(context.Context) error
+}
+
+func (queue *expensiveMattermostCleanupQueue) add(cleanup func(context.Context) error) {
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
+	queue.cleanup = append(queue.cleanup, cleanup)
+}
+
+func (queue *expensiveMattermostCleanupQueue) runAll(contextValue context.Context) error {
+	queue.mutex.Lock()
+	pendingCleanup := queue.cleanup
+	queue.cleanup = nil
+	queue.mutex.Unlock()
+	cleanupErrors := make([]error, 0, len(pendingCleanup))
+	for _, cleanup := range pendingCleanup {
+		if errorValue := cleanup(contextValue); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, errorValue)
+		}
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func runExpensiveMattermostScenarioWithRetry(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, cleanupQueue *expensiveMattermostCleanupQueue) error {
+	firstResult, firstAttemptError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 1, cleanupQueue)
+	if firstAttemptError == nil || !shouldRetryExpensiveMattermostScenario(configuration, firstAttemptError) {
+		printMattermostScenarioVerdict(scenarioReference.Name, firstResult, firstAttemptError)
+		return firstAttemptError
+	}
+	fmt.Printf("✗ expensive scenario %s attempt 1 failed: %v\n", scenarioReference.Name, firstAttemptError)
+	fmt.Printf("retrying expensive scenario %s once against the kept Local Fleet\n", scenarioReference.Name)
+	retryResult, retryError := runExpensiveMattermostScenario(contextValue, repositoryRootPath, runID, target, siteProxyURL, mattermostURL, configuration, scenarioReference, 2, cleanupQueue)
+	if retryError != nil {
+		printMattermostScenarioVerdict(scenarioReference.Name, retryResult, retryError)
+		return fmt.Errorf("attempt 1: %v; attempt 2: %w", firstAttemptError, retryError)
+	}
+	printMattermostScenarioVerdict(scenarioReference.Name, retryResult, nil)
+	return nil
+}
+
+func printMattermostScenarioVerdict(scenarioName string, result mattermostScenarioResult, errorValue error) {
+	marker, outcome := "✓", "passed"
+	if errorValue != nil {
+		marker, outcome = "✗", "failed: "+errorValue.Error()
+	}
+	fmt.Printf("%s expensive scenario %s %s\n", marker, scenarioName, outcome)
+	fmt.Println(mattermostScenarioTokenUsageSummaryLine(scenarioName, result))
+}
+
+func mattermostScenarioTokenUsageSummaryLine(scenarioName string, result mattermostScenarioResult) string {
+	usage := result.TokenUsage
+	return fmt.Sprintf(
+		"scenario %s tokens: prompt=%d cached=%d (hitRatio=%.2f) completion=%d costUSD=%.4f calls=%d attempt=%d",
+		scenarioName, usage.PromptTokens, usage.CachedPromptTokens, usage.CacheHitRatio, usage.CompletionTokens, usage.CostUSD, usage.LLMCallCount, result.Attempt,
+	)
+}
+
+func shouldRetryExpensiveMattermostScenario(configuration testCommandConfiguration, errorValue error) bool {
+	return configuration.ShouldRetryOnce && configuration.ShouldKeepArtifacts && !isMattermostScenarioInfraError(errorValue)
+}
+
+func validateExpensiveFleetStatus(status localfleet.Status) error {
+	endpoints := map[string]localfleet.EndpointStatus{
+		"virtual machine": status.VirtualMachine,
+		"SSH":             status.SSH,
+		"admin":           status.Admin,
+		"Mattermost":      status.Mattermost,
+	}
+	for name, endpoint := range endpoints {
+		if endpoint.State != "ok" {
+			return fmt.Errorf("Local Fleet %s is %s: %s", name, endpoint.State, endpoint.Message)
+		}
+	}
+	if strings.TrimSpace(status.MattermostURL) == "" {
+		return errors.New("Local Fleet Mattermost URL is empty")
+	}
+	if strings.TrimSpace(status.AdminURL) == "" {
+		return errors.New("Local Fleet admin URL is empty")
+	}
+	return nil
 }
 
 func runSequentialExpensiveScenarios(scenarios []expensiveScenarioReference, runScenario func(expensiveScenarioReference) error) error {
+	scenarioErrors := []error{}
 	for scenarioIndex, scenario := range scenarios {
 		fmt.Printf("\n[%d/%d] %s\n", scenarioIndex+1, len(scenarios), scenario.Name)
 		if errorValue := runScenario(scenario); errorValue != nil {
-			return fmt.Errorf("expensive scenario %s failed: %w", scenario.Name, errorValue)
+			if isMattermostScenarioInfraError(errorValue) {
+				scenarioErrors = append(scenarioErrors, fmt.Errorf("expensive scenario %s infra failure: %w", scenario.Name, errorValue))
+				continue
+			}
+			scenarioErrors = append(scenarioErrors, fmt.Errorf("expensive scenario %s failed: %w", scenario.Name, errorValue))
 		}
 	}
-	return nil
+	return errors.Join(scenarioErrors...)
 }
 
 func loadExpensiveScenarioReferences(repositoryRootPath string, selectedScenarioNames []string) ([]expensiveScenarioReference, error) {
@@ -298,8 +563,14 @@ func loadExpensiveScenarioReferences(repositoryRootPath string, selectedScenario
 		scenario.Name = strings.TrimSpace(scenario.Name)
 		scenario.Path = scenarioPath
 		baseName := strings.TrimSuffix(filepath.Base(scenarioPath), filepath.Ext(scenarioPath))
+		if len(selectedNames) == 0 && !realMattermostScenarioNames[scenario.Name] {
+			continue
+		}
 		if len(selectedNames) > 0 && !selectedNames[scenario.Name] && !selectedNames[baseName] {
 			continue
+		}
+		if !realMattermostScenarioNames[scenario.Name] {
+			return nil, fmt.Errorf("expensive scenario %s does not yet have a real Mattermost topology", scenario.Name)
 		}
 		matchedNames[scenario.Name] = true
 		matchedNames[baseName] = true
@@ -324,36 +595,100 @@ func testStringSet(values []string) map[string]bool {
 	return result
 }
 
-func runExpensiveScenario(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration, scenario expensiveScenarioReference, embeddingEndpoint string) error {
-	timeout := time.Duration(configuration.TimeoutSeconds) * time.Second
-	scenarioContext, cancel := context.WithTimeout(contextValue, timeout)
+func runExpensiveMattermostScenario(contextValue context.Context, repositoryRootPath string, runID string, target verifyTarget, siteProxyURL string, mattermostURL string, configuration testCommandConfiguration, scenarioReference expensiveScenarioReference, attemptNumber int, cleanupQueue *expensiveMattermostCleanupQueue) (mattermostScenarioResult, error) {
+	scenarioContext, cancel := scenarioObservationContext(contextValue, configuration.TimeoutSeconds)
 	defer cancel()
-	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(scenario.Name))
-	arguments := []string{
-		"run", "./cmd/blueclaw-lab", "virtual-session",
-		"--scenario-file", scenario.Path,
-		"--artifact-dir", artifactDirectoryPath,
-		"--live-llm", "--strict-assertions",
-		"--seed", strconv.FormatInt(configuration.GenerationSeed, 10),
-		"--temperature", formatTestFloat(configuration.GenerationTemperature),
-		"--embedding-endpoint", embeddingEndpoint,
+	scenario, errorValue := loadMattermostScenario(scenarioReference.Path)
+	if errorValue != nil {
+		return mattermostScenarioResult{}, errorValue
 	}
+	scenario.MaximumModelTier = maximumMattermostScenarioModelTier(configuration)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".artifacts", "expensive", safeTestScenarioName(runID), safeTestScenarioName(scenario.Name))
+	if attemptNumber > 1 {
+		artifactDirectoryPath = filepath.Join(artifactDirectoryPath, fmt.Sprintf("attempt-%d", attemptNumber))
+	}
+	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o755); errorValue != nil {
+		return mattermostScenarioResult{}, errorValue
+	}
+	session, errorValue := startMattermostScenarioSession(scenarioContext, target, mattermostURL, scenario)
+	if errorValue != nil {
+		return mattermostScenarioResult{}, newMattermostScenarioInfraError(errorValue)
+	}
+	session.shouldAutoConfirm = configuration.ShouldAutoConfirm
+	session.shouldRunFast = configuration.ShouldRunFast
+	session.result.Attempt = attemptNumber
+	runError := session.run(scenarioContext, buildExpensiveMattermostStepHook(
+		artifactDirectoryPath, repositoryRootPath, siteProxyURL, mattermostURL, scenario, configuration, session, verifyExpensiveMattermostStep,
+	))
+	var completionEvidenceError error
+	if runError == nil && !configuration.ShouldRunFast {
+		completionEvidenceError = verifyExpensiveMattermostApprovalCompletions(scenarioContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, scenario, session.execution())
+	}
+	if runError != nil && !configuration.ShouldRunFast {
+		failureEvidenceContext, cancelFailureEvidence := context.WithTimeout(context.Background(), 2*time.Minute)
+		captureExpensiveMattermostFailureEvidence(failureEvidenceContext, repositoryRootPath, artifactDirectoryPath, mattermostURL, session.execution(), len(session.result.Steps)-1, runError.Error())
+		cancelFailureEvidence()
+	}
+	writeError := writeExpensiveMattermostEvidence(artifactDirectoryPath, session.result)
+	printMattermostScenarioAdvisoryWarnings(session.result)
+	cleanupError := runOrDeferExpensiveMattermostCleanup(configuration, cleanupQueue, session, runError != nil)
+	if configuration.TimeoutSeconds > 0 && errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
+		runError = fmt.Errorf("timed out after %s", time.Duration(configuration.TimeoutSeconds)*time.Second)
+	}
+	return session.result, errors.Join(runError, completionEvidenceError, writeError, cleanupError)
+}
+
+// buildExpensiveMattermostStepHook wires the per-step evidence write and,
+// depending on fast mode, either a Mattermost REST approval click or the
+// Playwright browser verification. verifyStep is injected so tests can
+// substitute a spy instead of shelling out to Playwright.
+func buildExpensiveMattermostStepHook(
+	artifactDirectoryPath string,
+	repositoryRootPath string,
+	siteProxyURL string,
+	mattermostURL string,
+	scenario mattermostScenario,
+	configuration testCommandConfiguration,
+	session *mattermostScenarioSession,
+	verifyStep func(context.Context, string, string, string, string, mattermostScenario, mattermostScenarioExecution, int, bool) error,
+) mattermostScenarioStepHook {
+	return func(hookContext context.Context, execution mattermostScenarioExecution, stepIndex int) error {
+		if errorValue := writeExpensiveMattermostEvidence(artifactDirectoryPath, execution.Result); errorValue != nil {
+			return errorValue
+		}
+		if configuration.ShouldRunFast {
+			return session.clickPendingApproval(hookContext, stepIndex)
+		}
+		return verifyStep(hookContext, repositoryRootPath, artifactDirectoryPath, siteProxyURL, mattermostURL, scenario, execution, stepIndex, configuration.ShouldAutoConfirm)
+	}
+}
+
+// runOrDeferExpensiveMattermostCleanup runs the scenario's Mattermost/task
+// cleanup immediately, unless fast mode is combining multiple scenarios in
+// one invocation, in which case the cleanup is queued and flushed once after
+// every scenario has run.
+func runOrDeferExpensiveMattermostCleanup(configuration testCommandConfiguration, cleanupQueue *expensiveMattermostCleanupQueue, session *mattermostScenarioSession, didAttemptFail bool) error {
+	if configuration.ShouldRunFast && !didAttemptFail {
+		cleanupQueue.add(session.cleanup)
+		return nil
+	}
+	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelCleanup()
+	return session.cleanup(cleanupContext)
+}
+
+func maximumMattermostScenarioModelTier(configuration testCommandConfiguration) string {
 	if configuration.ShouldUseRealModels {
-		arguments = append(arguments, "--real-model-tiers")
-	} else {
-		arguments = append(arguments, "--maximum-model-tier", configuration.MaximumModelTier)
+		return ""
 	}
-	command := exec.CommandContext(scenarioContext, "go", arguments...)
-	command.Dir = filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
-	command.Env = append(os.Environ(), "GOCACHE=/tmp/internkim-expensive-go-cache")
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	errorValue := command.Run()
-	if errors.Is(scenarioContext.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("timed out after %s", timeout)
+	return strings.ToLower(strings.TrimSpace(configuration.MaximumModelTier))
+}
+
+func scenarioObservationContext(parent context.Context, timeoutSeconds int) (context.Context, context.CancelFunc) {
+	if timeoutSeconds <= 0 {
+		return parent, func() {}
 	}
-	return errorValue
+	return context.WithTimeout(parent, time.Duration(timeoutSeconds)*time.Second)
 }
 
 func safeTestScenarioName(name string) string {
@@ -373,10 +708,13 @@ func runTestPrompt(contextValue context.Context, service localfleet.Service, rep
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Println("Generation options: seed=" + strconv.FormatInt(configuration.GenerationSeed, 10) + " temperature=" + formatTestFloat(configuration.GenerationTemperature))
+	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
 	fmt.Println("Mattermost prompt: " + configuration.Prompt)
-	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, configuration.TimeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
-	output, errorValue := target.sshClient.runResultWithTimeout(script, mattermostPromptScriptSSHTimeout(configuration.TimeoutSeconds, configuration.ShouldExpectPublicURL))
+	timeoutSeconds := configuration.TimeoutSeconds
+	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, timeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
+	observationContext, cancelObservation := scenarioObservationContext(contextValue, timeoutSeconds)
+	defer cancelObservation()
+	output, errorValue := target.sshClient.runResultWithContext(observationContext, script)
 	if errorValue != nil {
 		if strings.TrimSpace(output) != "" {
 			fmt.Print(redactDownloadedMattermostFiles(output))
@@ -465,6 +803,10 @@ func resolveLocalFleetTestTarget(contextValue context.Context, service localflee
 	if host == "" {
 		return verifyTarget{}, errors.New("Local Fleet VM IP is empty")
 	}
+	return newLocalFleetTestTarget(repositoryRootPath, executablePath, service.ConfigurationPath(), host), nil
+}
+
+func newLocalFleetTestTarget(repositoryRootPath string, executablePath string, configurationPath string, host string) verifyTarget {
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	return verifyTarget{
 		host:       host,
@@ -473,7 +815,11 @@ func resolveLocalFleetTestTarget(contextValue context.Context, service localflee
 		scriptDir:  repositoryRootPath,
 		sshpassBin: sshpassBin,
 		sshClient:  newSSH(sshpassBin, "admin", "admin", host),
-	}, nil
+		scenarioRemote: mattermostScenarioLocalFleetRemote{
+			executablePath:    executablePath,
+			configurationPath: configurationPath,
+		},
+	}
 }
 
 func printTestResult(verificationOutput mattermostVerificationOutput, downloadedFilePaths []string) {

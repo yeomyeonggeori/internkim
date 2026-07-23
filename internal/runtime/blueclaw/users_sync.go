@@ -79,7 +79,6 @@ sync_posix_policy() {
       --workspace "$WORKSPACE_PATH" >/root/.blueclaw/workspace/.blueclaw/logs/posix-sync.log 2>&1
   fi
 }
-
 ensure_person_workspace_directories() {
   [ -s "$current_policy_path" ] || return 0
   install -d -m 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles"
@@ -106,7 +105,16 @@ curl -fsS \
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
 admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || true)"
-jq -r 'if (.records | type) == "array" then .records[]? | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))] | @tsv else .users[]? | ["", ., "", "", ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
+jq -r '
+  if (.records | type) == "array" then
+    .records[]?
+    | select((.userID // "") != "" and (.email // "") != "")
+    | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))]
+    | @tsv
+  else
+    empty
+  end
+' "$response_path" | sort -u > "$desired_records_path"
 cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
 curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path" 2>/dev/null || true

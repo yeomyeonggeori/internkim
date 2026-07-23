@@ -6,7 +6,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,7 +18,135 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
+
+func TestCheckReleaseProtocolIdentityRequiresCapabilitydAndBlueclawAgreement(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, expectedIdentity)
+	blueclawServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(responseWriter).Encode(releaseBlueclawHealth{
+			Status: "ok",
+			ProtocolIdentity: releaseProtocolIdentityResult{
+				Passed:   true,
+				Expected: expectedIdentity,
+			},
+		})
+	}))
+	defer blueclawServer.Close()
+	service := Service{Configuration: Configuration{
+		CapabilitySocketPath: capabilitySocketPath,
+		BlueclawBaseURL:      blueclawServer.URL,
+	}}
+
+	if errorValue := service.checkReleaseProtocolIdentity(context.Background(), expectedIdentity); errorValue != nil {
+		t.Fatalf("expected matching release identity: %v", errorValue)
+	}
+	mismatchedIdentity := expectedIdentity
+	mismatchedIdentity.ProtocolVersion += "-mismatch"
+	if errorValue := service.checkReleaseProtocolIdentity(context.Background(), mismatchedIdentity); errorValue == nil {
+		t.Fatal("expected capabilityd identity mismatch")
+	}
+}
+
+func TestReleaseProtocolIdentityGateAppliesOnlyToProtocolComponents(t *testing.T) {
+	unrelatedManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	if releaseProtocolIdentityComponentsPresent(&unrelatedManifest) {
+		t.Fatal("expected unrelated component to skip protocol readiness")
+	}
+	for _, componentName := range []string{"capabilityd", "blueclawLLMD", "blueclawPayload"} {
+		manifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+			componentName: {Name: componentName},
+		})
+		if !releaseProtocolIdentityComponentsPresent(&manifest) {
+			t.Fatalf("expected %s to require protocol readiness", componentName)
+		}
+	}
+}
+
+func TestReleaseProtocolIdentityTransitionRequiresCompleteRuntime(t *testing.T) {
+	service := Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
+	currentManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	currentManifest.ProtocolVersion += "-previous"
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	incompleteManifest := releaseset.NewManifest("release-2", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+
+	errorValue := service.validateReleaseProtocolTransition(context.Background(), &incompleteManifest)
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capabilityd, blueclawLLMD, blueclawPayload") {
+		t.Fatalf("expected complete protocol runtime requirement, got %v", errorValue)
+	}
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		incompleteManifest.Components[componentName] = releaseset.Component{Name: componentName}
+	}
+	if errorValue := service.validateReleaseProtocolTransition(context.Background(), &incompleteManifest); errorValue != nil {
+		t.Fatalf("expected complete protocol runtime transition: %v", errorValue)
+	}
+}
+
+func TestReleaseProtocolIdentityTransitionAllowsUnrelatedSameIdentityRelease(t *testing.T) {
+	service := Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
+	currentManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	nextManifest := releaseset.NewManifest("release-2", "stable", map[string]releaseset.Component{
+		"web": {Name: "web"},
+	})
+
+	if errorValue := service.validateReleaseProtocolTransition(context.Background(), &nextManifest); errorValue != nil {
+		t.Fatalf("expected same-identity unrelated release: %v", errorValue)
+	}
+}
+
+func startReleaseCapabilityRegistryServer(t *testing.T, identity capabilityprotocol.ProtocolIdentity) string {
+	t.Helper()
+	directoryPath, errorValue := os.MkdirTemp("/tmp", "ik-release-*")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(directoryPath)
+	})
+	socketPath := filepath.Join(directoryPath, "capability.sock")
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/capabilities" {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"protocolVersion":       identity.ProtocolVersion,
+			"aggregateProtocolHash": identity.AggregateProtocolHash,
+			"routingCandidates":     []string{},
+		})
+	})}
+	t.Cleanup(func() {
+		_ = server.Close()
+		_ = listener.Close()
+	})
+	go func() {
+		if errorValue := server.Serve(listener); errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
+			t.Errorf("capability registry server failed: %v", errorValue)
+		}
+	}()
+	return socketPath
+}
 
 func TestReleaseUpdateStateReportsCurrent(t *testing.T) {
 	current := testReleaseManifest("release-1")
@@ -165,6 +295,229 @@ func TestInstallReleaseMattermostPluginsCopiesBundleDirectory(t *testing.T) {
 
 	if strings.TrimSpace(readTrimmedFile(targetPath)) != "plugin-bundle" {
 		t.Fatalf("plugin bundle was not installed at %s", targetPath)
+	}
+}
+
+func TestInstallReleaseLLMDBinary(t *testing.T) {
+	stagingPath := t.TempDir()
+	sourceDirectoryPath := filepath.Join(stagingPath, "blueclawLLMD", "blueclaw-llmd")
+	if errorValue := os.MkdirAll(sourceDirectoryPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(sourceDirectoryPath, "blueclaw-llmd"), "llmd binary")
+	targetPath := filepath.Join(t.TempDir(), "blueclaw-llmd")
+	service := &Service{}
+
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", targetPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.TrimSpace(readTrimmedFile(targetPath)) != "llmd binary" {
+		t.Fatalf("LLMD binary was not installed at %s", targetPath)
+	}
+}
+
+func TestInstallReleaseLLMDService(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		return nil, nil
+	}}
+	manifest := testReleaseManifest("release-1")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, expectedValue := range []string{blueclawruntime.LLMDServicePath, blueclawruntime.LLMDAuthKeyPath, blueclawruntime.LLMDServiceCredentialDirectoryPath, blueclawruntime.LLMDServiceAuthKeyPath, "head -c 32 /dev/urandom", "chmod 600", "DynamicUser=yes", "systemctl daemon-reload", "systemctl enable " + blueclawruntime.LLMDServiceName} {
+		if !strings.Contains(joinedCommands, expectedValue) {
+			t.Fatalf("expected LLMD service installation to contain %q, got %s", expectedValue, joinedCommands)
+		}
+	}
+}
+
+func TestInstallReleaseLLMDServiceWithholdsLlamaEnvironmentWhenLocalLlamaIsNotInstalled(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "cat" && arguments[1] == locallm.LlamaCppServiceName {
+			return nil, errors.New("unit not found")
+		}
+		return nil, nil
+	}}
+	manifest := testReleaseManifest("release-no-local-llama")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, unexpectedValue := range []string{
+		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
+	} {
+		if strings.Contains(joinedCommands, unexpectedValue) {
+			t.Fatalf("expected LLMD install without a provisioned local llama service to omit %q, got %s", unexpectedValue, joinedCommands)
+		}
+	}
+}
+
+func TestInstallReleaseLLMDServiceEmitsLlamaEnvironmentWhenLocalLlamaIsInstalled(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "cat" && arguments[1] == locallm.LlamaCppServiceName {
+			return []byte("ExecStart=" + locallm.LlamaCppBinaryPath + " -m /root/.internkim/models/model.gguf"), nil
+		}
+		return nil, nil
+	}}
+	manifest := testReleaseManifest("release-with-local-llama")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, expectedValue := range []string{
+		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
+		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
+	} {
+		if !strings.Contains(joinedCommands, expectedValue) {
+			t.Fatalf("expected LLMD install with a provisioned local llama service to contain %q, got %s", expectedValue, joinedCommands)
+		}
+	}
+}
+
+func TestInstallReleaseLLMDServicePreservesLocalOnlyPolicy(t *testing.T) {
+	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
+	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"llmd":{"localOnly":true}}}`)
+	commands := []string{}
+	service := &Service{
+		Configuration: Configuration{BlueclawRuntimeConfigPath: runtimeConfigurationPath},
+		RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+			commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+			return nil, nil
+		},
+	}
+	manifest := testReleaseManifest("release-local-only")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, expectedValue := range []string{"Environment=BLUECLAW_LLMD_LOCAL_ONLY=1", "IPAddressDeny=any", "IPAddressAllow=localhost", "rm -f " + blueclawruntime.LLMDServiceOpenRouterKeyPath} {
+		if !strings.Contains(joinedCommands, expectedValue) {
+			t.Fatalf("expected local-only LLMD install to contain %q, got %s", expectedValue, joinedCommands)
+		}
+	}
+	if strings.Contains(joinedCommands, "LoadCredential=-openrouter-api-key:") || strings.Contains(joinedCommands, "install -o root -g root -m 600 "+blueclawruntime.OpenRouterKeyPath) {
+		t.Fatalf("expected local-only LLMD install to withhold remote credentials, got %s", joinedCommands)
+	}
+}
+
+func TestInstallReleaseLLMDServiceUsesPersistedRoutingLocalOnlyPolicy(t *testing.T) {
+	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
+	writeFile(t, runtimeConfigurationPath, `{"capabilities":{"routing":{"localOnly":true}}}`)
+	commands := []string{}
+	service := &Service{
+		Configuration: Configuration{BlueclawRuntimeConfigPath: runtimeConfigurationPath},
+		RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+			commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+			return nil, nil
+		},
+	}
+	manifest := testReleaseManifest("release-routing-local-only")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD"}
+
+	if errorValue := service.installReleaseLLMDService(context.Background(), manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	if !strings.Contains(joinedCommands, "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") || strings.Contains(joinedCommands, "LoadCredential=-openrouter-api-key:") {
+		t.Fatalf("expected persisted routing policy to keep OTA LLMD local-only, got %s", joinedCommands)
+	}
+}
+
+func TestReconcileReleaseLLMDBootstrapInstallsComponentIgnoredByOldAdmind(t *testing.T) {
+	stateDirectoryPath := t.TempDir()
+	stagingPath := filepath.Join(stateDirectoryPath, "release-updates", "staging", "old-admind-job")
+	componentPath := filepath.Join(stagingPath, "blueclawLLMD")
+	if errorValue := os.MkdirAll(filepath.Join(componentPath, "blueclaw-llmd"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(componentPath, "blueclaw-llmd", "blueclaw-llmd"), "llmd binary")
+	archivePath := filepath.Join(componentPath, "component.tar.gz")
+	writeFile(t, archivePath, "downloaded LLMD archive")
+	runtimeConfigurationPath := filepath.Join(t.TempDir(), "runtime.json")
+	writeFile(t, runtimeConfigurationPath, `{"languageModel":{"llmd":{"localOnly":true}}}`)
+	manifest := testReleaseManifest("release-from-old-admind")
+	manifest.Components["blueclawLLMD"] = releaseset.Component{Name: "blueclawLLMD", SHA256: fileSHA256(archivePath)}
+	manifest.Components["capabilityd"] = releaseset.Component{Name: "capabilityd"}
+	commands := []string{}
+	service := &Service{
+		Configuration: Configuration{StateDirectory: stateDirectoryPath, BlueclawRuntimeConfigPath: runtimeConfigurationPath},
+		RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+			command := strings.Join(append([]string{name}, arguments...), " ")
+			commands = append(commands, command)
+			if name == "systemctl" && len(arguments) > 0 && arguments[0] == "is-active" {
+				return []byte("inactive\n"), nil
+			}
+			if name == "sh" && strings.Contains(command, blueclawruntime.LLMDHealthCheckCommand()) {
+				return []byte("ok\n"), nil
+			}
+			return nil, nil
+		},
+	}
+	if errorValue := service.writeCurrentReleaseManifest(manifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	targetPath := filepath.Join(t.TempDir(), "blueclaw-llmd")
+
+	if errorValue := service.reconcileReleaseLLMDBootstrapAtPath(context.Background(), targetPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if readTrimmedFile(targetPath) != "llmd binary" {
+		t.Fatalf("expected ignored LLMD component to be installed at %s", targetPath)
+	}
+	if readTrimmedFile(service.installedReleaseLLMDPath()) != manifest.ReleaseID {
+		t.Fatalf("expected LLMD release receipt for %s", manifest.ReleaseID)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	for _, expectedValue := range []string{"systemctl restart " + blueclawruntime.LLMDServiceName, "systemctl restart " + blueclawruntime.CapabilitydServiceName, "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1", blueclawruntime.LLMDServiceAuthKeyPath} {
+		if !strings.Contains(joinedCommands, expectedValue) {
+			t.Fatalf("expected old-admind LLMD reconciliation to contain %q, got %s", expectedValue, joinedCommands)
+		}
+	}
+	credentialInstallIndex := strings.Index(joinedCommands, "install -o root -g root -m 600 "+blueclawruntime.LLMDAuthKeyPath+" "+blueclawruntime.LLMDServiceAuthKeyPath)
+	serviceRestartIndex := strings.Index(joinedCommands, "systemctl restart "+blueclawruntime.LLMDServiceName)
+	if credentialInstallIndex < 0 || serviceRestartIndex < 0 || credentialInstallIndex > serviceRestartIndex {
+		t.Fatalf("expected OTA LLMD credentials to be staged before service activation, got %s", joinedCommands)
+	}
+}
+
+func TestRestartReleaseLLMDChecksHealth(t *testing.T) {
+	commands := []string{}
+	service := &Service{RunCommand: func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		command := strings.Join(append([]string{name}, arguments...), " ")
+		commands = append(commands, command)
+		if name == "sh" {
+			return []byte("ok\n"), nil
+		}
+		return nil, nil
+	}}
+
+	if errorValue := service.restartReleaseLLMD(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedCommands := strings.Join(commands, "\n")
+	if !strings.Contains(joinedCommands, "systemctl restart "+blueclawruntime.LLMDServiceName) {
+		t.Fatalf("expected LLMD restart, got %s", joinedCommands)
+	}
+	if !strings.Contains(joinedCommands, blueclawruntime.LLMDHealthCheckCommand()) {
+		t.Fatalf("expected LLMD health check, got %s", joinedCommands)
 	}
 }
 
@@ -360,6 +713,9 @@ func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
 			return testHTTPResponse(http.StatusNotFound, nil), nil
 		}
 	})}
+	if errorValue := service.writeCurrentReleaseManifest(&releaseTwo); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	document, errorValue := json.Marshal(map[string]string{"releaseID": "release-1"})
 	if errorValue != nil {
@@ -472,6 +828,12 @@ func newReleaseUpdateUploadTestService(t *testing.T) *Service {
 	})
 	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
 		return []byte("ok\n"), nil
+	}
+	currentManifest := releaseset.NewManifest("release-current", "stable", map[string]releaseset.Component{
+		"skills": {Name: "skills"},
+	})
+	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 	return service
 }

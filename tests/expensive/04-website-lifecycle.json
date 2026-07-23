@@ -1,67 +1,373 @@
 {
-  "name": "website-lifecycle",
-  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/website"],
-  "allowedTools": ["conversation.history", "memory.search", "capability.invoke", "terminal.run", "file.read", "file.write", "file.edit"],
-  "capabilityToolNames": ["site.create", "site.status", "site.publish", "site.delete"],
-  "capabilityToolDescriptors": [
-    {"name": "site.delete", "requiresApproval": true}
-  ],
-  "initialToolNames": ["capability.invoke"],
-  "steps": [
+ "name": "website-lifecycle",
+ "requiresLLMD": true,
+ "expectedLLMProvider": "openrouter",
+ "skillDirectoryPaths": [
+  "../../assets/blueclaw-workspace/skills/website"
+ ],
+ "allowedTools": [
+  "conversation.history",
+  "memory.search",
+  "terminal.run",
+  "file.read",
+  "file.write",
+  "file.edit",
+  "browser.open",
+  "browser.snapshot",
+  "browser.screenshot",
+  "browser.click",
+  "artifact.review",
+  "site.create",
+  "site.status",
+  "site.preview",
+  "site.publish",
+  "site.delete"
+ ],
+ "capabilityToolNames": [
+  "site.create",
+  "site.status",
+  "site.preview",
+  "site.publish",
+  "site.delete",
+  "artifact.review"
+ ],
+ "capabilityToolDescriptors": [
+  {
+   "name": "site.delete",
+   "requiresApproval": true
+  }
+ ],
+ "initialToolNames": [
+  "site.create",
+  "site.status"
+ ],
+ "steps": [
+  {
+   "prompt": "우리 회사 '브릿지웍스'에 처음 문의하는 소상공인을 위한 상담 안내 웹사이트를 초안으로 만들어줘. 받을 수 있는 상담, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 공개하지는 말아줘.",
+   "expectedToolCalls": [
+    "site.create"
+   ],
+   "expectedEventCounts": [
     {
-      "prompt": "'비용 테스트 스튜디오'라는 단일 페이지 웹사이트를 만들어줘. 아직 배포하지는 마.",
-      "expectedToolCalls": ["site.create"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "비용 테스트 스튜디오", "count": 1}
-      ],
-      "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["비용 테스트 스튜디오"]}
-      ],
-      "expectedTaskStatus": "completed"
+     "name": "tool.site.status.requested",
+     "bodyFragment": "\"siteReference\":",
+     "count": 1,
+     "advisory": true
     },
     {
-      "prompt": "방금 만든 웹사이트 첫 화면에 '고정 시드 기반 검증' 문구를 추가해줘. 아직 배포하지 마.",
-      "expectedToolCalls": ["file.write"],
-      "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 기반 검증"]}
-      ],
-      "expectedTaskStatus": "completed"
+     "name": "tool.site.create.result",
+     "outputFragment": "siteID",
+     "count": 1,
+     "advisory": true
     },
     {
-      "prompt": "방금 수정한 웹사이트를 배포해줘.",
-      "expectedToolCalls": ["site.publish", "site.status"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "https://demo.device.intern.kim", "count": 1},
-        {"name": "tool.capability.invoke.result", "bodyFragment": "published", "count": 2}
-      ],
-      "expectedTaskStatus": "completed"
+     "name": "tool.site.create.result",
+     "outputFragment": "sourceWorkspacePath",
+     "count": 1,
+     "advisory": true
     },
     {
-      "prompt": "배포한 웹사이트의 문구를 '고정 시드 41 검증 완료'로 바꾸고 다시 배포해줘.",
-      "expectedToolCalls": ["site.publish", "site.status"],
-      "expectedAnyToolCalls": ["file.edit", "file.write"],
-      "expectedWorkspaceFiles": [
-        {"pathGlob": "circles/staff/sites/demo/draft/app/public/site-content.json", "containsFragments": ["고정 시드 41 검증 완료"]}
-      ],
-      "expectedTaskStatus": "completed"
+     "name": "tool.site.create.result",
+     "outputFragment": "appWorkspacePath",
+     "count": 1,
+     "advisory": true
     },
     {
-      "prompt": "방금 배포한 '비용 테스트 스튜디오' 웹사이트를 삭제해줘.",
-      "expectedEvents": ["confirmation.requested"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "approval_required", "count": 1}
-      ],
-      "expectedTaskStatus": "waiting_approval"
+     "name": "tool.site.create.result",
+     "bodyFragment": "\"objectType\":\"website\"",
+     "count": 1,
+     "advisory": true
     },
     {
-      "prompt": "웹사이트 삭제 승인할게.",
-      "expectedToolCalls": ["site.delete"],
-      "expectedEvents": ["approval.executed"],
-      "expectedEventCounts": [
-        {"name": "tool.capability.invoke.result", "bodyFragment": "deleted", "count": 1}
-      ],
-      "forbiddenWorkspaceFiles": ["circles/staff/sites/demo"],
-      "expectedTaskStatus": "completed"
+     "name": "tool.site.create.result",
+     "bodyFragment": "\"effect\":\"created\"",
+     "count": 1,
+     "exact": true
     }
-  ]
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "containsFragments": [
+      "브릿지웍스",
+      "상담 신청"
+     ]
+    }
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "브릿지웍스 상담 안내 사이트 첫 화면에 '첫 상담은 30분 무료입니다'라는 안내를 추가해줘. 공개하기 전에 미리보기로 문구와 상담 신청 버튼이 잘 보이고 눌리는지도 확인해줘.",
+   "expectedToolCalls": [
+    "site.status",
+    "file.edit",
+    "site.preview"
+   ],
+   "expectedToolCallCounts": {
+    "site.status": 1,
+    "file.edit": 1,
+    "site.preview": 1
+   },
+   "expectedEventCounts": [
+    {
+     "name": "tool.site.status.result",
+     "outputFragment": "siteID",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.file.edit.result",
+     "outputFragment": "site-content.json",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.requested",
+     "bodyFragment": "\"siteID\":",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.result",
+     "outputFragment": "previewURL",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.result",
+     "bodyFragment": "\"objectType\":\"website\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.result",
+     "bodyFragment": "\"effect\":\"previewed\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.artifact.review.result",
+     "bodyFragment": "\"passed\":true",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "containsFragments": [
+      "브릿지웍스",
+      "첫 상담은 30분 무료입니다",
+      "상담 신청"
+     ]
+    }
+   ],
+   "requiresPublicURL": true,
+   "expectedPublicText": [
+    "브릿지웍스",
+    "첫 상담은 30분 무료입니다"
+   ],
+   "expectedPublicControls": [
+    "상담 신청"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "브릿지웍스 상담 안내 사이트 미리보기에 문제없으면 지금 공개하고 링크를 보내줘.",
+   "expectedToolCalls": [
+    "site.publish"
+   ],
+   "expectedExactToolCallCounts": {
+    "site.publish": 1
+   },
+   "expectedToolCallCounts": {},
+   "expectedEventCounts": [
+    {
+     "name": "tool.site.publish.requested",
+     "bodyFragment": "\"siteID\":",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "outputFragment": "publishedURL",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "outputFragment": "sourceSHA256",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "bodyFragment": "\"objectType\":\"website\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "bodyFragment": "\"effect\":\"published\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.status.result",
+     "outputFragment": "published",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.status.result",
+     "outputFragment": "siteID",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "requiresPublicURL": true,
+   "expectedPublicText": [
+    "브릿지웍스",
+    "첫 상담은 30분 무료입니다"
+   ],
+   "expectedPublicControls": [
+    "상담 신청"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "브릿지웍스 상담 안내 사이트의 '첫 상담은 30분 무료입니다'를 '상담 신청은 평일 오전에 접수합니다'로 바꾸고, 버튼이 잘 작동하는지 확인한 다음 다시 공개해줘.",
+   "expectedToolCalls": [
+    "file.edit",
+    "site.preview",
+    "site.publish"
+   ],
+   "expectedExactToolCallCounts": {
+    "site.publish": 1
+   },
+   "expectedToolCallCounts": {
+    "file.edit": 1,
+    "site.preview": 1
+   },
+   "expectedWorkspaceFiles": [
+    {
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "containsFragments": [
+      "브릿지웍스",
+      "상담 신청은 평일 오전에 접수합니다",
+      "상담 신청"
+     ],
+     "forbiddenFragments": [
+      "첫 상담은 30분 무료입니다"
+     ]
+    }
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.file.edit.result",
+     "outputFragment": "site-content.json",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.requested",
+     "bodyFragment": "\"siteID\":",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.preview.result",
+     "outputFragment": "previewURL",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.artifact.review.result",
+     "bodyFragment": "\"passed\":true",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.requested",
+     "bodyFragment": "\"siteID\":",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "outputFragment": "sourceSHA256",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.publish.result",
+     "bodyFragment": "\"effect\":\"published\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.status.result",
+     "outputFragment": "published",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "requiresPublicURL": true,
+   "expectedPublicText": [
+    "브릿지웍스",
+    "상담 신청은 평일 오전에 접수합니다"
+   ],
+   "expectedPublicControls": [
+    "상담 신청"
+   ],
+   "expectedTaskStatus": "completed"
+  },
+  {
+   "prompt": "방금 공개한 브릿지웍스 상담 안내 사이트를 삭제해줘.",
+   "approvalAction": "approve",
+   "expectedToolCalls": [
+    "site.status",
+    "site.delete"
+   ],
+   "expectedToolCallCounts": {
+    "site.status": 1,
+    "site.delete": 1
+   },
+   "expectedEvents": [
+    "confirmation.requested",
+    "approval.pending_call",
+    "approval.executed"
+   ],
+   "expectedEventCounts": [
+    {
+     "name": "tool.site.delete.requested",
+     "bodyFragment": "\"siteID\":",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.delete.result",
+     "outputFragment": "deleted",
+     "count": 1,
+     "exact": true
+    },
+    {
+     "name": "tool.site.delete.result",
+     "bodyFragment": "\"objectType\":\"website\"",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.delete.result",
+     "bodyFragment": "\"effect\":\"deleted\"",
+     "count": 1,
+     "advisory": true
+    }
+   ],
+   "forbiddenWorkspaceFiles": [
+    "private/people/{requesterPersonID}/sites/*"
+   ],
+   "expectedTaskStatus": "completed"
+  }
+ ]
 }

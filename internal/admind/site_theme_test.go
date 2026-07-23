@@ -303,7 +303,7 @@ func TestNormalizeSiteDesignHexColorExpandsAndLowercases(t *testing.T) {
 
 func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "themed-site", Title: "Themed Site"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "themed-site", Title: "Themed Site"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -313,9 +313,10 @@ func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), validSiteDesignMarkdownWithColors("#336699", "#ffffff"))
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -332,7 +333,7 @@ func TestSitePublishRendersThemeCSSMatchingDesignDocument(t *testing.T) {
 
 func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "invalid-design", Title: "Invalid Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "invalid-design", Title: "Invalid Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -342,9 +343,10 @@ func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "DESIGN.md"), "not a design document")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "DESIGN.md front matter is invalid") {
 		t.Fatalf("expected invalid DESIGN.md rejection, got %v", errorValue)
@@ -353,7 +355,7 @@ func TestSitePublishRejectsInvalidDesignDocument(t *testing.T) {
 
 func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "fully-invalid-design", Title: "Fully Invalid Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "fully-invalid-design", Title: "Fully Invalid Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -370,9 +372,10 @@ func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T)
 		"---\n")
 
 	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
 	if errorValue == nil {
 		t.Fatal("expected publish to reject the fully-invalid DESIGN.md")
@@ -392,7 +395,7 @@ func TestSitePublishInvalidDesignDocumentReportsAllErrorsInOneShot(t *testing.T)
 
 func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "legacy-no-design", Title: "Legacy No Design"})
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "legacy-no-design", Title: "Legacy No Design"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -403,25 +406,20 @@ func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:             site.SiteID,
-		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
-		SourceBundleFormat: "tar.gz",
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat:  "tar.gz",
 	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if site.Status != SiteStatusPublished {
-		t.Fatalf("published status = %q", site.Status)
-	}
-	if isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
-		t.Fatal("expected no theme.css to be materialized for a site without DESIGN.md")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "DESIGN.md is required") {
+		t.Fatalf("expected publish without DESIGN.md to fail closed, got %v", errorValue)
 	}
 }
 
 func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	site, errorValue := service.createSiteRecord(siteCreateRequest{
+	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:        "legacy-freshness",
 		Title:       "Legacy Freshness",
 		RequestedBy: "owner@example.com",
@@ -431,11 +429,14 @@ func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	}
 	sourceWorkspacePath := t.TempDir()
 	writeTestSourceBuild(t, sourceWorkspacePath, "freshness publish")
+	if errorValue := os.WriteFile(filepath.Join(sourceWorkspacePath, "DESIGN.md"), []byte(siteDesignMD(site)), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:              site.SiteID,
 		RequestedBy:         "owner@example.com",
-		Message:             "Publish fresh build without DESIGN.md",
+		Message:             "Publish fresh build with the scaffold design contract",
 		SourceWorkspacePath: site.SourceWorkspacePath,
 		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
 		SourceBundleFormat:  "tar.gz",
@@ -447,8 +448,8 @@ func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	if !strings.Contains(response.Body.String(), "freshness publish") {
 		t.Fatalf("published body = %q", response.Body.String())
 	}
-	if isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
-		t.Fatal("expected no theme.css on the legacy freshness path without DESIGN.md")
+	if !isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
+		t.Fatal("expected theme.css to render from the design contract on the freshness path")
 	}
 }
 
@@ -475,10 +476,10 @@ func TestCatalogFontFamilyOrDefaultReplacesGenericKeywords(t *testing.T) {
 
 func TestParseSiteDesignStylePreset(t *testing.T) {
 	cases := map[string]string{
-		"":                      "editorial",
-		"style: brutalist":      "brutalist",
-		"style: \"soft\"":       "soft",
-		"style: PLAYFUL":        "playful",
+		"":                 "editorial",
+		"style: brutalist": "brutalist",
+		"style: \"soft\"":  "soft",
+		"style: PLAYFUL":   "playful",
 	}
 	for frontMatter, expected := range cases {
 		preset, errorValue := parseSiteDesignStylePreset(frontMatter)
@@ -492,5 +493,21 @@ func TestParseSiteDesignStylePreset(t *testing.T) {
 	css := renderSiteThemeCSS(siteTheme{PrimaryColor: "#111111", BackgroundColor: "#ffffff", ForegroundColor: "#111111", AccentColor: "#111111", HeadingFontFamily: "에이투지체", BodyFontFamily: "에이투지체", RadiusValue: "8px", StylePreset: "brutalist"})
 	if !strings.Contains(css, "--hero-background: var(--primary);") || !strings.Contains(css, "--shadow-card: 4px 4px 0 var(--foreground);") {
 		t.Fatalf("brutalist preset variables missing from theme css:\n%s", css)
+	}
+}
+
+func TestApplySiteDesignThemeForActionToleratesUnfinishedDesignOnPreviewOnly(t *testing.T) {
+	hostSourcePath := t.TempDir()
+	frontendDistPath := t.TempDir()
+	unfinishedDocument := "---\nversion: alpha\n---\nTODO(design): decide the palette.\n"
+	if errorValue := os.WriteFile(filepath.Join(hostSourcePath, siteDesignDocumentPath), []byte(unfinishedDocument), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := applySiteDesignThemeForAction(hostSourcePath, frontendDistPath, "preview"); errorValue != nil {
+		t.Fatalf("expected preview to tolerate an unfinished design contract, got %v", errorValue)
+	}
+	if errorValue := applySiteDesignThemeForAction(hostSourcePath, frontendDistPath, "publish"); errorValue == nil {
+		t.Fatal("expected publish to keep enforcing the design contract")
 	}
 }

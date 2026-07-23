@@ -2,6 +2,8 @@ package localfleet
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -103,6 +105,18 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 	}
 }
 
+func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
+	scriptPath := filepath.Join("..", "..", "lab", "scripts", "configure-local-embedding.sh")
+	document, errorValue := os.ReadFile(scriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := string(document)
+	if !strings.Contains(script, "ldconfig -p | grep -F 'libgomp.so.1' >/dev/null") {
+		t.Fatal("local embedding script does not probe libgomp safely")
+	}
+}
+
 func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
@@ -178,25 +192,46 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
 		t.Fatalf("expected test up plan to preserve tier model names:\n%s", joinedPlans)
 	}
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='xlow'") {
-		t.Fatalf("expected test up plan to cap models at xlow:\n%s", joinedPlans)
+	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='low'") {
+		t.Fatalf("expected test up plan to cap models at low:\n%s", joinedPlans)
 	}
 	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force") {
 		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
 	}
+	if strings.Contains(joinedPlans, "--only blueclaw-runtime-base") {
+		t.Fatalf("expected disposable fleet setup to install the runtime in its single setup pass:\n%s", joinedPlans)
+	}
 }
 
-func TestUpPlanSkipsRuntimeBaseForReusableFleet(t *testing.T) {
+func TestReusableUpPlanEnsuresRuntimeBaseBeforeForcedSetup(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, "--force") {
-		t.Fatalf("expected reusable fleet setup to force small changed components:\n%s", joinedPlans)
+	plans := service.upPlans(true)
+	runtimeBasePlanIndex := planArgumentIndex(plans, "--only blueclaw-runtime-base")
+	forcedSetupPlanIndex := planArgumentIndex(plans, "--force --skip")
+	if runtimeBasePlanIndex < 0 || forcedSetupPlanIndex < 0 || runtimeBasePlanIndex >= forcedSetupPlanIndex {
+		t.Fatalf("expected runtime base ensure before forced setup:\n%s", joinedPlanArguments(plans))
 	}
-	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
-		t.Fatalf("expected reusable fleet setup to skip runtime base reinstall:\n%s", joinedPlans)
+	runtimeBasePlan := strings.Join(plans[runtimeBasePlanIndex].Arguments, " ")
+	if strings.Contains(runtimeBasePlan, "--force") {
+		t.Fatalf("expected runtime base ensure to honor its satisfied check:\n%s", runtimeBasePlan)
+	}
+	forcedSetupPlan := strings.Join(plans[forcedSetupPlanIndex].Arguments, " ")
+	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
+		t.Fatalf("expected forced reusable setup to skip the ensured runtime base:\n%s", forcedSetupPlan)
+	}
+}
+
+func TestReusableUpPlanHonorsExplicitRuntimeBaseSkip(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.upPlansWithSkippedSetupSteps(true, []string{"blueclaw-runtime-base"})
+	if planArgumentIndex(plans, "--only blueclaw-runtime-base") >= 0 {
+		t.Fatalf("expected explicit runtime base skip to omit the ensure pass:\n%s", joinedPlanArguments(plans))
 	}
 }
 
@@ -210,8 +245,8 @@ func TestUpPlanCanUseRealModels(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
-		t.Fatalf("expected real model setup to omit test model override:\n%s", joinedPlans)
+	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) || strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment) {
+		t.Fatalf("expected real model setup to omit test model selection:\n%s", joinedPlans)
 	}
 	if strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
 		t.Fatalf("expected real model setup to omit model tier ceiling:\n%s", joinedPlans)
@@ -226,6 +261,44 @@ func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
 	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='high'") {
 		t.Fatalf("expected high maximum model tier:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanCanSetAuthoritativeLLMDMode(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		LLMDMode:           LLMDModeAuthoritative,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	expectedAssignment := blueclaw.BlueclawLLMDModeEnvironment + "='" + string(LLMDModeAuthoritative) + "'"
+	if !strings.Contains(joinedPlans, expectedAssignment) {
+		t.Fatalf("expected authoritative LLMD mode:\n%s", joinedPlans)
+	}
+}
+
+func TestUpPlanOmitsUnspecifiedLLMDMode(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.upPlans(true))
+	if strings.Contains(joinedPlans, blueclaw.BlueclawLLMDModeEnvironment) {
+		t.Fatalf("expected unspecified LLMD mode to remain absent:\n%s", joinedPlans)
+	}
+}
+
+func TestServiceRejectsUnsupportedLLMDMode(t *testing.T) {
+	_, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		LLMDMode:           "fallback",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported LLMD mode") {
+		t.Fatalf("expected unsupported LLMD mode error, got %v", errorValue)
 	}
 }
 
@@ -306,9 +379,28 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 	for _, expectedFragment := range []string{
 		"-L '127.0.0.1:19080:127.0.0.1:18080'",
 		"-L '127.0.0.1:19065:127.0.0.1:8065'",
+		"nc -z 127.0.0.1 19080 && nc -z 127.0.0.1 19065",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected %q in tunnel command:\n%s", expectedFragment, command)
+		}
+	}
+}
+
+func TestPreparedFleetPlansOnlyRestoreConnectivity(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	joinedPlans := joinedPlanArguments(service.preparedFleetPlans())
+	for _, expectedText := range []string{"vm-up", "test -d /mnt/shared/workspace", "ExitOnForwardFailure=yes"} {
+		if !strings.Contains(joinedPlans, expectedText) {
+			t.Fatalf("prepared Fleet plans are missing %q:\n%s", expectedText, joinedPlans)
+		}
+	}
+	for _, forbiddenText := range []string{"make build", "setup --board", "configure-local-embedding"} {
+		if strings.Contains(joinedPlans, forbiddenText) {
+			t.Fatalf("prepared Fleet plans contain %q:\n%s", forbiddenText, joinedPlans)
 		}
 	}
 }
@@ -387,6 +479,150 @@ func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
 	if strings.Contains(joinedPlans, "setup --board lab") || strings.Contains(joinedPlans, "verify mattermost") {
 		t.Fatalf("without-mattermost scenario should not run setup or Mattermost verify:\n%s", joinedPlans)
 	}
+}
+
+func TestLLMDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		RunID:              "llmd-host-topology",
+		IsEphemeral:        true,
+		AdminHostPort:      19080,
+		MattermostHostPort: 19065,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.llmdHostTopologyScenarioPlans()
+	joinedPlans := joinedPlanArguments(plans)
+	for _, expectedFragment := range []string{
+		"vm-up --config",
+		"make build",
+		"setup --board lab",
+		"--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,mattermost",
+		"sudo bash '/mnt/shared/workspace/lab/scripts/scenario-llmd-host-topology.sh'",
+	} {
+		if !strings.Contains(joinedPlans, expectedFragment) {
+			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
+		}
+	}
+	if strings.Contains(joinedPlans, "virtual-session") || strings.Contains(joinedPlans, "verify mattermost") || strings.Contains(joinedPlans, "configure-mattermost-test-settings.sh") {
+		t.Fatalf("LLMD topology should run against provisioned host services:\n%s", joinedPlans)
+	}
+	for _, plan := range plans {
+		if strings.Contains(strings.Join(plan.Arguments, " "), "setup --board lab") {
+			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawLLMDModeEnvironment+"=authoritative") {
+				t.Fatalf("expected authoritative LLMD setup environment, got %v", plan.Environment)
+			}
+			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestModelTierEnvironment) {
+				t.Fatalf("expected LLMD scenario to preserve production task level, got %v", plan.Environment)
+			}
+			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
+				t.Fatalf("expected LLMD scenario to omit the test maximum model tier for production task-level intent, got %v", plan.Environment)
+			}
+			if strings.Contains(strings.Join(plan.Arguments, " "), blueclaw.BlueclawTestMaximumModelTierEnvironment+"=") {
+				t.Fatalf("expected LLMD setup command to omit the test maximum model tier for production task-level intent, got %v", plan.Arguments)
+			}
+			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true") {
+				t.Fatalf("expected LLMD diagnostic preset environment, got %v", plan.Environment)
+			}
+		}
+	}
+}
+
+func TestLLMDHostTopologyScriptVerifiesFallbackAndRecovery(t *testing.T) {
+	scriptPath := filepath.Join("..", "..", "lab", "scripts", "scenario-llmd-host-topology.sh")
+	if output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput(); errorValue != nil {
+		t.Fatalf("invalid LLMD topology script: %v: %s", errorValue, output)
+	}
+	document, errorValue := os.ReadFile(scriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := string(document)
+	for _, expectedFragment := range []string{
+		`.languageModel.defaultProvider == "llmd"`,
+		`exec sudo bash "$0" "$@"`,
+		`conversation_id="llmd-topology-$(cat /proc/sys/kernel/random/uuid)"`,
+		`requester_person_id=`,
+		`--arg requesterPersonID "$requester_person_id"`,
+		`requesterPersonID:$requesterPersonID`,
+		`conversationID:$conversationID`,
+		`taskDecisionPreset:$taskDecisionPreset`,
+		`task_decision_preset=${2-llmd_topology}`,
+		`requires_completed_finish=${3-true}`,
+		`workspace_runtime_config=/root/.blueclaw/workspace/.blueclaw/config/runtime.json`,
+		`jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]'`,
+		`jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config"`,
+		`http://127.0.0.1:8080/admin/api/policy`,
+		`.people[0].personID | select(length > 0)`,
+		`router_task_run_id=$(run_task 'Reply with exactly LLMD topology router ok.' '' false)`,
+		`assert_guest_llmd_router_transport "$router_task_run_id"`,
+		`response_path=$(mktemp)`,
+		`--connect-timeout 10 --max-time 300`,
+		`task run response did not contain the required task result`,
+		`capability_socket_path=/run/internkim/capability.sock`,
+		`chat_bridge_path=/_internkim/llmd/v1/llm/chat`,
+		`Authorization: Bearer $(cat "$auth_key_path")`,
+		`--unix-socket "$capability_socket_path"`,
+		`http://internkim-capability$chat_bridge_path`,
+		`invalid_chat_request=`,
+		`run_host_chat_bridge_request()`,
+		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
+		`assert_guest_llmd_structured_transport "$authoritative_task_run_id" false`,
+		`.taskRun.taskRunID`,
+		`/admin/api/task/detail?taskRunID=`,
+		`select(.schemaName == "blueclaw_agent_turn_action")`,
+		`select(.isIntakePrecomputed == true)`,
+		`select(.name == "agent.intake")`,
+		`select(.schemaName == "blueclaw_turn_router")`,
+		`all($intakes[]; .usedDeterministicFallback == false)`,
+		`all($launches[]; (.isIntakePrecomputed // false) == false)`,
+		`all($router_calls[]; (.usedFallback // false) == false)`,
+		`systemctl stop "$service_name"`,
+		`assert_host_chat_bridge_response 503 llmd_bridge_unavailable true`,
+		`host chat bridge returned an unexpected error envelope`,
+		`assert_guest_llmd_structured_transport "$fallback_task_run_id" true`,
+		`systemctl restart "$service_name"`,
+		`assert_host_chat_bridge_response 400 invalid_chat_completion_request false`,
+		`assert_guest_llmd_structured_transport "$recovered_task_run_id" false`,
+		`trap restore_llmd EXIT`,
+	} {
+		if !strings.Contains(script, expectedFragment) {
+			t.Fatalf("expected %q in LLMD topology script", expectedFragment)
+		}
+	}
+	for _, forbiddenFragment := range []string{
+		"--relative-target",
+		"--relative-target .blueclaw/config",
+		"00000000-0000-0000-0000-000000000001",
+		"blueclaw_service_name",
+		"enable_router_schema",
+		"sync_workspace_runtime_config",
+	} {
+		if strings.Contains(script, forbiddenFragment) {
+			t.Fatalf("did not expect %q in LLMD topology script", forbiddenFragment)
+		}
+	}
+}
+
+func containsEnvironmentValue(environment []string, expectedValue string) bool {
+	for _, value := range environment {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEnvironmentName(environment []string, name string) bool {
+	prefix := name + "="
+	for _, value := range environment {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestEphemeralCleanupRemovesVirtualMachineAndKeepsEvidenceState(t *testing.T) {
@@ -477,4 +713,13 @@ func joinedPlanArguments(plans []CommandPlan) string {
 		lines = append(lines, strings.Join(append([]string{plan.Name}, plan.Arguments...), " "))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func planArgumentIndex(plans []CommandPlan, expectedText string) int {
+	for planIndex, plan := range plans {
+		if strings.Contains(strings.Join(plan.Arguments, " "), expectedText) {
+			return planIndex
+		}
+	}
+	return -1
 }

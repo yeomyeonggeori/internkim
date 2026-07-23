@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
@@ -17,6 +20,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	writeFileReadTestFile(t, sourcePath, "pdf")
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
 	var helperRequest fileReadHelperRequest
+	helperOutput := []byte(`{"content":"# Report\n\nBody","warnings":["ok"]}`)
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:     secretPath,
@@ -32,7 +36,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return []byte(`{"content":"# Report\n\nBody","warnings":["ok"]}`), nil
+			return helperOutput, nil
 		},
 	}
 
@@ -43,6 +47,9 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	if response.IsError || response.Content != "# Report\n\nBody" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
+	if response.Provider != "markitdown" || response.SelectedBackend != capabilities.LLMBackendRemote || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
+		t.Fatalf("unexpected response identity: %+v", response)
+	}
 	if helperRequest.Path != sourcePath || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
 		t.Fatalf("unexpected helper request: %+v", helperRequest)
 	}
@@ -52,6 +59,50 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	}
 	if result.Path != "/workspace/docs/report.pdf" || result.Format != "markdown" || result.Backend != "openrouter" || len(result.Warnings) != 1 {
 		t.Fatalf("unexpected result: %+v", result)
+	}
+	if result.Status != "ok" || result.Truncated {
+		t.Fatalf("unexpected result status: %+v", result)
+	}
+
+	helperOutput = []byte(`{"content":"# Report\n\nBody"}`)
+	response, errorValue = service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected document.read without warnings: %v", errorValue)
+	}
+	result = documentReadResult{}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.Warnings == nil || len(result.Warnings) != 0 {
+		t.Fatalf("expected an empty warnings array, got %+v", result.Warnings)
+	}
+	descriptor, isFound := capabilityToolDescriptorFor("document.read")
+	if !isFound {
+		t.Fatal("document.read descriptor is missing")
+	}
+	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
+		t.Fatalf("document.read result violates its contract: %v", errorValue)
+	}
+}
+
+func TestDocumentReadRejectsUnsupportedInputFields(t *testing.T) {
+	service := Service{Configuration: Configuration{BlueclawWorkspacePath: t.TempDir()}.WithDefaults()}
+	for _, input := range []string{
+		`{"input":{"path":"/workspace/report.pdf","materialID":"material-1"}}`,
+		`{"input":{"path":"/workspace/report.pdf","unexpected":true}}`,
+		`{"input":{"path":"/workspace/report.pdf","maxPages":0}}`,
+		`{"input":{"path":"/workspace/report.pdf","maxOutputBytes":0}}`,
+	} {
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(input))
+		if errorValue != nil {
+			t.Fatalf("expected structured input error: %v", errorValue)
+		}
+		if !response.IsError || response.ErrorCode != "invalid_input" {
+			t.Fatalf("expected invalid input response, got %+v", response)
+		}
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
+			t.Fatalf("unexpected document error identity: %+v", response)
+		}
 	}
 }
 
@@ -261,22 +312,35 @@ func TestImageReadReturnsImageAttachment(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected image.read: %v", errorValue)
 	}
-	var result struct {
-		Attachments []struct {
-			DevicePath    string `json:"devicePath"`
-			ContentType   string `json:"contentType"`
-			ContentBase64 string `json:"contentBase64"`
-		} `json:"attachments"`
-	}
+	var result imageReadResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.IsError || len(result.Attachments) != 1 {
+	if response.IsError || len(result.Attachments) != 1 || response.Provider != "workspace" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	attachment := result.Attachments[0]
-	if attachment.DevicePath != "/workspace/uploads/screen.png" || attachment.ContentType != "image/png" || attachment.ContentBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
+	if result.Status != "ok" || result.Path != "/workspace/uploads/screen.png" || attachment.DevicePath != "/workspace/uploads/screen.png" || attachment.Filename != "screen.png" || attachment.ContentType != "image/png" || attachment.SizeBytes != int64(len(imageDocument)) || attachment.ContentBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
 		t.Fatalf("unexpected image attachment: %+v", attachment)
+	}
+}
+
+func TestImageReadRejectsUnsupportedInputFields(t *testing.T) {
+	service := Service{Configuration: Configuration{BlueclawWorkspacePath: t.TempDir()}.WithDefaults()}
+	for _, input := range []string{
+		`{"input":{"path":"/workspace/screen.png","materialID":"material-1"}}`,
+		`{"input":{"path":"/workspace/screen.png","unexpected":true}}`,
+	} {
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "image.read", strings.NewReader(input))
+		if errorValue != nil {
+			t.Fatalf("expected structured input error: %v", errorValue)
+		}
+		if !response.IsError || response.ErrorCode != "invalid_input" {
+			t.Fatalf("expected invalid input response, got %+v", response)
+		}
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
+			t.Fatalf("unexpected image error identity: %+v", response)
+		}
 	}
 }
 

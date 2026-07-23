@@ -26,32 +26,6 @@ type companionConnectPairingResponse struct {
 	DeepLink  string    `json:"deepLink"`
 }
 
-func (service Service) handleMattermostCompanionConnectCommand(ctx context.Context, event platformInboundEvent) (bool, error) {
-	if !isMattermostCompanionConnectCommand(event) {
-		return false, nil
-	}
-	response, errorValue := service.createCompanionPairingForMattermostSender(ctx, event)
-	if errorValue != nil {
-		return true, errorValue
-	}
-	message := companionConnectMessage(response)
-	if strings.EqualFold(strings.TrimSpace(event.Context.ConversationType), "D") {
-		return true, service.postMattermostMessage(ctx, event.Context.ChannelID, "", message)
-	}
-	if errorValue := service.sendMattermostDirectMessage(ctx, event.SenderID, message); errorValue != nil {
-		return true, errorValue
-	}
-	return true, service.postMattermostMessage(ctx, event.Context.ChannelID, "", "Companion 연결 링크를 DM으로 보냈어요.")
-}
-
-func isMattermostCompanionConnectCommand(_ platformInboundEvent) bool {
-	return false
-}
-
-func (service Service) createCompanionPairingForMattermostSender(ctx context.Context, event platformInboundEvent) (companionConnectPairingResponse, error) {
-	return service.createCompanionPairingForMattermostSenderRecord(ctx, event.Context.Sender)
-}
-
 func (service Service) createCompanionPairingForMattermostSenderRecord(ctx context.Context, sender platformContextSender) (companionConnectPairingResponse, error) {
 	if strings.TrimSpace(sender.UserID) == "" && strings.TrimSpace(sender.Email) == "" {
 		return companionConnectPairingResponse{}, errors.New("mattermost sender identity is missing")
@@ -157,14 +131,6 @@ func (service Service) companionConnectDeviceURL() string {
 
 func isLocalBaseURL(value string) bool {
 	return strings.Contains(value, "127.0.0.1") || strings.Contains(value, "localhost") || strings.Contains(value, "[::1]")
-}
-
-func companionConnectMessage(response companionConnectPairingResponse) string {
-	expiresAt := response.ExpiresAt.Local().Format("15:04")
-	return "Companion 연결 코드: `" + response.Code + "`\n" +
-		"Companion 앱에서 이 링크를 열거나 코드를 입력하세요.\n" +
-		"[Companion 앱 열기](" + response.DeepLink + ")\n" +
-		"만료: " + expiresAt
 }
 
 func (service Service) postAdmindJSON(ctx context.Context, path string, requestDocument any, responseDocument any) error {

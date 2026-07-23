@@ -64,13 +64,11 @@ type blueclawQuiesceRequest struct {
 }
 
 type blueclawQuiesceResponse struct {
-	Quiesced        bool `json:"quiesced"`
-	ActiveTaskCount int  `json:"activeTaskCount"`
+	ActiveTaskCount int `json:"activeTaskCount"`
 }
 
 type blueclawPrepareShutdownResponse struct {
-	Quiesced             bool `json:"quiesced"`
-	InterruptedTaskCount int  `json:"interruptedTaskCount"`
+	InterruptedTaskCount int `json:"interruptedTaskCount"`
 }
 
 type BlueclawUpdateUpload struct {
@@ -704,7 +702,9 @@ func refreshBlueclawCapabilityContract(document string) (string, error) {
 	}
 	contract := blueclawruntime.CurrentCapabilityContract()
 	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
-		capabilitiesSection["toolNames"] = contract.ToolNames
+		delete(capabilitiesSection, "toolNames")
+		capabilitiesSection["protocolVersion"] = contract.ProtocolVersion
+		capabilitiesSection["aggregateProtocolHash"] = contract.AggregateProtocolHash
 		capabilitiesSection["toolDescriptors"] = contract.ToolDescriptors
 		if routing, ok := capabilitiesSection["routing"].(map[string]any); ok {
 			routing["candidates"] = contract.RoutingCandidates

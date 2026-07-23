@@ -554,6 +554,54 @@ func TestOnlyServicesSkipsCurrentSkills(t *testing.T) {
 	}
 }
 
+func TestSkillsManifestCheckRequiresSuccessfulSyncMarker(t *testing.T) {
+	command := blueclawSkillsManifestCheckCommand(`{"name":"internkim-skills"}`)
+	for _, expectedText := range []string{
+		skillsManifestPath,
+		skillsSyncManifestPath,
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected skills manifest check command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+	if strings.Contains(command, "debugfs") {
+		t.Fatalf("skills manifest check must not read a live workspace image directly:\n%s", command)
+	}
+}
+
+func TestSkillsWorkspaceSyncRecordsManifestAfterSuccess(t *testing.T) {
+	command := blueclawWorkspaceSkillsSyncCommand()
+	syncIndex := strings.Index(command, "sync-workspace --atomic")
+	markerIndex := strings.Index(command, "mv -f")
+	if syncIndex < 0 || markerIndex < syncIndex || !strings.Contains(command, skillsSyncManifestPath) {
+		t.Fatalf("expected successful workspace sync before atomic manifest marker update:\n%s", command)
+	}
+	for _, expectedText := range []string{
+		"systemctl stop blueclaw",
+		"systemctl is-active --quiet blueclaw",
+		"systemctl kill blueclaw",
+		"systemctl start blueclaw",
+		"systemctl is-active blueclaw",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected active service path to include %q:\n%s", expectedText, command)
+		}
+	}
+}
+
+func TestSkillsWorkspaceSyncHandlesMissingServiceAfterSync(t *testing.T) {
+	command := blueclawWorkspaceSkillsSyncCommand()
+	syncIndex := strings.Index(command, "sync-workspace --atomic")
+	missingIndex := strings.Index(command, `if [ "$service_status" = "missing" ]; then`)
+	startIndex := strings.Index(command, "systemctl start blueclaw")
+	if syncIndex < 0 || missingIndex < syncIndex || startIndex < missingIndex {
+		t.Fatalf("expected missing service path to sync before exiting and starting:\n%s", command)
+	}
+	if !strings.Contains(command[missingIndex:startIndex], "echo missing\n  exit 0") {
+		t.Fatalf("expected missing service path to exit without starting:\n%s", command)
+	}
+}
+
 func TestOnlyServicesSimulationSkipsStaleLocalLLM(t *testing.T) {
 	context := defaultBlueclawPlanContext("ok", "ok")
 	context.BoardType = BoardSimulation

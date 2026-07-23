@@ -5,8 +5,11 @@ Its steps share one virtual session, stop at the first failure, and pass only
 when every step satisfies its strict assertions.
 
 ```bash
-./internkim test expensive
-./internkim test expensive --scenario task-lifecycle
+./internkim test expensive --auto-confirm
+./internkim test expensive --scenario task-lifecycle --auto-confirm
+./internkim test expensive --run-id <prepared-run> --skip-provisioning --scenario task-lifecycle --auto-confirm
+./internkim test expensive --scenario document-lifecycle
+./internkim test expensive --scenario message-lifecycle --auto-confirm
 ./internkim test expensive --maximum-model-tier high
 ./internkim test expensive --real
 ./internkim test full
@@ -14,8 +17,20 @@ when every step satisfies its strict assertions.
 
 The default ceiling is `xlow`; image input may use `low`. With a ceiling,
 coding work uses the ceiling tier. Without a ceiling, `--real` uses the normal
-configured coding model and production tier routing. The default seed is `41`
-and temperature is `0`.
+configured coding model and production tier routing. Generation options use the
+provider defaults unless `--seed` or `--temperature` is supplied explicitly.
+Calendar and document lifecycle scenarios use short, observable capability and
+file-tool flows designed for the default `xlow` ceiling.
 
 `cheap` runs only non-paid checks. `expensive` does not include `cheap`.
 `full` runs `cheap` first and then every expensive scenario.
+
+Task, calendar, website, document, file, and message lifecycle scenarios use
+`--auto-confirm` to click real Mattermost approval buttons and wait for the
+approved task to finish.
+
+Each retained scenario directory keeps real Mattermost screenshots, browser-
+downloaded files, and website screenshots under `evidence/`. Internal result,
+event, timing, and Playwright trace data stays under `diagnostics/`. The
+machine-readable `manifest.json` indexes user-visible evidence separately from
+diagnostic paths.

@@ -1,21 +1,8 @@
 package capabilityd
 
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-)
-
-func mergeCalendarEventUpdateInput(document json.RawMessage, current calendarEventForTool) (json.RawMessage, error) {
-	if len(bytes.TrimSpace(document)) == 0 {
-		return nil, fmt.Errorf("calendar event input is required")
-	}
-	patch := map[string]json.RawMessage{}
-	if errorValue := json.Unmarshal(document, &patch); errorValue != nil {
-		return nil, errorValue
-	}
-	currentInput := calendarEventWriteInput{
-		EventID:           current.ID,
+func mergeCalendarEventUpdateInput(update calendarEventUpdateInput, current calendarEventForTool) calendarEventWriteInput {
+	input := calendarEventWriteInput{
+		EventID:           current.EventID,
 		Title:             current.Title,
 		Description:       current.Description,
 		Location:          current.Location,
@@ -27,42 +14,35 @@ func mergeCalendarEventUpdateInput(document json.RawMessage, current calendarEve
 		ReminderLeadHours: current.ReminderLeadHours,
 	}
 	if len(current.Participants) > 0 {
-		currentInput.Participants = current.Participants
+		input.Participants = current.Participants
 	} else {
-		currentInput.People = current.People
+		input.People = current.People
 	}
-	mergedDocument, errorValue := json.Marshal(calendarEventWritePayload(currentInput))
-	if errorValue != nil {
-		return nil, errorValue
+	applyCalendarEventTextPatch(update.Title, &input.Title)
+	applyCalendarEventTextPatch(update.Description, &input.Description)
+	applyCalendarEventTextPatch(update.Location, &input.Location)
+	applyCalendarEventTextPatch(update.StartISO, &input.StartISO)
+	applyCalendarEventTextPatch(update.EndISO, &input.EndISO)
+	applyCalendarEventTextPatch(update.TimeZone, &input.TimeZone)
+	applyCalendarEventTextPatch(update.Color, &input.Color)
+	if update.IsAllDay != nil {
+		input.IsAllDay = *update.IsAllDay
 	}
-	merged := map[string]json.RawMessage{}
-	if errorValue := json.Unmarshal(mergedDocument, &merged); errorValue != nil {
-		return nil, errorValue
+	if update.People != nil {
+		input.People = *update.People
+		input.Participants = nil
 	}
-	for field, value := range patch {
-		if isCalendarEventUpdatePatchField(field) {
-			merged[field] = value
-		}
+	if update.ReminderLeadHours != nil {
+		input.ReminderLeadHours = *update.ReminderLeadHours
 	}
-	if _, found := patch["people"]; found {
-		delete(merged, "participants")
+	if update.IncludeRequester != nil {
+		input.IncludeRequester = update.IncludeRequester
 	}
-	if _, found := patch["participants"]; found {
-		delete(merged, "people")
-	}
-	eventID, errorValue := json.Marshal(current.ID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	merged["eventID"] = eventID
-	return json.Marshal(merged)
+	return input
 }
 
-func isCalendarEventUpdatePatchField(field string) bool {
-	switch field {
-	case "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "participants", "reminderLeadHours", "includeRequester":
-		return true
-	default:
-		return false
+func applyCalendarEventTextPatch(value *string, target *string) {
+	if value != nil {
+		*target = *value
 	}
 }

@@ -159,6 +159,8 @@ type flowTaskBoardMoveRequest struct {
 
 type flowQuickTaskRequest struct {
 	Prompt         string   `json:"prompt"`
+	Title          string   `json:"title"`
+	EndDate        string   `json:"endDate"`
 	OwnerID        string   `json:"ownerID"`
 	ParticipantIDs []string `json:"participantIDs"`
 	WeekCode       string   `json:"weekCode"`

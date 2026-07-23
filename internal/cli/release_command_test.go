@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -210,6 +211,218 @@ func containsDeletedObjectKey(values []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func TestBlueclawLLMDSourceRevisionUsesCleanHead(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	expectedRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
+
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if revision != expectedRevision {
+		t.Fatalf("revision = %q, want %q", revision, expectedRevision)
+	}
+}
+
+func TestBlueclawLLMDSourceRevisionUsesDirtyContent(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	headRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
+	trackedSourcePath := filepath.Join(blueclawRootPath, "protocol", "src", "index.ts")
+	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 2;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	firstRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	repeatedRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if firstRevision != repeatedRevision || !strings.HasPrefix(firstRevision, headRevision+"-dirty-") {
+		t.Fatalf("dirty revisions = %q and %q", firstRevision, repeatedRevision)
+	}
+
+	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 3;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if secondRevision == firstRevision {
+		t.Fatal("tracked source changes must change the dirty revision")
+	}
+
+	untrackedSourcePath := filepath.Join(blueclawRootPath, "llmd", "src", "errors.ts")
+	if errorValue := os.WriteFile(untrackedSourcePath, []byte("export const code = 1;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	thirdRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(untrackedSourcePath, []byte("export const code = 2;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	fourthRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if fourthRevision == thirdRevision {
+		t.Fatal("untracked source content changes must change the dirty revision")
+	}
+}
+
+func TestBlueclawLLMDSourceRevisionIgnoresUnrelatedDirtyContent(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	expectedRevision := strings.TrimSpace(runCmd("git", "-C", blueclawRootPath, "rev-parse", "HEAD"))
+	unrelatedPath := filepath.Join(blueclawRootPath, "tests", "integration", "guardrail_test.go")
+	if errorValue := os.WriteFile(unrelatedPath, []byte("package integration\n\nconst version = 2\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if revision != expectedRevision {
+		t.Fatalf("revision = %q, want unrelated dirt to preserve %q", revision, expectedRevision)
+	}
+}
+
+func TestValidateBlueclawLLMDFreshness(t *testing.T) {
+	repositoryRootPath, _ := initializeBlueclawLLMDSourceRepository(t)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd")
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
+
+	if errorValue := validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestValidateBlueclawLLMDFreshnessRejectsStaleDirtySource(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	artifactDirectoryPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd")
+	revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
+	if errorValue := os.WriteFile(filepath.Join(blueclawRootPath, "llmd", "src", "main.ts"), []byte("export const version = 2;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue = validateBlueclawLLMDFreshness(repositoryRootPath, artifactDirectoryPath)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "make prepare-blueclaw-llmd") {
+		t.Fatalf("expected stale dirty artifact rejection, got %v", errorValue)
+	}
+}
+
+func TestCreateReleaseBlobsPublishesDistinctDirtyLLMDRevisions(t *testing.T) {
+	repositoryRootPath, blueclawRootPath := initializeBlueclawLLMDSourceRepository(t)
+	previousBuilder := buildBlueclawLLMDArtifact
+	buildBlueclawLLMDArtifact = func(repositoryRootPath string, artifactDirectoryPath string) error {
+		revision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		writeBlueclawLLMDArtifact(t, artifactDirectoryPath, revision)
+		return nil
+	}
+	t.Cleanup(func() {
+		buildBlueclawLLMDArtifact = previousBuilder
+	})
+	trackedSourcePath := filepath.Join(blueclawRootPath, "llmd", "src", "main.ts")
+	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 2;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	firstBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawLLMD": true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(trackedSourcePath, []byte("export const version = 3;\n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondBlobs, errorValue := createReleaseBlobs(repositoryRootPath, t.TempDir(), map[string]bool{"blueclawLLMD": true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firstRevision := firstBlobs[0].component.Revision
+	secondRevision := secondBlobs[0].component.Revision
+	if firstRevision == secondRevision || !strings.Contains(firstRevision, "-dirty-") || !strings.Contains(secondRevision, "-dirty-") {
+		t.Fatalf("published revisions = %q and %q", firstRevision, secondRevision)
+	}
+}
+
+func initializeBlueclawLLMDSourceRepository(t *testing.T) (string, string) {
+	t.Helper()
+	repositoryRootPath := t.TempDir()
+	blueclawRootPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
+	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "protocol", "src", "index.ts"), "export const version = 1;\n", 0o644)
+	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "llmd", "src", "main.ts"), "export const version = 1;\n", 0o644)
+	writeReleaseTestFile(t, filepath.Join(blueclawRootPath, "tests", "integration", "guardrail_test.go"), "package integration\n\nconst version = 1\n", 0o644)
+	copyBlueclawLLMDPrepareScript(t, repositoryRootPath)
+	for _, arguments := range [][]string{{"init"}, {"add", "."}, {"commit", "-m", "test"}} {
+		if output, errorValue := runCommandForTest(blueclawRootPath, "git", arguments...); errorValue != nil {
+			t.Fatalf("git %v: %s", arguments, output)
+		}
+	}
+	return repositoryRootPath, blueclawRootPath
+}
+
+func copyBlueclawLLMDPrepareScript(t *testing.T, repositoryRootPath string) {
+	t.Helper()
+	sourcePath, errorValue := filepath.Abs(filepath.Join("..", "..", "tools", "prepare-blueclaw-llmd"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := os.ReadFile(sourcePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeReleaseTestFile(t, filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-llmd"), string(document), 0o755)
+}
+
+func writeBlueclawLLMDArtifact(t *testing.T, artifactDirectoryPath string, revision string) {
+	t.Helper()
+	binaryPath := filepath.Join(artifactDirectoryPath, "blueclaw-llmd")
+	writeReleaseTestFile(t, binaryPath, revision, 0o755)
+	binarySHA256, _, errorValue := releaseFileSHA256AndSize(binaryPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	manifestDocument, errorValue := json.Marshal(map[string]string{"blueclawRevision": revision, "sha256": binarySHA256})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeReleaseTestFile(t, filepath.Join(artifactDirectoryPath, "manifest.json"), string(manifestDocument), 0o644)
+}
+
+func writeReleaseTestFile(t *testing.T, path string, content string, mode os.FileMode) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(path, []byte(content), mode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func runCommandForTest(directoryPath string, name string, arguments ...string) (string, error) {
+	command := exec.Command(name, arguments...)
+	command.Dir = directoryPath
+	command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+	output, errorValue := command.CombinedOutput()
+	return string(output), errorValue
 }
 
 func TestWriteReleaseArchiveFollowsRootDirectorySymlink(t *testing.T) {

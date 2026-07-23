@@ -30,6 +30,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type Configuration struct {
@@ -82,6 +83,8 @@ type Configuration struct {
 	FleetIDPath                    string
 	BlueclawWorkspacePath          string
 	FileReadPythonPath             string
+	LLMDSocketPath                 string
+	LLMDAuthKeyPath                string
 }
 
 type Service struct {
@@ -92,6 +95,8 @@ type Service struct {
 	ProgressManager   *platformProgressManager
 	HealthState       *platformHealthState
 	MattermostLimiter *mattermostRateLimiter
+	LLMDHTTPClient    *http.Client
+	LLMDAuthKey       string
 }
 
 type userLookupRequest struct {
@@ -109,7 +114,7 @@ type replyRequest struct {
 	Message         string                        `json:"message"`
 	RawEventID      string                        `json:"rawEventID,omitempty"`
 	OutboxID        string                        `json:"outboxID,omitempty"`
-	EphemeralUserID string                        `json:"ephemeralUserID,omitempty"`
+	ReplyKind       string                        `json:"replyKind,omitempty"`
 	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
 	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
 	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
@@ -255,6 +260,8 @@ func DefaultConfiguration() Configuration {
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
 		FileReadPythonPath:             "/opt/blueclaw/builtin-skills-venv/bin/python",
+		LLMDSocketPath:                 blueclaw.LLMDSocketPath,
+		LLMDAuthKeyPath:                blueclaw.LLMDAuthKeyPath,
 	}
 }
 
@@ -263,6 +270,8 @@ func (service Service) Run(ctx context.Context) error {
 		service.HealthState = &platformHealthState{}
 	}
 	service.applyLocalInferenceMode(ctx)
+	service.LLMDAuthKey = readSecretValue(service.Configuration.LLMDAuthKeyPath)
+	service.LLMDHTTPClient = service.newLLMDHTTPClient()
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
@@ -282,7 +291,11 @@ func (service Service) Run(ctx context.Context) error {
 	go service.startSlackSocketMode(ctx)
 	go service.startSignalJSONRPCReceiver(ctx)
 
-	server := &http.Server{Handler: service.router()}
+	server := &http.Server{
+		Handler:           service.router(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       2 * time.Minute,
+	}
 	go func() {
 		<-ctx.Done()
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -308,6 +321,8 @@ func (service Service) Run(ctx context.Context) error {
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
+	multiplexer.HandleFunc("POST /_internkim/llmd/v1/llm/structured", service.handleLLMDStructured)
+	multiplexer.HandleFunc("POST /_internkim/llmd/v1/llm/chat", service.handleLLMDChat)
 	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
@@ -315,12 +330,14 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleReactionRemove)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/attachments.import", service.handleAttachmentsImport)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
+	multiplexer.HandleFunc("GET /_internkim/llmd/health", service.handleLLMDHealth)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
 }
@@ -338,15 +355,23 @@ func (service Service) handleHealth(responseWriter http.ResponseWriter, request 
 
 func (service Service) platformHealth(ctx context.Context) map[string]any {
 	mattermost := service.mattermostHealth(ctx)
+	llmd := service.llmdHealth(ctx)
+	protocolIdentity := capabilityprotocol.GeneratedProtocolIdentity()
 	status := "ok"
 	if value, _ := mattermost["ok"].(bool); !value {
 		status = "unhealthy"
 	}
+	if value, _ := llmd["ok"].(bool); !value {
+		status = "unhealthy"
+	}
 	return map[string]any{
-		"status":     status,
-		"mattermost": mattermost,
-		"providers":  service.providerHealth(ctx),
-		"checkedAt":  time.Now().UTC(),
+		"status":                status,
+		"protocolVersion":       protocolIdentity.ProtocolVersion,
+		"aggregateProtocolHash": protocolIdentity.AggregateProtocolHash,
+		"mattermost":            mattermost,
+		"llmd":                  llmd,
+		"providers":             service.providerHealth(ctx),
+		"checkedAt":             time.Now().UTC(),
 	}
 }
 
@@ -483,6 +508,21 @@ func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, req
 	switch request.PathValue("platform") {
 	case "mattermost":
 		response, errorValue = service.mattermostAddReactionFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleReactionRemove(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostRemoveReactionFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -669,13 +709,6 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	message = service.normalizeMattermostReplyMentions(ctx, message)
 	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
-	if request.Interaction == nil && strings.TrimSpace(request.EphemeralUserID) != "" {
-		if len(request.Attachments) > 0 {
-			return nil, errors.New("mattermost ephemeral reply cannot send native file attachments")
-		}
-		service.stopMattermostProgress(request.ReplyTargetID)
-		return service.sendMattermostEphemeralText(ctx, handle, request, message)
-	}
 	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
 	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
@@ -703,11 +736,6 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
-	}
-	if errorValue == nil && request.Interaction != nil {
-		if ephemeralError := service.sendMattermostAskEphemeralAttachment(ctx, handle, request); ephemeralError != nil {
-			log.Printf("mattermost ask ephemeral attachment failed: %v", ephemeralError)
-		}
 	}
 	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
 }
@@ -754,21 +782,39 @@ func (service Service) mattermostAddReactionFromRequest(ctx context.Context, rea
 	return map[string]string{"status": "ok"}, errorValue
 }
 
+func (service Service) mattermostRemoveReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	var request reactionAddRequest
+	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
+		return nil, errorValue
+	}
+	messageID := strings.TrimSpace(request.MessageID)
+	emojiName := strings.TrimSpace(request.EmojiName)
+	if messageID == "" {
+		return nil, errors.New("messageID is required")
+	}
+	if emojiName == "" {
+		return nil, errors.New("emojiName is required")
+	}
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		return nil, errorValue
+	}
+	path := "/api/v4/users/" + botUser.ID + "/posts/" + messageID + "/reactions/" + emojiName
+	errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, nil, nil)
+	return map[string]string{"status": "ok"}, errorValue
+}
+
 func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
 	properties := map[string]any{
 		"internkim_raw_event_id": request.RawEventID,
 		"internkim_outbox_id":    request.OutboxID,
 	}
-	if request.shouldSendMattermostAskAttachmentInline() {
-		if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
-			properties["attachments"] = []any{attachment}
-		}
+	if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
+		properties["attachments"] = []any{attachment}
 	}
 	return properties
-}
-
-func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
-	return false
 }
 
 func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle platformHandle, request replyRequest) string {
@@ -794,69 +840,11 @@ func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle pl
 	return "@" + response.Username + " "
 }
 
-func (service Service) sendMattermostAskEphemeralAttachment(ctx context.Context, handle platformHandle, request replyRequest) error {
-	targetUserID := request.mattermostAskTargetUserID()
-	if targetUserID == "" {
-		return nil
-	}
-	attachment := service.mattermostAskAttachment(request, handle)
-	if attachment == nil {
-		return nil
-	}
-	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
-	if errorValue != nil {
-		return errorValue
-	}
-	post["props"] = map[string]any{
-		"internkim_raw_event_id": request.RawEventID,
-		"internkim_outbox_id":    request.OutboxID,
-		"attachments":            []any{attachment},
-	}
-	body := map[string]any{"user_id": targetUserID, "post": post}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil)
-}
-
-func (service Service) sendMattermostEphemeralText(ctx context.Context, handle platformHandle, request replyRequest, message string) (any, error) {
-	post, errorValue := service.mattermostEphemeralPost(ctx, handle)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	post["message"] = strings.TrimSpace(message)
-	post["props"] = map[string]any{
-		"internkim_raw_event_id": request.RawEventID,
-		"internkim_outbox_id":    request.OutboxID,
-	}
-	body := map[string]any{
-		"user_id": strings.TrimSpace(request.EphemeralUserID),
-		"post":    post,
-	}
-	if errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
-		return nil, errorValue
-	}
-	return newPlatformReplyResult("mattermost", "", "ephemeral", message, nil), nil
-}
-
-func (service Service) mattermostEphemeralPost(ctx context.Context, handle platformHandle) (map[string]any, error) {
-	botUser, errorValue := service.resolveMattermostBotUser(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"user_id":    botUser.ID,
-	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
-	}
-	return post, nil
-}
-
 func (request replyRequest) mattermostAskTargetUserID() string {
 	if request.Interaction == nil {
 		return ""
 	}
 	return firstNonEmpty(
-		strings.TrimSpace(request.EphemeralUserID),
 		strings.TrimSpace(request.Interaction.TargetPlatformUserID),
 	)
 }
@@ -868,9 +856,10 @@ func (service Service) mattermostAskAttachment(request replyRequest, handle plat
 	switch strings.TrimSpace(request.Interaction.Kind) {
 	case "ask_confirm":
 		return service.mattermostConfirmAttachment(request, handle)
-	case "ask_choice_single":
-		return service.mattermostChoiceAttachment(request, handle)
-	case "ask_choice_multiple":
+	case "ask_input", "ask_choice_single", "ask_choice_multiple":
+		if len(trimNonEmptyPlatformAskOptions(request.Interaction.Options)) == 0 {
+			return nil
+		}
 		return service.mattermostChoiceAttachment(request, handle)
 	default:
 		return nil
@@ -889,7 +878,7 @@ func (service Service) mattermostConfirmAttachment(request replyRequest, handle 
 
 func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
 	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
-	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
+	if len(options) <= 3 && request.Interaction.SelectionMode != "multiple" {
 		actions := []mattermostinteractive.Action{}
 		for _, option := range options {
 			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask.choice", option.Key, mattermostChoiceResolvedLabel(option)))
@@ -1629,10 +1618,6 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				return event, hasEvent, errorValue
 			}
 			event = service.enrichMattermostEvent(ctx, event)
-			handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
-			if handled || errorValue != nil {
-				return event, false, errorValue
-			}
 			return event, true, nil
 		},
 		AfterForward: func(ctx context.Context, payload []byte) {
@@ -1662,7 +1647,6 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 	}
 	service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
 	go service.runMattermostPollingFallback(ctx, &pollState, &lastSeenMutex)
-	go service.runMattermostImportCleanup(ctx)
 	go listener.Start(ctx)
 }
 
@@ -1847,17 +1831,6 @@ func (service Service) forwardMattermostPosts(ctx context.Context, botUserID str
 			continue
 		}
 		event = service.enrichMattermostEvent(ctx, event)
-		handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
-		if errorValue != nil {
-			log.Printf("mattermost companion connect command failed: %s: %v", post.ID, errorValue)
-			continue
-		}
-		if handled {
-			if post.CreateAt > nextSeen {
-				nextSeen = post.CreateAt
-			}
-			continue
-		}
 		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
 			continue
@@ -1931,6 +1904,12 @@ func deriveMattermostWebSocketURL(baseURL string) string {
 
 func (configuration Configuration) WithDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
+	if configuration.LLMDSocketPath == "" {
+		configuration.LLMDSocketPath = defaultConfiguration.LLMDSocketPath
+	}
+	if configuration.LLMDAuthKeyPath == "" {
+		configuration.LLMDAuthKeyPath = defaultConfiguration.LLMDAuthKeyPath
+	}
 	if configuration.SocketPath == "" {
 		configuration.SocketPath = defaultConfiguration.SocketPath
 	}
