@@ -422,7 +422,7 @@ func CapabilityUnavailableUserReason(toolName string, code string) string {
 		return "이 요청을 실행할 수 있는 Companion 권한이 없습니다."
 	default:
 		if isBrowserTool {
-			return "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다."
+			return "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다. 브라우저 없이도 사이트/아티팩트 시각 검토는 artifact.review로 수행할 수 있으니, browser.* 재시도 대신 artifact.review로 진행하세요."
 		}
 		return "Companion이 연결되어 있지 않습니다."
 	}
