@@ -76,10 +76,21 @@ func TestWranglerObjectDeleteArgumentsUseRemoteR2(t *testing.T) {
 	}
 }
 
-func TestWranglerObjectPutEnvironmentUsesOAuthSession(t *testing.T) {
+func TestWranglerObjectPutEnvironmentPassesExplicitToken(t *testing.T) {
 	environment := wranglerObjectPutEnvironment([]string{
-		"CF_API_TOKEN=bad",
-		"CLOUDFLARE_API_TOKEN=bad",
+		"CF_API_TOKEN=legacy",
+		"CLOUDFLARE_API_TOKEN=token-1",
+		"CF_ACCOUNT_ID=old",
+		"PATH=/bin",
+	}, "account-1")
+	expectedEnvironment := []string{"PATH=/bin", "CLOUDFLARE_API_TOKEN=token-1", "CLOUDFLARE_ACCOUNT_ID=account-1"}
+	if !equalStrings(environment, expectedEnvironment) {
+		t.Fatalf("environment = %#v", environment)
+	}
+}
+
+func TestWranglerObjectPutEnvironmentKeepsOAuthSessionWithoutToken(t *testing.T) {
+	environment := wranglerObjectPutEnvironment([]string{
 		"CF_ACCOUNT_ID=old",
 		"PATH=/bin",
 	}, "account-1")
