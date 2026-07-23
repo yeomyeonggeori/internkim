@@ -3,6 +3,7 @@ package admind
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -93,6 +94,15 @@ func parseSiteDesignStylePreset(frontMatter string) (string, error) {
 // carries invalid or unparseable front matter fails the publish outright —
 // the model authors DESIGN.md as the site's design contract, so a broken
 // contract must never fall back to a silent default theme.
+func applySiteDesignThemeForAction(hostSourcePath string, frontendDistPath string, actionLabel string) error {
+	errorValue := applySiteDesignTheme(hostSourcePath, frontendDistPath)
+	if errorValue == nil || actionLabel != "preview" {
+		return errorValue
+	}
+	log.Printf("site preview renders the default theme while the design contract is unfinished: %v", errorValue)
+	return nil
+}
+
 func applySiteDesignTheme(hostSourcePath string, frontendDistPath string) error {
 	document, errorValue := os.ReadFile(filepath.Join(hostSourcePath, siteDesignDocumentPath))
 	if errorValue != nil {
