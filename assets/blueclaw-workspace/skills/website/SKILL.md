@@ -24,7 +24,7 @@ Use a request-specific visual system. Prefer system fonts, restrained color, con
 
 1. Derive one stable lowercase slug. Call `site.status` with that exact slug as `siteReference`.
 2. If lookup fails as not found, call `site.create` once. If it fails as ambiguous, ask the user to choose from the returned candidates. Keep the returned `siteID`, `sourceWorkspacePath`, and `appWorkspacePath`.
-3. Read existing source before changing it. Use `file.write` for new files and `file.edit` for existing files under the returned source path. Never invent paths or replace the managed scaffold with a scratch project.
+3. Read existing source before changing it. Use `file.write` for new files and `file.edit` for existing files under the returned source path. Never invent paths or replace the managed scaffold with a scratch project. Site text and content live only in `app/public/site-content.json`; never edit `app/src/site-content.ts` (it is the loader code, and touching anything under `app/src/**` forces a full rebuild).
 4. Content-only changes require no build. For structural changes under `app/src/**`, run `bun scripts/build.ts` with `terminal.run` from the returned app workspace.
 5. Check the rendered text against the source checklist. Call `site.preview` with the exact `siteID`.
 6. Review the preview with `artifact.review`; it verifies visual hierarchy, text fit, and interaction issues without a browser. When browser capabilities are also available, additionally open the preview, capture screenshots, and click the primary controls. If a `browser.*` call is denied as not connected, do not retry it and do not treat the denial as missing verification: `artifact.review` is the complete review evidence. Fix source with `file.edit`, then preview again.
