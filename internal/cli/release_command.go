@@ -737,12 +737,22 @@ func wranglerObjectDeleteArguments(bucket string, objectKey string) []string {
 
 func wranglerObjectPutEnvironment(environment []string, accountID string) []string {
 	filteredEnvironment := []string{}
+	apiToken := ""
 	for _, value := range environment {
-		name := strings.SplitN(value, "=", 2)[0]
-		if name == "CF_API_TOKEN" || name == "CLOUDFLARE_API_TOKEN" || name == "CF_ACCOUNT_ID" || name == "CLOUDFLARE_ACCOUNT_ID" {
+		name, variableValue, _ := strings.Cut(value, "=")
+		if name == "CF_API_TOKEN" || name == "CLOUDFLARE_API_TOKEN" {
+			if strings.TrimSpace(variableValue) != "" {
+				apiToken = strings.TrimSpace(variableValue)
+			}
+			continue
+		}
+		if name == "CF_ACCOUNT_ID" || name == "CLOUDFLARE_ACCOUNT_ID" {
 			continue
 		}
 		filteredEnvironment = append(filteredEnvironment, value)
+	}
+	if apiToken != "" {
+		filteredEnvironment = append(filteredEnvironment, "CLOUDFLARE_API_TOKEN="+apiToken)
 	}
 	if strings.TrimSpace(accountID) != "" {
 		filteredEnvironment = append(filteredEnvironment, "CLOUDFLARE_ACCOUNT_ID="+strings.TrimSpace(accountID))
