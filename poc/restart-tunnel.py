@@ -63,8 +63,11 @@ def print_tenant_diagnostics():
     for line in tenant_lines[:18]:
         print("  " + line)
     logs = subprocess.run([CONTAINER, "logs", "poc-tenant-01"], capture_output=True, text=True)
-    print("poc-tenant-01 logs (tail):")
-    for line in (logs.stdout or logs.stderr).splitlines()[-15:]:
+    print("poc-tenant-01 stdout (tail):")
+    for line in logs.stdout.splitlines()[-25:]:
+        print("  " + line)
+    print("poc-tenant-01 stderr (tail):")
+    for line in logs.stderr.splitlines()[-25:]:
         print("  " + line)
 
 
