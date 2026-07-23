@@ -242,6 +242,9 @@ func TestSiteAppStatusReturnsNotFoundForUnknownSlug(t *testing.T) {
 	if !strings.Contains(result, `"status":"not_found"`) || !strings.Contains(result, `"siteReference":"brand-new-site"`) {
 		t.Fatalf("expected not_found status for unknown slug, got %s", result)
 	}
+	if !strings.Contains(result, `"slug":"existing"`) {
+		t.Fatalf("expected not_found to list the requester's existing sites as candidates, got %s", result)
+	}
 	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "site_not_found" || response.FailureStage != "resolution" {
 		t.Fatalf("expected typed not_found response, got %+v", response)
 	}
