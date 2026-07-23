@@ -1,4 +1,5 @@
 import type { AdminPageText } from '../admin/admin-types';
+import type { Locale } from '../../lib/i18n/locale.svelte';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrgchart } from '../admin/admin-role-policy';
 import { fetchOrgchartDirectory, orgchartApiErrorMessage } from './orgchart-api';
@@ -57,17 +58,19 @@ export class OrgchartDirectoryController {
 	private adminBaseURL: string;
 	private text: OrgchartDirectoryPageText;
 	private adminPageText: AdminPageText;
+	private resolveLocale: () => Locale;
 
-	constructor(adminBaseURL: string, text: OrgchartDirectoryPageText, adminPageText: AdminPageText) {
+	constructor(adminBaseURL: string, text: OrgchartDirectoryPageText, adminPageText: AdminPageText, resolveLocale: () => Locale = () => 'ko') {
 		this.adminBaseURL = adminBaseURL;
 		this.text = text;
 		this.adminPageText = adminPageText;
+		this.resolveLocale = resolveLocale;
 	}
 
 	get organizationSections(): OrgchartOrganizationSection[] {
 		const records = filterOrgchartRecords(this.records, { query: this.query, groupID: this.groupID === unassignedGroupID ? unassignedGroupID : '' });
 		if (this.groupID === unassignedGroupID) return orgchartOrganizationSections(records, [], this.text.unassignedTeam);
-		return orgchartOrganizationSections(records, this.activeGroups, this.text.allOrganizations, this.groupID, this.records);
+		return orgchartOrganizationSections(records, this.activeGroups, this.text.allOrganizations, this.groupID, this.records, this.resolveLocale());
 	}
 
 	get activeGroups(): OrgGroup[] {
