@@ -26,7 +26,7 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 }
 
 describe('orgchart directory controller', () => {
-	test('exposes the root and selected organization subtree', () => {
+	test('exposes the root and selected organization subtree in priority order', () => {
 		const controller = new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
 		controller.groups = [
 			{ id: 'product', name: '프로덕트 본부' },
@@ -39,7 +39,7 @@ describe('orgchart directory controller', () => {
 			userRecord({ userID: 'sales', primaryGroupID: 'sales' })
 		];
 
-		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'product', 'engineering', 'sales']);
+		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'sales', 'product', 'engineering']);
 		expect(controller.organizationTree.nodes.find((node) => node.id === 'product')?.memberCount).toBe(2);
 
 		controller.groupID = 'product';
