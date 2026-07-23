@@ -157,7 +157,7 @@ func (service Service) capabilityRegistry(ctx context.Context) (capabilities.Reg
 
 	provider := service.companionProvider()
 	companionCapabilities, errorValue := provider.capabilities(ctx)
-	if errorValue != nil {
+	if errorValue != nil || len(companionCapabilities) == 0 {
 		response.CompanionStatus = "unavailable"
 		return response, nil
 	}
