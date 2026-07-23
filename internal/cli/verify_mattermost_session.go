@@ -854,7 +854,20 @@ func convertMattermostScenarioPost(post mattermostProbePost) mattermostScenarioP
 	}
 }
 
+var mattermostScenarioSiteURLFieldPattern = regexp.MustCompile(`"(publishedURL|previewURL)":"(https?://[^"\\]+)"`)
+
 func findMattermostScenarioPublicURL(message string) string {
+	fieldMatches := mattermostScenarioSiteURLFieldPattern.FindAllStringSubmatch(message, -1)
+	for _, fieldMatch := range fieldMatches {
+		if fieldMatch[1] == "publishedURL" && strings.Contains(fieldMatch[2], "intern.kim") {
+			return fieldMatch[2]
+		}
+	}
+	for _, fieldMatch := range fieldMatches {
+		if strings.Contains(fieldMatch[2], "intern.kim") {
+			return fieldMatch[2]
+		}
+	}
 	for _, candidate := range mattermostScenarioURLPattern.FindAllString(message, -1) {
 		trimmedCandidate := strings.TrimRight(candidate, ".,;:!?*]}'\"")
 		if strings.Contains(trimmedCandidate, "intern.kim") {
