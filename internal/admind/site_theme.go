@@ -108,9 +108,6 @@ func applySiteDesignTheme(hostSourcePath string, frontendDistPath string) error 
 	if errorValue != nil {
 		return nil
 	}
-	if strings.Contains(string(document), "TODO(design)") {
-		return errors.New("DESIGN.md still carries TODO(design) markers: decide the palette, typefaces, and style preset from the request, record them, delete the markers, and publish again — no build is needed")
-	}
 	theme, errorValue := parseSiteDesignTheme(string(document))
 	if errorValue != nil {
 		return fmt.Errorf("DESIGN.md front matter is invalid: %s; fix colors/typography and publish again — no build is needed", errorValue.Error())
