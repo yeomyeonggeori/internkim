@@ -55,7 +55,10 @@ done
 cd "$REPOSITORY_ROOT"
 ./internkim test expensive --fast --maximum-model-tier "$MODEL_TIER" \
   "${SCENARIO_FLAGS[@]}" \
-  --auto-confirm --keep --retry-once --skip-provisioning --run-id "$RUN_ID"
+  --auto-confirm --keep --retry-once --skip-provisioning --run-id "$RUN_ID" &
+TEST_PID=$!
+trap 'kill "$TEST_PID" 2>/dev/null; rm -f "$PID_FILE"' TERM INT
+wait "$TEST_PID"
 STATUS=$?
 echo "=== expensive chain finished exit $STATUS ==="
 exit $STATUS
