@@ -783,11 +783,15 @@ func toolInvokeContextFromLLMRequest(requestContext llmbackend.RequestContext) c
 	}
 }
 
+const companionCapabilitiesProbeTimeout = 3 * time.Second
+
 func (provider companionProvider) capabilities(ctx context.Context) ([]capabilities.Descriptor, error) {
 	if provider.BaseURL == "" {
 		return nil, errors.New("companion base url is not configured")
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, provider.BaseURL+"/capabilities", nil)
+	probeContext, cancelProbe := context.WithTimeout(ctx, companionCapabilitiesProbeTimeout)
+	defer cancelProbe()
+	httpRequest, errorValue := http.NewRequestWithContext(probeContext, http.MethodGet, provider.BaseURL+"/capabilities", nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
