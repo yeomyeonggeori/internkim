@@ -1,4 +1,6 @@
 import type { OrgGroup, UserRecord } from '$lib/orgchart/types';
+import type { Locale } from '../../lib/i18n/locale.svelte';
+import { compareOrgchartGroups } from './orgchart-group-order';
 import { orgchartOrganizationTree, type OrgchartOrganizationTreeNode } from './orgchart-organization-tree-model';
 
 export type OrgchartOrganizationSection = {
@@ -16,10 +18,12 @@ export function orgchartOrganizationSections(
 	groups: OrgGroup[],
 	rootName: string,
 	selectedOrganizationID = '',
-	countRecords: UserRecord[] = records
+	countRecords: UserRecord[] = records,
+	locale: Locale = 'ko'
 ): OrgchartOrganizationSection[] {
-	const tree = orgchartOrganizationTree(groups, records, rootName);
-	const countTree = countRecords === records ? tree : orgchartOrganizationTree(groups, countRecords, rootName);
+	const orderedGroups = groups.map((group) => ({ ...group, isUnassigned: false })).sort(compareOrgchartGroups(countRecords, locale));
+	const tree = orgchartOrganizationTree(orderedGroups, records, rootName);
+	const countTree = countRecords === records ? tree : orgchartOrganizationTree(orderedGroups, countRecords, rootName);
 	const memberCountByOrganizationID = new Map([
 		['', countTree.root.memberCount],
 		...countTree.nodes.map((node) => [node.id, node.memberCount] as const)
