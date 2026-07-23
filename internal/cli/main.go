@@ -4446,7 +4446,12 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 	return append(base, extra...)
 }
 
+const resumableUploadMinimumBytes = 32 * 1024 * 1024
+
 func (s *sshClient) scp(localPath, remotePath string) error {
+	if fileInfo, errorValue := os.Stat(localPath); errorValue == nil && fileInfo.Size() >= resumableUploadMinimumBytes {
+		return s.rsyncSparse(localPath, remotePath)
+	}
 	if s.user != "root" && strings.HasPrefix(remotePath, "/") {
 		temporaryRemotePath := temporaryUploadPath(remotePath)
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
