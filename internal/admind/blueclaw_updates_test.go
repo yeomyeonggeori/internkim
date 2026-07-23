@@ -360,6 +360,70 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	}
 }
 
+func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
+	preLLMDDeviceDocument := `{
+  "capabilities": {
+    "transport": "vsock",
+    "protocolVersion": "stale",
+    "aggregateProtocolHash": "stale",
+    "toolDescriptors": [],
+    "routing": {"candidates": [], "localOnly": false}
+  },
+  "languageModel": {
+    "defaultProvider": "capabilityLLM",
+    "capability": {"model": "preserve-me"}
+  }
+}`
+
+	refreshed, errorValue := refreshBlueclawCapabilityContract(preLLMDDeviceDocument)
+	if errorValue != nil {
+		t.Fatalf("refresh returned error: %v", errorValue)
+	}
+	var refreshedDocument map[string]any
+	if errorValue := json.Unmarshal([]byte(refreshed), &refreshedDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	languageModel, ok := refreshedDocument["languageModel"].(map[string]any)
+	if !ok {
+		t.Fatalf("languageModel section missing:\n%s", refreshed)
+	}
+	if languageModel["defaultProvider"] != "llmd" {
+		t.Fatalf("pre-llmd device must migrate to the authoritative provider, got %v", languageModel["defaultProvider"])
+	}
+	llmdSection, ok := languageModel["llmd"].(map[string]any)
+	if !ok {
+		t.Fatalf("llmd section missing:\n%s", refreshed)
+	}
+	if llmdSection["endpoint"] != blueclawGuestLLMDBridgeEndpoint {
+		t.Fatalf("guest bridge endpoint missing, got %v", llmdSection["endpoint"])
+	}
+	capability, _ := languageModel["capability"].(map[string]any)
+	if capability["model"] != "preserve-me" {
+		t.Fatalf("existing capability configuration must be preserved:\n%s", refreshed)
+	}
+}
+
+func TestRefreshBlueclawCapabilityContractKeepsExplicitLLMDConfiguration(t *testing.T) {
+	configuredDocument := `{
+  "capabilities": {"routing": {"candidates": []}},
+  "languageModel": {
+    "defaultProvider": "llmd",
+    "llmd": {"endpoint": "", "unixSocketPath": "/run/internkim/capability.sock"}
+  }
+}`
+
+	refreshed, errorValue := refreshBlueclawCapabilityContract(configuredDocument)
+	if errorValue != nil {
+		t.Fatalf("refresh returned error: %v", errorValue)
+	}
+	if !strings.Contains(refreshed, `"unixSocketPath": "/run/internkim/capability.sock"`) {
+		t.Fatalf("existing socket transport must be preserved:\n%s", refreshed)
+	}
+	if strings.Contains(refreshed, blueclawGuestLLMDBridgeEndpoint) {
+		t.Fatalf("socket-configured llmd must not gain the bridge endpoint:\n%s", refreshed)
+	}
+}
+
 func refreshedDocumentIsCurrent(t *testing.T, document string) bool {
 	t.Helper()
 	refreshedAgain, errorValue := refreshedBlueclawRuntimeConfiguration(document)
