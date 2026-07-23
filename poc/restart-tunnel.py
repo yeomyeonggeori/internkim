@@ -6,7 +6,7 @@ ingress to the current mattermost IP, and starts the cf-tunnel container.
 
 Run this after starting infra containers (mattermost IP may change on restart).
 """
-import subprocess, json, re, time, urllib.request, os
+import glob, subprocess, json, re, time, urllib.request, os
 
 CONTAINER = "/opt/homebrew/bin/container"
 BASE = os.path.expanduser("~/internkim-poc")
@@ -37,15 +37,35 @@ def tenant_flow_routes():
     return routes
 
 
+def configured_tenant_count():
+    pattern = os.path.join(BASE, "config", "tenant_*")
+    return len([path for path in glob.glob(pattern)
+                if re.match(r"^tenant_[0-9]+$", os.path.basename(path))])
+
+
 def stable_tenant_flow_routes():
+    expected_count = configured_tenant_count()
+    deadline = time.monotonic() + 600
     routes = tenant_flow_routes()
-    for _ in range(30):
-        time.sleep(2)
-        next_routes = tenant_flow_routes()
-        if len(next_routes) == len(routes) and routes:
-            return next_routes
-        routes = next_routes
+    while len(routes) < expected_count and time.monotonic() < deadline:
+        time.sleep(5)
+        routes = tenant_flow_routes()
+    if len(routes) < expected_count:
+        print(f"warning: only {len(routes)} of {expected_count} tenant containers are visible")
+        print_tenant_diagnostics()
     return routes
+
+
+def print_tenant_diagnostics():
+    listing = subprocess.run([CONTAINER, "ls", "-a"], capture_output=True, text=True)
+    tenant_lines = [line for line in listing.stdout.splitlines() if "poc-tenant" in line or "STATE" in line.upper()]
+    print("container ls -a (tenants):")
+    for line in tenant_lines[:18]:
+        print("  " + line)
+    logs = subprocess.run([CONTAINER, "logs", "poc-tenant-01"], capture_output=True, text=True)
+    print("poc-tenant-01 logs (tail):")
+    for line in (logs.stdout or logs.stderr).splitlines()[-15:]:
+        print("  " + line)
 
 
 def read_env(path):
