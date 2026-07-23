@@ -143,7 +143,7 @@ func TestLocalUsersResponseBodyFallsBackWhenOrgchartMetadataFails(t *testing.T) 
 	}
 }
 
-func TestLocalListUsersImportsLegacyBlueclawGroupsBeforeOrgchartGroupsInitialized(t *testing.T) {
+func TestLocalListUsersStartsWithoutLegacyBlueclawGroups(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -173,15 +173,15 @@ func TestLocalListUsersImportsLegacyBlueclawGroupsBeforeOrgchartGroupsInitialize
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(response.AvailableGroups) != 1 || response.AvailableGroups[0].ID != "legacy" {
-		t.Fatalf("available groups = %#v; want legacy group", response.AvailableGroups)
+	if len(response.AvailableGroups) != 0 {
+		t.Fatalf("available groups = %#v; want no user-created groups", response.AvailableGroups)
 	}
 	groups, errorValue := service.readOrgchartGroups(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(groups) != 1 || groups[0].ID != "legacy" {
-		t.Fatalf("stored groups = %#v; want imported legacy group", groups)
+	if len(groups) != 0 {
+		t.Fatalf("stored groups = %#v; want no imported legacy groups", groups)
 	}
 }
 

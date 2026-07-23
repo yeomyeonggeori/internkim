@@ -3,13 +3,15 @@ import type { UsersResponse } from './admin-orgchart-fixtures';
 
 type MockOrgchartDirectoryOptions = {
 	canManage?: boolean;
+	directoryResponse?: UsersResponse;
+	locale?: 'ko' | 'en';
 };
 
 export const orgchartDirectoryUsersResponse: UsersResponse = {
 	availableGroups: [
-		{ id: 'design', name: '디자인팀' },
-		{ id: 'product', name: '제품팀' },
 		{ id: 'leadership', name: '경영' },
+		{ id: 'product', name: '제품팀' },
+		{ id: 'design', name: '디자인팀', parentID: 'product' },
 		{ id: 'field', name: '현장지원팀' }
 	],
 	records: [
@@ -101,7 +103,7 @@ export const orgchartDirectoryUsersResponse: UsersResponse = {
 
 export async function mockOrgchartDirectory(page: Page, options: MockOrgchartDirectoryOptions = {}): Promise<void> {
 	await page.route('**/admin/api/locale', async (route) => {
-		await route.fulfill({ json: { locale: 'ko' } });
+		await route.fulfill({ json: { locale: options.locale ?? 'ko' } });
 	});
 	await page.route('**/auth/session**', async (route) => {
 		await route.fulfill({ json: { authenticated: true, email: 'dabin@example.com' } });
@@ -114,7 +116,7 @@ export async function mockOrgchartDirectory(page: Page, options: MockOrgchartDir
 		await route.fulfill({ status: 403, body: 'admin access required' });
 	});
 	await page.route('**/orgchart/api/people', async (route) => {
-		await route.fulfill({ json: orgchartDirectoryUsersResponse });
+		await route.fulfill({ json: options.directoryResponse ?? orgchartDirectoryUsersResponse });
 	});
 }
 
@@ -133,9 +135,11 @@ export async function expectPersonDetailPanelContent(detailPanel: Locator): Prom
 
 export async function expectDetailPanelInRightColumn(page: Page): Promise<void> {
 	const listBox = await page.getByTestId('orgchart-list-scroll').boundingBox();
+	const detailColumnBox = await page.getByTestId('orgchart-detail-column').boundingBox();
 	const detailPanelBox = await page.getByTestId('orgchart-person-detail-panel').boundingBox();
-	if (!listBox || !detailPanelBox) throw new Error('Orgchart detail layout box unavailable');
-	expect(Math.abs(detailPanelBox.y - listBox.y)).toBeLessThanOrEqual(4);
+	if (!listBox || !detailColumnBox || !detailPanelBox) throw new Error('Orgchart detail layout box unavailable');
+	expect(detailPanelBox.y).toBeGreaterThanOrEqual(detailColumnBox.y);
+	expect(detailPanelBox.y + detailPanelBox.height).toBeLessThanOrEqual(detailColumnBox.y + detailColumnBox.height + 1);
 	expect(detailPanelBox.x).toBeGreaterThan(listBox.x + listBox.width);
 }
 
@@ -194,15 +198,15 @@ export async function expectMobileDetailSheetLayout(page: Page): Promise<void> {
 }
 
 export async function expectMobileHeaderControlsInTitleRow(page: Page): Promise<void> {
-	const titleBox = await page.getByRole('heading', { name: '직원' }).boundingBox();
-	const filterBox = await page.getByRole('button', { name: '필터' }).boundingBox();
+	const titleBox = await page.getByRole('heading', { name: '조직도' }).boundingBox();
+	const organizationsBox = await page.getByRole('button', { name: '조직 목록' }).boundingBox();
 	const addOrganizationBox = await page.getByRole('button', { name: '조직 추가' }).boundingBox();
 	const searchBox = await page.getByLabel('검색').boundingBox();
-	if (!titleBox || !filterBox || !addOrganizationBox || !searchBox) throw new Error('Mobile orgchart header layout box unavailable');
-	expect(Math.abs(filterBox.y - titleBox.y)).toBeLessThanOrEqual(12);
+	if (!titleBox || !organizationsBox || !addOrganizationBox || !searchBox) throw new Error('Mobile orgchart header layout box unavailable');
+	expect(Math.abs(organizationsBox.y - titleBox.y)).toBeLessThanOrEqual(12);
 	expect(Math.abs(addOrganizationBox.y - titleBox.y)).toBeLessThanOrEqual(12);
-	expect(filterBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
-	expect(addOrganizationBox.x).toBeGreaterThan(filterBox.x + filterBox.width);
+	expect(organizationsBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+	expect(addOrganizationBox.x).toBeGreaterThan(organizationsBox.x + organizationsBox.width);
 	expect(searchBox.y).toBeGreaterThan(titleBox.y + titleBox.height);
 }
 

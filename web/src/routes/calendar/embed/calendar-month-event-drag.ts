@@ -9,6 +9,15 @@ export type MonthEventDragState = {
 	startClientY: number;
 	hasMoved: boolean;
 	previewEvent: DayFlowEvent | null;
+	isLongPressActivation: boolean;
+};
+
+type PendingMonthEventTouchDrag = {
+	pointerID: number;
+	event: DayFlowEvent;
+	startClientX: number;
+	startClientY: number;
+	timeoutID: number;
 };
 
 type MonthEventDragControllerContext = {
@@ -25,24 +34,67 @@ export type MonthEventDragController = {
 	stop: () => void;
 };
 
+const monthEventTouchLongPressDurationMs = 500;
+
 export function createMonthEventDragController(context: MonthEventDragControllerContext): MonthEventDragController {
 	let removeDragListeners: (() => void) | null = null;
+	let pendingTouchDrag: PendingMonthEventTouchDrag | null = null;
 
 	function startDrag(pointerEvent: PointerEvent, event: DayFlowEvent): void {
+		stop();
+		if (pointerEvent.pointerType === 'touch') {
+			startTouchDrag(pointerEvent, event);
+			return;
+		}
 		pointerEvent.preventDefault();
 		pointerEvent.stopPropagation();
-		context.setDragState({
+		activateDrag(pointerEvent.pointerId, event, pointerEvent.clientX, pointerEvent.clientY, false);
+	}
+
+	function startTouchDrag(pointerEvent: PointerEvent, event: DayFlowEvent): void {
+		const timeoutID = window.setTimeout(() => {
+			const pendingDrag = pendingTouchDrag;
+			if (!pendingDrag || pendingDrag.pointerID !== pointerEvent.pointerId) return;
+			pendingTouchDrag = null;
+			activateDrag(
+				pendingDrag.pointerID,
+				pendingDrag.event,
+				pendingDrag.startClientX,
+				pendingDrag.startClientY,
+				true
+			);
+		}, monthEventTouchLongPressDurationMs);
+		pendingTouchDrag = {
 			pointerID: pointerEvent.pointerId,
 			event,
 			startClientX: pointerEvent.clientX,
 			startClientY: pointerEvent.clientY,
+			timeoutID
+		};
+		installDragListeners();
+	}
+
+	function activateDrag(
+		pointerID: number,
+		event: DayFlowEvent,
+		startClientX: number,
+		startClientY: number,
+		isLongPressActivation: boolean
+	): void {
+		context.setDragState({
+			pointerID,
+			event,
+			startClientX,
+			startClientY,
 			hasMoved: false,
-			previewEvent: null
+			previewEvent: null,
+			isLongPressActivation
 		});
 		installDragListeners();
 	}
 
 	function handlePointerMove(pointerEvent: PointerEvent): void {
+		if (cancelPendingTouchDragAfterMovement(pointerEvent)) return;
 		const state = context.getDragState();
 		if (!state || state.pointerID !== pointerEvent.pointerId) return;
 		const hasMoved = state.hasMoved || hasMonthEventPointerMoved(state, pointerEvent);
@@ -58,18 +110,20 @@ export function createMonthEventDragController(context: MonthEventDragController
 	}
 
 	function handlePointerUp(pointerEvent: PointerEvent): void {
+		if (cancelPendingTouchDrag(pointerEvent.pointerId)) return;
 		const state = context.getDragState();
 		if (!state || state.pointerID !== pointerEvent.pointerId) return;
 		pointerEvent.preventDefault();
 		stop();
 		context.setDragState(null);
+		if (state.hasMoved || state.isLongPressActivation) context.suppressNextClick();
 		if (!state.hasMoved || !state.previewEvent) return;
-		context.suppressNextClick();
 		context.clearSelectedEvent();
 		void context.saveMovedEvent(state.previewEvent);
 	}
 
 	function handlePointerCancel(pointerEvent: PointerEvent): void {
+		if (cancelPendingTouchDrag(pointerEvent.pointerId)) return;
 		const state = context.getDragState();
 		if (!state || state.pointerID !== pointerEvent.pointerId) return;
 		pointerEvent.preventDefault();
@@ -77,8 +131,27 @@ export function createMonthEventDragController(context: MonthEventDragController
 		context.setDragState(null);
 	}
 
-	function installDragListeners(): void {
+	function cancelPendingTouchDragAfterMovement(pointerEvent: PointerEvent): boolean {
+		const pendingDrag = pendingTouchDrag;
+		if (!pendingDrag || pendingDrag.pointerID !== pointerEvent.pointerId) return false;
+		const hasMoved = hasCalendarEventGestureMoved(
+			{ clientX: pendingDrag.startClientX, clientY: pendingDrag.startClientY },
+			pointerEvent
+		);
+		if (hasMoved) cancelPendingTouchDrag(pointerEvent.pointerId);
+		return true;
+	}
+
+	function cancelPendingTouchDrag(pointerID: number): boolean {
+		if (!pendingTouchDrag || pendingTouchDrag.pointerID !== pointerID) return false;
+		window.clearTimeout(pendingTouchDrag.timeoutID);
+		pendingTouchDrag = null;
 		stop();
+		return true;
+	}
+
+	function installDragListeners(): void {
+		removeDragListeners?.();
 		window.addEventListener('pointermove', handlePointerMove, true);
 		window.addEventListener('pointerup', handlePointerUp, true);
 		window.addEventListener('pointercancel', handlePointerCancel, true);
@@ -90,6 +163,10 @@ export function createMonthEventDragController(context: MonthEventDragController
 	}
 
 	function stop(): void {
+		if (pendingTouchDrag) {
+			window.clearTimeout(pendingTouchDrag.timeoutID);
+			pendingTouchDrag = null;
+		}
 		removeDragListeners?.();
 		removeDragListeners = null;
 	}

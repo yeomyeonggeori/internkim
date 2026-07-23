@@ -44,7 +44,7 @@ test.describe('calendar draft popover edit mode', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="existing-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="existing-event"]').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.getByLabel('제목')).toHaveValue('기존 일정');
 

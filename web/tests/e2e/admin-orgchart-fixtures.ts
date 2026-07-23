@@ -15,7 +15,7 @@ export type UserRecord = {
 
 export type UsersResponse = {
 	records: UserRecord[];
-	availableGroups: { id: string; name: string }[];
+	availableGroups: { id: string; name: string; parentID?: string }[];
 };
 
 export type OrgProfileUpdate = {

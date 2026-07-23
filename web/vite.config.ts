@@ -9,6 +9,7 @@ import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
+import { devPersonProfileImageMockPlugin } from './dev-person-profile-image-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
 import type { DevAdminMockUserRole } from './dev-admin-mock';
 
@@ -30,6 +31,7 @@ export default defineConfig(({ mode }) => {
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
+	const isFlowMockEnabled = env.VITE_MOCK_FLOW === '1';
 	return {
 		plugins: [
 			devAdminUsersMockPlugin({
@@ -53,8 +55,9 @@ export default defineConfig(({ mode }) => {
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
+			devPersonProfileImageMockPlugin({ isEnabled: isFlowMockEnabled }),
 			devFlowMockPlugin({
-				isEnabled: isAttendanceMockEnabled || env.VITE_MOCK_FLOW === '1',
+				isEnabled: isAttendanceMockEnabled || isFlowMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
 			devTasksMockPlugin({

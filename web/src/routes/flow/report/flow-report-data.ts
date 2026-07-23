@@ -13,6 +13,10 @@ import type {
 } from './flow-report-types';
 
 export type {
+	FlowBusinessDistanceSection,
+	FlowChartSection,
+	FlowDailyTypeDistanceSection,
+	FlowMemberScoreSection,
 	FlowReportChartKind,
 	FlowReportCopy,
 	FlowReportDefinitions,
@@ -31,7 +35,8 @@ export type {
 	FlowReportSnapshot,
 	FlowReportTask,
 	FlowReportTone,
-	FlowReportTrend
+	FlowReportTrend,
+	FlowTrendSection
 } from './flow-report-types';
 
 type FlowMetricScores = {

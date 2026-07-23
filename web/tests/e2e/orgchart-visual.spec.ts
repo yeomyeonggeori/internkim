@@ -5,8 +5,8 @@ import type { UsersResponse } from './admin-orgchart-fixtures';
 const visualUsersResponse: UsersResponse = {
 	availableGroups: [
 		{ id: 'leadership', name: '경영팀' },
-		{ id: 'shared', name: '공유팀' },
-		{ id: 'skill', name: '스킬' }
+		{ id: 'shared', name: '공유팀', parentID: 'leadership' },
+		{ id: 'skill', name: '스킬', parentID: 'leadership' }
 	],
 	records: [
 		{
@@ -89,24 +89,43 @@ type ElementBox = {
 };
 
 test.describe('employee orgchart visual layout geometry', () => {
+	test('renders a fixed organization sidebar and hierarchy people layer', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await mockVisualOrgchartDirectory(page);
+
+		await page.goto('/orgchart/');
+
+		const sidebar = page.getByTestId('orgchart-organization-sidebar');
+		await expect(sidebar).toBeVisible();
+		await expect(sidebar.getByText('ORGANIZATION')).toBeVisible();
+		await expect(sidebar.getByTestId('orgchart-organization-root')).toContainText('전체 조직');
+		await expect(sidebar.getByTestId('orgchart-organization-row-leadership')).toBeVisible();
+		await expect(sidebar.getByTestId('orgchart-organization-row-shared')).toBeVisible();
+		await expect(sidebar.getByTestId('orgchart-avatar-stack').first()).toBeVisible();
+		await expect(page.getByTestId('orgchart-people-layer')).toBeVisible();
+		await expect(page.getByRole('button', { name: /명 더 보기/ })).toHaveCount(0);
+
+		const sidebarBox = await visibleElementBox(sidebar, 'organization sidebar');
+		expect(sidebarBox.width).toBeGreaterThanOrEqual(260);
+		expect(sidebarBox.width).toBeLessThanOrEqual(280);
+	});
+
 	test('renders organization members as full-width list rows', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 1000 });
 		await mockVisualOrgchartDirectory(page);
 
 		await page.goto('/orgchart/');
 
-		const sharedTeam = page.getByTestId('orgchart-team-column-shared');
+		const sharedTeam = page.getByTestId('orgchart-organization-section-shared');
 		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('orgchart-person-node-user-park-staff'), 'shared leader');
 		const newStaffBox = await visibleElementBox(sharedTeam.getByTestId('orgchart-person-node-user-new-staff'), 'new staff');
 		const memberList = sharedTeam.getByTestId('orgchart-organization-members-shared');
 
-		await expect(sharedTeam.getByText('팀장')).toHaveCount(1);
 		await expect(memberList).toBeVisible();
-		await expect(page.getByTestId('orgchart-team-column-shared')).toContainText('공유팀');
+		await expect(sharedTeam).toContainText('공유팀');
 		expect(newStaffBox.y).toBeGreaterThan(sharedLeaderBox.y + sharedLeaderBox.height);
 		expect(Math.abs(newStaffBox.x - sharedLeaderBox.x)).toBeLessThanOrEqual(2);
 		expect(Math.abs(newStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
-		await expectRowDivider(memberList);
 	});
 });
 
@@ -115,11 +134,6 @@ async function visibleElementBox(locator: Locator, label: string): Promise<Eleme
 	const elementBox = await locator.boundingBox();
 	if (!elementBox) throw new Error(`Bounding box unavailable for ${label}`);
 	return elementBox;
-}
-
-async function expectRowDivider(locator: Locator): Promise<void> {
-	const firstRowBorderBottomWidth = await locator.locator(':scope > div').first().evaluate((element) => Number.parseFloat(getComputedStyle(element).borderBottomWidth));
-	expect(firstRowBorderBottomWidth).toBeGreaterThan(0);
 }
 
 async function mockVisualOrgchartDirectory(page: Page): Promise<void> {

@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 import {
 	activeMobileEditorField,
 	closeDayFlowMobileEditor,
-	doubleClickFirstVisibleAllDayCell,
+	clickFirstVisibleAllDayCell,
 	dayFlowMobileEditor,
-	doubleClickFirstVisibleTimeCell,
+	clickFirstVisibleTimeCell,
 	enableDarkMode,
 	maximumEdgeDelta,
 	mobileEventHorizontalInset,
@@ -210,7 +210,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await openCalendarEmbed(page, '주');
 		await navigateEmbeddedCalendar(page, '2026-06-01');
 
-		await doubleClickFirstVisibleTimeCell(page);
+		await clickFirstVisibleTimeCell(page);
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await expect.poll(() => activeMobileEditorField(page)).toBe('title');
 		await expect(dayFlowMobileEditor(page).getByRole('button', { name: '취소' })).toBeVisible();
@@ -225,7 +225,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await closeDayFlowMobileEditor(page);
 		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('timeline-'))).toBe(true);
 
-		await doubleClickFirstVisibleAllDayCell(page);
+		await clickFirstVisibleAllDayCell(page);
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByText('새 일정')).toBeVisible();
 		await expect(dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="allDay"]')).toBeChecked();
@@ -233,7 +233,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await closeDayFlowMobileEditor(page);
 		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('all-day-'))).toBe(true);
 
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByText('일정 편집')).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByRole('button', { name: '삭제' })).toBeVisible();
@@ -249,7 +249,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await page.reload();
 		await navigateEmbeddedCalendar(page, '2026-06-01');
 
-		await doubleClickFirstVisibleTimeCell(page);
+		await clickFirstVisibleTimeCell(page);
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(dayFlowMobileEditor(page)).toHaveCount(0);
 	});
@@ -272,7 +272,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		const mobileMeasurements = await weekGridMeasurements(page);
 		expect(mobileMeasurements.customHeaderTexts).toEqual(['Mon, Jun 1', 'Tue, Jun 2']);
 
-		await page.locator('[data-event-id="mobile-two-day-english-edit"]').first().dblclick();
+		await page.locator('[data-event-id="mobile-two-day-english-edit"]').first().click();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByRole('button', { name: 'Cancel' })).toBeVisible();
 		await expect(dayFlowMobileEditor(page).getByText('Edit Event')).toBeVisible();
@@ -307,7 +307,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await openCalendarEmbed(page, '주');
 		await navigateEmbeddedCalendar(page, '2026-06-01');
 
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 수정 일정');
 		await dayFlowMobileEditor(page).locator('input[data-mobile-editor-field="startTime"]').fill('04:00');
@@ -342,7 +342,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await openCalendarEmbed(page, '주');
 		await navigateEmbeddedCalendar(page, '2026-06-01');
 
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await dayFlowMobileEditor(page).getByPlaceholder('이름으로 검색해 추가').fill('이동하');
 		await dayFlowMobileEditor(page).getByRole('option', { name: '이동하' }).click();
@@ -367,7 +367,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 		await openCalendarEmbed(page, '주');
 		await navigateEmbeddedCalendar(page, '2026-06-01');
 
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().dblclick();
+		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
 		await expect(dayFlowMobileEditor(page)).toBeVisible();
 		await dayFlowMobileEditor(page).getByRole('button', { name: '삭제' }).click();
 

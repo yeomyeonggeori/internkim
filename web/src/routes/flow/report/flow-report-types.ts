@@ -107,9 +107,7 @@ export type FlowReportSnapshot = {
 	monthlyDistanceTrend: FlowReportTrend;
 };
 
-export type FlowReportSection = {
-	id: FlowReportSectionID;
-	chartKind: FlowReportChartKind;
+type FlowReportSectionData = {
 	title: string;
 	description: string;
 	unit: string;
@@ -125,7 +123,25 @@ export type FlowReportSection = {
 	trend: FlowReportTrend;
 };
 
-export type FlowReportSections = Record<FlowReportSectionID, FlowReportSection>;
+type FlowReportSectionWith<SectionID extends FlowReportSectionID, ChartKind extends FlowReportChartKind> = FlowReportSectionData & {
+	id: SectionID;
+	chartKind: ChartKind;
+};
+
+export type FlowDailyTypeDistanceSection = FlowReportSectionWith<'weeklyStatus', 'dailyTypeStacked'>;
+export type FlowBusinessDistanceSection = FlowReportSectionWith<'businessDistance', 'donut'>;
+export type FlowMemberScoreSection = FlowReportSectionWith<'memberDistance', 'memberScoreList'>;
+export type FlowTrendSection = FlowReportSectionWith<'weeklyDistanceTrend' | 'monthlyDistanceTrend', 'lineComparison'>;
+export type FlowChartSection = FlowDailyTypeDistanceSection | FlowBusinessDistanceSection | FlowTrendSection;
+export type FlowReportSection = FlowChartSection | FlowMemberScoreSection;
+
+export type FlowReportSections = {
+	weeklyStatus: FlowDailyTypeDistanceSection;
+	memberDistance: FlowMemberScoreSection;
+	weeklyDistanceTrend: FlowTrendSection;
+	monthlyDistanceTrend: FlowTrendSection;
+	businessDistance: FlowBusinessDistanceSection;
+};
 
 export type FlowReportTask = {
 	participantNames: string[];
