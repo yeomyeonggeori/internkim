@@ -19,7 +19,7 @@ const (
 	mattermostScenarioStepReplyTimeout = 15 * time.Minute
 )
 
-var mattermostScenarioURLPattern = regexp.MustCompile(`https?://[^\s<>()]+`)
+var mattermostScenarioURLPattern = regexp.MustCompile(`https?://[^\s<>()"'\\]+`)
 
 type mattermostScenarioInfraError struct {
 	cause error
