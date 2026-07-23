@@ -14,7 +14,7 @@ function record(userID: string, primaryGroupID = ''): UserRecord {
 }
 
 describe('orgchart organization model', () => {
-	test('renders the synthetic root and every organization in hierarchy order', () => {
+	test('renders the synthetic root and every organization in hierarchy and priority order', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'product', name: '프로덕트 본부' },
 			{ id: 'engineering', name: '개발팀', parentID: 'product' },
@@ -27,11 +27,31 @@ describe('orgchart organization model', () => {
 
 		expect(sections.map((section) => [section.id, section.depth, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
 			['', 0, 5, ['ceo']],
+			['sales', 1, 1, ['sales']],
 			['product', 1, 3, ['product-lead']],
 			['engineering', 2, 1, ['engineer']],
-			['design', 2, 1, ['designer']],
-			['sales', 1, 1, ['sales']]
+			['design', 2, 1, ['designer']]
 		]);
+	});
+
+	test('keeps executive organization priority when its member is filtered out', () => {
+		const groups: OrgGroup[] = [
+			{ id: 'development', name: '개발팀' },
+			{ id: 'taskforce', name: '태스크포스' },
+			{ id: 'otok', name: '오토케팀' },
+			{ id: 'management', name: '경영팀' }
+		];
+		const allRecords = [
+			{ ...record('cto', 'development'), jobTitle: 'CTO' },
+			record('taskforce-member', 'taskforce'),
+			record('otok-member', 'otok'),
+			{ ...record('ceo', 'management'), jobTitle: 'CEO' }
+		];
+		const visibleRecords = allRecords.filter((item) => item.userID !== 'ceo');
+
+		const sections = orgchartOrganizationSections(visibleRecords, groups, '전체 조직', '', allRecords);
+
+		expect(sections.map((section) => section.id)).toEqual(['', 'management', 'development', 'otok', 'taskforce']);
 	});
 
 	test('places people with unknown organizations in the root without creating a group', () => {

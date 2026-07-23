@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -20,7 +21,7 @@
 	const adminPageText = createPageText(adminText);
 	const adminBaseURL = '/admin/api';
 	const detailSheetViewport = new IsMobile(1024);
-	const controller = new OrgchartDirectoryController(adminBaseURL, text, adminPageText);
+	const controller = new OrgchartDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
 	const isDetailSheetOpen = $derived(detailSheetViewport.current && Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
 
