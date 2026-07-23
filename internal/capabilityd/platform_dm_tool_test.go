@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -58,8 +59,15 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "sent" || response.IsError {
+	if response.Status != "sent" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.IsError || len(response.Effects) != 1 || response.Effects[0].ID != "post-1" {
 		t.Fatalf("expected sent response, got %+v", response)
+	}
+	var result platformMessageSendResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !reflect.DeepEqual(result.MessageIDs, []string{"post-1"}) || result.DeliveryStatus != "sent" {
+		t.Fatalf("unexpected canonical send result: %+v", result)
 	}
 	if strings.Join(directChannelBody, ",") != "user-gamyeong,bot-user" {
 		t.Fatalf("unexpected direct channel body: %+v", directChannelBody)
@@ -473,25 +481,15 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 	if postCount != 2 {
 		t.Fatalf("expected two posts for two resolved recipients, got %d", postCount)
 	}
-	var rollup struct {
-		SentCount   int `json:"sentCount"`
-		FailedCount int `json:"failedCount"`
-		Results     []struct {
-			PersonHint string `json:"personHint"`
-			Status     string `json:"status"`
-			ErrorCode  string `json:"errorCode"`
-		} `json:"results"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &rollup); errorValue != nil {
+	var result platformMessageSendResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if rollup.SentCount != 2 || rollup.FailedCount != 1 {
-		t.Fatalf("expected 2 sent / 1 failed, got %+v", rollup)
+	if !reflect.DeepEqual(result.MessageIDs, []string{"post-1"}) || result.DeliveryStatus != "sent" || len(result.Failures) != 1 {
+		t.Fatalf("expected canonical successful message IDs and one failure, got %+v", result)
 	}
-	for _, result := range rollup.Results {
-		if result.PersonHint == "없는사람" && (result.Status != "failed" || result.ErrorCode != "recipient_not_found") {
-			t.Fatalf("expected not-found recipient to be reported failed, got %+v", result)
-		}
+	if result.Failures[0].PersonHint != "없는사람" || result.Failures[0].ErrorCode != "recipient_not_found" {
+		t.Fatalf("expected not-found recipient diagnostic, got %+v", result.Failures)
 	}
 }
 
@@ -525,6 +523,13 @@ func assertPlatformDMStructuredFailure(t *testing.T, response capabilities.ToolI
 	t.Helper()
 	if response.Status != expectedStatus || !response.IsError {
 		t.Fatalf("expected %s failure response, got %+v", expectedStatus, response)
+	}
+	expectedOutcome := capabilities.ToolOutcomeFailed
+	if expectedStatus == "denied" {
+		expectedOutcome = capabilities.ToolOutcomeDenied
+	}
+	if response.Outcome != expectedOutcome {
+		t.Fatalf("expected outcome %q, got %+v", expectedOutcome, response)
 	}
 	if response.ErrorCode != expectedErrorCode {
 		t.Fatalf("expected errorCode %q, got %+v", expectedErrorCode, response)

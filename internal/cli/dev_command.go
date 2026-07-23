@@ -17,21 +17,23 @@ import (
 )
 
 type devVirtualSessionArguments struct {
-	ScenarioName          string
-	ArtifactDirectoryPath string
-	CassettePath          string
-	RecordCassettePath    string
-	SkillDirectoryPath    string
-	LanguageModelEndpoint string
-	LanguageModelSocket   string
-	LanguageModelName     string
-	ExecutionMode         string
-	TargetName            string
-	Seed                  string
-	Temperature           string
-	RequiredExecutables   []string
-	IsLiveLanguageModel   bool
-	ShouldSkipPreflight   bool
+	ScenarioName             string
+	ScenarioFilePath         string
+	ArtifactDirectoryPath    string
+	SkillDirectoryPath       string
+	LanguageModelEndpoint    string
+	LanguageModelSocket      string
+	LanguageModelProvider    string
+	LanguageModelAuthKeyPath string
+	LanguageModelName        string
+	ExecutionMode            string
+	Seed                     string
+	Temperature              string
+	MaximumModelTier         string
+	RequiredExecutables      []string
+	IsLiveLanguageModel      bool
+	HasStrictAssertions      bool
+	ShouldSkipPreflight      bool
 }
 
 type devCommandInvocation struct {
@@ -40,7 +42,6 @@ type devCommandInvocation struct {
 }
 
 var runDevLocalVirtualSession = runLocalDevVirtualSession
-var runDevContainerVirtualSession = runContainerDevVirtualSession
 
 func runDev() {
 	if errorValue := runDevArguments(os.Args[2:]); errorValue != nil {
@@ -59,8 +60,6 @@ func runDevArguments(arguments []string) error {
 	switch subcommand {
 	case "simulate":
 		return runDevSimulateArguments(commandArguments)
-	case "replay":
-		return runDevReplayArguments(commandArguments)
 	case "fleet":
 		return runDevFleetArguments(commandArguments)
 	case "help":
@@ -149,6 +148,7 @@ type devFleetRunConfiguration struct {
 func runDevFleetReprovision(arguments []string) error {
 	flagSet := flag.NewFlagSet("dev fleet reprovision", flag.ContinueOnError)
 	configurationPathArgument := flagSet.String("config", "", "Local Fleet configuration path")
+	modelTierArgument := flagSet.String("model-tier", "", "Pin every test model tier to this tier; defaults to low")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -179,21 +179,42 @@ func runDevFleetReprovision(arguments []string) error {
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
 		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
-	command.Env = append(os.Environ(),
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment+"=xlow",
-		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
-	if moduleCachePath := goModuleCachePath(); moduleCachePath != "" {
-		command.Env = append(command.Env, "GO_MOD_CACHE="+moduleCachePath)
-	}
+	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath(), *modelTierArgument)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	return command.Run()
 }
 
+func devFleetReprovisionEnvironment(environment []string, moduleCachePath string, modelTier string) []string {
+	normalizedModelTier := strings.TrimSpace(modelTier)
+	if normalizedModelTier == "" {
+		normalizedModelTier = "low"
+	}
+	environment = append(environment,
+		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
+		"INTERNKIM_TEST_MODEL_TIER=low",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+normalizedModelTier,
+		blueclaw.BlueclawTestMinimumModelTierEnvironment+"="+normalizedModelTier,
+		blueclaw.BlueclawLLMDModeEnvironment+"=authoritative",
+		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
+	if moduleCachePath == "" {
+		return environment
+	}
+	return append(environment, "GO_MOD_CACHE="+moduleCachePath)
+}
+
 func latestLocalFleetConfigurationPath(repositoryRootPath string) (string, error) {
+	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
+	fileInfo, errorValue := os.Stat(canonicalPath)
+	if errorValue == nil && fileInfo.Mode().IsRegular() {
+		return canonicalPath, nil
+	}
+	if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+		return "", errorValue
+	}
+
 	matches, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "*", "config.json"))
 	if errorValue != nil {
 		return "", errorValue
@@ -368,71 +389,55 @@ func firstNonEmptyLocalFleetValue(values ...string) string {
 }
 
 func runDevSimulateArguments(arguments []string) error {
-	sessionArguments, errorValue := parseDevVirtualSessionArguments("simulate", arguments)
+	sessionArguments, errorValue := parseDevVirtualSessionArguments(arguments)
 	if errorValue != nil {
 		return errorValue
-	}
-	if sessionArguments.TargetName != "local" {
-		return errors.New("dev simulate only supports --target local; use dev fleet run --without-mattermost --scenario <name> for Linux permission checks")
 	}
 	return runDevLocalVirtualSession(sessionArguments)
 }
 
-func runDevReplayArguments(arguments []string) error {
-	sessionArguments, errorValue := parseDevVirtualSessionArguments("replay", arguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	switch sessionArguments.TargetName {
-	case "local":
-		return runDevLocalVirtualSession(sessionArguments)
-	case "container":
-		return runDevContainerVirtualSession(sessionArguments)
-	case "tart":
-		return errors.New("the tart target was removed; use dev fleet run --without-mattermost --scenario <name>")
-	default:
-		return fmt.Errorf("unsupported dev replay target: %s", sessionArguments.TargetName)
-	}
-}
-
-func parseDevVirtualSessionArguments(commandName string, arguments []string) (devVirtualSessionArguments, error) {
-	flagSet := flag.NewFlagSet("dev "+commandName, flag.ContinueOnError)
+func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArguments, error) {
+	flagSet := flag.NewFlagSet("dev simulate", flag.ContinueOnError)
 	scenarioName := flagSet.String("scenario", "schedule_create_acceptance", "Blueclaw virtual-session scenario")
+	scenarioFilePath := flagSet.String("scenario-file", "", "File-backed sequential virtual-session scenario")
 	artifactDirectoryPath := flagSet.String("artifact-dir", ".artifacts/blueclaw-dev", "Artifact directory for virtual-session output")
-	cassettePath := flagSet.String("cassette", "", "Replay model responses from a cassette JSON file")
-	recordCassettePath := flagSet.String("record-cassette", "", "Record model responses to a cassette JSON file")
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelName := flagSet.String("llm-model", "xiaomi/mimo-v2.5", "Live LLM model name")
+	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter, capability, or llmd")
+	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "LLMD installation auth key path")
+	languageModelName := flagSet.String("llm-model", "", "Live LLM model override")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
-	targetName := flagSet.String("target", "local", "Replay target: local or container")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
 	skipPreflight := flagSet.Bool("skip-preflight", false, "Skip executable dependency checks")
 	requiredExecutables := repeatedDevStringFlag{}
 	flagSet.Var(&requiredExecutables, "require-executable", "Require an executable before running; repeat for multiple executables")
 	seedValue := flagSet.Int64("seed", 41, "Generation seed for live LLM calls")
 	temperatureValue := flagSet.Float64("temperature", 0, "Generation temperature for live LLM calls")
+	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum live model tier")
+	strictAssertions := flagSet.Bool("strict-assertions", false, "Fail when a declared expectation is not satisfied")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devVirtualSessionArguments{}, errorValue
 	}
 
 	return devVirtualSessionArguments{
-		ScenarioName:          strings.TrimSpace(*scenarioName),
-		ArtifactDirectoryPath: strings.TrimSpace(*artifactDirectoryPath),
-		CassettePath:          strings.TrimSpace(*cassettePath),
-		RecordCassettePath:    strings.TrimSpace(*recordCassettePath),
-		SkillDirectoryPath:    strings.TrimSpace(*skillDirectoryPath),
-		LanguageModelEndpoint: strings.TrimSpace(*languageModelEndpoint),
-		LanguageModelSocket:   strings.TrimSpace(*languageModelSocket),
-		LanguageModelName:     strings.TrimSpace(*languageModelName),
-		ExecutionMode:         strings.TrimSpace(*executionMode),
-		TargetName:            strings.TrimSpace(*targetName),
-		Seed:                  strconv.FormatInt(*seedValue, 10),
-		Temperature:           optionalFloatArgument(flagSet, "temperature", *temperatureValue),
-		RequiredExecutables:   devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
-		IsLiveLanguageModel:   *liveLanguageModel,
-		ShouldSkipPreflight:   *skipPreflight,
+		ScenarioName:             strings.TrimSpace(*scenarioName),
+		ScenarioFilePath:         strings.TrimSpace(*scenarioFilePath),
+		ArtifactDirectoryPath:    strings.TrimSpace(*artifactDirectoryPath),
+		SkillDirectoryPath:       strings.TrimSpace(*skillDirectoryPath),
+		LanguageModelEndpoint:    strings.TrimSpace(*languageModelEndpoint),
+		LanguageModelSocket:      strings.TrimSpace(*languageModelSocket),
+		LanguageModelProvider:    strings.TrimSpace(*languageModelProvider),
+		LanguageModelAuthKeyPath: strings.TrimSpace(*languageModelAuthKeyPath),
+		LanguageModelName:        strings.TrimSpace(*languageModelName),
+		ExecutionMode:            strings.TrimSpace(*executionMode),
+		Seed:                     strconv.FormatInt(*seedValue, 10),
+		Temperature:              optionalFloatArgument(flagSet, "temperature", *temperatureValue),
+		MaximumModelTier:         strings.TrimSpace(*maximumModelTier),
+		RequiredExecutables:      devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
+		IsLiveLanguageModel:      *liveLanguageModel,
+		HasStrictAssertions:      *strictAssertions,
+		ShouldSkipPreflight:      *skipPreflight,
 	}, nil
 }
 
@@ -452,67 +457,44 @@ func runLocalDevVirtualSession(sessionArguments devVirtualSessionArguments) erro
 	return command.Run()
 }
 
-func runContainerDevVirtualSession(sessionArguments devVirtualSessionArguments) error {
-	invocation, errorValue := containerDevVirtualSessionInvocation(sessionArguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := runLabArguments([]string{"vm-up"}); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := ensureContainerDevSharedWorkspace(invocation); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := checkContainerDevDependencies(sessionArguments); errorValue != nil {
-		return errorValue
-	}
-	return runLabArguments([]string{"vm-ssh", devRemoteShellCommand(invocation)})
-}
-
 func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArguments) (devCommandInvocation, error) {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return devCommandInvocation{}, errorValue
 	}
+	sessionArguments.ArtifactDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.ArtifactDirectoryPath)
+	sessionArguments.ScenarioFilePath = resolveDevPath(repositoryRootPath, sessionArguments.ScenarioFilePath)
+	sessionArguments.SkillDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.SkillDirectoryPath)
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
 	}, nil
 }
 
-func containerDevVirtualSessionInvocation(sessionArguments devVirtualSessionArguments) (devCommandInvocation, error) {
-	return devCommandInvocation{
-		WorkingDirectoryPath: filepath.Join("/mnt/shared", "workspace", ".dependency", "blueclaw"),
-		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
-	}, nil
-}
-
-func ensureContainerDevSharedWorkspace(invocation devCommandInvocation) error {
-	command := containerDevSharedWorkspaceCommand(invocation.WorkingDirectoryPath)
-	if errorValue := runLabArguments([]string{"vm-ssh", command}); errorValue != nil {
-		return fmt.Errorf("dev container shared workspace check failed: %w", errorValue)
+func resolveDevPath(repositoryRootPath string, value string) string {
+	normalizedValue := strings.TrimSpace(value)
+	if normalizedValue == "" || filepath.IsAbs(normalizedValue) {
+		return normalizedValue
 	}
-	return nil
-}
-
-func containerDevSharedWorkspaceCommand(workingDirectoryPath string) string {
-	return strings.Join([]string{
-		"set -eu",
-		"if [ ! -d " + quoteDevShellArgument(workingDirectoryPath) + " ]; then echo " + quoteDevShellArgument("missing shared workspace at "+workingDirectoryPath) + " >&2; exit 1; fi",
-	}, "; ")
+	return filepath.Join(repositoryRootPath, normalizedValue)
 }
 
 func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArguments) []string {
 	commandArguments := []string{"run", "./cmd/blueclaw-lab", "virtual-session"}
 	commandArguments = append(commandArguments, "--scenario", sessionArguments.ScenarioName)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--scenario-file", sessionArguments.ScenarioFilePath)
 	commandArguments = append(commandArguments, "--artifact-dir", sessionArguments.ArtifactDirectoryPath)
-	commandArguments = appendOptionalDevFlag(commandArguments, "--cassette", sessionArguments.CassettePath)
-	commandArguments = appendOptionalDevFlag(commandArguments, "--record-cassette", sessionArguments.RecordCassettePath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--skill-dir", sessionArguments.SkillDirectoryPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-endpoint", sessionArguments.LanguageModelEndpoint)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-unix-socket", sessionArguments.LanguageModelSocket)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-provider", sessionArguments.LanguageModelProvider)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-auth-key-path", sessionArguments.LanguageModelAuthKeyPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-model", sessionArguments.LanguageModelName)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-execution-mode", sessionArguments.ExecutionMode)
+	commandArguments = appendOptionalDevFlag(commandArguments, "--maximum-model-tier", sessionArguments.MaximumModelTier)
+	if sessionArguments.HasStrictAssertions {
+		commandArguments = append(commandArguments, "--strict-assertions")
+	}
 	if sessionArguments.IsLiveLanguageModel {
 		commandArguments = appendOptionalDevFlag(commandArguments, "--seed", sessionArguments.Seed)
 		commandArguments = appendOptionalDevFlag(commandArguments, "--temperature", sessionArguments.Temperature)
@@ -536,18 +518,7 @@ func checkLocalDevDependencies(sessionArguments devVirtualSessionArguments) erro
 	if len(missingExecutables) == 0 {
 		return nil
 	}
-	return fmt.Errorf("dev %s preflight failed; missing executable(s): %s", sessionArguments.TargetName, strings.Join(missingExecutables, ", "))
-}
-
-func checkContainerDevDependencies(sessionArguments devVirtualSessionArguments) error {
-	if sessionArguments.ShouldSkipPreflight {
-		return nil
-	}
-	command := "missing=''; for executable in " + quoteDevShellArguments(sessionArguments.RequiredExecutables) + "; do command -v \"$executable\" >/dev/null 2>&1 || missing=\"$missing $executable\"; done; if [ -n \"$missing\" ]; then echo \"missing executable(s):$missing\" >&2; exit 127; fi"
-	if errorValue := runLabArguments([]string{"vm-ssh", command}); errorValue != nil {
-		return fmt.Errorf("dev container preflight failed: %w", errorValue)
-	}
-	return nil
+	return fmt.Errorf("dev simulate preflight failed; missing executable(s): %s", strings.Join(missingExecutables, ", "))
 }
 
 func missingLocalExecutables(executableNames []string) []string {
@@ -610,23 +581,6 @@ func flagWasPassed(flagSet *flag.FlagSet, name string) bool {
 		}
 	})
 	return isFound
-}
-
-func devRemoteShellCommand(invocation devCommandInvocation) string {
-	arguments := append([]string{"go"}, invocation.Arguments...)
-	return "cd " + quoteDevShellArgument(invocation.WorkingDirectoryPath) + " && " + quoteDevShellArguments(arguments)
-}
-
-func quoteDevShellArguments(arguments []string) string {
-	quotedArguments := make([]string, 0, len(arguments))
-	for _, argument := range arguments {
-		quotedArguments = append(quotedArguments, quoteDevShellArgument(argument))
-	}
-	return strings.Join(quotedArguments, " ")
-}
-
-func quoteDevShellArgument(argument string) string {
-	return "'" + strings.ReplaceAll(argument, "'", "'\"'\"'") + "'"
 }
 
 func printDevUsage() {

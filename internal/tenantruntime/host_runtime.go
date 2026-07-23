@@ -431,8 +431,8 @@ func hostRuntimeCapabilitydServiceUnit(manifest Manifest, paths RuntimePaths, co
 	}
 	return `[Unit]
 Description=InternKim tenant capability daemon ` + manifest.TenantID + `
-After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service
-Wants=network-online.target
+After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service ` + hostRuntimeAdmindServiceName(manifest) + `
+Wants=network-online.target ` + hostRuntimeAdmindServiceName(manifest) + `
 
 [Service]
 User=root
@@ -458,7 +458,7 @@ Environment=HOME=` + paths.BlueclawRootPath + `
 Environment=BLUECLAW_GRAPHITI_KUZU_PATH=` + filepath.Join(paths.BlueclawWorkspacePath, ".blueclaw", "graphiti", "kuzu") + `
 Environment=BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1
 Environment=BLUECLAW_GRAPHITI_PORT=` + intString(configuration.GraphitiPort) + `
-ExecStart=` + blueclaw.GraphitiMemorydPath + ` -companion-url ` + hostLocalURL(configuration.AdmindPort) + `/_internkim/companion
+ExecStart=` + blueclaw.GraphitiMemorydPath + `
 Restart=on-failure
 RestartSec=2
 

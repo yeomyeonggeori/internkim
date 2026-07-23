@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
@@ -393,6 +395,86 @@ func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
 	}
 	if liteRT["reason"] != "constrained runner not installed" {
 		t.Fatalf("expected constrained runner reason, got %+v", liteRT)
+	}
+}
+
+func TestHealthRequiresMatchingLLMDProtocolIdentity(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	validDocument, errorValue := json.Marshal(map[string]string{
+		"status":                "ok",
+		"protocolVersion":       expectedIdentity.ProtocolVersion,
+		"aggregateProtocolHash": expectedIdentity.AggregateProtocolHash,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	cases := []struct {
+		name           string
+		llmdDocument   string
+		llmdError      error
+		expectedStatus int
+	}{
+		{name: "matching", llmdDocument: string(validDocument), expectedStatus: http.StatusOK},
+		{name: "missing identity", llmdDocument: `{"status":"ok"}`, expectedStatus: http.StatusServiceUnavailable},
+		{name: "malformed", llmdDocument: `not-json`, expectedStatus: http.StatusServiceUnavailable},
+		{name: "unavailable", llmdError: errors.New("LLMD unavailable"), expectedStatus: http.StatusServiceUnavailable},
+		{name: "mismatched identity", llmdDocument: `{"status":"ok","protocolVersion":"0.4.0","aggregateProtocolHash":"0000000000000000000000000000000000000000000000000000000000000000"}`, expectedStatus: http.StatusServiceUnavailable},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := newHealthTestService(t, testCase.llmdDocument, testCase.llmdError)
+			request := httptest.NewRequest(http.MethodGet, "/health", nil)
+			responseRecorder := httptest.NewRecorder()
+
+			service.router().ServeHTTP(responseRecorder, request)
+
+			if responseRecorder.Code != testCase.expectedStatus {
+				t.Fatalf("expected health status %d, got %d: %s", testCase.expectedStatus, responseRecorder.Code, responseRecorder.Body.String())
+			}
+			var response map[string]any
+			if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+				t.Fatalf("expected health response to decode: %v", errorValue)
+			}
+			if response["protocolVersion"] != expectedIdentity.ProtocolVersion || response["aggregateProtocolHash"] != expectedIdentity.AggregateProtocolHash {
+				t.Fatalf("expected capabilityd protocol identity, got %+v", response)
+			}
+			if testCase.expectedStatus == http.StatusOK && response["status"] != "ok" {
+				t.Fatalf("expected healthy status, got %+v", response)
+			}
+			if testCase.expectedStatus != http.StatusOK && response["status"] != "unhealthy" {
+				t.Fatalf("expected unhealthy status, got %+v", response)
+			}
+		})
+	}
+}
+
+func newHealthTestService(t *testing.T, llmdDocument string, llmdError error) Service {
+	t.Helper()
+	tokenPath := filepath.Join(t.TempDir(), "mattermost-token")
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return Service{
+		Configuration: Configuration{
+			MattermostBaseURL:   "https://mattermost.test",
+			MattermostTokenPath: tokenPath,
+			LLMDSocketPath:      "/tmp/llmd-health-test.sock",
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return testJSONResponse(http.StatusOK, map[string]any{"id": "bot-1", "is_bot": true}), nil
+		})},
+		LLMDHTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if llmdError != nil {
+				return nil, llmdError
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(llmdDocument)),
+			}, nil
+		})},
+		HealthState: &platformHealthState{MattermostForwarderRunning: true},
 	}
 }
 

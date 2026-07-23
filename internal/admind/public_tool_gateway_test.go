@@ -36,7 +36,7 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	requestBody := `{"input":{"prompt":"업무 추가"},"context":{"requesterEmail":"other@example.com"},"actor":{"email":"other@example.com"}}`
+	requestBody := `{"input":{"title":"업무 추가"},"context":{"requesterEmail":"other@example.com"},"actor":{"email":"other@example.com"}}`
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(requestBody))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
@@ -55,7 +55,7 @@ func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"prompt":"업무 추가"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -163,7 +163,7 @@ func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"prompt":"업무 추가"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 

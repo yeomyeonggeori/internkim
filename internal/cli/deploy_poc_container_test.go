@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -116,6 +118,65 @@ func TestPocContainerOverlayDockerfileCopiesMattermostPlugins(t *testing.T) {
 	overlayDocument := pocContainerOverlayDockerfile("internkim-poc-tenant:base-before-deploy")
 	if !strings.Contains(overlayDocument, "COPY mattermost-plugins /opt/internkim/mattermost-plugins") {
 		t.Fatalf("overlay missing Mattermost plugin copy:\n%s", overlayDocument)
+	}
+	if !strings.Contains(overlayDocument, "COPY --chmod=0755 bin/blueclaw-llmd /usr/local/bin/blueclaw-llmd") {
+		t.Fatalf("overlay missing LLMD copy:\n%s", overlayDocument)
+	}
+}
+
+func TestPocContainerLLMDArtifactUsesCanonicalPath(t *testing.T) {
+	artifactPath := pocContainerLLMDArtifactPath("/tmp/internkim")
+	expectedPath := filepath.Join("/tmp/internkim", ".dependency", "blueclaw-llmd", "blueclaw-llmd")
+	if artifactPath != expectedPath {
+		t.Fatalf("LLMD artifact path = %q, want %q", artifactPath, expectedPath)
+	}
+}
+
+func TestPocContainerDockerfileCopiesLLMD(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "poc", "tenant", "Dockerfile"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	dockerfile := string(document)
+	for _, expectedFragment := range []string{
+		"COPY bin/blueclaw-llmd /usr/local/bin/blueclaw-llmd",
+		"chmod 0755 /usr/local/bin/internkim-capabilityd /usr/local/bin/blueclaw /usr/local/bin/blueclaw-llmd",
+	} {
+		if !strings.Contains(dockerfile, expectedFragment) {
+			t.Fatalf("Dockerfile missing %q:\n%s", expectedFragment, dockerfile)
+		}
+	}
+}
+
+func TestPocContainerEntrypointStartsLLMDBeforeCapabilityd(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "poc", "tenant", "entrypoint.sh"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	entrypoint := string(document)
+	startLLMDIndex := strings.Index(entrypoint, "blueclaw-llmd &")
+	waitLLMDIndex := strings.Index(entrypoint, "blueclaw LLMD health")
+	startCapabilitydIndex := strings.Index(entrypoint, "internkim-capabilityd \\")
+	if startLLMDIndex < 0 || waitLLMDIndex < 0 || startCapabilitydIndex < 0 || startLLMDIndex >= waitLLMDIndex || waitLLMDIndex >= startCapabilitydIndex {
+		t.Fatalf("entrypoint must start and health-check LLMD before capabilityd:\n%s", entrypoint)
+	}
+	for _, expectedFragment := range []string{
+		"BLUECLAW_LLMD_AUTH_KEY_PATH=\"${llmdAuthKeyPath}\"",
+		"BLUECLAW_LLMD_SOCKET_PATH=\"${llmdSocketPath}\"",
+		"OPENROUTER_API_KEY_PATH=/secrets/openrouter-key",
+		"--llmd-socket \"${llmdSocketPath}\"",
+		"--llmd-auth-key \"${llmdAuthKeyPath}\"",
+		"trap shutdown INT TERM EXIT",
+		"rm -f \"${llmdAuthKeyPath}\" \"${llmdAuthKeyTemporaryPath}\"",
+	} {
+		if !strings.Contains(entrypoint, expectedFragment) {
+			t.Fatalf("entrypoint missing %q:\n%s", expectedFragment, entrypoint)
+		}
+	}
+	for _, forbiddenFragment := range []string{"BLUECLAW_LLMD_AUTH_KEY=", "OPENROUTER_API_KEY=\""} {
+		if strings.Contains(entrypoint, forbiddenFragment) {
+			t.Fatalf("entrypoint must not pass secret values in environment: %q", forbiddenFragment)
+		}
 	}
 }
 func TestPocContainerRecreateCommandUsesAppleContainer(t *testing.T) {

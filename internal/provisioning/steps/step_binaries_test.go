@@ -29,7 +29,34 @@ func TestJetsonBinariesSatisfiedWithoutLlamaServer(t *testing.T) {
 	}
 }
 
+func TestBinariesRequireLLMD(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     binaryPresenceWithoutLLMDBoardConnection{},
+	}
+
+	if StepBinaries.IsSatisfied(context) {
+		t.Fatal("expected missing LLMD binary to require installation")
+	}
+}
+
 type binaryPresenceBoardConnection struct{}
+
+type binaryPresenceWithoutLLMDBoardConnection struct{}
+
+func (connection binaryPresenceWithoutLLMDBoardConnection) Run(command string) string {
+	if strings.Contains(command, "'/usr/local/bin/blueclaw-llmd'") {
+		return ""
+	}
+	if strings.Contains(command, "test -e ") {
+		return "y"
+	}
+	return ""
+}
+
+func (connection binaryPresenceWithoutLLMDBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
+}
 
 func (connection binaryPresenceBoardConnection) Run(command string) string {
 	if strings.Contains(command, "test -e ") {

@@ -9,12 +9,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
+
+const releaseProtocolIdentityReadinessTimeout = time.Minute
+const releaseProtocolIdentityPollInterval = time.Second
 
 type releaseUpdateStatusResponse struct {
 	Current       *releaseUpdateSummary `json:"current,omitempty"`
@@ -158,6 +164,10 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
 		return
 	}
+	if errorValue := service.validateReleaseProtocolTransition(ctx, manifest); errorValue != nil {
+		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
+		return
+	}
 	stagingPath := filepath.Join(service.Configuration.StateDirectory, "release-updates", "staging", jobID)
 	_ = os.RemoveAll(stagingPath)
 	if errorValue := os.MkdirAll(stagingPath, 0o700); errorValue != nil {
@@ -172,6 +182,11 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 	service.updateJob(jobID, "running", "installing", "")
 	if errorValue := service.installReleaseComponents(ctx, jobID, manifest, stagingPath); errorValue != nil {
 		service.updateJob(jobID, "failed", "installing", errorValue.Error())
+		return
+	}
+	service.updateJob(jobID, "running", "health_check", "")
+	if errorValue := service.waitForReleaseProtocolIdentity(ctx, manifest); errorValue != nil {
+		service.updateJob(jobID, "failed", "health_check", errorValue.Error())
 		return
 	}
 	if errorValue := service.writeCurrentReleaseManifest(manifest); errorValue != nil {
@@ -240,6 +255,12 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSupervisor", blueclawruntime.BlueclawSupervisorBinaryPath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", blueclawruntime.LLMDBinaryPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.installReleaseLLMDService(ctx, manifest); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
 	}
@@ -265,10 +286,129 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			}
 		}
 	}
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
+		if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
 	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
 		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
 			return errorValue
 		}
+	}
+	if releaseProtocolDependencyComponentsPresent(manifest) {
+		if errorValue := service.restartReleaseBlueclawServices(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
+		if errorValue := service.recordInstalledReleaseLLMD(manifest.ReleaseID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+type releaseBlueclawHealth struct {
+	Status           string                        `json:"status"`
+	ProtocolIdentity releaseProtocolIdentityResult `json:"protocolIdentity"`
+}
+
+type releaseProtocolIdentityResult struct {
+	Passed   bool                                `json:"passed"`
+	Expected capabilityprotocol.ProtocolIdentity `json:"expected"`
+}
+
+func releaseProtocolIdentityComponentsPresent(manifest *releaseset.Manifest) bool {
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		if _, isPresent := manifest.Components[componentName]; isPresent {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseProtocolIdentityComponentNames() []string {
+	return []string{"capabilityd", "blueclawLLMD", "blueclawPayload"}
+}
+
+func missingReleaseProtocolIdentityComponents(manifest *releaseset.Manifest) []string {
+	missingComponentNames := []string{}
+	for _, componentName := range releaseProtocolIdentityComponentNames() {
+		if _, isPresent := manifest.Components[componentName]; !isPresent {
+			missingComponentNames = append(missingComponentNames, componentName)
+		}
+	}
+	return missingComponentNames
+}
+
+func (service *Service) validateReleaseProtocolTransition(ctx context.Context, manifest *releaseset.Manifest) error {
+	currentManifest := service.readCurrentReleaseManifest()
+	if currentManifest != nil && currentManifest.ProtocolIdentity == manifest.ProtocolIdentity {
+		return nil
+	}
+	if service.checkReleaseProtocolIdentityWithTimeout(ctx, manifest.ProtocolIdentity) == nil {
+		return nil
+	}
+	missingComponentNames := missingReleaseProtocolIdentityComponents(manifest)
+	if len(missingComponentNames) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"protocol identity transition requires components: %s",
+		strings.Join(missingComponentNames, ", "),
+	)
+}
+
+func (service *Service) checkReleaseProtocolIdentityWithTimeout(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	checkContext, cancel := context.WithTimeout(ctx, releaseProtocolIdentityReadinessTimeout)
+	defer cancel()
+	return service.checkReleaseProtocolIdentity(checkContext, expected)
+}
+
+func releaseProtocolDependencyComponentsPresent(manifest *releaseset.Manifest) bool {
+	for _, componentName := range []string{"capabilityd", "blueclawLLMD"} {
+		if _, isPresent := manifest.Components[componentName]; isPresent {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) waitForReleaseProtocolIdentity(ctx context.Context, manifest *releaseset.Manifest) error {
+	if !releaseProtocolIdentityComponentsPresent(manifest) {
+		return nil
+	}
+	readinessContext, cancel := context.WithTimeout(ctx, releaseProtocolIdentityReadinessTimeout)
+	defer cancel()
+	var lastError error
+	for {
+		lastError = service.checkReleaseProtocolIdentity(readinessContext, manifest.ProtocolIdentity)
+		if lastError == nil {
+			return nil
+		}
+		select {
+		case <-readinessContext.Done():
+			return fmt.Errorf("release protocol identity readiness failed: %w", lastError)
+		case <-time.After(releaseProtocolIdentityPollInterval):
+		}
+	}
+}
+
+func (service *Service) checkReleaseProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	registry, errorValue := service.fetchCapabilityRegistry(ctx)
+	if errorValue != nil {
+		return fmt.Errorf("capabilityd registry: %w", errorValue)
+	}
+	if registry.ProtocolIdentity != expected {
+		return fmt.Errorf("capabilityd protocol identity mismatch")
+	}
+	health := releaseBlueclawHealth{}
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, &health); errorValue != nil {
+		return errorValue
+	}
+	if health.Status != "ok" || !health.ProtocolIdentity.Passed || health.ProtocolIdentity.Expected != expected {
+		return fmt.Errorf("Blueclaw protocol identity mismatch")
 	}
 	return nil
 }
@@ -312,6 +452,168 @@ func releaseServiceStateIsDisabled(isEnabledOutput string) bool {
 
 func releaseBlueclawServiceNames(tenantBasePath string) []string {
 	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-blueclaw-", blueclawruntime.BlueclawServiceName)
+}
+
+func (service *Service) installReleaseLLMDService(ctx context.Context, manifest *releaseset.Manifest) error {
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; !hasLLMD {
+		return nil
+	}
+	isLocalOnly, errorValue := releaseLLMDLocalOnly(service.Configuration.BlueclawRuntimeConfigPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	serviceDocument := blueclawruntime.LLMDServiceUnitForLocalOnly(isLocalOnly, service.releaseLocalLlamaProvisioned(ctx))
+	command := fmt.Sprintf(`set -eu
+%[1]s
+cat > %[2]s <<'SERVICEEOF'
+%[3]sSERVICEEOF
+systemctl daemon-reload
+systemctl enable %[4]s`, blueclawruntime.LLMDServiceCredentialInstallCommand(isLocalOnly), blueclawruntime.LLMDServicePath, serviceDocument, blueclawruntime.LLMDServiceName)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", command); errorValue != nil {
+		return fmt.Errorf("install LLMD service: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
+}
+
+func (service *Service) releaseLocalLlamaProvisioned(ctx context.Context) bool {
+	output, errorValue := service.runCommand(ctx, "systemctl", "cat", locallm.LlamaCppServiceName)
+	if errorValue != nil {
+		return false
+	}
+	return strings.Contains(string(output), locallm.LlamaCppBinaryPath)
+}
+
+func releaseLLMDLocalOnly(runtimeConfigurationPath string) (bool, error) {
+	if strings.TrimSpace(runtimeConfigurationPath) == "" {
+		return false, nil
+	}
+	document, errorValue := os.ReadFile(runtimeConfigurationPath)
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return false, nil
+	}
+	if errorValue != nil {
+		return false, fmt.Errorf("read LLMD local-only policy: %w", errorValue)
+	}
+	var runtimeConfiguration struct {
+		LanguageModel struct {
+			LLMD struct {
+				LocalOnly *bool `json:"localOnly"`
+			} `json:"llmd"`
+		} `json:"languageModel"`
+		Capabilities struct {
+			Routing struct {
+				LocalOnly *bool `json:"localOnly"`
+			} `json:"routing"`
+		} `json:"capabilities"`
+	}
+	if errorValue := json.Unmarshal(document, &runtimeConfiguration); errorValue != nil {
+		return false, fmt.Errorf("parse LLMD local-only policy: %w", errorValue)
+	}
+	if runtimeConfiguration.LanguageModel.LLMD.LocalOnly != nil {
+		return *runtimeConfiguration.LanguageModel.LLMD.LocalOnly, nil
+	}
+	if runtimeConfiguration.Capabilities.Routing.LocalOnly != nil {
+		return *runtimeConfiguration.Capabilities.Routing.LocalOnly, nil
+	}
+	return false, nil
+}
+
+func (service *Service) restartReleaseLLMD(ctx context.Context) error {
+	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.LLMDServiceName); errorValue != nil {
+		return fmt.Errorf("restart LLMD: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand()); errorValue != nil || strings.TrimSpace(string(output)) != "ok" {
+		return fmt.Errorf("LLMD health check failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func (service *Service) reconcileReleaseLLMDBootstrap(ctx context.Context) error {
+	return service.reconcileReleaseLLMDBootstrapAtPath(ctx, blueclawruntime.LLMDBinaryPath)
+}
+
+func (service *Service) reconcileReleaseLLMDBootstrapAtPath(ctx context.Context, binaryPath string) error {
+	manifest := service.readCurrentReleaseManifest()
+	if manifest == nil {
+		return nil
+	}
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; !hasLLMD {
+		return nil
+	}
+	if readTrimmedFile(service.installedReleaseLLMDPath()) == manifest.ReleaseID {
+		return nil
+	}
+	if service.releaseLLMDIsReady(ctx) {
+		return service.recordInstalledReleaseLLMD(manifest.ReleaseID)
+	}
+	stagingPath, errorValue := service.releaseLLMDBootstrapStagingPath(manifest)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.installReleaseLLMDBootstrap(ctx, manifest, stagingPath, binaryPath)
+}
+
+func (service *Service) installReleaseLLMDBootstrap(ctx context.Context, manifest *releaseset.Manifest, stagingPath string, binaryPath string) error {
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawLLMD", binaryPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.installReleaseLLMDService(ctx, manifest); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
+		return errorValue
+	}
+	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
+		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
+	return service.recordInstalledReleaseLLMD(manifest.ReleaseID)
+}
+
+func (service *Service) releaseLLMDIsReady(ctx context.Context) bool {
+	output, errorValue := service.runCommand(ctx, "systemctl", "is-active", blueclawruntime.LLMDServiceName)
+	if errorValue != nil || strings.TrimSpace(string(output)) != "active" {
+		return false
+	}
+	output, errorValue = service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand())
+	return errorValue == nil && strings.TrimSpace(string(output)) == "ok"
+}
+
+func (service *Service) releaseLLMDBootstrapStagingPath(manifest *releaseset.Manifest) (string, error) {
+	component := manifest.Components["blueclawLLMD"]
+	stagingDirectoryPath := filepath.Join(service.Configuration.StateDirectory, "release-updates", "staging")
+	entries, errorValue := os.ReadDir(stagingDirectoryPath)
+	if errorValue != nil {
+		return "", fmt.Errorf("read LLMD release staging directory: %w", errorValue)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		stagingPath := filepath.Join(stagingDirectoryPath, name)
+		archivePath := filepath.Join(stagingPath, "blueclawLLMD", "component.tar.gz")
+		if fileSHA256(archivePath) == component.SHA256 {
+			return stagingPath, nil
+		}
+	}
+	return "", fmt.Errorf("LLMD component for release %s is missing from staging", manifest.ReleaseID)
+}
+
+func (service *Service) recordInstalledReleaseLLMD(releaseID string) error {
+	path := service.installedReleaseLLMDPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	return writeFileAtomically(path, []byte(strings.TrimSpace(releaseID)+"\n"), 0o600)
+}
+
+func (service *Service) installedReleaseLLMDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "release-updates", "llmd-current")
 }
 
 func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) error {
@@ -754,7 +1056,7 @@ func (service *Service) writeCurrentReleaseManifest(manifest *releaseset.Manifes
 	if errorValue := os.MkdirAll(filepath.Dir(service.currentReleaseManifestPath()), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(service.currentReleaseManifestPath(), append(document, '\n'), 0o600)
+	return writeFileAtomically(service.currentReleaseManifestPath(), append(document, '\n'), 0o600)
 }
 
 func (service *Service) currentReleaseManifestPath() string {

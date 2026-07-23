@@ -109,6 +109,10 @@ func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
 	}
 	bootstrapScript := createCommand.Arguments[len(createCommand.Arguments)-1]
 	for _, expectedFragment := range []string{
+		"for attempt in 1 2 3",
+		"apt-get update && apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make",
+		"if [ \"$attempt\" -eq 3 ]; then return 1; fi",
+		"sleep $((attempt * 2))",
 		"useradd -m -s /bin/bash admin",
 		"echo 'admin:admin' | chpasswd",
 		"exec /lib/systemd/systemd",
@@ -168,7 +172,7 @@ func TestVirtualMachineUpParsesStatusObject(t *testing.T) {
 
 func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValues: []string{missingContainerListJSON, stoppedContainerListJSON, runningContainerListJSON},
+		outputValues: []string{missingContainerListJSON, "--cap-add", stoppedContainerListJSON, runningContainerListJSON},
 		outputValue:  runningContainerListJSON,
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
@@ -213,7 +217,7 @@ func TestVirtualMachineUpStartsStoppedVirtualMachine(t *testing.T) {
 
 func TestVirtualMachineUpReturnsRunFailureBeforeIPAddressTimeout(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValues: []string{missingContainerListJSON, stoppedContainerListJSON},
+		outputValues: []string{missingContainerListJSON, "--cap-add", stoppedContainerListJSON},
 		runErrors:    []error{nil, errors.New("container start failed")},
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
@@ -390,24 +394,45 @@ func TestVirtualMachineSSHUsesConfiguredPasswordAuthentication(t *testing.T) {
 		t.Fatalf("expected vm ssh to use repo sshpass, got %q", command.ExecutableName)
 	}
 	joinedArguments := strings.Join(command.Arguments, " ")
-	for _, expectedFragment := range []string{"-p admin", "ssh", "StrictHostKeyChecking=no", "admin@192.168.65.10", "cd /mnt/shared && true"} {
+	for _, expectedFragment := range []string{"-p admin", "ssh", "StrictHostKeyChecking=no", "LogLevel=ERROR", "ControlMaster=auto", "ControlPersist=600", "ControlPath=", "admin@192.168.65.10", "cd /mnt/shared && true"} {
 		if !strings.Contains(joinedArguments, expectedFragment) {
 			t.Fatalf("expected vm ssh arguments to contain %q, got %v", expectedFragment, command.Arguments)
 		}
 	}
 }
 
+func TestSSHControlPathIsStableAndIsolatedByContainer(t *testing.T) {
+	configuration := buildTestConfiguration()
+	firstService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+	secondService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+	configuration.VirtualMachine.Container.Name = "another-fleet"
+	otherService := NewService(configuration, &fakeCommandRunner{}, "/repo")
+
+	if firstService.sshControlPath() != secondService.sshControlPath() {
+		t.Fatal("same container must reuse one SSH control path")
+	}
+	if firstService.sshControlPath() == otherService.sshControlPath() {
+		t.Fatal("different containers must not share an SSH control path")
+	}
+	if len(firstService.sshControlPath()) >= 100 {
+		t.Fatalf("SSH control path is too long: %s", firstService.sshControlPath())
+	}
+}
+
 func TestVirtualMachineDiagnosticsIncludesRecoveryCommands(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
-		outputValue: stoppedContainerListJSON,
+		outputValues: []string{stoppedContainerListJSON, "apt-get update failed\nnetwork unreachable"},
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
 	diagnostics := service.VirtualMachineDiagnostics(context.Background())
-	for _, expectedFragment := range []string{"container diagnostics", "internkim-lab", "container ls", "internkim lab vm-down", "container system start"} {
+	for _, expectedFragment := range []string{"container diagnostics", "internkim-lab", "container ls", "boot log", "apt-get update failed", "network unreachable", "internkim lab vm-down", "container system start"} {
 		if !strings.Contains(diagnostics, expectedFragment) {
 			t.Fatalf("expected diagnostics to contain %q, got:\n%s", expectedFragment, diagnostics)
 		}
+	}
+	if len(commandRunner.outputCommands) != 2 || strings.Join(commandRunner.outputCommands[1].Arguments, " ") != "logs --boot -n 120 internkim-lab" {
+		t.Fatalf("expected bounded container boot log command, got %+v", commandRunner.outputCommands)
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestArtifactReviewUsesOpenRouterMultimodalMessage(t *testing.T) {
@@ -43,7 +45,7 @@ func TestArtifactReviewUsesOpenRouterMultimodalMessage(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.IsError || response.Provider != "openrouter" || response.SelectedBackend != "remote" {
+	if response.IsError || response.Provider != "openrouter" || response.SelectedBackend != "remote" || response.Outcome != capabilities.ToolOutcomeSucceeded {
 		t.Fatalf("unexpected artifact review response: %+v", response)
 	}
 
@@ -61,7 +63,7 @@ func TestArtifactReviewRejectsBlueclawInternalPath(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.FailureStage != "evidence_loading" {
+	if !response.IsError || response.FailureStage != "evidence_loading" || response.Outcome != capabilities.ToolOutcomeFailed {
 		t.Fatalf("expected evidence loading error, got %+v", response)
 	}
 }

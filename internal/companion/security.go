@@ -72,8 +72,9 @@ type GrantSnapshot struct {
 }
 
 type MemoryGrantStore struct {
-	mutex  sync.Mutex
-	grants map[string]*ApprovalGrant
+	mutex      sync.Mutex
+	grants     map[string]*ApprovalGrant
+	jobLineage map[string]string
 }
 
 type DenialError struct {
@@ -85,7 +86,7 @@ func (errorValue DenialError) Error() string {
 }
 
 func NewMemoryGrantStore() *MemoryGrantStore {
-	return &MemoryGrantStore{grants: map[string]*ApprovalGrant{}}
+	return &MemoryGrantStore{grants: map[string]*ApprovalGrant{}, jobLineage: map[string]string{}}
 }
 
 func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest, approvalHandler ApprovalHandler) error {
@@ -97,7 +98,7 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 		return nil
 	}
 	resourceScope := firstResourceScope(envelope.ResourceScope, request.ResourceScope)
-	if store.consumeGrant(envelope.GrantID, capabilityScope, resourceScope, envelope.Depth) {
+	if store.consumeGrant(envelope, capabilityScope, resourceScope) {
 		return nil
 	}
 	if approvalHandler == nil {
@@ -171,10 +172,11 @@ func (store *MemoryGrantStore) Revoke(grantID string) bool {
 	return true
 }
 
-func (store *MemoryGrantStore) consumeGrant(grantID string, capabilityScope string, resourceScope capabilities.ResourceScope, depth int) bool {
+func (store *MemoryGrantStore) consumeGrant(envelope JobEnvelope, capabilityScope string, resourceScope capabilities.ResourceScope) bool {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-	grant := store.findGrant(grantID, capabilityScope, resourceScope, depth)
+	store.recordJobLineageLocked(envelope.JobID, envelope.ParentJobID)
+	grant := store.findGrantLocked(envelope, capabilityScope, resourceScope)
 	if grant == nil {
 		return false
 	}
@@ -182,27 +184,74 @@ func (store *MemoryGrantStore) consumeGrant(grantID string, capabilityScope stri
 	return true
 }
 
-func (store *MemoryGrantStore) findGrant(grantID string, capabilityScope string, resourceScope capabilities.ResourceScope, depth int) *ApprovalGrant {
+func (store *MemoryGrantStore) recordJobLineageLocked(jobID string, parentJobID string) {
+	if strings.TrimSpace(jobID) == "" {
+		return
+	}
+	if _, alreadyRecorded := store.jobLineage[jobID]; alreadyRecorded {
+		return
+	}
+	store.jobLineage[jobID] = parentJobID
+}
+
+func (store *MemoryGrantStore) findGrantLocked(envelope JobEnvelope, capabilityScope string, resourceScope capabilities.ResourceScope) *ApprovalGrant {
 	now := time.Now().UTC()
 	for _, grant := range store.grants {
-		if strings.TrimSpace(grantID) != "" && grant.GrantID != grantID {
+		if strings.TrimSpace(envelope.GrantID) != "" && grant.GrantID != envelope.GrantID {
 			continue
 		}
 		if grant.Status != "active" || now.After(grant.ExpiresAt) {
 			continue
 		}
-		if grant.UsedJobs >= grant.MaxJobs || depth > grant.MaxDepth {
+		if grant.UsedJobs >= grant.MaxJobs || envelope.Depth > grant.MaxDepth {
 			continue
 		}
 		if !containsString(grant.CapabilityScopes, capabilityScope) {
 			continue
 		}
-		if !containsResourceScope(grant.ResourceScopes, resourceScope) {
+		if !store.grantCoversResourceScopeLocked(grant, resourceScope, envelope) {
 			continue
 		}
 		return grant
 	}
 	return nil
+}
+
+func (store *MemoryGrantStore) grantCoversResourceScopeLocked(grant *ApprovalGrant, target capabilities.ResourceScope, envelope JobEnvelope) bool {
+	for _, grantedResourceScope := range grant.ResourceScopes {
+		if grantedResourceScope.Kind == target.Kind && grantedResourceScope.Value == target.Value {
+			return true
+		}
+		if isSessionWildcardResourceScope(grantedResourceScope) && store.isSameTaskLineageLocked(envelope, grant.AnchorJobID) {
+			return true
+		}
+	}
+	return false
+}
+
+func (store *MemoryGrantStore) isSameTaskLineageLocked(envelope JobEnvelope, anchorJobID string) bool {
+	if strings.TrimSpace(anchorJobID) == "" {
+		return false
+	}
+	if envelope.JobID == anchorJobID {
+		return true
+	}
+	visitedJobIDs := map[string]bool{}
+	currentJobID := envelope.ParentJobID
+	for hops := 0; hops <= defaultGrantMaxDepth+1; hops++ {
+		if currentJobID == "" {
+			return false
+		}
+		if currentJobID == anchorJobID {
+			return true
+		}
+		if visitedJobIDs[currentJobID] {
+			return false
+		}
+		visitedJobIDs[currentJobID] = true
+		currentJobID = store.jobLineage[currentJobID]
+	}
+	return false
 }
 
 func (store *MemoryGrantStore) addGrant(envelope JobEnvelope, capabilityScope string, resourceScope capabilities.ResourceScope) {
@@ -304,16 +353,8 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func containsResourceScope(values []capabilities.ResourceScope, target capabilities.ResourceScope) bool {
-	for _, value := range values {
-		if value.Kind == "session" && value.Value == "current" {
-			return true
-		}
-		if value.Kind == target.Kind && value.Value == target.Value {
-			return true
-		}
-	}
-	return false
+func isSessionWildcardResourceScope(value capabilities.ResourceScope) bool {
+	return value.Kind == "session" && value.Value == "current"
 }
 
 func sanitizeDenialText(value string) string {

@@ -5,8 +5,6 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifact_directory="${INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR:-$repository_root/.dependency/blueclaw-payload}"
 stage_directory="${TMPDIR:-/tmp}/internkim-blueclaw-payload-stage"
 blueclaw_repository="$repository_root/.dependency/blueclaw"
-rtk_binary="$repository_root/build/board-bin/rtk"
-rtk_download_url="https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -18,20 +16,6 @@ require_command() {
 require_command go
 require_command git
 require_command python3
-
-prepare_rtk_binary() {
-  if [ -x "$rtk_binary" ]; then
-    return
-  fi
-
-  require_command curl
-  require_command tar
-
-  mkdir -p "$(dirname "$rtk_binary")"
-  curl -fsSL "$rtk_download_url" -o "$stage_directory/rtk.tar.gz"
-  tar -xzf "$stage_directory/rtk.tar.gz" -C "$stage_directory" rtk
-  install -m 0755 "$stage_directory/rtk" "$rtk_binary"
-}
 
 dirty_suffix() {
   local tracked_diff_file untracked_file hash_value
@@ -62,14 +46,12 @@ current_directory="$stage_directory/workspace/.blueclaw/runtime/current"
 
 rm -rf "$stage_directory"
 mkdir -p "$release_directory/bin" "$release_directory/migrations" "$current_directory/bin" "$current_directory/migrations"
-prepare_rtk_binary
 
 (
   cd "$blueclaw_repository"
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$release_directory/bin/blueclaw" ./cmd/blueclaw
 )
 
-install -m 0755 "$rtk_binary" "$release_directory/bin/rtk"
 rsync -a --delete --exclude '._*' --exclude '.DS_Store' "$blueclaw_repository/migrations/" "$release_directory/migrations/"
 rsync -a --delete "$release_directory/" "$current_directory/"
 
@@ -86,7 +68,6 @@ manifest_path = pathlib.Path(sys.argv[2])
 blueclaw_revision = sys.argv[3]
 current_directory = stage_directory / "workspace" / ".blueclaw" / "runtime" / "current"
 blueclaw_binary_path = current_directory / "bin" / "blueclaw"
-rtk_binary_path = current_directory / "bin" / "rtk"
 migrations_directory = current_directory / "migrations"
 
 def file_sha256(file_path):
@@ -117,7 +98,6 @@ manifest = {
     "platform": "linux-arm64",
     "blueclawRevision": blueclaw_revision,
     "blueclawSHA256": file_sha256(blueclaw_binary_path),
-    "rtkSHA256": file_sha256(rtk_binary_path),
     "migrationsSHA256": directory_sha256(migrations_directory),
 }
 

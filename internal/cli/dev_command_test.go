@@ -1,9 +1,15 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
@@ -20,7 +26,6 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 	errorValue := runDevArguments([]string{
 		"simulate",
 		"--scenario", "site_artifact_acceptance",
-		"--record-cassette", "cassette.json",
 		"--seed", "42",
 		"--temperature", "0.2",
 	})
@@ -30,53 +35,18 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 	if invocation.ScenarioName != "site_artifact_acceptance" {
 		t.Fatalf("expected scenario to be forwarded, got %q", invocation.ScenarioName)
 	}
-	if invocation.RecordCassettePath != "cassette.json" {
-		t.Fatalf("expected cassette path to be forwarded, got %q", invocation.RecordCassettePath)
-	}
 	if invocation.Seed != "42" || invocation.Temperature != "0.2" {
 		t.Fatalf("expected generation options to be forwarded, got seed=%q temperature=%q", invocation.Seed, invocation.Temperature)
 	}
 }
 
-func TestDevReplayCanTargetContainer(t *testing.T) {
-	var invocation devVirtualSessionArguments
-	previousRunner := runDevContainerVirtualSession
-	runDevContainerVirtualSession = func(arguments devVirtualSessionArguments) error {
-		invocation = arguments
-		return nil
-	}
-	t.Cleanup(func() {
-		runDevContainerVirtualSession = previousRunner
-	})
-
-	errorValue := runDevArguments([]string{
-		"replay",
-		"--target", "container",
-		"--scenario", "slides",
-		"--cassette", "cassette.json",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected dev replay to pass: %v", errorValue)
-	}
-	if invocation.TargetName != "container" {
-		t.Fatalf("expected container target, got %q", invocation.TargetName)
-	}
-	if invocation.CassettePath != "cassette.json" {
-		t.Fatalf("expected replay cassette, got %q", invocation.CassettePath)
-	}
-}
-
-func TestDevReplayRejectsRemovedTartTarget(t *testing.T) {
-	errorValue := runDevArguments([]string{
-		"replay",
-		"--target", "tart",
-		"--scenario", "slides",
-	})
+func TestDevReplaySubcommandIsRemoved(t *testing.T) {
+	errorValue := runDevArguments([]string{"replay"})
 	if errorValue == nil {
-		t.Fatal("expected tart target to be rejected")
+		t.Fatal("expected replay subcommand to be rejected")
 	}
-	if !strings.Contains(errorValue.Error(), "without-mattermost") {
-		t.Fatalf("expected guidance toward fleet Linux target, got %q", errorValue.Error())
+	if !strings.Contains(errorValue.Error(), "unknown dev subcommand") {
+		t.Fatalf("expected unknown subcommand error, got %q", errorValue.Error())
 	}
 }
 
@@ -131,6 +101,83 @@ func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 	}
 	if !configuration.ServiceOptions.ShouldUseRealModels {
 		t.Fatalf("expected real model option: %+v", configuration.ServiceOptions)
+	}
+}
+
+func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
+	environment := devFleetReprovisionEnvironment(nil, "", "")
+	expectedValues := []string{
+		"INTERNKIM_TEST_MODEL_TIER=low",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
+		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=low",
+		blueclaw.BlueclawLLMDModeEnvironment + "=authoritative",
+	}
+	for _, expectedValue := range expectedValues {
+		if !slices.Contains(environment, expectedValue) {
+			t.Fatalf("expected %q in %#v", expectedValue, environment)
+		}
+	}
+}
+
+func TestDevFleetReprovisionPinsRequestedModelTier(t *testing.T) {
+	environment := devFleetReprovisionEnvironment(nil, "", "medium")
+	expectedValues := []string{
+		"INTERNKIM_TEST_MODEL_TIER=low",
+		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=medium",
+		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=medium",
+	}
+	for _, expectedValue := range expectedValues {
+		if !slices.Contains(environment, expectedValue) {
+			t.Fatalf("expected %q in %#v", expectedValue, environment)
+		}
+	}
+}
+
+func TestLatestLocalFleetConfigurationPathPrefersCanonicalConfiguration(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
+	runPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "stale", "config.json")
+	if errorValue := os.MkdirAll(filepath.Dir(runPath), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, path := range []string{canonicalPath, runPath} {
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected canonical configuration: %v", errorValue)
+	}
+	if configurationPath != canonicalPath {
+		t.Fatalf("configuration path = %q, want %q", configurationPath, canonicalPath)
+	}
+}
+
+func TestLatestLocalFleetConfigurationPathFallsBackToLatestRun(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	oldRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "old", "config.json")
+	latestRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "latest", "config.json")
+	for _, path := range []string{oldRunPath, latestRunPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	oldModificationTime := time.Now().Add(-time.Hour)
+	if errorValue := os.Chtimes(oldRunPath, oldModificationTime, oldModificationTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected run configuration: %v", errorValue)
+	}
+	if configurationPath != latestRunPath {
+		t.Fatalf("configuration path = %q, want %q", configurationPath, latestRunPath)
 	}
 }
 
@@ -209,21 +256,73 @@ func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
 func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
 		ScenarioName:          "slides",
+		ScenarioFilePath:      "scenarios/slides.json",
 		ArtifactDirectoryPath: "artifacts",
-		CassettePath:          "cassette.json",
+		MaximumModelTier:      "low",
+		HasStrictAssertions:   true,
 		IsLiveLanguageModel:   true,
 		Seed:                  "7",
 	})
 	expectedArguments := []string{
 		"run", "./cmd/blueclaw-lab", "virtual-session",
 		"--scenario", "slides",
+		"--scenario-file", "scenarios/slides.json",
 		"--artifact-dir", "artifacts",
-		"--cassette", "cassette.json",
+		"--maximum-model-tier", "low",
+		"--strict-assertions",
 		"--seed", "7",
 		"--live-llm",
 	}
 	if !reflect.DeepEqual(arguments, expectedArguments) {
 		t.Fatalf("unexpected command arguments:\n got: %#v\nwant: %#v", arguments, expectedArguments)
+	}
+}
+
+func TestResolveDevPathUsesRepositoryRoot(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	if resolvedPath := resolveDevPath(repositoryRootPath, ".artifacts/blueclaw-dev"); resolvedPath != filepath.Join(repositoryRootPath, ".artifacts", "blueclaw-dev") {
+		t.Fatalf("unexpected resolved artifact path %q", resolvedPath)
+	}
+	absolutePath := filepath.Join(t.TempDir(), "scenario.json")
+	if resolvedPath := resolveDevPath(repositoryRootPath, absolutePath); resolvedPath != absolutePath {
+		t.Fatalf("expected absolute path to remain unchanged, got %q", resolvedPath)
+	}
+	if resolvedPath := resolveDevPath(repositoryRootPath, " "); resolvedPath != "" {
+		t.Fatalf("expected empty path to remain empty, got %q", resolvedPath)
+	}
+}
+
+func TestParseDevVirtualSessionArgumentsForwardsStrictScenarioFile(t *testing.T) {
+	arguments, errorValue := parseDevVirtualSessionArguments([]string{
+		"--scenario-file", "scenarios/task-lifecycle.json",
+		"--maximum-model-tier", "low",
+		"--strict-assertions",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected parse to pass: %v", errorValue)
+	}
+	if arguments.ScenarioFilePath != "scenarios/task-lifecycle.json" ||
+		arguments.MaximumModelTier != "low" ||
+		!arguments.HasStrictAssertions {
+		t.Fatalf("unexpected arguments: %+v", arguments)
+	}
+}
+
+func TestDevVirtualSessionCommandArgumentsForwardsLLMDProvider(t *testing.T) {
+	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
+		ScenarioName:             "plain_question_acceptance",
+		ArtifactDirectoryPath:    "artifacts",
+		LanguageModelEndpoint:    "http://llmd",
+		LanguageModelSocket:      "/tmp/llmd.sock",
+		LanguageModelProvider:    "llmd",
+		LanguageModelAuthKeyPath: "/tmp/llmd.key",
+		IsLiveLanguageModel:      true,
+	})
+
+	for _, expectedArgument := range []string{"--llm-provider", "llmd", "--llm-auth-key-path", "/tmp/llmd.key"} {
+		if !slices.Contains(arguments, expectedArgument) {
+			t.Fatalf("expected %q in %#v", expectedArgument, arguments)
+		}
 	}
 }
 
@@ -238,27 +337,5 @@ func TestDevVirtualSessionScriptedRunOmitsLiveGenerationFlags(t *testing.T) {
 		if argument == "--seed" || argument == "--temperature" || argument == "--live-llm" {
 			t.Fatalf("scripted run must omit live generation flags, got %#v", arguments)
 		}
-	}
-}
-
-func TestContainerDevVirtualSessionInvocationUsesBindMountedWorkspacePath(t *testing.T) {
-	invocation, errorValue := containerDevVirtualSessionInvocation(devVirtualSessionArguments{
-		ScenarioName: "attachment_material_read",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected invocation: %v", errorValue)
-	}
-	if invocation.WorkingDirectoryPath != "/mnt/shared/workspace/.dependency/blueclaw" {
-		t.Fatalf("expected bind-mounted workspace path, got %q", invocation.WorkingDirectoryPath)
-	}
-}
-
-func TestContainerDevSharedWorkspaceCommandChecksBindMountedDirectory(t *testing.T) {
-	command := containerDevSharedWorkspaceCommand("/mnt/shared/workspace/.dependency/blueclaw")
-	if !strings.Contains(command, "/mnt/shared/workspace/.dependency/blueclaw") {
-		t.Fatalf("expected shared workspace command to reference the bind-mounted path, got %s", command)
-	}
-	if strings.Contains(command, "virtiofs") || strings.Contains(command, "mount") {
-		t.Fatalf("expected shared workspace command to avoid mount logic, got %s", command)
 	}
 }

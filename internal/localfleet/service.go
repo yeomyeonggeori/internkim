@@ -100,6 +100,10 @@ func (service Service) CleanupEphemeral(contextValue context.Context, logger Log
 	return service.runCleanupPlans(cleanupContext, logger, service.ephemeralCleanupPlans())
 }
 
+func (service Service) ConnectPreparedFleet(contextValue context.Context, logger Logger) error {
+	return service.runPlans(contextValue, logger, service.preparedFleetPlans())
+}
+
 func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {
 	errorValue := service.runAction(contextValue, logger, request)
 	cleanupError := service.CleanupEphemeral(contextValue, logger)
@@ -159,6 +163,9 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return errors.New("scenario is required")
 	}
 	if withoutMattermost {
+		if normalizedScenario == "llmd-host-topology" {
+			return service.runPlans(contextValue, logger, service.llmdHostTopologyScenarioPlans())
+		}
 		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
 	}
 	switch normalizedScenario {
@@ -252,6 +259,11 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.MattermostHostPort = mattermostHostPort
 	}
+	llmdMode, errorValue := normalizeLLMDMode(options.LLMDMode)
+	if errorValue != nil {
+		return options, errorValue
+	}
+	options.LLMDMode = llmdMode
 	maximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(options.MaximumModelTier)
 	if errorValue != nil {
 		return options, errorValue
@@ -260,10 +272,20 @@ func normalizeOptions(options Options) (Options, error) {
 		return options, errors.New("maximum model tier cannot be combined with real models")
 	}
 	if !options.ShouldUseRealModels && maximumModelTier == "" {
-		maximumModelTier = "xlow"
+		maximumModelTier = "low"
 	}
 	options.MaximumModelTier = maximumModelTier
 	return options, nil
+}
+
+func normalizeLLMDMode(mode LLMDMode) (LLMDMode, error) {
+	normalizedMode := LLMDMode(strings.ToLower(strings.TrimSpace(string(mode))))
+	switch normalizedMode {
+	case "", LLMDModeAuthoritative:
+		return normalizedMode, nil
+	default:
+		return "", fmt.Errorf("unsupported LLMD mode: %s", mode)
+	}
 }
 
 func defaultStateRootPath(options Options) string {

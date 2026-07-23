@@ -3,11 +3,13 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const skillsManifestPath = "/root/.blueclaw/workspace/skills/.internkim-skills-manifest.json"
+const skillsSyncManifestPath = "/var/lib/blueclaw/skills-sync-manifest.json"
 
 var StepSkills = Step{
 	Name: "skills",
@@ -25,8 +27,7 @@ var StepSkills = Step{
 			if localManifest == "" {
 				return false
 			}
-			return sshFileExists(context, "/root/.blueclaw/workspace/skills/presentation/SKILL.md") &&
-				trimmedRun(context, "printf '%s' "+shellQuote(localManifest)+" | cmp -s - "+shellQuote(skillsManifestPath)+" && echo ok || echo missing") == "ok"
+			return trimmedRun(context, blueclawSkillsManifestCheckCommand(localManifest)) == "ok"
 		case BackendSD:
 			return true
 		}
@@ -56,24 +57,41 @@ var StepSkills = Step{
 	},
 }
 
+func blueclawSkillsManifestCheckCommand(localManifest string) string {
+	return `if printf '%s' ` + shellQuote(localManifest) + ` | cmp -s - ` + shellQuote(skillsManifestPath) + ` && printf '%s' ` + shellQuote(localManifest) + ` | cmp -s - ` + shellQuote(skillsSyncManifestPath) + `; then
+  echo ok
+else
+  echo missing
+fi`
+}
+
 func blueclawWorkspaceSkillsSyncCommand() string {
 	blueclawProcessPattern := `[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket`
 	return `set -eu
-if ! systemctl cat ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1; then
+service_status=missing
+if systemctl cat ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1; then
+  service_status=present
+  systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+  if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` || pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
+    systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
+  fi
+fi
+` + blueclaw.BlueclawSupervisorBinaryPath + ` sync-workspace --atomic --workspace-image ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` --source ` + shellQuote(blueclaw.BlueclawWorkspacePath+"/skills") + ` --relative-target skills
+skills_sync_manifest_path="$(mktemp ` + shellQuote(filepath.Dir(skillsSyncManifestPath)+"/.skills-sync-manifest.XXXXXX") + `)"
+trap 'rm -f "$skills_sync_manifest_path"' EXIT
+install -m 0644 ` + shellQuote(skillsManifestPath) + ` "$skills_sync_manifest_path"
+mv -f "$skills_sync_manifest_path" ` + shellQuote(skillsSyncManifestPath) + `
+trap - EXIT
+if [ "$service_status" = "missing" ]; then
   echo missing
   exit 0
 fi
-systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
-for _ in $(seq 1 20); do
-  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
-    break
-  fi
-  sleep 1
-done
-if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` || pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
-  systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
-fi
-` + blueclaw.BlueclawSupervisorBinaryPath + ` sync-workspace --atomic --workspace-image ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` --source ` + shellQuote(blueclaw.BlueclawWorkspacePath+"/skills") + ` --relative-target skills
 systemctl start ` + blueclaw.BlueclawServiceName + `
 systemctl is-active ` + blueclaw.BlueclawServiceName + ` 2>/dev/null`
 }

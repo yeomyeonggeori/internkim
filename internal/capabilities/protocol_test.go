@@ -5,12 +5,15 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type schemaDocument struct {
-	Type       string         `json:"type"`
-	Properties map[string]any `json:"properties"`
-	Required   []string       `json:"required"`
+	Type          string         `json:"type"`
+	Properties    map[string]any `json:"properties"`
+	Required      []string       `json:"required"`
+	MinProperties int            `json:"minProperties"`
 }
 
 func TestToolInvokeRequestRoundTrip(t *testing.T) {
@@ -45,20 +48,6 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestCompanionToolNamesComeFromDescriptors(t *testing.T) {
-	descriptors := CompanionToolDescriptors()
-	toolNames := CompanionToolNames()
-
-	if len(descriptors) != len(toolNames) {
-		t.Fatalf("expected descriptor and tool name counts to match")
-	}
-	for index, descriptor := range descriptors {
-		if toolNames[index] != descriptor.Name {
-			t.Fatalf("expected tool name %q, got %q", descriptor.Name, toolNames[index])
-		}
-	}
-}
-
 func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	expectedReplacements := map[string]string{
 		"calendar.event.add":        "calendar.add",
@@ -77,15 +66,9 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 		"platform.message.update":   "message.update",
 		"site.app.create":           "site.create",
 		"site.app.delete":           "site.delete",
-		"site.app.diff":             "site.diff",
-		"site.app.history":          "site.history",
-		"site.app.logs":             "site.logs",
 		"site.app.preview":          "site.preview",
 		"site.app.publish":          "site.publish",
-		"site.app.restore":          "site.restore",
-		"site.app.rollback":         "site.rollback",
 		"site.app.status":           "site.status",
-		"site.app.unpublish":        "site.unpublish",
 	}
 	replacements := LegacyToolNameReplacements()
 	if !reflect.DeepEqual(replacements, expectedReplacements) {
@@ -93,7 +76,7 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	}
 
 	currentToolNames := map[string]bool{}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		currentToolNames[toolName] = true
 	}
 	for legacyToolName, currentToolName := range replacements {
@@ -120,10 +103,17 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 			t.Fatalf("expected Google Workspace to be disabled by default, got %+v", descriptor)
 		}
 	}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		if strings.HasPrefix(toolName, "google.") {
-			t.Fatalf("expected default tools to omit Google Workspace, got %+v", DefaultToolNames())
+			t.Fatalf("expected default tools to omit Google Workspace, got %+v", defaultToolNames())
 		}
+	}
+}
+
+func TestRegisteredToolDescriptorsIncludeOptionalCapabilities(t *testing.T) {
+	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google.gmail.send")
+	if descriptor.CanonicalName != "google.gmail.send" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+		t.Fatalf("unexpected registered descriptor: %+v", descriptor)
 	}
 }
 
@@ -133,64 +123,221 @@ func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
 			t.Fatalf("expected personal calendar connection start to be absent, got %+v", descriptor)
 		}
 	}
-	for _, toolName := range DefaultToolNames() {
+	for _, toolName := range defaultToolNames() {
 		if toolName == "calendar.connection.start" {
-			t.Fatalf("expected default tools to omit personal calendar connection start, got %+v", DefaultToolNames())
+			t.Fatalf("expected default tools to omit personal calendar connection start, got %+v", defaultToolNames())
 		}
+	}
+}
+
+func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T) {
+	descriptor := descriptorForTool(t, CalendarDescriptors(), "calendar.update")
+	schema := descriptorSchema(t, CalendarDescriptors(), "calendar.update")
+
+	if descriptor.Version != "3" {
+		t.Fatalf("calendar.update version = %q", descriptor.Version)
+	}
+	assertSchemaHasProperties(t, schema, "eventHint", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	assertSchemaOmitsProperties(t, schema, "query", "eventID")
+	assertSchemaRequires(t, schema, "eventHint")
+	if schema.MinProperties != 2 {
+		t.Fatalf("calendar.update minProperties = %d", schema.MinProperties)
+	}
+	for _, fieldName := range []string{"title", "description", "location", "startISO", "endISO"} {
+		if stringSliceContains(schema.Required, fieldName) {
+			t.Fatalf("expected omitted %s to preserve the stored value", fieldName)
+		}
+	}
+}
+
+func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
+	schema := descriptorSchema(t, CalendarDescriptors(), "calendar.delete")
+
+	assertSchemaHasProperties(t, schema, "eventHint")
+	assertSchemaOmitsProperties(t, schema, "query", "eventID")
+	assertSchemaRequires(t, schema, "eventHint")
+	if descriptorForTool(t, CalendarDescriptors(), "calendar.delete").Version != "2" {
+		t.Fatal("calendar.delete descriptor must use the canonical-result v2 contract")
 	}
 }
 
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
 	for _, toolName := range []string{"message.context", "message.search", "message.send", "message.update", "message.delete", "channel.update"} {
-		if !containsString(DefaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
+		if !containsString(defaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to include %q, got %+v", toolName, defaultToolNames())
 		}
 	}
 	for _, toolName := range []string{"platform.dm.send", "platform.dm.inspect", "mattermost.context.inspect", "mattermost.post.search", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete"} {
-		if containsString(DefaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, DefaultToolNames())
+		if containsString(defaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, defaultToolNames())
 		}
 	}
 }
 
-func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
+func TestRegisteredDescriptorsRequireTypedContractsWhenModelVisible(t *testing.T) {
+	for _, descriptors := range [][]Descriptor{DeviceDescriptors(), RegisteredToolDescriptors()} {
+		if errorValue := capabilityprotocol.ValidateModelVisibleCapabilityDescriptorSet(descriptors); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		for _, descriptor := range descriptors {
+			if descriptor.ModelVisibility == capabilityprotocol.ModelVisibilityVisible || descriptor.ModelVisible {
+				if descriptor.ResultContract == nil || len(descriptor.ResultContract.Schema) == 0 {
+					t.Fatalf("model-visible descriptor lacks a result contract: %+v", descriptor)
+				}
+			}
+		}
+	}
+}
+
+func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
+	searchDescriptor := descriptorForTool(t, WebDescriptors(), "web.search")
+	if searchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !searchDescriptor.ModelVisible {
+		t.Fatalf("web.search must remain model-visible: %+v", searchDescriptor)
+	}
+	if searchDescriptor.RequiresApproval || searchDescriptor.SideEffectClass != "read" || searchDescriptor.ResultContract == nil {
+		t.Fatalf("unexpected web.search descriptor: %+v", searchDescriptor)
+	}
+	if len(searchDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("web.search must not expose effects: %+v", searchDescriptor.ResultContract.Effects)
+	}
+	searchResultSchema := decodeSchema(t, "web.search result", searchDescriptor.ResultContract.Schema)
+	assertSchemaHasProperties(t, searchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "query", "answer", "results")
+	assertSchemaRequires(t, searchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "query", "answer", "results")
+
+	fetchDescriptor := descriptorForTool(t, WebDescriptors(), "web.fetch")
+	if fetchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || fetchDescriptor.ModelVisible {
+		t.Fatalf("web.fetch must remain registered but hidden: %+v", fetchDescriptor)
+	}
+}
+
+func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.add")
 
-	assertSchemaHasProperties(t, schema, "prompt", "targetPersonHint", "weekCode", "allowDuplicate")
-	assertSchemaRequires(t, schema, "prompt")
-	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
+	assertSchemaHasProperties(t, schema, "title", "goal", "size", "status", "startDate", "endDate", "targetPersonHint", "participantPersonHints")
+	assertSchemaRequires(t, schema, "title")
+	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
+		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
+	}
+	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
+	for _, descriptor := range FlowDescriptors() {
+		if descriptor.Name == "task.add" && descriptor.Version != "3" {
+			t.Fatalf("task.add version = %q", descriptor.Version)
+		}
+	}
 }
 
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.list")
 
-	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "weekFrom", "weekTo", "status", "limit")
+	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.update")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "content", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
-	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate")
+	assertSchemaHasProperties(t, schema, "taskHint", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
+	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
+	assertSchemaRequires(t, schema, "taskHint")
+	if schema.MinProperties != 2 {
+		t.Fatalf("task.update minProperties = %d", schema.MinProperties)
+	}
+	if descriptorForTool(t, FlowDescriptors(), "task.update").Version != "3" {
+		t.Fatal("task.update descriptor must use the canonical-result v3 contract")
+	}
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.update", "success", "write_task", "task")
 }
 
 func TestFlowDescriptorIncludesTaskDeleteInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task.delete")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode")
-	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate", "content")
+	assertSchemaHasProperties(t, schema, "taskHint")
+	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
+	assertSchemaRequires(t, schema, "taskHint")
+	if descriptorForTool(t, FlowDescriptors(), "task.delete").Version != "3" {
+		t.Fatal("task.delete descriptor must use the canonical-result v3 contract")
+	}
 	assertDescriptorApproval(t, FlowDescriptors(), "task.delete", true)
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task.delete", "success", "delete_task", "task")
 }
 
+func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
+	expectedEffects := map[string]string{
+		"task.add":    "created",
+		"task.update": "updated",
+		"task.delete": "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, FlowDescriptors(), toolName)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", toolName)
+		}
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+		}
+		if errorValue := json.Unmarshal(descriptor.ResultContract.Schema, &schema); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, hasTaskID := schema.Properties["taskID"]; !hasTaskID || !stringSliceContains(schema.Required, "taskID") {
+			t.Fatalf("%s result schema must require taskID", toolName)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 ||
+			descriptor.ResultContract.Effects[0].ObjectType != "task" ||
+			descriptor.ResultContract.Effects[0].Effect != expectedEffect ||
+			descriptor.ResultContract.Effects[0].ResultField != "taskID" ||
+			descriptor.ResultContract.Effects[0].EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+	}
+	listDescriptor := descriptorForTool(t, FlowDescriptors(), "task.list")
+	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("task.list result contract = %+v", listDescriptor.ResultContract)
+	}
+}
+
+func TestCalendarDescriptorsDeclareCanonicalResults(t *testing.T) {
+	expectedEffects := map[string]string{
+		"calendar.add":    "created",
+		"calendar.update": "updated",
+		"calendar.delete": "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, CalendarDescriptors(), toolName)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", toolName)
+		}
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+		}
+		if errorValue := json.Unmarshal(descriptor.ResultContract.Schema, &schema); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, hasEventID := schema.Properties["eventID"]; !hasEventID || !stringSliceContains(schema.Required, "eventID") {
+			t.Fatalf("%s result schema must require eventID", toolName)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 ||
+			descriptor.ResultContract.Effects[0].ObjectType != "calendar" ||
+			descriptor.ResultContract.Effects[0].Effect != expectedEffect ||
+			descriptor.ResultContract.Effects[0].ResultField != "eventID" ||
+			descriptor.ResultContract.Effects[0].EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+	}
+	listDescriptor := descriptorForTool(t, CalendarDescriptors(), "calendar.list")
+	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("calendar.list result contract = %+v", listDescriptor.ResultContract)
+	}
+}
+
 func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
-	contextSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.context")
-	searchSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.search")
-	sendSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.send")
-	updateSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.update")
-	deleteSchema := descriptorSchema(t, PlatformMessageDescriptors(), "message.delete")
+	descriptors := PlatformMessageDescriptors()
+	contextSchema := descriptorSchema(t, descriptors, "message.context")
+	searchSchema := descriptorSchema(t, descriptors, "message.search")
+	sendSchema := descriptorSchema(t, descriptors, "message.send")
+	updateSchema := descriptorSchema(t, descriptors, "message.update")
+	deleteSchema := descriptorSchema(t, descriptors, "message.delete")
 
 	assertSchemaHasProperties(t, contextSchema)
 	assertSchemaHasProperties(t, searchSchema, "scope", "channelName", "channelID", "personHint", "authoredBy", "queries", "limit", "cursor")
@@ -211,6 +358,33 @@ func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.update", "success", "update_message", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.delete", "success", "delete_message", "message")
+	expectedEffects := map[string]struct {
+		effect      string
+		resultField string
+	}{
+		"message.send":   {effect: "sent", resultField: "messageIDs"},
+		"message.update": {effect: "updated", resultField: "messageID"},
+		"message.delete": {effect: "deleted", resultField: "messageIDs"},
+	}
+	for toolName, expected := range expectedEffects {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible {
+			t.Fatalf("%s must use its visible generated v2 descriptor: %+v", toolName, descriptor)
+		}
+		if len(descriptor.ResultContract.Effects) != 1 {
+			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
+		}
+		effect := descriptor.ResultContract.Effects[0]
+		if effect.ObjectType != "message" || effect.Effect != expected.effect || effect.ResultField != expected.resultField || effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effect = %+v", toolName, effect)
+		}
+	}
+	for _, toolName := range []string{"message.context", "message.search"} {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		if descriptor.Version != "2" || descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+			t.Fatalf("%s generated read contract = %+v", toolName, descriptor)
+		}
+	}
 }
 
 func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
@@ -223,6 +397,14 @@ func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
 		t.Fatalf("unexpected channel update policy resource")
 	}
 	assertDescriptorCompletionEvidence(t, descriptors, "channel.update", "success", "update_channel", "channel")
+	descriptor := descriptorForTool(t, descriptors, "channel.update")
+	if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || len(descriptor.ResultContract.Effects) != 1 {
+		t.Fatalf("channel.update must use its visible generated v2 descriptor: %+v", descriptor)
+	}
+	effect := descriptor.ResultContract.Effects[0]
+	if effect.ObjectType != "channel" || effect.Effect != "updated" || effect.ResultField != "channelID" || effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+		t.Fatalf("channel.update effect = %+v", effect)
+	}
 }
 
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
@@ -240,57 +422,206 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	}
 	assertDescriptorApproval(t, WebDescriptors(), "web.search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
-	if !containsString(DefaultToolNames(), "web.search") || !containsString(DefaultToolNames(), "web.fetch") {
-		t.Fatalf("expected web tools in defaults, got %+v", DefaultToolNames())
+	if !containsString(defaultToolNames(), "web.search") || !containsString(defaultToolNames(), "web.fetch") {
+		t.Fatalf("expected web tools in defaults, got %+v", defaultToolNames())
 	}
 }
 
 func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "document.read")
 
-	assertSchemaHasProperties(t, schema, "materialID", "path", "maxPages", "maxOutputBytes")
+	assertSchemaHasProperties(t, schema, "path", "maxPages", "maxOutputBytes")
+	assertSchemaOmitsProperties(t, schema, "materialID")
+	assertSchemaRequires(t, schema, "path")
 	assertSchemaOmitsProperties(t, schema, "ocrMode")
 	descriptor := descriptorForTool(t, FileDescriptors(), "document.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "document.read") {
-		t.Fatalf("expected document.read in default tools, got %+v", DefaultToolNames())
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("document.read result contract = %+v", descriptor.ResultContract)
+	}
+	if !containsString(defaultToolNames(), "document.read") {
+		t.Fatalf("expected document.read in default tools, got %+v", defaultToolNames())
 	}
 }
 
 func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "image.read")
 
-	assertSchemaHasProperties(t, schema, "materialID", "path")
+	assertSchemaHasProperties(t, schema, "path")
+	assertSchemaOmitsProperties(t, schema, "materialID")
+	assertSchemaRequires(t, schema, "path")
 	descriptor := descriptorForTool(t, FileDescriptors(), "image.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "image.read") {
-		t.Fatalf("expected image.read in default tools, got %+v", DefaultToolNames())
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("image.read result contract = %+v", descriptor.ResultContract)
+	}
+	if !containsString(defaultToolNames(), "image.read") {
+		t.Fatalf("expected image.read in default tools, got %+v", defaultToolNames())
 	}
 }
 
-func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
-	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.create")
-	previewSchema := descriptorSchema(t, SiteAppDescriptors(), "site.preview")
-	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.publish")
-	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.status")
-	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.history")
-	diffSchema := descriptorSchema(t, SiteAppDescriptors(), "site.diff")
-	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.delete")
+func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
+	for _, descriptorSet := range []struct {
+		descriptors []Descriptor
+		toolNames   []string
+	}{
+		{descriptors: CompanionToolDescriptors(), toolNames: []string{"browser.open", "browser.snapshot", "browser.screenshot", "browser.click"}},
+		{descriptors: DeviceBrowserDescriptors(), toolNames: []string{"browser.open", "browser.snapshot", "browser.click"}},
+	} {
+		for _, toolName := range descriptorSet.toolNames {
+			descriptor := descriptorForTool(t, descriptorSet.descriptors, toolName)
+			if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+				t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
+			}
+		}
+	}
 
-	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
+	openSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.open")
+	snapshotSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.snapshot")
+	clickSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser.click")
+	assertSchemaHasProperties(t, openSchema, "url")
+	assertSchemaRequires(t, openSchema, "url")
+	assertSchemaOmitsProperties(t, openSchema, "startURL")
+	assertSchemaOmitsProperties(t, snapshotSchema, "interactive")
+	assertSchemaHasProperties(t, clickSchema, "target", "ref", "selector")
+	if clickSchema.MinProperties != 1 {
+		t.Fatalf("browser.click minProperties = %d, want 1", clickSchema.MinProperties)
+	}
+}
+
+func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
+	hiddenDefaultToolNames := []string{
+		"file.pick",
+		"filesystem.mount.create",
+		"filesystem.mount.list",
+		"filesystem.mount.pause",
+		"filesystem.mount.resume",
+		"filesystem.mount.revoke",
+		"filesystem.mount.status",
+		"filesystem.mount.stat",
+		"filesystem.mount.list_directory",
+		"filesystem.mount.read",
+		"filesystem.mount.write",
+		"filesystem.mount.mkdir",
+		"filesystem.mount.rename",
+		"filesystem.mount.delete",
+		"filesystem.mount.truncate",
+		"filesystem.mount.chmod",
+		"filesystem.mount.watch",
+		"browser.handoff",
+		"browser.fill",
+		"browser.select",
+		"browser.press",
+		"browser.wait",
+		"image.generate",
+		"company.info.get",
+		"company.info.set",
+		"company.metric.record",
+		"company.metric.list",
+		"company.record.add",
+		"company.record.list",
+		"company.record.update",
+		"company.record.delete",
+		"company.document.register",
+		"company.document.list",
+		"company.document.search",
+		"company.document.update",
+		"web.fetch",
+		"mail.connection.status",
+		"mail.connection.start",
+		"mail.message.list",
+		"mail.message.search",
+		"mail.message.read",
+		"mail.message.send",
+		"mail.message.move",
+		"mail.message.mark",
+	}
+	defaultDescriptors := DefaultToolDescriptors()
+	for _, toolName := range hiddenDefaultToolNames {
+		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+			t.Fatalf("%s must remain registered but hidden: %+v", toolName, descriptor)
+		}
+	}
+	for _, toolName := range []string{"browser.fill", "browser.select", "browser.press", "browser.wait"} {
+		descriptor := descriptorForTool(t, DeviceBrowserDescriptors(), toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+			t.Fatalf("device %s must remain registered but hidden: %+v", toolName, descriptor)
+		}
+	}
+}
+
+func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
+	defaultDescriptors := DefaultToolDescriptors()
+	for _, toolName := range []string{
+		"browser.open",
+		"browser.snapshot",
+		"browser.screenshot",
+		"browser.click",
+		"document.read",
+		"image.read",
+		"message.context",
+		"message.search",
+		"message.send",
+		"message.update",
+		"message.delete",
+		"channel.update",
+	} {
+		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
+			t.Fatalf("%s must remain typed and model-visible: %+v", toolName, descriptor)
+		}
+	}
+}
+
+func TestSiteAppDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
+	descriptors := SiteAppDescriptors()
+	expectedToolNames := []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete"}
+	actualToolNames := make([]string, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		actualToolNames = append(actualToolNames, descriptor.Name)
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s result contract is missing", descriptor.Name)
+		}
+		if descriptor.Name == "site.delete" && !descriptor.RequiresApproval {
+			t.Fatalf("site.delete must require runtime approval")
+		}
+		if descriptor.Name == "site.delete" && descriptor.RequiresUserPresence {
+			t.Fatalf("site.delete executes on the device; requiring user presence routes it to the companion")
+		}
+	}
+	if !reflect.DeepEqual(actualToolNames, expectedToolNames) {
+		t.Fatalf("site tools = %v, want %v", actualToolNames, expectedToolNames)
+	}
+	for _, removedToolName := range []string{"site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
+		if containsString(actualToolNames, removedToolName) {
+			t.Fatalf("removed site tool %q is still model-visible", removedToolName)
+		}
+	}
+
+	createSchema := descriptorSchema(t, descriptors, "site.create")
+	statusSchema := descriptorSchema(t, descriptors, "site.status")
+	previewSchema := descriptorSchema(t, descriptors, "site.preview")
+	publishSchema := descriptorSchema(t, descriptors, "site.publish")
+	deleteSchema := descriptorSchema(t, descriptors, "site.delete")
+
+	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope", "content")
 	assertSchemaRequires(t, createSchema, "slug")
-	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
-	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
-	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
-	assertSchemaHasProperties(t, statusSchema, "siteID", "slug", "scope", "checkLive")
-	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
-	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
-	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")
-	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
+	assertSchemaHasProperties(t, statusSchema, "siteReference", "checkLive")
+	assertSchemaRequires(t, statusSchema, "siteReference")
+	assertSchemaHasProperties(t, previewSchema, "siteID", "previewID")
+	assertSchemaRequires(t, previewSchema, "siteID")
+	assertSchemaHasProperties(t, publishSchema, "siteID", "message", "previewID")
+	assertSchemaRequires(t, publishSchema, "siteID")
+	assertSchemaHasProperties(t, deleteSchema, "siteID", "reason")
+	assertSchemaRequires(t, deleteSchema, "siteID")
+	assertSchemaOmitsProperties(t, previewSchema, "slug")
+	assertSchemaOmitsProperties(t, publishSchema, "slug")
+	assertSchemaOmitsProperties(t, deleteSchema, "slug", "confirm", "userConfirmed")
 }
 
 func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
@@ -301,6 +632,14 @@ func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
 	descriptor := descriptorForTool(t, ArtifactDescriptors(), "artifact.review")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected artifact.review descriptor: %+v", descriptor)
+	}
+	if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("artifact.review result contract = %+v", descriptor.ResultContract)
+	}
+	if descriptor.ResultContract.EvidenceCondition == nil ||
+		descriptor.ResultContract.EvidenceCondition.ResultField != "passed" ||
+		string(descriptor.ResultContract.EvidenceCondition.Equals) != "true" {
+		t.Fatalf("artifact.review evidence condition = %+v", descriptor.ResultContract.EvidenceCondition)
 	}
 }
 
@@ -324,7 +663,6 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
-	assertDescriptorCompletionEvidence(t, DeviceDescriptors(), "platform.reply", "success", "send_reply", "message")
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.add", "success", "write_calendar", "calendar")
@@ -358,6 +696,52 @@ func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testin
 	if descriptor.RequiresApproval {
 		t.Fatalf("site.publish should not require approval: %+v", descriptor)
 	}
+}
+
+func TestSiteAppDescriptorsDeclareExactResultContracts(t *testing.T) {
+	descriptors := SiteAppDescriptors()
+	expectedEffects := map[string]string{
+		"site.create":  "created",
+		"site.preview": "previewed",
+		"site.publish": "published",
+		"site.delete":  "deleted",
+	}
+	for toolName, expectedEffect := range expectedEffects {
+		descriptor := descriptorForTool(t, descriptors, toolName)
+		expectedEffectCount := 1
+		if toolName == "site.publish" {
+			expectedEffectCount = 2
+		}
+		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != expectedEffectCount {
+			t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
+		}
+		effect := descriptor.ResultContract.Effects[0]
+		if effect.ObjectType != "website" ||
+			effect.Effect != expectedEffect ||
+			effect.ResultField != "siteID" ||
+			effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+			t.Fatalf("%s effect = %+v", toolName, effect)
+		}
+	}
+	publishURL := descriptorForTool(t, descriptors, "site.publish").ResultContract.Effects[1]
+	if publishURL.ObjectType != "website" ||
+		publishURL.Effect != "published" ||
+		publishURL.ResultField != "publishedURL" ||
+		publishURL.EffectIdentity != capabilityprotocol.ResourceEffectIdentityURL {
+		t.Fatalf("site.publish URL effect = %+v", publishURL)
+	}
+
+	statusDescriptor := descriptorForTool(t, descriptors, "site.status")
+	if statusDescriptor.ResultContract == nil || len(statusDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("site.status result contract = %+v", statusDescriptor.ResultContract)
+	}
+	createResultSchema := decodeSchema(t, "site.create result", descriptorForTool(t, descriptors, "site.create").ResultContract.Schema)
+	publishResultSchema := decodeSchema(t, "site.publish result", descriptorForTool(t, descriptors, "site.publish").ResultContract.Schema)
+	deleteResultSchema := decodeSchema(t, "site.delete result", descriptorForTool(t, descriptors, "site.delete").ResultContract.Schema)
+	assertSchemaRequires(t, createResultSchema, "siteID", "sourceWorkspacePath", "appWorkspacePath")
+	assertSchemaRequires(t, publishResultSchema, "siteID", "sourceWorkspacePath", "sourceSHA256", "publishedURL", "currentVersionID")
+	assertSchemaRequires(t, deleteResultSchema, "siteID", "deleted")
+	assertDescriptorCompletionEvidence(t, descriptors, "site.delete", "success", "delete_site", "site")
 }
 
 func TestSiteAppCreateDescriptorHasContentSchema(t *testing.T) {
@@ -464,8 +848,34 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 			}
 			assertRequiredFieldsHaveProperties(t, descriptor.Name, schema)
 			assertSchemaDocumentOmitsKeywords(t, descriptor.Name, descriptor.InputSchema, "oneOf", "anyOf", "allOf")
-			assertSchemaDocumentOmitsType(t, descriptor.Name, descriptor.InputSchema, "integer")
 		}
+	}
+}
+
+func TestDefaultDescriptorsSatisfyCanonicalProviderContract(t *testing.T) {
+	descriptors := DefaultToolDescriptors()
+	if errorValue := capabilityprotocol.ValidateDescriptorSet(descriptors); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, descriptor := range descriptors {
+		if descriptor.Name == "" || descriptor.CanonicalName == "" || descriptor.Namespace == "" || descriptor.ModelName == "" {
+			t.Fatalf("descriptor identity is incomplete: %+v", descriptor)
+		}
+		if !descriptor.InputSchemaStrict || !descriptor.OutputSchemaStrict || len(descriptor.InputSchema) == 0 || len(descriptor.OutputSchema) == 0 {
+			t.Fatalf("descriptor schemas are not strict: %+v", descriptor)
+		}
+	}
+}
+
+func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
+	for _, toolName := range []string{"message.send", "mail.message.send", "google.gmail.send"} {
+		descriptor := descriptorForTool(t, append(DefaultToolDescriptors(), GoogleWorkspaceDescriptors()...), toolName)
+		if !descriptor.Idempotency.Supported || descriptor.Idempotency.Scope != "operation" {
+			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)
+		}
+	}
+	if descriptorForTool(t, FlowDescriptors(), "task.add").Idempotency.Supported {
+		t.Fatal("task.add must not inherit idempotency from its name")
 	}
 }
 
@@ -634,6 +1044,14 @@ func stringSliceContains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func defaultToolNames() []string {
+	toolNames := make([]string, 0, len(DefaultToolDescriptors()))
+	for _, descriptor := range DefaultToolDescriptors() {
+		toolNames = append(toolNames, descriptor.Name)
+	}
+	return toolNames
 }
 
 func containsString(values []string, target string) bool {
