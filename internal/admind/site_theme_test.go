@@ -498,3 +498,19 @@ func TestParseSiteDesignStylePreset(t *testing.T) {
 		t.Fatalf("brutalist preset variables missing from theme css:\n%s", css)
 	}
 }
+
+func TestApplySiteDesignThemeForActionToleratesUnfinishedDesignOnPreviewOnly(t *testing.T) {
+	hostSourcePath := t.TempDir()
+	frontendDistPath := t.TempDir()
+	unfinishedDocument := "---\nversion: alpha\n---\nTODO(design): decide the palette.\n"
+	if errorValue := os.WriteFile(filepath.Join(hostSourcePath, siteDesignDocumentPath), []byte(unfinishedDocument), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := applySiteDesignThemeForAction(hostSourcePath, frontendDistPath, "preview"); errorValue != nil {
+		t.Fatalf("expected preview to tolerate an unfinished design contract, got %v", errorValue)
+	}
+	if errorValue := applySiteDesignThemeForAction(hostSourcePath, frontendDistPath, "publish"); errorValue == nil {
+		t.Fatal("expected publish to keep enforcing the design contract")
+	}
+}
