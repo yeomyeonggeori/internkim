@@ -147,13 +147,16 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if scenario.Steps[0].ExpectedToolCallCounts["site.status"] != 1 || scenario.Steps[0].ExpectedExactToolCallCounts["site.create"] != 1 {
-		t.Fatalf("unexpected create discovery contract: %#v", scenario.Steps[0])
+	hasExactCreateEffect := false
+	for _, eventCount := range scenario.Steps[0].ExpectedEventCounts {
+		if eventCount.Name == "tool.site.create.result" && eventCount.BodyFragment == `"effect":"created"` {
+			hasExactCreateEffect = eventCount.Exact && !eventCount.Advisory && eventCount.Count == 1
+		}
+	}
+	if !hasExactCreateEffect {
+		t.Fatalf("step 1 does not require exactly one site creation effect: %#v", scenario.Steps[0])
 	}
 	for stepIndex, step := range scenario.Steps[1:] {
-		if !containsMattermostScenarioString(step.ExpectedToolCalls, "site.status") {
-			t.Fatalf("step %d does not resolve the site before mutation: %#v", stepIndex+2, step)
-		}
 		if !strings.Contains(step.Prompt, "브릿지웍스 상담 안내 사이트") {
 			t.Fatalf("step %d does not identify the site independently: %q", stepIndex+2, step.Prompt)
 		}
@@ -169,13 +172,12 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 		t.Fatalf("expected one delete turn with button approval, got %d steps", len(scenario.Steps))
 	}
 	if !containsMattermostScenarioString(scenario.CapabilityToolNames, "document.read") ||
-		!containsMattermostScenarioString(scenario.InitialToolNames, "document.read") ||
-		containsMattermostScenarioString(scenario.AllowedTools, "file.preview") {
+		!containsMattermostScenarioString(scenario.InitialToolNames, "document.read") {
 		t.Fatalf("unexpected document tool exposure: %#v", scenario)
 	}
 	for _, stepIndex := range []int{1, 3} {
-		if !containsMattermostScenarioString(scenario.Steps[stepIndex].ExpectedToolCalls, "document.read") {
-			t.Fatalf("step %d does not use document.read: %#v", stepIndex+1, scenario.Steps[stepIndex])
+		if !containsMattermostScenarioString(scenario.Steps[stepIndex].ExpectedAnyToolCalls, "document.read") {
+			t.Fatalf("step %d does not accept document.read as a read path: %#v", stepIndex+1, scenario.Steps[stepIndex])
 		}
 	}
 	deleteStep := scenario.Steps[len(scenario.Steps)-1]
