@@ -522,10 +522,22 @@ func (service *Service) restartReleaseLLMD(ctx context.Context) error {
 	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.LLMDServiceName); errorValue != nil {
 		return fmt.Errorf("restart LLMD: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand()); errorValue != nil || strings.TrimSpace(string(output)) != "ok" {
-		return fmt.Errorf("LLMD health check failed: %s", strings.TrimSpace(string(output)))
+	lastOutput := ""
+	for attempt := 0; attempt < 10; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(3 * time.Second):
+			}
+		}
+		output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.LLMDHealthCheckCommand())
+		lastOutput = strings.TrimSpace(string(output))
+		if errorValue == nil && lastOutput == "ok" {
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("LLMD health check failed: %s", lastOutput)
 }
 
 func (service *Service) reconcileReleaseLLMDBootstrap(ctx context.Context) error {
