@@ -406,20 +406,14 @@ func TestSitePublishWithoutDesignDocumentSkipsThemeCSS(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:              site.SiteID,
 		SourceWorkspacePath: site.SourceWorkspacePath,
 		SourceBundleBase64:  testSourceBundleBase64(t, site.HostSourcePath),
 		SourceBundleFormat:  "tar.gz",
 	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if site.Status != SiteStatusPublished {
-		t.Fatalf("published status = %q", site.Status)
-	}
-	if isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
-		t.Fatal("expected no theme.css to be materialized for a site without DESIGN.md")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "DESIGN.md is required") {
+		t.Fatalf("expected publish without DESIGN.md to fail closed, got %v", errorValue)
 	}
 }
 
@@ -435,11 +429,14 @@ func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	}
 	sourceWorkspacePath := t.TempDir()
 	writeTestSourceBuild(t, sourceWorkspacePath, "freshness publish")
+	if errorValue := os.WriteFile(filepath.Join(sourceWorkspacePath, "DESIGN.md"), []byte(siteDesignMD(site)), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:              site.SiteID,
 		RequestedBy:         "owner@example.com",
-		Message:             "Publish fresh build without DESIGN.md",
+		Message:             "Publish fresh build with the scaffold design contract",
 		SourceWorkspacePath: site.SourceWorkspacePath,
 		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
 		SourceBundleFormat:  "tar.gz",
@@ -451,8 +448,8 @@ func TestSiteLegacyFreshnessPublishPathIsUnaffectedByTheme(t *testing.T) {
 	if !strings.Contains(response.Body.String(), "freshness publish") {
 		t.Fatalf("published body = %q", response.Body.String())
 	}
-	if isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
-		t.Fatal("expected no theme.css on the legacy freshness path without DESIGN.md")
+	if !isRegularFile(publishedSiteThemeCSSPath(t, service, site)) {
+		t.Fatal("expected theme.css to render from the design contract on the freshness path")
 	}
 }
 
