@@ -4446,7 +4446,7 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 	return append(base, extra...)
 }
 
-const resumableUploadMinimumBytes = 32 * 1024 * 1024
+const resumableUploadMinimumBytes = 16 * 1024 * 1024
 
 func (s *sshClient) scp(localPath, remotePath string) error {
 	if fileInfo, errorValue := os.Stat(localPath); errorValue == nil && fileInfo.Size() >= resumableUploadMinimumBytes {
