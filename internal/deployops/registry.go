@@ -148,6 +148,12 @@ func discoverBoardTargets(boardsPath string, profile string) []Target {
 		if adminURL == "" {
 			continue
 		}
+		fleetRole := strings.TrimSpace(readStateFile(statePath, "fleet_role"))
+		isAbandonedFleetRegistration := strings.TrimSpace(readStateFile(statePath, "fleet_id")) != "" &&
+			fleetRole != "active" && fleetRole != "pending"
+		if isAbandonedFleetRegistration {
+			continue
+		}
 		nodeID := strings.TrimSpace(readStateFile(statePath, "node_id"))
 		targets = append(targets, Target{
 			ID:           targetID(profile, entry.Name(), adminURL),
