@@ -35,7 +35,7 @@ type CalendarPageLifecycleOptionsContext = {
 	getToolbarDate: () => Date;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
-	openEventEditor: CalendarEmbedLifecycleOptions['eventDoubleClick']['openEvent'];
+	openEventEditor: CalendarEmbedLifecycleOptions['eventKeyboardActivation']['openEvent'];
 	pageMessages: CalendarPageMessageActions;
 	pageNavigation: CalendarPageNavigation;
 	rangePreview: CalendarPageRangePreviewActions;
@@ -74,9 +74,6 @@ export function createCalendarPageLifecycleOptions(
 		timelineRangeAction: timelineRangeAction(context),
 		wheelNavigation: wheelNavigation(context),
 		draftPopoverDismiss: draftPopoverDismiss(context),
-		eventDoubleClick: {
-			openEvent: context.openEventEditor
-		},
 		eventKeyboardActivation: {
 			openEvent: context.openEventEditor
 		},

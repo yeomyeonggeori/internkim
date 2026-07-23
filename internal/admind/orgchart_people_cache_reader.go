@@ -16,7 +16,7 @@ func (service *Service) applyCachedOrgchartPeople(ctx context.Context, usersResp
 }
 
 func (service *Service) applyOrgchartPeople(ctx context.Context, usersResponse pagesUsersResponse, cachePolicy orgchartPeopleCachePolicy) (orgchartMetadataResponse, error) {
-	groups, errorValue := service.readCachedOrgchartGroups(ctx, usersResponse.AvailableGroups)
+	groups, errorValue := service.readCachedOrgchartGroups(ctx)
 	if errorValue != nil {
 		return orgchartMetadataResponse{}, errorValue
 	}

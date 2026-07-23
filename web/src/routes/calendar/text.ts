@@ -403,7 +403,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		rotate: 'Rotate subscription URL',
 		copy: 'Copy',
 		loading: 'Loading calendar...',
-		empty: 'Drag or double-click the calendar to create an event.',
+		empty: 'Drag or click the calendar to create an event.',
 		error: 'Could not load the calendar.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',

@@ -67,6 +67,10 @@ func (service *Service) handleOrgchartGroupsUpdate(responseWriter http.ResponseW
 		return
 	}
 	if errorValue := service.writeOrgchartGroups(request.Context(), groupsRequest.Groups); errorValue != nil {
+		if errors.Is(errorValue, errOrgchartGroupInvalidHierarchy) {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}

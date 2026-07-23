@@ -39,6 +39,7 @@ describe('dev admin orgchart mock plugin', () => {
 
 	test('returns public orgchart directory data for the employee page', () => {
 		const state = createDevAdminOrgchartMockState('admin@example.com');
+		state.groups.push({ id: 'group-engineering', name: '개발팀', parentID: 'group-product' });
 		const response = createDevAdminOrgchartMockResponse(state, {
 			method: 'GET',
 			pathname: '/orgchart/api/people',
@@ -52,7 +53,15 @@ describe('dev admin orgchart mock plugin', () => {
 		expect(userIDs?.includes('dev-user-ceo')).toBe(true);
 		expect(userIDs?.includes('dev-user-dabin')).toBe(true);
 		expect(userIDs?.includes('dev-user-nam')).toBe(true);
-		expect(body.availableGroups?.map((group) => group.id)).toEqual(['group-leadership', 'group-operations', 'group-product', 'group-design', 'group-field']);
+		expect(body.availableGroups?.map((group) => group.id)).toEqual([
+			'group-leadership',
+			'group-operations',
+			'group-product',
+			'group-design',
+			'group-field',
+			'group-engineering'
+		]);
+		expect(body.availableGroups?.find((group) => group.id === 'group-design')?.parentID).toBe('group-product');
 	});
 
 	test('deduplicates groups by case-insensitive name when saving', () => {
@@ -73,6 +82,28 @@ describe('dev admin orgchart mock plugin', () => {
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
 		expect(body.availableGroups?.map((group) => group.name)).toEqual(['Engineering', 'Design']);
+	});
+
+	test('preserves organization parent relationships when saving', () => {
+		const state = createDevAdminOrgchartMockState('admin@example.com');
+		const response = createDevAdminOrgchartMockResponse(state, {
+			method: 'PUT',
+			pathname: '/admin/api/org-groups',
+			searchParams: new URLSearchParams('includePolicy=true'),
+			body: JSON.stringify({
+				groups: [
+					{ id: 'group-product', name: '제품팀' },
+					{ id: 'group-engineering', name: '개발팀', parentID: 'group-product' }
+				]
+			})
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as UsersResponse;
+		expect(body.availableGroups).toEqual([
+			{ id: 'group-product', name: '제품팀' },
+			{ id: 'group-engineering', name: '개발팀', parentID: 'group-product' }
+		]);
 	});
 
 	test('applies org profile updates to mock users', () => {

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	dateTimeKeyInSeoul,
 	routeCalendarEventUpdates,
@@ -103,6 +103,8 @@ test.describe('embedded calendar multi-day month drag interactions', () => {
 		await expect(page.locator('.calendar-month-direct-event[data-event-id="month-direct-selected-event"]')).toHaveClass(
 			/internkim-calendar-event-focused/
 		);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await page.keyboard.press('Escape');
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('.calendar-month-direct-event[data-event-id="month-direct-selected-event"]')).toHaveClass(
 			/internkim-calendar-event-focused/
@@ -156,4 +158,117 @@ test.describe('embedded calendar multi-day month drag interactions', () => {
 			.toBe(true);
 	});
 
+	test('requires a touch long press before moving a direct month event', async ({ page }) => {
+		await routeCalendarEvents(page, [
+			{
+				id: 'month-touch-long-press-event',
+				title: '월간 롱프레스 이동',
+				startISO: '2026-06-10T09:00:00+09:00',
+				endISO: '2026-06-10T10:00:00+09:00',
+				isAllDay: false
+			}
+		]);
+		const updatedEvents = await routeCalendarEventUpdates(page);
+
+		await openCalendarEmbed(page, '월');
+		await navigateEmbeddedCalendar(page, '2026-06-10');
+		const eventBlock = page.locator(
+			'.calendar-month-direct-event[data-event-id="month-touch-long-press-event"]'
+		);
+		const dragGeometry = await monthTouchDragGeometry(page, 'month-touch-long-press-event', '2026-06-12');
+
+		await eventBlock.dispatchEvent('pointerdown', {
+			button: 0,
+			buttons: 1,
+			clientX: dragGeometry.sourceX,
+			clientY: dragGeometry.sourceY,
+			pointerId: 71,
+			pointerType: 'touch'
+		});
+		await page.waitForTimeout(150);
+		await dispatchTouchPointerEnd(page, dragGeometry, 71);
+		await page.waitForTimeout(100);
+
+		expect(updatedEvents).toHaveLength(0);
+		await expect(eventBlock).not.toHaveClass(/calendar-month-event-drag-ready/);
+
+		await eventBlock.dispatchEvent('pointerdown', {
+			button: 0,
+			buttons: 1,
+			clientX: dragGeometry.sourceX,
+			clientY: dragGeometry.sourceY,
+			pointerId: 72,
+			pointerType: 'touch'
+		});
+		await page.waitForTimeout(550);
+		await expect(eventBlock).toHaveClass(/calendar-month-event-drag-ready/);
+		await dispatchTouchPointerEnd(page, dragGeometry, 72);
+
+		await expect.poll(() => updatedEvents.length).toBe(1);
+		const updatedEvent = updatedEvents[0];
+		if (!updatedEvent) throw new Error('Missing month touch drag update payload');
+		expect(updatedEvent.eventID).toBe('month-touch-long-press-event');
+		expect(dateTimeKeyInSeoul(updatedEvent.startISO)).toBe('2026-06-12 09:00');
+	});
 });
+
+async function monthTouchDragGeometry(
+	page: Page,
+	eventID: string,
+	targetDateKey: string
+): Promise<{ sourceX: number; sourceY: number; targetX: number; targetY: number }> {
+	return page.evaluate(
+		({ eventID, targetDateKey }) => {
+			const eventElement = document.querySelector<HTMLElement>(
+				`.calendar-month-direct-event[data-event-id="${CSS.escape(eventID)}"]`
+			);
+			const targetCell = document.querySelector<HTMLElement>(
+				`.df-month-day-cell[data-date="${CSS.escape(targetDateKey)}"]`
+			);
+			if (!eventElement || !targetCell) throw new Error('Missing month touch drag geometry');
+			const eventRectangle = eventElement.getBoundingClientRect();
+			const targetRectangle = targetCell.getBoundingClientRect();
+			return {
+				sourceX: eventRectangle.left + Math.min(42, eventRectangle.width / 2),
+				sourceY: eventRectangle.top + eventRectangle.height / 2,
+				targetX: targetRectangle.left + targetRectangle.width / 2,
+				targetY: eventRectangle.top + eventRectangle.height / 2
+			};
+		},
+		{ eventID, targetDateKey }
+	);
+}
+
+async function dispatchTouchPointerEnd(
+	page: Page,
+	dragGeometry: { targetX: number; targetY: number },
+	pointerID: number
+): Promise<void> {
+	await page.evaluate(
+		({ targetX, targetY, pointerID }) => {
+			window.dispatchEvent(
+				new PointerEvent('pointermove', {
+					bubbles: true,
+					cancelable: true,
+					buttons: 1,
+					clientX: targetX,
+					clientY: targetY,
+					pointerId: pointerID,
+					pointerType: 'touch'
+				})
+			);
+			window.dispatchEvent(
+				new PointerEvent('pointerup', {
+					bubbles: true,
+					cancelable: true,
+					buttons: 0,
+					clientX: targetX,
+					clientY: targetY,
+					pointerId: pointerID,
+					pointerType: 'touch'
+				})
+			);
+		},
+		{ targetX: dragGeometry.targetX, targetY: dragGeometry.targetY, pointerID }
+	);
+}

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { routeCalendarEventUpdates, routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
-import { dispatchElementScroll, doubleClickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { dispatchElementScroll, clickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
 import {
 	duplicateDayAnchorTimelineEventSelector,
 	routeDuplicateDayAnchorEvent
@@ -78,7 +78,7 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		await routeDuplicateDayAnchorEvent(page);
 
 		await openCalendarEmbed(page, '일');
-		await doubleClickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
+		await clickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
 		await dispatchElementScroll(page, '.draft-popover-body', 24);
@@ -112,7 +112,7 @@ test.describe('embedded calendar timeline scroll and pointer guards', () => {
 		const eventSelector = '.calendar-stage [data-event-id="week-scroll-dismiss-event"].df-week-event.df-event-timed';
 		await expect(page.locator(eventSelector)).toBeVisible();
 
-		await doubleClickCalendarEvent(page, eventSelector);
+		await clickCalendarEvent(page, eventSelector);
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
 		await dispatchElementScroll(page, '.draft-popover-body', 24);
@@ -191,7 +191,6 @@ async function dispatchMovedPointerActivation(page: Page, selector: string, opti
 		if (dispatchPointerMove) document.dispatchEvent(new PointerEvent('pointermove', movedPointerEvent));
 		window.dispatchEvent(new PointerEvent('pointerup', movedPointerEvent));
 		target.dispatchEvent(new MouseEvent('click', movedMouseEvent));
-		target.dispatchEvent(new MouseEvent('dblclick', movedMouseEvent));
 	}, {
 		dispatchPointerMove: options.dispatchPointerMove ?? true,
 		targetSelector: selector,

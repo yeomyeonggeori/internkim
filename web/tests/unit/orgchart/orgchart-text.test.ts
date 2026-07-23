@@ -8,6 +8,11 @@ describe('orgchart directory text', () => {
 	test('keeps Korean and English key shapes aligned', () => {
 		expect(collectTextShape(orgchartDirectoryText.en).sort()).toEqual(collectTextShape(orgchartDirectoryText.ko).sort());
 	});
+
+	test('names the directory and synthetic root organization explicitly', () => {
+		expect(orgchartDirectoryText.ko.title).toBe('조직도');
+		expect(orgchartDirectoryText.ko.allOrganizations).toBe('전체 조직');
+	});
 });
 
 function collectTextShape(node: TextNode, path: string[] = []): string[] {

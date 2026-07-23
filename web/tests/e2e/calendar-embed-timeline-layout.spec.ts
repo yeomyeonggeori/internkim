@@ -24,7 +24,7 @@ import {
 	expectTimelineDraftCount
 } from './calendar-embed-draft-assertions';
 import {
-	createTimelineSlotByDoubleClick,
+	createTimelineSlotByClick,
 	dismissDraftPopoverFromTimeline,
 	navigateEmbeddedCalendar,
 	openCalendarEmbed
@@ -165,7 +165,7 @@ test.describe('embedded calendar timeline layout', () => {
 		await expectAllDayLabelAlignedWithTimeLabels(page, '.df-week-all-day-label');
 		await expectWeekAllDayExtendedDivider(page, true);
 
-		await createTimelineSlotByDoubleClick(page, '주');
+		await createTimelineSlotByClick(page, '주');
 		await expectPopoverAnchoredToDraftEvent(page);
 		await expectPopoverArrowPointsToDraftEvent(page);
 		await dismissDraftPopoverFromTimeline(page);
@@ -175,7 +175,7 @@ test.describe('embedded calendar timeline layout', () => {
 		await openCalendarEmbed(page, '일');
 		await expectDayAllDayRowCompact(page);
 		await expectAllDayLabelAlignedWithTimeLabels(page, '.df-all-day-label');
-		await createTimelineSlotByDoubleClick(page, '일');
+		await createTimelineSlotByClick(page, '일');
 		await expectPopoverAnchoredToDraftEvent(page);
 		await expectPopoverArrowPointsToDraftEvent(page);
 		await dismissDraftPopoverFromTimeline(page);

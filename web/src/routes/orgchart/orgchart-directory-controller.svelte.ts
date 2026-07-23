@@ -1,10 +1,12 @@
 import type { AdminPageText } from '../admin/admin-types';
-import { currentLocale } from '../../lib/i18n/locale.svelte';
+import type { Locale } from '../../lib/i18n/locale.svelte';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrgchart } from '../admin/admin-role-policy';
 import { fetchOrgchartDirectory, orgchartApiErrorMessage } from './orgchart-api';
 import { filterOrgchartRecords, orgchartFilterOptions, unassignedGroupID } from './orgchart-directory-model';
 import { orgchartGroupSavePlan } from './orgchart-group-controller';
+import { OrgchartOrganizationEditController } from './orgchart-organization-edit-controller.svelte';
+import { orgchartOrganizationTree, type OrgchartOrganizationTree } from './orgchart-organization-tree-model';
 import {
 	beginOrgchartProfileEdit,
 	clearOrgchartProfileSaving,
@@ -40,13 +42,13 @@ export class OrgchartDirectoryController {
 	canManage = $state(false);
 	errorMessage = $state('');
 	newGroupName = $state('');
+	newGroupParentID = $state('');
 	originalProfiles = $state<Record<string, OrgProfileSnapshot>>({});
 	editingRecordsByUserID = $state<Record<string, UserRecord>>({});
 	savingProfileUserIDs = $state<Record<string, boolean>>({});
+	organizationEdit = new OrgchartOrganizationEditController();
 
-	filters = $derived({ query: this.query, groupID: this.groupID });
 	options = $derived(orgchartFilterOptions(this.records, this.groups));
-	visibleRecords = $derived(filterOrgchartRecords(this.records, this.filters));
 	selectedRecord = $derived(this.records.find((record) => record.userID === this.selectedUserID));
 	selectedEditingRecord = $derived(this.selectedRecord ? this.editingRecordsByUserID[this.selectedRecord.userID] : undefined);
 	selectedRecordIsEditing = $derived(Boolean(this.selectedRecord && this.editingUserID === this.selectedRecord.userID && this.selectedEditingRecord));
@@ -56,15 +58,33 @@ export class OrgchartDirectoryController {
 	private adminBaseURL: string;
 	private text: OrgchartDirectoryPageText;
 	private adminPageText: AdminPageText;
+	private resolveLocale: () => Locale;
 
-	constructor(adminBaseURL: string, text: OrgchartDirectoryPageText, adminPageText: AdminPageText) {
+	constructor(adminBaseURL: string, text: OrgchartDirectoryPageText, adminPageText: AdminPageText, resolveLocale: () => Locale = () => 'ko') {
 		this.adminBaseURL = adminBaseURL;
 		this.text = text;
 		this.adminPageText = adminPageText;
+		this.resolveLocale = resolveLocale;
 	}
 
 	get organizationSections(): OrgchartOrganizationSection[] {
-		return orgchartOrganizationSections(this.visibleRecords, this.groups, this.text.unassignedTeam, this.records, currentLocale.value);
+		const records = filterOrgchartRecords(this.records, { query: this.query, groupID: this.groupID === unassignedGroupID ? unassignedGroupID : '' });
+		if (this.groupID === unassignedGroupID) return orgchartOrganizationSections(records, [], this.text.unassignedTeam);
+		return orgchartOrganizationSections(records, this.activeGroups, this.text.allOrganizations, this.groupID, this.records, this.resolveLocale());
+	}
+
+	get activeGroups(): OrgGroup[] {
+		return this.organizationEdit.isEditing ? this.organizationEdit.draftGroups : this.groups;
+	}
+
+	get organizationTree(): OrgchartOrganizationTree {
+		return orgchartOrganizationTree(this.activeGroups, this.records, this.text.allOrganizations);
+	}
+
+	get selectedOrganizationName(): string {
+		if (!this.groupID) return this.text.allOrganizations;
+		if (this.groupID === unassignedGroupID) return this.text.unassignedTeam;
+		return this.activeGroups.find((group) => group.id === this.groupID)?.name ?? this.text.allOrganizations;
 	}
 
 	async load(): Promise<void> {
@@ -96,6 +116,7 @@ export class OrgchartDirectoryController {
 	}
 
 	selectGroup(value: string | undefined): void {
+		if (this.organizationEdit.isEditing) return;
 		const nextGroupID = value === allValue || value === undefined ? '' : value;
 		if (nextGroupID === this.groupID) return;
 		if (this.hasUnsavedProfileEdits()) {
@@ -107,6 +128,7 @@ export class OrgchartDirectoryController {
 	}
 
 	selectRecord(record: UserRecord): void {
+		if (this.organizationEdit.isEditing) return;
 		if (this.editingUserID && this.editingUserID !== record.userID && this.hasUnsavedProfileEdits()) {
 			this.errorMessage = this.adminPageText.orgchart.unsavedChanges;
 			return;
@@ -160,26 +182,53 @@ export class OrgchartDirectoryController {
 	}
 
 	async addGlobalGroup(): Promise<void> {
-		const groupID = await this.addGroup(this.newGroupName);
+		const groupID = await this.addGroup(this.newGroupName, this.newGroupParentID);
 		if (!groupID) return;
 		this.newGroupName = '';
+		this.newGroupParentID = '';
 		this.isAddingGroup = false;
 	}
 
 	cancelAddGroup(): void {
 		if (this.isSavingGroups) return;
 		this.newGroupName = '';
+		this.newGroupParentID = '';
 		this.isAddingGroup = false;
 	}
 
 	handleAddGroupOpenChange(nextOpen: boolean): void {
 		if (!nextOpen && this.isSavingGroups) return;
 		this.isAddingGroup = nextOpen;
-		if (!nextOpen) this.newGroupName = '';
+		if (!nextOpen) {
+			this.newGroupName = '';
+			this.newGroupParentID = '';
+		}
 	}
 
-	toggleFilters(): void {
-		this.isFilterOpen = !this.isFilterOpen;
+	beginOrganizationEdit(): void {
+		if (!this.canManage || this.organizationEdit.isEditing) return;
+		if (this.hasUnsavedProfileEdits()) {
+			this.errorMessage = this.adminPageText.orgchart.unsavedChanges;
+			return;
+		}
+		this.errorMessage = '';
+		this.selectedUserID = '';
+		this.isAddingGroup = false;
+		this.organizationEdit.begin(this.groups);
+	}
+
+	cancelOrganizationEdit(): void {
+		if (this.isSavingGroups) return;
+		this.organizationEdit.cancel();
+	}
+
+	moveOrganization(groupID: string, insertionIndex: number, depth: number): void {
+		this.organizationEdit.move(groupID, insertionIndex, depth);
+	}
+
+	async saveOrganizationEdit(): Promise<void> {
+		if (!this.organizationEdit.isEditing || this.isSavingGroups) return;
+		if (await this.persistGroups(this.organizationEdit.draftGroups)) this.organizationEdit.cancel();
 	}
 
 	private applyUsersResponse(response: UsersResponse, fallbackGroups: OrgGroup[] = []): void {
@@ -213,8 +262,8 @@ export class OrgchartDirectoryController {
 		this.editingRecordsByUserID = removeOrgchartProfileEdit(this.editingRecordsByUserID, userID);
 	}
 
-	private async addGroup(name: string): Promise<string> {
-		const plan = orgchartGroupSavePlan(this.groups, name, () => crypto.randomUUID());
+	private async addGroup(name: string, parentID: string): Promise<string> {
+		const plan = orgchartGroupSavePlan(this.groups, name, parentID, () => crypto.randomUUID());
 		if (!plan.groupID || !plan.shouldPersist) return plan.groupID;
 		const isPersisted = await this.persistGroups(plan.groups);
 		return isPersisted ? plan.groupID : '';

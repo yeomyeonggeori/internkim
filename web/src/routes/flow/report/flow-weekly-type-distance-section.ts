@@ -1,9 +1,9 @@
 import { taskTeamDistance, weeklyTaskDayIndex } from './flow-report-distance';
 import { emptyTrend, incrementNested, percentage, sortedTypeDistances, typeIndex } from './flow-report-section-helpers';
-import type { FlowReportCopy, FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
+import type { FlowDailyTypeDistanceSection, FlowReportCopy, FlowReportDefinitions, FlowReportRow, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
 type BuildWeeklyTypeDistanceSectionInput = {
-	id: FlowReportSectionID;
+	id: FlowDailyTypeDistanceSection['id'];
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
 	copy: FlowReportCopy;
@@ -12,7 +12,7 @@ type BuildWeeklyTypeDistanceSectionInput = {
 	weekStartISO?: string;
 };
 
-export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSectionInput): FlowReportSection {
+export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSectionInput): FlowDailyTypeDistanceSection {
 	const weeklyDayLabels = normalizedWeekdays(input.copy.weekdays);
 	const dailyTypeDistances = new Map<string, Map<string, number>>();
 	for (const label of weeklyDayLabels) {
