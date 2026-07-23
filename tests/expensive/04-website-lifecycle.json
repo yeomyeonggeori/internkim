@@ -47,9 +47,6 @@
    "expectedToolCalls": [
     "site.create"
    ],
-   "expectedExactToolCallCounts": {
-    "site.create": 1
-   },
    "expectedEventCounts": [
     {
      "name": "tool.site.status.requested",
@@ -85,7 +82,7 @@
      "name": "tool.site.create.result",
      "bodyFragment": "\"effect\":\"created\"",
      "count": 1,
-     "advisory": true
+     "exact": true
     }
    ],
    "expectedWorkspaceFiles": [
