@@ -177,7 +177,8 @@
     {
      "name": "tool.message.search.result",
      "outputFragment": "\"messageIDs\":[]",
-     "count": 1
+     "count": 1,
+     "advisory": true
     }
    ],
    "expectedTaskStatus": "completed"
