@@ -727,19 +727,23 @@ func healBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
 	}
 	llmdSection, ok := languageModelSection["llmd"].(map[string]any)
 	if !ok {
-		languageModelSection["llmd"] = map[string]any{
+		llmdSection = map[string]any{
 			"endpoint":       blueclawGuestLLMDBridgeEndpoint,
 			"unixSocketPath": "",
 			"authKeyPath":    "",
 			"executionMode":  "auto",
 			"localOnly":      false,
 		}
-		return
+		languageModelSection["llmd"] = llmdSection
 	}
 	endpoint, _ := llmdSection["endpoint"].(string)
 	unixSocketPath, _ := llmdSection["unixSocketPath"].(string)
 	if strings.TrimSpace(endpoint) == "" && strings.TrimSpace(unixSocketPath) == "" {
 		llmdSection["endpoint"] = blueclawGuestLLMDBridgeEndpoint
+	}
+	defaultProvider, _ := languageModelSection["defaultProvider"].(string)
+	if strings.TrimSpace(defaultProvider) == "" || defaultProvider == "capabilityLLM" {
+		languageModelSection["defaultProvider"] = "llmd"
 	}
 }
 
