@@ -6,7 +6,7 @@ ingress to the current mattermost IP, and starts the cf-tunnel container.
 
 Run this after starting infra containers (mattermost IP may change on restart).
 """
-import subprocess, json, re, urllib.request, os
+import subprocess, json, re, time, urllib.request, os
 
 CONTAINER = "/opt/homebrew/bin/container"
 BASE = os.path.expanduser("~/internkim-poc")
@@ -34,6 +34,17 @@ def tenant_flow_routes():
             "service": f"http://{container_ip(fields[0])}:18080",
         })
     routes.sort(key=lambda route: route["hostname"])
+    return routes
+
+
+def stable_tenant_flow_routes():
+    routes = tenant_flow_routes()
+    for _ in range(30):
+        time.sleep(2)
+        next_routes = tenant_flow_routes()
+        if len(next_routes) == len(routes) and routes:
+            return next_routes
+        routes = next_routes
     return routes
 
 
@@ -69,7 +80,7 @@ def main():
     mattermost_ip = container_ip("poc-mattermost")
     print(f"mattermost_ip={mattermost_ip}")
 
-    flow_routes = tenant_flow_routes()
+    flow_routes = stable_tenant_flow_routes()
     print(f"flow_routes={len(flow_routes)}")
 
     ingress = [{"hostname": PUBLIC_HOST, "service": f"http://{mattermost_ip}:8065"}]
