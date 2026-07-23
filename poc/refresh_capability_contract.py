@@ -80,6 +80,10 @@ def require_object(document, key, document_name):
     return value
 
 
+DIRECT_LLMD_ENDPOINT = 'http://internkim/_internkim/llmd'
+CAPABILITY_SOCKET_PATH = '/run/internkim/capability.sock'
+
+
 def refreshed_runtime_document(runtime_document, contract):
     if not isinstance(runtime_document, dict):
         raise ValueError('runtime document must be an object')
@@ -91,7 +95,30 @@ def refreshed_runtime_document(runtime_document, contract):
     capability_configuration['aggregateProtocolHash'] = contract['aggregateProtocolHash']
     capability_configuration['toolDescriptors'] = copy.deepcopy(contract['toolDescriptors'])
     routing_configuration['candidates'] = copy.deepcopy(contract['routingCandidates'])
+    heal_language_model_llmd(refreshed_document)
     return refreshed_document
+
+
+def heal_language_model_llmd(runtime_document):
+    language_model = runtime_document.get('languageModel')
+    if not isinstance(language_model, dict):
+        return
+    llmd_section = language_model.get('llmd')
+    if not isinstance(llmd_section, dict):
+        llmd_section = {
+            'endpoint': DIRECT_LLMD_ENDPOINT,
+            'unixSocketPath': CAPABILITY_SOCKET_PATH,
+            'authKeyPath': '',
+            'executionMode': 'auto',
+            'localOnly': False,
+        }
+        language_model['llmd'] = llmd_section
+    if not str(llmd_section.get('endpoint') or '').strip():
+        llmd_section['endpoint'] = DIRECT_LLMD_ENDPOINT
+        if not str(llmd_section.get('unixSocketPath') or '').strip():
+            llmd_section['unixSocketPath'] = CAPABILITY_SOCKET_PATH
+    if str(language_model.get('defaultProvider') or '').strip() in ('', 'capabilityLLM'):
+        language_model['defaultProvider'] = 'llmd'
 
 
 def validated_resource_access(policy_document):
