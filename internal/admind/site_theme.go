@@ -89,11 +89,9 @@ func parseSiteDesignStylePreset(frontMatter string) (string, error) {
 }
 
 // applySiteDesignTheme renders DESIGN.md's front matter into theme.css at the
-// root of a published frontend dist. A DESIGN.md that does not exist is a
-// legacy site and publishes without a theme.css. A DESIGN.md that exists but
-// carries invalid or unparseable front matter fails the publish outright —
-// the model authors DESIGN.md as the site's design contract, so a broken
-// contract must never fall back to a silent default theme.
+// root of a published frontend dist. DESIGN.md is the site's design contract:
+// a missing or invalid contract fails the publish outright and must never
+// fall back to a silent default theme.
 func applySiteDesignThemeForAction(hostSourcePath string, frontendDistPath string, actionLabel string) error {
 	errorValue := applySiteDesignTheme(hostSourcePath, frontendDistPath)
 	if errorValue == nil || actionLabel != "preview" {
@@ -106,7 +104,7 @@ func applySiteDesignThemeForAction(hostSourcePath string, frontendDistPath strin
 func applySiteDesignTheme(hostSourcePath string, frontendDistPath string) error {
 	document, errorValue := os.ReadFile(filepath.Join(hostSourcePath, siteDesignDocumentPath))
 	if errorValue != nil {
-		return nil
+		return fmt.Errorf("DESIGN.md is required: the scaffold creates it in the draft root; restore its Stitch structure (front matter with colors/typography plus the section guide) before publish")
 	}
 	theme, errorValue := parseSiteDesignTheme(string(document))
 	if errorValue != nil {
