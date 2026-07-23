@@ -101,14 +101,12 @@
    "expectedToolCalls": [
     "site.status",
     "file.edit",
-    "site.preview",
-    "artifact.review"
+    "site.preview"
    ],
    "expectedToolCallCounts": {
     "site.status": 1,
     "file.edit": 1,
-    "site.preview": 1,
-    "artifact.review": 1
+    "site.preview": 1
    },
    "expectedEventCounts": [
     {
@@ -150,7 +148,8 @@
     {
      "name": "tool.artifact.review.result",
      "bodyFragment": "\"passed\":true",
-     "count": 1
+     "count": 1,
+     "advisory": true
     }
    ],
    "expectedWorkspaceFiles": [
@@ -243,7 +242,6 @@
    "expectedToolCalls": [
     "file.edit",
     "site.preview",
-    "artifact.review",
     "site.publish",
     "site.status"
    ],
@@ -253,7 +251,6 @@
    "expectedToolCallCounts": {
     "file.edit": 1,
     "site.preview": 1,
-    "artifact.review": 1,
     "site.status": 2
    },
    "expectedWorkspaceFiles": [
@@ -291,7 +288,8 @@
     {
      "name": "tool.artifact.review.result",
      "bodyFragment": "\"passed\":true",
-     "count": 1
+     "count": 1,
+     "advisory": true
     },
     {
      "name": "tool.site.publish.requested",
