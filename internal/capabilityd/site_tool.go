@@ -404,17 +404,17 @@ func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInp
 	if reference == "" {
 		return nil, errors.New("siteReference is required")
 	}
-	sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
+	allSites, errorValue := service.listSiteAppRecords(ctx, input)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return service.siteStatusForMatches(ctx, input, sites)
+	return service.siteStatusForMatches(ctx, input, matchSiteAppRecords(allSites, input), allSites)
 }
 
-func (service Service) siteStatusForMatches(ctx context.Context, input siteAppInput, sites []siteAppRecord) (json.RawMessage, error) {
+func (service Service) siteStatusForMatches(ctx context.Context, input siteAppInput, sites []siteAppRecord, allSites []siteAppRecord) (json.RawMessage, error) {
 	switch len(sites) {
 	case 0:
-		return json.Marshal(map[string]any{"status": "not_found", "siteReference": input.SiteReference, "candidates": []siteAppRecord{}})
+		return json.Marshal(map[string]any{"status": "not_found", "siteReference": input.SiteReference, "candidates": siteAppCandidateSummaries(limitSiteAppRecords(allSites, 10))})
 	case 1:
 		return service.getAdmindSiteStatusByID(ctx, sites[0].SiteID, input)
 	default:
@@ -541,6 +541,14 @@ func requireSiteID(input siteAppInput) (string, error) {
 }
 
 func (service Service) listMatchingSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
+	allSites, errorValue := service.listSiteAppRecords(ctx, input)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return matchSiteAppRecords(allSites, input), nil
+}
+
+func (service Service) listSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
 	path := "/admin/api/sites"
 	query := url.Values{}
 	if input.CheckLive {
@@ -557,7 +565,14 @@ func (service Service) listMatchingSiteAppRecords(ctx context.Context, input sit
 	if errorValue := json.Unmarshal(listDocument, &listResponse); errorValue != nil {
 		return nil, errorValue
 	}
-	return matchSiteAppRecords(listResponse.Sites, input), nil
+	return listResponse.Sites, nil
+}
+
+func limitSiteAppRecords(sites []siteAppRecord, limit int) []siteAppRecord {
+	if len(sites) <= limit {
+		return sites
+	}
+	return sites[:limit]
 }
 
 func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRecord {
