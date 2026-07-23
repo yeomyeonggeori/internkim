@@ -38,6 +38,7 @@ type mattermostScenarioExposureEvidence struct {
 
 type mattermostScenarioInstructionEvidence struct {
 	ExposedToolNames            []string            `json:"exposedToolNames"`
+	DescribedToolNames          []string            `json:"describedToolNames"`
 	SelectedSkillToolReferences map[string][]string `json:"selectedSkillToolReferences"`
 }
 
@@ -493,8 +494,9 @@ func validateMattermostScenarioExposure(stepIndex int, scenario mattermostScenar
 		if len(scenario.AllowedTools) > 0 && !containsMattermostScenarioString(scenario.AllowedTools, toolName) {
 			return fmt.Errorf("Mattermost scenario step %d expected tool %q is not in allowedTools", stepIndex, toolName)
 		}
-		if !containsMattermostScenarioString(workingSet.Exposure.ExposedToolIDs, toolName) {
-			return fmt.Errorf("Mattermost scenario step %d expected tool %q was not exposed", stepIndex, toolName)
+		if !containsMattermostScenarioString(workingSet.Exposure.ExposedToolIDs, toolName) &&
+			!containsMattermostScenarioString(instruction.DescribedToolNames, toolName) {
+			return fmt.Errorf("Mattermost scenario step %d expected tool %q was not exposed or reachable via request_tools", stepIndex, toolName)
 		}
 	}
 	return nil
