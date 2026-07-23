@@ -1208,6 +1208,7 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 	}
 	sourceWorkspacePath := t.TempDir()
 	writeTestSourceBuild(t, sourceWorkspacePath, "quality publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), siteDesignMD(site))
 	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
   "blockingIssueCount": 1,
   "issues": [
