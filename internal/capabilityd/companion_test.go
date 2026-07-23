@@ -210,8 +210,8 @@ func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
 	if !descriptor.RequiresApproval {
 		t.Fatal("expected site.delete descriptor to require approval")
 	}
-	if !descriptor.RequiresUserPresence {
-		t.Fatal("expected site.delete descriptor to require user presence")
+	if descriptor.RequiresUserPresence {
+		t.Fatal("site.delete executes on the device; requiring user presence routes it to the companion")
 	}
 	if _, found := capabilityToolDescriptorFor("site."); found {
 		t.Fatal("expected prefix-only operation to have no descriptor")
