@@ -710,11 +710,37 @@ func refreshBlueclawCapabilityContract(document string) (string, error) {
 			routing["candidates"] = contract.RoutingCandidates
 		}
 	}
+	healBlueclawGuestLLMDConfiguration(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return string(refreshedBytes) + "\n", nil
+}
+
+const blueclawGuestLLMDBridgeEndpoint = "http://127.0.0.1:18081/_internkim/llmd"
+
+func healBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
+	languageModelSection, ok := runtimeDocument["languageModel"].(map[string]any)
+	if !ok {
+		return
+	}
+	llmdSection, ok := languageModelSection["llmd"].(map[string]any)
+	if !ok {
+		languageModelSection["llmd"] = map[string]any{
+			"endpoint":       blueclawGuestLLMDBridgeEndpoint,
+			"unixSocketPath": "",
+			"authKeyPath":    "",
+			"executionMode":  "auto",
+			"localOnly":      false,
+		}
+		return
+	}
+	endpoint, _ := llmdSection["endpoint"].(string)
+	unixSocketPath, _ := llmdSection["unixSocketPath"].(string)
+	if strings.TrimSpace(endpoint) == "" && strings.TrimSpace(unixSocketPath) == "" {
+		llmdSection["endpoint"] = blueclawGuestLLMDBridgeEndpoint
+	}
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
