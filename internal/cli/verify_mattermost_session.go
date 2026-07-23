@@ -867,7 +867,8 @@ func findMattermostScenarioPublicURL(message string) string {
 func findMattermostScenarioEventPublicURL(events []mattermostScenarioTaskEvent) string {
 	for eventIndex := len(events) - 1; eventIndex >= 0; eventIndex-- {
 		event := events[eventIndex]
-		if _, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "result"); !isDirectToolEvent {
+		toolName, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "result")
+		if !isDirectToolEvent || !strings.HasPrefix(toolName, "site.") {
 			continue
 		}
 		if publicURL := findMattermostScenarioPublicURL(event.Body); publicURL != "" {
