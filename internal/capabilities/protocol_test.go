@@ -587,8 +587,11 @@ func TestSiteAppDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 		if descriptor.ResultContract == nil {
 			t.Fatalf("%s result contract is missing", descriptor.Name)
 		}
-		if descriptor.Name == "site.delete" && (!descriptor.RequiresApproval || !descriptor.RequiresUserPresence) {
-			t.Fatalf("site.delete must require runtime approval and user presence")
+		if descriptor.Name == "site.delete" && !descriptor.RequiresApproval {
+			t.Fatalf("site.delete must require runtime approval")
+		}
+		if descriptor.Name == "site.delete" && descriptor.RequiresUserPresence {
+			t.Fatalf("site.delete executes on the device; requiring user presence routes it to the companion")
 		}
 	}
 	if !reflect.DeepEqual(actualToolNames, expectedToolNames) {
