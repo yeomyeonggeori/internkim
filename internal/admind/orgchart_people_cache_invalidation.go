@@ -109,19 +109,20 @@ func invalidateOrgchartGroups(ctx context.Context, transaction *sql.Tx, changedG
 func changedOrgchartGroupIDs(previous []orgGroupRecord, next []orgGroupRecord, aliases map[string]string) []string {
 	type positionedGroup struct {
 		Name     string
+		ParentID string
 		Position int
 	}
 	previousByID := make(map[string]positionedGroup, len(previous))
 	for index, group := range previous {
-		previousByID[group.ID] = positionedGroup{Name: group.Name, Position: index}
+		previousByID[group.ID] = positionedGroup{Name: group.Name, ParentID: group.ParentID, Position: index}
 	}
 	nextByID := make(map[string]positionedGroup, len(next))
 	for index, group := range next {
-		nextByID[group.ID] = positionedGroup{Name: group.Name, Position: index}
+		nextByID[group.ID] = positionedGroup{Name: group.Name, ParentID: group.ParentID, Position: index}
 	}
 	changed := map[string]struct{}{}
 	for groupID, group := range previousByID {
-		if nextGroup, found := nextByID[groupID]; !found || nextGroup.Name != group.Name || nextGroup.Position != group.Position {
+		if nextGroup, found := nextByID[groupID]; !found || nextGroup.Name != group.Name || nextGroup.ParentID != group.ParentID || nextGroup.Position != group.Position {
 			changed[groupID] = struct{}{}
 		}
 	}

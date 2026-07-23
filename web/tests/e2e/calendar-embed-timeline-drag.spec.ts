@@ -5,7 +5,7 @@ import { expectTimelineDraftCount } from './calendar-embed-draft-assertions';
 import {
 	createDayTimelineRangeByDragAtHour,
 	createTimelineRangeByDrag,
-	createTimelineSlotByDoubleClick,
+	createTimelineSlotByClick,
 	finishTimelineRangeDrag,
 	openCalendarEmbed,
 	startTimelineRangeDrag
@@ -16,21 +16,21 @@ test.describe('embedded calendar timeline drag interactions', () => {
 		await routeDefaultCalendarAPI(page);
 	});
 
-	test('creates one draft when double-clicking a timeline slot', async ({ page }) => {
+	test('creates one draft when clicking a timeline slot', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
-		await createTimelineSlotByDoubleClick(page, '일');
+		await createTimelineSlotByClick(page, '일');
 		await expectTimelineDraftCount(page, 1, 2);
 
 		await openCalendarEmbed(page, '주');
-		await createTimelineSlotByDoubleClick(page, '주');
+		await createTimelineSlotByClick(page, '주');
 		await expectTimelineDraftCount(page, 1, 2);
 	});
 
-	test('opens an unsaved draft popover when double-clicking day and week all-day cells', async ({ page }) => {
+	test('opens an unsaved draft popover when clicking day and week all-day cells', async ({ page }) => {
 		const createdEvents = await routeCalendarEventCreates(page);
 
 		await openCalendarEmbed(page, '일');
-		await doubleClickAllDayCell(page, '일');
+		await clickAllDayCell(page, '일');
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover [aria-label="종일"]')).toBeChecked();
 		expect(createdEvents).toHaveLength(0);
@@ -39,7 +39,7 @@ test.describe('embedded calendar timeline drag interactions', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 
 		await openCalendarEmbed(page, '주');
-		await doubleClickAllDayCell(page, '주');
+		await clickAllDayCell(page, '주');
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover [aria-label="종일"]')).toBeChecked();
 		expect(createdEvents).toHaveLength(0);
@@ -121,7 +121,7 @@ test.describe('embedded calendar timeline drag interactions', () => {
 	});
 });
 
-async function doubleClickAllDayCell(page: Page, viewLabel: '일' | '주'): Promise<void> {
+async function clickAllDayCell(page: Page, viewLabel: '일' | '주'): Promise<void> {
 	const selector = viewLabel === '일' ? '.df-day-content-all-day-lane' : '.df-week-all-day-cell:nth-child(2)';
 	await page.waitForSelector(selector, { state: 'attached' });
 	await page.evaluate((targetSelector) => {
@@ -132,7 +132,7 @@ async function doubleClickAllDayCell(page: Page, viewLabel: '일' | '주'): Prom
 		const clientY = rectangle.top + rectangle.height / 2;
 		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
-		target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
+		target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, clientX, clientY }));
 	}, selector);
 }
 

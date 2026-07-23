@@ -40,7 +40,7 @@ test.describe('calendar draft popover anchors', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="lower-edit-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="lower-edit-event"]').click();
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
 
@@ -115,7 +115,7 @@ test.describe('calendar draft popover anchors', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="scroll-anchor-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="scroll-anchor-event"]').click();
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
 		await page.getByLabel('제목').fill('스크롤 저장 일정');
@@ -219,7 +219,7 @@ test.describe('calendar draft popover anchors', () => {
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
 
-		await page.locator('.calendar-month-direct-event[data-event-id="narrow-popover-event"]').dblclick();
+		await page.locator('.calendar-month-direct-event[data-event-id="narrow-popover-event"]').click();
 		const editor = page.locator('.calendar-mobile-event-editor');
 		await expect(editor).toBeVisible();
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
@@ -281,7 +281,7 @@ test.describe('calendar draft popover anchors', () => {
 		await page.locator('.calendar-month-more-button[data-date-key="2026-06-17"]').click();
 		const morePopover = page.locator('.calendar-month-more-popover');
 		await expect(morePopover).toBeVisible();
-		await morePopover.getByRole('button', { name: /긴급 회식 장소 확인/ }).dblclick();
+		await morePopover.getByRole('button', { name: /긴급 회식 장소 확인/ }).click();
 
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();

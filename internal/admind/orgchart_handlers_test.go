@@ -246,7 +246,7 @@ func TestOrgchartGroupHandlerPersistsGroups(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	requestBody := strings.NewReader(`{"groups":[{"id":"product","name":"제품"},{"id":"growth","name":"성장"}]}`)
+	requestBody := strings.NewReader(`{"groups":[{"id":"product","name":"제품"},{"id":"growth","name":"성장","parentID":"product"}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localSetOrgGroups(responseRecorder, httptest.NewRequest(http.MethodPut, "/admin/api/org-groups", requestBody))
@@ -260,5 +260,20 @@ func TestOrgchartGroupHandlerPersistsGroups(t *testing.T) {
 	}
 	if len(response.AvailableGroups) != 2 || response.AvailableGroups[0].ID != "product" || response.AvailableGroups[1].ID != "growth" {
 		t.Fatalf("available groups = %#v; want product and growth", response.AvailableGroups)
+	}
+	if response.AvailableGroups[1].ParentID != "product" {
+		t.Fatalf("growth parent ID = %q; want product", response.AvailableGroups[1].ParentID)
+	}
+}
+
+func TestOrgchartGroupHandlerRejectsHierarchyCycle(t *testing.T) {
+	service := newLocalUsersTestService(t)
+	requestBody := strings.NewReader(`{"groups":[{"id":"product","name":"제품","parentID":"growth"},{"id":"growth","name":"성장","parentID":"product"}]}`)
+	responseRecorder := httptest.NewRecorder()
+
+	service.localSetOrgGroups(responseRecorder, httptest.NewRequest(http.MethodPut, "/admin/api/org-groups", requestBody))
+
+	if responseRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; want %d; body = %s", responseRecorder.Code, http.StatusBadRequest, responseRecorder.Body.String())
 	}
 }

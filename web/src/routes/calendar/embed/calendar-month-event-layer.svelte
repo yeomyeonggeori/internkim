@@ -152,13 +152,15 @@
 				class:df-event-all-day={placement.isAllDay}
 				class:df-event-timed={!placement.isAllDay}
 				class:internkim-calendar-event-focused={placement.eventID === selectedEventID}
+				class:calendar-month-event-drag-ready={dragState?.event.id === placement.eventID &&
+					dragState.isLongPressActivation &&
+					!dragState.hasMoved}
 				data-calendar-month-event-id={placement.id}
 				data-event-id={placement.eventID}
 				style={monthEventPlacementStyle(placement)}
 				aria-label={placement.titleText}
 				aria-pressed={placement.eventID === selectedEventID}
 				onclick={(event) => eventActivation.handleDirectEventClick(event, placement)}
-				ondblclick={(event) => eventActivation.handleDirectEventDoubleClick(event, placement)}
 				onpointerdown={(event) => handlePointerDown(event, placement)}
 			>
 				<span class="calendar-event-content calendar-month-event-content">
@@ -174,7 +176,6 @@
 			{selectedEventID}
 			{handleMoreButtonClick}
 			handleMoreEventClick={eventActivation.handleOverflowEventClick}
-			handleMoreEventDoubleClick={eventActivation.handleOverflowEventDoubleClick}
 		/>
 	</div>
 {/if}

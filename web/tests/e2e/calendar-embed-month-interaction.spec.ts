@@ -12,7 +12,7 @@ test.describe('embedded calendar month interactions', () => {
 		await routeDefaultCalendarAPI(page);
 	});
 
-	test('focuses the whole month event block when an event is selected', async ({ page }) => {
+	test('focuses the whole month event block when its editor opens', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'focused-all-day-event',
@@ -31,7 +31,7 @@ test.describe('embedded calendar month interactions', () => {
 
 		await expectMonthEventFullBlockFocused(page, 'focused-all-day-event');
 		await expect(eventBlock).toHaveAttribute('aria-pressed', 'true');
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 	});
 
 	test('opens a month event editor when activated from the keyboard', async ({ page }) => {
@@ -114,11 +114,11 @@ test.describe('embedded calendar month interactions', () => {
 		await expect(page.getByLabel('제목')).toHaveValue('Accessible Month Event');
 	});
 
-	test('opens a month event popover only on double click after selecting it', async ({ page }) => {
+	test('opens a month event popover after a single click', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
-				id: 'double-click-month-event',
-				title: 'Double Click Month Event',
+				id: 'single-click-month-event',
+				title: 'Single Click Month Event',
 				startISO: '2026-06-09T09:00:00+09:00',
 				endISO: '2026-06-09T10:00:00+09:00',
 				isAllDay: false
@@ -127,19 +127,15 @@ test.describe('embedded calendar month interactions', () => {
 
 		await openCalendarEmbed(page, '월');
 		await navigateEmbeddedCalendar(page, '2026-06-09');
-		const eventBlock = page.locator('[data-event-id="double-click-month-event"].calendar-month-direct-event');
+		const eventBlock = page.locator('[data-event-id="single-click-month-event"].calendar-month-direct-event');
 		await eventBlock.click();
 
-		await expectMonthEventFullBlockFocused(page, 'double-click-month-event');
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-
-		await eventBlock.dblclick();
-
+		await expectMonthEventFullBlockFocused(page, 'single-click-month-event');
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.getByLabel('제목')).toHaveValue('Double Click Month Event');
+		await expect(page.getByLabel('제목')).toHaveValue('Single Click Month Event');
 	});
 
-	for (const activation of ['Enter', 'synthesized click', 'pointer double click'] as const) {
+	for (const activation of ['Enter', 'synthesized click', 'pointer click'] as const) {
 		test(`restores the second split month segment after ${activation}`, async ({ page }) => {
 			const { firstSegment, secondSegment } = await openSplitMonthEvent(page);
 
@@ -211,7 +207,7 @@ test.describe('embedded calendar month interactions', () => {
 				})
 			);
 			eventBlock.dispatchEvent(
-				new MouseEvent('dblclick', {
+				new MouseEvent('click', {
 					bubbles: true,
 					cancelable: true,
 					button: 0,
@@ -259,6 +255,7 @@ test.describe('embedded calendar month interactions', () => {
 		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-18');
 		await expectMonthEventFullBlockFocused(page, 'aligned-selection-event');
 
+		await page.keyboard.press('Escape');
 		await page.keyboard.press('ArrowLeft');
 
 		await expect.poll(async () => selectedMonthDateKey(page)).toBe('2026-06-17');
@@ -282,7 +279,7 @@ test.describe('embedded calendar month interactions', () => {
 		await expect(scroller).toBeVisible();
 		const initialScrollTop = await scroller.evaluate((element) => element.scrollTop);
 
-		await page.locator('[data-event-id="stable-scroll-event"].calendar-month-direct-event').dblclick();
+		await page.locator('[data-event-id="stable-scroll-event"].calendar-month-direct-event').click();
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
 		await expect.poll(async () => scroller.evaluate((element) => element.scrollTop)).toBe(initialScrollTop);
@@ -393,7 +390,7 @@ async function openSplitMonthEvent(page: Page): Promise<{ firstSegment: Locator;
 async function activateSplitMonthSegment(
 	page: Page,
 	segment: Locator,
-	activation: 'Enter' | 'synthesized click' | 'pointer double click'
+	activation: 'Enter' | 'synthesized click' | 'pointer click'
 ): Promise<void> {
 	if (activation === 'Enter') {
 		await segment.focus();
@@ -405,5 +402,5 @@ async function activateSplitMonthSegment(
 		await segment.dispatchEvent('click');
 		return;
 	}
-	await segment.dblclick();
+	await segment.click();
 }

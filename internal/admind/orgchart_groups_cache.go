@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func (service *Service) readCachedOrgchartGroups(ctx context.Context, fallbackGroups []orgGroupRecord) ([]orgGroupRecord, error) {
+func (service *Service) readCachedOrgchartGroups(ctx context.Context) ([]orgGroupRecord, error) {
 	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheGroups, Key: orgchartPeopleCacheSingletonKey}
 	snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(ctx, []orgchartPeopleCacheKey{key})
 	if errorValue != nil {
@@ -21,7 +21,7 @@ func (service *Service) readCachedOrgchartGroups(ctx context.Context, fallbackGr
 			return nil, errorValue
 		}
 	}
-	groups, isInitialized, errorValue := service.readOrgchartGroupsOrInitializeWithState(ctx, fallbackGroups)
+	groups, isInitialized, errorValue := service.readOrgchartGroupsOrInitializeWithState(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}

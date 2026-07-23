@@ -5,9 +5,10 @@ sudo_password="$1"
 mattermost_listen_address="${2:-127.0.0.1:8065}"
 login_headers="$(mktemp)"
 login_response="$(mktemp)"
+mattermost_configuration="$(mktemp)"
 
 cleanup() {
-  rm -f "$login_headers" "$login_response"
+  rm -f "$login_headers" "$login_response" "$mattermost_configuration"
 }
 trap cleanup EXIT
 
@@ -19,6 +20,23 @@ curl --silent --show-error --fail -D "$login_headers" -o "$login_response" \
   "http://$mattermost_listen_address/api/v4/users/login"
 admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
 test -n "$admin_token"
+
+printf '%s\n' "$sudo_password" | sudo -S -p '' jq \
+  '.PluginSettings = ((.PluginSettings // {}) + {"Enable":true,"EnableUploads":true,"RequirePluginSignature":false})' \
+  /opt/mattermost/config/config.json >"$mattermost_configuration"
+printf '%s\n' "$sudo_password" | sudo -S -p '' install \
+  --owner=mattermost \
+  --group=mattermost \
+  --mode=600 \
+  "$mattermost_configuration" \
+  /opt/mattermost/config/config.json
+printf '%s\n' "$sudo_password" | sudo -S -p '' systemctl restart mattermost
+for attempt in $(seq 1 30); do
+  if curl --silent --fail "http://$mattermost_listen_address/api/v4/system/ping" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
 
 curl --silent --show-error --fail -X PUT \
   -H "Authorization: Bearer $admin_token" \
