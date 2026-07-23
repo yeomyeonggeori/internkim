@@ -19,7 +19,7 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
-const releaseProtocolIdentityReadinessTimeout = time.Minute
+const releaseProtocolIdentityReadinessTimeout = 5 * time.Minute
 const releaseProtocolIdentityPollInterval = time.Second
 
 type releaseUpdateStatusResponse struct {
