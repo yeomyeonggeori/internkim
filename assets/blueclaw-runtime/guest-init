@@ -268,6 +268,7 @@ fi
 log_guest_init "postgres database ready"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -listen 127.0.0.1:18081 -host-cid 2 -host-port 7000 >>/workspace/.blueclaw/logs/vsock-http-proxy.log 2>&1 &
+outbound_proxy_process_id="$!"
 
 sync_guest_clock_once() {
   local remote_date remote_epoch local_epoch skew
@@ -309,7 +310,8 @@ blueclaw_process_id="$!"
 log_guest_init "blueclaw started"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -mode vsock-to-tcp -listen-vsock-port 8081 -target-tcp 127.0.0.1:8080 >>/workspace/.blueclaw/logs/guest-http-proxy.log 2>&1 &
+inbound_proxy_process_id="$!"
 log_guest_init "guest http proxy started"
 
-wait -n "$postgres_process_id" "$graphiti_process_id" "$blueclaw_process_id"
+wait -n "$postgres_process_id" "$graphiti_process_id" "$blueclaw_process_id" "$outbound_proxy_process_id" "$inbound_proxy_process_id"
 shutdown_guest
