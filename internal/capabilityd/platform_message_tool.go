@@ -269,11 +269,11 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 }
 
 func (service Service) invokePlatformMessageDirectSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.DeliveryTarget.PersonHint)
+	recipientMattermostUserID, failure, hasFailure := service.resolvePlatformDirectSendRecipient(ctx, request, input.DeliveryTarget.PersonHint)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message, request.IdempotencyKey)
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipientMattermostUserID, input.Message, request.IdempotencyKey)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
@@ -281,6 +281,21 @@ func (service Service) invokePlatformMessageDirectSend(ctx context.Context, requ
 		MessageIDs:     []string{dispatchID},
 		DeliveryStatus: "sent",
 	})
+}
+
+func (service Service) resolvePlatformDirectSendRecipient(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (string, platformDMFailure, bool) {
+	if personHint != "" {
+		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+		if hasFailure {
+			return "", failure, true
+		}
+		return recipient.MattermostUserID, platformDMFailure{}, false
+	}
+	requesterMattermostUserID := strings.TrimSpace(request.Context.RequesterPlatformUserID)
+	if requesterMattermostUserID == "" {
+		return "", platformDMStaticFailure("invalid_input", "recipient_resolve", "targetType=directMessage without personHint sends to the requester, but this context has no requester platform user; pass personHint"), true
+	}
+	return requesterMattermostUserID, platformDMFailure{}, false
 }
 
 type platformMessageBroadcastResult struct {
@@ -564,9 +579,6 @@ func uniqueTrimmedPlatformMessageHints(hints []string) []string {
 func validatePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget) error {
 	switch target.Type {
 	case "directMessage":
-		if target.PersonHint == "" && len(target.PersonHints) == 0 {
-			return fmt.Errorf("targetType=directMessage requires personHint or personHints")
-		}
 		if len(target.PersonHints) > platformMessageBroadcastRecipientLimit {
 			return fmt.Errorf("personHints accepts at most %d recipients per call; narrow the list", platformMessageBroadcastRecipientLimit)
 		}
