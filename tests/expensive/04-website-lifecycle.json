@@ -48,7 +48,6 @@
     "file.edit"
    ],
    "expectedExactToolCallCounts": {
-    "site.serve": 0,
     "site.unserve": 0
    },
    "expectedEventCounts": [
@@ -57,6 +56,12 @@
      "outputFragment": "Scaffolded site project",
      "count": 1,
      "advisory": true
+    },
+    {
+     "name": "tool.site.serve.requested",
+     "bodyFragment": "\"mode\":\"publish\"",
+     "count": 0,
+     "exact": true
     }
    ],
    "expectedWorkspaceFiles": [
