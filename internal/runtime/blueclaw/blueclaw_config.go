@@ -95,19 +95,6 @@ func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
 	}}
 }
 
-func removeDefaultSkillScopedToolNames(toolNames []string) []string {
-	hiddenToolNames := map[string]bool{
-		"site.preview": true,
-	}
-	result := []string{}
-	for _, toolName := range toolNames {
-		if !hiddenToolNames[strings.TrimSpace(toolName)] {
-			result = append(result, toolName)
-		}
-	}
-	return result
-}
-
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	return BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{ModelName: modelName})
 }
@@ -595,11 +582,9 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:mail.message.send", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.move", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.mark", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.create", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.preview", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:site.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.serve", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.unserve", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}...)
 }

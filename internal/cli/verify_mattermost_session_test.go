@@ -235,7 +235,7 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 				{TaskEventID: "reply-" + taskRunID, Name: "connector.reply.sent", Body: `{"dispatchID":"` + botPostID + `","messageID":"mattermost:thread:channel:user-post-1:user-post-` + stepNumber + `","replyKind":"success"}`},
 			}
 			if taskRunID == "task-1" {
-				events = append(events, mattermostScenarioTaskEvent{TaskEventID: "site-" + taskRunID, Name: "tool.site.publish.result", Body: `{"url":"https://preview.intern.kim/site"}`})
+				events = append(events, mattermostScenarioTaskEvent{TaskEventID: "site-" + taskRunID, Name: "tool.site.serve.result", Body: `{"url":"https://preview.intern.kim/site"}`})
 			}
 			return mattermostScenarioTaskDetail{
 				TaskRun:    mattermostScenarioTaskRun{TaskRunID: taskRunID, Status: "completed"},
@@ -1016,7 +1016,7 @@ func TestSumMattermostScenarioTokenUsageAggregatesStepsAndTokensPerStep(t *testi
 
 func TestMattermostScenarioEventPublicURLRequiresDirectTypedResult(t *testing.T) {
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.site.publish.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
+		{Name: "tool.site.serve.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
 		{Name: "tool.capability.invoke.result", Body: `{"publicURL":"https://legacy.intern.kim"}`},
 	}
 	if publicURL := findMattermostScenarioEventPublicURL(events); publicURL != "https://demo.intern.kim" {

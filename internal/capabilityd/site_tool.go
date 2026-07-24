@@ -18,36 +18,25 @@ import (
 )
 
 type siteAppInput struct {
-	SiteID        string          `json:"siteID"`
-	SiteReference string          `json:"siteReference"`
-	RequestedBy   string          `json:"requestedBy"`
-	Requester     siteAppIdentity `json:"requester"`
-	CheckLive     bool            `json:"checkLive"`
+	SiteReference string `json:"siteReference"`
+	Mode          string `json:"mode"`
+	Title         string `json:"title"`
 }
 
 type siteAppRecord struct {
-	SiteID              string                `json:"siteID"`
-	Slug                string                `json:"slug"`
-	Title               string                `json:"title"`
-	Description         string                `json:"description"`
-	Purpose             string                `json:"purpose"`
-	Archetype           string                `json:"archetype"`
-	PublishedURL        string                `json:"publishedURL"`
-	PreviewURL          string                `json:"previewURL"`
-	PreviewID           string                `json:"previewID"`
-	PreviewExpiresAt    time.Time             `json:"previewExpiresAt"`
-	CurrentVersionID    string                `json:"currentVersionID"`
-	Owner               string                `json:"owner"`
-	OwnerIdentity       siteAppIdentity       `json:"ownerIdentity"`
-	Collaborators       []siteAppCollaborator `json:"collaborators"`
-	Status              string                `json:"status"`
-	LastError           string                `json:"lastError"`
-	WorkspaceHealth     string                `json:"workspaceHealth"`
-	SourceWorkspacePath string                `json:"sourceWorkspacePath"`
-	AppWorkspacePath    string                `json:"appWorkspacePath"`
-	UpdatedAt           time.Time             `json:"updatedAt"`
-	LiveHTTPStatus      int                   `json:"liveHTTPStatus"`
-	SourceFiles         []siteAppSourceFile   `json:"sourceFiles"`
+	SiteID           string          `json:"siteID"`
+	Slug             string          `json:"slug"`
+	Title            string          `json:"title"`
+	Description      string          `json:"description"`
+	Purpose          string          `json:"purpose"`
+	Archetype        string          `json:"archetype"`
+	Owner            string          `json:"owner"`
+	OwnerIdentity    siteAppIdentity `json:"ownerIdentity"`
+	Status           string          `json:"status"`
+	PublishedURL     string          `json:"publishedURL"`
+	PreviewURL       string          `json:"previewURL"`
+	CurrentVersionID string          `json:"currentVersionID"`
+	UpdatedAt        time.Time       `json:"updatedAt"`
 }
 
 type siteAppListResponse struct {
@@ -59,19 +48,6 @@ type siteAppIdentity struct {
 	Platform       string `json:"platform,omitempty"`
 	PlatformUserID string `json:"platformUserID,omitempty"`
 	DisplayName    string `json:"displayName,omitempty"`
-}
-
-type siteAppCollaborator struct {
-	PersonID       string    `json:"personID,omitempty"`
-	PlatformUserID string    `json:"platformUserID,omitempty"`
-	Role           string    `json:"role"`
-	GrantedBy      string    `json:"grantedBy,omitempty"`
-	GrantedAt      time.Time `json:"grantedAt,omitempty"`
-}
-
-type siteAppSourceFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
 }
 
 type siteAppRequestError struct {
@@ -104,14 +80,11 @@ func (service Service) invokeSiteAppTool(ctx context.Context, request capabiliti
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if len(response.Effects) > 0 {
-		siteID, errorValue := siteAppResultID(projectedResult)
-		if errorValue != nil {
+		if _, errorValue := siteAppResultID(projectedResult); errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
-		if request.ToolName != "site.create" {
-			if errorValue := validateSiteAppResultID(request.Input, siteID); errorValue != nil {
-				return capabilities.ToolInvokeResponse{}, errorValue
-			}
+		if errorValue := validateSiteAppResultReference(request.Input, projectedResult); errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 		response.Status = response.Effects[0].Effect
 	}
@@ -152,126 +125,134 @@ func siteAppDescriptor(toolName string) (capabilities.Descriptor, bool) {
 }
 
 func projectCanonicalSiteAppResult(request capabilities.ToolInvokeRequest, result json.RawMessage) (json.RawMessage, error) {
-	var record siteAppRecord
-	if errorValue := json.Unmarshal(result, &record); errorValue != nil {
-		return nil, errors.New("site app returned an invalid result")
-	}
-	if record.SiteID != strings.TrimSpace(record.SiteID) {
-		return nil, errors.New("site app returned an invalid siteID")
-	}
 	switch request.ToolName {
-	case "site.create":
-		return projectSiteCreateResult(record)
-	case "site.status":
-		return projectSiteStatusResult(record)
-	case "site.preview":
-		return projectSitePreviewResult(request.Input, record)
-	case "site.publish":
-		return projectSitePublishResult(request.Input, request.Transport.SiteSourceBundle, record)
-	case "site.delete":
-		return projectSiteDeleteResult(request.Input, record)
+	case "site.serve":
+		return projectSiteServeResult(request.Input, request.Transport.SiteSourceBundle, result)
+	case "site.list":
+		return projectSiteListResult(result)
+	case "site.unserve":
+		return projectSiteUnserveResult(result)
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)
 	}
 }
 
-func projectSiteCreateResult(record siteAppRecord) (json.RawMessage, error) {
-	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || record.Status != "draft" || strings.TrimSpace(record.SourceWorkspacePath) == "" || strings.TrimSpace(record.AppWorkspacePath) == "" || len(record.SourceFiles) == 0 {
-		return nil, errors.New("site.create result is missing canonical fields")
+func decodeSiteAppRecord(result json.RawMessage) (siteAppRecord, error) {
+	var record siteAppRecord
+	if errorValue := json.Unmarshal(result, &record); errorValue != nil {
+		return siteAppRecord{}, errors.New("site app returned an invalid result")
 	}
-	return marshalSiteAppResult(map[string]any{
-		"siteID":              record.SiteID,
-		"slug":                strings.TrimSpace(record.Slug),
-		"title":               record.Title,
-		"status":              record.Status,
-		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
-		"appWorkspacePath":    strings.TrimSpace(record.AppWorkspacePath),
-		"sourceFiles":         record.SourceFiles,
-	})
+	if record.SiteID != strings.TrimSpace(record.SiteID) {
+		return siteAppRecord{}, errors.New("site app returned an invalid siteID")
+	}
+	return record, nil
 }
 
-func projectSiteStatusResult(record siteAppRecord) (json.RawMessage, error) {
-	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || !isCanonicalSiteStatus(record.Status) || strings.TrimSpace(record.SourceWorkspacePath) == "" {
-		return nil, errors.New("site.status result is missing canonical fields")
+func projectSiteServeResult(inputDocument json.RawMessage, sourceBundle *capabilities.SiteSourceBundle, resultDocument json.RawMessage) (json.RawMessage, error) {
+	record, errorValue := decodeSiteAppRecord(resultDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	input, errorValue := decodeSiteAppInput(inputDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	mode := strings.TrimSpace(input.Mode)
+	if mode != "preview" && mode != "publish" {
+		return nil, errors.New(`site.serve mode must be "preview" or "publish"`)
+	}
+	if sourceBundle == nil {
+		return nil, errors.New("site.serve transport is missing source bundle")
+	}
+	if !isLowercaseSHA256(sourceBundle.SHA256) {
+		return nil, errors.New("site.serve source bundle must include a lowercase SHA-256 hash")
+	}
+	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" {
+		return nil, errors.New("site.serve result is missing canonical fields")
 	}
 	result := map[string]any{
-		"siteID":              record.SiteID,
-		"slug":                strings.TrimSpace(record.Slug),
-		"title":               record.Title,
-		"status":              record.Status,
-		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
+		"siteID":       record.SiteID,
+		"slug":         strings.TrimSpace(record.Slug),
+		"mode":         mode,
+		"sourceSHA256": sourceBundle.SHA256,
 	}
-	setSiteAppResultString(result, "appWorkspacePath", record.AppWorkspacePath)
-	setSiteAppResultString(result, "workspaceHealth", record.WorkspaceHealth)
-	setSiteAppResultString(result, "lastError", record.LastError)
-	setSiteAppResultString(result, "publishedURL", record.PublishedURL)
-	setSiteAppResultString(result, "previewURL", record.PreviewURL)
-	if !record.UpdatedAt.IsZero() {
-		result["updatedAt"] = record.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	if mode == "publish" {
+		if record.Status != "published" || strings.TrimSpace(record.PublishedURL) == "" {
+			return nil, errors.New("site.serve publish result is missing canonical fields")
+		}
+		result["publishedURL"] = strings.TrimSpace(record.PublishedURL)
+		return marshalSiteAppResult(result)
 	}
-	if record.LiveHTTPStatus != 0 {
-		result["liveHTTPStatus"] = record.LiveHTTPStatus
+	if strings.TrimSpace(record.PreviewURL) == "" {
+		return nil, errors.New("site.serve preview result is missing canonical fields")
 	}
+	result["previewURL"] = strings.TrimSpace(record.PreviewURL)
 	return marshalSiteAppResult(result)
 }
 
-func projectSitePreviewResult(inputDocument json.RawMessage, record siteAppRecord) (json.RawMessage, error) {
-	if errorValue := validateSiteAppResultID(inputDocument, record.SiteID); errorValue != nil {
+func projectSiteListResult(resultDocument json.RawMessage) (json.RawMessage, error) {
+	var listResponse siteAppListResponse
+	if errorValue := json.Unmarshal(resultDocument, &listResponse); errorValue != nil {
+		return nil, errors.New("site app returned an invalid list result")
+	}
+	sites := []map[string]any{}
+	for _, record := range listResponse.Sites {
+		if record.Status == "deleting" || record.Status == "deleted" {
+			continue
+		}
+		if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || !isCanonicalSiteStatus(record.Status) {
+			return nil, errors.New("site.list result contains a record missing canonical fields")
+		}
+		entry := map[string]any{
+			"siteID": record.SiteID,
+			"slug":   strings.TrimSpace(record.Slug),
+			"title":  record.Title,
+			"status": record.Status,
+		}
+		setSiteAppResultString(entry, "publishedURL", record.PublishedURL)
+		if !record.UpdatedAt.IsZero() {
+			entry["updatedAt"] = record.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		}
+		sites = append(sites, entry)
+	}
+	return marshalSiteAppResult(map[string]any{"sites": sites})
+}
+
+func projectSiteUnserveResult(resultDocument json.RawMessage) (json.RawMessage, error) {
+	record, errorValue := decodeSiteAppRecord(resultDocument)
+	if errorValue != nil {
 		return nil, errorValue
 	}
-	if !isCanonicalSiteStatus(record.Status) || strings.TrimSpace(record.SourceWorkspacePath) == "" || strings.TrimSpace(record.PreviewID) == "" || strings.TrimSpace(record.PreviewURL) == "" || record.PreviewExpiresAt.IsZero() {
-		return nil, errors.New("site.preview result is missing canonical fields")
+	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || record.Status != "deleted" {
+		return nil, errors.New("site.unserve result is missing canonical fields")
 	}
 	return marshalSiteAppResult(map[string]any{
-		"siteID":              record.SiteID,
-		"status":              record.Status,
-		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
-		"previewID":           strings.TrimSpace(record.PreviewID),
-		"previewURL":          strings.TrimSpace(record.PreviewURL),
-		"previewExpiresAt":    record.PreviewExpiresAt.UTC().Format(time.RFC3339Nano),
+		"siteID":   record.SiteID,
+		"slug":     strings.TrimSpace(record.Slug),
+		"unserved": true,
 	})
 }
 
-func projectSitePublishResult(inputDocument json.RawMessage, sourceBundle *capabilities.SiteSourceBundle, record siteAppRecord) (json.RawMessage, error) {
-	if errorValue := validateSiteAppResultID(inputDocument, record.SiteID); errorValue != nil {
-		return nil, errorValue
-	}
-	if sourceBundle == nil {
-		return nil, errors.New("site.publish transport is missing source bundle")
-	}
-	sourceSHA256 := sourceBundle.SHA256
-	if !isLowercaseSHA256(sourceSHA256) {
-		return nil, errors.New("site.publish source bundle must include a lowercase SHA-256 hash")
-	}
-	if record.Status != "published" || strings.TrimSpace(record.SourceWorkspacePath) == "" || strings.TrimSpace(record.SourceWorkspacePath) != sourceBundle.WorkspacePath || strings.TrimSpace(record.PublishedURL) == "" || strings.TrimSpace(record.CurrentVersionID) == "" {
-		return nil, errors.New("site.publish result is missing canonical fields")
-	}
-	return marshalSiteAppResult(map[string]any{
-		"siteID":              record.SiteID,
-		"status":              record.Status,
-		"sourceWorkspacePath": strings.TrimSpace(record.SourceWorkspacePath),
-		"sourceSHA256":        sourceSHA256,
-		"publishedURL":        strings.TrimSpace(record.PublishedURL),
-		"currentVersionID":    strings.TrimSpace(record.CurrentVersionID),
-	})
-}
-
-func projectSiteDeleteResult(inputDocument json.RawMessage, record siteAppRecord) (json.RawMessage, error) {
-	if errorValue := validateSiteAppResultID(inputDocument, record.SiteID); errorValue != nil {
-		return nil, errorValue
-	}
-	return marshalSiteAppResult(map[string]any{"siteID": record.SiteID, "deleted": true})
-}
-
-func validateSiteAppResultID(inputDocument json.RawMessage, actualSiteID string) error {
-	expectedSiteID, errorValue := decodeExactSiteID(inputDocument)
+func validateSiteAppResultReference(inputDocument json.RawMessage, result json.RawMessage) error {
+	input, errorValue := decodeSiteAppInput(inputDocument)
 	if errorValue != nil {
 		return errorValue
 	}
-	if strings.TrimSpace(actualSiteID) == "" || strings.TrimSpace(actualSiteID) != expectedSiteID {
-		return errors.New("site app result siteID does not match input")
+	reference := strings.TrimSpace(input.SiteReference)
+	if reference == "" {
+		return nil
 	}
-	return nil
+	var document struct {
+		SiteID string `json:"siteID"`
+		Slug   string `json:"slug"`
+	}
+	if json.Unmarshal(result, &document) != nil {
+		return errors.New("site app result is not valid JSON")
+	}
+	if reference == strings.TrimSpace(document.SiteID) || reference == strings.TrimSpace(document.Slug) {
+		return nil
+	}
+	return errors.New("site app result does not match the requested siteReference")
 }
 
 func siteAppResultID(result json.RawMessage) (string, error) {
@@ -317,34 +298,24 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if siteToolNeedsSourceBundle(request.ToolName) {
+	switch request.ToolName {
+	case "site.serve":
 		inputDocument, errorValue = siteAppInputWithSourceBundle(inputDocument, request.Transport.SiteSourceBundle)
 		if errorValue != nil {
 			return nil, errorValue
 		}
-	}
-	switch request.ToolName {
-	case "site.create":
-		return service.postAdmindSite(ctx, "/admin/api/sites", inputDocument)
-	case "site.publish":
-		return service.publishAdmindSite(ctx, inputDocument)
-	case "site.preview":
-		return service.previewAdmindSite(ctx, inputDocument)
-	case "site.status":
-		input, errorValue := decodeSiteAppInput(inputDocument)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		return service.getAdmindSiteStatus(ctx, input)
-	case "site.delete":
-		return service.deleteAdmindSite(ctx, inputDocument, request.Context.IsApprovalContinuation)
+		return service.postAdmindSite(ctx, "/admin/api/sites/serve", inputDocument)
+	case "site.list":
+		return service.listAdmindSites(ctx, inputDocument)
+	case "site.unserve":
+		return service.unserveAdmindSite(ctx, inputDocument, request.Context.IsApprovalContinuation)
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)
 	}
 }
 
 func siteToolNeedsSourceBundle(toolName string) bool {
-	return toolName == "site.preview" || toolName == "site.publish"
+	return toolName == "site.serve"
 }
 
 func siteAppInputWithSourceBundle(document json.RawMessage, sourceBundle *capabilities.SiteSourceBundle) (json.RawMessage, error) {
@@ -383,77 +354,55 @@ func validateSiteSourceBundle(sourceBundle *capabilities.SiteSourceBundle) error
 	return nil
 }
 
-func (service Service) publishAdmindSite(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
-	siteID, errorValue := decodeExactSiteID(inputDocument)
+func (service Service) listAdmindSites(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
+	input, errorValue := decodeSiteAppInput(inputDocument)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return service.postAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/publish", inputDocument)
-}
-
-func (service Service) previewAdmindSite(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
-	siteID, errorValue := decodeExactSiteID(inputDocument)
+	allSites, errorValue := service.listSiteAppRecords(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return service.postAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/preview", inputDocument)
+	reference := strings.TrimSpace(input.SiteReference)
+	if reference == "" {
+		return json.Marshal(siteAppListResponse{Sites: allSites})
+	}
+	matches := siteAppRecordsMatchingReference(allSites, reference)
+	if len(matches) == 0 {
+		return json.Marshal(map[string]any{"status": "not_found", "siteReference": reference, "candidates": siteAppCandidateSummaries(limitSiteAppRecords(allSites, 10))})
+	}
+	return json.Marshal(siteAppListResponse{Sites: matches})
 }
 
-func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInput) (json.RawMessage, error) {
+func (service Service) unserveAdmindSite(ctx context.Context, inputDocument json.RawMessage, isApprovalContinuation bool) (json.RawMessage, error) {
+	input, errorValue := decodeSiteAppInput(inputDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	reference := strings.TrimSpace(input.SiteReference)
 	if reference == "" {
 		return nil, errors.New("siteReference is required")
 	}
-	allSites, errorValue := service.listSiteAppRecords(ctx, input)
+	allSites, errorValue := service.listSiteAppRecords(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return service.siteStatusForMatches(ctx, input, matchSiteAppRecords(allSites, input), allSites)
-}
-
-func (service Service) siteStatusForMatches(ctx context.Context, input siteAppInput, sites []siteAppRecord, allSites []siteAppRecord) (json.RawMessage, error) {
-	switch len(sites) {
+	matches := siteAppRecordsMatchingReference(allSites, reference)
+	switch len(matches) {
 	case 0:
-		return json.Marshal(map[string]any{"status": "not_found", "siteReference": input.SiteReference, "candidates": siteAppCandidateSummaries(limitSiteAppRecords(allSites, 10))})
+		return json.Marshal(map[string]any{"status": "not_found", "siteReference": reference, "candidates": siteAppCandidateSummaries(limitSiteAppRecords(allSites, 10))})
 	case 1:
-		return service.getAdmindSiteStatusByID(ctx, sites[0].SiteID, input)
-	default:
-		return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites)})
-	}
-}
-
-func (service Service) getAdmindSiteStatusByID(ctx context.Context, siteID string, input siteAppInput) (json.RawMessage, error) {
-	document, errorValue := service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID))
-	if errorValue != nil {
-		var requestError *siteAppRequestError
-		if errors.As(errorValue, &requestError) && requestError.statusCode == http.StatusNotFound {
-			return json.Marshal(map[string]any{"status": "not_found", "siteID": siteID, "candidates": []siteAppRecord{}})
+		admindInput, errorValue := siteUnserveAdmindInput(inputDocument, isApprovalContinuation)
+		if errorValue != nil {
+			return nil, errorValue
 		}
-		return nil, errorValue
+		return service.admindSiteRequest(ctx, http.MethodDelete, "/admin/api/sites/"+url.PathEscape(matches[0].SiteID), admindInput)
+	default:
+		return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(matches)})
 	}
-	var site siteAppRecord
-	if errorValue := json.Unmarshal(document, &site); errorValue != nil {
-		return nil, errorValue
-	}
-	if siteAppRecordCanEdit(site, input) {
-		return document, nil
-	}
-	return json.Marshal(map[string]any{"status": "not_found", "siteID": siteID, "candidates": []siteAppRecord{}})
 }
 
-func (service Service) deleteAdmindSite(ctx context.Context, inputDocument json.RawMessage, isApprovalContinuation bool) (json.RawMessage, error) {
-	siteID, errorValue := decodeExactSiteID(inputDocument)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	admindInput, errorValue := siteDeleteAdmindInput(inputDocument, isApprovalContinuation)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.admindSiteRequest(ctx, http.MethodDelete, "/admin/api/sites/"+url.PathEscape(siteID), admindInput)
-}
-
-func siteDeleteAdmindInput(inputDocument json.RawMessage, isApprovalContinuation bool) (json.RawMessage, error) {
+func siteUnserveAdmindInput(inputDocument json.RawMessage, isApprovalContinuation bool) (json.RawMessage, error) {
 	input := map[string]any{}
 	if errorValue := json.Unmarshal(inputDocument, &input); errorValue != nil {
 		return nil, errorValue
@@ -516,48 +465,14 @@ func decodeSiteAppInput(document json.RawMessage) (siteAppInput, error) {
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
 		return siteAppInput{}, errorValue
 	}
-	if input.SiteID != strings.TrimSpace(input.SiteID) {
-		return siteAppInput{}, errors.New("siteID must not have leading or trailing whitespace")
-	}
 	if input.SiteReference != strings.TrimSpace(input.SiteReference) {
 		return siteAppInput{}, errors.New("siteReference must not have leading or trailing whitespace")
 	}
 	return input, nil
 }
 
-func decodeExactSiteID(document json.RawMessage) (string, error) {
-	input, errorValue := decodeSiteAppInput(document)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return requireSiteID(input)
-}
-
-func requireSiteID(input siteAppInput) (string, error) {
-	if input.SiteID == "" {
-		return "", errors.New("siteID is required")
-	}
-	return input.SiteID, nil
-}
-
-func (service Service) listMatchingSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
-	allSites, errorValue := service.listSiteAppRecords(ctx, input)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return matchSiteAppRecords(allSites, input), nil
-}
-
-func (service Service) listSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
-	path := "/admin/api/sites"
-	query := url.Values{}
-	if input.CheckLive {
-		query.Set("checkLive", "true")
-	}
-	if encodedQuery := query.Encode(); encodedQuery != "" {
-		path += "?" + encodedQuery
-	}
-	listDocument, errorValue := service.getAdmindSite(ctx, path)
+func (service Service) listSiteAppRecords(ctx context.Context) ([]siteAppRecord, error) {
+	listDocument, errorValue := service.getAdmindSite(ctx, "/admin/api/sites")
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -575,19 +490,12 @@ func limitSiteAppRecords(sites []siteAppRecord, limit int) []siteAppRecord {
 	return sites[:limit]
 }
 
-func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRecord {
+func siteAppRecordsMatchingReference(sites []siteAppRecord, reference string) []siteAppRecord {
 	matches := []siteAppRecord{}
-	reference := strings.TrimSpace(input.SiteReference)
 	for _, site := range sites {
-		isExactID := strings.TrimSpace(site.SiteID) == reference
-		isExactSlug := strings.TrimSpace(site.Slug) == reference
-		if !isExactID && !isExactSlug {
-			continue
+		if strings.TrimSpace(site.SiteID) == reference || strings.TrimSpace(site.Slug) == reference {
+			matches = append(matches, site)
 		}
-		if !siteAppRecordCanEdit(site, input) {
-			continue
-		}
-		matches = append(matches, site)
 	}
 	return matches
 }
@@ -609,60 +517,6 @@ func siteAppCandidateSummaries(sites []siteAppRecord) []map[string]any {
 		})
 	}
 	return summaries
-}
-
-func siteAppRecordCanEdit(site siteAppRecord, input siteAppInput) bool {
-	if siteAppIdentityEmpty(site.OwnerIdentity) && strings.TrimSpace(site.Owner) == "" {
-		return false
-	}
-	if siteAppIdentityMatches(site.OwnerIdentity, input.Requester) {
-		return true
-	}
-	if siteAppIdentityStringMatches(input.RequestedBy, site.Owner) {
-		return true
-	}
-	for _, collaborator := range site.Collaborators {
-		if !siteAppCollaboratorCanEdit(collaborator.Role) {
-			continue
-		}
-		if collaborator.PersonID != "" && collaborator.PersonID == input.Requester.PersonID {
-			return true
-		}
-		if collaborator.PlatformUserID != "" && collaborator.PlatformUserID == input.Requester.PlatformUserID {
-			return true
-		}
-		if siteAppIdentityStringMatches(input.RequestedBy, collaborator.PersonID) || siteAppIdentityStringMatches(input.RequestedBy, collaborator.PlatformUserID) {
-			return true
-		}
-	}
-	return false
-}
-
-func siteAppIdentityEmpty(identity siteAppIdentity) bool {
-	return strings.TrimSpace(identity.PersonID) == "" &&
-		strings.TrimSpace(identity.PlatformUserID) == "" &&
-		strings.TrimSpace(identity.DisplayName) == ""
-}
-
-func siteAppIdentityMatches(owner siteAppIdentity, requester siteAppIdentity) bool {
-	if owner.PersonID != "" && requester.PersonID != "" && owner.PersonID == requester.PersonID {
-		return true
-	}
-	if owner.PlatformUserID != "" && requester.PlatformUserID != "" && owner.PlatformUserID == requester.PlatformUserID {
-		return owner.Platform == "" || requester.Platform == "" || strings.EqualFold(owner.Platform, requester.Platform)
-	}
-	return false
-}
-
-func siteAppCollaboratorCanEdit(role string) bool {
-	normalizedRole := strings.ToLower(strings.TrimSpace(role))
-	return normalizedRole == "editor" || normalizedRole == "owner"
-}
-
-func siteAppIdentityStringMatches(left string, right string) bool {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	return left != "" && right != "" && strings.EqualFold(left, right)
 }
 
 func firstNonEmptySiteString(values ...string) string {

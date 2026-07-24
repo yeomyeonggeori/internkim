@@ -64,11 +64,16 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 		"platform.message.search":   "message.search",
 		"platform.message.send":     "message.send",
 		"platform.message.update":   "message.update",
-		"site.app.create":           "site.create",
-		"site.app.delete":           "site.delete",
-		"site.app.preview":          "site.preview",
-		"site.app.publish":          "site.publish",
-		"site.app.status":           "site.status",
+		"site.app.create":           "site.serve",
+		"site.app.delete":           "site.unserve",
+		"site.app.preview":          "site.serve",
+		"site.app.publish":          "site.serve",
+		"site.app.status":           "site.list",
+		"site.create":               "site.serve",
+		"site.delete":               "site.unserve",
+		"site.preview":              "site.serve",
+		"site.publish":              "site.serve",
+		"site.status":               "site.list",
 	}
 	replacements := LegacyToolNameReplacements()
 	if !reflect.DeepEqual(replacements, expectedReplacements) {
@@ -580,48 +585,40 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 
 func TestSiteAppDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 	descriptors := SiteAppDescriptors()
-	expectedToolNames := []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete"}
+	expectedToolNames := []string{"site.serve", "site.list", "site.unserve"}
 	actualToolNames := make([]string, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		actualToolNames = append(actualToolNames, descriptor.Name)
 		if descriptor.ResultContract == nil {
 			t.Fatalf("%s result contract is missing", descriptor.Name)
 		}
-		if descriptor.Name == "site.delete" && !descriptor.RequiresApproval {
-			t.Fatalf("site.delete must require runtime approval")
+		if descriptor.Name == "site.unserve" && !descriptor.RequiresApproval {
+			t.Fatalf("site.unserve must require runtime approval")
 		}
-		if descriptor.Name == "site.delete" && descriptor.RequiresUserPresence {
-			t.Fatalf("site.delete executes on the device; requiring user presence routes it to the companion")
+		if descriptor.Name == "site.unserve" && descriptor.RequiresUserPresence {
+			t.Fatalf("site.unserve executes on the device; requiring user presence routes it to the companion")
 		}
 	}
 	if !reflect.DeepEqual(actualToolNames, expectedToolNames) {
 		t.Fatalf("site tools = %v, want %v", actualToolNames, expectedToolNames)
 	}
-	for _, removedToolName := range []string{"site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
+	for _, removedToolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.edit"} {
 		if containsString(actualToolNames, removedToolName) {
 			t.Fatalf("removed site tool %q is still model-visible", removedToolName)
 		}
 	}
 
-	createSchema := descriptorSchema(t, descriptors, "site.create")
-	statusSchema := descriptorSchema(t, descriptors, "site.status")
-	previewSchema := descriptorSchema(t, descriptors, "site.preview")
-	publishSchema := descriptorSchema(t, descriptors, "site.publish")
-	deleteSchema := descriptorSchema(t, descriptors, "site.delete")
+	serveSchema := descriptorSchema(t, descriptors, "site.serve")
+	listSchema := descriptorSchema(t, descriptors, "site.list")
+	unserveSchema := descriptorSchema(t, descriptors, "site.unserve")
 
-	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope", "content")
-	assertSchemaRequires(t, createSchema, "slug")
-	assertSchemaHasProperties(t, statusSchema, "siteReference", "checkLive")
-	assertSchemaRequires(t, statusSchema, "siteReference")
-	assertSchemaHasProperties(t, previewSchema, "siteID", "previewID")
-	assertSchemaRequires(t, previewSchema, "siteID")
-	assertSchemaHasProperties(t, publishSchema, "siteID", "message", "previewID")
-	assertSchemaRequires(t, publishSchema, "siteID")
-	assertSchemaHasProperties(t, deleteSchema, "siteID", "reason")
-	assertSchemaRequires(t, deleteSchema, "siteID")
-	assertSchemaOmitsProperties(t, previewSchema, "slug")
-	assertSchemaOmitsProperties(t, publishSchema, "slug")
-	assertSchemaOmitsProperties(t, deleteSchema, "slug", "confirm", "userConfirmed")
+	assertSchemaHasProperties(t, serveSchema, "title", "sourceWorkspacePath", "mode", "siteReference")
+	assertSchemaRequires(t, serveSchema, "title", "sourceWorkspacePath", "mode")
+	assertSchemaOmitsProperties(t, serveSchema, "slug", "content", "prompt", "siteID")
+	assertSchemaHasProperties(t, listSchema, "siteReference")
+	assertSchemaHasProperties(t, unserveSchema, "siteReference", "reason")
+	assertSchemaRequires(t, unserveSchema, "siteReference")
+	assertSchemaOmitsProperties(t, unserveSchema, "siteID", "confirm", "userConfirmed")
 }
 
 func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
@@ -654,10 +651,9 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, WebDescriptors(), "web.search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.delete", true)
-	assertDescriptorApproval(t, SiteAppDescriptors(), "site.create", false)
-	assertDescriptorApproval(t, SiteAppDescriptors(), "site.preview", false)
-	assertDescriptorApproval(t, SiteAppDescriptors(), "site.publish", false)
-	assertDescriptorApproval(t, SiteAppDescriptors(), "site.delete", true)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.serve", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.list", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.unserve", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
 }
@@ -666,7 +662,7 @@ func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.add", "success", "write_calendar", "calendar")
-	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site.publish", "success", "publish_site", "site")
+	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site.serve", "success", "serve_site", "site")
 	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.gmail.send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.calendar.event", "success", "write_calendar", "calendar")
 }
@@ -688,117 +684,91 @@ func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
 	assertSchemaRequires(t, sendSchema, "to", "subject", "body")
 }
 
-func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testing.T) {
-	descriptor := descriptorForTool(t, SiteAppDescriptors(), "site.publish")
+func TestSiteAppServeDescriptorDoesNotLookLikeGenericExternalPublish(t *testing.T) {
+	descriptor := descriptorForTool(t, SiteAppDescriptors(), "site.serve")
 	if descriptor.SideEffectClass != "site_publish" {
-		t.Fatalf("site.publish side effect class = %q", descriptor.SideEffectClass)
+		t.Fatalf("site.serve side effect class = %q", descriptor.SideEffectClass)
 	}
 	if descriptor.RequiresApproval {
-		t.Fatalf("site.publish should not require approval: %+v", descriptor)
+		t.Fatalf("site.serve should not require approval: %+v", descriptor)
 	}
 }
 
 func TestSiteAppDescriptorsDeclareExactResultContracts(t *testing.T) {
 	descriptors := SiteAppDescriptors()
-	expectedEffects := map[string]string{
-		"site.create":  "created",
-		"site.preview": "previewed",
-		"site.publish": "published",
-		"site.delete":  "deleted",
+
+	serveDescriptor := descriptorForTool(t, descriptors, "site.serve")
+	if serveDescriptor.ResultContract == nil || len(serveDescriptor.ResultContract.Effects) != 2 {
+		t.Fatalf("site.serve result contract = %+v", serveDescriptor.ResultContract)
 	}
-	for toolName, expectedEffect := range expectedEffects {
-		descriptor := descriptorForTool(t, descriptors, toolName)
-		expectedEffectCount := 1
-		if toolName == "site.publish" {
-			expectedEffectCount = 2
-		}
-		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Effects) != expectedEffectCount {
-			t.Fatalf("%s result contract = %+v", toolName, descriptor.ResultContract)
-		}
-		effect := descriptor.ResultContract.Effects[0]
-		if effect.ObjectType != "website" ||
-			effect.Effect != expectedEffect ||
-			effect.ResultField != "siteID" ||
-			effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
-			t.Fatalf("%s effect = %+v", toolName, effect)
-		}
+	previewEffect := serveDescriptor.ResultContract.Effects[0]
+	if previewEffect.ObjectType != "website" ||
+		previewEffect.Effect != "previewed" ||
+		previewEffect.ResultField != "previewURL" ||
+		previewEffect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityURL ||
+		previewEffect.When == nil ||
+		previewEffect.When.ResultField != "mode" ||
+		string(previewEffect.When.Equals) != `"preview"` {
+		t.Fatalf("site.serve preview effect = %+v", previewEffect)
 	}
-	publishURL := descriptorForTool(t, descriptors, "site.publish").ResultContract.Effects[1]
-	if publishURL.ObjectType != "website" ||
-		publishURL.Effect != "published" ||
-		publishURL.ResultField != "publishedURL" ||
-		publishURL.EffectIdentity != capabilityprotocol.ResourceEffectIdentityURL {
-		t.Fatalf("site.publish URL effect = %+v", publishURL)
+	publishEffect := serveDescriptor.ResultContract.Effects[1]
+	if publishEffect.ObjectType != "website" ||
+		publishEffect.Effect != "published" ||
+		publishEffect.ResultField != "publishedURL" ||
+		publishEffect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityURL ||
+		publishEffect.When == nil ||
+		publishEffect.When.ResultField != "mode" ||
+		string(publishEffect.When.Equals) != `"publish"` {
+		t.Fatalf("site.serve publish effect = %+v", publishEffect)
 	}
 
-	statusDescriptor := descriptorForTool(t, descriptors, "site.status")
-	if statusDescriptor.ResultContract == nil || len(statusDescriptor.ResultContract.Effects) != 0 {
-		t.Fatalf("site.status result contract = %+v", statusDescriptor.ResultContract)
+	listDescriptor := descriptorForTool(t, descriptors, "site.list")
+	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
+		t.Fatalf("site.list result contract = %+v", listDescriptor.ResultContract)
 	}
-	createResultSchema := decodeSchema(t, "site.create result", descriptorForTool(t, descriptors, "site.create").ResultContract.Schema)
-	publishResultSchema := decodeSchema(t, "site.publish result", descriptorForTool(t, descriptors, "site.publish").ResultContract.Schema)
-	deleteResultSchema := decodeSchema(t, "site.delete result", descriptorForTool(t, descriptors, "site.delete").ResultContract.Schema)
-	assertSchemaRequires(t, createResultSchema, "siteID", "sourceWorkspacePath", "appWorkspacePath")
-	assertSchemaRequires(t, publishResultSchema, "siteID", "sourceWorkspacePath", "sourceSHA256", "publishedURL", "currentVersionID")
-	assertSchemaRequires(t, deleteResultSchema, "siteID", "deleted")
-	assertDescriptorCompletionEvidence(t, descriptors, "site.delete", "success", "delete_site", "site")
+
+	unserveDescriptor := descriptorForTool(t, descriptors, "site.unserve")
+	if unserveDescriptor.ResultContract == nil || len(unserveDescriptor.ResultContract.Effects) != 1 {
+		t.Fatalf("site.unserve result contract = %+v", unserveDescriptor.ResultContract)
+	}
+	unserveEffect := unserveDescriptor.ResultContract.Effects[0]
+	if unserveEffect.ObjectType != "website" ||
+		unserveEffect.Effect != "deleted" ||
+		unserveEffect.ResultField != "siteID" ||
+		unserveEffect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
+		t.Fatalf("site.unserve effect = %+v", unserveEffect)
+	}
+
+	serveResultSchema := decodeSchema(t, "site.serve result", serveDescriptor.ResultContract.Schema)
+	listResultSchema := decodeSchema(t, "site.list result", listDescriptor.ResultContract.Schema)
+	unserveResultSchema := decodeSchema(t, "site.unserve result", unserveDescriptor.ResultContract.Schema)
+	assertSchemaRequires(t, serveResultSchema, "siteID", "slug", "mode", "sourceSHA256")
+	assertSchemaHasProperties(t, serveResultSchema, "previewURL", "publishedURL")
+	assertSchemaRequires(t, listResultSchema, "sites")
+	assertSchemaRequires(t, unserveResultSchema, "siteID", "slug", "unserved")
+	assertDescriptorCompletionEvidence(t, descriptors, "site.unserve", "success", "delete_site", "site")
 }
 
-func TestSiteAppCreateDescriptorHasContentSchema(t *testing.T) {
-	schema := descriptorSchema(t, SiteAppDescriptors(), "site.create")
-	assertSchemaHasProperties(t, schema, "content")
+func TestSiteServeEffectsProjectByMode(t *testing.T) {
+	serveDescriptor := descriptorForTool(t, SiteAppDescriptors(), "site.serve")
+	previewResult := json.RawMessage(`{"siteID":"site-1","slug":"demo","mode":"preview","previewURL":"https://demo.example/__preview/p-1","sourceSHA256":"` + strings.Repeat("a", 64) + `"}`)
+	publishResult := json.RawMessage(`{"siteID":"site-1","slug":"demo","mode":"publish","publishedURL":"https://demo.example","sourceSHA256":"` + strings.Repeat("a", 64) + `"}`)
 
-	contentSchema, isObject := schema.Properties["content"].(map[string]any)
-	if !isObject {
-		t.Fatalf("expected content property to be an object schema, got %#v", schema.Properties["content"])
+	previewEffects, errorValue := ProjectResourceEffects(serveDescriptor.ResultContract, previewResult)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if contentSchema["type"] != "object" {
-		t.Fatalf("expected content schema type object, got %v", contentSchema["type"])
-	}
-	contentProperties, isObject := contentSchema["properties"].(map[string]any)
-	if !isObject {
-		t.Fatalf("expected content schema properties, got %#v", contentSchema["properties"])
-	}
-	for _, propertyName := range []string{"siteName", "tagline", "heroActionLabel", "heroActionHref", "sections"} {
-		if _, exists := contentProperties[propertyName]; !exists {
-			t.Fatalf("expected content schema property %q, got %+v", propertyName, contentProperties)
-		}
-	}
-	contentRequired, isSlice := contentSchema["required"].([]any)
-	if !isSlice || !containsAnyString(contentRequired, "siteName") || !containsAnyString(contentRequired, "sections") {
-		t.Fatalf("expected content schema to require siteName and sections, got %v", contentSchema["required"])
+	if len(previewEffects) != 1 || previewEffects[0].Effect != "previewed" || previewEffects[0].URL != "https://demo.example/__preview/p-1" {
+		t.Fatalf("preview effects = %+v", previewEffects)
 	}
 
-	sectionsSchema, isObject := contentProperties["sections"].(map[string]any)
-	if !isObject || sectionsSchema["type"] != "array" {
-		t.Fatalf("expected sections to be an array schema, got %#v", contentProperties["sections"])
+	publishEffects, errorValue := ProjectResourceEffects(serveDescriptor.ResultContract, publishResult)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	sectionItemSchema, isObject := sectionsSchema["items"].(map[string]any)
-	if !isObject {
-		t.Fatalf("expected sections items schema, got %#v", sectionsSchema["items"])
+	if len(publishEffects) != 1 || publishEffects[0].Effect != "published" || publishEffects[0].URL != "https://demo.example" {
+		t.Fatalf("publish effects = %+v", publishEffects)
 	}
-	sectionItemProperties, isObject := sectionItemSchema["properties"].(map[string]any)
-	if !isObject {
-		t.Fatalf("expected section item properties, got %#v", sectionItemSchema["properties"])
-	}
-	for _, propertyName := range []string{"title", "body"} {
-		if _, exists := sectionItemProperties[propertyName]; !exists {
-			t.Fatalf("expected section item property %q, got %+v", propertyName, sectionItemProperties)
-		}
-	}
-	sectionItemRequired, isSlice := sectionItemSchema["required"].([]any)
-	if !isSlice || !containsAnyString(sectionItemRequired, "title") || !containsAnyString(sectionItemRequired, "body") {
-		t.Fatalf("expected section item schema to require title and body, got %v", sectionItemSchema["required"])
-	}
-}
-
-func containsAnyString(values []any, target string) bool {
-	for _, value := range values {
-		if stringValue, isString := value.(string); isString && stringValue == target {
-			return true
-		}
-	}
-	return false
 }
 
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {

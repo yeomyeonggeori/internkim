@@ -266,6 +266,23 @@ type sitePublishRequest struct {
 	PocketBaseHooksApproved bool         `json:"pocketBaseHooksApproved"`
 }
 
+type siteServeRequest struct {
+	Title               string       `json:"title"`
+	Mode                string       `json:"mode"`
+	SiteReference       string       `json:"siteReference"`
+	SourceWorkspacePath string       `json:"sourceWorkspacePath"`
+	SourceBundleBase64  string       `json:"sourceBundleBase64"`
+	SourceBundleFormat  string       `json:"sourceBundleFormat"`
+	SourceSHA256        string       `json:"sourceSHA256"`
+	Message             string       `json:"message"`
+	RequestedBy         string       `json:"requestedBy"`
+	Requester           siteIdentity `json:"requester"`
+	CreatedBy           siteIdentity `json:"createdBy"`
+	OwnerIdentity       siteIdentity `json:"ownerIdentity"`
+	Platform            string       `json:"platform"`
+	ConversationID      string       `json:"conversationID"`
+}
+
 type siteLifecycleRequest struct {
 	RequestedBy   string       `json:"requestedBy"`
 	Requester     siteIdentity `json:"requester"`
@@ -571,6 +588,170 @@ func siteCreateErrorStatus(errorValue error) int {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
+}
+
+func (service *Service) serveSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload siteServeRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := validateSiteServeRequest(payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	site, isResolved := service.resolveServedSite(payload)
+	if !isResolved {
+		service.writeJSON(responseWriter, map[string]any{
+			"status":        "not_found",
+			"siteReference": strings.TrimSpace(payload.SiteReference),
+			"candidates":    service.siteCandidateSummaries(10),
+		})
+		return
+	}
+	if site == nil {
+		createdSite, errorValue := service.createServedSiteRecord(payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), siteCreateErrorStatus(errorValue))
+			return
+		}
+		site = createdSite
+	}
+	servedSite, errorValue := service.serveSite(request.Context(), site, payload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	service.writeSiteRecord(responseWriter, servedSite)
+}
+
+func validateSiteServeRequest(payload siteServeRequest) error {
+	mode := strings.TrimSpace(payload.Mode)
+	if mode != "preview" && mode != "publish" {
+		return errors.New(`mode must be "preview" or "publish"`)
+	}
+	if strings.TrimSpace(payload.SourceBundleBase64) == "" {
+		return errors.New("sourceBundleBase64 is required")
+	}
+	if strings.TrimSpace(payload.SiteReference) == "" && strings.TrimSpace(payload.Title) == "" {
+		return errors.New("title is required for a first serve")
+	}
+	return nil
+}
+
+func (service *Service) resolveServedSite(payload siteServeRequest) (*SiteRecord, bool) {
+	reference := strings.TrimSpace(payload.SiteReference)
+	if reference == "" {
+		return nil, true
+	}
+	if site := service.findSiteByID(reference); site != nil && site.Status != SiteStatusDeleted {
+		return site, true
+	}
+	if site := service.findSiteBySlug(reference); site != nil {
+		return site, true
+	}
+	return nil, false
+}
+
+func (service *Service) createServedSiteRecord(payload siteServeRequest) (*SiteRecord, error) {
+	siteCreationMutex.Lock()
+	defer siteCreationMutex.Unlock()
+
+	site, errorValue := service.newUnpersistedSiteRecord(siteCreateRequest{
+		Slug:           service.allocateSiteSlugFromTitle(payload.Title),
+		Title:          strings.TrimSpace(payload.Title),
+		RequestedBy:    payload.RequestedBy,
+		Requester:      payload.Requester,
+		CreatedBy:      payload.CreatedBy,
+		OwnerIdentity:  payload.OwnerIdentity,
+		Platform:       payload.Platform,
+		ConversationID: payload.ConversationID,
+	})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := service.validateSiteStagingPaths(site); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := service.commitNewSite(site); errorValue != nil {
+		return nil, errorValue
+	}
+	return site, nil
+}
+
+func (service *Service) serveSite(ctx context.Context, site *SiteRecord, payload siteServeRequest) (*SiteRecord, error) {
+	publishPayload := sitePublishRequest{
+		SiteID:              site.SiteID,
+		Title:               payload.Title,
+		SourceWorkspacePath: payload.SourceWorkspacePath,
+		SourceBundleBase64:  payload.SourceBundleBase64,
+		SourceBundleFormat:  payload.SourceBundleFormat,
+		Message:             payload.Message,
+		RequestedBy:         payload.RequestedBy,
+		Requester:           payload.Requester,
+		Platform:            payload.Platform,
+		ConversationID:      payload.ConversationID,
+	}
+	if strings.TrimSpace(payload.Mode) == "publish" {
+		return service.publishSite(ctx, publishPayload)
+	}
+	return service.previewSite(ctx, publishPayload)
+}
+
+func (service *Service) siteCandidateSummaries(limit int) []map[string]any {
+	summaries := []map[string]any{}
+	for _, site := range service.siteList() {
+		if len(summaries) == limit {
+			break
+		}
+		summaries = append(summaries, map[string]any{
+			"siteID":       site.SiteID,
+			"slug":         site.Slug,
+			"title":        site.Title,
+			"status":       site.Status,
+			"publishedURL": siteVisiblePublishedURL(site),
+			"updatedAt":    site.UpdatedAt,
+		})
+	}
+	return summaries
+}
+
+func (service *Service) allocateSiteSlugFromTitle(title string) string {
+	baseSlug := siteSlugFromTitle(title)
+	if service.findSiteBySlug(baseSlug) == nil {
+		return baseSlug
+	}
+	for counter := 2; ; counter++ {
+		candidateSlug := baseSlug + "-" + strconv.Itoa(counter)
+		if service.findSiteBySlug(candidateSlug) == nil {
+			return candidateSlug
+		}
+	}
+}
+
+func siteSlugFromTitle(title string) string {
+	var builder strings.Builder
+	previousWasHyphen := true
+	for _, character := range strings.ToLower(strings.TrimSpace(title)) {
+		isAllowed := character >= 'a' && character <= 'z' || character >= '0' && character <= '9'
+		if isAllowed {
+			builder.WriteRune(character)
+			previousWasHyphen = false
+			continue
+		}
+		if !previousWasHyphen {
+			builder.WriteByte('-')
+			previousWasHyphen = true
+		}
+	}
+	slug := strings.Trim(builder.String(), "-")
+	if len(slug) > 60 {
+		slug = strings.Trim(slug[:60], "-")
+	}
+	if !isValidSiteSlug(slug) {
+		return "site"
+	}
+	return slug
 }
 
 func (service *Service) materializeSiteSourceWorkspace(ctx context.Context, site *SiteRecord, content *siteContent) error {
@@ -1254,9 +1435,6 @@ func validateWorkspaceOnlyPublish(payload sitePublishRequest) error {
 
 func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *SiteRecord, payload sitePublishRequest) error {
 	if strings.TrimSpace(payload.SourceBundleBase64) != "" {
-		if !siteSourcePathMatchesSite(site, payload.SourceWorkspacePath) {
-			return errors.New("sourceWorkspacePath does not match site")
-		}
 		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
 			return errorValue
 		}
@@ -2122,7 +2300,6 @@ func (service *Service) deleteSite(ctx context.Context, siteID string, payload s
 	}
 	_, _ = service.runCommand(ctx, "systemctl", "disable", "--now", siteServiceName(site.SiteID))
 	_ = os.RemoveAll(service.sitePath(site.SiteID))
-	_ = os.RemoveAll(service.siteOwnerProjectPath(site))
 	_ = os.RemoveAll(service.siteProjectAliasHostPath(site))
 	_ = os.RemoveAll(service.siteProjectStorageHostPath(site.SiteID))
 	_ = os.RemoveAll(site.HostSourcePath)
@@ -3209,27 +3386,6 @@ func siteOwnerSourceWorkspacePath(site *SiteRecord) string {
 		return ""
 	}
 	return projectPath + "/draft"
-}
-
-func siteSourcePathMatchesSite(site *SiteRecord, requestedPath string) bool {
-	if site == nil {
-		return false
-	}
-	normalizedPath := strings.TrimSuffix(filepath.ToSlash(strings.TrimSpace(requestedPath)), "/")
-	if normalizedPath == "" {
-		return false
-	}
-	if normalizedPath == strings.TrimSpace(site.SourceWorkspacePath) {
-		return true
-	}
-	if normalizedPath == siteOwnerSourceWorkspacePath(site) {
-		return true
-	}
-	siteID := strings.TrimSpace(site.SiteID)
-	if siteID == "" {
-		return false
-	}
-	return normalizedPath == "sites/"+siteID+"/draft" || strings.HasSuffix(normalizedPath, "/sites/"+siteID+"/draft")
 }
 
 type siteSourceFile struct {
