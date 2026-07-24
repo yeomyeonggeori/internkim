@@ -27,7 +27,7 @@ const (
 
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
-		TimeZone: workspaceSystemTimeZone,
+		TimeZone: workspaceBusinessTimeZone,
 		Language: workspaceLanguageKorean,
 	}
 }

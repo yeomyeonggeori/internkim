@@ -6,6 +6,16 @@ import (
 	"time"
 )
 
+func TestAbsentWorkspaceSettingsDefaultToTheBusinessTimeZone(t *testing.T) {
+	service := &Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
+
+	resolved := service.workspaceTimeZone()
+
+	if resolved.name != workspaceBusinessTimeZone || !resolved.isAuthoritative {
+		t.Fatalf("expected authoritative %s default, got %+v", workspaceBusinessTimeZone, resolved)
+	}
+}
+
 func TestResolveWorkspaceTimeZoneUsesAuthoritativeSystemSetting(t *testing.T) {
 	systemTimeZone := authoritativeTestTimeZone(t, "Asia/Seoul")
 
