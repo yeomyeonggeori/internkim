@@ -31,7 +31,7 @@ MM_URL="http://$VMIP:8065"
 ADMIN_PASS="$(vmssh 'sudo cat /root/.internkim/secrets/mm-admin-pass' | tail -1)"
 EVID="$ROOT/e2e-evidence"; mkdir -p "$EVID"
 
-# site- cases (site.create/site.publish scaffolding) need a stronger model than
+# site- cases (scaffold + build + site.serve) need a stronger model than
 # the xiaomi/mimo-v2.5 default carries reliably, so a filter touching any site-
 # case defaults to gemini instead; INTERNKIM_E2E_MODEL always wins when set.
 filter_includes_site_case() {
@@ -108,14 +108,14 @@ CASES=(
 	"schedule-add|매주 월요일 오전 9시에 주간보고 리마인드 예약해줘|schedule.create|260"
 	"schedule-update|주간보고 리마인드를 화요일로 바꿔줘|schedule.update|260"
 	"schedule-delete|주간보고 리마인드 예약 삭제해줘|schedule.cancel|220"
-	"site-create|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 먼저 빈 입력으로 site.status를 확인하고 status가 not_found이면 site.create에서 slug local-fleet-studio-$RUN_NONCE 로 새 사이트를 만들어줘. 기존 사이트는 삭제하거나 덮어쓰지 마. 'Local Fleet Studio $RUN_NONCE'라는 단일 페이지 회사 소개 웹사이트를 배포해줘. 첫 화면 제목은 'Local Fleet Studio $RUN_NONCE', 보조 문구는 '로컬 플릿 웹사이트 CRUD 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘.|site.create|600"
-	"site-edit|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 웹사이트의 첫 화면 제목을 'Local Fleet Studio $RUN_NONCE 수정됨'으로 바꾸고 보조 문구 '재배포 확인 문구 $RUN_NONCE'를 추가한 뒤 같은 사이트를 다시 배포해줘. 새 사이트는 만들지 마.|site.publish|600"
-	"site-delete|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 테스트 웹사이트를 삭제해줘.|site.delete|260"
+	"site-create|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 'Local Fleet Studio $RUN_NONCE'라는 단일 페이지 회사 소개 웹사이트를 새로 만들어서 공개해줘. 기존 사이트는 삭제하거나 덮어쓰지 마. 첫 화면 제목은 'Local Fleet Studio $RUN_NONCE', 보조 문구는 '로컬 플릿 웹사이트 CRUD 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘.|site.serve|600"
+	"site-edit|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 웹사이트의 첫 화면 제목을 'Local Fleet Studio $RUN_NONCE 수정됨'으로 바꾸고 보조 문구 '재배포 확인 문구 $RUN_NONCE'를 추가한 뒤 같은 사이트를 다시 배포해줘. 새 사이트는 만들지 마.|site.serve|600"
+	"site-delete|테스트 ID IK-SITE-CRUD-$RUN_NONCE. 방금 배포한 'Local Fleet Studio $RUN_NONCE' 테스트 웹사이트를 삭제해줘.|site.unserve|260"
 	"dm-send|길동이한테 회의 잘 부탁한다고 메시지 보내줘|message.send|220"
 )
 
 # Cases whose op descriptor sets RequiresApproval:true in internal/capabilities/protocol.go
-# (task.delete, calendar.delete, site.delete) — a live approval question must be visible
+# (task.delete, calendar.delete, site.unserve) — a live approval question must be visible
 # before these run to completion, so they use the resumable start/approve/finish flow
 # below instead of run_case's single-shot auto-approve.
 APPROVAL_CASES=(task-delete calendar-delete site-delete)
@@ -192,12 +192,6 @@ requires_deleted_site_screenshot() { # case-name
 
 requires_downloaded_file() { # case-name
 	[ "$1" = docx-create ] || [ "$1" = pdf-create ] || [ "$1" = xlsx-create ]
-}
-
-requires_no_terminal_run() { # case-name -- basic sites publish from the prebuilt
-	# scaffold dist and must never shell out to build; a terminal.run means the
-	# agent fell back to a build it should not need.
-	[ "$1" = site-create ] || [ "$1" = site-edit ]
 }
 
 is_approval_case() { # case-name -- membership check against APPROVAL_CASES
@@ -318,7 +312,6 @@ for entry in "${CASES[@]}"; do
 	opok="$(echo "$res" | jq -r '.opOk // false')"
 	recovered_error_count="$(echo "$res" | jq -r '.recoveredErrorCount // 0')"
 	printf "%s" "$res" > "$EVID/$name-result.json"
-	terminal_run_count="$(echo "$res" | jq -r '.terminalRunCount // 0')"
 	bot_post_id="$(echo "$res" | jq -r '.botPostID // ""')"
 	approval_png=""
 	is_approval_case "$name" && [ -f "$EVID/$name-approval.png" ] && approval_png="$EVID/$name-approval.png"
@@ -350,7 +343,6 @@ for entry in "${CASES[@]}"; do
 		requires_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
 		requires_deleted_site_screenshot "$name" && [ ! -f "$site_png" ] && passed=false
 		requires_downloaded_file "$name" && [ -z "$downloaded_files" ] && passed=false
-		requires_no_terminal_run "$name" && [ "${terminal_run_count:-0}" -gt 0 ] 2>/dev/null && passed=false
 		is_approval_case "$name" && [ -z "$approval_png" ] && passed=false
 	fi
 	score="$(score_for "$passed" "$steps" "$recovered_error_count")"

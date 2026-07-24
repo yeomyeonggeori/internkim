@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+import json
+import pathlib
+import re
+import sys
+
+FRONT_MATTER_REQUIRED_KEY_ORDER = ["colors", "typography", "rounded", "spacing", "components"]
+REBUILD_EXEMPT_DIRECTORY_NAMES = {"dist", "node_modules", ".internkim"}
+
+
+def front_matter_failures(design_text: str) -> list:
+    if not design_text.startswith("---\n"):
+        return ["DESIGN.md must start with YAML front matter (---)"]
+    front_matter_end = design_text.find("\n---", 4)
+    if front_matter_end < 0:
+        return ["DESIGN.md front matter must end with ---"]
+    front_matter = design_text[4:front_matter_end]
+    failures = []
+    key_positions = []
+    for key in FRONT_MATTER_REQUIRED_KEY_ORDER:
+        match = re.search(rf"(?m)^{key}\s*:", front_matter)
+        if match is None:
+            failures.append(f"DESIGN.md front matter is missing required key: {key}")
+        else:
+            key_positions.append((key, match.start()))
+    for (key, position), (previous_key, previous_position) in zip(key_positions[1:], key_positions):
+        if position < previous_position:
+            failures.append(f"DESIGN.md front matter key order is wrong: {key} must come after {previous_key}")
+    return failures
+
+
+def design_failures(source_root: pathlib.Path) -> list:
+    design_path = source_root / "DESIGN.md"
+    if not design_path.exists():
+        return [f"{design_path} not found; the scaffold creates it at the project root"]
+    design_text = design_path.read_text(encoding="utf-8")
+    failures = front_matter_failures(design_text)
+    if "TODO(design)" in design_text:
+        failures.append("DESIGN.md still contains the TODO(design) marker; decide the design and delete the marker")
+    return failures
+
+
+def rebuild_relevant_source_files(app_directory: pathlib.Path):
+    for path in app_directory.rglob("*"):
+        if not path.is_file():
+            continue
+        relative_parts = path.relative_to(app_directory).parts
+        if relative_parts[0] == "public" or REBUILD_EXEMPT_DIRECTORY_NAMES.intersection(relative_parts):
+            continue
+        yield path
+
+
+def dist_failures(source_root: pathlib.Path) -> list:
+    app_directory = source_root / "app"
+    dist_directory = app_directory / "dist"
+    if not dist_directory.is_dir() or not any(dist_directory.iterdir()):
+        return [f"{dist_directory} is missing or empty; run build.sh before serving"]
+    newest_dist_time = max(path.stat().st_mtime for path in dist_directory.rglob("*") if path.is_file())
+    stale_sources = [
+        path for path in rebuild_relevant_source_files(app_directory)
+        if path.stat().st_mtime > newest_dist_time
+    ]
+    if stale_sources:
+        newest_source = max(stale_sources, key=lambda path: path.stat().st_mtime)
+        return [f"app/dist is stale: {newest_source.relative_to(source_root)} changed after the last build; run build.sh again"]
+    return []
+
+
+def build_quality_failures(source_root: pathlib.Path) -> list:
+    quality_path = source_root / ".internkim" / "build-quality.json"
+    if not quality_path.exists():
+        return [f"{quality_path} not found; run build.sh so the scaffold records its quality verdict"]
+    try:
+        quality = json.loads(quality_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return [f"build-quality.json is not valid JSON: {error}"]
+    blocking_issues = [issue for issue in quality.get("issues") or [] if issue.get("severity") == "blocking"]
+    return [
+        f"build-quality blocking issue at {issue.get('target')}: {issue.get('message')} Fix: {issue.get('suggestedFix')}"
+        for issue in blocking_issues
+    ]
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("usage: validate.py <project-root>")
+        return 2
+    source_root = pathlib.Path(sys.argv[1])
+    if not (source_root / "app").is_dir():
+        print(f"Error: {source_root}/app not found; pass the site project root created by scaffold.sh.")
+        return 2
+    failures = design_failures(source_root) + dist_failures(source_root) + build_quality_failures(source_root)
+    if failures:
+        print(f"Pre-serve validation FAILED for {source_root}. Fix these before site.serve:")
+        for failure in failures:
+            print(f"  - {failure}")
+        return 1
+    print(f"Pre-serve validation PASSED for {source_root}: DESIGN.md contract, fresh app/dist, and build quality all check out.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

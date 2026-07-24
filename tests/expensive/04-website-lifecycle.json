@@ -17,77 +17,51 @@
   "browser.screenshot",
   "browser.click",
   "artifact.review",
-  "site.create",
-  "site.status",
-  "site.preview",
-  "site.publish",
-  "site.delete"
+  "site.serve",
+  "site.list",
+  "site.unserve"
  ],
  "capabilityToolNames": [
-  "site.create",
-  "site.status",
-  "site.preview",
-  "site.publish",
-  "site.delete",
+  "site.serve",
+  "site.list",
+  "site.unserve",
   "artifact.review"
  ],
  "capabilityToolDescriptors": [
   {
-   "name": "site.delete",
+   "name": "site.unserve",
    "requiresApproval": true
   }
  ],
  "initialToolNames": [
-  "site.create",
-  "site.status"
+  "site.serve",
+  "site.list"
  ],
  "steps": [
   {
-   "prompt": "우리 회사 '브릿지웍스'에 처음 문의하는 소상공인을 위한 상담 안내 웹사이트를 초안으로 만들어줘. 받을 수 있는 상담, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 공개하지는 말아줘.",
+   "prompt": "우리 회사 '브릿지웍스'에 처음 문의하는 소상공인을 위한 상담 안내 웹사이트를 초안으로 만들어줘. 받을 수 있는 상담, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 미리보기나 공개는 하지 말고 작업 파일만 준비해줘.",
    "expectedToolCalls": [
-    "site.create"
+    "terminal.run"
    ],
+   "expectedAnyToolCalls": [
+    "file.write",
+    "file.edit"
+   ],
+   "expectedExactToolCallCounts": {
+    "site.serve": 0,
+    "site.unserve": 0
+   },
    "expectedEventCounts": [
     {
-     "name": "tool.site.status.requested",
-     "bodyFragment": "\"siteReference\":",
+     "name": "tool.terminal.run.result",
+     "outputFragment": "Scaffolded site project",
      "count": 1,
      "advisory": true
-    },
-    {
-     "name": "tool.site.create.result",
-     "outputFragment": "siteID",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.create.result",
-     "outputFragment": "sourceWorkspacePath",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.create.result",
-     "outputFragment": "appWorkspacePath",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.create.result",
-     "bodyFragment": "\"objectType\":\"website\"",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.create.result",
-     "bodyFragment": "\"effect\":\"created\"",
-     "count": 1,
-     "exact": true
     }
    ],
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "상담 신청"
@@ -99,51 +73,36 @@
   {
    "prompt": "브릿지웍스 상담 안내 사이트 첫 화면에 '첫 상담은 30분 무료입니다'라는 안내를 추가해줘. 공개하기 전에 미리보기로 문구와 상담 신청 버튼이 잘 보이고 눌리는지도 확인해줘.",
    "expectedToolCalls": [
-    "site.status",
     "file.edit",
-    "site.preview"
+    "site.serve"
    ],
    "expectedToolCallCounts": {
-    "site.status": 1,
     "file.edit": 1,
-    "site.preview": 1
+    "site.serve": 1
    },
    "expectedEventCounts": [
     {
-     "name": "tool.site.status.result",
-     "outputFragment": "siteID",
+     "name": "tool.site.serve.requested",
+     "bodyFragment": "\"mode\":\"preview\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.file.edit.result",
-     "outputFragment": "site-content.json",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.preview.requested",
-     "bodyFragment": "\"siteID\":",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.preview.result",
+     "name": "tool.site.serve.result",
      "outputFragment": "previewURL",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.preview.result",
+     "name": "tool.site.serve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.preview.result",
+     "name": "tool.site.serve.result",
      "bodyFragment": "\"effect\":\"previewed\"",
-     "count": 1,
-     "advisory": true
+     "count": 1
     },
     {
      "name": "tool.artifact.review.result",
@@ -154,7 +113,7 @@
    ],
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "첫 상담은 30분 무료입니다",
@@ -175,54 +134,37 @@
   {
    "prompt": "브릿지웍스 상담 안내 사이트 미리보기에 문제없으면 지금 공개하고 링크를 보내줘.",
    "expectedToolCalls": [
-    "site.publish"
+    "site.serve"
    ],
-   "expectedExactToolCallCounts": {
-    "site.publish": 1
-   },
-   "expectedToolCallCounts": {},
    "expectedEventCounts": [
     {
-     "name": "tool.site.publish.requested",
-     "bodyFragment": "\"siteID\":",
+     "name": "tool.site.serve.requested",
+     "bodyFragment": "\"mode\":\"publish\"",
      "count": 1,
-     "advisory": true
+     "exact": true
     },
     {
-     "name": "tool.site.publish.result",
+     "name": "tool.site.serve.result",
      "outputFragment": "publishedURL",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.publish.result",
+     "name": "tool.site.serve.result",
      "outputFragment": "sourceSHA256",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.publish.result",
+     "name": "tool.site.serve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.publish.result",
+     "name": "tool.site.serve.result",
      "bodyFragment": "\"effect\":\"published\"",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.status.result",
-     "outputFragment": "published",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.status.result",
-     "outputFragment": "siteID",
-     "count": 1,
-     "advisory": true
+     "count": 1
     }
    ],
    "requiresPublicURL": true,
@@ -239,19 +181,44 @@
    "prompt": "브릿지웍스 상담 안내 사이트의 '첫 상담은 30분 무료입니다'를 '상담 신청은 평일 오전에 접수합니다'로 바꾸고, 버튼이 잘 작샘플는지 확인한 다음 다시 공개해줘.",
    "expectedToolCalls": [
     "file.edit",
-    "site.preview",
-    "site.publish"
+    "site.serve"
    ],
-   "expectedExactToolCallCounts": {
-    "site.publish": 1
-   },
    "expectedToolCallCounts": {
-    "file.edit": 1,
-    "site.preview": 1
+    "file.edit": 1
    },
+   "expectedEventCounts": [
+    {
+     "name": "tool.site.serve.requested",
+     "bodyFragment": "\"mode\":\"publish\"",
+     "count": 1,
+     "exact": true
+    },
+    {
+     "name": "tool.site.serve.requested",
+     "bodyFragment": "\"siteReference\":",
+     "count": 1
+    },
+    {
+     "name": "tool.site.serve.result",
+     "outputFragment": "sourceSHA256",
+     "count": 1,
+     "advisory": true
+    },
+    {
+     "name": "tool.site.serve.result",
+     "bodyFragment": "\"effect\":\"published\"",
+     "count": 1
+    },
+    {
+     "name": "tool.artifact.review.result",
+     "bodyFragment": "\"passed\":true",
+     "count": 1,
+     "advisory": true
+    }
+   ],
    "expectedWorkspaceFiles": [
     {
-     "pathGlob": "private/people/{requesterPersonID}/sites/*/draft/app/public/site-content.json",
+     "pathGlob": "private/people/{requesterPersonID}/sites/*/app/public/site-content.json",
      "containsFragments": [
       "브릿지웍스",
       "상담 신청은 평일 오전에 접수합니다",
@@ -260,56 +227,6 @@
      "forbiddenFragments": [
       "첫 상담은 30분 무료입니다"
      ]
-    }
-   ],
-   "expectedEventCounts": [
-    {
-     "name": "tool.file.edit.result",
-     "outputFragment": "site-content.json",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.preview.requested",
-     "bodyFragment": "\"siteID\":",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.preview.result",
-     "outputFragment": "previewURL",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.artifact.review.result",
-     "bodyFragment": "\"passed\":true",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.publish.requested",
-     "bodyFragment": "\"siteID\":",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.publish.result",
-     "outputFragment": "sourceSHA256",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.publish.result",
-     "bodyFragment": "\"effect\":\"published\"",
-     "count": 1,
-     "advisory": true
-    },
-    {
-     "name": "tool.site.status.result",
-     "outputFragment": "published",
-     "count": 1,
-     "advisory": true
     }
    ],
    "requiresPublicURL": true,
@@ -323,15 +240,14 @@
    "expectedTaskStatus": "completed"
   },
   {
-   "prompt": "방금 공개한 브릿지웍스 상담 안내 사이트를 삭제해줘.",
+   "prompt": "방금 공개한 브릿지웍스 상담 안내 사이트를 이제 내려줘. 서버에서 내려간 걸 확인한 다음 내 작업 폴더의 사이트 파일도 전부 삭제해줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "site.status",
-    "site.delete"
+    "site.unserve",
+    "terminal.run"
    ],
    "expectedToolCallCounts": {
-    "site.status": 1,
-    "site.delete": 1
+    "site.unserve": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -340,32 +256,33 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.site.delete.requested",
-     "bodyFragment": "\"siteID\":",
+     "name": "tool.site.unserve.requested",
+     "bodyFragment": "\"siteReference\":",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.delete.result",
-     "outputFragment": "deleted",
+     "name": "tool.site.unserve.result",
+     "outputFragment": "unserved",
      "count": 1,
      "exact": true
     },
     {
-     "name": "tool.site.delete.result",
+     "name": "tool.site.unserve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.delete.result",
+     "name": "tool.site.unserve.result",
      "bodyFragment": "\"effect\":\"deleted\"",
      "count": 1,
      "advisory": true
     }
    ],
    "forbiddenWorkspaceFiles": [
-    "private/people/{requesterPersonID}/sites/*"
+    "private/people/{requesterPersonID}/sites/*",
+    "private/people/{requesterPersonID}/sites/*/app/public/site-content.json"
    ],
    "expectedTaskStatus": "completed"
   }
