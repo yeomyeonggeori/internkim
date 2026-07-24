@@ -65,41 +65,61 @@ type blueclawUpdateJobResponse struct {
 	Result map[string]string `json:"result"`
 }
 
-func (state *setupFlowState) installBlueclawPayloadHTTPS(artifactDirectoryPath string, manifest blueclaw.PayloadArtifactManifest) (string, error) {
+type blueclawPayloadInstallOutcome struct {
+	Summary              string
+	AlreadyCurrent       bool
+	WorkspaceImageSynced bool
+}
+
+func (state *setupFlowState) installBlueclawPayloadHTTPS(artifactDirectoryPath string, manifest blueclaw.PayloadArtifactManifest) (blueclawPayloadInstallOutcome, error) {
 	if strings.TrimSpace(state.targetDeviceURL()) == "" {
-		return "", errors.New("device URL is not configured")
+		return blueclawPayloadInstallOutcome{}, errors.New("device URL is not configured")
 	}
 	archivePath, removeArchive, errorValue := createBlueclawPayloadArchive(artifactDirectoryPath)
 	if errorValue != nil {
-		return "", errorValue
+		return blueclawPayloadInstallOutcome{}, errorValue
 	}
 	defer removeArchive()
 	archiveSHA256, archiveSize, errorValue := fileSHA256AndSize(archivePath)
 	if errorValue != nil {
-		return "", errorValue
+		return blueclawPayloadInstallOutcome{}, errorValue
 	}
 	upload, errorValue := state.createBlueclawPayloadUpload(manifest.BlueclawRevision, archiveSize, archiveSHA256)
 	if errorValue != nil {
-		return "", errorValue
+		return blueclawPayloadInstallOutcome{}, errorValue
 	}
 	chunkSize := upload.ChunkSize
 	if chunkSize <= 0 {
 		chunkSize = blueclawUpdateUploadChunkSize
 	}
 	if errorValue := uploadBlueclawPayloadArchive(state.targetDeviceURL(), upload, archivePath, chunkSize); errorValue != nil {
-		return "", errorValue
+		return blueclawPayloadInstallOutcome{}, errorValue
 	}
 	job, errorValue := completeBlueclawPayloadUpload(state.targetDeviceURL(), upload, archiveSHA256, chunkCount(archiveSize, int64(chunkSize)))
 	if errorValue != nil {
-		return "", errorValue
+		return blueclawPayloadInstallOutcome{}, errorValue
 	}
 	switch job.Status {
 	case "completed":
-		return "installed", nil
+		return blueclawPayloadInstallOutcome{Summary: "installed", WorkspaceImageSynced: true}, nil
 	case "already_current":
-		return "already current", nil
+		return alreadyCurrentBlueclawPayloadInstallOutcome(job), nil
 	default:
-		return "", fmt.Errorf("blueclaw self-update failed at %s: %s", firstNonEmptyString(job.Phase, job.Status), strings.TrimSpace(job.Error))
+		return blueclawPayloadInstallOutcome{}, fmt.Errorf("blueclaw self-update failed at %s: %s", firstNonEmptyString(job.Phase, job.Status), strings.TrimSpace(job.Error))
+	}
+}
+
+func alreadyCurrentBlueclawPayloadInstallOutcome(job blueclawUpdateJobResponse) blueclawPayloadInstallOutcome {
+	if job.Result["workspaceImageSynced"] == "true" {
+		return blueclawPayloadInstallOutcome{
+			Summary:              "already current (workspace image synced)",
+			AlreadyCurrent:       true,
+			WorkspaceImageSynced: true,
+		}
+	}
+	return blueclawPayloadInstallOutcome{
+		Summary:        "already current",
+		AlreadyCurrent: true,
 	}
 }
 

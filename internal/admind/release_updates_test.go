@@ -51,6 +51,81 @@ func TestCheckReleaseProtocolIdentityRequiresCapabilitydAndBlueclawAgreement(t *
 	}
 }
 
+func TestCheckReleaseProtocolIdentityCapabilitydMismatchCarriesReceivedIdentity(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	receivedIdentity := capabilityprotocol.ProtocolIdentity{
+		ProtocolVersion:       "v-received",
+		AggregateProtocolHash: strings.Repeat("1a", 32),
+	}
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, receivedIdentity)
+	service := Service{Configuration: Configuration{CapabilitySocketPath: capabilitySocketPath}}
+
+	errorValue := service.checkReleaseProtocolIdentity(context.Background(), expectedIdentity)
+
+	if errorValue == nil {
+		t.Fatal("expected capabilityd identity mismatch")
+	}
+	for _, expectedText := range []string{
+		"capabilityd protocol identity mismatch",
+		expectedIdentity.ProtocolVersion,
+		expectedIdentity.AggregateProtocolHash,
+		receivedIdentity.ProtocolVersion,
+		receivedIdentity.AggregateProtocolHash,
+	} {
+		if !strings.Contains(errorValue.Error(), expectedText) {
+			t.Fatalf("expected mismatch error to include %q, got %s", expectedText, errorValue.Error())
+		}
+	}
+}
+
+func TestCheckReleaseProtocolIdentityBlueclawMismatchCarriesReceivedIdentity(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, expectedIdentity)
+	receivedHash := strings.Repeat("2b", 32)
+	blueclawServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(responseWriter).Encode(releaseBlueclawHealth{
+			Status: "ok",
+			ProtocolIdentity: releaseProtocolIdentityResult{
+				Passed:   false,
+				Expected: expectedIdentity,
+				Capabilityd: releaseProtocolEndpointStatus{
+					Status:                "ok",
+					ProtocolVersion:       expectedIdentity.ProtocolVersion,
+					AggregateProtocolHash: receivedHash,
+				},
+				LLMD: releaseProtocolEndpointStatus{
+					Status:                "ok",
+					Passed:                true,
+					ProtocolVersion:       expectedIdentity.ProtocolVersion,
+					AggregateProtocolHash: expectedIdentity.AggregateProtocolHash,
+				},
+				FailureReasons: []string{"capabilityd aggregate protocol hash mismatch"},
+			},
+		})
+	}))
+	defer blueclawServer.Close()
+	service := Service{Configuration: Configuration{
+		CapabilitySocketPath: capabilitySocketPath,
+		BlueclawBaseURL:      blueclawServer.URL,
+	}}
+
+	errorValue := service.checkReleaseProtocolIdentity(context.Background(), expectedIdentity)
+
+	if errorValue == nil {
+		t.Fatal("expected Blueclaw identity mismatch")
+	}
+	for _, expectedText := range []string{
+		"Blueclaw protocol identity mismatch",
+		expectedIdentity.AggregateProtocolHash,
+		receivedHash,
+		"capabilityd aggregate protocol hash mismatch",
+	} {
+		if !strings.Contains(errorValue.Error(), expectedText) {
+			t.Fatalf("expected mismatch error to include %q, got %s", expectedText, errorValue.Error())
+		}
+	}
+}
+
 func TestReleaseProtocolIdentityGateAppliesOnlyToProtocolComponents(t *testing.T) {
 	unrelatedManifest := releaseset.NewManifest("release-1", "stable", map[string]releaseset.Component{
 		"web": {Name: "web"},
