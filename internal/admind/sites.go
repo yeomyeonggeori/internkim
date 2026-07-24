@@ -59,49 +59,50 @@ var (
 )
 
 type SiteRecord struct {
-	SiteID              string             `json:"siteID"`
-	Slug                string             `json:"slug"`
-	Title               string             `json:"title"`
-	Owner               string             `json:"owner,omitempty"`
-	OwnerIdentity       siteIdentity       `json:"ownerIdentity,omitempty"`
-	CreatedBy           siteIdentity       `json:"createdBy,omitempty"`
-	Collaborators       []siteCollaborator `json:"collaborators,omitempty"`
-	Description         string             `json:"description,omitempty"`
-	Idea                string             `json:"idea,omitempty"`
-	OriginalPrompt      string             `json:"originalPrompt,omitempty"`
-	Purpose             string             `json:"purpose,omitempty"`
-	Audience            string             `json:"audience,omitempty"`
-	Archetype           string             `json:"archetype,omitempty"`
-	DomainKeywords      []string           `json:"domainKeywords,omitempty"`
-	Status              string             `json:"status"`
-	Visibility          string             `json:"visibility"`
-	Port                int                `json:"port"`
-	CurrentVersionID    string             `json:"currentVersionID,omitempty"`
-	PreviousVersionID   string             `json:"previousVersionID,omitempty"`
-	PublishedURL        string             `json:"publishedURL,omitempty"`
-	TLSStatus           string             `json:"tlsStatus,omitempty"`
-	Platform            string             `json:"platform,omitempty"`
-	ConversationID      string             `json:"conversationID,omitempty"`
-	WorkspacePath       string             `json:"workspacePath,omitempty"`
-	SourceWorkspacePath string             `json:"sourceWorkspacePath,omitempty"`
-	AppWorkspacePath    string             `json:"appWorkspacePath,omitempty"`
-	DraftPath           string             `json:"draftPath,omitempty"`
-	HostSourcePath      string             `json:"hostSourcePath,omitempty"`
-	PreviewID           string             `json:"previewID,omitempty"`
-	PreviewURL          string             `json:"previewURL,omitempty"`
-	PreviewExpiresAt    time.Time          `json:"previewExpiresAt,omitempty"`
-	QualityStatus       string             `json:"qualityStatus,omitempty"`
-	QualityIssueCount   int                `json:"qualityIssueCount,omitempty"`
-	QualitySummary      []string           `json:"qualitySummary,omitempty"`
-	QualityReportPath   string             `json:"qualityReportPath,omitempty"`
-	LastPublishedCommit string             `json:"lastPublishedCommit,omitempty"`
-	RevisionCount       int                `json:"revisionCount"`
-	CreatedAt           time.Time          `json:"createdAt"`
-	UpdatedAt           time.Time          `json:"updatedAt"`
-	UnpublishedAt       time.Time          `json:"unpublishedAt,omitempty"`
-	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
-	LastError           string             `json:"lastError,omitempty"`
-	LiveHTTPStatus      int                `json:"liveHTTPStatus,omitempty"`
+	SiteID                    string             `json:"siteID"`
+	Slug                      string             `json:"slug"`
+	Title                     string             `json:"title"`
+	Owner                     string             `json:"owner,omitempty"`
+	OwnerIdentity             siteIdentity       `json:"ownerIdentity,omitempty"`
+	CreatedBy                 siteIdentity       `json:"createdBy,omitempty"`
+	Collaborators             []siteCollaborator `json:"collaborators,omitempty"`
+	Description               string             `json:"description,omitempty"`
+	Idea                      string             `json:"idea,omitempty"`
+	OriginalPrompt            string             `json:"originalPrompt,omitempty"`
+	Purpose                   string             `json:"purpose,omitempty"`
+	Audience                  string             `json:"audience,omitempty"`
+	Archetype                 string             `json:"archetype,omitempty"`
+	DomainKeywords            []string           `json:"domainKeywords,omitempty"`
+	Status                    string             `json:"status"`
+	Visibility                string             `json:"visibility"`
+	Port                      int                `json:"port"`
+	CurrentVersionID          string             `json:"currentVersionID,omitempty"`
+	PreviousVersionID         string             `json:"previousVersionID,omitempty"`
+	PublishedURL              string             `json:"publishedURL,omitempty"`
+	TLSStatus                 string             `json:"tlsStatus,omitempty"`
+	Platform                  string             `json:"platform,omitempty"`
+	ConversationID            string             `json:"conversationID,omitempty"`
+	WorkspacePath             string             `json:"workspacePath,omitempty"`
+	SourceWorkspacePath       string             `json:"sourceWorkspacePath,omitempty"`
+	SourceBundleWorkspacePath string             `json:"sourceBundleWorkspacePath,omitempty"`
+	AppWorkspacePath          string             `json:"appWorkspacePath,omitempty"`
+	DraftPath                 string             `json:"draftPath,omitempty"`
+	HostSourcePath            string             `json:"hostSourcePath,omitempty"`
+	PreviewID                 string             `json:"previewID,omitempty"`
+	PreviewURL                string             `json:"previewURL,omitempty"`
+	PreviewExpiresAt          time.Time          `json:"previewExpiresAt,omitempty"`
+	QualityStatus             string             `json:"qualityStatus,omitempty"`
+	QualityIssueCount         int                `json:"qualityIssueCount,omitempty"`
+	QualitySummary            []string           `json:"qualitySummary,omitempty"`
+	QualityReportPath         string             `json:"qualityReportPath,omitempty"`
+	LastPublishedCommit       string             `json:"lastPublishedCommit,omitempty"`
+	RevisionCount             int                `json:"revisionCount"`
+	CreatedAt                 time.Time          `json:"createdAt"`
+	UpdatedAt                 time.Time          `json:"updatedAt"`
+	UnpublishedAt             time.Time          `json:"unpublishedAt,omitempty"`
+	DeletedAt                 time.Time          `json:"deletedAt,omitempty"`
+	LastError                 string             `json:"lastError,omitempty"`
+	LiveHTTPStatus            int                `json:"liveHTTPStatus,omitempty"`
 }
 
 type siteCreateRequest struct {
@@ -626,6 +627,10 @@ func (service *Service) serveSiteFromRequest(responseWriter http.ResponseWriter,
 		}
 		site = createdSite
 	}
+	if errorValue := service.claimSiteSourceBundleWorkspacePath(site, payload.SourceWorkspacePath); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	servedSite, errorValue := service.serveSite(request.Context(), site, payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -651,7 +656,7 @@ func validateSiteServeRequest(payload siteServeRequest) error {
 func (service *Service) resolveServedSite(payload siteServeRequest) (*SiteRecord, bool) {
 	reference := strings.TrimSpace(payload.SiteReference)
 	if reference == "" {
-		return nil, true
+		return service.findServeableSiteBySourceBundleWorkspacePath(payload), true
 	}
 	if site := service.findSiteByID(reference); site != nil && site.Status != SiteStatusDeleted {
 		return site, true
@@ -660,6 +665,48 @@ func (service *Service) resolveServedSite(payload siteServeRequest) (*SiteRecord
 		return site, true
 	}
 	return nil, false
+}
+
+func (service *Service) findServeableSiteBySourceBundleWorkspacePath(payload siteServeRequest) *SiteRecord {
+	path := normalizeSiteSourceBundleWorkspacePath(payload.SourceWorkspacePath)
+	if path == "" {
+		return nil
+	}
+	for _, site := range service.siteList() {
+		if normalizeSiteSourceBundleWorkspacePath(site.SourceBundleWorkspacePath) != path {
+			continue
+		}
+		if siteModificationAllowed(site, payload.RequestedBy, payload.Requester, false) {
+			return site
+		}
+	}
+	return nil
+}
+
+func (service *Service) claimSiteSourceBundleWorkspacePath(site *SiteRecord, sourceWorkspacePath string) error {
+	path := normalizeSiteSourceBundleWorkspacePath(sourceWorkspacePath)
+	if path == "" {
+		return nil
+	}
+	for _, otherSite := range service.siteList() {
+		if otherSite.SiteID == site.SiteID || normalizeSiteSourceBundleWorkspacePath(otherSite.SourceBundleWorkspacePath) != path {
+			continue
+		}
+		otherSite.SourceBundleWorkspacePath = ""
+		if errorValue := service.storeSite(otherSite); errorValue != nil {
+			return errorValue
+		}
+	}
+	site.SourceBundleWorkspacePath = path
+	return service.storeSite(site)
+}
+
+func normalizeSiteSourceBundleWorkspacePath(path string) string {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "/" {
+		return trimmedPath
+	}
+	return strings.TrimSuffix(trimmedPath, "/")
 }
 
 func (service *Service) createServedSiteRecord(payload siteServeRequest) (*SiteRecord, error) {
