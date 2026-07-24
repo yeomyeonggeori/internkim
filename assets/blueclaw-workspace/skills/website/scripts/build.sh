@@ -14,6 +14,12 @@ if [ ! -f "$APP_DIRECTORY/scripts/build.ts" ]; then
 	exit 1
 fi
 
+SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if python3 "$SCRIPT_DIRECTORY/validate.py" --structure-unchanged "$PROJECT_ROOT" >/dev/null 2>&1; then
+	echo "No build needed: the app structure matches the scaffold, so the server ships its prebuilt bundle. Content in app/public is served as-is."
+	exit 0
+fi
+
 cd "$APP_DIRECTORY"
 bun scripts/build.ts
 
