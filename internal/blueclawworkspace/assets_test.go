@@ -516,6 +516,34 @@ func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
 	}
 }
 
+func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "calculator", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	skillContent := string(skillDocument)
+	if !strings.Contains(skillContent, "tool-references: terminal.run") {
+		t.Fatal("calculator skill must use the canonical terminal.run tool reference")
+	}
+	if !strings.Contains(skillContent, "/workspace/skills/calculator/scripts/calc.py") {
+		t.Fatal("calculator skill must run the bundled evaluator script")
+	}
+	if strings.Contains(skillContent, "math.calculate") {
+		t.Fatal("calculator skill must not reference the removed math.calculate built-in")
+	}
+
+	evaluatorScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "calculator", "scripts", "calc.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"MAXIMUM_EXPRESSION_LENGTH = 1024", "parentheses_are_balanced", "ast.parse", "ZeroDivisionError"} {
+		if !strings.Contains(string(evaluatorScript), expectedText) {
+			t.Fatalf("calculator evaluator script must include %q", expectedText)
+		}
+	}
+}
+
 func TestPresentationBundlesPackageManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")

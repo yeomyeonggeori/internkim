@@ -1,36 +1,40 @@
 ---
 name: calculator
-description: Calculate explicit arithmetic expressions with math.calculate when the user asks a direct arithmetic question or provides an expression.
+description: Calculate explicit arithmetic expressions exactly when the user asks a direct arithmetic question or provides an expression.
+tool-references: terminal.run
 ---
 
 # Calculator
 
-Use `math.calculate` for explicit arithmetic expressions and exact numeric results.
+Use the bundled deterministic evaluator for precise results, large numbers, and multi-step arithmetic. Do not compute non-trivial arithmetic by hand.
 
-Do not invent a separate calculator operation name. If `math.calculate` is unavailable, answer that the calculator capability is unavailable instead of claiming a calculation operation stopped responding.
+For simple greetings or non-numeric explanations, answer directly without this skill.
 
-For simple greetings or non-numeric explanations, answer directly without using this skill.
+## Workflow
 
-Supported v1 syntax:
-
-- numbers and decimals
-- parentheses
-- `+`, `-`, `*`, `/`, `%`, `^`, `**`
-
-Unsupported v1 syntax:
-
-- functions such as `sqrt(2)`
-- variables
-- imports
-- assignment
-- file, network, or process access
-
-For `1+1=`, call:
+1. Extract the exact arithmetic expression from the request.
+2. Run the evaluator with `terminal.run`:
 
 ```json
 {
-  "expression": "1+1"
+  "command": "python3 /workspace/skills/calculator/scripts/calc.py \"(2+3)*4\"",
+  "workingDirectoryPath": "/workspace"
 }
 ```
 
-Then answer with the result only unless the user asks for explanation.
+3. The script prints one JSON object on stdout. The `result` field is the answer to relay. Answer with the result only unless the user asks for explanation.
+
+## Supported syntax
+
+- numbers and decimals
+- parentheses
+- `+`, `-`, `*`, `/`, `%`
+- `^` and `**` both mean power
+
+## Unsupported syntax
+
+- functions such as `sqrt(2)`
+- variables and assignment
+- text, file, network, or process access
+
+On invalid input the script prints a one-line error to stderr and exits 1. Explain the limitation to the user instead of retrying the same expression.
