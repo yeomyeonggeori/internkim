@@ -138,6 +138,11 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
 		return service.RunScenario(contextValue, logger, request.Scenario, request.WithoutMattermost, request.KeepArtifacts)
+	case ActionUpgradeGate:
+		if strings.TrimSpace(request.Scenario) == "" {
+			return errors.New("upgrade gate requires --scenario")
+		}
+		return service.runPlans(contextValue, logger, service.upgradePathGatePlans(strings.TrimSpace(request.Scenario)))
 	case ActionVerifyRegression:
 		if request.WithoutMattermost {
 			return errors.New("without-mattermost regression is not supported")

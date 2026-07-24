@@ -132,6 +132,26 @@ func (service Service) mattermostTestSettingsPlan() CommandPlan {
 	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065")
 }
 
+func (service Service) upgradePathGatePlans(scenario string) []CommandPlan {
+	plans := service.upPlans(false)
+	plans = append(plans,
+		service.labCommand("vm-ssh", "sudo bash "+quoteShell("/mnt/shared/workspace/lab/scripts/regress-fleet-state.sh")),
+		service.upgradeReleaseApplyPlan(),
+		service.shellPlan("verify api after upgrade", service.verifyCommand("api")),
+		service.blueclawDevSessionPreparePlan(scenario),
+		service.withoutMattermostVirtualSessionPlan(scenario),
+	)
+	return plans
+}
+
+func (service Service) upgradeReleaseApplyPlan() CommandPlan {
+	return service.command(service.options.ExecutablePath, "deploy",
+		"--components", "admind,capabilityd,blueclawPayload,blueclawLLMD",
+		"--board", "lab",
+		"--device-url", service.adminHostURL(),
+	)
+}
+
 func (service Service) withoutMattermostScenarioPlans(scenario string) []CommandPlan {
 	return []CommandPlan{
 		service.prepareContainerKernelPlan(),

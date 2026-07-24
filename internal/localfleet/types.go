@@ -13,6 +13,7 @@ const (
 	ActionReset            = "reset"
 	ActionRunRecipe        = "runRecipe"
 	ActionRunScenario      = "runScenario"
+	ActionUpgradeGate      = "upgradeGate"
 	ActionVerifyRegression = "verifyRegression"
 
 	LLMDModeAuthoritative LLMDMode = "authoritative"
