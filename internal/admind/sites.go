@@ -207,36 +207,45 @@ type siteContentPage struct {
 
 var siteContentReservedPathPrefixes = []string{"/api", "/_", "/fonts"}
 
-func validateSiteContentPages(pages []siteContentPage) error {
+func siteContentPageViolations(pages []siteContentPage) []string {
+	violations := []string{}
 	seenPaths := map[string]bool{}
 	for pageIndex, page := range pages {
 		path := strings.TrimSpace(page.Path)
-		if !strings.HasPrefix(path, "/") {
-			return fmt.Errorf("pages[%d].path must start with /", pageIndex)
+		if pathViolation := siteContentPagePathViolation(pageIndex, path, seenPaths); pathViolation != "" {
+			violations = append(violations, pathViolation)
+		} else {
+			seenPaths[path] = true
 		}
-		for _, reservedPrefix := range siteContentReservedPathPrefixes {
-			if path == reservedPrefix || strings.HasPrefix(path, reservedPrefix+"/") {
-				return fmt.Errorf("pages[%d].path %q is reserved for the site backend", pageIndex, path)
-			}
-		}
-		if seenPaths[path] {
-			return fmt.Errorf("pages[%d].path %q is duplicated", pageIndex, path)
-		}
-		seenPaths[path] = true
 		if strings.TrimSpace(page.Title) == "" {
-			return fmt.Errorf("pages[%d].title is required", pageIndex)
+			violations = append(violations, fmt.Sprintf("pages[%d].title is required", pageIndex))
 		}
 		if len(page.Blocks) == 0 {
-			return fmt.Errorf("pages[%d].blocks must include at least one block", pageIndex)
+			violations = append(violations, fmt.Sprintf("pages[%d].blocks must include at least one block", pageIndex))
 		}
-		if errorValue := validateSiteContentBlocks(page.Blocks); errorValue != nil {
-			return fmt.Errorf("pages[%d]: %s", pageIndex, errorValue.Error())
+		for _, blockViolation := range siteContentBlockViolations(page.Blocks) {
+			violations = append(violations, fmt.Sprintf("pages[%d]: %s", pageIndex, blockViolation))
 		}
 	}
 	if !seenPaths["/"] {
-		return errors.New("pages must include a / page")
+		violations = append(violations, "pages must include a / page")
 	}
-	return nil
+	return violations
+}
+
+func siteContentPagePathViolation(pageIndex int, path string, seenPaths map[string]bool) string {
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Sprintf("pages[%d].path must start with /", pageIndex)
+	}
+	for _, reservedPrefix := range siteContentReservedPathPrefixes {
+		if path == reservedPrefix || strings.HasPrefix(path, reservedPrefix+"/") {
+			return fmt.Sprintf("pages[%d].path %q is reserved for the site backend", pageIndex, path)
+		}
+	}
+	if seenPaths[path] {
+		return fmt.Sprintf("pages[%d].path %q is duplicated", pageIndex, path)
+	}
+	return ""
 }
 
 type sitePublishRequest struct {
@@ -3461,59 +3470,79 @@ func siteContentJSONDocument(content *siteContent) string {
 }
 
 func validateSiteContent(content *siteContent) error {
-	if content == nil {
-		return errors.New("content is required")
+	violations := siteContentViolations(content)
+	if len(violations) == 0 {
+		return nil
 	}
+	return errors.New(strings.Join(violations, "; "))
+}
+
+func siteContentViolations(content *siteContent) []string {
+	if content == nil {
+		return []string{"content is required"}
+	}
+	violations := []string{}
 	if strings.TrimSpace(content.SiteName) == "" {
-		return errors.New("siteName is required")
+		violations = append(violations, "siteName is required")
 	}
 	if len(content.Pages) > 0 {
-		return validateSiteContentPages(content.Pages)
+		return append(violations, siteContentPageViolations(content.Pages)...)
 	}
 	if len(content.Blocks) > 0 {
-		return validateSiteContentBlocks(content.Blocks)
+		return append(violations, siteContentBlockViolations(content.Blocks)...)
 	}
 	if len(content.Sections) == 0 {
-		return errors.New("sections or blocks must include at least one entry")
+		return append(violations, "sections or blocks must include at least one entry")
 	}
-	for index, section := range content.Sections {
+	return append(violations, siteContentSectionViolations(content.Sections)...)
+}
+
+func siteContentSectionViolations(sections []siteContentSection) []string {
+	violations := []string{}
+	for index, section := range sections {
 		if strings.TrimSpace(section.Title) == "" {
-			return fmt.Errorf("sections[%d].title is required", index)
+			violations = append(violations, fmt.Sprintf("sections[%d].title is required", index))
 		}
 		if strings.TrimSpace(string(section.Body)) == "" {
-			return fmt.Errorf("sections[%d].body is required", index)
+			violations = append(violations, fmt.Sprintf("sections[%d].body is required", index))
 		}
 	}
-	return nil
+	return violations
 }
 
 var siteContentKnownBackdrops = map[string]bool{"mesh": true, "aurora": true, "grain": true, "grid": true, "dots": true}
 
-func validateSiteContentBlocks(blocks []siteContentBlock) error {
+func siteContentBlockViolations(blocks []siteContentBlock) []string {
+	violations := []string{}
 	for blockIndex, block := range blocks {
 		variant := strings.TrimSpace(block.Variant)
 		if variant == "" {
-			return fmt.Errorf("blocks[%d].variant is required", blockIndex)
-		}
-		if !siteContentKnownBlockVariants[variant] {
-			return fmt.Errorf("blocks[%d].variant %q is not a known block variant", blockIndex, variant)
+			violations = append(violations, fmt.Sprintf("blocks[%d].variant is required", blockIndex))
+		} else if !siteContentKnownBlockVariants[variant] {
+			violations = append(violations, fmt.Sprintf("blocks[%d].variant %q is not a known block variant", blockIndex, variant))
 		}
 		if backdrop := strings.TrimSpace(block.Backdrop); backdrop != "" && !siteContentKnownBackdrops[backdrop] {
-			return fmt.Errorf("blocks[%d].backdrop %q does not exist; choose mesh, aurora, grain, grid, or dots", blockIndex, backdrop)
+			violations = append(violations, fmt.Sprintf("blocks[%d].backdrop %q does not exist; choose mesh, aurora, grain, grid, or dots", blockIndex, backdrop))
 		}
 		if image := strings.TrimSpace(block.Image); strings.HasPrefix(image, "http://") || strings.HasPrefix(image, "https://") {
-			return fmt.Errorf("blocks[%d].image hotlinks an external URL; fetch the photo into app/public/images/ with scripts/fetch_image.py and reference /images/<name>", blockIndex)
+			violations = append(violations, fmt.Sprintf("blocks[%d].image hotlinks an external URL; fetch the photo into app/public/images/ with scripts/fetch_image.py and reference /images/<name>", blockIndex))
 		}
-		for itemIndex, item := range block.Items {
-			if strings.TrimSpace(item.Title) == "" {
-				return fmt.Errorf("blocks[%d].items[%d].title is required", blockIndex, itemIndex)
-			}
-			if strings.TrimSpace(string(item.Body)) == "" {
-				return fmt.Errorf("blocks[%d].items[%d].body is required", blockIndex, itemIndex)
-			}
+		violations = append(violations, siteContentBlockItemViolations(blockIndex, block.Items)...)
+	}
+	return violations
+}
+
+func siteContentBlockItemViolations(blockIndex int, items []siteContentBlockItem) []string {
+	violations := []string{}
+	for itemIndex, item := range items {
+		if strings.TrimSpace(item.Title) == "" {
+			violations = append(violations, fmt.Sprintf("blocks[%d].items[%d].title is required", blockIndex, itemIndex))
+		}
+		if strings.TrimSpace(string(item.Body)) == "" {
+			violations = append(violations, fmt.Sprintf("blocks[%d].items[%d].body is required", blockIndex, itemIndex))
 		}
 	}
-	return nil
+	return violations
 }
 
 // validateSiteApplicationContentFile validates app/public/site-content.json
