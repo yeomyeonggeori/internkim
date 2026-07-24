@@ -153,7 +153,7 @@ func TestSiteListProjectsCanonicalEntries(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/admin/api/sites" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"alpha","title":"Alpha","status":"published","publishedURL":"https://alpha.example","updatedAt":"2026-07-19T12:00:00Z","owner":"internal-only","hostSourcePath":"/root/sites/site-1"},{"siteID":"site-2","slug":"beta","title":"Beta","status":"draft"},{"siteID":"site-3","slug":"gone","title":"Gone","status":"deleting"}]}`), nil
+			return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"alpha","title":"Alpha","status":"published","publishedURL":"https://alpha.example","sourceBundleWorkspacePath":"~/sites/alpha","updatedAt":"2026-07-19T12:00:00Z","owner":"internal-only","hostSourcePath":"/root/sites/site-1"},{"siteID":"site-2","slug":"beta","title":"Beta","status":"draft"},{"siteID":"site-3","slug":"gone","title":"Gone","status":"deleting"}]}`), nil
 		})},
 	}
 
@@ -204,7 +204,7 @@ func TestSiteListReturnsTypedNotFoundForUnknownReference(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"existing","title":"Existing","status":"draft"}]}`), nil
+			return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"existing","title":"Existing","status":"draft","sourceBundleWorkspacePath":"~/sites/existing"}]}`), nil
 		})},
 	}
 
@@ -218,6 +218,9 @@ func TestSiteListReturnsTypedNotFoundForUnknownReference(t *testing.T) {
 	result := string(response.Result)
 	if !strings.Contains(result, `"status":"not_found"`) || !strings.Contains(result, `"siteReference":"brand-new-site"`) || !strings.Contains(result, `"slug":"existing"`) {
 		t.Fatalf("expected not_found with candidates, got %s", result)
+	}
+	if !strings.Contains(result, `"sourceWorkspacePath":"~/sites/existing"`) {
+		t.Fatalf("expected candidates to expose the serve source workspace path, got %s", result)
 	}
 	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "site_not_found" || response.FailureStage != "resolution" {
 		t.Fatalf("expected typed not_found response, got %+v", response)
