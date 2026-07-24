@@ -155,9 +155,15 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	}
 
 	draftStep := scenario.Steps[0]
-	forbiddenServeCount, isForbidden := draftStep.ExpectedExactToolCallCounts["site.serve"]
-	if !isForbidden || forbiddenServeCount != 0 || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal.run") {
-		t.Fatalf("step 1 must draft through the scaffold script with no site tool: %#v", draftStep)
+	forbidsPublish := false
+	for _, eventCount := range draftStep.ExpectedEventCounts {
+		if eventCount.Name == "tool.site.serve.requested" && eventCount.BodyFragment == `"mode":"publish"` &&
+			eventCount.Exact && !eventCount.Advisory && eventCount.Count == 0 {
+			forbidsPublish = true
+		}
+	}
+	if !forbidsPublish || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal.run") {
+		t.Fatalf("step 1 must draft through the scaffold script without publishing: %#v", draftStep)
 	}
 
 	if !hasWebsiteScenarioEventCount(scenario.Steps[1], "tool.site.serve.result", `"effect":"previewed"`, false) {
