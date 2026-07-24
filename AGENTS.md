@@ -97,6 +97,12 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   an explicit request instead of tuning it. No behavior beats a wrong
   automatic behavior. A new automatic behavior must state its trigger
   evidence, its blast radius, and how it is turned off.
+- One source of truth per shared vocabulary or contract. A value list
+  (emoji names, enum options, capability names, component sets) consumed by
+  more than one role, package, or service is defined exactly once and derived
+  everywhere else; when a consumer is in another language, a conformance test
+  reads the canonical source and fails on drift. Parallel hand-kept copies are
+  a defect — merge them on discovery instead of extending one of them.
 
 ## Runtime Test Hygiene
 
