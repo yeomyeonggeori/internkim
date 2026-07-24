@@ -1007,6 +1007,40 @@ func TestValidateSiteContentAcceptsBlocksOrSectionsButRequiresOne(t *testing.T) 
 	}
 }
 
+func TestValidateSiteContentReportsAllViolationsInOneError(t *testing.T) {
+	sectionError := validateSiteContent(&siteContent{Sections: []siteContentSection{{Title: "소개", Body: ""}}})
+	if sectionError == nil || sectionError.Error() != "siteName is required; sections[0].body is required" {
+		t.Fatalf("expected aggregated section violations, got %v", sectionError)
+	}
+
+	pageError := validateSiteContent(&siteContent{Pages: []siteContentPage{{Path: "/about", Title: "", Blocks: nil}}})
+	for _, expectedViolation := range []string{
+		"siteName is required",
+		"pages[0].title is required",
+		"pages[0].blocks must include at least one block",
+		"pages must include a / page",
+	} {
+		if pageError == nil || !strings.Contains(pageError.Error(), expectedViolation) {
+			t.Fatalf("expected aggregated error containing %q, got %v", expectedViolation, pageError)
+		}
+	}
+
+	blockError := validateSiteContent(&siteContent{SiteName: "Blocks", Blocks: []siteContentBlock{
+		{Variant: "testimonial", Backdrop: "neon"},
+		{Variant: "faq", Items: []siteContentBlockItem{{Title: "", Body: ""}}},
+	}})
+	for _, expectedViolation := range []string{
+		`blocks[0].variant "testimonial" is not a known block variant`,
+		`blocks[0].backdrop "neon" does not exist`,
+		"blocks[1].items[0].title is required",
+		"blocks[1].items[0].body is required",
+	} {
+		if blockError == nil || !strings.Contains(blockError.Error(), expectedViolation) {
+			t.Fatalf("expected aggregated error containing %q, got %v", expectedViolation, blockError)
+		}
+	}
+}
+
 func TestSiteCreateRejectsDuplicateSlug(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	_, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
