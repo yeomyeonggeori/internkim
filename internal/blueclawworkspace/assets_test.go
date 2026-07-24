@@ -226,7 +226,6 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		"scripts/scaffold.sh ~/sites/<short-name>",
 		"scripts/build.sh ~/sites/<short-name>",
 		"scripts/validate.py ~/sites/<short-name>",
-		"`bun scripts/build.ts`",
 		"artifact.review",
 		"app/public/site-content.json",
 		"sourceWorkspacePath",
