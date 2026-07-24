@@ -354,6 +354,10 @@ func (service *Service) syncBlueclawWorkspaceImageForTarget(ctx context.Context,
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: stop blueclaw before workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
+	if errorValue := service.waitForBlueclawWorkspaceImageRelease(ctx, target.WorkspaceImagePath); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("%s: wait for workspace image release: %w", target.Name, errorValue)
+	}
 	if errorValue := service.repairWorkspaceImageIfUnhealthy(ctx, jobID, target); errorValue != nil {
 		return errorValue
 	}
@@ -393,6 +397,10 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	service.drainBlueclawTasksBeforeStop(ctx, target, drainTimeoutDefault)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: stop blueclaw before payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	if errorValue := service.waitForBlueclawWorkspaceImageRelease(ctx, target.WorkspaceImagePath); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("%s: wait for workspace image release: %w", target.Name, errorValue)
 	}
 	if errorValue := service.repairWorkspaceImageIfUnhealthy(ctx, jobID, target); errorValue != nil {
 		return errorValue
@@ -839,6 +847,57 @@ func hostWorkspacePayloadSyncCommandForTarget(artifactPath string, target bluecl
 		"&& rsync -a --delete", quoteBlueclawUpdateShellValue(sourcePath + "/"), quoteBlueclawUpdateShellValue(targetPath + "/"),
 		"&& chown -R blueclaw:blueclaw", quoteBlueclawUpdateShellValue(targetPath),
 	}, " ")
+}
+
+var blueclawWorkspaceImageReleaseWait = 60 * time.Second
+var blueclawWorkspaceImageHolderProbe = blueclawWorkspaceImageHolder
+
+func (service *Service) waitForBlueclawWorkspaceImageRelease(ctx context.Context, workspaceImagePath string) error {
+	deadline := time.Now().Add(blueclawWorkspaceImageReleaseWait)
+	for {
+		holderDescription, isHeld := blueclawWorkspaceImageHolderProbe(workspaceImagePath)
+		if !isHeld {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("workspace image %s is still held by %s after the release wait", workspaceImagePath, holderDescription)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func blueclawWorkspaceImageHolder(workspaceImagePath string) (string, bool) {
+	workspaceInformation, errorValue := os.Stat(workspaceImagePath)
+	if errorValue != nil {
+		return "", false
+	}
+	processEntries, errorValue := os.ReadDir("/proc")
+	if errorValue != nil {
+		return "", false
+	}
+	for _, processEntry := range processEntries {
+		if _, errorValue := strconv.Atoi(processEntry.Name()); errorValue != nil {
+			continue
+		}
+		descriptorDirectory := filepath.Join("/proc", processEntry.Name(), "fd")
+		descriptorEntries, errorValue := os.ReadDir(descriptorDirectory)
+		if errorValue != nil {
+			continue
+		}
+		for _, descriptorEntry := range descriptorEntries {
+			descriptorInformation, errorValue := os.Stat(filepath.Join(descriptorDirectory, descriptorEntry.Name()))
+			if errorValue != nil || !os.SameFile(workspaceInformation, descriptorInformation) {
+				continue
+			}
+			processName, _ := os.ReadFile(filepath.Join("/proc", processEntry.Name(), "comm"))
+			return "process " + processEntry.Name() + " (" + strings.TrimSpace(string(processName)) + ")", true
+		}
+	}
+	return "", false
 }
 
 func stopBlueclawPayloadTargetCommand(target blueclawPayloadInstallTarget) string {

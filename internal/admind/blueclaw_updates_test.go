@@ -510,3 +510,45 @@ func TestRepairWorkspaceImageOnlyRunsOnCorruptProbe(t *testing.T) {
 		})
 	}
 }
+
+func TestWaitForBlueclawWorkspaceImageReleaseWaitsForTheHolderToExit(t *testing.T) {
+	originalWait := blueclawWorkspaceImageReleaseWait
+	originalProbe := blueclawWorkspaceImageHolderProbe
+	blueclawWorkspaceImageReleaseWait = 30 * time.Second
+	remainingHeldProbes := 2
+	blueclawWorkspaceImageHolderProbe = func(string) (string, bool) {
+		if remainingHeldProbes > 0 {
+			remainingHeldProbes--
+			return "process 123 (firecracker)", true
+		}
+		return "", false
+	}
+	t.Cleanup(func() {
+		blueclawWorkspaceImageReleaseWait = originalWait
+		blueclawWorkspaceImageHolderProbe = originalProbe
+	})
+
+	service := &Service{}
+	if errorValue := service.waitForBlueclawWorkspaceImageRelease(context.Background(), "/tmp/workspace.ext4"); errorValue != nil {
+		t.Fatalf("expected the wait to succeed once the holder exits: %v", errorValue)
+	}
+}
+
+func TestWaitForBlueclawWorkspaceImageReleaseNamesAPersistentHolder(t *testing.T) {
+	originalWait := blueclawWorkspaceImageReleaseWait
+	originalProbe := blueclawWorkspaceImageHolderProbe
+	blueclawWorkspaceImageReleaseWait = 10 * time.Millisecond
+	blueclawWorkspaceImageHolderProbe = func(string) (string, bool) {
+		return "process 123 (firecracker)", true
+	}
+	t.Cleanup(func() {
+		blueclawWorkspaceImageReleaseWait = originalWait
+		blueclawWorkspaceImageHolderProbe = originalProbe
+	})
+
+	service := &Service{}
+	errorValue := service.waitForBlueclawWorkspaceImageRelease(context.Background(), "/tmp/workspace.ext4")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "process 123 (firecracker)") {
+		t.Fatalf("expected a holder-naming error, got %v", errorValue)
+	}
+}
