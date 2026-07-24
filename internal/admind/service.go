@@ -333,6 +333,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.reconcileReleaseLLMDBootstrap(ctx); errorValue != nil {
 		return fmt.Errorf("reconcile LLMD release bootstrap: %w", errorValue)
 	}
+	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
