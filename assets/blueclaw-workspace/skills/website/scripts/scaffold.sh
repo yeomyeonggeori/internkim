@@ -58,11 +58,11 @@ substitute_placeholders() {
 	printf '%s\n' "$content" > "$file_path"
 }
 
-while IFS= read -r -d '' template_file; do
+find "$TARGET_PROJECT_ROOT" -type f -print0 | while IFS= read -r -d '' template_file; do
 	if grep -q "__SITE_PACKAGE_NAME__\|__SITE_TITLE__" "$template_file"; then
 		substitute_placeholders "$template_file"
 	fi
-done < <(find "$TARGET_PROJECT_ROOT" -type f -print0)
+done
 
 echo "Scaffolded site project at $TARGET_PROJECT_ROOT (title: $SITE_TITLE, package: $PACKAGE_NAME)."
 echo "Next: fill app/public/site-content.json, rewrite DESIGN.md (remove the TODO(design) marker), then run build.sh and validate.py."
