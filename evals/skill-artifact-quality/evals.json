@@ -112,8 +112,7 @@
       "outputFileName": null,
       "sourceFile": "fixtures/site-mealkit-reservation.md",
       "expectedTools": [
-        "site.create",
-        "site.publish"
+        "site.serve"
       ],
       "requiredText": [
         "Banchan Table",
@@ -206,8 +205,7 @@
       "outputFileName": null,
       "sourceFile": "fixtures/site-pottery-studio-multipage.md",
       "expectedTools": [
-        "site.create",
-        "site.publish"
+        "site.serve"
       ],
       "requiredText": [
         "새벽가마 도예공방",
