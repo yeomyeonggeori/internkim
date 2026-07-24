@@ -829,6 +829,10 @@ func (service *Service) syncReleaseSkillsWorkspace(ctx context.Context) error {
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("sync blueclaw skills workspace: stop %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
+	if errorValue := service.waitForBlueclawWorkspaceImageRelease(ctx, target.WorkspaceImagePath); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("sync blueclaw skills workspace: %w", errorValue)
+	}
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawWorkspaceResizeCommand(target.WorkspaceImagePath)); errorValue != nil {
 		return fmt.Errorf("sync blueclaw skills workspace: resize workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
