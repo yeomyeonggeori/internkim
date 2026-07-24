@@ -24,19 +24,20 @@ type siteAppInput struct {
 }
 
 type siteAppRecord struct {
-	SiteID           string          `json:"siteID"`
-	Slug             string          `json:"slug"`
-	Title            string          `json:"title"`
-	Description      string          `json:"description"`
-	Purpose          string          `json:"purpose"`
-	Archetype        string          `json:"archetype"`
-	Owner            string          `json:"owner"`
-	OwnerIdentity    siteAppIdentity `json:"ownerIdentity"`
-	Status           string          `json:"status"`
-	PublishedURL     string          `json:"publishedURL"`
-	PreviewURL       string          `json:"previewURL"`
-	CurrentVersionID string          `json:"currentVersionID"`
-	UpdatedAt        time.Time       `json:"updatedAt"`
+	SiteID                    string          `json:"siteID"`
+	Slug                      string          `json:"slug"`
+	Title                     string          `json:"title"`
+	Description               string          `json:"description"`
+	Purpose                   string          `json:"purpose"`
+	Archetype                 string          `json:"archetype"`
+	Owner                     string          `json:"owner"`
+	OwnerIdentity             siteAppIdentity `json:"ownerIdentity"`
+	Status                    string          `json:"status"`
+	PublishedURL              string          `json:"publishedURL"`
+	PreviewURL                string          `json:"previewURL"`
+	SourceBundleWorkspacePath string          `json:"sourceBundleWorkspacePath"`
+	CurrentVersionID          string          `json:"currentVersionID"`
+	UpdatedAt                 time.Time       `json:"updatedAt"`
 }
 
 type siteAppListResponse struct {
@@ -504,16 +505,17 @@ func siteAppCandidateSummaries(sites []siteAppRecord) []map[string]any {
 	summaries := []map[string]any{}
 	for _, site := range sites {
 		summaries = append(summaries, map[string]any{
-			"siteID":       site.SiteID,
-			"slug":         site.Slug,
-			"title":        site.Title,
-			"description":  site.Description,
-			"purpose":      site.Purpose,
-			"archetype":    site.Archetype,
-			"owner":        firstNonEmptySiteString(site.OwnerIdentity.DisplayName, site.Owner),
-			"publishedURL": site.PublishedURL,
-			"previewURL":   site.PreviewURL,
-			"updatedAt":    site.UpdatedAt,
+			"siteID":              site.SiteID,
+			"slug":                site.Slug,
+			"title":               site.Title,
+			"description":         site.Description,
+			"purpose":             site.Purpose,
+			"archetype":           site.Archetype,
+			"owner":               firstNonEmptySiteString(site.OwnerIdentity.DisplayName, site.Owner),
+			"publishedURL":        site.PublishedURL,
+			"previewURL":          site.PreviewURL,
+			"sourceWorkspacePath": site.SourceBundleWorkspacePath,
+			"updatedAt":           site.UpdatedAt,
 		})
 	}
 	return summaries
