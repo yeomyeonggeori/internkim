@@ -147,20 +147,74 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	hasExactCreateEffect := false
-	for _, eventCount := range scenario.Steps[0].ExpectedEventCounts {
-		if eventCount.Name == "tool.site.create.result" && eventCount.BodyFragment == `"effect":"created"` {
-			hasExactCreateEffect = eventCount.Exact && !eventCount.Advisory && eventCount.Count == 1
+	if len(scenario.Steps) != 5 {
+		t.Fatalf("expected draft, preview, publish, republish, and unserve steps, got %d", len(scenario.Steps))
+	}
+	if slices.Contains(scenario.AllowedTools, "site.create") || !slices.Contains(scenario.AllowedTools, "site.serve") {
+		t.Fatalf("unexpected site tool surface: %#v", scenario.AllowedTools)
+	}
+
+	draftStep := scenario.Steps[0]
+	forbiddenServeCount, isForbidden := draftStep.ExpectedExactToolCallCounts["site.serve"]
+	if !isForbidden || forbiddenServeCount != 0 || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal.run") {
+		t.Fatalf("step 1 must draft through the scaffold script with no site tool: %#v", draftStep)
+	}
+
+	if !hasWebsiteScenarioEventCount(scenario.Steps[1], "tool.site.serve.result", `"effect":"previewed"`, false) {
+		t.Fatalf("step 2 does not require the previewed serve effect: %#v", scenario.Steps[1])
+	}
+	for _, publishStepIndex := range []int{2, 3} {
+		step := scenario.Steps[publishStepIndex]
+		if !hasWebsiteScenarioEventCount(step, "tool.site.serve.requested", `"mode":"publish"`, true) {
+			t.Fatalf("step %d does not require exactly one publish-mode serve: %#v", publishStepIndex+1, step)
+		}
+		if !hasWebsiteScenarioEventCount(step, "tool.site.serve.result", `"effect":"published"`, false) {
+			t.Fatalf("step %d does not require the published serve effect: %#v", publishStepIndex+1, step)
 		}
 	}
-	if !hasExactCreateEffect {
-		t.Fatalf("step 1 does not require exactly one site creation effect: %#v", scenario.Steps[0])
+	if !hasWebsiteScenarioEventCount(scenario.Steps[3], "tool.site.serve.requested", `"siteReference":`, false) {
+		t.Fatalf("step 4 does not require updating the existing site through siteReference: %#v", scenario.Steps[3])
 	}
+
+	unserveStep := scenario.Steps[4]
+	if unserveStep.ApprovalAction != mattermostScenarioApprovalApprove ||
+		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "confirmation.requested") ||
+		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "approval.executed") ||
+		!containsMattermostScenarioString(unserveStep.ExpectedToolCalls, "terminal.run") ||
+		len(unserveStep.ForbiddenWorkspaceFiles) == 0 {
+		t.Fatalf("step 5 must unserve with approval and remove workspace files explicitly: %#v", unserveStep)
+	}
+	hasExactUnserveResult := false
+	for _, eventCount := range unserveStep.ExpectedEventCounts {
+		if eventCount.Name == "tool.site.unserve.result" && eventCount.OutputFragment == "unserved" {
+			hasExactUnserveResult = eventCount.Exact && !eventCount.Advisory && eventCount.Count == 1
+		}
+	}
+	if !hasExactUnserveResult {
+		t.Fatalf("step 5 does not require exactly one unserve result: %#v", unserveStep)
+	}
+
 	for stepIndex, step := range scenario.Steps[1:] {
 		if !strings.Contains(step.Prompt, "브릿지웍스 상담 안내 사이트") {
 			t.Fatalf("step %d does not identify the site independently: %q", stepIndex+2, step.Prompt)
 		}
 	}
+}
+
+func hasWebsiteScenarioEventCount(step mattermostScenarioStep, eventName string, bodyFragment string, requiresExact bool) bool {
+	for _, eventCount := range step.ExpectedEventCounts {
+		if eventCount.Name != eventName || eventCount.BodyFragment != bodyFragment {
+			continue
+		}
+		if eventCount.Advisory || eventCount.Count != 1 {
+			continue
+		}
+		if requiresExact && !eventCount.Exact {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {

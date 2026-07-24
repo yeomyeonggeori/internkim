@@ -217,14 +217,103 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"source of truth", "source checklist", "archetype", "`bun scripts/build.ts`", "artifact.review", "app/public/site-content.json", ".internkim/artifact-brief.md", "ambiguous", "site.publish", "site.status", "site.preview", "workspace health", "dark navy shell", "file.edit", "siteReference", "sourceSHA256"} {
+	for _, expectedText := range []string{
+		"source of truth",
+		"source checklist",
+		"site.serve",
+		"site.list",
+		"site.unserve",
+		"scripts/scaffold.sh ~/sites/<short-name>",
+		"scripts/build.sh ~/sites/<short-name>",
+		"scripts/validate.py ~/sites/<short-name>",
+		"`bun scripts/build.ts`",
+		"artifact.review",
+		"app/public/site-content.json",
+		"sourceWorkspacePath",
+		`"mode": "preview"`,
+		`mode: "publish"`,
+		"TODO(design)",
+		"colors, typography, rounded, spacing, components",
+		"dark navy shell",
+		"file.edit",
+		"siteReference",
+		"publishedURL",
+		"sourceSHA256",
+	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("website must document managed scaffold contract %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "warm limestone", "green secondary accents", "amber tertiary"} {
+	for _, forbiddenText := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "warm limestone", "green secondary accents", "amber tertiary"} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("website must not document stale site workspace pattern %q", forbiddenText)
+		}
+	}
+}
+
+func TestWebsiteSkillBundlesManagedScaffoldAndScripts(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website")
+
+	for _, scriptName := range []string{"scaffold.sh", "build.sh", "validate.py"} {
+		scriptInfo, errorValue := os.Stat(filepath.Join(skillPath, "scripts", scriptName))
+		if errorValue != nil {
+			t.Fatalf("website skill must bundle scripts/%s: %v", scriptName, errorValue)
+		}
+		if scriptInfo.Mode()&0o111 == 0 {
+			t.Fatalf("website skill scripts/%s must be executable", scriptName)
+		}
+	}
+
+	scaffoldPath := filepath.Join(skillPath, "assets", "scaffold")
+	designDocument, errorValue := os.ReadFile(filepath.Join(scaffoldPath, "DESIGN.md"))
+	if errorValue != nil {
+		t.Fatalf("website scaffold must seed DESIGN.md: %v", errorValue)
+	}
+	for _, expectedText := range []string{"__SITE_TITLE__", "TODO(design)", "colors:", "typography:", "rounded:", "spacing:", "components:"} {
+		if !strings.Contains(string(designDocument), expectedText) {
+			t.Fatalf("website scaffold DESIGN.md seed must contain %q", expectedText)
+		}
+	}
+
+	packageDocument, errorValue := os.ReadFile(filepath.Join(scaffoldPath, "app", "package.json"))
+	if errorValue != nil {
+		t.Fatalf("website scaffold must include the app template: %v", errorValue)
+	}
+	for _, expectedText := range []string{"__SITE_PACKAGE_NAME__", `"build": "bun scripts/build.ts"`} {
+		if !strings.Contains(string(packageDocument), expectedText) {
+			t.Fatalf("website scaffold app/package.json must contain %q", expectedText)
+		}
+	}
+
+	for _, templatePath := range []string{
+		filepath.Join("app", "scripts", "build.ts"),
+		filepath.Join("app", "public", "site-content.json"),
+		filepath.Join("app", "src", "App.tsx"),
+		filepath.Join("app", "src", "site-content.ts"),
+	} {
+		if _, errorValue := os.Stat(filepath.Join(scaffoldPath, templatePath)); errorValue != nil {
+			t.Fatalf("website scaffold must include %s: %v", templatePath, errorValue)
+		}
+	}
+
+	scaffoldScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "scaffold.sh"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{"__SITE_PACKAGE_NAME__", "__SITE_TITLE__", "&amp;", "already exists"} {
+		if !strings.Contains(string(scaffoldScript), expectedText) {
+			t.Fatalf("website scaffold script must perform admind-equivalent instantiation, missing %q", expectedText)
+		}
+	}
+
+	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{`["colors", "typography", "rounded", "spacing", "components"]`, "TODO(design)", "build-quality", "stale"} {
+		if !strings.Contains(string(validateScript), expectedText) {
+			t.Fatalf("website validate script must enforce the pre-serve gate, missing %q", expectedText)
 		}
 	}
 }
@@ -386,12 +475,12 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: terminal.run file.read file.write file.edit browser.open browser.snapshot browser.screenshot browser.click artifact.review site.create site.status site.preview site.publish site.delete"
+	expectedToolReferences := "tool-references: terminal.run file.read file.write file.edit browser.open browser.snapshot browser.screenshot browser.click artifact.review site.serve site.list site.unserve"
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
-	for _, removedToolName := range []string{"site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
-		if strings.Contains(string(siteSkillDocument), " "+removedToolName) {
+	for _, removedToolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
+		if strings.Contains(string(siteSkillDocument), removedToolName) {
 			t.Fatalf("website skill must not reference %q", removedToolName)
 		}
 	}
